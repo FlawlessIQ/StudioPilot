@@ -88,7 +88,7 @@ export function RecordFinalPayment({
           It closes the job on your word, and the audit log will show that you
           vouched for it.
           {" "}{balanceLabel
-            ? ` Records ${balanceLabel} — the balance on the package the couple accepted.`
+            ? ` Records ${balanceLabel} — the balance on what the couple accepted.`
             : " The amount comes from the proposal they accepted."}
         </p>
         {standingInvoice ? (

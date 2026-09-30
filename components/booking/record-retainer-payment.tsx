@@ -93,8 +93,8 @@ export function RecordRetainerPayment({
         <p>
           StudioCue records this as your attestation, not a confirmed payment.
           It books the job on your word, and the audit log will show that you
-          vouched for it. Records {retainerLabel} — the retainer on the package
-          the couple accepted.
+          vouched for it. Records {retainerLabel} — the retainer on what the
+          couple accepted.
         </p>
         {/* Said plainly because it is the one thing this action does not do.
             Marking the invoice paid here settles StudioCue's record of it; the

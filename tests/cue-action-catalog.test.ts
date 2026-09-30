@@ -111,6 +111,10 @@ const REACHED: Record<string, string> = {
   attachImportedSignedCopy: "ExistingBookingForm", bringImportedBookingLive: "ImportedBookingBanner",
   // Planning
   assignQuestionnaire: "\"assignQuestionnaire\"",
+  // After it went out (questionnaire-response-actions.tsx, mounted by QuestionnaireCard).
+  saveQuestionnaire: "QuestionnaireResponseActions", reopenQuestionnaire: "QuestionnaireResponseActions",
+  withdrawQuestionnaire: "QuestionnaireResponseActions", resendQuestionnaire: "QuestionnaireResponseActions",
+  approveSchedule: "RecordTimelineAnswer", refreshRunOfShowShares: "VendorReshareBanner",
   createQuestionnaireTemplate: "/studio/questionnaires", updateQuestionnaireTemplate: "/studio/questionnaires",
   saveTimingRule: "TimingRuleEditor", createVendor: "\"createVendor\"", updateVendor: "VendorRecordActions",
   archiveVendor: "\"archiveVendor\"", publishSchedule: "AiScheduleGenerator", setTimelineAuthority: "TimelineAuthorityPanel",
@@ -165,7 +169,7 @@ const REACHED: Record<string, string> = {
 /** Commands that are not a studio user's to take, and why. */
 const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // The couple's own acts, in their portal.
-  approveSchedule: "couple", saveQuestionnaire: "couple", markReviewOpened: "couple", accept: "couple or invitee", preview: "invitee",
+  markReviewOpened: "couple", accept: "couple or invitee", preview: "invitee",
   status_batch: "read by the clients list, not an act",
   // H2 one-send agreement: behind a per-studio platform flag until counsel has
   // seen the two-signature ceremony, so not offered through Cue yet.

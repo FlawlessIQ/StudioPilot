@@ -637,7 +637,8 @@ export function projectJourney(input: JourneyInput): {
   // sent it and the studio has nothing. It stays the studio's to chase.
   const formEmptyButSubmitted = formSubmitted && !input.questionnaireHasAnswers;
   const formDone = formSubmitted && input.questionnaireHasAnswers;
-  const formWaiting = ["assigned", "not_started", "in_progress"].includes(
+  // Reopened: the couple is changing a form they sent, so it is theirs again.
+  const formWaiting = ["assigned", "not_started", "in_progress", "reopened"].includes(
     input.questionnaireStatus ?? "",
   );
   push({

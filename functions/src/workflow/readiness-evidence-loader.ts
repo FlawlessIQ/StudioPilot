@@ -80,7 +80,16 @@ export async function loadReadinessEvidence(
       (left, right) =>
         Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
     )[0];
-  const questionnaire = questionnaires.docs[0];
+  // A withdrawn form is not the couple's questionnaire, and any other copy
+  // they sent back is the one that counts.
+  const liveQuestionnaires = questionnaires.docs.filter(
+    (document) =>
+      !document.get("archivedAt") && document.get("status") !== "withdrawn",
+  );
+  const questionnaire =
+    liveQuestionnaires.find((document) =>
+      ["submitted", "locked"].includes(text(document.get("status"))),
+    ) ?? liveQuestionnaires[0];
   const ownProject = project.exists && project.get("tenantId") === tenantId;
   // Every package on the job, so a photo + video wedding needs its
   // videographer as well as its photographers (see crewDemand).

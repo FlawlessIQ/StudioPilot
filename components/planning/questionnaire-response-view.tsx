@@ -6,6 +6,7 @@ import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { demoTenantDocuments } from "@/components/live/tenant-records";
 import { FileLinks } from "@/components/documents/file-link";
+import { QuestionnaireResponseActions } from "@/components/planning/questionnaire-response-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { fileAnswerRefs } from "@/features/documents/file-ref";
@@ -40,7 +41,8 @@ function when(value: unknown): string | null {
  * The Questionnaires list was a column of rows that opened nothing: a studio
  * could see a form was submitted and could not read it. This is the read-only
  * answer sheet. Unlike the couple's form it shows the studio's internal-only
- * questions, and files open in place.
+ * questions, and files open in place. It is also where the studio corrects,
+ * reopens, reminds about or withdraws the form (questionnaire-response-actions).
  */
 export function QuestionnaireResponseView({ id }: { id: string }) {
   const workspace = useWorkspace();
@@ -50,6 +52,8 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
       : ((demoTenantDocuments("questionnaireResponses") as Row[]).find((item) => item.id === id) ?? null),
   );
   const [projectName, setProjectName] = useState<string>("");
+  // Bumped after an action so the sheet shows the response as it now is.
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!dataIsLive || workspace.loading) return;
@@ -77,7 +81,7 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
     return () => {
       active = false;
     };
-  }, [id, workspace.loading, workspace.tenantId]);
+  }, [id, reload, workspace.loading, workspace.tenantId]);
 
   if (response === undefined) {
     return (
@@ -152,6 +156,12 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
           ))}
         </section>
       ) : null}
+
+      <QuestionnaireResponseActions
+        onChanged={() => setReload((value) => value + 1)}
+        response={response}
+        sections={sections}
+      />
 
       {sections.map((section) => {
         const fields = section.fields.filter((field) => {

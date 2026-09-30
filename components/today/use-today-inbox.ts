@@ -1,5 +1,6 @@
 "use client";
 
+import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { deliverableDueDate, deliveryProgress, expectedDeliverables } from "@/features/post-event/deliverables";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
@@ -241,9 +242,9 @@ export function useTodayInbox(): {
           today,
         ),
         questionnaireStatus:
-          text(forProject(questionnaires.records, projectId)[0]?.status) || null,
+          text(currentQuestionnaire(forProject(questionnaires.records, projectId))?.status) || null,
         questionnaireHasAnswers: questionnaireHasAnswers(
-          forProject(questionnaires.records, projectId)[0]?.answers,
+          currentQuestionnaire(forProject(questionnaires.records, projectId))?.answers,
         ),
         scheduleStatus: text(latestSchedule?.status) || null,
         // Whether a form for this job type exists at all. Today used to offer

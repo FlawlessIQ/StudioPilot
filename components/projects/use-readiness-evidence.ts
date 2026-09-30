@@ -1,5 +1,6 @@
 "use client";
 
+import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import {
   crewDemand,
@@ -48,7 +49,7 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   const latestContract = forProject(contracts.records).sort((left, right) =>
     text(right.createdAt).localeCompare(text(left.createdAt)),
   )[0];
-  const questionnaire = forProject(questionnaires.records)[0];
+  const questionnaire = currentQuestionnaire(forProject(questionnaires.records));
   const crew = forProject(crewAssignments.records);
   const projectRecord = (projects.records ?? []).find(
     (item) => item.id === projectId,

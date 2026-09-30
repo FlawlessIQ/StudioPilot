@@ -33,6 +33,20 @@ import {
   mergeQuestionnaireAnswers,
   questionnaireFieldRules,
 } from "./questionnaire-answers.js";
+import {
+  assertReopenable,
+  assertResendable,
+  assertWithdrawable,
+  isReturned,
+  liveAssignmentFor,
+  statusAfterSave,
+  submittedAtAfterSave,
+} from "./questionnaire-lifecycle.js";
+import {
+  assertStudioMayRecordAnswer,
+  revisedTimelineEmail,
+  staleVendorShares,
+} from "./schedule-lifecycle.js";
 
 const item = z.object({
   id: z.string(),
@@ -174,6 +188,43 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * Hand a sent-back questionnaire to the couple again, and tell them.
+     *
+     * After they submit, the couple is refused changes, and the only way back
+     * was a second copy of the form. The crew brief stays as last submitted
+     * until they send it again (questionnaire-lifecycle.ts).
+     */
+    type: z.literal("reopenQuestionnaire"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      responseId: z.string().min(1),
+      note: z.string().trim().max(2000).default(""),
+    }),
+  }),
+  z.object({
+    /** Take back a form the couple has not sent. Archive, never delete. */
+    type: z.literal("withdrawQuestionnaire"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      responseId: z.string().min(1),
+    }),
+  }),
+  z.object({
+    /** Email the couple the same form again: a reminder, not a second copy. */
+    type: z.literal("resendQuestionnaire"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      responseId: z.string().min(1),
+    }),
+  }),
+  z.object({
     type: z.literal("saveTimingRule"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -294,6 +345,19 @@ const command = z.discriminatedUnion("type", [
       scheduleId: z.string(),
       decision: z.enum(["approved", "changes_requested"]),
       notes: z.string().max(2000),
+      /**
+       * The studio recording the couple's answer given another way (on the
+       * phone, by email). Required from the studio, ignored from the couple:
+       * an approval the couple never gave in the portal carries who gave it,
+       * how and when, or it is not evidence of anything.
+       */
+      recordedAnswer: z
+        .object({
+          givenBy: z.string().trim().min(2).max(160),
+          method: z.enum(["in_person", "phone", "email", "text", "other"]),
+          givenOn: z.string().date(),
+        })
+        .optional(),
     }),
   }),
   z.object({
@@ -393,6 +457,23 @@ const command = z.discriminatedUnion("type", [
       vendorContactId: z.string().min(1),
       scope: z.enum(["vendor", "full"]).default("vendor"),
       message: z.string().max(4000),
+    }),
+  }),
+  z.object({
+    /**
+     * Send the current timeline to every vendor still holding an older one.
+     *
+     * Each stale share is re-pointed at the current version with a fresh link
+     * (the old one stops opening, as a single re-share already did), and a
+     * vendor with an email address is sent the new link. Ones without an
+     * address come back with their link for the studio to pass on.
+     */
+    type: z.literal("refreshRunOfShowShares"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      message: z.string().max(4000).default(""),
     }),
   }),
   z.object({
@@ -562,10 +643,17 @@ export const planningCommand = onRequest(
         )
           throw new Error("RESPONSE_NOT_FOUND");
         const byClient = role === "client";
+        if (!byClient && !internalRoles.has(role)) throw new Error("FORBIDDEN");
         // A couple's answers are theirs to change until they submit; after
-        // that the studio has them, and reopening is a conversation.
-        if (byClient && snapshot.get("status") === "submitted")
+        // that the studio has them, until the studio reopens the form.
+        const priorStatus = String(snapshot.get("status") ?? "not_started");
+        if (byClient && isReturned(priorStatus))
           throw new Error("QUESTIONNAIRE_ALREADY_SUBMITTED");
+        const nextStatus = statusAfterSave({
+          prior: priorStatus,
+          submit: parsed.input.submit,
+          byClient,
+        });
         const priorAnswers = plainRecord(snapshot.get("answers"));
         const nextAnswers = mergeQuestionnaireAnswers({
           prior: priorAnswers,
@@ -609,15 +697,30 @@ export const planningCommand = onRequest(
           answerProvenance,
           changeHistory: [...changeHistory, ...changes].slice(-200),
           hasPlanningChanges: changes.length > 0,
-          status: parsed.input.submit ? "submitted" : "in_progress",
-          completionPercent: parsed.input.submit
+          status: nextStatus,
+          completionPercent: isReturned(nextStatus)
             ? 100
             : snapshot.get("completionPercent"),
-          submittedAt: parsed.input.submit ? now : null,
+          submittedAt: submittedAtAfterSave({
+            nextStatus,
+            priorSubmittedAt: snapshot.get("submittedAt"),
+            byClient,
+            now,
+          }),
+          // The couple sending it again closes the reopening.
+          ...(byClient && isReturned(nextStatus) ? { reopenedAt: null } : {}),
+          ...(!byClient && changes.length
+            ? { studioEditedAt: now, studioEditedBy: identity.uid }
+            : {}),
           updatedAt: now,
           updatedBy: identity.uid,
         });
-        if (parsed.input.submit) {
+        // A studio correction to a returned form changes what the analysis
+        // was run on, so it runs again; the crew brief follows the write.
+        if (
+          parsed.input.submit ||
+          (isReturned(nextStatus) && changes.length > 0)
+        ) {
           batch.set(
             db.doc(`aiJobs/questionnaire_${parsed.input.responseId}`),
             {
@@ -638,7 +741,136 @@ export const planningCommand = onRequest(
         await batch.commit();
         result = {
           responseId: parsed.input.responseId,
-          status: parsed.input.submit ? "submitted" : "in_progress",
+          status: nextStatus,
+          changedFieldCount: changes.length,
+        };
+      } else if (
+        parsed.type === "reopenQuestionnaire" ||
+        parsed.type === "withdrawQuestionnaire" ||
+        parsed.type === "resendQuestionnaire"
+      ) {
+        // Reopening changes what the crew and the couple were told is final,
+        // so it is the owner's call; the other two are everyday coordination.
+        if (
+          parsed.type === "reopenQuestionnaire"
+            ? !["studio_owner", "studio_admin"].includes(role)
+            : !internalRoles.has(role)
+        )
+          throw new Error("FORBIDDEN");
+        const reference = db.doc(
+          `questionnaireResponses/${parsed.input.responseId}`,
+        );
+        const snapshot = await reference.get();
+        if (
+          !snapshot.exists ||
+          snapshot.get("tenantId") !== parsed.tenantId ||
+          snapshot.get("projectId") !== parsed.input.projectId ||
+          snapshot.get("archivedAt")
+        )
+          throw new Error("RESPONSE_NOT_FOUND");
+        const status = snapshot.get("status");
+        const appUrl =
+          process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+        const batch = db.batch();
+        if (parsed.type === "reopenQuestionnaire") {
+          assertReopenable(status);
+          batch.update(reference, {
+            status: "reopened",
+            reopenedAt: now,
+            reopenedBy: identity.uid,
+            // Kept: the date of the submission the crew brief still shows.
+            submittedAt: snapshot.get("submittedAt") ?? null,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          // Written by the studio and sent on their say-so, so the ordinary
+          // message template, not an automated one.
+          const note = parsed.input.note.trim();
+          batch.create(
+            db.doc(
+              `emailJobs/${stable("questionnaire_reopened", parsed.tenantId, parsed.idempotencyKey)}`,
+            ),
+            {
+              id: stable("questionnaire_reopened", parsed.tenantId, parsed.idempotencyKey),
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              type: "manual_message",
+              questionnaireResponseId: parsed.input.responseId,
+              customSubject: "Your questionnaire is open again",
+              customBody: [
+                note ||
+                  "We've reopened your questionnaire so you can change your answers.",
+                "Everything you sent is still there. Make your changes, then send it back to us.",
+              ].join("\n\n"),
+              actionLabel: "Update your answers",
+              actionUrl: `${appUrl}/client/questionnaire`,
+              status: "queued",
+              attempts: 0,
+              createdAt: now,
+              updatedAt: now,
+            },
+          );
+        } else if (parsed.type === "withdrawQuestionnaire") {
+          assertWithdrawable(status);
+          batch.update(reference, {
+            status: "withdrawn",
+            withdrawnAt: now,
+            withdrawnBy: identity.uid,
+            archivedAt: now,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+        } else {
+          assertResendable(status);
+          // One reminder per press. The id names the press, so a retried
+          // request is the same email, not a second one.
+          const jobId = stable("questionnaire_resend", parsed.tenantId, parsed.idempotencyKey);
+          batch.create(db.doc(`emailJobs/${jobId}`), {
+            id: jobId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            type: "questionnaire_reminder",
+            actionUrl: `${appUrl}/client/questionnaire`,
+            questionnaireResponseId: parsed.input.responseId,
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+          // Not updatedAt: a reminder isn't an edit (see the scheduler).
+          batch.update(reference, { lastReminderAt: now });
+        }
+        const auditReference = db.doc(
+          `auditEvents/${stable("questionnaire_audit", parsed.tenantId, parsed.idempotencyKey)}`,
+        );
+        batch.create(auditReference, {
+          id: auditReference.id,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: identity.uid,
+          actorType: "user",
+          action: `questionnaire.${parsed.type.replace("Questionnaire", "")}`,
+          entityType: "questionnaireResponse",
+          entityId: parsed.input.responseId,
+          timestamp: now,
+          before: { status: status ?? null },
+          after: null,
+          ipAddress: null,
+          userAgent: request.header("user-agent") ?? null,
+          correlationId: parsed.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = {
+          responseId: parsed.input.responseId,
+          status:
+            parsed.type === "reopenQuestionnaire"
+              ? "reopened"
+              : parsed.type === "withdrawQuestionnaire"
+                ? "withdrawn"
+                : String(status),
+          emailed: parsed.type !== "withdrawQuestionnaire",
         };
       } else if (parsed.type === "createQuestionnaireTemplate") {
         if (!["studio_owner", "studio_admin"].includes(role))
@@ -770,6 +1002,44 @@ export const planningCommand = onRequest(
           template.get("status") !== "active"
         )
           throw new Error("QUESTIONNAIRE_ASSIGNMENT_INVALID");
+        // The same form sent again is a reminder about the copy they have,
+        // never a second copy (questionnaire-lifecycle.ts, liveAssignmentFor).
+        const onJob = await db
+          .collection("questionnaireResponses")
+          .where("tenantId", "==", parsed.tenantId)
+          .where("projectId", "==", parsed.input.projectId)
+          .get();
+        const existing = liveAssignmentFor(
+          onJob.docs.map((response) => ({ id: response.id, ...response.data() })),
+          { id: parsed.input.templateId, name: String(template.get("name")) },
+        );
+        if (existing) {
+          assertResendable(existing.status);
+          const appUrl =
+            process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+          const jobId = stable("questionnaire_resend", parsed.tenantId, parsed.idempotencyKey);
+          await db.doc(`emailJobs/${jobId}`).create({
+            id: jobId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            type: "questionnaire_reminder",
+            actionUrl: `${appUrl}/client/questionnaire`,
+            questionnaireResponseId: existing.id,
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+          await db
+            .doc(`questionnaireResponses/${existing.id}`)
+            .update({ lastReminderAt: now });
+          result = {
+            responseId: existing.id,
+            status: String(existing.status),
+            resent: true,
+            prefilledFieldCount: 0,
+          };
+        } else {
         const due = new Date(`${String(project.get("eventDate"))}T12:00:00.000Z`);
         due.setUTCDate(
           due.getUTCDate() - Number(template.get("dueDaysBeforeEvent") ?? 0),
@@ -852,8 +1122,10 @@ export const planningCommand = onRequest(
         result = {
           responseId: id,
           status: "not_started",
+          resent: false,
           prefilledFieldCount: Object.keys(prefill.answers).length,
         };
+        }
       } else if (parsed.type === "saveTimingRule") {
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
@@ -945,14 +1217,172 @@ export const planningCommand = onRequest(
         if (!vendor.exists || vendor.get("tenantId") !== parsed.tenantId) {
           throw new Error("VENDOR_NOT_FOUND");
         }
-        await reference.update({
+        const batch = db.batch();
+        batch.update(reference, {
           archivedAt: parsed.input.restore ? null : now,
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        /**
+         * A removed vendor's link stops opening.
+         *
+         * The link is their whole credential, and archiving left it live for
+         * its full 120 days: a florist the couple let go could still read the
+         * day's timeline, addresses and all. Restoring does not bring it back;
+         * the studio shares again if they want to.
+         */
+        let revokedShares = 0;
+        if (!parsed.input.restore) {
+          const shares = await db
+            .collection("scheduleShares")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("vendorContactId", "==", parsed.input.vendorId)
+            .get();
+          for (const share of shares.docs) {
+            if (share.get("status") === "revoked") continue;
+            batch.update(share.ref, {
+              status: "revoked",
+              revokedAt: now,
+              revokedReason: "vendor_archived",
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+            revokedShares += 1;
+          }
+        }
+        await batch.commit();
         result = {
           vendorId: parsed.input.vendorId,
           archived: !parsed.input.restore,
+          revokedShares,
+        };
+      } else if (parsed.type === "refreshRunOfShowShares") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const [schedules, shares, project] = await Promise.all([
+          db
+            .collection("schedules")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .orderBy("version", "desc")
+            .limit(1)
+            .get(),
+          db
+            .collection("scheduleShares")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          db.doc(`projects/${parsed.input.projectId}`).get(),
+        ]);
+        const current = schedules.docs[0];
+        if (!current || current.get("status") !== "published")
+          throw new Error("NO_PUBLISHED_RUN_OF_SHOW");
+        if (!project.exists || project.get("tenantId") !== parsed.tenantId)
+          throw new Error("NOT_FOUND");
+        const version = Number(current.get("version"));
+        const stale = staleVendorShares(
+          shares.docs.map((share) => ({
+            id: share.id,
+            ref: share.ref,
+            status: share.get("status"),
+            revokedAt: share.get("revokedAt"),
+            scheduleId: share.get("scheduleId"),
+            vendorContactId: String(share.get("vendorContactId") ?? ""),
+            sendCount: Number(share.get("sendCount") ?? 0),
+          })),
+          current.id,
+        );
+        const vendors = await Promise.all(
+          stale.map((share) =>
+            db.doc(`vendors/${String(share.vendorContactId)}`).get(),
+          ),
+        );
+        const projectName = String(project.get("name") ?? "the wedding");
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com";
+        const batch = db.batch();
+        const refreshed: Array<Record<string, unknown>> = [];
+        for (const [index, share] of stale.entries()) {
+          const vendor = vendors[index]!;
+          // An archived vendor's share should already be revoked; one made
+          // before that rule is revoked now rather than refreshed.
+          if (
+            !vendor.exists ||
+            vendor.get("tenantId") !== parsed.tenantId ||
+            vendor.get("archivedAt")
+          ) {
+            batch.update(share.ref, {
+              status: "revoked",
+              revokedAt: now,
+              revokedReason: "vendor_archived",
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+            continue;
+          }
+          const minted = mintRunOfShowShare({
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            vendorContactId: String(share.vendorContactId),
+            appUrl,
+          });
+          const message = parsed.input.message.trim();
+          batch.update(share.ref, {
+            scheduleId: current.id,
+            sharedVersion: version,
+            tokenHash: minted.tokenHash,
+            // A new version is a new question: "does this work for you?"
+            status: "sent",
+            sentAt: now,
+            viewedAt: null,
+            viewedVersion: null,
+            acknowledgedAt: null,
+            acknowledgedVersion: null,
+            expiresAt: minted.expiresAt,
+            sendCount: share.sendCount + 1,
+            ...(message ? { message } : {}),
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          const email = vendor.get("email");
+          const emailed = typeof email === "string" && email.includes("@");
+          if (emailed) {
+            const jobId = `run_of_show_revised_${share.id}_v${version}`;
+            batch.set(db.doc(`emailJobs/${jobId}`), {
+              id: jobId,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              type: "manual_message",
+              recipient: email,
+              recipientName:
+                String(vendor.get("contactName") ?? "").trim() ||
+                String(vendor.get("company") ?? "").trim() ||
+                null,
+              projectName,
+              ...revisedTimelineEmail({
+                projectName,
+                version,
+                message,
+                shareUrl: minted.shareUrl,
+              }),
+              status: "queued",
+              attempts: 0,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+          refreshed.push({
+            vendorContactId: String(share.vendorContactId),
+            company: String(vendor.get("company") ?? ""),
+            emailed,
+            // Only the ones nobody emailed: the studio passes these on.
+            shareUrl: emailed ? null : minted.shareUrl,
+          });
+        }
+        await batch.commit();
+        result = {
+          scheduleId: current.id,
+          version,
+          refreshed,
+          refreshedCount: refreshed.length,
         };
       } else if (parsed.type === "shareRunOfShow") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
@@ -1689,12 +2119,25 @@ export const planningCommand = onRequest(
         });
         batch.create(db.doc(`productEvents/${event.id}`), event);
         await batch.commit();
+        // Crew are told above; vendors are not, because their links carry
+        // what the studio approved sending them. Say how many now hold the
+        // old version, so the studio is offered the re-share instead of
+        // finding out from the florist.
+        const vendorShares = await db
+          .collection("scheduleShares")
+          .where("tenantId", "==", parsed.tenantId)
+          .where("projectId", "==", parsed.input.projectId)
+          .get();
         result = {
           scheduleId: id,
           version,
           acknowledgementReset: true,
           crewNotified: acceptedAssignments.size,
           changeImpact,
+          staleVendorShareCount: staleVendorShares(
+            vendorShares.docs.map((share) => ({ id: share.id, ...share.data() })),
+            id,
+          ).length,
         };
       } else {
         const reference = db.doc(`schedules/${parsed.input.scheduleId}`);
@@ -1724,6 +2167,34 @@ export const planningCommand = onRequest(
           (status === "published" && current.get("approvalState") === "client_pending");
         if (role === "client" && !awaitingCouple)
           throw new Error("SCHEDULE_NOT_IN_REVIEW");
+        /**
+         * The studio recording the couple's answer.
+         *
+         * This branch had no guard at all for anyone but the couple: any
+         * member assigned to the job — crew included — could mark any
+         * version approved, a superseded one too, and nothing recorded who
+         * the couple were said to have told, or how.
+         */
+        const recorded = role === "client" ? null : parsed.input.recordedAnswer ?? null;
+        if (role !== "client") {
+          if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+          if (!recorded) throw new Error("SCHEDULE_ANSWER_DETAILS_REQUIRED");
+          assertStudioMayRecordAnswer({
+            status,
+            approvalState: current.get("approvalState"),
+          });
+          // Only the version the couple is being asked about: a newer one
+          // may exist even when this one was never marked superseded.
+          const newest = await db
+            .collection("schedules")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .orderBy("version", "desc")
+            .limit(1)
+            .get();
+          if (newest.docs[0]?.id !== current.id)
+            throw new Error("SCHEDULE_SUPERSEDED");
+        }
         const approvalBatch = db.batch();
         approvalBatch.update(reference, {
           approvedAt: parsed.input.decision === "approved" ? now : null,
@@ -1735,9 +2206,44 @@ export const planningCommand = onRequest(
           approvedBy:
             parsed.input.decision === "approved" ? identity.uid : null,
           approvalNotes: parsed.input.notes,
+          // Who the couple were, how they said it and when, and which
+          // studio member wrote it down.
+          ...(recorded
+            ? {
+                approvalRecordedByStudio: {
+                  ...recorded,
+                  decision: parsed.input.decision,
+                  recordedBy: identity.uid,
+                  recordedAt: now,
+                },
+              }
+            : {}),
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        if (recorded) {
+          const auditReference = db.doc(
+            `auditEvents/${stable("schedule_answer", parsed.tenantId, parsed.idempotencyKey)}`,
+          );
+          approvalBatch.create(auditReference, {
+            id: auditReference.id,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "schedule.client_answer_recorded",
+            entityType: "schedule",
+            entityId: parsed.input.scheduleId,
+            timestamp: now,
+            before: { approvalState: current.get("approvalState") ?? null },
+            after: { decision: parsed.input.decision, ...recorded },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId: parsed.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+        }
         // The studio hears about a request for changes where it works: a
         // task on the job, with the couple's words.
         if (role === "client" && parsed.input.decision === "changes_requested") {

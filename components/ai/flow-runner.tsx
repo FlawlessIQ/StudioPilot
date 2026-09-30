@@ -336,6 +336,7 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
 
   async function send(templateId: string, name: string) {
     setBusy(true);
@@ -345,6 +346,8 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
         projectId,
         templateId,
       });
+      // The same form already on the job is re-sent, not duplicated.
+      setResent((response.result as { resent?: unknown }).resent === true);
       if (response.persisted) setDone(name);
       else setNotice("Preview: the questionnaire would be sent from here.");
     } catch (caught: unknown) {
@@ -362,8 +365,9 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
     return (
       <div className="panel copilot-flow">
         <p role="status">
-          Sent {done} to {str(project?.name) || "the client"}. They can fill it
-          in from their portal.
+          {resent
+            ? `${str(project?.name) || "The client"} already had ${done}, so they were emailed a reminder about it — no second copy.`
+            : `Sent ${done} to ${str(project?.name) || "the client"}. They can fill it in from their portal.`}
         </p>
       </div>
     );
@@ -392,7 +396,8 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
       {alreadyAssigned ? (
         <p role="status">
           {str(project?.name) || "This project"}{" "} already has a questionnaire on
-          file. Sending another replaces the current one.
+          file. Sending the same form again emails them a reminder about it; a
+          different form is added alongside it.
         </p>
       ) : null}
       {options.length === 0 ? (

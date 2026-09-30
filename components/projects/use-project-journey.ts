@@ -1,5 +1,6 @@
 "use client";
 
+import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
 import {
@@ -205,10 +206,10 @@ export function useProjectJourney({
       todayLocalIso(),
     ),
     questionnaireStatus:
-      text(forProject(questionnaires.records)[0]?.status) || null,
+      text(currentQuestionnaire(forProject(questionnaires.records))?.status) || null,
     // Status alone ticked this step while `answers` was `{}`.
     questionnaireHasAnswers: questionnaireHasAnswers(
-      forProject(questionnaires.records)[0]?.answers,
+      currentQuestionnaire(forProject(questionnaires.records))?.answers,
     ),
     scheduleStatus: text(latestSchedule?.status) || null,
     // And ticked Run of show on an approved schedule whose items no reader

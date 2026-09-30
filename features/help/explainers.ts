@@ -95,10 +95,10 @@ export const EXPLAINERS: readonly Explainer[] = [
     alsoOn: ["/studio/booking"],
     video: "proposal",
     purpose:
-      "A proposal is what a couple sees before they book: the package, any extras, the price and the payment dates. You build it, approve it, then send it.",
+      "A proposal is what a couple sees before they book: their packages, any extras, the price and the payment dates. You build it, approve it, then send it.",
     steps: [
       "On the job's **Booking** tab choose **Prepare the proposal**, or start from the proposals list with **New proposal**.",
-      "Under **Choose the client and event**, check the couple and the package they're booking.",
+      "Under **Choose the client and event**, check the couple and the packages they're booking.",
       "Under **Frame the offer**, tap **Draft from what they told you** for an introduction written from their inquiry, then make it yours.",
       "Set **Proposal expires**, **Retainer due** and **Final balance due**, then **Create draft**. Nothing is sent yet.",
       "Add an album or other extra with **Add from your library**, or **Write one for this couple**.",

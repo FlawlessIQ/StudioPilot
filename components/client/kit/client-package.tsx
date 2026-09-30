@@ -5,7 +5,7 @@ import { Check, LockKeyhole } from "lucide-react";
 import { Actions, Button, Card, KitRoot, List, Main, Note, PoweredBy, Row } from "@/components/kit/kit";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { coverageRoleLabel, resolveCoverage } from "@/features/packages/coverage";
+import { couplePackageView, snapshotInclusions } from "@/features/packages/job-packages";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { getClientAvailablePackages, selectClientPackage } from "@/lib/client/portal-client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -45,19 +45,7 @@ const MOCK_PACKAGES: Pkg[] = [
   },
 ];
 
-function inclusions(value: Record<string, unknown>): string[] {
-  const hours = number(value.includedCoverageMinutes) / 60;
-  const deliverables = Array.isArray(value.includedDeliverables)
-    ? value.includedDeliverables
-    : Array.isArray(value.deliverables)
-      ? value.deliverables
-      : [];
-  return [
-    ...(hours ? [`${hours} hours of coverage`] : []),
-    ...resolveCoverage(value).map((item) => `${item.count} ${coverageRoleLabel(item.role, item.count)}`),
-    ...deliverables.map(String),
-  ];
-}
+const inclusions = snapshotInclusions;
 
 /**
  * The package, on a phone (M5 of docs/mobile-first-client-crew-plan-2026-09-28.md
@@ -66,10 +54,17 @@ function inclusions(value: Record<string, unknown>): string[] {
  * Once chosen it is locked, and the page says so. Before that, a couple
  * picks one (add-ons as toggles, the total beside the button) and confirms in
  * a sheet, because choosing fixes the price.
+ *
+ * A job can carry more than one package — GR Productions sells photo and
+ * video together — and this page showed only the first snapshot the portal
+ * returned, with that one package's total. It shows every package on the job
+ * now, with the accepted proposal's bullets and combined total when there is
+ * one (features/packages/job-packages.ts, couplePackageView).
  */
 export function ClientPackage() {
   const workspace = useWorkspace();
   const snapshots = useProjectRecords("packageSnapshots");
+  const proposals = useProjectRecords("proposals");
   const snapshot = snapshots.value[0];
   const [packages, setPackages] = useState<Pkg[]>(dataIsLive ? [] : MOCK_PACKAGES);
   const [loading, setLoading] = useState(dataIsLive);
@@ -104,30 +99,44 @@ export function ClientPackage() {
     ? number(selected.basePriceCents) + selectedAddOns.reduce((sum, addOn) => sum + number(addOn.unitPriceCents), 0)
     : 0;
 
-  const held = locked ?? snapshot;
-  if (held)
+  const held = couplePackageView({
+    snapshots: locked ? [{ id: "chosen", ...locked }] : snapshots.value,
+    proposals: locked ? [] : proposals.value,
+  });
+  if (held) {
+    const several = held.packages.length > 1;
     return (
-      <Main label="Your package">
+      <Main label={several ? "Your packages" : "Your package"}>
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">Your package</p>
-          <h1 className="kit-title">{text(held.packageName ?? held.name, "Your package")}</h1>
-          {held.selectionDate ?? held.createdAt ? (
-            <p className="kit-body">Chosen {date(held.selectionDate ?? held.createdAt)}.</p>
+          <p className="kit-eyebrow">{several ? "Your packages" : "Your package"}</p>
+          <h1 className="kit-title">
+            {several ? held.packages.map((item) => item.name).join(" + ") : text(held.packages[0]?.name, "Your package")}
+          </h1>
+          {held.chosenAt ? (
+            <p className="kit-body">
+              {held.fromAcceptedProposal ? "Accepted" : "Chosen"} {date(held.chosenAt)}.
+            </p>
           ) : null}
         </div>
         <Card tone="accent">
-          <p className="kit-caption">Total</p>
+          <p className="kit-caption">{several ? "Total for everything" : "Total"}</p>
           <p className="kit-amount">{money(held.totalCents, held.currency)}</p>
           <Note icon={LockKeyhole}>Your price is locked. Changes to the studio’s packages won’t affect it.</Note>
         </Card>
-        <List label="What’s included">
-          {inclusions(held).map((item) => (
-            <Row icon={Check} key={item} title={item} />
-          ))}
-        </List>
+        {held.packages.map((item) => (
+          <div className="kit-stack-tight" key={item.key}>
+            {several ? <h2 className="kit-section">{item.name}</h2> : null}
+            <List label={several ? `What’s included in ${item.name}` : "What’s included"}>
+              {item.items.map((line) => (
+                <Row icon={Check} key={line} title={line} />
+              ))}
+            </List>
+          </div>
+        ))}
         <PoweredBy />
       </Main>
     );
+  }
 
   async function choose() {
     if (!selected) return;

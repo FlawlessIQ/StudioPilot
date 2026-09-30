@@ -19,6 +19,10 @@ export const crewBriefOnQuestionnaireWrite = onDocumentWritten(
     const responseId = event.params.responseId;
     const reference = getFirestore().doc(`crewBriefs/${responseId}`);
     const after = event.data?.after?.data();
+    // Reopened for the couple: the crew keep the brief they had until the
+    // couple sends the form again. Their half-made edits are not the plan,
+    // and deleting the brief would take the do-not-photograph list with it.
+    if (after && !after.archivedAt && String(after.status) === "reopened") return;
     const shareable =
       after &&
       !after.archivedAt &&
