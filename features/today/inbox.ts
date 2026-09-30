@@ -1031,6 +1031,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
    * settles it instead.
    */
   const jobStillOpen = (projectId: unknown) => {
+    // Filed away keeps its last state (a BOOKED job archived stays BOOKED), so
+    // the state alone said "still open". Walked on production 2026-09-30: an
+    // archived test job still asked for "Release the gallery" on Today.
+    if (projectById.get(text(projectId))?.archivedAt) return false;
     const state = stateFor(projectId);
     return state === null || workStillMatters(state);
   };
@@ -1304,6 +1308,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   }
   let inMotion = 0;
   for (const position of input.journeys ?? []) {
+    if (!jobStillOpen(position.projectId)) continue;
     // The inquiry card is this couple's Today item while they are one.
     if (inquiryCardProjectIds.has(position.projectId)) continue;
     if (position.owner !== "studio") {
@@ -1555,6 +1560,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     updatedAt?: string | null;
     action?: TodayAction;
   }) => {
+    if (item.projectId && !jobStillOpen(item.projectId)) return;
     approve.push({
       id: item.id,
       lane: "approve",

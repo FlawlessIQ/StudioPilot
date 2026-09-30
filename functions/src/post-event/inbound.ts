@@ -229,6 +229,14 @@ export const sendgridInboundGallery = onRequest(
         response.status(404).json({ error: "GALLERY_INBOX_NOT_FOUND" });
         return;
       }
+      // A filed-away job takes no deliveries: its inbox stays "active" on the
+      // record, and a gallery mailed to it would come back as a draft to
+      // release on a job nobody is working (walked on production, 2026-09-30).
+      const inboxProject = await db.doc(`projects/${String(inbox.get("projectId"))}`).get();
+      if (!inboxProject.exists || inboxProject.get("archivedAt")) {
+        response.status(204).send();
+        return;
+      }
       const source = [fields.subject, fields.text, fields.html].filter(Boolean).join("\n");
       const first = parseInboundGalleryAnnouncement(source);
       if (!first.galleryUrl) throw new Error("GALLERY_URL_NOT_FOUND");
