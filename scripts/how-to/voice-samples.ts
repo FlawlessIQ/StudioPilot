@@ -19,8 +19,24 @@ const SAMPLE =
 
 type Voice = { voice_id: string; name: string; category?: string; labels?: Record<string, string>; description?: string };
 
+/**
+ * Premade voices worth hearing for calm, clear product narration. Used when
+ * the key can't list the voice library (a text-to-speech-only key cannot).
+ */
+const PREMADE: Voice[] = [
+  { voice_id: "UII4xWDUviYCKDpBl5jC", name: "Scoreboard narrator" },
+  { voice_id: "nPczCjzI2devNBz1zQrb", name: "Brian" },
+  { voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel" },
+  { voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah" },
+  { voice_id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura" },
+  { voice_id: "iP95p4xoKVk53GoZ742B", name: "Chris" },
+  { voice_id: "cgSgspJ2msm6clMCkdW9", name: "Jessica" },
+];
+
 const wanted = process.argv.slice(2);
-const { voices } = await elevenlabs<{ voices: Voice[] }>("/voices");
+const voices = await elevenlabs<{ voices: Voice[] }>("/voices")
+  .then((result) => result.voices)
+  .catch(() => (wanted.length ? wanted.map((id) => ({ voice_id: id, name: id })) : PREMADE));
 
 const byScore = (voice: Voice) => {
   const labels = Object.values(voice.labels ?? {}).join(" ").toLowerCase() + " " + (voice.description ?? "").toLowerCase();
@@ -46,7 +62,11 @@ for (const voice of chosen) {
     seed: 1007,
     outputFormat: "mp3_44100_128",
   };
-  const line = await speak(SAMPLE, config);
+  const line = await speak(SAMPLE, config).catch((error: Error) => {
+    console.log(`${voice.name}: ${error.message.slice(0, 120)}`);
+    return null;
+  });
+  if (!line) continue;
   const file = path.join(out, `${voice.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.mp3`);
   copyFileSync(line.audioPath, file);
   const labels = Object.values(voice.labels ?? {}).join(", ");
