@@ -13,6 +13,15 @@ import {
   type LifecycleFacts,
 } from "../communications/lifecycle-core.js";
 import {
+  finalBalanceFacts,
+  type FinalBalanceFacts,
+} from "../communications/final-balance-facts.js";
+import {
+  jobPackageFacts,
+  loadAcceptedProposal,
+  loadJobPackageSnapshots,
+} from "../packages/job-package-facts.js";
+import {
   describeCoverage,
   resolveCoverage,
 } from "../packages/coverage.js";
@@ -284,7 +293,7 @@ async function generateDraft(input: {
           parts: [
             {
               text:
-                "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs.",
+                "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. `facts.jobPackages`, when present, is every package the client has on this job (photography and video are often booked together): when the message refers to what they booked, name every package in `jobPackages.packages`, never just the first, and describe each only from its own `coverage`, `inclusions` and `terms`; `jobPackages.totalCents` is the combined total. `facts.packages`, when present, is the studio's catalogue, not what this client booked. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs.",
             },
           ],
         },
@@ -427,6 +436,8 @@ export const aiMessageDraftCommand = onRequest(
       let projectId: string | null = null;
       let contactId: string | null = null;
       const context: Json = {};
+      /** The final-balance figures, across every package and payment. */
+      let balance: FinalBalanceFacts | null = null;
 
       if (input.leadId) {
         const lead = await db.doc(`leads/${input.leadId}`).get();
@@ -505,26 +516,44 @@ export const aiMessageDraftCommand = onRequest(
             });
           }
         }
-        const snapshotId = text(project.get("packageSnapshotId"));
-        if (snapshotId) {
-          const snapshot = await db
-            .doc(`packageSnapshots/${snapshotId}`)
-            .get();
-          if (snapshot.exists && snapshot.get("tenantId") === input.tenantId) {
-            context.package = {
-              packageName: snapshot.get("packageName"),
-              totalCents: snapshot.get("totalCents"),
-              retainerCents: snapshot.get("retainerCents"),
-              includedCoverageMinutes: snapshot.get("includedCoverageMinutes"),
-            };
+        /**
+         * Every package on the job, not the primary alone.
+         *
+         * This read `packageSnapshotId` only, so a proposal cover, delivery
+         * note, review request or reply on a photo + video wedding was
+         * grounded in the photo package and silent (or wrong) about the
+         * video. `jobPackages` is kept apart from `packages`, which is the
+         * studio's catalogue on an inquiry reply — the job's own packages
+         * and the price list are different facts.
+         */
+        const [jobSnapshots, acceptedProposal] = await Promise.all([
+          loadJobPackageSnapshots(db, input.tenantId, project.data() ?? {}),
+          loadAcceptedProposal(db, input.tenantId, project.id),
+        ]);
+        const jobFacts = jobPackageFacts({ snapshots: jobSnapshots, acceptedProposal });
+        if (jobFacts) {
+          context.jobPackages = jobFacts;
+          if (input.trigger === "final_invoice_notice") {
+            const invoices = await db
+              .collection("invoiceReferences")
+              .where("tenantId", "==", input.tenantId)
+              .where("projectId", "==", project.id)
+              .limit(40)
+              .get();
+            balance = finalBalanceFacts({
+              proposals: acceptedProposal ? [acceptedProposal] : [],
+              snapshots: jobSnapshots.map((snapshot) => snapshot.data),
+              invoices: invoices.docs.map((invoice) => invoice.data()),
+            });
+          }
+          for (const snapshot of jobSnapshots)
             sourceReferences.push({
               entityType: "packageSnapshot",
               entityId: snapshot.id,
-              versionId: text(snapshot.get("packageVersion")) || null,
-              label: text(snapshot.get("packageName")) || "Selected package",
+              versionId: text(snapshot.data.packageVersion) || null,
+              label: text(snapshot.data.packageName) || "Selected package",
               locator: null,
             });
-          }
         }
       }
 
@@ -573,27 +602,17 @@ export const aiMessageDraftCommand = onRequest(
       let modelUsed = "deterministic_template";
 
       if (isLifecycle) {
-        const packageFacts = record(context.package);
-        const totalCents =
-          typeof packageFacts.totalCents === "number"
-            ? packageFacts.totalCents
-            : null;
-        const retainerCents =
-          typeof packageFacts.retainerCents === "number"
-            ? packageFacts.retainerCents
-            : null;
         const facts: LifecycleFacts = {
           studioName,
           clientFirstName: recipientName?.split(" ")[0] ?? null,
           projectName: text(record(context.project).name) || "your event",
           eventDate: text(record(context.project).eventDate) || null,
           venueName: text(record(context.project).venueName) || null,
-          packageTotalCents: totalCents,
-          retainerPaidCents: retainerCents,
-          balanceDueCents:
-            totalCents !== null && retainerCents !== null
-              ? Math.max(0, totalCents - retainerCents)
-              : null,
+          packageTotalCents: balance?.totalCents ?? null,
+          retainerPaidCents: balance?.paidCents ?? null,
+          balanceDueCents: balance?.balanceCents ?? null,
+          packageNames: balance?.packageNames ?? [],
+          paymentsOnRecord: balance?.paymentsOnRecord,
           scheduleUrl: null,
           recipientEmail,
           recipientName,

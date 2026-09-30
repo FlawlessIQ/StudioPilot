@@ -17,7 +17,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { proposalTermsFor } from "@/features/booking/autopilot";
+import { proposalTermsForPackages } from "@/features/booking/autopilot";
 import { detailsForLine, packageDetails, type PackageDetail } from "@/features/packages/inclusions";
 import {
   ArrowLeft,
@@ -107,6 +107,16 @@ type ProjectOption = {
    */
   withCoupleProposalId: string | null;
 };
+
+/**
+ * Every package on the job, primary first — what the proposal's terms are
+ * seeded from. The composer loaded the extras and then seeded the terms from
+ * the primary alone, so a photo + video proposal carried the photo terms only.
+ */
+const jobSnapshotsOf = (project: Pick<ProjectOption, "packageSnapshot" | "extraSnapshots">) => [
+  project.packageSnapshot,
+  ...project.extraSnapshots,
+];
 
 const mockProposal: Value = {
   id: "demo-proposal",
@@ -925,9 +935,7 @@ export function StudioProposalComposer() {
           // Not the package description: that now shows under each package, as
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
-          setTermsSummary(
-            proposalTermsFor(requestedProject.packageSnapshot.terms),
-          );
+          setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(requestedProject)));
           const event = new Date(`${requestedProject.eventDate}T12:00:00`);
           if (!Number.isNaN(event.valueOf())) {
             setBalanceDueDate(
@@ -1001,7 +1009,7 @@ export function StudioProposalComposer() {
     // Not the package description: that now shows under each package, as
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
-    setTermsSummary(proposalTermsFor(nextProject.packageSnapshot.terms));
+    setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(nextProject)));
     const event = new Date(`${nextProject.eventDate}T12:00:00`);
     setBalanceDueDate(
       Number.isNaN(event.valueOf())
@@ -1119,7 +1127,7 @@ export function StudioProposalComposer() {
         // Not the package description: that now shows under each package, as
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
-        setTermsSummary(proposalTermsFor(readyProject.packageSnapshot.terms));
+        setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(readyProject)));
         const event = new Date(`${readyProject.eventDate}T12:00:00`);
         if (!Number.isNaN(event.valueOf())) {
           setBalanceDueDate(dateInput(addDays(event, -14).toISOString()));

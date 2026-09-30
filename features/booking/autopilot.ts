@@ -26,6 +26,39 @@ export function proposalTermsFor(terms: unknown): string {
   return written.length >= 10 ? written : DEFAULT_PROPOSAL_TERMS;
 }
 
+/**
+ * The terms for every package on a job, each under its own name.
+ *
+ * A studio selling photo and video together (GR Productions) holds two
+ * packages, each with its own terms, and the composer, Cue's proposal card
+ * and the booking brief all seeded the proposal with the first package's
+ * alone — the couple read nothing about the video they were buying. One
+ * package keeps its terms exactly as written, as before; several are joined,
+ * one block per package that has terms, headed by its name, so nobody reads
+ * the photo terms as covering the video. None written: the default wording.
+ * Capped at the proposal schema's 6000 characters.
+ */
+export function proposalTermsForPackages(
+  // Any snapshot or catalogue record: only packageName/name and terms are read.
+  packages: readonly Record<string, unknown>[],
+): string {
+  const written = packages.flatMap((entry) => {
+    const terms = typeof entry.terms === "string" ? entry.terms.trim() : "";
+    if (terms.length < 10) return [];
+    const name =
+      [entry.packageName, entry.name]
+        .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+        ?.trim() ?? "Package";
+    return [{ name, terms }];
+  });
+  if (!written.length) return DEFAULT_PROPOSAL_TERMS;
+  if (packages.length === 1) return written[0]!.terms.slice(0, 6000);
+  return written
+    .map((entry) => `${entry.name}: ${entry.terms}`)
+    .join("\n\n")
+    .slice(0, 6000);
+}
+
 export function groundedBookingDraft(input: {
   recommendedPackageId: string | null;
   selectedPackageId: string | null;

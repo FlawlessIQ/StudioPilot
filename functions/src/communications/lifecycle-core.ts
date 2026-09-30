@@ -5,6 +5,8 @@
 // unit tests in tests/lifecycle-messaging.test.ts exercise the features/
 // implementation, which is the source of truth.
 
+import { packageNameList } from "./final-balance-facts.js";
+
 export type LifecycleTrigger =
   | "schedule_confirmation"
   | "final_invoice_notice"
@@ -131,8 +133,16 @@ export type LifecycleFacts = {
   eventDate: string | null;
   venueName: string | null;
   packageTotalCents: number | null;
+  /** Everything paid on bills still standing — the retainer and any earlier final. */
   retainerPaidCents: number | null;
   balanceDueCents: number | null;
+  /**
+   * Every package on the job (finalBalanceFacts). The notice named none and
+   * quoted the photo package alone on a photo + video wedding.
+   */
+  packageNames?: string[];
+  /** False when no bill stands at all, so "paid so far" needs checking. */
+  paymentsOnRecord?: boolean;
   scheduleUrl: string | null;
   recipientEmail: string | null;
   recipientName: string | null;
@@ -190,11 +200,14 @@ export function renderLifecycleDraft(
 
   if (trigger === "final_invoice_notice") {
     if (facts.balanceDueCents === null) missing.push("Computed final balance");
+    if (facts.paymentsOnRecord === false)
+      missing.push("No payment is recorded on this job yet — confirm what they have paid before sending");
+    const names = packageNameList(facts.packageNames ?? []);
     const amounts =
       facts.packageTotalCents !== null &&
       facts.retainerPaidCents !== null &&
       facts.balanceDueCents !== null
-        ? `Package total ${money(facts.packageTotalCents)} − retainer ${money(facts.retainerPaidCents)} = balance ${money(facts.balanceDueCents)} (plus any applicable sales tax).`
+        ? `${names ? `Your total for ${names}` : "Your total"} is ${money(facts.packageTotalCents)}. With ${money(facts.retainerPaidCents)} paid so far, the balance is ${money(facts.balanceDueCents)} (plus any applicable sales tax).`
         : "Your final balance is being prepared.";
     return {
       subject: `Final balance for ${facts.projectName}`,

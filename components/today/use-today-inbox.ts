@@ -392,6 +392,7 @@ export function useTodayInbox(): {
     booked: bookedValueCents({
       projects: projects.records,
       packageSnapshots: packageSnapshots.records,
+      proposals: proposals.records,
     }),
     handled: handledThisWeek(
       {

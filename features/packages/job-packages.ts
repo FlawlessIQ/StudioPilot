@@ -135,3 +135,31 @@ export function couplePackageView(input: {
     chosenAt: input.snapshots[0]!.selectionDate ?? input.snapshots[0]!.createdAt ?? null,
   };
 }
+
+/**
+ * What a job is worth: every package on it, not the first.
+ *
+ * Today's "booked" figure and the Jobs table priced a job by its primary
+ * snapshot alone, so a wedding sold as photo plus video counted as the photo
+ * package (GR Productions). The accepted proposal is what the couple agreed,
+ * so its combined total leads; before one is accepted it is the job's own
+ * packages added up, each snapshot already net of its discount. Null when
+ * the job has neither — nothing to price, which is not the same as $0.
+ */
+export function jobValueCents(input: {
+  project: Json & { id: string };
+  snapshots: readonly (Json & { id: string })[] | null | undefined;
+  proposals?: readonly Json[] | null;
+}): number | null {
+  const accepted = (input.proposals ?? [])
+    .filter((proposal) => proposal.projectId === input.project.id && proposal.status === "accepted")
+    .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
+  const agreed = Number((accepted?.pricingSnapshot as Json | null | undefined)?.totalCents);
+  if (accepted && Number.isSafeInteger(agreed) && agreed > 0) return agreed;
+  const onJob = currentJobSnapshots(input.snapshots ?? [], input.project);
+  if (!onJob.length) return null;
+  return onJob.reduce((sum, snapshot) => {
+    const total = Number(snapshot.totalCents ?? 0);
+    return sum + (Number.isFinite(total) ? total : 0);
+  }, 0);
+}

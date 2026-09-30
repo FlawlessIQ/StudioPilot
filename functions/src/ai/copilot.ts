@@ -25,7 +25,12 @@ import {
 } from "./diagnostics.js";
 import { screenAnswer } from "./answer-safety.js";
 import { rosterByTrade } from "../crew/roster-trade.js";
-import { coverageTradeNamed } from "../crew/staffing-plan.js";
+import { coverageTradeNamed, jobPackageSnapshotIds } from "../crew/staffing-plan.js";
+import {
+  jobPackageFacts,
+  loadAcceptedProposal,
+  loadJobPackageSnapshots,
+} from "../packages/job-package-facts.js";
 import { deriveFlowRole, deriveFlowSubject } from "./flow-derive.js";
 import {
   vertexFailure,
@@ -37,12 +42,13 @@ import {
   readSignedAgreementRequestSchema,
 } from "./signed-agreement.js";
 import {
+  combineCoverage,
   describeCoverage,
   resolveCoverage,
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
 import { separateGreeting } from "./reply-format.js";
-import { DEFAULT_PROPOSAL_TERMS, proposalTermsFor } from "../proposals/default-terms.js";
+import { DEFAULT_PROPOSAL_TERMS, proposalTermsForPackages } from "../proposals/default-terms.js";
 import {
   MAX_PREPARED_ACTIONS,
   STUDIO_ACTIONS,
@@ -600,19 +606,51 @@ async function rawSelectedPackage(tenantId: string, projectId: string) {
   if (!project.exists || project.get("tenantId") !== tenantId) return null;
   const snapshotId = String(project.get("packageSnapshotId") ?? "");
   if (!snapshotId) return null;
-  const snapshot = await db.doc(`packageSnapshots/${snapshotId}`).get();
-  if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) return null;
+  /**
+   * Every package on the job, not the primary alone.
+   *
+   * A studio selling photo and video together (GR Productions) holds two
+   * snapshots, and Cue answered "what's included", "what does it cost" and
+   * "how many crew" from the photo package — half the job, stated as the
+   * whole. `packages` carries each one; `packagesTotalCents` is the accepted
+   * proposal's total, or the packages added up before one is accepted.
+   */
+  const snapshots = (
+    await Promise.all(
+      jobPackageSnapshotIds(project.data()).map((id) =>
+        db.doc(`packageSnapshots/${id}`).get(),
+      ),
+    )
+  ).filter((snapshot) => {
+    // Each snapshot is confirmed to be the caller's, like the project.
+    if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) return false;
+    return true;
+  });
+  const primary = snapshots.find((snapshot) => snapshot.id === snapshotId);
+  if (!primary) return null;
+  const facts = jobPackageFacts({
+    snapshots: snapshots.map((snapshot) => ({ id: snapshot.id, data: snapshot.data() ?? {} })),
+    acceptedProposal: await loadAcceptedProposal(db, tenantId, projectId),
+  });
   // Money stays in integer cents; the system instruction renders it.
   return {
-    snapshotId,
-    packageName: snapshot.get("packageName") ?? null,
-    totalCents: snapshot.get("totalCents") ?? null,
-    retainerCents: snapshot.get("retainerCents") ?? null,
-    includedCoverage: snapshot.get("includedCoverage") ?? null,
-    includedCoverageMinutes: snapshot.get("includedCoverageMinutes") ?? null,
-    includedDeliverables: snapshot.get("includedDeliverables") ?? null,
-    terms: snapshot.get("terms") ?? null,
-    selectionDate: snapshot.get("selectionDate") ?? null,
+    /** The primary package, in the shape Cue has always read. */
+    selectedPackage: {
+      snapshotId,
+      packageName: primary.get("packageName") ?? null,
+      totalCents: primary.get("totalCents") ?? null,
+      retainerCents: primary.get("retainerCents") ?? null,
+      includedCoverage: primary.get("includedCoverage") ?? null,
+      includedCoverageMinutes: primary.get("includedCoverageMinutes") ?? null,
+      includedDeliverables: primary.get("includedDeliverables") ?? null,
+      terms: primary.get("terms") ?? null,
+      selectionDate: primary.get("selectionDate") ?? null,
+    },
+    packages: facts?.packages ?? [],
+    combinedCoverage: facts?.combinedCoverage ?? null,
+    packagesTotalCents: facts?.totalCents ?? null,
+    packagesTotalSource: facts?.totalSource ?? null,
+    agreedRetainerCents: facts?.retainerCents ?? null,
   };
 }
 
@@ -1094,7 +1132,7 @@ const COPILOT_TOOL_DECLARATIONS = [
   {
     name: "get_project_detail",
     description:
-      "Full operational detail for ONE project: contract status, invoices (balanceCents, dueDate, status), crew assignments with the crew member's name and acceptance status, open tasks, schedule, insurance, the planning questionnaire INCLUDING the couple's own answers, the message thread with the couple, the readiness assessment, and `selectedPackage` — the package the studio has already chosen for this job, with its name, price and coverage, or null if none has been chosen. Never say a project has no package unless `selectedPackage` is null. Use this to answer what the couple asked for or said, as well as where the job stands. Pass a projectId taken from the supplied project overview.",
+      "Full operational detail for ONE project: contract status, invoices (balanceCents, dueDate, status), crew assignments with the crew member's name and acceptance status, open tasks, schedule, insurance, the planning questionnaire INCLUDING the couple's own answers, the message thread with the couple, the readiness assessment, `selectedPackage` — the job's primary package, or null if none has been chosen — and `packages`, EVERY package on the job (photography and video are often booked together), each with its name, coverage, inclusions, terms and price, plus `combinedCoverage` (everyone the packages send, summed), `packagesTotalCents` (the accepted proposal's total when `packagesTotalSource` is accepted_proposal, otherwise the packages added up) and `agreedRetainerCents`. Never say a project has no package unless `selectedPackage` is null. When asked what is included, what it costs or how many crew are needed, answer from `packages`, `combinedCoverage` and `packagesTotalCents` and name every package — never from `selectedPackage` alone when `packages` has more than one. Use this to answer what the couple asked for or said, as well as where the job stands. Pass a projectId taken from the supplied project overview.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -1231,7 +1269,7 @@ async function executeReadTool(
     if (permitted && !permitted.includes(projectId))
       return { error: "project not accessible" };
     const scope = [projectId];
-    const [contracts, invoices, crew, tasks, schedules, insurance, questionnaires, readiness, messages, selectedPackage] =
+    const [contracts, invoices, crew, tasks, schedules, insurance, questionnaires, readiness, messages, jobPackages] =
       await Promise.all([
         scopedDocuments("contracts", tenantId, scope),
         scopedDocuments("invoiceReferences", tenantId, scope),
@@ -1292,6 +1330,7 @@ async function executeReadTool(
         if (profile.exists && profile.get("tenantId") === tenantId)
           crewNames.set(profile.id, String(profile.get("name") ?? ""));
     }
+    const selectedPackage = jobPackages?.selectedPackage ?? null;
     return {
       projectId,
       name: projectNames.get(projectId) ?? projectId,
@@ -1332,6 +1371,16 @@ async function executeReadTool(
        * bug this replaces.
        */
       selectedPackage,
+      /**
+       * Every package on the job with its own coverage, inclusions and
+       * terms, the crew summed across them, and the combined total. What a
+       * question about "the package" is answered from when there are several.
+       */
+      packages: jobPackages?.packages ?? [],
+      combinedCoverage: jobPackages?.combinedCoverage ?? null,
+      packagesTotalCents: jobPackages?.packagesTotalCents ?? null,
+      packagesTotalSource: jobPackages?.packagesTotalSource ?? null,
+      agreedRetainerCents: jobPackages?.agreedRetainerCents ?? null,
       readiness: readiness[0] ?? null,
     };
   }
@@ -1712,9 +1761,12 @@ async function buildCommandProposalActions(
       if (!projectDoc.exists || projectDoc.get("tenantId") !== tenantId) continue;
       const snapshotId = projectDoc.get("packageSnapshotId");
       if (typeof snapshotId !== "string" || !snapshotId) continue;
-      const snapshot = await db.doc(`packageSnapshots/${snapshotId}`).get();
-      if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) continue;
-      const terms = proposalTermsFor(snapshot.get("terms"));
+      // Every package's terms under its own name: the first package's alone
+      // left a photo + video couple with no terms for the video.
+      const jobSnapshots = await loadJobPackageSnapshots(db, tenantId, projectDoc.data() ?? {});
+      if (!jobSnapshots.some((snapshot) => snapshot.id === snapshotId)) continue;
+      const terms = proposalTermsForPackages(jobSnapshots.map((snapshot) => snapshot.data));
+      const packageNames = jobSnapshots.map((snapshot) => String(snapshot.data.packageName ?? "")).filter(Boolean);
       const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       command = {
         domain: "proposal",
@@ -1730,7 +1782,9 @@ async function buildCommandProposalActions(
       };
       label = `Draft a proposal for ${projectName}`;
       headline = "Draft a proposal";
-      detail = "Prepare an unsent proposal draft from the selected package.";
+      detail = packageNames.length
+        ? `Prepare an unsent proposal draft from ${packageNames.join(" + ")}.`
+        : "Prepare an unsent proposal draft from the selected packages.";
     } else if (proposal.commandType === "create_task") {
       const title = (proposal.title || proposal.rationale).slice(0, 200).trim();
       if (title.length < 2) continue;
@@ -2015,13 +2069,27 @@ async function generateProposalDraft(facts: {
   consultation: Json;
   /** What they wrote in the inquiry, and what was drawn out of it. */
   inquiry: Json;
-  packageSnapshot: Json;
+  /**
+   * Every package on the job, primary first. One package used to be passed,
+   * so a photo + video proposal was introduced as "Gold Photo covers your
+   * day" and its terms summary restated the photo terms alone.
+   */
+  packages: Json[];
+  /** Everyone the packages send, summed ("2 photographers and 1 videographer"). */
+  combinedCoverage: string;
 }): Promise<{
   draft: z.infer<typeof proposalDraftSchema>;
   mode: "ai" | "deterministic";
 }> {
   const fallback = () => {
-    const packageName = String(facts.packageSnapshot.packageName ?? "your coverage");
+    const names = facts.packages
+      .map((entry) => String(entry.packageName ?? "").trim())
+      .filter(Boolean);
+    const packageName = names.length
+      ? names.length === 1
+        ? names[0]!
+        : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+      : "your coverage";
     const priorities = (
       Array.isArray(facts.consultation.priorities)
         ? (facts.consultation.priorities as unknown[])
@@ -2036,10 +2104,10 @@ async function generateProposalDraft(facts: {
         : String(facts.inquiry.message ?? "").trim()
           ? "This proposal is shaped around what you told us matters most."
           : "This proposal reflects the priorities discussed during your consultation.",
-      `${packageName} covers your day the way we talked it through — and nothing here changes without your say-so.`,
+      `${packageName} ${names.length > 1 ? "cover" : "covers"} your day the way we talked it through — and nothing here changes without your say-so.`,
     ].join(" ");
-    const terms = String(facts.packageSnapshot.terms ?? "").trim();
-    const termsSummary = terms ? `In plain language: ${terms}` : DEFAULT_PROPOSAL_TERMS;
+    const terms = proposalTermsForPackages(facts.packages);
+    const termsSummary = terms === DEFAULT_PROPOSAL_TERMS ? terms : `In plain language: ${terms}`;
     return {
       draft: proposalDraftSchema.parse({
         introduction: introduction.slice(0, 2000),
@@ -2067,7 +2135,7 @@ async function generateProposalDraft(facts: {
           systemInstruction: {
             parts: [
               {
-                text: "Write proposal copy for a photography studio, grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Call the event what a client calls it (their wedding, their day) and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. termsSummary: restate the package's approved terms in plain client-friendly language; never add, soften, or remove a term, and never write legal language of your own. The studio edits and approves this before anything is sent. Return JSON only.",
+                text: "Write proposal copy for a photography studio, grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Call the event what a client calls it (their wedding, their day) and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. `packages` is EVERY package the client is being offered (photography and video are often sold together) and `combinedCoverage` is everyone they send between them: when the introduction mentions what is on offer, name every package, never just the first, and describe each only from its own facts. termsSummary: restate each package's approved terms in plain client-friendly language, under that package's name when there is more than one; never add, soften, or remove a term, never apply one package's terms to another, and never write legal language of your own. If no package has terms, restate nothing. The studio edits and approves this before anything is sent. Return JSON only.",
               },
             ],
           },
@@ -2296,9 +2364,10 @@ export const aiCopilotCommand = onRequest(
           throw new Error("PROJECT_NOT_FOUND");
         const snapshotId = String(projectDocument.get("packageSnapshotId") ?? "");
         if (!snapshotId) throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
-        const [snapshotDocument, consultations, tenantDocument, leads] =
+        const [jobSnapshots, consultations, tenantDocument, leads] =
           await Promise.all([
-            db.doc(`packageSnapshots/${snapshotId}`).get(),
+            // Every package on the job, primary first, tenant-checked.
+            loadJobPackageSnapshots(db, draftRequest.tenantId, projectDocument.data() ?? {}),
             db
               .collection("consultations")
               .where("tenantId", "==", draftRequest.tenantId)
@@ -2314,10 +2383,7 @@ export const aiCopilotCommand = onRequest(
               .limit(1)
               .get(),
           ]);
-        if (
-          !snapshotDocument.exists ||
-          snapshotDocument.get("tenantId") !== draftRequest.tenantId
-        )
+        if (!jobSnapshots.some((snapshot) => snapshot.id === snapshotId))
           throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
         const consultation = consultations.docs
           .map((item) => asRecord(item.data()))
@@ -2347,16 +2413,19 @@ export const aiCopilotCommand = onRequest(
             message: lead?.message ?? null,
             summary: lead?.aiSummary ?? null,
           },
-          packageSnapshot: {
-            packageName: snapshotDocument.get("packageName"),
-            description: snapshotDocument.get("description"),
-            includedCoverageMinutes: snapshotDocument.get("includedCoverageMinutes"),
-            includedPhotographers: snapshotDocument.get("includedPhotographers"),
+          packages: jobSnapshots.map(({ data }) => ({
+            packageName: data.packageName,
+            description: data.description,
+            includedCoverageMinutes: data.includedCoverageMinutes,
+            includedPhotographers: data.includedPhotographers,
             // Written out, so a draft never calls a videographer a photographer.
-            coverage: describeCoverage(resolveCoverage(snapshotDocument.data())),
-            includedDeliverables: snapshotDocument.get("includedDeliverables"),
-            terms: snapshotDocument.get("terms"),
-          },
+            coverage: describeCoverage(resolveCoverage(data)),
+            includedDeliverables: data.includedDeliverables,
+            terms: data.terms,
+          })),
+          combinedCoverage: describeCoverage(
+            combineCoverage(jobSnapshots.map(({ data }) => resolveCoverage(data))),
+          ),
         });
         const interactionId = `ai_${randomUUID()}`;
         await db.doc(`aiInteractions/${interactionId}`).create({

@@ -49,6 +49,7 @@ import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { preBookingStates } from "@/features/inquiries/stages";
+import { jobValueCents } from "@/features/packages/job-packages";
 import {
   ClientPortalInvite,
   type ClientInvitationStatus,
@@ -775,16 +776,13 @@ export function LiveProjectRows({
   // the shared document cache, so reading them here costs nothing.
   const snapshots = useTenantDocuments("packageSnapshots");
   const invoices = useTenantDocuments("invoiceReferences");
+  // The accepted proposal's total is what a job is worth once agreed; before
+  // that, every package on it — never the primary alone (jobValueCents).
+  const proposals = useTenantDocuments("proposals");
   // Jobs whose automation has already tried and failed. Production showed a
   // row reading "Create retainer invoice" as fresh work while a provider job
   // to create that invoice had failed and been waiting a day.
   const providerJobs = useTenantDocuments("providerJobs");
-  const snapshotTotals = new Map(
-    (snapshots.records ?? []).map((row) => [
-      row.id,
-      Number(row.totalCents ?? 0),
-    ]),
-  );
   const today = todayLocalIso();
   const stalled = new Set<string>();
   for (const job of providerJobs.records ?? []) {
@@ -848,8 +846,11 @@ export function LiveProjectRows({
             venue: String(item.venueName ?? item.city ?? "Location pending"),
             state: String(item.state),
             readiness: Number(item.readinessScore ?? 0),
-            valueCents:
-              snapshotTotals.get(String(item.packageSnapshotId ?? "")) ?? null,
+            valueCents: jobValueCents({
+              project: item,
+              snapshots: snapshots.records,
+              proposals: proposals.records,
+            }),
             owedCents: balance?.cents ?? null,
             owedOverdue: balance?.overdue ?? false,
             invoiced: invoiced.has(item.id),

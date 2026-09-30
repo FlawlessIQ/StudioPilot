@@ -8,6 +8,11 @@ import {
   resolveLifecycleSettings,
   type LifecycleFacts,
 } from "./lifecycle-core.js";
+import { finalBalanceFacts } from "./final-balance-facts.js";
+import {
+  loadAcceptedProposal,
+  loadJobPackageSnapshots,
+} from "../packages/job-package-facts.js";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -94,22 +99,25 @@ export const lifecycleMessageScheduler = onSchedule(
           recipientName = text(contact.get("displayName")) || null;
         }
       }
-      let packageTotalCents: number | null = null;
-      let retainerCents: number | null = null;
-      const snapshotId = text(project.get("packageSnapshotId"));
-      if (snapshotId) {
-        const snapshot = await db.doc(`packageSnapshots/${snapshotId}`).get();
-        if (snapshot.exists && snapshot.get("tenantId") === tenantId) {
-          packageTotalCents =
-            typeof snapshot.get("totalCents") === "number"
-              ? (snapshot.get("totalCents") as number)
-              : null;
-          retainerCents =
-            typeof snapshot.get("retainerCents") === "number"
-              ? (snapshot.get("retainerCents") as number)
-              : null;
-        }
-      }
+      // Every package on the job and every payment recorded, against the
+      // total the couple agreed. This read the primary snapshot alone, so a
+      // photo + video wedding was told a balance that left the video out and
+      // assumed the photo package's retainer was what had been paid.
+      const [jobSnapshots, acceptedProposal, projectInvoices] = await Promise.all([
+        loadJobPackageSnapshots(db, tenantId, project.data()),
+        loadAcceptedProposal(db, tenantId, project.id),
+        db
+          .collection("invoiceReferences")
+          .where("tenantId", "==", tenantId)
+          .where("projectId", "==", project.id)
+          .limit(40)
+          .get(),
+      ]);
+      const balance = finalBalanceFacts({
+        proposals: acceptedProposal ? [acceptedProposal] : [],
+        snapshots: jobSnapshots.map((snapshot) => snapshot.data),
+        invoices: projectInvoices.docs.map((invoice) => invoice.data()),
+      });
       const publishedSchedule = await db
         .collection("schedules")
         .where("tenantId", "==", tenantId)
@@ -133,12 +141,11 @@ export const lifecycleMessageScheduler = onSchedule(
           projectName: text(project.get("name")) || "your event",
           eventDate: text(project.get("eventDate")) || null,
           venueName: text(project.get("venueName")) || null,
-          packageTotalCents,
-          retainerPaidCents: retainerCents,
-          balanceDueCents:
-            packageTotalCents !== null && retainerCents !== null
-              ? Math.max(0, packageTotalCents - retainerCents)
-              : null,
+          packageTotalCents: balance.totalCents,
+          retainerPaidCents: balance.paidCents,
+          balanceDueCents: balance.balanceCents,
+          packageNames: balance.packageNames,
+          paymentsOnRecord: balance.paymentsOnRecord,
           scheduleUrl,
           recipientEmail,
           recipientName,

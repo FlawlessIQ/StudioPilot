@@ -19,6 +19,8 @@ import { RecordRetainerPayment } from "@/components/booking/record-retainer-paym
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { proposalTermsForPackages } from "@/features/booking/autopilot";
+import { currentJobSnapshots } from "@/features/packages/job-packages";
 import { BookWithoutRetainer } from "@/components/booking/book-without-retainer";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
@@ -581,9 +583,13 @@ export function DraftProposalCard({ action }: ActionCardProps) {
     return <ActionShell title={title}><Blocked>{`${jobName(job)} has no package yet. Ask me to choose one first.`}</Blocked></ActionShell>;
   if (!["CONSULTATION", "PROPOSAL", "LEAD"].includes(str(job.state)))
     return <ActionShell title={title}><Blocked>{`${jobName(job)} is past the proposal stage.`}</Blocked></ActionShell>;
+  // Every package on the job: the card read "From Gold Photo" on a photo +
+  // video wedding, and seeded the draft with the photo package's terms alone.
+  const onTheJob = currentJobSnapshots(snapshots, job);
+  const packageNames = onTheJob.map((item) => str(item.packageName)).filter(Boolean);
   return (
     <ActionShell
-      detail={`From ${str(snapshot.packageName) || "the selected package"}. It stays a draft for you to check, approve and send.`}
+      detail={`From ${packageNames.length ? packageNames.join(" + ") : "the selected package"}. It stays a draft for you to check, approve and send.`}
       icon={<FileText size={15} />}
       title={title}
     >
@@ -602,7 +608,7 @@ export function DraftProposalCard({ action }: ActionCardProps) {
                 projectId: job.id,
                 expiresAt: `${expires}T23:59:59.000Z`,
                 notes: note.trim() || null,
-                termsSummary: str(snapshot.terms) || "Terms as set out in the selected package.",
+                termsSummary: proposalTermsForPackages(onTheJob),
                 retainerDueDate: null,
                 balanceDueDate: null,
               });

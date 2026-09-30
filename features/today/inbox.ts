@@ -38,6 +38,7 @@ import {
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { isAmendable } from "@/features/booking/amendable";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { jobValueCents } from "@/features/packages/job-packages";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
@@ -2007,8 +2008,9 @@ export function handledThisWeek(
  * homeMetrics' bookedValueCents sums invoices, which answers "what have I
  * billed", not "what have I booked" — a studio with nine weddings and one
  * deposit invoice would see a number smaller than a single job. This sums
- * the locked package snapshot of every project from the signed agreement
- * onward, which is the number a photographer means.
+ * what each project from the signed agreement onward is worth (jobValueCents:
+ * the accepted proposal's total, else every package on the job), which is the
+ * number a photographer means.
  */
 const BOOKED_STATES = new Set([
   "BOOKED",
@@ -2024,17 +2026,23 @@ const BOOKED_STATES = new Set([
 export function bookedValueCents(input: {
   projects?: TodayRecord[] | null;
   packageSnapshots?: TodayRecord[] | null;
+  /**
+   * The accepted proposal's combined total is what was won; without it the
+   * figure is every package on the job, never the primary alone (a photo +
+   * video wedding counted as its photo package).
+   */
+  proposals?: TodayRecord[] | null;
 }): number {
-  const totals = new Map(
-    rows(input.packageSnapshots).map((snapshot) => [
-      snapshot.id,
-      Number(snapshot.totalCents ?? 0),
-    ]),
-  );
   return rows(input.projects)
     .filter((project) => BOOKED_STATES.has(text(project.state)))
     .reduce(
-      (sum, project) => sum + (totals.get(text(project.packageSnapshotId)) ?? 0),
+      (sum, project) =>
+        sum +
+        (jobValueCents({
+          project,
+          snapshots: input.packageSnapshots,
+          proposals: input.proposals,
+        }) ?? 0),
       0,
     );
 }

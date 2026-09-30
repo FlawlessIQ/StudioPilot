@@ -30,7 +30,11 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { blockingIssues } from "@/features/ai/blocking-issues";
-import { groundedBookingDraft } from "@/features/booking/autopilot";
+import {
+  DEFAULT_PROPOSAL_TERMS,
+  groundedBookingDraft,
+  proposalTermsForPackages,
+} from "@/features/booking/autopilot";
 import { currentConsultation } from "@/features/consultations/live";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { sendBookingCommand } from "@/lib/booking/command-client";
@@ -289,6 +293,19 @@ export function BookingAutopilotWorkspace({
     consultationSummary: text(summary.summary),
     proposalIntroduction: text(proposalDraft.notes),
   });
+  /**
+   * Every package going on the proposal, main first, and their terms each
+   * under its own name. The draft was seeded with the main package's terms
+   * alone, so a photo + video proposal said nothing about the video's.
+   */
+  const proposalPackages = selectedPackage
+    ? [
+        selectedPackage,
+        ...extraPackageIds.flatMap((id) => packages.filter((item) => item.id === id)),
+      ]
+    : [];
+  const proposalTerms = proposalTermsForPackages(proposalPackages);
+  const termsDefaulted = Boolean(selectedPackage) && proposalTerms === DEFAULT_PROPOSAL_TERMS;
   const analysisQueued =
     consultation?.status === "completed" &&
     !summaryAction &&
@@ -518,9 +535,7 @@ export function BookingAutopilotWorkspace({
         notes:
           text(proposalDraft.notes) ||
           "Thank you for sharing what matters most for your celebration.",
-        termsSummary:
-          groundedDraft.proposal?.termsSummary ??
-          text(selectedPackage.terms),
+        termsSummary: proposalTerms,
         retainerDueDate: retainerDueDate,
         balanceDueDate: balanceDue.toISOString().slice(0, 10),
       });
@@ -919,10 +934,9 @@ export function BookingAutopilotWorkspace({
               {busy === "proposal" ? <LoaderCircle className="spin" /> : <FileText />}
               Approve inputs & create draft
             </button>
-            {groundedDraft.termsDefaulted ? (
+            {termsDefaulted ? (
               <p className="booking-package-hint">
-                This package has no terms written, so the draft uses standard
-                wording. Change it on the draft before you send.
+                {`${proposalPackages.length > 1 ? "These packages have" : "This package has"} no terms written, so the draft uses standard wording. Change it on the draft before you send.`}
               </p>
             ) : null}
             {proposalId ? (
