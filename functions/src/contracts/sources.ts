@@ -223,6 +223,10 @@ export async function loadContractSources(
         name: text(pricing.packageName) || text(snapshotData.packageName),
         coverage: coverage || null,
         deliverables,
+        deliverableGroups: allSnapshots.map((data) => ({
+          name: text(data.packageName) || "Package",
+          items: includedFor(data),
+        })),
       },
       pricing: {
         currency: text(pricing.currency) || text(tenant.get("currency")) || "USD",

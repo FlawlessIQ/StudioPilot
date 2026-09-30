@@ -185,6 +185,11 @@ export type ContractSources = {
     name: string;
     coverage: string | null;
     deliverables: string[];
+    /**
+     * The same items grouped by package, when the agreement covers more than
+     * one: each package's name is shown as a heading over its own list.
+     */
+    deliverableGroups?: Array<{ name: string; items: string[] }>;
   };
   pricing: {
     currency: string;
@@ -617,6 +622,21 @@ export function resolveContractDocument(input: {
     } else {
       const value = valueFor("package.deliverables");
       const items = sources.package.deliverables.map((item) => item.trim()).filter(Boolean);
+      const groups = (sources.package.deliverableGroups ?? [])
+        .map((group) => ({ name: group.name.trim(), items: group.items.map((item) => item.trim()).filter(Boolean) }))
+        .filter((group) => group.name && group.items.length);
+      if (value && groups.length > 1) {
+        // Photo and video each under their own name, not one long list with
+        // the package names mixed in as if they were items.
+        for (const group of groups) {
+          blocks.push({ type: "paragraph", content: [{ text: group.name, bold: true, field: "package.deliverables" }] });
+          blocks.push({
+            type: "list",
+            items: group.items.map((item) => ({ content: [{ text: item, field: "package.deliverables" }] })),
+          });
+        }
+        continue;
+      }
       blocks.push(
         value && items.length
           ? {

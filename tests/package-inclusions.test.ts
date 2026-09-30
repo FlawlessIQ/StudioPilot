@@ -169,3 +169,16 @@ test("a draft can be discarded and a sent proposal withdrawn; neither once it's 
   const page = source("components/proposals/studio-proposal-workspace.tsx");
   assert.match(page, /"Withdraw this proposal" : "Discard this draft"/);
 });
+
+test("an agreement with several packages lists each under its own name, with bullets", async () => {
+  const sources = source("functions/src/contracts/sources.ts");
+  assert.match(sources, /deliverableGroups: allSnapshots\.map\(\(data\) => \(\{/);
+  for (const path of ["functions/src/contracts/document.ts", "features/contracts/document.ts"]) {
+    const doc = source(path);
+    assert.match(doc, /if \(value && groups\.length > 1\) \{/, path);
+    assert.match(doc, /deliverableGroups\?: Array<\{ name: string; items: string\[\] \}>;/, path);
+  }
+  const css = source("app/contracts.css");
+  assert.match(css, /\.contract-list,\s*\.contract-document \.contract-list \{\s*list-style: disc outside;/);
+  assert.match(css, /\.contract-list > li \{\s*display: list-item;/);
+});

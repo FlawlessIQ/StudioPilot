@@ -40,13 +40,25 @@
   white-space: pre-line;
 }
 
-.contract-list {
+/* Bullets said explicitly: the couple's page and the studio preview both sit
+   inside resets that strip list markers, so a package's inclusions read as a
+   wall of lines with the package names lost among them (GR, 2026-09-30). */
+.contract-list,
+.contract-document .contract-list {
+  list-style: disc outside;
   margin: 0 0 0.9rem;
   padding-left: 1.3rem;
 }
 
-.contract-list li {
+.contract-list > li {
+  display: list-item;
   margin: 0.2rem 0;
+}
+
+/* A package's name above its own list, when an agreement covers several. */
+.contract-group-title {
+  font-weight: 650;
+  margin: 0.7rem 0 0.2rem;
 }
 
 .contract-bold {
