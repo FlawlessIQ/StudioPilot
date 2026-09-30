@@ -1,6 +1,6 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { clientAutomationsPaused } from "../imports/existing-booking.js";
+import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { questionnaireReminderDue } from "./questionnaire-reminders.js";
 
 /**
@@ -59,8 +59,9 @@ export const questionnaireReminderScheduler = onSchedule(
 
       const project = await db.doc(`projects/${projectId}`).get();
       if (!project.exists || project.get("tenantId") !== tenantId) continue;
-      if (clientAutomationsPaused(project.data())) continue;
-      if (["CANCELLED", "ARCHIVED", "POSTPONED"].includes(String(project.get("state")))) continue;
+      // Quiet, archived (by state or by `archivedAt`, which this used to miss),
+      // cancelled, lost or on hold.
+      if (clientOutreachStop(project.data())) continue;
 
       const now = new Date().toISOString();
       const jobReference = db.doc(`emailJobs/questionnaire_reminder_${response.id}_${offset}`);

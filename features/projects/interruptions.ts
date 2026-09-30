@@ -16,6 +16,11 @@
 
 import { allowedProjectTransitions } from "@/features/projects/state-machine";
 import type { ProjectState } from "@/features/projects/schema";
+import {
+  heldAfterBooking,
+  holdResumeStates,
+  type HoldRecord,
+} from "@/features/projects/hold-resume";
 
 export type Interruption = "POSTPONED" | "CANCELLED";
 
@@ -60,15 +65,25 @@ export const INTERRUPTION_COPY: Record<
 /**
  * Where a held job goes when it comes back.
  *
- * BOOKED, because the signature and the retainer are already on file and the
- * booking gate re-checks them against the new date. The state machine also
- * allows CONSULTATION and PLANNING from here; neither is the common case, and
- * offering three choices where one is right is how a photographer ends up in
- * PLANNING on a job that was never re-booked.
+ * A job held after it was booked comes back through BOOKED: the signature and
+ * the retainer are already on file and the booking gate re-checks them against
+ * the new date. A job held before it was booked comes back to the stage it
+ * left — it has no signature and no retainer for the gate to find, and
+ * offering BOOKED (or, worse, PLANNING) is how a job at PROPOSAL got into
+ * planning unsigned and unpaid (money audit, 2026-09-30). See hold-resume.ts.
  */
-export function resumeTargetFor(state: ProjectState): ProjectState | null {
+export function resumeTargetFor(
+  state: ProjectState,
+  hold: HoldRecord = {},
+): ProjectState | null {
   if (state !== "POSTPONED") return null;
-  return allowedProjectTransitions.POSTPONED.includes("BOOKED")
-    ? "BOOKED"
-    : null;
+  const from = String(hold.postponedFromState ?? "");
+  // A hold recorded before `postponedFromState` existed, on a job with no
+  // booking stamp, still offers the booking check: the gate refuses it if
+  // nothing is on file, which is honest, where guessing a stage is not.
+  const resolved: ProjectState =
+    !heldAfterBooking(hold) && holdResumeStates(hold).includes(from)
+      ? (from as ProjectState)
+      : "BOOKED";
+  return allowedProjectTransitions.POSTPONED.includes(resolved) ? resolved : null;
 }

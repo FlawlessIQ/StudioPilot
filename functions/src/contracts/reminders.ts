@@ -1,6 +1,6 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { clientAutomationsPaused } from "../imports/existing-booking.js";
+import { clientOutreachStop } from "../post-event/client-outreach.js";
 
 /**
  * Nudge a couple who has not signed.
@@ -77,7 +77,9 @@ export const contractReminderScheduler = onSchedule(
       const projectId = String(contract.get("projectId") ?? "");
       const project = await db.doc(`projects/${projectId}`).get();
       if (!project.exists || project.get("tenantId") !== tenantId) continue;
-      if (clientAutomationsPaused(project.data())) continue;
+      // Quiet, archived (`archivedAt` was never read here), cancelled, lost or
+      // on hold: the state check below alone let an archived job through.
+      if (clientOutreachStop(project.data())) continue;
       // A booking agreement (H2) waits while the job is still at PROPOSAL —
       // signing it is what accepts the proposal. Checking CONTRACT_PENDING
       // alone meant a couple sitting on one was never reminded.

@@ -18,7 +18,9 @@
  *
  * Deliberately narrow. Each reason is an explicit studio act meaning "stop
  * talking to these people": they put the job away, they paused client
- * automation, or the wedding is not happening. `CLOSED` on its own is *not*
+ * automation, the wedding is not happening, or it is on hold (added with the
+ * money fixes of 2026-09-30, when billing began reading this too). `CLOSED`
+ * on its own is *not*
  * here — closeout settles the album and review requirements, but a studio that
  * closes a job without archiving it has not said the couple should hear
  * nothing, and an album genuinely still outstanding is worth one more ask.
@@ -36,8 +38,13 @@ export type ClientOutreachStop =
   | "put_away"
   /** `clientAutomationsPausedAt` is set — quiet by the studio's choice. */
   | "automations_paused"
-  /** The wedding is not happening. */
-  | "cancelled";
+  /** The wedding is not happening: cancelled, or an inquiry closed as lost. */
+  | "cancelled"
+  /**
+   * On hold. The job page promises the client isn't billed or reminded while
+   * it is, and a reminder or a bill for a date that is moving breaks that promise.
+   */
+  | "on_hold";
 
 export function clientOutreachStop(project: unknown): ClientOutreachStop | null {
   const fields = (project ?? {}) as {
@@ -49,7 +56,8 @@ export function clientOutreachStop(project: unknown): ClientOutreachStop | null 
   if (state === "ARCHIVED" || Boolean(fields.archivedAt)) return "put_away";
   if (typeof fields.clientAutomationsPausedAt === "string")
     return "automations_paused";
-  if (state === "CANCELLED") return "cancelled";
+  if (state === "CANCELLED" || state === "LOST") return "cancelled";
+  if (state === "POSTPONED") return "on_hold";
   return null;
 }
 

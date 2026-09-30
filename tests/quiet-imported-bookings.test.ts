@@ -61,7 +61,9 @@ const guarded: Array<[string, string, RegExp]> = [
   [
     "final invoice scheduler skips a quiet booking",
     "functions/src/operations/invoice-scheduler.ts",
-    /if \(clientAutomationsPaused\(project\.data\(\)\)\) continue;/,
+    // clientOutreachStop returns "automations_paused" for a quiet booking —
+    // tests/wave0-money.test.ts holds the behaviour.
+    /return clientOutreachStop\(project\) === null;/,
   ],
   [
     "workflow rules don't fire for a quiet booking",
@@ -71,12 +73,12 @@ const guarded: Array<[string, string, RegExp]> = [
   [
     "autopay never charges a quiet booking",
     "functions/src/billing/autopay.ts",
-    /if \(clientAutomationsPaused\(project\.data\(\)\)\) continue;/,
+    /if \(autopayProjectUnchargeable\(project\.data\(\), clientOutreachStop\(project\.data\(\)\)\)\) continue;/,
   ],
   [
     "questionnaire reminders skip a quiet booking",
     "functions/src/planning/questionnaire-reminder-scheduler.ts",
-    /if \(clientAutomationsPaused\(project\.data\(\)\)\) continue;/,
+    /if \(clientOutreachStop\(project\.data\(\)\)\) continue;/,
   ],
   [
     "the email sender holds automated mail for a quiet booking",

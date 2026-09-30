@@ -11,7 +11,7 @@ import {
 import { autopayStudioState, QUICKBOOKS_PAYMENTS_SCOPE } from "@/features/billing/autopay";
 import { QUICKBOOKS_PAYMENTS_SCOPE as FUNCTIONS_SCOPE } from "../functions/src/billing/autopay-core.ts";
 
-const invoice = { kind: "final", status: "sent", balanceCents: 250000, dueDate: "2026-10-01", provider: "quickbooks" };
+const invoice = { kind: "final", status: "sent", balanceCents: 250000, dueDate: "2026-10-01", provider: "quickbooks", providerState: "completed", providerInvoiceId: "145" };
 
 test("the final balance is charged on or after its due date, once", () => {
   assert.deepEqual(autopayChargeDue({ invoice, attempts: [], today: "2026-09-30" }), { due: false, reason: "not_yet_due" });

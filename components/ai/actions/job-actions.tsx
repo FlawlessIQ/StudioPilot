@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Archive, Briefcase, CircleSlash, Inbox, MailPlus, PencilLine, RotateCcw, Route, Trash2, UserPlus } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { allowedProjectTransitions, transitionAuthority } from "@/features/projects/state-machine";
+import { holdResumeStates, type HoldRecord } from "@/features/projects/hold-resume";
 import type { ProjectState } from "@/features/projects/schema";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -547,9 +548,17 @@ export function PortalInviteCard({ action }: ActionCardProps) {
 }
 
 /** Stages a job can be moved to by hand from where it is. */
-export function manualTargets(state: string): ProjectState[] {
+export function manualTargets(state: string, hold: HoldRecord = {}): ProjectState[] {
   const from = state as ProjectState;
-  return (allowedProjectTransitions[from] ?? []).filter((to) => !transitionAuthority(from, to) && to !== "ARCHIVED");
+  // A held job only goes back where it was held from — Cue offered PLANNING
+  // to a job held at PROPOSAL, which skipped the booking gate.
+  const resumable = from === "POSTPONED" ? holdResumeStates(hold) : null;
+  return (allowedProjectTransitions[from] ?? []).filter(
+    (to) =>
+      !transitionAuthority(from, to) &&
+      to !== "ARCHIVED" &&
+      (!resumable || resumable.includes(to)),
+  );
 }
 
 function stageFromWords(words: string | null, targets: ProjectState[]): ProjectState | null {
@@ -566,7 +575,12 @@ function stageFromWords(words: string | null, targets: ProjectState[]): ProjectS
 export function MoveStageCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
   const runner = useRunner();
-  const targets = job ? manualTargets(str(job.state)) : [];
+  const targets = job
+    ? manualTargets(str(job.state), {
+        postponedFromState: job.postponedFromState,
+        bookingCompletedAt: job.bookingCompletedAt,
+      })
+    : [];
   const [target, setTarget] = useState<string>("");
   const [reason, setReason] = useState("");
   const title = `Move ${jobName(job)} to another stage`;

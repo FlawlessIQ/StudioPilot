@@ -2,6 +2,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { scopedDocuments } from "./copilot.js";
+import { isStandingInvoice } from "../booking/invoice-standing.js";
+import { clientOutreachStop } from "../post-event/client-outreach.js";
 
 /**
  * The proactive morning brief. Each day it computes a studio's most pressing
@@ -48,9 +50,34 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
   );
   const todayIso = new Date().toISOString().slice(0, 10);
   const priorities: Priority[] = [];
+  /**
+   * Jobs nobody should be chasing: archived, cancelled, lost or on hold.
+   *
+   * Every loop below read every record, so a cancelled wedding's unpaid
+   * balance headed the owner's morning brief as "overdue" (money audit,
+   * 2026-09-30). A quiet imported booking is still the studio's own work and
+   * stays in; the brief goes to the studio, not the couple.
+   */
+  const stopped = new Set(
+    projects
+      .filter((project) => {
+        const stop = clientOutreachStop(project);
+        return stop !== null && stop !== "automations_paused";
+      })
+      .map((project) => String(project.id)),
+  );
 
-  // Overdue balances — most urgent (money, past due).
+  // Overdue balances — most urgent (money, past due). Only a bill that stands
+  // and has gone to the couple: a paid, replaced or refused one is not owed,
+  // and a draft waiting on the studio has not been sent to be late.
   for (const invoice of invoices) {
+    if (stopped.has(str(invoice.projectId))) continue;
+    const status = str(invoice.status);
+    if (
+      !isStandingInvoice(status) ||
+      ["paid", "draft", "review_required", "cancelled", "void"].includes(status)
+    )
+      continue;
     const balance = num(invoice.balanceCents);
     const dueDate = str(invoice.dueDate);
     if (balance > 0 && dueDate && dueDate < todayIso) {
@@ -64,7 +91,7 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
   // Expired crew offers — a role that quietly went unfilled.
   const expiredByProject = new Map<string, number>();
   for (const assignment of assignments) {
-    if (str(assignment.status) === "expired") {
+    if (str(assignment.status) === "expired" && !stopped.has(str(assignment.projectId))) {
       const key = str(assignment.projectId);
       expiredByProject.set(key, (expiredByProject.get(key) ?? 0) + 1);
     }
@@ -79,6 +106,7 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
   // Upcoming events that are not ready.
   for (const assessment of readiness) {
     const projectId = str(assessment.projectId);
+    if (stopped.has(projectId)) continue;
     const project = projects.find((p) => String(p.id) === projectId);
     const projectEventDate = str(project?.eventDate);
     if (
@@ -97,6 +125,7 @@ async function computePriorities(tenantId: string): Promise<Priority[]> {
   // Late questionnaires.
   for (const response of questionnaires) {
     const status = str(response.status || response.approvalState).toLowerCase();
+    if (stopped.has(str(response.projectId))) continue;
     if (status && status !== "complete") {
       priorities.push({
         rank: 3,

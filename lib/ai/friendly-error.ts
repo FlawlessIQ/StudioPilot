@@ -90,7 +90,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   FINAL_INVOICE_ALREADY_OUT: "A final bill is already out for this job. Open Invoices to see where it is.",
   NOTHING_OWED: "Nothing is left to pay on this job, so there's no final bill to send.",
   FINAL_NEEDS_RETAINER_RECORD:
-    "The retainer isn't recorded yet, so the balance can't be worked out. Record the retainer first, then send the final bill.",
+    "There's no retainer on this job, paid or waived, so the balance can't be worked out. If the couple paid one, record it on the booking page. If you're going ahead without one, record the balance as paid another way or bill it from your invoicing app.",
   FINAL_NO_PACKAGE: "This job has no package, so there's no total to bill against.",
   INVOICING_NOT_CONNECTED:
     "Connect QuickBooks or Stripe in Integrations to send the bill from StudioCue, or record the balance as paid another way.",
@@ -254,6 +254,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Someone else changed this job while you were looking at it. Refresh and try again.",
   INVALID_TRANSITION:
     "That is not a move this job can make from where it is now.",
+  HOLD_RESUME_NOT_ALLOWED:
+    "A job on hold goes back to the stage it was held from. If it was booked, bring it back through the booking page so the signature and retainer are checked again.",
   BALANCE_ATTESTATION_PERMISSION_REQUIRED:
     "Only a studio owner or admin can record a payment taken outside StudioCue.",
   BALANCE_NOT_READY:

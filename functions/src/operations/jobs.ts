@@ -1,4 +1,5 @@
 import { contractStillAwaitingSignature } from "../contracts/reminders.js";
+import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
 import {
   clientAutomationEmailTypes,
   clientAutomationsPaused,
@@ -105,6 +106,46 @@ function retryableJobFailure(
     return status === 408 || status === 429 || status >= 500;
   }
   return true;
+}
+
+/**
+ * Apply a job's outcome to its invoice — unless StudioCue already closed it.
+ *
+ * Found in the money audit of 2026-09-30: a retainer the studio recorded as
+ * paid by transfer was overwritten to `failed` when the QuickBooks create job
+ * for it ran out of retries, and to `sent` / `awaiting_delivery` by the email
+ * worker. A failed invoice is not standing, so the paid retainer dropped out
+ * of the books. A paid, replaced, voided or called-off invoice is a decision
+ * already made; a job queued before it cannot undo it. What the job reported
+ * is still kept, beside the record, so nothing about the attempt is lost.
+ */
+async function updateInvoiceUnlessClosed(
+  invoiceId: string,
+  fields: Record<string, unknown>,
+  ignored: { by: string; outcome: string },
+) {
+  const db = getFirestore();
+  const reference = db.doc(`invoiceReferences/${invoiceId}`);
+  await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(reference);
+    // The invoice may have been removed; the job's own record is the
+    // authority and must not be lost to this.
+    if (!current.exists) return;
+    const now = new Date().toISOString();
+    if (invoiceClosedToProviderWork(current.get("status"))) {
+      transaction.update(reference, {
+        jobOutcomeIgnored: {
+          reason: `invoice_${String(current.get("status"))}`,
+          outcome: ignored.outcome,
+          at: now,
+        },
+        updatedAt: now,
+        updatedBy: ignored.by,
+      });
+      return;
+    }
+    transaction.update(reference, fields);
+  });
 }
 
 async function claim(document: DocumentSnapshot) {
@@ -240,24 +281,32 @@ async function finish(
     // not "sent" and waiting to be paid — nothing was ever sent. Left
     // saying "sent" the workspace showed a balance outstanding and offered
     // to chase a client for an invoice that does not exist.
+    //
+    // Only a job that *creates* the invoice. A reconcile or an autopay charge
+    // also carries `invoiceId`, and its failure says nothing about whether
+    // the invoice exists — marking one `failed` took a live bill off the books.
     if (
       document.ref.parent.id === "providerJobs" &&
       document.get("invoiceId") &&
+      ["create_quickbooks_invoice", "create_stripe_invoice"].includes(
+        String(document.get("type")),
+      ) &&
       !retryable
     ) {
-      await getFirestore()
-        .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
-        .update({
+      await updateInvoiceUnlessClosed(
+        String(document.get("invoiceId")),
+        {
           status: "failed",
           providerState: "failed",
           providerError: { code, message },
           updatedAt: now,
           updatedBy: "provider-worker",
-        })
-        .catch(() => {
-          // As above: the job's own error record is the authority and must
-          // not be lost to a missing invoice.
-        });
+        },
+        { by: "provider-worker", outcome: `failed:${code}` },
+      ).catch(() => {
+        // As above: the job's own error record is the authority and must
+        // not be lost to a missing invoice.
+      });
     }
     if (
       document.ref.parent.id === "pdfJobs" &&
@@ -278,17 +327,18 @@ async function finish(
       document.ref.parent.id === "emailJobs" &&
       document.get("invoiceId")
     ) {
-      await getFirestore()
-        .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
-        .update({
+      await updateInvoiceUnlessClosed(
+        String(document.get("invoiceId")),
+        {
           status: "awaiting_delivery",
           deliveryError: message.slice(0, 300),
           updatedAt: now,
           updatedBy: "email-worker",
-        })
-        .catch(() => {
-          // As above: the job's own error record is the authority.
-        });
+        },
+        { by: "email-worker", outcome: "email_failed" },
+      ).catch(() => {
+        // As above: the job's own error record is the authority.
+      });
     }
     if (
       document.ref.parent.id === "emailJobs" &&
@@ -626,6 +676,20 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     if (clientAutomationsPaused(project.data()))
       return { held: "client_automations_paused", type };
   }
+  // An invoice email is about one invoice. A bill the couple has since paid
+  // (recorded by hand while this sat queued), or one a booking change or a
+  // cancellation closed, must not reach them asking for money — so the
+  // invoice is read again as the email goes, as the contract is below.
+  if (
+    (type === "retainer_invoice" || type === "final_invoice") &&
+    document.get("invoiceId")
+  ) {
+    const invoice = await getFirestore()
+      .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
+      .get();
+    if (invoice.exists && invoiceClosedToProviderWork(invoice.get("status")))
+      return { held: "invoice_closed", type };
+  }
   // A contract email is about one contract. Asking a couple to sign an
   // agreement they signed an hour ago, or one the studio withdrew, is worse
   // than silence — so the contract is read again as the email goes.
@@ -918,20 +982,21 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   // "sent" once a client has actually been mailed it, and this is the moment
   // that becomes true.
   if (document.get("invoiceId")) {
-    await getFirestore()
-      .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
-      .update({
+    await updateInvoiceUnlessClosed(
+      String(document.get("invoiceId")),
+      {
         status: "sent",
         emailedAt: new Date().toISOString(),
         deliveryError: null,
         updatedAt: new Date().toISOString(),
         updatedBy: "email-worker",
-      })
-      .catch(() => {
-        // The invoice may have been superseded while the mail was in
-        // flight. The message record is still the authority on what was
-        // sent and must not be lost to this.
-      });
+      },
+      { by: "email-worker", outcome: "emailed" },
+    ).catch(() => {
+      // The invoice may have been superseded while the mail was in
+      // flight. The message record is still the authority on what was
+      // sent and must not be lost to this.
+    });
   }
   if (type === "review_request" && document.get("reviewRequestId")) {
     const now = new Date().toISOString();

@@ -10,6 +10,11 @@ import { teamRoleForEmail } from "./team-email.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { forwarderKey } from "../intake/short-address.js";
 import { pricePackage } from "../pricing/package-price.js";
+import { holdResumeStates } from "./hold-resume.js";
+import {
+  readStoppedBilling,
+  writeStoppedBilling,
+} from "../booking/stopped-billing.js";
 
 /** An inquiry's states before booking — the ones it can be closed from. */
 /** One structured deliverable on a package (H4); mirrors features/packages/schema.ts. */
@@ -176,7 +181,9 @@ const transitions: Readonly<
   REVIEW_REQUESTED: ["CLOSED"],
   CLOSED: ["ARCHIVED"],
   CANCELLED: ["ARCHIVED"],
-  POSTPONED: ["CONSULTATION", "BOOKED", "PLANNING", "CANCELLED"],
+  // Back to where it was held from — see hold-resume.ts, which narrows this
+  // to the one stage a given hold may return to.
+  POSTPONED: ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "CANCELLED"],
   ARCHIVED: [],
   // Reopened to where it closed from, or put away.
   LOST: ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "ARCHIVED"],
@@ -1265,6 +1272,8 @@ export const crmCommand = onRequest(
                 tenantId: string;
                 state: (typeof projectStates)[number];
                 stateVersion: number;
+                postponedFromState?: unknown;
+                bookingCompletedAt?: unknown;
               }
             | undefined;
           if (!project || project.tenantId !== command.tenantId) {
@@ -1286,12 +1295,36 @@ export const crmCommand = onRequest(
           ) {
             throw new Error("EVIDENCE_CONTROLLED_TRANSITION");
           }
+          // A hold returns a job to where it was, never past the booking gate
+          // (hold-resume.ts).
+          if (
+            project.state === "POSTPONED" &&
+            !holdResumeStates(project).includes(command.input.targetState)
+          ) {
+            throw new Error("HOLD_RESUME_NOT_ALLOWED");
+          }
           if (
             ["POSTPONED", "CANCELLED"].includes(command.input.targetState) &&
             (command.input.reason?.trim().length ?? 0) < 10
           ) {
             throw new Error("INTERRUPTION_REASON_REQUIRED");
           }
+          // Calling a job off closes its billing in the same transaction —
+          // stopped-billing.ts. Reads first, as a transaction requires.
+          const billingStop =
+            command.input.targetState === "CANCELLED"
+              ? ("cancelled" as const)
+              : command.input.targetState === "LOST"
+                ? ("lost" as const)
+                : null;
+          const billingReads = billingStop
+            ? await readStoppedBilling(
+                db,
+                transaction,
+                command.tenantId,
+                command.input.projectId,
+              )
+            : null;
           transaction.update(projectReference, {
             state: command.input.targetState,
             stateVersion: project.stateVersion + 1,
@@ -1303,9 +1336,25 @@ export const crmCommand = onRequest(
                   interruptionAt: timestamp,
                 }
               : {}),
+            // Where it comes back to. Without it a hold was a way round the
+            // booking gate: PROPOSAL → POSTPONED → PLANNING.
+            ...(command.input.targetState === "POSTPONED"
+              ? { postponedFromState: project.state }
+              : {}),
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          const billingClosed =
+            billingStop && billingReads
+              ? writeStoppedBilling(db, transaction, {
+                  tenantId: command.tenantId,
+                  projectId: command.input.projectId,
+                  stop: billingStop,
+                  reads: billingReads,
+                  now: timestamp,
+                  actor: identity.uid,
+                })
+              : null;
           /**
            * The crew, when the job stops.
            *
@@ -1399,6 +1448,7 @@ export const crmCommand = onRequest(
               // The whole point of the audit entry when a job is held or
               // called off.
               reason: command.input.reason ?? null,
+              ...(billingClosed ? { billingClosed } : {}),
             },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
@@ -1410,6 +1460,7 @@ export const crmCommand = onRequest(
             projectId: command.input.projectId,
             state: command.input.targetState,
             stateVersion: project.stateVersion + 1,
+            ...(billingClosed ? { billingClosed } : {}),
           };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
@@ -2822,6 +2873,23 @@ export const crmCommand = onRequest(
             if (inquiry.project) {
               const state = String(inquiry.project.get("state"));
               if (!PRE_BOOKING.includes(state)) throw new Error("INQUIRY_NOT_CLOSABLE");
+              // A lost inquiry at RETAINER_PENDING can have a retainer out and a
+              // booking plan waiting on it. Closed with the job — see
+              // stopped-billing.ts. Read before any write below.
+              const billingReads = await readStoppedBilling(
+                db,
+                transaction,
+                lifecycle.tenantId,
+                inquiry.project.id,
+              );
+              writeStoppedBilling(db, transaction, {
+                tenantId: lifecycle.tenantId,
+                projectId: inquiry.project.id,
+                stop: "lost",
+                reads: billingReads,
+                now: timestamp,
+                actor: identity.uid,
+              });
               transaction.update(inquiry.project.ref, {
                 state: "LOST",
                 lostFromState: state,
