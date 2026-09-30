@@ -198,13 +198,15 @@ async function followUpWrites(
     /** No review asks: the studio skipped them, or gave no review link. */
     skipReviews: boolean;
   },
-): Promise<{ reviewRequestsScheduled: number; albumWorkflowCreated: boolean; writes: Array<() => void> }> {
+): Promise<{ reviewRequestsScheduled: number; albumWorkflowCreated: boolean; asksResumed: number; writes: Array<() => void> }> {
   const writes: Array<() => void> = [];
   const reviewRefs = [1, 2].map((sequence) => db.doc(`reviewRequests/review_${input.projectId}_${sequence}`));
   const albumRef = db.doc(`albumWorkflows/album_${input.projectId}`);
+  const albumReminderRefs = [1, 2].map((sequence) => db.doc(`albumReminders/album_reminder_${input.projectId}_${sequence}`));
   // Deliveries released before this change keyed their follow-ups by delivery.
-  const [reviewDocs, album, legacyReviews, legacyAlbums] = await Promise.all([
+  const [reviewDocs, albumReminderDocs, album, legacyReviews, legacyAlbums] = await Promise.all([
     Promise.all(reviewRefs.map((reference) => transaction.get(reference))),
+    Promise.all(albumReminderRefs.map((reference) => transaction.get(reference))),
     transaction.get(albumRef),
     transaction.get(
       db.collection("reviewRequests").where("tenantId", "==", input.tenantId).where("projectId", "==", input.projectId).limit(1),
@@ -248,6 +250,28 @@ async function followUpWrites(
       );
     }
   }
+  /**
+   * Asks paused when the job was reopened for a re-edit (crm reopenJob) run
+   * again from this delivery, as though it were the first: the couple is
+   * asked about the gallery they now have, not the one that was redone.
+   * Reviews stay stopped if the studio has since said not to ask.
+   */
+  let asksResumed = 0;
+  const resume = (docs: DocumentSnapshot[], days: readonly number[], allowed: boolean) =>
+    docs.forEach((doc, index) => {
+      if (!doc.exists || doc.get("status") !== "paused") return;
+      asksResumed += 1;
+      writes.push(() =>
+        transaction.update(doc.ref, {
+          status: allowed ? "scheduled" : "skipped",
+          scheduledAt: new Date(start + days[index]! * 86400000).toISOString(),
+          resumedAt: input.now,
+          updatedAt: input.now,
+        }),
+      );
+    });
+  resume(reviewDocs, [3, 10], !input.skipReviews);
+  resume(albumReminderDocs, [7, 14], true);
   let albumWorkflowCreated = false;
   if (input.followUps.albumIncluded && !album.exists && legacyAlbums.empty) {
     albumWorkflowCreated = true;
@@ -297,7 +321,7 @@ async function followUpWrites(
       );
     }
   }
-  return { reviewRequestsScheduled, albumWorkflowCreated, writes };
+  return { reviewRequestsScheduled, albumWorkflowCreated, asksResumed, writes };
 }
 
 const RELEASABLE_STATES = ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"];
@@ -429,7 +453,7 @@ export async function releaseDeliverables(
           followUps,
           skipReviews: reviewAsksSkipped(project),
         })
-      : { reviewRequestsScheduled: 0, albumWorkflowCreated: false, writes: [] };
+      : { reviewRequestsScheduled: 0, albumWorkflowCreated: false, asksResumed: 0, writes: [] };
 
     // ── Writes ──────────────────────────────────────────────────────────
     for (const item of records) transaction.create(db.doc(`deliveryRecords/${item.id}`), item);
@@ -491,6 +515,8 @@ export async function releaseDeliverables(
         stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
         nextAction: followUp.reviewRequestsScheduled ? "Monitor delivery and review request" : "Monitor delivery",
         deliveredAt: now,
+        // Delivered again after a reopen: the asks it paused are running.
+        ...(project.get("postEventAsksPausedAt") ? { postEventAsksPausedAt: null, postEventAsksPaused: null } : {}),
         ...(noReviewLink
           ? { reviewRequestsSkippedAt: now, reviewRequestsSkippedBy: actorId, reviewRequestsSkippedReason: "no_review_link" }
           : {}),
@@ -632,6 +658,7 @@ export async function markDeliveryComplete(
       nextAction: followUp.reviewRequestsScheduled ? "Monitor delivery and review request" : "Monitor delivery",
       deliveredAt: now,
       deliveryClosedEarly: true,
+      ...(project.get("postEventAsksPausedAt") ? { postEventAsksPausedAt: null, postEventAsksPaused: null } : {}),
       ...(noReviewLink
         ? { reviewRequestsSkippedAt: now, reviewRequestsSkippedBy: actorId, reviewRequestsSkippedReason: "no_review_link" }
         : {}),

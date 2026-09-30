@@ -77,6 +77,7 @@ import {
   leadSourceLabel,
 } from "@/components/leads/lead-capture-review";
 import { ignorableSenderOf } from "@/features/intake/not-inquiry";
+import { InquiryRestore, ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -1155,6 +1156,7 @@ export function LiveMaybeInquiries() {
 }
 
 export function LiveLeadDetail({ id }: { id: string }) {
+  const workspace = useWorkspace();
   const { records, error, loading } = useTenantDocuments("leads");
   const aiState = useTenantDocuments("aiActions");
   const liveLead = records?.find((item) => item.id === id);
@@ -1298,6 +1300,20 @@ export function LiveLeadDetail({ id }: { id: string }) {
             lead={lead}
             onSaved={() => refreshTenantRecords("leads", "projects", "conversations", "contacts")}
           />
+        ) : null}
+        {/* Close and reopen, for an inquiry that never became a job — the
+            server always accepted a leadId; the page offered neither, so a
+            lost lead stayed open and its /i/ link kept working (Wave 3). */}
+        {!converted && lead.notInquiry !== true ? (
+          <ProjectInquiryClose
+            className="button button-light"
+            leadId={lead.id}
+            projectId={null}
+            state={String(lead.status) === "lost" ? "LOST" : "LEAD"}
+          />
+        ) : null}
+        {lead.notInquiry === true && ["studio_owner", "studio_admin"].includes(workspace.role ?? "") ? (
+          <InquiryRestore leadId={lead.id} sender={ignorableSenderOf(lead)} />
         ) : null}
         {email ? <a className="button button-dark" href={`mailto:${email}`}><Mail /> Email client</a> : null}
         {phone ? <a className="button button-light" href={`tel:${phone}`}><Phone /> Call client</a> : null}

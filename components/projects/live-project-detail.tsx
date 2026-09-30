@@ -82,7 +82,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { ProjectEdit } from "@/components/projects/project-edit";
 import { ProjectAddClient } from "@/components/projects/project-add-client";
-import { ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
+import { InquiryRestore, ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
 import { preBookingStates } from "@/features/inquiries/stages";
 import {
   refreshTenantRecords,
@@ -102,6 +102,14 @@ import {
   type Interruption,
 } from "@/features/projects/interruptions";
 import type { HoldRecord } from "@/features/projects/hold-resume";
+import { isLiveAssignment } from "@/features/crew/job-stopped";
+import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import {
+  backwardMovesFor,
+  cancelConsequences,
+  UNCANCEL_WINDOW_DAYS,
+  type BackwardMove,
+} from "@/features/projects/going-back";
 
 // The job page collapses its three overlapping "what's left" sections — the
 // prepared-decisions queue, "everything outstanding by who owes it", and the
@@ -427,16 +435,24 @@ function ProjectInterruptionControl({
   state,
   stateVersion,
   onTransition,
+  cancelConsequenceLines,
 }: {
   projectId: string;
   state: ProjectState;
   stateVersion: number;
   onTransition: (state: ProjectState, version: number) => void;
+  /** What cancelling this job does, from its own records (going-back.ts). */
+  cancelConsequenceLines: string[];
 }) {
   const options = interruptionsFor(state);
   const [open, setOpen] = useState<Interruption | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // "Tell the couple" is off unless ticked: the studio has usually spoken to
+  // them already, and an automated "your wedding is cancelled" on top of that
+  // conversation is worse than none.
+  const [tellCouple, setTellCouple] = useState(false);
+  const [coupleMessage, setCoupleMessage] = useState("");
   if (options.length === 0) return null;
 
   async function submit(target: Interruption, reason: string) {
@@ -448,6 +464,9 @@ function ProjectInterruptionControl({
         expectedVersion: stateVersion,
         targetState: target,
         reason,
+        ...(target === "CANCELLED"
+          ? { notifyClient: tellCouple, clientMessage: tellCouple ? coupleMessage.trim() || null : null }
+          : {}),
       });
       if (response.persisted) {
         const version = Number(response.result.stateVersion ?? stateVersion + 1);
@@ -456,8 +475,9 @@ function ProjectInterruptionControl({
         setNotice(
           target === "POSTPONED"
             ? "The job is on hold. Bring it back when the new date is settled."
-            : "The job is cancelled. Everything on it stays on file.",
+            : `The job is cancelled.${tellCouple ? " The couple is being emailed." : ""} The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days.`,
         );
+        refreshTenantRecords("projects", "crewAssignments", "invoiceReferences", "contracts", "tasks");
       } else {
         setNotice("Development preview: nothing was changed.");
       }
@@ -486,6 +506,24 @@ function ProjectInterruptionControl({
                   void submit(option, reason);
                 }}
               >
+                {/*
+                  Cancelling used to be one click behind a ten-character
+                  reason, and its only description said "Nothing is deleted"
+                  — while accepted crew were emailed in the same click. The
+                  confirm step now says what happens, for this job.
+                */}
+                {option === "CANCELLED" ? (
+                  <>
+                    <p>
+                      <strong>When you cancel:</strong>
+                    </p>
+                    <ul>
+                      {cancelConsequenceLines.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
                 <label>
                   {INTERRUPTION_COPY[option].prompt}
                   <input
@@ -500,16 +538,41 @@ function ProjectInterruptionControl({
                     required
                   />
                 </label>
+                {option === "CANCELLED" ? (
+                  <>
+                    <label className="project-interruption-check">
+                      <input
+                        checked={tellCouple}
+                        onChange={(event) => setTellCouple(event.target.checked)}
+                        type="checkbox"
+                      />
+                      Tell the couple by email
+                    </label>
+                    {tellCouple ? (
+                      <label>
+                        Your message (optional)
+                        <textarea
+                          maxLength={2000}
+                          onChange={(event) => setCoupleMessage(event.target.value)}
+                          placeholder="Leave empty to send a short note that the booking is cancelled and they can reply with questions."
+                          rows={4}
+                          value={coupleMessage}
+                        />
+                      </label>
+                    ) : null}
+                  </>
+                ) : null}
                 <div>
                   <button className="button" disabled={busy} type="submit">
                     {busy ? "Saving…" : INTERRUPTION_COPY[option].label}
                   </button>
+                  {/* "Cancel" beside "Cancel the job" read as the same act. */}
                   <button
                     className="button button-quiet"
                     onClick={() => setOpen(null)}
                     type="button"
                   >
-                    Cancel
+                    {option === "CANCELLED" ? "Keep the job" : "Not now"}
                   </button>
                 </div>
               </form>
@@ -521,6 +584,167 @@ function ProjectInterruptionControl({
                 type="button"
               >
                 {INTERRUPTION_COPY[option].label}
+              </button>
+            )}
+          </div>
+        ))}
+        {notice ? (
+          <p className="project-stage-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+      </details>
+    </aside>
+  );
+}
+
+/**
+ * Going back a stage (Wave 3).
+ *
+ * The job page offered only the forward move, although the state machine
+ * allowed several backward ones — READY to PLANNING, CONTRACT_PENDING to
+ * PROPOSAL — that only Cue could reach. And a delivered job could not go back
+ * for a re-edit, a closed one could not reopen, and a cancel had no undo.
+ * Each move here is one the server accepts from where the job is
+ * (features/projects/going-back.ts), routed through the command that owns it.
+ */
+function ProjectMoveBackControl({
+  project,
+  agreementOut,
+  isOwner,
+  onTransition,
+}: {
+  project: ProjectRecord;
+  agreementOut: boolean;
+  isOwner: boolean;
+  onTransition: (state: ProjectState, version: number) => void;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const moves = backwardMovesFor(
+    { ...project, state: String(project.state ?? ""), id: project.id },
+    { agreementOut, now: new Date().toISOString() },
+  );
+  const pausedAsks =
+    typeof project.postEventAsksPausedAt === "string"
+      ? Number(project.postEventAsksPaused ?? 0)
+      : null;
+  if (!moves.length && pausedAsks === null) return null;
+  const stateVersion = Number(project.stateVersion ?? 0);
+
+  async function run(move: BackwardMove) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response =
+        move.route === "transitionProject"
+          ? await runCrmCommand("transitionProject", {
+              projectId: project.id,
+              expectedVersion: stateVersion,
+              targetState: move.target,
+            })
+          : move.route === "reopenJob"
+            ? await runCrmCommand("reopenJob", {
+                projectId: project.id,
+                expectedVersion: stateVersion,
+                targetState: move.target,
+                reason: reason.trim(),
+              })
+            : await runCrmCommand("uncancelProject", {
+                projectId: project.id,
+                expectedVersion: stateVersion,
+                reason: reason.trim(),
+              });
+      if (!response.persisted) {
+        setNotice("Development preview: nothing was changed.");
+        return;
+      }
+      onTransition(move.target, Number(response.result.stateVersion ?? stateVersion + 1));
+      setOpen(null);
+      setReason("");
+      setNotice(
+        move.route === "uncancelProject"
+          ? `The job is back at ${stateLabel(move.target)}. Re-offer the crew and re-send any invoice or agreement it needs — nothing came back on its own.`
+          : move.route === "reopenJob"
+            ? `The job is back at ${stateLabel(move.target)}. Review and album asks are paused until you deliver again.`
+            : `The job is back at ${stateLabel(move.target)}.`,
+      );
+      refreshTenantRecords("projects");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The job could not be moved back."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <aside className="job-rail-card">
+      <details className="project-interruption-control" open={pausedAsks !== null || undefined}>
+        <summary>Move back</summary>
+        {pausedAsks !== null ? (
+          <p className="project-stage-notice" role="status">
+            {pausedAsks
+              ? `This job was reopened, so ${pausedAsks === 1 ? "one review or album ask is" : `${pausedAsks} review and album asks are`} paused. They start again when you deliver.`
+              : "This job was reopened. Review and album asks start again when you deliver."}
+          </p>
+        ) : null}
+        {moves.map((move) => (
+          <div key={`${move.route}:${move.target}`}>
+            <p>{move.detail}</p>
+            {move.blocked ? (
+              <>
+                <p>{move.blocked.detail}</p>
+                <Link className="button button-quiet" href={move.blocked.href}>
+                  {move.blocked.label}
+                </Link>
+              </>
+            ) : move.ownerOnly && !isOwner ? (
+              // Display only; the server refuses anyone else (OWNER_ONLY_MOVE).
+              <p>Only the studio owner can do this.</p>
+            ) : open === `${move.route}:${move.target}` ? (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (move.needsReason && !interruptionReasonIsUsable(reason)) return;
+                  void run(move);
+                }}
+              >
+                {move.needsReason ? (
+                  <label>
+                    Why?
+                    <input
+                      maxLength={500}
+                      minLength={MINIMUM_INTERRUPTION_REASON}
+                      onChange={(event) => setReason(event.target.value)}
+                      placeholder={
+                        move.route === "uncancelProject"
+                          ? "The couple changed their minds and the wedding is on"
+                          : "The couple asked for a re-edit of the ceremony"
+                      }
+                      required
+                      value={reason}
+                    />
+                  </label>
+                ) : null}
+                <div>
+                  <button className="button" disabled={busy} type="submit">
+                    {busy ? "Saving…" : move.label}
+                  </button>
+                  <button className="button button-quiet" onClick={() => setOpen(null)} type="button">
+                    Not now
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                className="button button-quiet"
+                disabled={busy}
+                onClick={() => setOpen(`${move.route}:${move.target}`)}
+                type="button"
+              >
+                {move.label}
               </button>
             )}
           </div>
@@ -1120,9 +1344,34 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       stateVersion={Number(project.stateVersion ?? 0)}
     />
   );
+  // Agreements out with the couple, read once for both controls below.
+  const unsignedOut = related.contracts.filter((contract) =>
+    ["queued", "sent", "delivered", "viewed", "partially_signed"].includes(String(contract.status)),
+  );
   const interruptionEl = (
     <>
+      <ProjectMoveBackControl
+        agreementOut={unsignedOut.length > 0 || related.contracts.some((contract) => contract.status === "completed")}
+        isOwner={workspace.role === "studio_owner"}
+        onTransition={onTransition}
+        project={project}
+      />
       <ProjectInterruptionControl
+        cancelConsequenceLines={cancelConsequences({
+          acceptedCrew: related.crewAssignments.filter((assignment) => assignment.status === "accepted").length,
+          pendingOffers: related.crewAssignments.filter(
+            (assignment) => isLiveAssignment(assignment.status) && assignment.status !== "accepted",
+          ).length,
+          // The same "still owed" test stopped-billing.ts closes by.
+          standingInvoices: related.invoices.filter(
+            (invoice) => isStandingInvoice(invoice.status) && String(invoice.status) !== "paid",
+          ).length,
+          unsignedAgreementOut: unsignedOut.some(
+            (contract) => contract.provider === "studiocue" && ["sent", "viewed"].includes(String(contract.status)),
+          ),
+          outsideAgreementOut: unsignedOut.some((contract) => contract.provider && contract.provider !== "studiocue"),
+          onCalendar: typeof project.calendarEventId === "string" && project.calendarEventId.length > 0,
+        })}
         onTransition={onTransition}
         projectId={projectId}
         state={state}
@@ -1169,6 +1418,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                 projectId={String(project.id)}
               />
               <ProjectInquiryClose projectId={String(project.id)} state={String(project.state)} />
+              {/* "Not an inquiry" filed this job away as ARCHIVED, which the
+                  archive toggle can't undo (it clears archivedAt only). The
+                  server checks the lead was really dismissed. */}
+              {String(project.state) === "ARCHIVED" &&
+              project.origin === "inquiry" &&
+              typeof project.leadId === "string" &&
+              ["studio_owner", "studio_admin"].includes(workspace.role ?? "") ? (
+                <InquiryRestore className="project-title-action" leadId={project.leadId} sender={null} />
+              ) : null}
               <BookingAmendment
                 onOpenChange={setChangingBooking}
                 open={changingBooking}

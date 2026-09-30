@@ -57,8 +57,11 @@ export const INTERRUPTION_COPY: Record<
   CANCELLED: {
     label: "Cancel the job",
     prompt: "Why was it cancelled?",
+    // "Nothing is deleted" read as reversible while the same click emailed
+    // accepted crew that the day was off (go-back audit, 2026-09-30). The
+    // confirm step now lists each consequence (going-back.ts).
     detail:
-      "The job stops appearing as live work and stays on file. Nothing is deleted, and the contract, payments and delivery records are preserved.",
+      "The job stops appearing as live work and stays on file. Crew are released, billing stops and an unsigned agreement is withdrawn — you'll see exactly what happens before you confirm.",
   },
 };
 

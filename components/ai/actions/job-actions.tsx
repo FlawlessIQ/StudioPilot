@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { Archive, Briefcase, CircleSlash, Inbox, MailPlus, PencilLine, RotateCcw, Route, Trash2, UserPlus } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { allowedProjectTransitions, transitionAuthority } from "@/features/projects/state-machine";
+import {
+  allowedProjectTransitions,
+  transitionAuthority,
+  transitionRoute,
+} from "@/features/projects/state-machine";
+import { interruptionsFor } from "@/features/projects/interruptions";
+import {
+  backwardMovesFor,
+  uncancelRefusal,
+  UNCANCEL_WINDOW_DAYS,
+} from "@/features/projects/going-back";
 import { holdResumeStates, type HoldRecord } from "@/features/projects/hold-resume";
 import type { ProjectState } from "@/features/projects/schema";
 import { projectStateLabel } from "@/features/projects/state-label";
@@ -673,6 +683,10 @@ export function manualTargets(state: string, hold: HoldRecord = {}): ProjectStat
     (to) =>
       !transitionAuthority(from, to) &&
       to !== "ARCHIVED" &&
+      // LOST, reopening and undoing a cancel have their own cards
+      // (mark_inquiry_lost, reopen_job, uncancel_job): the plain move
+      // skipped their bookkeeping and the server now refuses it.
+      transitionRoute(from, to) === "transitionProject" &&
       (!resumable || resumable.includes(to)),
   );
 }
@@ -822,3 +836,239 @@ export function DeleteJobCard({ action }: ActionCardProps) {
 }
 
 export { OwnerOnly, primaryContact };
+
+/**
+ * Cancel a job (Wave 3). Cue used `move_job_stage` for this, which said what
+ * a hold does but not what a cancel does. This card says it, and offers the
+ * same "Tell the couple" choice the job page does — off by default.
+ */
+export function CancelJobCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const runner = useRunner();
+  const [reason, setReason] = useState(action.text ?? "");
+  const [tell, setTell] = useState(false);
+  const [message, setMessage] = useState("");
+  const title = `Cancel ${jobName(job)}`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const state = str(job.state) as ProjectState;
+  if (state === "CANCELLED") return <ActionShell title={title}><Done>{`${jobName(job)} is already cancelled.`}</Done></ActionShell>;
+  if (!interruptionsFor(state).includes("CANCELLED"))
+    return (
+      <ActionShell title={title}>
+        <Blocked>
+          {PRE_BOOKING.has(state)
+            ? `${jobName(job)} is still an inquiry. Mark it lost instead — that records why and stops its follow-ups.`
+            : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, and a job can't be cancelled after the wedding.`}
+        </Blocked>
+      </ActionShell>
+    );
+  return (
+    <ActionShell
+      detail={`Crew are released (anyone who accepted is emailed), billing stops with tasks to void open invoices, an unsigned agreement is withdrawn, the wedding comes off your calendar, and StudioCue stops emailing the couple. The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days, but the crew, invoices and agreement don't come back on their own.`}
+      icon={<CircleSlash size={15} />}
+      title={title}
+    >
+      <Form>
+        <TextAreaField label="Why (at least a sentence)" onChange={setReason} rows={2} value={reason} />
+        <CheckField checked={tell} label="Tell the couple by email" onChange={setTell} />
+        {tell ? (
+          <TextAreaField
+            hint="Leave empty for a short note that the booking is cancelled."
+            label="Your message"
+            onChange={setMessage}
+            rows={3}
+            value={message}
+          />
+        ) : null}
+      </Form>
+      <Actions
+        busy={runner.busy}
+        danger
+        disabled={reason.trim().length < 10}
+        label="Cancel the job"
+        onClick={() =>
+          void runner.run(
+            async () => {
+              const expectedVersion = await freshStateVersion(job.id, job.stateVersion);
+              await runCrmCommand("transitionProject", {
+                projectId: job.id,
+                expectedVersion,
+                targetState: "CANCELLED",
+                reason: reason.trim(),
+                notifyClient: tell,
+                clientMessage: tell ? message.trim() || null : null,
+              });
+              return `${jobName(job)} is cancelled.${tell ? " The couple is being emailed." : ""}`;
+            },
+            { refresh: ["projects", "crewAssignments", "invoiceReferences", "contracts", "tasks"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/** Undo a cancel, or reopen a finished job (Wave 3). Owner only, with a reason. */
+export function GoBackJobCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const workspace = useWorkspace();
+  const runner = useRunner();
+  const [reason, setReason] = useState(action.text ?? "");
+  const uncancel = action.action === "uncancel_job";
+  const title = uncancel ? `Undo the cancel: ${jobName(job)}` : `Reopen ${jobName(job)}`;
+  if (workspace.role !== "studio_owner")
+    return <ActionShell title={title}><Blocked>Only the studio owner can do this.</Blocked></ActionShell>;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const move = backwardMovesFor(
+    { ...job, state: str(job.state), id: job.id },
+    { agreementOut: false, now: new Date().toISOString() },
+  ).find((candidate) => candidate.route === (uncancel ? "uncancelProject" : "reopenJob"));
+  if (!move) {
+    const state = str(job.state);
+    const refusal = uncancel
+      ? uncancelRefusal(
+          { state: job.state, cancelledFromState: job.cancelledFromState, cancelledAt: job.cancelledAt, interruptionAt: job.interruptionAt },
+          new Date().toISOString(),
+        )
+      : null;
+    return (
+      <ActionShell title={title}>
+        <Blocked>
+          {uncancel
+            ? refusal === "NOT_CANCELLED"
+              ? `${jobName(job)} isn't cancelled.`
+              : refusal === "UNCANCEL_WINDOW_PASSED"
+                ? `${jobName(job)} was cancelled more than ${UNCANCEL_WINDOW_DAYS} days ago, so it can't be undone. Create a new job for the couple instead.`
+                : `${jobName(job)} was cancelled before StudioCue recorded where it stood, so it can't be brought back. Create a new job instead.`
+            : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}. Only a delivered or closed job is reopened.`}
+        </Blocked>
+      </ActionShell>
+    );
+  }
+  return (
+    <ActionShell detail={move.detail} icon={<RotateCcw size={15} />} title={title}>
+      <Form>
+        <TextAreaField label="Why (at least a sentence)" onChange={setReason} rows={2} value={reason} />
+      </Form>
+      <Actions
+        busy={runner.busy}
+        disabled={reason.trim().length < 10}
+        label={move.label}
+        onClick={() =>
+          void runner.run(
+            async () => {
+              const expectedVersion = await freshStateVersion(job.id, job.stateVersion);
+              if (uncancel)
+                await runCrmCommand("uncancelProject", { projectId: job.id, expectedVersion, reason: reason.trim() });
+              else
+                await runCrmCommand("reopenJob", {
+                  projectId: job.id,
+                  expectedVersion,
+                  targetState: move.target,
+                  reason: reason.trim(),
+                });
+              return uncancel
+                ? `${jobName(job)} is back at ${projectStateLabel(move.target)}. Re-offer the crew and re-send any invoice or agreement it needs.`
+                : `${jobName(job)} is back at ${projectStateLabel(move.target)}. Review and album asks are paused until you deliver again.`;
+            },
+            { refresh: ["projects"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * An inquiry that never became a job: close it, reopen it, or bring back one
+ * marked "not an inquiry" (Wave 3). The job-scoped cards can't reach these —
+ * there is no job — so the lead is picked by name.
+ */
+export function LeadLifecycleCard({ action }: ActionCardProps) {
+  const leads = useRecords("leads");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const [reason, setReason] = useState(reasonFromWords(action.text, "went_quiet"));
+  const [unignore, setUnignore] = useState(false);
+  const kind = action.action as "close_lead" | "reopen_lead" | "restore_inquiry";
+  const candidates = (leads ?? []).filter((lead) => {
+    if (kind === "restore_inquiry") return lead.notInquiry === true;
+    if (lead.projectId || lead.notInquiry === true) return false;
+    return kind === "reopen_lead"
+      ? lead.status === "lost"
+      : !["lost", "archived", "converted"].includes(str(lead.status));
+  });
+  const options = candidates.map((lead) => ({
+    id: lead.id,
+    name: leadName(lead),
+    detail: [str(lead.eventDate), str(lead.email)].filter(Boolean).join(" · ") || undefined,
+  }));
+  const choice = useSubjectChoice(action.subject, options);
+  const title =
+    kind === "restore_inquiry" ? "Bring back an inquiry" : kind === "reopen_lead" ? "Reopen an inquiry" : "Close an inquiry";
+  if (kind === "restore_inquiry" && !ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (!leads) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (runner.done)
+    return <ActionShell title={title}><Done href="/studio/leads" label="Open Inquiries">{runner.done}</Done></ActionShell>;
+  const lead = candidates.find((item) => item.id === choice.chosen) ?? null;
+  const sender = ignorableSenderOf(lead);
+  return (
+    <ActionShell
+      detail={
+        kind === "restore_inquiry"
+          ? "It comes back to Inquiries, and so does its job if it had one."
+          : kind === "reopen_lead"
+            ? "It goes back to Inquiries as a new inquiry, and its link works again."
+            : "It moves to Closed on Inquiries, and the link the couple was sent stops offering a call."
+      }
+      icon={<Inbox size={15} />}
+      title={title}
+    >
+      <SubjectPicker {...choice} noun="inquiry" options={options} subject={action.subject} />
+      {kind === "close_lead" ? (
+        <Form>
+          <SelectField label="Why" onChange={setReason} options={CLOSE_REASONS} value={reason} />
+        </Form>
+      ) : null}
+      {kind === "restore_inquiry" && sender ? (
+        <Form>
+          <CheckField
+            checked={unignore}
+            label={`Also start capturing mail from ${sender} again, if it was ignored`}
+            onChange={setUnignore}
+          />
+        </Form>
+      ) : null}
+      <Actions
+        busy={runner.busy}
+        disabled={!lead}
+        label={title}
+        onClick={() =>
+          void runner.run(
+            async () => {
+              if (!lead) return null;
+              if (kind === "restore_inquiry") {
+                await runCrmCommand("restoreInquiry", { leadId: lead.id, unignoreSender: unignore });
+                return `${leadName(lead)} is back on Inquiries.`;
+              }
+              await runCrmCommand(kind === "close_lead" ? "closeInquiry" : "reopenInquiry", {
+                projectId: null,
+                leadId: lead.id,
+                ...(kind === "close_lead" ? { reason } : {}),
+              });
+              return kind === "close_lead" ? `${leadName(lead)} is closed.` : `${leadName(lead)} is open again.`;
+            },
+            { refresh: ["leads", "projects", "aiActions"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}

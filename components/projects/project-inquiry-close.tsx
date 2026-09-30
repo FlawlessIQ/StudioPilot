@@ -20,7 +20,22 @@ import { runCrmCommand } from "@/lib/crm/command-client";
 const reasons = ["went_quiet", "booked_elsewhere", "budget", "date_taken", "not_a_fit", "other"] as const;
 type Reason = (typeof reasons)[number];
 
-export function ProjectInquiryClose({ projectId, state }: { projectId: string; state: string }) {
+export function ProjectInquiryClose({
+  projectId,
+  leadId = null,
+  state,
+  className = "project-title-action",
+}: {
+  projectId: string | null;
+  /**
+   * An inquiry with no job yet is closed and reopened by its lead: the
+   * server always could (`closeInquiry`/`reopenInquiry` take a leadId), but
+   * the lead page offered neither, so a lost lead stayed open for ever.
+   */
+  leadId?: string | null;
+  state: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<Reason>("went_quiet");
   const [busy, setBusy] = useState(false);
@@ -34,11 +49,12 @@ export function ProjectInquiryClose({ projectId, state }: { projectId: string; s
     try {
       await runCrmCommand(type, {
         projectId,
-        leadId: null,
+        leadId: projectId ? null : leadId,
         ...(type === "closeInquiry" ? { reason } : {}),
       });
       refreshTenantRecords("projects", "leads", "aiActions");
       setOpen(false);
+      setError(null);
     } catch (caught: unknown) {
       setError(friendlyError(caught, "That didn't go through. Try again."));
     } finally {
@@ -48,17 +64,24 @@ export function ProjectInquiryClose({ projectId, state }: { projectId: string; s
 
   if (closed) {
     return (
-      <button className="project-title-action" disabled={busy} onClick={() => void run("reopenInquiry")} type="button">
-        {busy ? <LoaderCircle className="spin" size={14} /> : <RotateCcw aria-hidden size={14} />}
-        Reopen inquiry
-      </button>
+      <>
+        <button className={className} disabled={busy} onClick={() => void run("reopenInquiry")} type="button">
+          {busy ? <LoaderCircle className="spin" size={14} /> : <RotateCcw aria-hidden size={14} />}
+          Reopen inquiry
+        </button>
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </>
     );
   }
 
   return (
     <>
       <button
-        className="project-title-action"
+        className={className}
         onClick={() => {
           setError(null);
           setOpen(true);
@@ -97,6 +120,83 @@ export function ProjectInquiryClose({ projectId, state }: { projectId: string; s
             </button>
             <button className="button button-dark" disabled={busy} type="submit">
               {busy ? "Closing…" : "Close inquiry"}
+            </button>
+          </footer>
+        </form>
+      </SheetDialog>
+    </>
+  );
+}
+
+/**
+ * Bring back an inquiry marked "Not an inquiry" (Wave 3).
+ *
+ * That tap filed the lead away and put its job in ARCHIVED, a state with no
+ * way out, so a real couple dismissed by mistake could not be recovered. The
+ * sender it may have been told to ignore is un-learned only when the studio
+ * ticks the box — the same choice, made the same deliberate way, as the
+ * original tap.
+ */
+export function InquiryRestore({
+  leadId,
+  sender,
+  className = "button button-light",
+}: {
+  leadId: string;
+  sender: string | null;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [unignore, setUnignore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function restore() {
+    setBusy(true);
+    setError(null);
+    try {
+      await runCrmCommand("restoreInquiry", { leadId, unignoreSender: unignore });
+      refreshTenantRecords("projects", "leads");
+      setOpen(false);
+    } catch (caught: unknown) {
+      setError(friendlyError(caught, "That didn't go through. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button className={className} onClick={() => setOpen(true)} type="button">
+        <RotateCcw aria-hidden size={14} /> It is an inquiry — bring it back
+      </button>
+      <SheetDialog label="Bring this inquiry back" onClose={() => setOpen(false)} open={open}>
+        <form
+          className="record-sheet"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void restore();
+          }}
+        >
+          <h3>Bring this inquiry back</h3>
+          <p>It returns to Inquiries, and so does its job if it had one. Reply drafts dismissed when it was filed away stay dismissed.</p>
+          {sender ? (
+            <label>
+              <input checked={unignore} onChange={(event) => setUnignore(event.target.checked)} type="checkbox" />
+              {` Also start capturing mail from ${sender} again, if you told StudioCue to ignore it`}
+            </label>
+          ) : null}
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <footer>
+            <button className="button button-light" onClick={() => setOpen(false)} type="button">
+              Leave it filed away
+            </button>
+            <button className="button button-dark" disabled={busy} type="submit">
+              {busy ? "Bringing it back…" : "Bring it back"}
             </button>
           </footer>
         </form>

@@ -46,6 +46,7 @@ import {
   createStripeInvoice,
   rescheduleConsultationResources,
   moveBookingCalendarEvents,
+  removeBookingCalendarEvents,
   reconcileQuickBooksInvoice,
   uploadDropboxDocument,
   voidQuickBooksInvoice,
@@ -426,6 +427,8 @@ async function providerJob(document: DocumentSnapshot) {
     return rescheduleConsultationResources(document);
   if (type === "move_booking_calendar_events")
     return moveBookingCalendarEvents(document);
+  if (type === "remove_booking_calendar_events")
+    return removeBookingCalendarEvents(document);
   if (type === "create_docusign_envelope")
     return createDocusignEnvelope(document);
   if (type === "create_dropbox_sign_request")
@@ -787,7 +790,10 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       .get();
     if (
       ask.exists &&
-      ["skipped", "client_confirmed", "manually_confirmed"].includes(String(ask.get("status")))
+      (["skipped", "client_confirmed", "manually_confirmed"].includes(String(ask.get("status"))) ||
+        // The job was reopened for a re-edit (crm reopenJob): the ask waits
+        // for the next delivery.
+        ask.get("status") === "paused")
     )
       return { held: "review_request_closed", type };
   }

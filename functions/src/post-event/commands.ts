@@ -1167,7 +1167,10 @@ export const postEventCommand = onRequest(
           updatedAt: now,
           updatedBy: identity.uid,
         });
-        batch.create(db.doc(`pdfJobs/closeout_${parsed.input.closeoutId}`), {
+        // `set`, not `create`: a job reopened after closing (crm reopenJob)
+        // closes again, and its summary is rendered again rather than the
+        // second close failing on the first summary's job.
+        batch.set(db.doc(`pdfJobs/closeout_${parsed.input.closeoutId}`), {
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
           closeoutId: parsed.input.closeoutId,

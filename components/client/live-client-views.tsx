@@ -497,8 +497,20 @@ export function useReserveYourDate(): BookingStepsView | null {
   return view;
 }
 
+/**
+ * A proposal refusal in the couple's words. Any code without its own line
+ * gets a humane one rather than the code itself — couples were being shown
+ * strings like PROJECT_STATE_CONFLICT.
+ */
+export const PROPOSAL_ERROR_FALLBACK =
+  "This couldn't be saved just now. Please message your studio and they'll sort it out.";
+
 export function proposalErrorMessage(error: string) {
   const messages: Record<string, string> = {
+    PROJECT_ON_HOLD:
+      "Your booking is on hold with your studio right now, so this proposal can't be accepted. Message your studio to pick it back up.",
+    PROJECT_NOT_ACTIVE:
+      "This booking is no longer active, so this proposal can't be accepted. Message your studio if you'd like to talk about it.",
     PROPOSAL_EXPIRED:
       "This proposal has expired. Message your studio for an updated version.",
     PROPOSAL_SUPERSEDED:
@@ -510,5 +522,7 @@ export function proposalErrorMessage(error: string) {
     PACKAGE_SNAPSHOT_CONFLICT:
       "The package linked to this proposal no longer matches the project. Your studio has been asked to review it.",
   };
-  return messages[error] ?? error;
+  if (messages[error]) return messages[error];
+  // A code-shaped string is plumbing; a sentence is already for a person.
+  return /^[A-Z0-9_:]+$/.test(error) ? PROPOSAL_ERROR_FALLBACK : error;
 }

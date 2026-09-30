@@ -85,6 +85,8 @@ const REACHED: Record<string, string> = {
   updateLead: "\"updateLead\"", markLeadNotInquiry: "\"markLeadNotInquiry\"", closeInquiry: "\"closeInquiry\"",
   removeIgnoredSender: "IgnoredSenders",
   reopenInquiry: "reopenInquiry", inquiryHeardElsewhere: "inquiryHeardElsewhere", keepInquiryOpen: "keepInquiryOpen",
+  // Wave 3: going back.
+  uncancelProject: "\"uncancelProject\"", reopenJob: "\"reopenJob\"", restoreInquiry: "\"restoreInquiry\"",
   invite: "type: \"invite\"", revoke: "type: \"revoke\"", status: "type: \"status\"",
   previewProjectPurge: "DeleteJobPermanently", purgeProject: "DeleteJobPermanently",
   // Packages and proposals

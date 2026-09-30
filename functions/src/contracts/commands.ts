@@ -16,6 +16,7 @@ import {
   type ContractDocument,
 } from "./document.js";
 import { contractDocumentHash, sha256Text } from "./document-hash.js";
+import { writeContractVoid } from "./void-writes.js";
 import {
   customFieldsFrom,
   importedAgreementText,
@@ -823,13 +824,15 @@ export async function voidStudioCueContract(
     if (status === "voided") return { contractId: contract.id, status, alreadyVoided: true };
     if (status === "completed") throw new Error("SIGNED_CONTRACT_CANNOT_BE_VOIDED");
     if (!["sent", "viewed"].includes(status)) throw new Error("CONTRACT_NOT_VOIDABLE");
-    transaction.update(reference, {
-      status: "voided",
-      voidedAt: input.timestamp,
-      voidedBy: input.actorId,
-      voidReason: input.reason,
-      updatedAt: input.timestamp,
-      updatedBy: input.actorId,
+    writeContractVoid(db, transaction, contract, {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      reason: input.reason,
+      actorId: input.actorId,
+      actorType: input.actorType,
+      timestamp: input.timestamp,
+      correlationId: input.correlationId,
+      auditId: stableId("audit_contract_voided", input.tenantId, input.correlationId, contract.id),
     });
     // The job's next step was "Waiting for the client to sign", set when this
     // went out — and it stayed that way after the withdrawal, so Today and the
@@ -860,25 +863,6 @@ export async function voidStudioCueContract(
         });
       }
     }
-    const auditId = stableId("audit_contract_voided", input.tenantId, input.correlationId, contract.id);
-    transaction.create(db.doc(`auditEvents/${auditId}`), {
-      id: auditId,
-      tenantId: input.tenantId,
-      projectId: input.projectId,
-      actorId: input.actorId,
-      actorType: input.actorType,
-      action: "contract.voided",
-      entityType: "contract",
-      entityId: contract.id,
-      timestamp: input.timestamp,
-      before: { status },
-      after: { status: "voided", reason: input.reason },
-      ipAddress: null,
-      userAgent: null,
-      correlationId: input.correlationId,
-      automationRunId: null,
-      providerEventId: null,
-    });
     return { contractId: contract.id, status: "voided", alreadyVoided: false };
   });
 }

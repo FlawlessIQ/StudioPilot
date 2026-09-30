@@ -61,6 +61,9 @@ export const emailTemplateKeys = [
   "coi_venue_delivery",
   "crew_reminder",
   "crew_assignment_cancelled",
+  // The studio called the wedding off and chose to tell the couple (Wave 3):
+  // their own words, or a plain default. Never sent unless they tick it.
+  "project_cancelled",
   "final_invoice",
   "final_payment_reminder",
   "schedule_review",
@@ -1007,6 +1010,29 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? { label: "Open job brief", url: actionUrl }
           : undefined,
       };
+    case "project_cancelled": {
+      /**
+       * Written by the studio on the cancel form, or this default. Says the
+       * booking is off and nothing more: a refund, a kept retainer or a new
+       * date is the studio's conversation, not a line StudioCue guesses at.
+       */
+      const body = stringValue(values, "customBody");
+      return {
+        subject: `Your booking with ${brand.studioName}${project} is cancelled`,
+        preheader: "Your booking has been cancelled. Reply to this email with any questions.",
+        eyebrow: "Booking cancelled",
+        heading: "Your booking is cancelled",
+        paragraphs: [
+          greeting,
+          ...(body
+            ? clientEmailParagraphs(body)
+            : [
+                `As we discussed, your booking${project} is now cancelled, and we won't send you any more reminders or invoices for it.`,
+                "If you have any questions, or anything about this doesn't look right, just reply to this email.",
+              ]),
+        ],
+      };
+    }
     case "crew_assignment_cancelled": {
       /**
        * Only ever sent to somebody who had **accepted**. They have the date in

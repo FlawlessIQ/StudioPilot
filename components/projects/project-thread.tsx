@@ -459,7 +459,7 @@ function ThreadNextMove({
                 ? `Your reason: ${interruption.reason}`
                 : held
                   ? "Bring it back from the job rail when the new date is settled."
-                  : "Nothing was deleted."}
+                  : "Everything on it is kept. The owner can undo the cancel from Move back for 30 days."}
             </small>
           </div>
         </div>

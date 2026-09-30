@@ -473,6 +473,70 @@ export async function moveBookingCalendarEvents(job: DocumentSnapshot) {
   return { projectId, eventDate: date, moved };
 }
 
+/**
+ * A cancelled wedding off the calendars (crm/commands.ts transitionProject):
+ * the studio's all-day event and the invite of each crew member the cancel
+ * released. Only consultation events were ever deleted, so a called-off
+ * wedding stayed in the studio's Google Calendar and in its crew's.
+ *
+ * Never an invite belonging to somebody still on the job — the cancel lists
+ * the assignments it released, and each is re-read here.
+ */
+export async function removeBookingCalendarEvents(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const tenantId = String(job.get("tenantId"));
+  const projectId = String(job.get("projectId"));
+  const project = await db.doc(`projects/${projectId}`).get();
+  if (!project.exists || project.get("tenantId") !== tenantId) throw new Error("PROJECT_NOT_FOUND");
+  // Undone before this ran: the wedding is on again, so its events stay.
+  if (project.get("state") !== "CANCELLED") return { projectId, removed: [], skipped: "no_longer_cancelled" };
+  let calendar: Awaited<ReturnType<typeof connection>>;
+  try {
+    calendar = await connection(tenantId, "google_calendar");
+  } catch {
+    return { projectId, removed: [], skipped: "calendar_not_connected" };
+  }
+  const calendarId = encodeURIComponent(String(calendar.document.get("selectedResourceId") ?? "primary"));
+  const remove = async (eventId: string) => {
+    if (calendar.mock) return;
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+      { method: "DELETE", headers: { authorization: `Bearer ${calendar.credential?.accessToken}` } },
+    );
+    // Already gone is the state we want.
+    if (!response.ok && response.status !== 404 && response.status !== 410)
+      throw new Error(`CALENDAR_DELETE_FAILED:${response.status}`);
+  };
+  const removed: string[] = [];
+  const now = new Date().toISOString();
+  const projectEventId = text(project.get("calendarEventId"));
+  if (projectEventId) {
+    await remove(projectEventId);
+    await project.ref.update({ calendarEventId: null, calendarRemovedAt: now, updatedAt: now, updatedBy: "provider-worker" });
+    removed.push("studio_event");
+  }
+  const assignmentIds = Array.isArray(job.get("assignmentIds"))
+    ? (job.get("assignmentIds") as unknown[]).filter((id): id is string => typeof id === "string" && id !== "")
+    : [];
+  for (const assignmentId of assignmentIds) {
+    const assignment = await db.doc(`crewAssignments/${assignmentId}`).get();
+    if (!assignment.exists || assignment.get("tenantId") !== tenantId) continue;
+    if (assignment.get("status") !== "cancelled") continue;
+    const eventId = text(assignment.get("calendarEventId"));
+    if (!eventId) continue;
+    await remove(eventId);
+    await assignment.ref.update({
+      calendarEventId: null,
+      calendarInviteLink: null,
+      calendarRemovedAt: now,
+      updatedAt: now,
+      updatedBy: "provider-worker",
+    });
+    removed.push(`crew:${assignmentId}`);
+  }
+  return { projectId, removed };
+}
+
 export async function rescheduleConsultationResources(job: DocumentSnapshot) {
   const { consultationId, reference, consultation } = await consultationFor(job);
   const tenantId = String(job.get("tenantId"));
