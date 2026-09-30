@@ -20,6 +20,10 @@ production, and Conor approves each one before it goes live.
 **Status (2026-09-30):**
 - **Phase 1 shipped** (d44d085, ce88ece): How-to button and popup, InfoHint v2, the Guides and glossary pages, `/how-to`.
 - **Phase 2 shipped** (2227436, dec993f): 41 explainers and a 40-word glossary. Every studio, couple and crew tab opens its own guide, and there are 55 ⓘ hints plus 3 button hover notes.
+- **Phase 3 (spike) done:**
+  - **Recording:** CDP screencast at a 1440×810 viewport with 2× pixels, downscaled to 1080p. It beat recordVideo on sharpness and gives frame timestamps for the audio sync.
+  - **Isolated stack:** `scripts/how-to/stack.sh` runs a worktree, emulators on the 1xxxx ports, a snapshot, and the app on :3100.
+  - **Voices:** `scripts/how-to/voice-samples.ts` is ready and waits on `ELEVENLABS_API_KEY`.
 - **Still open:** hints inside the proposal composer and the Insights tiles; a phone check of the portal hints on production; phases 3–4 (videos).
 - **Code/copy mismatches the walk found** were filed as separate tasks:
   - a manual run of show reaches nobody;

@@ -1,0 +1,105 @@
+/**
+ * Narration for the how-to videos, through ElevenLabs.
+ *
+ * Every line is generated with timings for each character
+ * (`/with-timestamps`), which gives the video its step lengths and its
+ * captions without anyone nudging anything by hand. Lines are cached by a
+ * hash of the text and every setting, so re-recording a video after a UI
+ * change costs nothing unless the words changed.
+ *
+ * The key comes from ELEVENLABS_API_KEY (in .env.local); it is never logged,
+ * committed or sent anywhere but api.elevenlabs.io.
+ */
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+
+export type VoiceConfig = {
+  voiceId: string;
+  modelId: string;
+  /** stability, similarity_boost, style, speed, use_speaker_boost */
+  settings: Record<string, number | boolean>;
+  /** Fixed so a re-take of unchanged words sounds the same. */
+  seed: number;
+  outputFormat: string;
+};
+
+export type Alignment = {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+};
+
+export type Line = {
+  text: string;
+  audioPath: string;
+  durationSec: number;
+  alignment: Alignment;
+};
+
+const API = "https://api.elevenlabs.io/v1";
+export const HOW_TO_HOME = process.env.HOW_TO_HOME ?? path.join(homedir(), ".cache", "studiocue-how-to");
+const CACHE = path.join(HOW_TO_HOME, "voice-cache");
+
+/** Words the voice would otherwise say wrongly, and how to say them. */
+export const PRONUNCIATION: Array<[RegExp, string]> = [
+  [/\bStudioCue\b/g, "Studio Cue"],
+  [/\bCOI\b/g, "C-O-I"],
+  [/\bW-9\b/g, "W 9"],
+  [/\bQuickBooks\b/g, "QuickBooks"],
+];
+
+export function spoken(text: string): string {
+  return PRONUNCIATION.reduce((out, [pattern, say]) => out.replace(pattern, say), text);
+}
+
+export function apiKey(): string {
+  let key = process.env.ELEVENLABS_API_KEY;
+  if (!key && existsSync(".env.local")) {
+    const line = readFileSync(".env.local", "utf8").split("\n").find((l) => l.startsWith("ELEVENLABS_API_KEY="));
+    key = line?.slice("ELEVENLABS_API_KEY=".length).trim().replace(/^["']|["']$/g, "");
+  }
+  if (!key) throw new Error("ELEVENLABS_API_KEY is not set. Add it to .env.local.");
+  return key;
+}
+
+export async function elevenlabs<T>(pathname: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API}${pathname}`, {
+    ...init,
+    headers: { "xi-api-key": apiKey(), "content-type": "application/json", ...(init.headers ?? {}) },
+  });
+  if (!response.ok) throw new Error(`ElevenLabs ${pathname}: ${response.status} ${await response.text()}`);
+  return (await response.json()) as T;
+}
+
+/** One line of narration, from the cache when the words and settings are unchanged. */
+export async function speak(
+  text: string,
+  voice: VoiceConfig,
+  context: { previousText?: string; nextText?: string } = {},
+): Promise<Line> {
+  const body = {
+    text: spoken(text),
+    model_id: voice.modelId,
+    voice_settings: voice.settings,
+    seed: voice.seed,
+    ...(context.previousText ? { previous_text: spoken(context.previousText) } : {}),
+    ...(context.nextText ? { next_text: spoken(context.nextText) } : {}),
+  };
+  const hash = createHash("sha256").update(JSON.stringify({ voice: voice.voiceId, format: voice.outputFormat, body })).digest("hex").slice(0, 20);
+  mkdirSync(CACHE, { recursive: true });
+  const audioPath = path.join(CACHE, `${hash}.mp3`);
+  const metaPath = path.join(CACHE, `${hash}.json`);
+  if (!existsSync(audioPath) || !existsSync(metaPath)) {
+    const result = await elevenlabs<{ audio_base64: string; alignment: Alignment }>(
+      `/text-to-speech/${voice.voiceId}/with-timestamps?output_format=${voice.outputFormat}`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    writeFileSync(audioPath, Buffer.from(result.audio_base64, "base64"));
+    writeFileSync(metaPath, JSON.stringify(result.alignment));
+  }
+  const alignment = JSON.parse(readFileSync(metaPath, "utf8")) as Alignment;
+  const ends = alignment.character_end_times_seconds;
+  return { text, audioPath, durationSec: ends.length ? ends[ends.length - 1]! : 0, alignment };
+}
