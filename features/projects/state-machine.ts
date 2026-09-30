@@ -31,10 +31,16 @@ export const allowedProjectTransitions: Readonly<
   READY: ["EVENT_COMPLETE", "PLANNING", "CANCELLED", "POSTPONED"],
   EVENT_COMPLETE: ["POST_PRODUCTION"],
   POST_PRODUCTION: ["DELIVERED"],
-  DELIVERED: ["REVIEW_REQUESTED", "CLOSED"],
-  REVIEW_REQUESTED: ["CLOSED"],
-  CLOSED: ["ARCHIVED"],
-  CANCELLED: ["ARCHIVED"],
+  // Back to POST_PRODUCTION when the couple asks for a re-edit, and CLOSED back
+  // to DELIVERED to reopen a finished job. Owner-only and with a reason, through
+  // `reopenJob` rather than the ordinary stage control — see transitionRoute.
+  DELIVERED: ["REVIEW_REQUESTED", "CLOSED", "POST_PRODUCTION"],
+  REVIEW_REQUESTED: ["CLOSED", "POST_PRODUCTION"],
+  CLOSED: ["ARCHIVED", "DELIVERED"],
+  // Undoing a cancel returns the job to the stage it was cancelled from —
+  // owner-only, within a window, through `uncancelProject`, which narrows this
+  // to the one recorded stage (features/projects/going-back.ts).
+  CANCELLED: ["ARCHIVED", "LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "READY"],
   // Back to where it was held from — see hold-resume.ts, which narrows this
   // to the one stage a given hold may return to.
   POSTPONED: ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "CANCELLED"],
@@ -42,6 +48,47 @@ export const allowedProjectTransitions: Readonly<
   // Reopened to where it closed from, or put away.
   LOST: ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "ARCHIVED"],
 };
+
+/**
+ * Which command a move goes through.
+ *
+ * Several moves the machine allows carry bookkeeping the plain stage change
+ * skips, and each used to be reachable through `move_job_stage` without it.
+ * Marking a job LOST by hand left no `lostFromState`, no reason and its reply
+ * drafts approvable (closeInquiry does all three); reopening one left the lead
+ * `lost`. So `transitionProject` refuses these and names the command that
+ * owns them:
+ *
+ * - into LOST → `closeInquiry`; out of LOST (other than filing it away) →
+ *   `reopenInquiry`
+ * - out of CANCELLED (other than filing it away) → `uncancelProject`, owner
+ *   only, back to where it was cancelled from
+ * - a finished job reopened (re-edit, or a closed job reopened) → `reopenJob`,
+ *   owner only, with a reason, and it pauses review and album asks
+ *
+ * Duplicated at functions/src/crm/transitions.ts; tests/wave3-job-back.test.ts
+ * fails on a drift.
+ */
+export type TransitionRoute =
+  | "transitionProject"
+  | "closeInquiry"
+  | "reopenInquiry"
+  | "uncancelProject"
+  | "reopenJob";
+
+export const reopenJobTransitions: ReadonlyArray<{ from: ProjectState; to: ProjectState }> = [
+  { from: "DELIVERED", to: "POST_PRODUCTION" },
+  { from: "REVIEW_REQUESTED", to: "POST_PRODUCTION" },
+  { from: "CLOSED", to: "DELIVERED" },
+];
+
+export function transitionRoute(from: ProjectState, to: ProjectState): TransitionRoute {
+  if (to === "LOST") return "closeInquiry";
+  if (from === "LOST" && to !== "ARCHIVED") return "reopenInquiry";
+  if (from === "CANCELLED" && to !== "ARCHIVED") return "uncancelProject";
+  if (reopenJobTransitions.some((move) => move.from === from && move.to === to)) return "reopenJob";
+  return "transitionProject";
+}
 
 export function canTransition(from: ProjectState, to: ProjectState): boolean {
   return allowedProjectTransitions[from].includes(to);

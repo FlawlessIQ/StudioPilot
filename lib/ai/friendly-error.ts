@@ -1,3 +1,5 @@
+import { projectStateLabel } from "@/features/projects/state-label";
+
 /**
  * Plain-English rendering for AI command failures.
  *
@@ -245,7 +247,12 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVALID_REQUEST:
     "Something about this request didn't look right. Refresh and try again.",
   INVALID_COVERAGE_RANGE: "Coverage must end after it starts.",
-  FORBIDDEN: "You don't have permission to do this for the selected project.",
+  // A role refusal: every crmCommand FORBIDDEN is about who the person is in
+  // the studio, not about a job — this used to say "for the selected project"
+  // on screens that had none selected.
+  FORBIDDEN: "You don't have permission to do this in this studio. Ask the studio owner or an admin.",
+  PROJECT_ACCESS_DENIED:
+    "This job isn't one you have access to. Ask the studio owner or an admin to add you to it, or to make the change.",
   // A coordinator acting on a project outside their assigned list. Distinct
   // from FORBIDDEN, which is about the role; this is about the job.
   PROJECT_NOT_PERMITTED:
@@ -330,8 +337,21 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "This step needs the record behind it, not a stage change — the job page links to where to enter it.",
   VERSION_CONFLICT:
     "Someone else changed this job while you were looking at it. Refresh and try again.",
-  INVALID_TRANSITION:
-    "That is not a move this job can make from where it is now.",
+  // Going back (Wave 3): undoing a cancel, reopening a finished job.
+  OWNER_ONLY_MOVE:
+    "Only the studio owner can undo a cancel or reopen a finished job, because it changes what the crew and the couple were told.",
+  NOT_CANCELLED: "This job isn't cancelled, so there's nothing to undo.",
+  // The couple's proposal on a job the studio has paused or stopped.
+  PROJECT_ON_HOLD:
+    "This booking is on hold with the studio right now, so the proposal can't be accepted. Message the studio to pick it back up.",
+  PROJECT_NOT_ACTIVE:
+    "This booking is no longer active, so the proposal can't be accepted. Message the studio if you'd like to talk about it.",
+  UNCANCEL_ORIGIN_UNKNOWN:
+    "This job was cancelled before StudioCue recorded where it stood, so it can't be brought back here. Create a new job for the couple instead.",
+  UNCANCEL_WINDOW_PASSED:
+    "A cancel can be undone for 30 days, and this one is older. Create a new job for the couple instead.",
+  INQUIRY_NOT_DISMISSED: "This inquiry wasn't marked \u201cnot an inquiry\u201d, so there's nothing to restore.",
+  LEAD_NOT_FOUND: "That inquiry isn't there any more. Refresh and try again.",
   HOLD_RESUME_NOT_ALLOWED:
     "A job on hold goes back to the stage it was held from. If it was booked, bring it back through the booking page so the signature and retainer are checked again.",
   BALANCE_ATTESTATION_PERMISSION_REQUIRED:
@@ -628,6 +648,48 @@ const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
  * These say what to change instead.
  */
 const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
+  /**
+   * A stage move the job can't make, with where it can go.
+   *
+   * This said "That is not a move this job can make" and nothing else, so a
+   * studio trying to take a booked job back to the proposal learned only
+   * that it couldn't — not that a booking change or a cancel was the way.
+   * The server sends `FROM>TO,TO`.
+   */
+  INVALID_TRANSITION: (detail) => {
+    const [from = "", targets = ""] = detail.split(">");
+    const names = targets
+      .split(",")
+      .filter(Boolean)
+      .map((state) => projectStateLabel(state));
+    if (["BOOKED", "PLANNING", "READY"].includes(from))
+      return "A booked job doesn't go back to the proposal or the agreement. To change what the couple booked or the date, use Change the booking on the job; if the wedding is off, cancel the job.";
+    if (["EVENT_COMPLETE", "POST_PRODUCTION"].includes(from))
+      return "After the wedding a job only moves forward. Deliver it, then reopen it from the job page if the couple asks for a re-edit.";
+    if (from === "ARCHIVED")
+      return "This job is archived. Restore it from the job page first.";
+    return names.length
+      ? `From ${projectStateLabel(from)} this job can move to ${names.join(", ")}.`
+      : "That is not a move this job can make from where it is now.";
+  },
+  // Moves with their own bookkeeping (state-machine.ts transitionRoute).
+  TRANSITION_HAS_ITS_OWN_COMMAND: (detail) =>
+    detail === "closeInquiry"
+      ? "Use Close inquiry to mark it lost — it records why, and stops its follow-ups and reply drafts."
+      : detail === "reopenInquiry"
+        ? "Use Reopen inquiry to bring it back — it returns to the stage it closed from."
+        : detail === "uncancelProject"
+          ? "Use Undo the cancel on the job page (owner only). It returns the job to where it was cancelled from."
+          : detail === "reopenJob"
+            ? "Use Move back on the job page (owner only) to reopen a finished job, with a reason."
+            : "That move has its own step on the job page.",
+  // Moving back to the proposal with the agreement still out.
+  AGREEMENT_OUT: (detail) =>
+    detail === "signed"
+      ? "The couple has signed the agreement, so the job can't go back to the proposal. Use Change the booking to change what they booked."
+      : detail === "provider"
+        ? "The agreement is out through your signing app. Cancel it there first, then move the job back to the proposal."
+        : "The agreement is out with the couple. Withdraw it on the job's Booking tab first, then move the job back to the proposal.",
   // Sending to a couple whose job says "stop" (post-event/client-outreach.ts):
   // an approved draft or a retried email. The detail is why.
   CLIENT_OUTREACH_STOPPED: (detail) =>

@@ -9243,6 +9243,38 @@ textarea:focus-visible {
   padding: 0;
 }
 
+/* The cancel confirm lists what happens, and "Tell the couple" (Wave 3). */
+.project-interruption-control ul {
+  color: #c9d3cc;
+  display: grid;
+  font-size: 9.5px;
+  gap: 5px;
+  line-height: 1.55;
+  margin: 0;
+  padding-left: 15px;
+}
+
+.project-interruption-control form textarea {
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 9px;
+  color: #f3f6f3;
+  font: inherit;
+  font-size: 11px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.project-interruption-control form label.project-interruption-check {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.project-interruption-control form label.project-interruption-check input {
+  min-height: 0;
+}
+
 .project-stage-control form > p {
   color: #aeb9b1;
   font-size: 9px;

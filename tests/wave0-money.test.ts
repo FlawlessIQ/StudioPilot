@@ -446,7 +446,8 @@ test("the functions copy of the hold rule matches features/, and the command enf
   assert.match(transition, /postponedFromState: project\.state/);
   // The two copies of the state machine agree about the way out of a hold.
   assert.match(
-    crm,
+    // The functions table lives in its own module since Wave 3.
+    read("functions/src/crm/transitions.ts"),
     /POSTPONED: \["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "CANCELLED"\]/,
   );
   // Cue and the job page both ask the rule.

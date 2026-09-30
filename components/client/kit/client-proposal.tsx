@@ -25,6 +25,7 @@ import {
   money,
   number,
   proposalErrorMessage,
+  PROPOSAL_ERROR_FALLBACK,
   text,
   useProjectRecords,
   useReserveYourDate,
@@ -130,7 +131,11 @@ export function ClientProposal() {
       // run, 2026-09-29).
       const code = caught instanceof Error ? caught.message : "";
       const specific = proposalErrorMessage(code);
-      setNotice(specific !== code ? specific : friendlyError(caught, "Your decision could not be saved."));
+      setNotice(
+        specific !== code && specific !== PROPOSAL_ERROR_FALLBACK
+          ? specific
+          : friendlyError(caught, PROPOSAL_ERROR_FALLBACK),
+      );
     } finally {
       setSubmitting(false);
     }

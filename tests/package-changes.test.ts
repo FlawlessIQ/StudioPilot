@@ -28,7 +28,7 @@ test("a proposal can be re-priced from its packages at every stage before it's f
 
 test("a revised acceptance steps the job back from contract pending to proposal", () => {
   assert.ok(allowedProjectTransitions.CONTRACT_PENDING.includes("PROPOSAL"));
-  assert.match(crm, /CONTRACT_PENDING: \["RETAINER_PENDING", "PROPOSAL"/);
+  assert.match(source("functions/src/crm/transitions.ts"), /CONTRACT_PENDING: \["RETAINER_PENDING", "PROPOSAL"/);
 });
 
 test("a job with a package can take another, but only replaces one when asked by name", () => {

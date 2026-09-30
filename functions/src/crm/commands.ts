@@ -16,11 +16,24 @@ import { selectionDiscount, snapshotDiscountRule } from "../pricing/discount-rul
 import { packageChangeNeedsApprover } from "../booking/proposal-domain.js";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
 import { holdResumeStates } from "./hold-resume.js";
+import {
+  evidenceControlledTransitions,
+  projectStates,
+  transitionRoute,
+  transitions,
+  uncancelRefusal,
+  type ProjectStateName,
+} from "./transitions.js";
 import { eventDateLock } from "./event-date-lock.js";
 import {
   readStoppedBilling,
   writeStoppedBilling,
 } from "../booking/stopped-billing.js";
+import {
+  agreementOutRefusal,
+  writeStoppedAgreements,
+} from "../booking/stopped-agreements.js";
+import { assignmentIcs, assignmentPlace } from "../crew/calendar-ics.js";
 
 /** An inquiry's states before booking — the ones it can be closed from. */
 /** One structured deliverable on a package (H4); mirrors features/packages/schema.ts. */
@@ -132,78 +145,6 @@ function billedCrewCount(
   );
 }
 
-const projectStates = [
-  "LEAD",
-  "CONSULTATION",
-  "PROPOSAL",
-  "CONTRACT_PENDING",
-  "RETAINER_PENDING",
-  "BOOKED",
-  "PLANNING",
-  "READY",
-  "EVENT_COMPLETE",
-  "POST_PRODUCTION",
-  "DELIVERED",
-  "REVIEW_REQUESTED",
-  "CLOSED",
-  "CANCELLED",
-  "POSTPONED",
-  "ARCHIVED",
-  "LOST",
-] as const;
-
-const transitions: Readonly<
-  Record<(typeof projectStates)[number], readonly string[]>
-> = {
-  LEAD: ["CONSULTATION", "CANCELLED", "ARCHIVED", "LOST"],
-  CONSULTATION: ["PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
-  PROPOSAL: ["CONTRACT_PENDING", "CANCELLED", "POSTPONED", "LOST"],
-  // Back to PROPOSAL when the couple changes what they're booking before the
-  // agreement goes out: they accept a revised proposal (proposals.ts
-  // "revise_packages").
-  CONTRACT_PENDING: ["RETAINER_PENDING", "PROPOSAL", "CANCELLED", "POSTPONED", "LOST"],
-  RETAINER_PENDING: ["BOOKED", "CANCELLED", "POSTPONED", "LOST"],
-  /**
-   * `EVENT_COMPLETE` from BOOKED and PLANNING, not only from READY.
-   *
-   * The old shape said a wedding could only have been shot if the studio had
-   * first reached 100% readiness — so a job whose date had passed while it sat
-   * in PLANNING could not be recorded as having happened at all. The studio had
-   * to waive its way to full preparation for a wedding already in the past
-   * before StudioCue would accept that it took place.
-   *
-   * That is backwards. Weddings happen whether or not the checkboxes were
-   * ticked, and READY is a statement about preparation, not about reality.
-   * Nothing is loosened by this: EVENT_COMPLETE was never evidence-controlled,
-   * and the gate that matters — signature and retainer — is behind the job
-   * before BOOKED.
-   */
-  BOOKED: ["PLANNING", "EVENT_COMPLETE", "CANCELLED", "POSTPONED"],
-  PLANNING: ["READY", "EVENT_COMPLETE", "CANCELLED", "POSTPONED"],
-  READY: ["EVENT_COMPLETE", "PLANNING", "CANCELLED", "POSTPONED"],
-  EVENT_COMPLETE: ["POST_PRODUCTION"],
-  POST_PRODUCTION: ["DELIVERED"],
-  DELIVERED: ["REVIEW_REQUESTED", "CLOSED"],
-  REVIEW_REQUESTED: ["CLOSED"],
-  CLOSED: ["ARCHIVED"],
-  CANCELLED: ["ARCHIVED"],
-  // Back to where it was held from — see hold-resume.ts, which narrows this
-  // to the one stage a given hold may return to.
-  POSTPONED: ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "CANCELLED"],
-  ARCHIVED: [],
-  // Reopened to where it closed from, or put away.
-  LOST: ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "ARCHIVED"],
-};
-
-const evidenceControlledTransitions = new Set([
-  "PROPOSAL:CONTRACT_PENDING",
-  "CONTRACT_PENDING:RETAINER_PENDING",
-  "RETAINER_PENDING:BOOKED",
-  "POSTPONED:BOOKED",
-  "PLANNING:READY",
-  "POST_PRODUCTION:DELIVERED",
-]);
-
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createProject"),
@@ -260,6 +201,47 @@ const commandSchema = z.discriminatedUnion("type", [
        * where the move speaks for itself.
        */
       reason: z.string().max(500).nullable().default(null),
+      /**
+       * Cancelling only: tell the couple, in the studio's words. Off unless
+       * the studio ticks it — the studio usually already spoke to them, and
+       * a second, automated "your wedding is cancelled" is worse than none.
+       */
+      notifyClient: z.boolean().default(false),
+      clientMessage: z.string().trim().max(2000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * Undo a cancel (Wave 3): the job goes back to the stage it was cancelled
+     * from. Owner only and within UNCANCEL_WINDOW_DAYS. Nothing the cancel
+     * released comes back on its own — crew stay released, invoices stay
+     * superseded, a withdrawn agreement stays withdrawn — because each of
+     * those told somebody something, and quietly reversing it would not
+     * untell them.
+     */
+    type: z.literal("uncancelProject"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      expectedVersion: z.number().int().nonnegative(),
+      reason: z.string().trim().min(10).max(500),
+    }),
+  }),
+  z.object({
+    /**
+     * Reopen a finished job (Wave 3): back to editing for a re-edit, or a
+     * closed job back to Delivered. Owner only, with a reason. Pending review
+     * and album asks pause until the job is delivered again.
+     */
+    type: z.literal("reopenJob"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      expectedVersion: z.number().int().nonnegative(),
+      targetState: z.enum(["POST_PRODUCTION", "DELIVERED"]),
+      reason: z.string().trim().min(10).max(500),
     }),
   }),
   z.object({
@@ -461,6 +443,21 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       leadId: z.string().min(1),
       ignoreSender: z.boolean().default(false),
+    }),
+  }),
+  z.object({
+    /**
+     * Undo "Not an inquiry" (Wave 3). It filed the lead away and put its
+     * untouched job in ARCHIVED, a state with no way out, so a real couple
+     * tapped away by mistake was gone. This brings both back; the sender it
+     * may have learned to ignore is un-learned only when the studio says so.
+     */
+    type: z.literal("restoreInquiry"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      leadId: z.string().min(1),
+      unignoreSender: z.boolean().default(false),
     }),
   }),
   z.object({
@@ -1379,10 +1376,12 @@ export const crmCommand = onRequest(
           const project = projectSnapshot.data() as
             | {
                 tenantId: string;
-                state: (typeof projectStates)[number];
+                state: ProjectStateName;
                 stateVersion: number;
                 postponedFromState?: unknown;
                 bookingCompletedAt?: unknown;
+                calendarEventId?: unknown;
+                name?: unknown;
               }
             | undefined;
           if (!project || project.tenantId !== command.tenantId) {
@@ -1395,7 +1394,13 @@ export const crmCommand = onRequest(
             throw new Error("VERSION_CONFLICT");
           }
           if (!transitions[project.state].includes(command.input.targetState)) {
-            throw new Error("INVALID_TRANSITION");
+            // Says where the job can go, so the refusal is an answer
+            // (friendly-error.ts reads the list after the colon).
+            throw new Error(
+              `INVALID_TRANSITION:${project.state}>${transitions[project.state]
+                .filter((target) => transitionRoute(project.state, target) === "transitionProject")
+                .join(",")}`,
+            );
           }
           if (
             evidenceControlledTransitions.has(
@@ -1404,6 +1409,48 @@ export const crmCommand = onRequest(
           ) {
             throw new Error("EVIDENCE_CONTROLLED_TRANSITION");
           }
+          // Moves with their own bookkeeping go through their own command
+          // (transitions.ts transitionRoute): marking LOST here skipped
+          // lostFromState, the reason and retiring reply drafts.
+          const route = transitionRoute(project.state, command.input.targetState);
+          if (route !== "transitionProject") {
+            throw new Error(`TRANSITION_HAS_ITS_OWN_COMMAND:${route}`);
+          }
+          const cancelling = command.input.targetState === "CANCELLED";
+          // The agreement is read for two moves: a cancel withdraws an
+          // unsigned one, and a move back to the proposal is refused while
+          // one is out (stopped-agreements.ts). Reads first.
+          const contractReads =
+            cancelling ||
+            (project.state === "CONTRACT_PENDING" && command.input.targetState === "PROPOSAL")
+              ? (
+                  await transaction.get(
+                    db
+                      .collection("contracts")
+                      .where("tenantId", "==", command.tenantId)
+                      .where("projectId", "==", command.input.projectId),
+                  )
+                ).docs
+              : [];
+          if (project.state === "CONTRACT_PENDING" && command.input.targetState === "PROPOSAL") {
+            const out = agreementOutRefusal(
+              contractReads.map((contract) => ({
+                id: contract.id,
+                status: contract.get("status"),
+                provider: contract.get("provider"),
+              })),
+            );
+            if (out) throw new Error(`AGREEMENT_OUT:${out}`);
+          }
+          // StudioCue's own calendar record of each crew member's day, marked
+          // cancelled with them. Read here because an update needs the doc.
+          const crewCalendarEvents = cancelling
+            ? await Promise.all(
+                liveCrew.map((assignment) =>
+                  transaction.get(db.doc(`crewCalendarEvents/${assignment.id}`)),
+                ),
+              )
+            : [];
           // A hold returns a job to where it was, never past the booking gate
           // (hold-resume.ts).
           if (
@@ -1450,9 +1497,28 @@ export const crmCommand = onRequest(
             ...(command.input.targetState === "POSTPONED"
               ? { postponedFromState: project.state }
               : {}),
+            // Where an undo returns it to (uncancelProject), and from when
+            // the undo window runs.
+            ...(cancelling
+              ? {
+                  cancelledFromState: project.state,
+                  cancelledAt: timestamp,
+                  cancelledBy: identity.uid,
+                }
+              : {}),
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          const agreementsClosed = cancelling
+            ? writeStoppedAgreements(db, transaction, {
+                contracts: contractReads,
+                tenantId: command.tenantId,
+                projectId: command.input.projectId,
+                now: timestamp,
+                actor: identity.uid,
+                correlationId,
+              })
+            : null;
           const billingClosed =
             billingStop && billingReads
               ? writeStoppedBilling(db, transaction, {
@@ -1491,10 +1557,23 @@ export const crmCommand = onRequest(
                 status: String(assignment.get("status")),
               });
               if (disposition.action !== "withdraw") continue;
+              // A crew member told the day is off still had it in their
+              // diary: the ICS they added from the crew app stayed. The
+              // cancel notice now carries the calendar file that removes it,
+              // as a withdrawal already did (crew/commands.ts).
+              const arrivalAt = String(assignment.get("arrivalAt") ?? "");
+              const departureAt = String(assignment.get("departureAt") ?? "");
+              const calendarSequence = Number(assignment.get("calendarSequence") ?? 0) + 1;
+              const withCalendar =
+                cancelling &&
+                disposition.notify &&
+                Number.isFinite(Date.parse(arrivalAt)) &&
+                Number.isFinite(Date.parse(departureAt));
               transaction.update(assignment.ref, {
                 status: "cancelled",
                 cancelledAt: timestamp,
                 cancelledReason: command.input.reason ?? null,
+                ...(withCalendar ? { calendarSequence } : {}),
                 updatedAt: timestamp,
                 updatedBy: identity.uid,
               });
@@ -1518,12 +1597,31 @@ export const crmCommand = onRequest(
                 crewProfileId: assignment.get("crewProfileId") ?? null,
                 role: assignment.get("role") ?? null,
                 reason: command.input.reason ?? null,
+                calendarAttachment: withCalendar
+                  ? {
+                      filename: "studiocue-assignment.ics",
+                      content: assignmentIcs({
+                        assignmentId: assignment.id,
+                        startsAt: arrivalAt,
+                        endsAt: departureAt,
+                        projectName: String(project.name ?? "") || "Crew assignment",
+                        role: String(assignment.get("role") ?? "") || "Crew",
+                        location: assignmentPlace(assignment.get("locations")),
+                        sequence: calendarSequence,
+                        stampedAt: timestamp,
+                        cancelled: true,
+                      }),
+                    }
+                  : null,
                 status: "queued",
                 attempts: 0,
                 createdAt: timestamp,
                 updatedAt: timestamp,
               });
             }
+            for (const event of crewCalendarEvents)
+              if (event.exists && withdrawn.includes(event.id))
+                transaction.update(event.ref, { status: "cancelled", updatedAt: timestamp });
             // A cascade still working down its list would offer the next name
             // on a job that has stopped. Only the ones still there and still
             // active — see the read above.
@@ -1535,6 +1633,57 @@ export const crmCommand = onRequest(
                 updatedBy: identity.uid,
               });
             }
+          }
+          /**
+           * The wedding off the calendars. Only consultation events were ever
+           * deleted (provider-runtime.ts); the studio's all-day event for a
+           * cancelled wedding stayed in its Google Calendar, and so did each
+           * crew member's invite. One provider job does both, as a booking
+           * change moves both (moveBookingCalendarEvents).
+           */
+          const calendarRemovalQueued =
+            cancelling &&
+            (Boolean(project.calendarEventId) ||
+              liveCrew.some(
+                (assignment) =>
+                  withdrawn.includes(assignment.id) && Boolean(assignment.get("calendarEventId")),
+              ));
+          if (calendarRemovalQueued) {
+            const jobId = `remove_calendar_${command.input.projectId}_${project.stateVersion + 1}`;
+            transaction.set(db.doc(`providerJobs/${jobId}`), {
+              id: jobId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type: "remove_booking_calendar_events",
+              assignmentIds: withdrawn,
+              idempotencyKey: jobId,
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          }
+          /**
+           * "Tell the couple", when the studio ticked it: their words, or a
+           * plain default. Off by default — the studio has usually already
+           * spoken to them, and hearing it twice, once from a machine, is
+           * worse than hearing it once.
+           */
+          const clientTold = cancelling && command.input.notifyClient;
+          if (clientTold) {
+            const noticeId = `project_cancelled_${command.input.projectId}_${project.stateVersion + 1}`;
+            transaction.create(db.doc(`emailJobs/${noticeId}`), {
+              id: noticeId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type: "project_cancelled",
+              // No recipient: the worker addresses the job's client.
+              customBody: command.input.clientMessage || null,
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
           }
           const auditId = randomUUID();
           transaction.create(db.doc(`auditEvents/${auditId}`), {
@@ -1558,6 +1707,8 @@ export const crmCommand = onRequest(
               // called off.
               reason: command.input.reason ?? null,
               ...(billingClosed ? { billingClosed } : {}),
+              ...(agreementsClosed ? { agreementsClosed } : {}),
+              ...(cancelling ? { crewWithdrawn: withdrawn, calendarRemovalQueued, clientTold } : {}),
             },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
@@ -1570,6 +1721,8 @@ export const crmCommand = onRequest(
             state: command.input.targetState,
             stateVersion: project.stateVersion + 1,
             ...(billingClosed ? { billingClosed } : {}),
+            ...(agreementsClosed ? { agreementsClosed } : {}),
+            ...(cancelling ? { crewWithdrawn: withdrawn.length, clientTold } : {}),
           };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
@@ -1578,6 +1731,197 @@ export const crmCommand = onRequest(
             createdAt: timestamp,
           });
           return output;
+        }
+
+        if (command.type === "uncancelProject") {
+          /**
+           * The owner's call alone. A cancel emailed the crew, stopped the
+           * billing and may have withdrawn the agreement; undoing it is a
+           * decision about all of that, and the job page says so before the
+           * owner confirms.
+           */
+          if (membershipData.role !== "studio_owner") throw new Error("OWNER_ONLY_MOVE");
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const project = await transaction.get(projectReference);
+          if (!project.exists || project.get("tenantId") !== command.tenantId)
+            throw new Error("PROJECT_NOT_FOUND");
+          if (!hasProjectAccess(membershipData, command.input.projectId))
+            throw new Error("PROJECT_NOT_PERMITTED");
+          const stateVersion = Number(project.get("stateVersion") ?? 0);
+          if (stateVersion !== command.input.expectedVersion) throw new Error("VERSION_CONFLICT");
+          const refusal = uncancelRefusal(project.data() ?? {}, timestamp);
+          if (refusal) throw new Error(refusal);
+          const target = String(project.get("cancelledFromState")) as ProjectStateName;
+          const booked = ["BOOKED", "PLANNING", "READY"].includes(target);
+          transaction.update(projectReference, {
+            state: target,
+            stateVersion: stateVersion + 1,
+            interruptionReason: null,
+            interruptionAt: null,
+            cancelledFromState: null,
+            cancelledAt: null,
+            cancelledBy: null,
+            uncancelledAt: timestamp,
+            uncancelledBy: identity.uid,
+            uncancelReason: command.input.reason,
+            // Nothing the cancel released came back, and the next step says
+            // which of those the studio now has to redo by hand.
+            nextAction: booked
+              ? "Re-offer the crew and re-raise any open invoice"
+              : "Send the couple what they need again",
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const uncancelAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${uncancelAuditId}`), {
+            id: uncancelAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "project.uncancelled",
+            entityType: "project",
+            entityId: command.input.projectId,
+            timestamp,
+            before: {
+              state: "CANCELLED",
+              stateVersion,
+              cancelledAt: project.get("cancelledAt") ?? null,
+              cancelReason: project.get("interruptionReason") ?? null,
+            },
+            after: { state: target, stateVersion: stateVersion + 1, reason: command.input.reason },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const uncancelOutput = {
+            projectId: command.input.projectId,
+            state: target,
+            stateVersion: stateVersion + 1,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: uncancelOutput,
+            createdAt: timestamp,
+          });
+          return uncancelOutput;
+        }
+
+        if (command.type === "reopenJob") {
+          /**
+           * A finished job reopened: DELIVERED (or REVIEW_REQUESTED) back to
+           * editing because the couple asked for a re-edit, or CLOSED back to
+           * DELIVERED. From EVENT_COMPLETE on every move used to be forward
+           * only, so a re-edit happened off the books while StudioCue asked
+           * the couple for a review of the gallery being redone.
+           *
+           * Owner only, with a reason, and the review and album asks still
+           * waiting are paused — not cancelled — until the job is delivered
+           * again (post-event/release.ts resumes them).
+           */
+          if (membershipData.role !== "studio_owner") throw new Error("OWNER_ONLY_MOVE");
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const project = await transaction.get(projectReference);
+          if (!project.exists || project.get("tenantId") !== command.tenantId)
+            throw new Error("PROJECT_NOT_FOUND");
+          if (!hasProjectAccess(membershipData, command.input.projectId))
+            throw new Error("PROJECT_NOT_PERMITTED");
+          const stateVersion = Number(project.get("stateVersion") ?? 0);
+          if (stateVersion !== command.input.expectedVersion) throw new Error("VERSION_CONFLICT");
+          const from = String(project.get("state")) as ProjectStateName;
+          const to = command.input.targetState;
+          if (!transitions[from]?.includes(to) || transitionRoute(from, to) !== "reopenJob")
+            throw new Error(`INVALID_TRANSITION:${from}>`);
+          // Reads first. Equality filters only, so no composite index.
+          const [reviewAsks, albumReminders, closeout] = await Promise.all([
+            transaction.get(
+              db
+                .collection("reviewRequests")
+                .where("tenantId", "==", command.tenantId)
+                .where("projectId", "==", command.input.projectId)
+                .where("status", "==", "scheduled"),
+            ),
+            transaction.get(
+              db
+                .collection("albumReminders")
+                .where("tenantId", "==", command.tenantId)
+                .where("projectId", "==", command.input.projectId)
+                .where("status", "==", "scheduled"),
+            ),
+            transaction.get(db.doc(`projectCloseouts/closeout_${command.input.projectId}`)),
+          ]);
+          const paused = [...reviewAsks.docs, ...albumReminders.docs];
+          for (const ask of paused)
+            transaction.update(ask.ref, {
+              status: "paused",
+              pausedAt: timestamp,
+              pausedBecause: "job_reopened",
+              updatedAt: timestamp,
+            });
+          transaction.update(projectReference, {
+            state: to,
+            stateVersion: stateVersion + 1,
+            reopenedAt: timestamp,
+            reopenedBy: identity.uid,
+            reopenedFromState: from,
+            reopenReason: command.input.reason,
+            // Read by the job page, and cleared by the next delivery.
+            postEventAsksPausedAt: timestamp,
+            postEventAsksPaused: paused.length,
+            nextAction: to === "POST_PRODUCTION" ? "Re-edit and deliver again" : "Close the job again when it's done",
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          // A completed closeout would read as closed on the Delivery tab
+          // while the job is open again; back to ready, so closing it again
+          // is one approval.
+          if (from === "CLOSED" && closeout.exists && closeout.get("tenantId") === command.tenantId && closeout.get("status") === "completed")
+            transaction.update(closeout.ref, {
+              status: "ready",
+              reopenedAt: timestamp,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          const reopenAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${reopenAuditId}`), {
+            id: reopenAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "project.reopened",
+            entityType: "project",
+            entityId: command.input.projectId,
+            timestamp,
+            before: { state: from, stateVersion },
+            after: {
+              state: to,
+              stateVersion: stateVersion + 1,
+              reason: command.input.reason,
+              pausedAsks: paused.map((ask) => ask.ref.path),
+            },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const reopenOutput = {
+            projectId: command.input.projectId,
+            state: to,
+            stateVersion: stateVersion + 1,
+            asksPaused: paused.length,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: reopenOutput,
+            createdAt: timestamp,
+          });
+          return reopenOutput;
         }
 
         if (command.type === "saveAddOn") {
@@ -3063,6 +3407,111 @@ export const crmCommand = onRequest(
           return output;
         }
 
+        if (command.type === "restoreInquiry") {
+          // Undoing a filing decision; the same bar as the sender lists it
+          // may touch.
+          if (!["studio_owner", "studio_admin"].includes(membershipData.role)) {
+            throw new Error("FORBIDDEN");
+          }
+          const leadReference = db.doc(`leads/${command.input.leadId}`);
+          const lead = await transaction.get(leadReference);
+          if (!lead.exists || lead.get("tenantId") !== command.tenantId) {
+            throw new Error("LEAD_NOT_FOUND");
+          }
+          if (lead.get("notInquiry") !== true) throw new Error("INQUIRY_NOT_DISMISSED");
+          const linkedProjectId = lead.get("projectId");
+          const linkedProject =
+            typeof linkedProjectId === "string" && linkedProjectId
+              ? await transaction.get(db.doc(`projects/${linkedProjectId}`))
+              : null;
+          if (linkedProject?.exists && !hasProjectAccess(membershipData, linkedProject.id)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
+          }
+          // Only the job "not an inquiry" put away (markLeadNotInquiry only
+          // touches an untouched inquiry job at LEAD). A job filed some other
+          // way is left to its own restore.
+          const restoreJob =
+            linkedProject?.exists &&
+            linkedProject.get("tenantId") === command.tenantId &&
+            linkedProject.get("state") === "ARCHIVED" &&
+            linkedProject.get("origin") === "inquiry";
+          const captureId = lead.get("captureId");
+          const capture =
+            command.input.unignoreSender && typeof captureId === "string" && captureId
+              ? await transaction.get(db.doc(`inboundCaptures/${captureId}`))
+              : null;
+          const sender = capture?.get("notificationSender");
+          const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
+          const settings = command.input.unignoreSender ? await transaction.get(settingsReference) : null;
+          const known = (settings?.get("notInquirySenders") as string[] | undefined) ?? [];
+          const unlearn = typeof sender === "string" && known.includes(sender);
+          transaction.update(leadReference, {
+            status: restoreJob || linkedProject?.exists ? "converted" : "new",
+            notInquiry: false,
+            archivedAt: null,
+            restoredAt: timestamp,
+            restoredBy: identity.uid,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          if (restoreJob && linkedProject) {
+            transaction.update(linkedProject.ref, {
+              state: "LEAD",
+              stateVersion: Number(linkedProject.get("stateVersion") ?? 0) + 1,
+              archivedAt: null,
+              nextAction: "Complete lead review",
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
+          if (unlearn && settings) {
+            transaction.set(
+              settingsReference,
+              {
+                tenantId: command.tenantId,
+                notInquirySenders: known.filter((value) => value !== sender),
+                updatedAt: timestamp,
+              },
+              { merge: true },
+            );
+          }
+          const restoreAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${restoreAuditId}`), {
+            id: restoreAuditId,
+            tenantId: command.tenantId,
+            projectId: restoreJob && linkedProject ? linkedProject.id : null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "lead.restored",
+            entityType: "lead",
+            entityId: command.input.leadId,
+            timestamp,
+            before: { status: lead.get("status") ?? "archived", notInquiry: true },
+            after: {
+              status: restoreJob || linkedProject?.exists ? "converted" : "new",
+              restoredProjectId: restoreJob && linkedProject ? linkedProject.id : null,
+              unignoredSender: unlearn ? sender : null,
+            },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const restoreOutput = {
+            leadId: command.input.leadId,
+            projectId: restoreJob && linkedProject ? linkedProject.id : null,
+            unignoredSender: unlearn ? (sender as string) : null,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: restoreOutput,
+            createdAt: timestamp,
+          });
+          return restoreOutput;
+        }
+
         if (command.type === "removeIgnoredSender") {
           // The sender lists steer what capture keeps, so — like the form
           // mappings beside them — only owners and admins change them.
@@ -3509,7 +3958,7 @@ export const crmCommand = onRequest(
           ? 409
           : code === "PROJECT_NOT_FOUND"
             ? 404
-            : code === "FORBIDDEN" || code === "PROJECT_ACCESS_DENIED"
+            : code === "OWNER_ONLY_MOVE" || code === "FORBIDDEN" || code === "PROJECT_ACCESS_DENIED"
               ? 403
               : 422;
       response.status(status).json({ error: code });

@@ -106,7 +106,15 @@ export async function resolveInquiryLink(db: Firestore, token: string): Promise<
   if (project && (!project.exists || project.get("tenantId") !== tenantId)) {
     throw new Error("INQUIRY_LINK_NOT_FOUND");
   }
-  if (project?.get("state") === "LOST" || project?.get("archivedAt")) {
+  // The lead's own status too: an inquiry closed before it had a job has no
+  // project to read LOST from, and its link kept offering the couple a call
+  // (go-back audit, 2026-09-30). A cancelled wedding has nothing to book.
+  if (
+    lead.get("status") === "lost" ||
+    project?.get("state") === "LOST" ||
+    project?.get("state") === "CANCELLED" ||
+    project?.get("archivedAt")
+  ) {
     throw new Error("INQUIRY_LINK_CLOSED");
   }
   return { link, tenantId, lead, project: project ?? null };

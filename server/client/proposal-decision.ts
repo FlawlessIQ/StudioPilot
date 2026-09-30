@@ -111,6 +111,13 @@ export function planClientProposalDecision(
     };
   }
 
+  // Said as what it is to the couple. "Your project has already moved beyond
+  // this proposal" was the answer for a wedding on hold or called off, which
+  // it had not (go-back audit, 2026-09-30).
+  if (project.state === "POSTPONED") throw new Error("PROJECT_ON_HOLD");
+  if (["CANCELLED", "LOST", "ARCHIVED"].includes(project.state)) {
+    throw new Error("PROJECT_NOT_ACTIVE");
+  }
   if (
     project.state !== "PROPOSAL" ||
     !canTransition(project.state as ProjectState, "CONTRACT_PENDING")

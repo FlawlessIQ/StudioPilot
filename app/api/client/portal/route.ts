@@ -2448,6 +2448,8 @@ export async function POST(request: Request) {
       error === "PROPOSAL_ACCEPTED_BY_SIGNING" ||
       error === "PACKAGE_SNAPSHOT_CONFLICT" ||
       error === "PROJECT_STATE_CONFLICT" ||
+      error === "PROJECT_ON_HOLD" ||
+      error === "PROJECT_NOT_ACTIVE" ||
       error === "PACKAGE_SELECTION_NOT_AVAILABLE" ||
       error === "PACKAGE_ALREADY_SELECTED"
     ) {
