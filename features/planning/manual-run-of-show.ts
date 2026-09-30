@@ -27,7 +27,16 @@ export type ManualScheduleItemSeed = {
   vendorContactIds: string[];
   equipment: string[];
   notes: string | null;
-  visibility: "studio";
+  /**
+   * "shared": the couple, the crew and vendors all see it. It was "studio",
+   * so a hand-built run of show reached nobody — crew day sheets take only
+   * crew/shared items, the couple's review email goes only when an item is
+   * client/shared, vendor links drop studio items — while the screen said
+   * "Your crew can see it now". The AI draft follows the same rule
+   * (functions/src/ai/schedule.ts): a running order the couple can't see is
+   * a failure.
+   */
+  visibility: "shared";
   blockingIssues: string[];
   sourceReferences: [];
 };
@@ -58,7 +67,7 @@ export function manualScheduleItem(
     vendorContactIds: [],
     equipment: [],
     notes: null,
-    visibility: "studio",
+    visibility: "shared",
     blockingIssues: [],
     sourceReferences: [],
   };

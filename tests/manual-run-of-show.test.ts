@@ -15,7 +15,8 @@ test("a manual item is a full, publishable item", () => {
   assert.equal(item.startAt, "2027-09-18T15:00:00.000Z");
   assert.equal(item.endAt, "2027-09-18T16:00:00.000Z");
   assert.deepEqual(item.sourceReferences, []);
-  assert.equal(item.visibility, "studio");
+  // Shared, or publishing it reaches no crew, no couple and no vendor.
+  assert.equal(item.visibility, "shared");
   assert.equal(item.travelMinutes, 0);
 });
 
