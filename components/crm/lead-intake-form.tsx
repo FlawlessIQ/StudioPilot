@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState, useSyncExternalStore } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, CheckCircle2, LoaderCircle, Mail, Phone, Send, Users } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
-import { z } from "zod";
-import { publicLeadIntakeSchema, type PublicLeadIntake } from "@/features/leads/schema";
+import type { z } from "zod";
+import type { publicLeadIntakeSchema, PublicLeadIntake } from "@/features/leads/schema";
+// The browser check without Zod (H5): features/leads/public-intake-validate.ts.
+import { publicLeadIntakeResolver } from "@/features/leads/public-intake-validate";
 import { AddressField } from "@/components/forms/address-field";
 import {
   Actions,
@@ -24,11 +25,8 @@ import {
   TextArea,
   type Studio,
 } from "@/components/kit/kit";
-import {
-  placeCity,
-  placeLabel,
-  type CapturedPlace,
-} from "@/features/places/schema";
+import { placeCity, placeLabel } from "@/features/places/place-text";
+import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useEmbedFrame } from "@/components/crm/use-embed-frame";
 
@@ -188,7 +186,7 @@ export function LeadIntakeForm({
     formState: { errors, isSubmitting },
   } = useForm<PublicLeadIntakeInput, unknown, PublicLeadIntake>({
     defaultValues: { ...inquiryFormDefaults, tenantSlug },
-    resolver: zodResolver(publicLeadIntakeSchema),
+    resolver: publicLeadIntakeResolver<PublicLeadIntakeInput>(),
   });
   const brand: Studio = studio ?? { name: brandName };
   useEmbedFrame(embedded, frameRef, result ? "done" : String(step));

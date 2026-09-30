@@ -2,12 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, LoaderCircle, MapPin } from "lucide-react";
-import {
-  placeLabel,
-  unverifiedPlace,
-  type CapturedPlace,
-  type PlaceSuggestion,
-} from "@/features/places/schema";
+import { placeLabel, unverifiedPlace } from "@/features/places/place-text";
+import type { CapturedPlace, PlaceSuggestion } from "@/features/places/schema";
 import {
   newPlacesSession,
   resolvePlace,
