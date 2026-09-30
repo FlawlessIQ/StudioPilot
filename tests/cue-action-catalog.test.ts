@@ -92,6 +92,7 @@ const REACHED: Record<string, string> = {
   create_draft: "\"create_draft\"", update_draft: "\"update_draft\"", submit_for_approval: "\"submit_for_approval\"",
   approve: "\"approve\"", send: "\"send\"", resend: "\"resend\"", reissue: "\"reissue\"",
   return_to_draft: "\"return_to_draft\"", regenerate_pdf: "\"regenerate_pdf\"", revise_packages: "\"revise_packages\"",
+  discard_draft: "\"discard_draft\"", withdraw: "op: \"withdraw\"",
   record_acceptance: "RecordProposalAcceptance",
   draftAmendment: "BookingAmendmentPanel", sendAmendment: "BookingAmendmentPanel",
   recordAmendmentSigned: "BookingAmendmentPanel", cancelAmendment: "BookingAmendmentPanel",

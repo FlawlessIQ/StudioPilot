@@ -13,6 +13,10 @@ export const proposalStatusSchema = z.enum([
   "declined",
   "expired",
   "superseded",
+  /** Thrown away before it was sent; never shown to the couple. */
+  "discarded",
+  /** Taken back after it was sent; the couple's page says so. */
+  "withdrawn",
 ]);
 
 export const proposalSchema = auditFieldsSchema.extend({

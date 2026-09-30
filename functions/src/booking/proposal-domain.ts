@@ -8,6 +8,10 @@ export const proposalStatuses = [
   "declined",
   "expired",
   "superseded",
+  /** A draft the studio threw away before anyone saw it. Never shown to the couple. */
+  "discarded",
+  /** A sent proposal the studio took back. The couple is told it's no longer on offer. */
+  "withdrawn",
 ] as const;
 
 export type ProposalStatus = (typeof proposalStatuses)[number];
@@ -43,7 +47,20 @@ export type ProposalAction =
    * new version they accept again. The accepted one stays as the record of
    * what they first agreed to.
    */
-  | "revise_packages";
+  | "revise_packages"
+  /**
+   * Throw a draft away. Nobody outside the studio has seen it, so there is
+   * nothing to tell anyone; the job can start a new one straight away. GR asked
+   * "where can I undo or delete a proposal" and had to delete the whole job to
+   * start again (2026-09-30).
+   */
+  | "discard_draft"
+  /**
+   * Take back a proposal the couple has been sent. The record stays — it is
+   * what they were offered — and their page says it's no longer on offer.
+   * Never an accepted one: that is a booking, and changes to it are signed.
+   */
+  | "withdraw";
 
 const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>> = {
   update_draft: ["draft"],
@@ -68,6 +85,8 @@ const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>
   // rewrite what the client agreed to.
   reissue: ["sent", "viewed"],
   revise_packages: ["draft", "internal_review", "approved", "sent", "viewed", "accepted"],
+  discard_draft: ["draft", "internal_review", "approved"],
+  withdraw: ["sent", "viewed"],
 };
 
 export function assertProposalAction(

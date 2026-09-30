@@ -16,7 +16,9 @@ export type ProposalCommandType =
   | "resend"
   | "record_acceptance"
   | "reissue"
-  | "revise_packages";
+  | "revise_packages"
+  | "discard_draft"
+  | "withdraw";
 
 export type ProposalCommandResult = Record<string, unknown>;
 

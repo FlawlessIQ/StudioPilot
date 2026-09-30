@@ -115,6 +115,8 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   resend_proposal: ProposalStepCard,
   correct_proposal: ProposalStepCard,
   return_proposal_to_draft: ProposalStepCard,
+  discard_proposal_draft: ProposalStepCard,
+  withdraw_proposal: ProposalStepCard,
   remake_proposal_pdf: ProposalStepCard,
   record_proposal_acceptance: RecordAcceptanceCard,
   // Contract

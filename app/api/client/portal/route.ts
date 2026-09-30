@@ -550,7 +550,7 @@ async function clientRecords(
     const value = document.data();
     if (
       collectionName === "proposals" &&
-      !["sent", "viewed", "accepted", "declined", "expired", "superseded"].includes(
+      !["sent", "viewed", "accepted", "declined", "expired", "superseded", "withdrawn"].includes(
         String(value.status),
       )
     ) {
@@ -722,7 +722,8 @@ async function clientProject(tenantId: string, projectId: string) {
           );
         }
         if (collectionName === "proposals") {
-          return ["sent", "viewed", "accepted", "declined"].includes(
+          // Withdrawn too: the page is where they learn it's off the table.
+          return ["sent", "viewed", "accepted", "declined", "withdrawn"].includes(
             String(value.status),
           );
         }
@@ -756,7 +757,10 @@ async function clientProject(tenantId: string, projectId: string) {
   const questionnaireStatus =
     safeString(availabilitySnapshots[questionnaireIndex].docs[0]?.get("status")) ?? null;
   const proposalIndex = Object.keys(availabilityCollections).indexOf("proposal");
-  const currentProposal = [...availabilitySnapshots[proposalIndex].docs].sort(
+  // A discarded draft was never theirs to see, so it isn't "the current one".
+  const currentProposal = [...availabilitySnapshots[proposalIndex].docs]
+    .filter((document) => document.get("status") !== "discarded")
+    .sort(
     (left, right) =>
       Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
   )[0];
@@ -1422,7 +1426,8 @@ async function decideProposal({
       .where("tenantId", "==", tenantId)
       .where("projectId", "==", projectId)
       .orderBy("version", "desc")
-      .limit(1);
+      // Enough to see past a discarded draft or two (below).
+      .limit(5);
 
     const execution = await transaction.get(executionReference);
     if (execution.exists) {
@@ -1448,7 +1453,12 @@ async function decideProposal({
     ) {
       throw new Error("PROPOSAL_NOT_FOUND");
     }
-    if (latestProposals.docs[0]?.id !== proposalId) {
+    // The newest version the couple could have been given. A draft the studio
+    // threw away never was, so it doesn't replace the one they're holding.
+    const latestLive = latestProposals.docs.find(
+      (document) => document.get("status") !== "discarded",
+    );
+    if (latestLive?.id !== proposalId) {
       throw new Error("PROPOSAL_SUPERSEDED");
     }
     // A proposal sent inside a booking agreement is accepted by signing the

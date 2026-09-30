@@ -109,10 +109,17 @@ const commandSchema = z.discriminatedUnion("type", [
       // Price the proposal again from the job's current packages — see
       // proposal-domain.ts.
       "revise_packages",
+      // Throw away a draft, or take back a sent proposal — proposal-domain.ts.
+      "discard_draft",
+      "withdraw",
     ]),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
-    input: z.object({ proposalId: z.string().min(1) }),
+    input: z.object({
+      proposalId: z.string().min(1),
+      /** Why a sent proposal was withdrawn, for the studio's own record. */
+      reason: z.string().trim().max(500).optional(),
+    }),
   }),
 ]);
 
@@ -592,7 +599,7 @@ export const proposalCommand = onRequest(
           const combinedContractId = stringValue(proposal.get("combinedContractId"));
           if (
             combinedContractId &&
-            ["resend", "reissue", "record_acceptance", "send"].includes(command.type)
+            ["resend", "reissue", "record_acceptance", "send", "discard_draft", "withdraw"].includes(command.type)
           ) {
             const combined = await transaction.get(db.doc(`contracts/${combinedContractId}`));
             if (combined.exists && !["voided", "failed", "superseded"].includes(stringValue(combined.get("status")))) {
@@ -823,6 +830,31 @@ export const proposalCommand = onRequest(
               status: "draft",
               draftRevision: nextRevision,
             };
+          } else if (command.type === "discard_draft") {
+            if (!canApproveProposal(membership.role)) {
+              throw new Error("APPROVAL_PERMISSION_REQUIRED");
+            }
+            transaction.update(proposalReference, {
+              status: "discarded",
+              discardedAt: timestamp,
+              discardedBy: identity.uid,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            output = { proposalId: proposal.id, status: "discarded" };
+          } else if (command.type === "withdraw") {
+            if (!canSendProposal(membership.role)) {
+              throw new Error("SEND_PERMISSION_REQUIRED");
+            }
+            transaction.update(proposalReference, {
+              status: "withdrawn",
+              withdrawnAt: timestamp,
+              withdrawnBy: identity.uid,
+              withdrawReason: command.input.reason || null,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            output = { proposalId: proposal.id, status: "withdrawn" };
           } else if (command.type === "revise_packages") {
             if (!canApproveProposal(membership.role)) {
               throw new Error("APPROVAL_PERMISSION_REQUIRED");

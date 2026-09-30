@@ -76,6 +76,8 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "record_proposal_acceptance", scope: "project", when: "the couple accepted the proposal in person / by phone / by email and the studio records it" },
   { id: "remake_proposal_pdf", scope: "project", when: "make the proposal's PDF again (it failed or looks wrong)" },
   { id: "return_proposal_to_draft", scope: "project", when: "take a proposal awaiting approval back to draft" },
+  { id: "discard_proposal_draft", scope: "project", when: "throw away / delete a draft proposal nobody has been sent, to start again" },
+  { id: "withdraw_proposal", scope: "project", when: "withdraw / take back / cancel a proposal the couple was sent, so they can no longer accept it" },
   // Contract
   { id: "prepare_contract", scope: "project", when: "write/prepare the couple's contract (agreement) from the studio's template" },
   { id: "sign_and_send_contract", scope: "project", when: "the owner signs the contract and sends it to the couple — the owner signs on the card" },

@@ -150,3 +150,22 @@ test("a button with no variant is drawn as a button, at .button's own weight", a
     .split("\n").filter(Boolean).map((match) => match.replace('"button button-', ""));
   assert.deepEqual([...new Set(used)].filter((variant) => !known.has(variant)), []);
 });
+
+test("a draft can be discarded and a sent proposal withdrawn; neither once it's a booking", async () => {
+  const domain = source("functions/src/booking/proposal-domain.ts");
+  assert.match(domain, /discard_draft: \["draft", "internal_review", "approved"\],/);
+  assert.match(domain, /withdraw: \["sent", "viewed"\],/);
+  const { assertProposalAction } = await import("../functions/src/booking/proposal-domain.ts");
+  assert.doesNotThrow(() => assertProposalAction("draft", "discard_draft"));
+  assert.doesNotThrow(() => assertProposalAction("viewed", "withdraw"));
+  assert.throws(() => assertProposalAction("sent", "discard_draft"), /PROPOSAL_ACTION_NOT_ALLOWED/);
+  assert.throws(() => assertProposalAction("accepted", "withdraw"), /PROPOSAL_ACTION_NOT_ALLOWED/);
+  // The couple sees a withdrawn proposal, never a discarded draft, and a
+  // discarded draft doesn't stop them accepting the one they hold.
+  const portal = source("app/api/client/portal/route.ts");
+  assert.match(portal, /\["sent", "viewed", "accepted", "declined", "expired", "superseded", "withdrawn"\]/);
+  assert.match(portal, /\(document\) => document\.get\("status"\) !== "discarded",\s*\);\s*if \(latestLive\?\.id !== proposalId\)/);
+  assert.match(source("components/client/kit/client-proposal.tsx"), /Your studio has withdrawn this proposal/);
+  const page = source("components/proposals/studio-proposal-workspace.tsx");
+  assert.match(page, /"Withdraw this proposal" : "Discard this draft"/);
+});

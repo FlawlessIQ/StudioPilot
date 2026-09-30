@@ -655,6 +655,8 @@ export function ProposalStepCard({ action }: ActionCardProps) {
     resend_proposal: "Send the proposal again",
     correct_proposal: "Correct the proposal they were sent",
     return_proposal_to_draft: "Take the proposal back to draft",
+    discard_proposal_draft: "Discard the draft proposal",
+    withdraw_proposal: "Withdraw the proposal",
     remake_proposal_pdf: "Make the proposal's PDF again",
   };
   const title = `${titles[action.action]} · ${jobName(job)}`;
@@ -739,6 +741,8 @@ export function ProposalStepCard({ action }: ActionCardProps) {
     resend_proposal: ["sent", "viewed"],
     correct_proposal: ["sent", "viewed"],
     return_proposal_to_draft: ["internal_review", "approved"],
+    discard_proposal_draft: ["draft", "internal_review", "approved"],
+    withdraw_proposal: ["sent", "viewed"],
   };
   if (!allowed[action.action]!.includes(status))
     return (
@@ -746,6 +750,10 @@ export function ProposalStepCard({ action }: ActionCardProps) {
         <Blocked>
           {action.action === "remake_proposal_pdf"
             ? "Only an approved proposal that hasn't been sent has a PDF to make again."
+            : action.action === "discard_proposal_draft"
+            ? "It has already been sent, so it isn't a draft to throw away. Ask me to withdraw it instead."
+            : action.action === "withdraw_proposal" && status !== "accepted"
+            ? "It hasn't been sent yet. Ask me to discard the draft instead."
             : action.action === "return_proposal_to_draft"
             ? status === "draft"
               ? "It is already a draft."
@@ -759,7 +767,7 @@ export function ProposalStepCard({ action }: ActionCardProps) {
         {open}
       </ActionShell>
     );
-  const kinds: Record<string, { op: "resend" | "reissue" | "return_to_draft" | "regenerate_pdf"; label: string; detail: string; done: string }> = {
+  const kinds: Record<string, { op: "resend" | "reissue" | "return_to_draft" | "regenerate_pdf" | "discard_draft" | "withdraw"; label: string; detail: string; done: string }> = {
     remake_proposal_pdf: {
       op: "regenerate_pdf",
       label: "Make it again",
@@ -774,6 +782,18 @@ export function ProposalStepCard({ action }: ActionCardProps) {
       done: "A corrected draft is ready. Open it to check, approve and send.",
     },
     return_proposal_to_draft: { op: "return_to_draft", label: "Back to draft", detail: "It can be edited again. Its PDF is discarded.", done: "It is a draft again." },
+    discard_proposal_draft: {
+      op: "discard_draft",
+      label: "Discard the draft",
+      detail: "Nobody outside your studio has seen it. You can start a new one straight away.",
+      done: "The draft is discarded. Ask me to draft a new one when you're ready.",
+    },
+    withdraw_proposal: {
+      op: "withdraw",
+      label: "Withdraw it",
+      detail: "Their page will say it's no longer on offer and they can't accept it. Nothing is emailed — tell them yourself.",
+      done: "Withdrawn. Their page now says it's no longer on offer.",
+    },
   };
   const kind = kinds[action.action]!;
   return (

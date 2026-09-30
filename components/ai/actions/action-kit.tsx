@@ -392,7 +392,7 @@ export function contactName(contact: Rec | null): string {
 export function currentProposal(proposals: Rec[] | null, projectId: string | null): Rec | null {
   return (
     onJob(proposals, projectId)
-      .filter((item) => !["superseded", "withdrawn", "expired", "declined"].includes(str(item.status)))
+      .filter((item) => !["superseded", "withdrawn", "discarded", "expired", "declined"].includes(str(item.status)))
       .sort((a, b) => num(b.version) - num(a.version))[0] ?? null
   );
 }

@@ -186,13 +186,17 @@ export function ClientProposal() {
               Message your studio
             </Button>
           </Card>
-        ) : status === "expired" || status === "superseded" ? (
+        ) : status === "expired" || status === "superseded" || status === "withdrawn" ? (
           <Card>
             <p className="kit-eyebrow">
               <XCircle aria-hidden="true" size={14} /> Proposal unavailable
             </p>
             <h2 className="kit-section">
-              {status === "expired" ? "This proposal has expired" : "A newer proposal replaced this one"}
+              {status === "expired"
+                ? "This proposal has expired"
+                : status === "withdrawn"
+                  ? "Your studio has withdrawn this proposal"
+                  : "A newer proposal replaced this one"}
             </h2>
             <p className="kit-body">Ask your studio to share the current offer before deciding.</p>
             <Button href="/client/messages" variant="secondary">

@@ -40,6 +40,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  X,
 } from "lucide-react";
 import {
   collection,
@@ -286,6 +287,8 @@ function statusLabel(status: string): string {
     declined: "Changes requested",
     expired: "Expired",
     superseded: "Superseded",
+    discarded: "Discarded",
+    withdrawn: "Withdrawn",
   };
   const fallback = status.replaceAll("_", " ");
   return labels[status] ?? `${fallback.charAt(0).toUpperCase()}${fallback.slice(1)}`;
@@ -576,7 +579,7 @@ export function StudioProposalCenter({
           return ["draft", "internal_review", "approved"].includes(status);
         if (filter === "client") return ["sent", "viewed"].includes(status);
         if (filter === "complete")
-          return ["accepted", "declined", "expired", "superseded"].includes(
+          return ["accepted", "declined", "expired", "superseded", "withdrawn", "discarded"].includes(
             status,
           );
         return true;
@@ -1672,6 +1675,9 @@ export function StudioProposalWorkspace({
   const [notice, setNotice] = useState("");
   const [working, setWorking] = useState<ProposalCommandType | null>(null);
   const [confirmSend, setConfirmSend] = useState(false);
+  /** Which undo is being confirmed: discarding a draft, or withdrawing a sent one. */
+  const [closing, setClosing] = useState<null | "discard" | "withdraw">(null);
+  const [withdrawReason, setWithdrawReason] = useState("");
 
   const [notes, setNotes] = useState(
     dataIsLive ? "" : text(mockProposal.notes, ""),
@@ -1885,6 +1891,8 @@ export function StudioProposalWorkspace({
         update_draft: "Draft saved.",
         submit_for_approval: "Proposal sent for internal approval.",
         return_to_draft: "Proposal returned to draft.",
+        discard_draft: "Draft discarded. Nobody saw it — start a new one whenever you're ready.",
+        withdraw: "Proposal withdrawn. Their page now says it's no longer on offer.",
         send: "Proposal queued for branded email delivery.",
         resend: "Proposal email queued again.",
         record_acceptance:
@@ -2701,7 +2709,75 @@ export function StudioProposalWorkspace({
               </div>
             ) : null}
 
-            {["declined", "expired", "superseded"].includes(status) ? (
+            {/* Undo, for what hasn't become a booking. A draft nobody has
+                seen can be thrown away; a sent one taken back. GR asked
+                "where can I undo or delete a proposal" and had to delete the
+                whole job to start again (2026-09-30). */}
+            {["draft", "internal_review", "approved", "sent", "viewed"].includes(status) ? (
+              <div className="proposal-undo">
+                {closing === null ? (
+                  <button
+                    className="button button-quiet"
+                    disabled={working !== null}
+                    onClick={() => setClosing(["sent", "viewed"].includes(status) ? "withdraw" : "discard")}
+                    type="button"
+                  >
+                    <X aria-hidden="true" size={14} />
+                    {["sent", "viewed"].includes(status) ? "Withdraw this proposal" : "Discard this draft"}
+                  </button>
+                ) : (
+                  <div className="proposal-undo-confirm" role="group" aria-label="Confirm">
+                    <p>
+                      {closing === "discard"
+                        ? "Discard this draft? Nobody outside your studio has seen it. You can start a new one straight away."
+                        : "Withdraw it? The couple's page will say it's no longer on offer and they can't accept it. Nothing is emailed — tell them yourself. You can send a new one after."}
+                    </p>
+                    {closing === "withdraw" ? (
+                      <label className="proposal-field">
+                        <span>Why (for your records, optional)</span>
+                        <input
+                          maxLength={500}
+                          onChange={(event) => setWithdrawReason(event.target.value)}
+                          value={withdrawReason}
+                        />
+                      </label>
+                    ) : null}
+                    <div className="proposal-undo-actions">
+                      <button
+                        className="button button-danger"
+                        disabled={working !== null}
+                        onClick={() =>
+                          void (async () => {
+                            const done = await run(
+                              closing === "discard" ? "discard_draft" : "withdraw",
+                              closing === "withdraw" && withdrawReason.trim()
+                                ? { reason: withdrawReason.trim() }
+                                : {},
+                            );
+                            if (done) setClosing(null);
+                          })()
+                        }
+                        type="button"
+                      >
+                        {working === "discard_draft" || working === "withdraw" ? (
+                          <LoaderCircle className="spin" />
+                        ) : null}
+                        {closing === "discard" ? "Discard draft" : "Withdraw proposal"}
+                      </button>
+                      <button
+                        className="button button-light"
+                        onClick={() => setClosing(null)}
+                        type="button"
+                      >
+                        Keep it
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {["declined", "expired", "superseded", "withdrawn", "discarded"].includes(status) ? (
               <div className="proposal-outcome">
                 <FileText />
                 <strong>{statusLabel(status)}</strong>
@@ -2711,7 +2787,11 @@ export function StudioProposalWorkspace({
                         proposal.declineReason,
                         "The client requested an updated offer.",
                       )
-                    : "This version is preserved and cannot be edited or sent."}
+                    : status === "discarded"
+                      ? "Thrown away before it was sent. Nobody outside your studio saw it."
+                      : status === "withdrawn"
+                        ? `Taken back${text(proposal.withdrawReason, "") ? ` — ${text(proposal.withdrawReason, "")}` : ""}. The couple's page says it's no longer on offer.`
+                        : "This version is preserved and cannot be edited or sent."}
                 </p>
                 {status !== "superseded" ? (
                   <Link

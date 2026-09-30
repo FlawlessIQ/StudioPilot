@@ -154,7 +154,9 @@ test("the proposal's delivery line follows the agreement's email", () => {
 
 test("a proposal inside a live booking agreement can't be resent, re-issued or accepted on its own", () => {
   const proposals = readFileSync("functions/src/booking/proposals.ts", "utf8");
-  assert.match(proposals, /\["resend", "reissue", "record_acceptance", "send"\]\.includes\(command\.type\)/);
+  // Discarding or withdrawing it would take the proposal out from under the
+  // agreement the couple is signing, so they wait for it too.
+  assert.match(proposals, /\["resend", "reissue", "record_acceptance", "send", "discard_draft", "withdraw"\]\.includes\(command\.type\)/);
   assert.match(proposals, /throw new Error\("PROPOSAL_IN_BOOKING_AGREEMENT"\)/);
   const workspace = readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8");
   assert.match(workspace, /\{proposal\.combinedContractId \? \(/);
