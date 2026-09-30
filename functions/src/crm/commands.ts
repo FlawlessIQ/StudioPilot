@@ -10,6 +10,7 @@ import { teamRoleForEmail } from "./team-email.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { forwarderKey } from "../intake/short-address.js";
 import { pricePackage } from "../pricing/package-price.js";
+import { packageChangeNeedsApprover } from "../booking/proposal-domain.js";
 
 /** An inquiry's states before booking — the ones it can be closed from. */
 /** One structured deliverable on a package (H4); mirrors features/packages/schema.ts. */
@@ -761,10 +762,26 @@ const AGREEMENT_OUT_STATUSES = ["queued", "sent", "delivered", "viewed", "partia
  */
 async function assertPackagesEditable(
   transaction: FirebaseFirestore.Transaction,
-  input: { tenantId: string; projectId: string; state: string },
+  input: { tenantId: string; projectId: string; state: string; role: string },
 ): Promise<void> {
   if (!PACKAGE_EDITABLE_STATES.includes(input.state)) {
     throw new Error("PACKAGES_LOCKED_AFTER_SIGNING");
+  }
+  // The proposal has to be re-priced after this change, and only an owner or
+  // admin may do that; a coordinator's change would strand it.
+  const proposals = await transaction.get(
+    getFirestore()
+      .collection("proposals")
+      .where("tenantId", "==", input.tenantId)
+      .where("projectId", "==", input.projectId),
+  );
+  if (
+    packageChangeNeedsApprover(
+      input.role,
+      proposals.docs.map((proposal) => String(proposal.get("status") ?? "")),
+    )
+  ) {
+    throw new Error("PACKAGE_CHANGE_NEEDS_APPROVER");
   }
   const contracts = await transaction.get(
     getFirestore()
@@ -1678,6 +1695,7 @@ export const crmCommand = onRequest(
             tenantId: command.tenantId,
             projectId: command.input.projectId,
             state: String(projectDocument.get("state")),
+            role: String(membershipData.role),
           });
           const primary = String(projectDocument.get("packageSnapshotId") ?? "");
           const additional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
@@ -1841,6 +1859,7 @@ export const crmCommand = onRequest(
             tenantId: command.tenantId,
             projectId: command.input.projectId,
             state: String(projectDocument.get("state")),
+            role: String(membershipData.role),
           });
           const primary = String(projectDocument.get("packageSnapshotId") ?? "");
           const additional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
@@ -1954,6 +1973,7 @@ export const crmCommand = onRequest(
               tenantId: command.tenantId,
               projectId: command.input.projectId,
               state: String(projectDocument.get("state")),
+              role: String(membershipData.role),
             });
             const alreadyAdditional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
               ? (projectDocument.get("additionalPackageSnapshotIds") as unknown[]).length

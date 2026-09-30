@@ -118,11 +118,16 @@ export async function signCombinedAgreement(
       acceptance = planClientProposalDecision({
         decision: "accepted",
         now,
-        project: { state: projectState, packageSnapshotId: (project.get("packageSnapshotId") as string | null) ?? null },
+        project: {
+          state: projectState,
+          packageSnapshotId: (project.get("packageSnapshotId") as string | null) ?? null,
+          additionalPackageSnapshotIds: idList(project.get("additionalPackageSnapshotIds")),
+        },
         proposal: {
           status: String(proposal.get("status") ?? ""),
           expiresAt: String(proposal.get("expiresAt") ?? ""),
           packageSnapshotId,
+          additionalPackageSnapshotIds: idList(proposal.get("additionalPackageSnapshotIds")),
         },
       });
     } catch (caught: unknown) {
@@ -342,4 +347,9 @@ export async function signCombinedAgreement(
     });
     return result;
   });
+}
+
+/** A stored id list, or none — for comparing every package, not just the main one. */
+function idList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }

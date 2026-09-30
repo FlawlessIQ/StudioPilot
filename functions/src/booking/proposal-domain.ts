@@ -120,6 +120,26 @@ export function canSendProposal(role: string): boolean {
   return canApproveProposal(role);
 }
 
+/**
+ * Whether changing a job's packages must wait for an owner or admin.
+ *
+ * A proposal is priced from the job's packages, and every package change is
+ * followed by `revise_packages` to re-price it — which only an owner or admin
+ * may run. A coordinator's change landed, the re-price was refused, and the
+ * couple was left holding a proposal the decision path refuses as
+ * PACKAGE_SNAPSHOT_CONFLICT. So the change itself waits while any proposal
+ * that revise would touch exists.
+ */
+export function packageChangeNeedsApprover(
+  role: string,
+  proposalStatuses: readonly string[],
+): boolean {
+  if (canApproveProposal(role)) return false;
+  return proposalStatuses.some((status) =>
+    actionStatuses.revise_packages.includes(status as ProposalStatus),
+  );
+}
+
 export function proposalEmailDeliveryStatus(event: string): string | null {
   return [
     "processed",

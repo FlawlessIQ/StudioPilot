@@ -80,6 +80,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PACKAGE_ALREADY_SELECTED:
     "This job already has a package. Open its proposal and use Packages to add another or swap it.",
   PACKAGE_ALREADY_ON_JOB: "That package is already on this job.",
+  PACKAGE_CHANGE_NEEDS_APPROVER:
+    "This job has a proposal priced from its packages, so an owner or admin changes them — the proposal is re-priced at the same time.",
+  AGREEMENT_CHANGED_SINCE_PREPARED:
+    "Your agreement changed since this contract was prepared. Update it so it uses your current wording, read it again, then sign and send.",
   // decideAiAction on work that is missing a decision only a person can make.
   AI_ACTION_HAS_BLOCKING_ISSUES:
     "This needs a decision from you first — StudioCue couldn't pick the package. Choose it on the booking brief and the draft follows.",

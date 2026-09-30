@@ -610,6 +610,8 @@ export const proposalCommand = onRequest(
             status: currentStatus,
             draftRevision: numberValue(proposal.get("draftRevision")) || 1,
             pdfDocumentId: proposal.get("pdfDocumentId") ?? null,
+            // So a resend that moved the expiry shows where it moved from.
+            expiresAt: proposal.get("expiresAt") ?? null,
           };
           let output: CommandResult;
 
@@ -1463,9 +1465,25 @@ export const proposalCommand = onRequest(
                 sentWithoutDocument: !pdfDocument,
               };
             } else {
+              /**
+               * A resend re-opens the offer, as a send does.
+               *
+               * Nothing writes `expired`: the couple's page computes it from
+               * this date and the decision refuses a yes past it. Resending a
+               * lapsed proposal left the date alone, so the couple was emailed
+               * an offer the server would refuse. The same floor as `send` —
+               * seven days from now, or the studio's later date — so a lapsed
+               * or nearly-lapsed proposal is extended, and a longer window
+               * is kept. The audit event records both dates.
+               */
+              const priorExpiresAt = proposal.get("expiresAt");
+              const expiresAt = expiryOnSend(priorExpiresAt, new Date(timestamp));
+              const expiryExtended =
+                Date.parse(expiresAt) !== Date.parse(String(priorExpiresAt ?? ""));
               writeInvitation();
               transaction.create(emailJobReference, emailJob);
               transaction.update(proposalReference, {
+                ...(expiryExtended ? { expiresAt } : {}),
                 emailJobId,
                 emailDeliveryStatus: "queued",
                 updatedAt: timestamp,
@@ -1474,6 +1492,8 @@ export const proposalCommand = onRequest(
               output = {
                 proposalId: proposal.id,
                 status: currentStatus,
+                expiresAt,
+                expiryExtended,
                 emailJobId,
                 storagePath: pdfDocument
                   ? stringValue(

@@ -7,6 +7,11 @@ import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tena
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import {
+  REVISABLE_PROPOSAL_STATUSES,
+  packageChangeAlreadyApplied,
+} from "@/features/proposals/workspace-guards";
 import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
 
 /**
@@ -32,7 +37,7 @@ function money(value: number, currency: string) {
 }
 
 const EDITABLE_JOB_STATES = new Set(["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING"]);
-const REVISABLE = new Set(["draft", "internal_review", "approved", "sent", "viewed", "accepted"]);
+const REVISABLE = new Set<string>(REVISABLE_PROPOSAL_STATUSES);
 
 export function ProposalPackagesPanel({
   proposalId,
@@ -49,6 +54,7 @@ export function ProposalPackagesPanel({
   onRevisedInPlace: () => void;
 }) {
   const router = useRouter();
+  const workspace = useWorkspace();
   const projects = useTenantDocuments("projects");
   const snapshots = useTenantDocuments("packageSnapshots");
   const packages = useTenantDocuments("packages");
@@ -60,6 +66,11 @@ export function ProposalPackagesPanel({
 
   const project = (projects.records ?? []).find((record) => record.id === projectId) as Row | undefined;
   if (!project || !REVISABLE.has(status) || !EDITABLE_JOB_STATES.has(text(project.state))) return null;
+  // Every change here ends in revise_packages, which is owner/admin only. A
+  // coordinator's change landed and the re-price was refused, leaving the
+  // couple holding a proposal they could no longer accept; the server now
+  // refuses the change itself, and the panel doesn't offer it.
+  if (workspace.role !== "studio_owner" && workspace.role !== "studio_admin") return null;
 
   const primaryId = text(project.packageSnapshotId);
   const extraIds = Array.isArray(project.additionalPackageSnapshotIds)
@@ -91,7 +102,13 @@ export function ProposalPackagesPanel({
     setBusy(label);
     setError(null);
     try {
-      await action();
+      try {
+        await action();
+      } catch (caught: unknown) {
+        // A retry after the change landed and the re-price didn't: the change
+        // is already there, and the proposal still has to follow it.
+        if (!packageChangeAlreadyApplied(caught)) throw caught;
+      }
       const revised = await runProposalCommand("revise_packages", { proposalId });
       refreshTenantRecords("projects", "packageSnapshots", "proposals", "tasks");
       setPicking(null);

@@ -230,8 +230,11 @@ test("while a booking agreement is out, the job says so — and doesn't offer to
 
 test("the proposal page guards its actions only while the booking agreement is live", () => {
   const source = readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8");
-  assert.match(source, /combinedAgreementLive\(proposal, contracts\.records\)/);
-  assert.match(source, /\["sent", "viewed"\]\.includes\(text\(contract\.status/);
+  assert.match(source, /combinedAgreementLive\(proposal\.combinedContractId, contracts\.records\)/);
+  // Live in every status the server refuses on, not only sent/viewed
+  // (tests/wave0-proposals.test.ts holds the behaviour).
+  const guards = readFileSync("features/proposals/workspace-guards.ts", "utf8");
+  assert.match(guards, /COMBINED_AGREEMENT_RELEASED_STATUSES = \["voided", "failed", "superseded"\]/);
 });
 
 test("the job's open-items list names a booking agreement, not vendor evidence", () => {

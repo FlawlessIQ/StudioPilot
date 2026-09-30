@@ -447,6 +447,18 @@ export async function sendContract(
     throw new Error("CONTRACT_CHANGED");
   const proposalId = String(draftSnapshot.get("proposalId"));
   await requireContractableProject(db, context.tenantId, input.projectId, proposalId);
+  /**
+   * The draft pins the agreement version it was prepared from, and the
+   * recheck below resolves against that pin — so a studio that edited its
+   * agreement after the draft existed sent the old wording without being told.
+   * Refuse instead; re-preparing takes the current version. No current version
+   * (none set, or archived) leaves the pinned one as the studio's last word.
+   * Mirrors features/contracts/agreement-version.ts.
+   */
+  const pinnedVersionId = String(draftSnapshot.get("templateVersionId") ?? "");
+  const currentTemplate = await loadAgreementTemplate(db, context.tenantId);
+  if (currentTemplate && pinnedVersionId && currentTemplate.versionId !== pinnedVersionId)
+    throw new Error("AGREEMENT_CHANGED_SINCE_PREPARED");
   // The records may have moved since the draft was prepared — a corrected
   // proposal, a changed venue. Resolve again from the same template version and
   // refuse if the text is no longer the text the studio read.

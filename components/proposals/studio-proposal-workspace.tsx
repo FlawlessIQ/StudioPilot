@@ -77,6 +77,12 @@ import {
   proposalStageVerdict,
   type ProposalStageVerdict,
 } from "@/features/proposals/eligibility";
+import {
+  combinedAgreementLive,
+  draftFormDirty,
+  proposalHasLapsed,
+  proposalWithCouple,
+} from "@/features/proposals/workspace-guards";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -93,6 +99,13 @@ type ProjectOption = {
   /** Packages added alongside the main one (photo and video, say). */
   extraSnapshots: Value[];
   openProposalId: string | null;
+  /**
+   * The proposal the couple is holding (sent, viewed or accepted), if any.
+   * Changing packages here without re-pricing it left the couple unable to
+   * accept (PACKAGE_SNAPSHOT_CONFLICT), so package changes for such a job go
+   * through that proposal's Packages panel, which revises it.
+   */
+  withCoupleProposalId: string | null;
 };
 
 const mockProposal: Value = {
@@ -205,6 +218,7 @@ const mockProject: ProjectOption = {
   },
   extraSnapshots: [],
   openProposalId: null,
+  withCoupleProposalId: null,
 };
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -364,7 +378,13 @@ async function loadProjectOptions(tenantId: string): Promise<{
     ),
   ]);
   const openByProject = new Map<string, string>();
+  const byProject = new Map<string, Array<{ id: string; status: unknown; version: unknown }>>();
   for (const proposal of proposals.docs) {
+    const key = String(proposal.get("projectId"));
+    byProject.set(key, [
+      ...(byProject.get(key) ?? []),
+      { id: proposal.id, status: proposal.get("status"), version: proposal.get("version") },
+    ]);
     if (
       ["draft", "internal_review", "approved"].includes(
         String(proposal.get("status")),
@@ -434,6 +454,7 @@ async function loadProjectOptions(tenantId: string): Promise<{
           .filter((extra) => extra.exists())
           .map((extra): Value => ({ id: extra.id, ...(extra.data() ?? {}) })),
         openProposalId: openByProject.get(project.id) ?? null,
+        withCoupleProposalId: proposalWithCouple(byProject.get(project.id) ?? [])?.id ?? null,
       };
     }),
   );
@@ -1402,7 +1423,7 @@ export function StudioProposalComposer() {
                       <span key={String(extra.id)}>
                         <strong>{text(extra.packageName, "Package")}</strong>
                         <small>{money(number(extra.totalCents), text(extra.currency, currency))}</small>
-                        {selected.openProposalId ? null : (
+                        {selected.openProposalId || selected.withCoupleProposalId ? null : (
                           <button
                             aria-label={`Take ${text(extra.packageName, "this package")} off`}
                             className="button button-light"
@@ -1415,7 +1436,7 @@ export function StudioProposalComposer() {
                         )}
                       </span>
                     ))}
-                    {selected.openProposalId || packagePickerFor ? null : (
+                    {selected.openProposalId || selected.withCoupleProposalId || packagePickerFor ? null : (
                       <button
                         className="button button-light"
                         disabled={lockingPackageId !== null}
@@ -1425,6 +1446,18 @@ export function StudioProposalComposer() {
                         Add or change packages
                       </button>
                     )}
+                    {/* The couple is holding a proposal priced from these
+                        packages. Changing them here never re-priced it, so
+                        they could no longer accept; its Packages panel
+                        changes them and revises it in one step. */}
+                    {!selected.openProposalId && selected.withCoupleProposalId && !packagePickerFor ? (
+                      <Link
+                        className="button button-light"
+                        href={`/studio/proposals/${selected.withCoupleProposalId}`}
+                      >
+                        Change packages on the sent proposal
+                      </Link>
+                    ) : null}
                   </div>
                   {selected.openProposalId ? (
                     <p>
@@ -1678,6 +1711,8 @@ export function StudioProposalWorkspace({
   /** Which undo is being confirmed: discarding a draft, or withdrawing a sent one. */
   const [closing, setClosing] = useState<null | "discard" | "withdraw">(null);
   const [withdrawReason, setWithdrawReason] = useState("");
+  /** "Now" for the expiry check, fixed per mount so a render stays pure. */
+  const [openedAt] = useState(() => Date.now());
 
   const [notes, setNotes] = useState(
     dataIsLive ? "" : text(mockProposal.notes, ""),
@@ -1812,11 +1847,30 @@ export function StudioProposalWorkspace({
    * separately. If the second fails, the proposal is in exactly the state the
    * old two-button flow left it in, and the Approve button is right there.
    */
-  async function submitAndApprove() {
+  async function submitDraft(approve: boolean) {
+    if (!proposal) return;
+    // Save first. Submitting reads the record, not the form, so a retainer,
+    // note or date typed and not saved was silently left out of what the
+    // couple was sent. A failed save stops here with its error showing.
+    const stored = Array.isArray(proposal.paymentSchedule)
+      ? proposal.paymentSchedule.map(objectValue)
+      : [];
+    const dirty = draftFormDirty(
+      {
+        notes: text(proposal.notes, ""),
+        termsSummary: text(proposal.termsSummary, ""),
+        expiresOn: dateInput(proposal.expiresAt),
+        retainerDueDate: dateInput(stored[0]?.dueDate),
+        balanceDueDate: dateInput(stored[1]?.dueDate),
+        draftRetainer: null,
+      },
+      { notes, termsSummary, expiresOn, retainerDueDate, balanceDueDate, draftRetainer },
+    );
+    if (dirty && !(await run("update_draft"))) return;
     // The returned flag, not the `error` state: that variable is the value
     // captured when this closure rendered, so reading it after the await would
     // always see the state from before the command ran.
-    if (await run("submit_for_approval")) await run("approve");
+    if ((await run("submit_for_approval")) && approve) await run("approve");
   }
 
   /** Resolves true when the command landed, so callers can chain on it. */
@@ -1894,7 +1948,10 @@ export function StudioProposalWorkspace({
         discard_draft: "Draft discarded. Nobody saw it — start a new one whenever you're ready.",
         withdraw: "Proposal withdrawn. Their page now says it's no longer on offer.",
         send: "Proposal queued for branded email delivery.",
-        resend: "Proposal email queued again.",
+        resend:
+          command.result.expiryExtended === true && typeof command.result.expiresAt === "string"
+            ? `Proposal emailed again. It's open until ${date(command.result.expiresAt)}.`
+            : "Proposal email queued again.",
         record_acceptance:
           "Acceptance recorded against your name. The agreement is the next step.",
       };
@@ -1962,7 +2019,19 @@ export function StudioProposalWorkspace({
    * gated on a ready PDF) never gets the proposal past `approved`, and the
    * couple's "yes" would have no way into StudioCue at all.
    */
-  const recordAcceptance = ["approved", "sent", "viewed"].includes(status) ? (
+  const canApprove =
+    workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  /**
+   * Held by a booking agreement the couple is signing — judged exactly as the
+   * server judges it, so nothing is offered here that it will refuse.
+   */
+  const agreementLive = combinedAgreementLive(proposal.combinedContractId, contracts.records);
+  /** Sent, and past its date: the couple's page says expired and refuses a yes. */
+  const lapsed = proposalHasLapsed(status, proposal.expiresAt, openedAt);
+  // Owner/admin only on the server (record_acceptance), and refused while the
+  // agreement holds the proposal.
+  const recordAcceptance =
+    canApprove && !agreementLive && ["approved", "sent", "viewed"].includes(status) ? (
       <details
         className="record-signed-agreement proposal-record-acceptance"
         open={openRecordAcceptance}
@@ -2036,8 +2105,6 @@ export function StudioProposalWorkspace({
     ? proposal.paymentSchedule.map(objectValue)
     : [];
   const currency = text(pricing.currency, "USD");
-  const canApprove =
-    workspace.role === "studio_owner" || workspace.role === "studio_admin";
   const isEditable = status === "draft";
 
   return (
@@ -2076,8 +2143,8 @@ export function StudioProposalWorkspace({
           </p>
         </div>
         <div>
-          <StatusBadge tone={proposalTone(status)}>
-            {statusLabel(status)}
+          <StatusBadge tone={proposalTone(lapsed ? "expired" : status)}>
+            {statusLabel(lapsed ? "expired" : status)}
           </StatusBadge>
           <Link
             className="button button-light button-sm"
@@ -2110,7 +2177,9 @@ export function StudioProposalWorkspace({
               </p>
             </div>
             <div>
-              <small>Valid through</small>
+              {/* A past date under "Valid through" read as still on offer;
+                  the couple's page had already said expired. */}
+              <small>{lapsed ? "Expired" : "Valid through"}</small>
               <strong>{date(proposal.expiresAt)}</strong>
             </div>
           </section>
@@ -2335,7 +2404,9 @@ export function StudioProposalWorkspace({
                           : proposal.pdfState === "failed"
                             ? "Retry the PDF, or send without it"
                             : "Generate the PDF"
-                        : ["sent", "viewed"].includes(status)
+                        : lapsed
+                          ? "Extend it, or let it go"
+                          : ["sent", "viewed"].includes(status)
                           ? "Track the decision"
                           : "Review the outcome"}
                 </h2>
@@ -2370,14 +2441,10 @@ export function StudioProposalWorkspace({
                 <button
                   className="button button-dark"
                   disabled={working !== null}
-                  onClick={() =>
-                    void (canApprove
-                      ? submitAndApprove()
-                      : run("submit_for_approval"))
-                  }
+                  onClick={() => void submitDraft(canApprove)}
                   type="button"
                 >
-                  {working === "submit_for_approval" || working === "approve" ? (
+                  {working === "update_draft" || working === "submit_for_approval" || working === "approve" ? (
                     <LoaderCircle className="spin" />
                   ) : (
                     <ArrowRight />
@@ -2473,7 +2540,7 @@ export function StudioProposalWorkspace({
                     <Download /> Open PDF
                   </a>
                 ) : null}
-                {proposal.pdfState === "failed" ? (
+                {proposal.pdfState === "failed" && canApprove ? (
                   <button
                     className="button button-light"
                     disabled={working !== null}
@@ -2601,7 +2668,7 @@ export function StudioProposalWorkspace({
                     <dd>{date(proposal.viewedAt, true, "Not yet")}</dd>
                   </div>
                 </dl>
-                {combinedAgreementLive(proposal, contracts.records) ? (
+                {agreementLive ? (
                   // Sent inside a booking agreement (H2): resending the
                   // proposal alone, re-issuing it or recording an acceptance
                   // would each pull the price out from under the agreement
@@ -2616,10 +2683,24 @@ export function StudioProposalWorkspace({
                       Open the booking
                     </Link>
                   </div>
+                ) : !canApprove ? (
+                  // Resend, re-issue, withdraw and record-acceptance are all
+                  // owner/admin commands; offering them here only produced
+                  // a permission error.
+                  <p className="proposal-permission-note">
+                    A studio owner or administrator can resend, correct or withdraw this proposal.
+                  </p>
                 ) : (
                   <>
+                {lapsed ? (
+                  <p className="proposal-permission-note" role="status">
+                    This proposal expired on {date(proposal.expiresAt)}, so the
+                    couple can&rsquo;t accept it. Extending gives them at least
+                    another week from today and emails it again.
+                  </p>
+                ) : null}
                 <button
-                  className="button button-light"
+                  className={lapsed ? "button button-dark" : "button button-light"}
                   disabled={working !== null}
                   onClick={() => void run("resend")}
                   type="button"
@@ -2629,10 +2710,11 @@ export function StudioProposalWorkspace({
                   ) : (
                     <RefreshCw />
                   )}
-                  Resend branded email
+                  {lapsed ? "Extend and resend" : "Resend branded email"}
                 </button>
                 <small>
-                  Resending creates a separate audited delivery attempt.
+                  Resending creates a separate audited delivery attempt, and
+                  keeps the offer open at least seven more days.
                 </small>
                 {/**
                   * Resending was the only control here, and it was the wrong
@@ -2713,7 +2795,14 @@ export function StudioProposalWorkspace({
                 seen can be thrown away; a sent one taken back. GR asked
                 "where can I undo or delete a proposal" and had to delete the
                 whole job to start again (2026-09-30). */}
-            {["draft", "internal_review", "approved", "sent", "viewed"].includes(status) ? (
+            {/* Owner/admin only on the server, and refused while a booking
+                agreement holds the proposal (sent/viewed say so above). */}
+            {agreementLive && ["draft", "internal_review", "approved"].includes(status) ? (
+              <p className="proposal-permission-note">
+                A booking agreement holds this proposal. Withdraw it on the job&rsquo;s Booking tab first.
+              </p>
+            ) : null}
+            {canApprove && !agreementLive && ["draft", "internal_review", "approved", "sent", "viewed"].includes(status) ? (
               <div className="proposal-undo">
                 {closing === null ? (
                   <button
@@ -2842,24 +2931,5 @@ export function StudioProposalWorkspace({
         </aside>
       </div>
     </div>
-  );
-}
-
-/**
- * The note that hides Resend and Re-issue belongs only while the couple has a
- * booking agreement in front of them. Once it is withdrawn or declined the
- * proposal is an ordinary sent proposal again.
- */
-function combinedAgreementLive(
-  proposal: Value,
-  contracts: Array<Record<string, unknown> & { id: string }> | null,
-) {
-  const contractId = text(proposal.combinedContractId, "");
-  if (!contractId) return false;
-  // Until contracts load, keep the guarded view rather than flash the actions.
-  if (!contracts) return true;
-  const contract = contracts.find((record) => record.id === contractId);
-  return Boolean(
-    contract && ["sent", "viewed"].includes(text(contract.status, "")),
   );
 }
