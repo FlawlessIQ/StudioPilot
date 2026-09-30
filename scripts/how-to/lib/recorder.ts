@@ -37,6 +37,9 @@ export type Recording = { frames: Frame[]; marks: Mark[]; endT: number };
 const overlay = (touch: boolean) => `
 (() => {
   const TOUCH = ${touch};
+  // Cue asks a morning brief on its first visit; in mock mode the answer is a
+  // placeholder no video should show.
+  try { sessionStorage.setItem('studiohub.copilotAutoBrief', '1'); } catch {}
   const css = document.createElement('style');
   css.textContent = \`
     nextjs-portal, .firebase-emulator-warning { display: none !important; }
@@ -57,6 +60,8 @@ const overlay = (touch: boolean) => `
     document.body.appendChild(c);
     addEventListener('mousemove', e => { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; }, true);
     addEventListener('mousedown', e => {
+      // A click often navigates in place; a ring left over would sit on the next page.
+      document.querySelectorAll('.howto-spot').forEach(el => el.remove());
       const p = document.createElement('div'); p.className = 'howto-pulse';
       p.style.left = e.clientX + 'px'; p.style.top = e.clientY + 'px';
       document.body.appendChild(p); setTimeout(() => p.remove(), 650);

@@ -25,7 +25,7 @@ export default defineHowTo({
         { spotlight: { css: ".ds-sidebar a[href='/studio']" }, holdMs: 2200 },
         { wait: 900 },
         { click: { css: ".ds-sidebar a[href='/studio']" } },
-        { waitFor: { css: ".today-hero" } },
+        { waitFor: { css: ".today-hero-go" } }, { wait: 800 },
       ],
     },
     {

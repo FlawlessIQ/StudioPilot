@@ -55,6 +55,9 @@ prepare() {
   grep -q '^NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT=' $APP/.env.local || echo "NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT=$FIRESTORE" >> $APP/.env.local
   grep -q '^NEXT_PUBLIC_AUTH_EMULATOR_URL=' $APP/.env.local || echo "NEXT_PUBLIC_AUTH_EMULATOR_URL=http://127.0.0.1:$AUTH" >> $APP/.env.local
   sed -E "s#^(NEXT_PUBLIC_APP_URL)=.*#\1=http://localhost:$PORT#" $ROOT/functions/.env.local > $APP/functions/.env.local
+  # Inbound mail, so the studio's forwarding address exists to be shown. Local
+  # only: nothing reaches this stack from the real inbound domain.
+  { echo "SENDGRID_INBOUND_DOMAIN=inbound.studio-cue.com"; echo "INBOUND_REPLY_SIGNING_SECRET=how-to-stack-local-only"; } >> $APP/functions/.env.local
 
   node -e '
     const fs = require("fs"); const f = process.argv[1]; const c = JSON.parse(fs.readFileSync(f, "utf8"));
@@ -89,7 +92,10 @@ seed() {
   echo "Seeding the demo studio…"
   (cd $APP && set -a && . ./.env.local && set +a && \
     SEED_WEDDING_PACKAGE_CENTS=650000 npx tsx scripts/seed.ts > $LOGS/seed.log && \
-    npx tsx scripts/demo-workspace.ts > $LOGS/demo-workspace.log)
+    npx tsx scripts/demo-workspace.ts > $LOGS/demo-workspace.log && \
+    TENANT=$(grep -o '"tenantId": "[^"]*"' $LOGS/seed.log | head -1 | cut -d'"' -f4) && \
+    npx tsx scripts/uat/fixture.mts $TENANT > $LOGS/fixture.log && \
+    npx tsx $ROOT/scripts/how-to/fixture-tidy.mts $TENANT >> $LOGS/fixture.log)
   (cd $APP && firebase emulators:export $SNAP --project studiohub-dev --force > $LOGS/export.log 2>&1)
 }
 
