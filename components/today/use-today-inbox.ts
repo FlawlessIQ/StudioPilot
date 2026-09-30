@@ -1,10 +1,10 @@
 "use client";
 
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
-import { deliverableDueDate, deliveryProgress, expectedDeliverables } from "@/features/post-event/deliverables";
+import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deliverables";
+import { jobExpectedDeliverables } from "@/features/post-event/job-deliverables";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
-import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
 import {
   crewDemand,
   jobCoverage,
@@ -304,7 +304,9 @@ export function useTodayInbox(): {
         deliveryDue: ["EVENT_COMPLETE", "POST_PRODUCTION"].includes(text(project.state))
           ? nextDeliveryDue(
               project,
-              (packageSnapshots.records ?? []).find((snapshot) => snapshot.id === text(project.packageSnapshotId)),
+              // Every package, as the crew reading above: the film a photo +
+              // video job owes is due too (Wave 2).
+              (packageSnapshots.records ?? []).filter((snapshot) => snapshotIds.includes(snapshot.id)),
               forProject(deliveries.records, projectId),
             )
           : null,
@@ -411,20 +413,10 @@ export function useTodayInbox(): {
  */
 function nextDeliveryDue(
   project: Record<string, unknown>,
-  snapshot: Record<string, unknown> | undefined,
+  snapshots: ReadonlyArray<Record<string, unknown>>,
   released: ReadonlyArray<Record<string, unknown>>,
 ): { label: string; date: string } | null {
-  const coverage = snapshot ? resolveCoverage(snapshot) : null;
-  const expected = expectedDeliverables({
-    deliverables: snapshot?.deliverables,
-    includedDeliverables: snapshot?.includedDeliverables,
-    coverage: coverage
-      ? {
-          photographers: coverageCount(coverage, "photographer"),
-          videographers: coverageCount(coverage, "videographer"),
-        }
-      : null,
-  });
+  const expected = jobExpectedDeliverables(snapshots);
   const next = deliveryProgress(expected, released)
     .outstanding.filter((entry) => entry.final)
     .map((entry) => ({ entry, date: deliverableDueDate(typeof project.eventDate === "string" ? project.eventDate : null, entry) }))

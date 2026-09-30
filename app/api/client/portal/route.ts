@@ -612,6 +612,14 @@ async function clientRecords(
     ) {
       return [];
     }
+    // A link the studio took back (replaceDeliveryLink) is not the couple's to
+    // see: its stored galleryUrl is the wrong one, perhaps another wedding's.
+    if (
+      collectionName === "deliveryRecords" &&
+      ["revoked", "draft"].includes(String(value.status))
+    ) {
+      return [];
+    }
     const sanitized = pick(value, clientRecordFields[collectionName]);
     if (collectionName === "proposals" && sanitized.status === "sent") {
       sanitized.status = "viewed";

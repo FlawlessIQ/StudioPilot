@@ -31,7 +31,30 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     .get();
   const delivery = matches.docs[0];
   const target = typeof delivery?.get("galleryUrl") === "string" ? String(delivery.get("galleryUrl")) : "";
-  if (!delivery || !target.startsWith("https://") || ["revoked"].includes(String(delivery.get("status")))) {
+  /**
+   * A link the studio replaced (replaceDeliveryLink, Wave 2) never reaches its
+   * old, wrong target — that may be another couple's gallery. It forwards to
+   * the corrected delivery's own view link instead, so the couple who clicks
+   * the first email still lands on the right one, and that open is recorded
+   * against the corrected record.
+   */
+  if (delivery && String(delivery.get("status")) === "revoked") {
+    const replacementId = String(delivery.get("replacedByDeliveryRecordId") ?? "");
+    const replacement = replacementId
+      ? await adminFirestore.doc(`deliveryRecords/${replacementId}`).get()
+      : null;
+    const replacementToken = String(replacement?.get("viewToken") ?? "");
+    if (
+      replacement?.exists &&
+      replacement.get("tenantId") === delivery.get("tenantId") &&
+      replacement.get("status") !== "revoked" &&
+      /^[A-Za-z0-9_-]{16,64}$/.test(replacementToken)
+    ) {
+      return Response.redirect(`${home}/d/${replacementToken}`, 302);
+    }
+    return Response.redirect(home, 302);
+  }
+  if (!delivery || !target.startsWith("https://")) {
     return Response.redirect(home, 302);
   }
 

@@ -24,6 +24,8 @@
  * Pure functions, no I/O.
  */
 
+import { postProductionUndoRefusal } from "@/features/post-event/undo";
+
 export type PostProductionStepKey =
   | "backup_complete"
   | "cull_complete"
@@ -130,6 +132,8 @@ export type PostProductionRow = {
   waitingOn: string | null;
   /** Recorded from the gallery provider's email rather than a tick. */
   fromGalleryEmail: boolean;
+  /** Ticked, and the studio may untick it (features/post-event/undo.ts). */
+  undoable: boolean;
 };
 
 type StepState = { complete?: boolean; completedBy?: unknown } | undefined;
@@ -157,6 +161,7 @@ export function postProductionRows(
           ? POST_PRODUCTION_META[dependency].label
           : null,
       fromGalleryEmail: complete && steps[key]?.completedBy === "gallery-inbound-email",
+      undoable: postProductionUndoRefusal(steps, key) === null,
     };
   });
 }

@@ -452,7 +452,22 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PROJECT_NOT_READY_FOR_CLOSEOUT:
     "Closeout opens once the gallery has been delivered. Record the delivery first.",
   ALBUM_STATUS_REGRESSION:
-    "An album can't go backwards. Refresh to see where this one actually is.",
+    "An album can't jump backwards. To undo the last step, use \"Put back\" on the album.",
+  ALBUM_NOTHING_TO_UNDO:
+    "This album is at its first step, so there is nothing to put back.",
+  // Wave 2 corrections: a wrong link, an unticked step.
+  DELIVERY_NOT_FOUND:
+    "That delivery is no longer on this job. Refresh to see what was sent.",
+  DELIVERY_ALREADY_REPLACED:
+    "That link has already been replaced. Refresh to see the corrected one.",
+  DELIVERY_LINK_UNCHANGED:
+    "That's the link the couple already has. Paste the right one.",
+  POST_PRODUCTION_STEP_NOT_UNDOABLE:
+    "That step is set by another part of StudioCue, so it can't be unticked here.",
+  POST_PRODUCTION_STEP_NOT_COMPLETE:
+    "That step isn't ticked. Refresh to see the checklist as it is.",
+  POST_PRODUCTION_BACKUP_RELEASED:
+    "Something has already been released against this backup, so it stays ticked.",
   ALBUM_CREATIVE_AUTHORITY_REQUIRED:
     "Only the studio owner or a lead photographer can make this album decision.",
 

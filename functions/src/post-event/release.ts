@@ -2,16 +2,16 @@ import { randomBytes, createHash } from "node:crypto";
 import type { Firestore, Transaction, DocumentSnapshot } from "firebase-admin/firestore";
 import { z } from "zod";
 import { productEvent } from "../operations/product-events.js";
-import { coverageCount, resolveCoverage } from "../packages/coverage.js";
+import { jobPackageSnapshotIds } from "../crew/staffing-plan.js";
 import {
   DELIVERABLE_KINDS,
   defaultKindFor,
   deliveryProgress,
-  expectedDeliverables,
   kindDefaults,
   type DeliverableKind,
   type ExpectedDeliverable,
 } from "./deliverables.js";
+import { jobExpectedDeliverables } from "./job-deliverables.js";
 import { linkHost } from "./link-host.js";
 
 /**
@@ -96,19 +96,71 @@ export function releaseItems(input: RecordDeliveryInput): DeliveryItem[] {
   ];
 }
 
-/** What this job expects to deliver, from its booked package. */
-export function jobExpectations(snapshot: DocumentSnapshot | null): ExpectedDeliverable[] {
-  if (!snapshot?.exists) return expectedDeliverables({ coverage: null });
-  const data = snapshot.data() ?? {};
-  const coverage = resolveCoverage(data);
-  return expectedDeliverables({
-    deliverables: data.deliverables,
-    includedDeliverables: data.includedDeliverables,
-    coverage: {
-      photographers: coverageCount(coverage, "photographer"),
-      videographers: coverageCount(coverage, "videographer"),
-    },
-  });
+/**
+ * What this job expects to deliver, from every package it booked.
+ *
+ * Read off the primary snapshot alone, a photo + video job was DELIVERED the
+ * moment the gallery went out, with the film still owed (see
+ * ./job-deliverables.ts). Another studio's snapshot never counts.
+ */
+export function jobExpectations(
+  snapshots: ReadonlyArray<DocumentSnapshot | null>,
+  tenantId: string,
+): ExpectedDeliverable[] {
+  return jobExpectedDeliverables(
+    snapshots
+      .filter(
+        (snapshot): snapshot is DocumentSnapshot =>
+          Boolean(snapshot?.exists) && snapshot?.get("tenantId") === tenantId,
+      )
+      .map((snapshot) => snapshot.data() ?? {}),
+  );
+}
+
+/** The job's package snapshots, read inside the caller's transaction. */
+function readJobSnapshots(
+  db: Firestore,
+  transaction: Transaction,
+  project: DocumentSnapshot,
+): Promise<DocumentSnapshot[]> {
+  return Promise.all(
+    jobPackageSnapshotIds(project.data()).map((id) => transaction.get(db.doc(`packageSnapshots/${id}`))),
+  );
+}
+
+/**
+ * Two weeks before a gallery's downloads end, a reminder to the couple (Q25),
+ * or null when there are not two weeks to wait. Shared by a release and by a
+ * corrected link, which carries its own expiry.
+ */
+function expiryReminder(
+  item: { id: string; tenantId: string; projectId: string; expirationDate: string | null; mediaType: string },
+  now: string,
+): Record<string, unknown> | null {
+  if (!item.expirationDate || !["photo", "files"].includes(item.mediaType)) return null;
+  const remindAt = Date.parse(`${item.expirationDate}T15:00:00.000Z`) - 14 * 86400000;
+  if (!Number.isFinite(remindAt) || remindAt < Date.parse(now) + 86400000) return null;
+  return {
+    id: `expiry_${item.id}`,
+    tenantId: item.tenantId,
+    projectId: item.projectId,
+    deliveryRecordId: item.id,
+    type: "delivery_expiry_reminder",
+    expirationDate: item.expirationDate,
+    scheduledAt: new Date(remindAt).toISOString(),
+    status: "scheduled",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/**
+ * The studio said not to ask this couple for a review, or delivered with no
+ * review link (Wave 2). Either way no review asks are scheduled, and closeout
+ * does not wait on one.
+ */
+export function reviewAsksSkipped(project: DocumentSnapshot): boolean {
+  return typeof project.get("reviewRequestsSkippedAt") === "string";
 }
 
 function appUrl(): string {
@@ -143,6 +195,8 @@ async function followUpWrites(
     now: string;
     deliveryRecordId: string;
     followUps: FollowUps;
+    /** No review asks: the studio skipped them, or gave no review link. */
+    skipReviews: boolean;
   },
 ): Promise<{ reviewRequestsScheduled: number; albumWorkflowCreated: boolean; writes: Array<() => void> }> {
   const writes: Array<() => void> = [];
@@ -162,7 +216,7 @@ async function followUpWrites(
   const start = Date.parse(input.now);
   let reviewRequestsScheduled = 0;
   const reviewUrl = input.followUps.reviewDestinationUrl;
-  if (reviewUrl && legacyReviews.empty && reviewDocs.every((doc) => !doc.exists)) {
+  if (reviewUrl && !input.skipReviews && legacyReviews.empty && reviewDocs.every((doc) => !doc.exists)) {
     for (const [index, [days, channel]] of ([[3, "portal"], [10, "email"]] as const).entries()) {
       const reference = reviewRefs[index]!;
       reviewRequestsScheduled += 1;
@@ -311,9 +365,7 @@ export async function releaseDeliverables(
         .map((doc) => text(doc.get("galleryUrl"))),
     );
     if (items.some((item) => alreadySent.has(item.galleryUrl))) throw new Error("DELIVERY_ALREADY_RECORDED");
-    const snapshotId = text(project.get("packageSnapshotId"));
-    const snapshot = snapshotId ? await transaction.get(db.doc(`packageSnapshots/${snapshotId}`)) : null;
-    const expected = jobExpectations(snapshot && snapshot.get("tenantId") === tenantId ? snapshot : null);
+    const expected = jobExpectations(await readJobSnapshots(db, transaction, project), tenantId);
 
     const records = items.map((item, index) => {
       const host = linkHost(item.galleryUrl);
@@ -362,7 +414,11 @@ export async function releaseDeliverables(
       albumIncluded: input.albumIncluded || priorFollowUps.albumIncluded === true,
       albumInstructionsUrl: input.albumInstructionsUrl ?? priorFollowUps.albumInstructionsUrl ?? null,
     };
-    if (becomesDelivered && !followUps.reviewDestinationUrl) throw new Error("REVIEW_DESTINATION_REQUIRED");
+    // A review link is no longer required to deliver (Wave 2): refusing the
+    // release until the studio typed one held the couple's photographs hostage
+    // to a marketing ask. With none, nothing is scheduled and the job records
+    // that it was delivered without review asks, so closeout does not wait.
+    const noReviewLink = becomesDelivered && !followUps.reviewDestinationUrl && !reviewAsksSkipped(project);
     const followUp = becomesDelivered
       ? await followUpWrites(db, transaction, {
           tenantId,
@@ -371,6 +427,7 @@ export async function releaseDeliverables(
           now,
           deliveryRecordId: records[records.length - 1]!.id,
           followUps,
+          skipReviews: reviewAsksSkipped(project),
         })
       : { reviewRequestsScheduled: 0, albumWorkflowCreated: false, writes: [] };
 
@@ -381,21 +438,8 @@ export async function releaseDeliverables(
     // prints from this email. Only when there are at least two weeks to wait,
     // and the scheduler re-reads the job and the delivery before it sends.
     for (const item of records) {
-      if (!item.expirationDate || !["photo", "files"].includes(item.mediaType)) continue;
-      const remindAt = Date.parse(`${item.expirationDate}T15:00:00.000Z`) - 14 * 86400000;
-      if (!Number.isFinite(remindAt) || remindAt < Date.parse(now) + 86400000) continue;
-      transaction.set(db.doc(`deliveryReminders/expiry_${item.id}`), {
-        id: `expiry_${item.id}`,
-        tenantId,
-        projectId: input.projectId,
-        deliveryRecordId: item.id,
-        type: "delivery_expiry_reminder",
-        expirationDate: item.expirationDate,
-        scheduledAt: new Date(remindAt).toISOString(),
-        status: "scheduled",
-        createdAt: now,
-        updatedAt: now,
-      });
+      const reminder = expiryReminder(item, now);
+      if (reminder) transaction.set(db.doc(`deliveryReminders/expiry_${item.id}`), reminder);
     }
     transaction.create(db.doc(`emailJobs/delivery_${records[0]!.id}`), {
       id: `delivery_${records[0]!.id}`,
@@ -445,8 +489,11 @@ export async function releaseDeliverables(
       transaction.update(projectRef, {
         state: "DELIVERED",
         stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
-        nextAction: "Monitor delivery and review request",
+        nextAction: followUp.reviewRequestsScheduled ? "Monitor delivery and review request" : "Monitor delivery",
         deliveredAt: now,
+        ...(noReviewLink
+          ? { reviewRequestsSkippedAt: now, reviewRequestsSkippedBy: actorId, reviewRequestsSkippedReason: "no_review_link" }
+          : {}),
         updatedAt: now,
         updatedBy: actorId,
       });
@@ -528,6 +575,7 @@ export async function releaseDeliverables(
       outstanding: after.outstanding.filter((entry) => entry.final).map((entry) => entry.label),
       alreadySentBefore: before.sent.map((entry) => entry.label),
       reviewRequestsScheduled: followUp.reviewRequestsScheduled,
+      reviewRequestsSkipped: noReviewLink || (becomesDelivered && reviewAsksSkipped(project)),
       albumWorkflowCreated: followUp.albumWorkflowCreated,
     };
   });
@@ -565,7 +613,8 @@ export async function markDeliveryComplete(
       albumIncluded: prior.albumIncluded === true,
       albumInstructionsUrl: prior.albumInstructionsUrl ?? null,
     };
-    if (!followUps.reviewDestinationUrl) throw new Error("REVIEW_DESTINATION_REQUIRED");
+    // Optional, as in a release: no link means no review asks (Wave 2).
+    const noReviewLink = !followUps.reviewDestinationUrl && !reviewAsksSkipped(project);
     const latest = [...live].sort((left, right) => text(right.get("sentAt")).localeCompare(text(left.get("sentAt"))))[0]!;
     const followUp = await followUpWrites(db, transaction, {
       tenantId,
@@ -574,14 +623,18 @@ export async function markDeliveryComplete(
       now,
       deliveryRecordId: latest.id,
       followUps,
+      skipReviews: reviewAsksSkipped(project),
     });
     for (const write of followUp.writes) write();
     transaction.update(projectRef, {
       state: "DELIVERED",
       stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
-      nextAction: "Monitor delivery and review request",
+      nextAction: followUp.reviewRequestsScheduled ? "Monitor delivery and review request" : "Monitor delivery",
       deliveredAt: now,
       deliveryClosedEarly: true,
+      ...(noReviewLink
+        ? { reviewRequestsSkippedAt: now, reviewRequestsSkippedBy: actorId, reviewRequestsSkippedReason: "no_review_link" }
+        : {}),
       updatedAt: now,
       updatedBy: actorId,
     });
@@ -591,7 +644,159 @@ export async function markDeliveryComplete(
     return {
       projectState: "DELIVERED",
       reviewRequestsScheduled: followUp.reviewRequestsScheduled,
+      reviewRequestsSkipped: followUp.reviewRequestsScheduled === 0,
       albumWorkflowCreated: followUp.albumWorkflowCreated,
+    };
+  });
+}
+
+export const replaceDeliveryLinkInputSchema = z.object({
+  projectId: z.string(),
+  deliveryRecordId: z.string().min(1),
+  galleryUrl: z.string().url(),
+  /** Omitted: the wrong link's code and expiry carry over. Null: none. */
+  accessCode: z.string().max(120).nullable().optional(),
+  expirationDate: z.string().date().nullable().optional(),
+  /** What was wrong, for the audit log; the couple never sees it. */
+  reason: z.string().trim().min(3).max(500),
+  /** A line for the couple in the corrected-link email. */
+  messageToCouple: z.string().trim().max(1200).nullable().default(null),
+});
+
+export type ReplaceDeliveryLinkInput = z.infer<typeof replaceDeliveryLinkInputSchema>;
+
+/**
+ * A wrong gallery link, taken back and put right (Wave 2).
+ *
+ * There was no way to do it. The same link again was refused as a double
+ * click, a new link sent a second "your photographs are ready" email as if it
+ * were another deliverable, and the wrong `/d/` link stayed live — for a link
+ * pasted from the wrong couple's gallery, that is somebody else's wedding one
+ * click away. `revoked` was read everywhere and written nowhere.
+ *
+ * Now the wrong record is revoked (with the reason), a corrected record of
+ * the same kind takes its place, and the couple gets ONE email that says the
+ * earlier link was wrong and gives the right one. Nothing about the job's
+ * delivery changes: the same kind is still delivered, so the job's state, its
+ * review asks and its album workflow are left exactly as they were — no
+ * second set of review asks. The old `/d/` link now forwards to the corrected
+ * one (app/d/[token]/route.ts), so the first email still gets them there.
+ */
+export async function replaceDeliveryLink(
+  db: Firestore,
+  context: { tenantId: string; actorId: string; idempotencyKey: string; now: string },
+  input: ReplaceDeliveryLinkInput,
+): Promise<Record<string, unknown>> {
+  if (!input.galleryUrl.startsWith("https://")) throw new Error("DELIVERY_URL_MUST_USE_HTTPS");
+  const { tenantId, actorId, now } = context;
+  const oldRef = db.doc(`deliveryRecords/${input.deliveryRecordId}`);
+  const projectRef = db.doc(`projects/${input.projectId}`);
+  const newId = stableId("delivery", tenantId, `replace:${context.idempotencyKey}`);
+  const token = randomBytes(18).toString("base64url");
+  return db.runTransaction(async (transaction) => {
+    const [project, old, existing, oldReminder] = await Promise.all([
+      transaction.get(projectRef),
+      transaction.get(oldRef),
+      transaction.get(
+        db.collection("deliveryRecords").where("tenantId", "==", tenantId).where("projectId", "==", input.projectId),
+      ),
+      transaction.get(db.doc(`deliveryReminders/expiry_${input.deliveryRecordId}`)),
+    ]);
+    if (!project.exists || project.get("tenantId") !== tenantId) throw new Error("PROJECT_NOT_FOUND");
+    if (!old.exists || old.get("tenantId") !== tenantId || old.get("projectId") !== input.projectId) {
+      throw new Error("DELIVERY_NOT_FOUND");
+    }
+    if (["revoked", "draft"].includes(text(old.get("status")))) throw new Error("DELIVERY_ALREADY_REPLACED");
+    if (text(old.get("galleryUrl")) === input.galleryUrl) throw new Error("DELIVERY_LINK_UNCHANGED");
+    const live = existing.docs.filter((doc) => !["revoked", "draft"].includes(text(doc.get("status"))));
+    if (live.some((doc) => text(doc.get("galleryUrl")) === input.galleryUrl)) throw new Error("DELIVERY_ALREADY_RECORDED");
+
+    const host = linkHost(input.galleryUrl);
+    const mediaType = text(old.get("mediaType")) || (host.mediaType !== "other" ? host.mediaType : "photo");
+    const accessCode = input.accessCode === undefined ? (old.get("accessCode") ?? null) : input.accessCode;
+    const expirationDate = input.expirationDate === undefined ? (old.get("expirationDate") ?? null) : input.expirationDate;
+    const record = {
+      id: newId,
+      tenantId,
+      projectId: input.projectId,
+      releaseId: old.get("releaseId") ?? null,
+      provider: host.host === "other" ? "manual" : host.host,
+      mediaType,
+      kind: old.get("kind") ?? null,
+      label: old.get("label") ?? null,
+      final: old.get("final") ?? null,
+      galleryUrl: input.galleryUrl,
+      viewToken: token,
+      accessCode,
+      expirationDate,
+      deliveryDate: old.get("deliveryDate") ?? now.slice(0, 10),
+      notes: old.get("notes") ?? null,
+      status: "sent",
+      sentAt: now,
+      viewedAt: null,
+      downloadedAt: null,
+      providerDeliveryId: null,
+      deliveryDraftId: null,
+      replacesDeliveryRecordId: old.id,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: actorId,
+      updatedBy: actorId,
+      archivedAt: null,
+    };
+
+    transaction.create(db.doc(`deliveryRecords/${newId}`), record);
+    transaction.update(oldRef, {
+      status: "revoked",
+      revokedAt: now,
+      revokedBy: actorId,
+      revokedReason: input.reason,
+      replacedByDeliveryRecordId: newId,
+      updatedAt: now,
+      updatedBy: actorId,
+    });
+    // The wrong link's expiry reminder would point at the corrected gallery
+    // under the wrong date; the corrected one gets its own.
+    if (oldReminder.exists && oldReminder.get("status") === "scheduled") {
+      transaction.update(oldReminder.ref, { status: "skipped", skippedBecause: "link_replaced", updatedAt: now });
+    }
+    const reminder = expiryReminder({ ...record, expirationDate: expirationDate as string | null }, now);
+    if (reminder) transaction.set(db.doc(`deliveryReminders/expiry_${newId}`), reminder);
+    transaction.create(db.doc(`emailJobs/delivery_correction_${newId}`), {
+      id: `delivery_correction_${newId}`,
+      tenantId,
+      projectId: input.projectId,
+      type: "delivery_correction",
+      deliveryRecordId: newId,
+      replacesDeliveryRecordId: old.id,
+      items: [
+        {
+          deliveryRecordId: newId,
+          mediaType,
+          kind: record.kind,
+          label: record.label,
+          openUrl: viewUrl(token),
+          accessCode,
+          expirationDate,
+        },
+      ],
+      note: input.messageToCouple,
+      galleryUrl: viewUrl(token),
+      accessCode,
+      expirationDate,
+      status: "queued",
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return {
+      deliveryRecordId: newId,
+      revokedDeliveryRecordId: old.id,
+      kind: record.kind,
+      reason: input.reason,
+      correctionEmailQueued: true,
+      // Said outright, because the old behaviour was a second set.
+      reviewRequestsRescheduled: false,
     };
   });
 }

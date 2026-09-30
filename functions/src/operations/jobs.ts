@@ -777,6 +777,20 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     )
       return { held: "amendment_no_longer_awaiting_signature", type };
   }
+  // A review ask the studio called off (skipReviewRequests), or one the
+  // couple has already answered, is read again as it goes: the scheduler
+  // queues the email and marks the ask sent in one step, so a queued or
+  // retrying ask would otherwise go out after "Don't ask this couple".
+  if (type === "review_request" && document.get("reviewRequestId")) {
+    const ask = await getFirestore()
+      .doc(`reviewRequests/${String(document.get("reviewRequestId"))}`)
+      .get();
+    if (
+      ask.exists &&
+      ["skipped", "client_confirmed", "manually_confirmed"].includes(String(ask.get("status")))
+    )
+      return { held: "review_request_closed", type };
+  }
   // A consultation email is rendered from the consultation as it is now
   // (booking/consultation-email.ts): the Zoom link the provider worker made
   // after booking, the time after a move — and nothing at all for a meeting

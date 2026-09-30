@@ -146,9 +146,11 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "resolve_checkpoint", scope: "project", when: "mark a readiness item as handled by hand (it was done outside StudioCue) — which one in `subject`" },
   // After the event
   { id: "record_delivery", scope: "project", when: "the gallery / photos / film were delivered — gallery link in `text`" },
-  { id: "complete_editing_step", scope: "project", when: "mark a post-production step done (culling, editing, color) — which in `subject`" },
-  { id: "update_album", scope: "project", when: "update the album's status (designing, sent for proofing, ordered, delivered)" },
+  { id: "complete_editing_step", scope: "project", when: "mark a post-production step done (culling, editing, color), or untick one ticked by mistake — which in `subject`" },
+  { id: "update_album", scope: "project", when: "update the album's status (selections received, design sent, couple approved or asked for changes, fulfilled), or put it back a step after a mistake" },
+  { id: "replace_gallery_link", scope: "project", ownerAdminOnly: true, when: "a gallery or film link sent to the couple was wrong — take it back and send the right one (new link in `text`, which delivery in `subject`)" },
   { id: "confirm_review", scope: "project", when: "the couple left a review" },
+  { id: "skip_review_requests", scope: "project", ownerAdminOnly: true, when: "don't ask this couple for a review / stop the review requests (they complained, or the studio asks in person) — not for a review they actually left" },
   { id: "close_job", scope: "project", when: "close out a finished job" },
   // Team
   { id: "invite_team_member", scope: "studio", ownerAdminOnly: true, when: "invite someone to the studio's team (an associate, an assistant) — email in `text`" },

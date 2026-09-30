@@ -154,6 +154,9 @@ const REACHED: Record<string, string> = {
   updateAlbumStatus: "DeliveryCloseoutWorkspace", prepareCloseout: "DeliveryCloseoutWorkspace",
   attestCloseoutRequirement: "DeliveryCloseoutWorkspace", closeProject: "DeliveryCloseoutWorkspace",
   confirmReview: "\"confirmReview\"",
+  // Wave 2: corrections after the event.
+  replaceDeliveryLink: "ReplaceDeliveryLink", skipReviewRequests: "\"skipReviewRequests\"",
+  undoPostProductionStep: "PostProductionChecklist", revertAlbumStatus: "DeliveryCloseoutWorkspace",
   // Team and studio
   inviteMember: "TeamManagement", revokeInvitation: "TeamManagement", updateMember: "TeamManagement",
   setAutopay: "AutopaySettings", setOutsideStep: "OutsideStepCard",

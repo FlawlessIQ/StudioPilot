@@ -27,6 +27,7 @@ import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoint
 import { DeliveryForm } from "@/components/post-event/delivery-form";
 import { PostProductionChecklist } from "@/components/post-event/post-production-checklist";
 import { DeliveryCloseoutWorkspace } from "@/components/post-event/delivery-closeout-workspace";
+import { ReplaceDeliveryLink } from "@/components/post-event/replace-delivery-link";
 import { TeamManagement } from "@/components/team/team-management";
 import { CreatePackageForm } from "@/components/crm/create-package-form";
 import { EditPackageForm } from "@/components/crm/edit-package-form";
@@ -600,7 +601,14 @@ export function ConfirmReviewCard({ action }: ActionCardProps) {
   if (loading || !reviews) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
-  const request = onJob(reviews, job.id).find((item) => !["confirmed", "manually_confirmed", "completed"].includes(str(item.status))) ?? null;
+  // The statuses the server writes. This read "confirmed" and "completed",
+  // which it never writes, so a couple's own `client_confirmed` looked open
+  // and the card offered to overwrite it; a `skipped` ask is closed too.
+  const closedStatuses = ["client_confirmed", "manually_confirmed", "skipped"];
+  const jobReviews = onJob(reviews, job.id);
+  const request = jobReviews.find((item) => !closedStatuses.includes(str(item.status))) ?? null;
+  if (jobReviews.some((item) => str(item.status) === "client_confirmed"))
+    return <ActionShell title={title}><Done>They already confirmed their review in their portal.</Done></ActionShell>;
   if (!request) return <ActionShell title={title}><Done>There is no open review request on this job.</Done></ActionShell>;
   return (
     <ActionShell detail="The remaining review reminders to them stop." icon={<Star size={15} />} title={title}>
@@ -614,6 +622,99 @@ export function ConfirmReviewCard({ action }: ActionCardProps) {
               return "Recorded. No more review reminders will go to them.";
             },
             { refresh: ["reviewRequests", "projects"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * "I sent them the wrong gallery link" (Wave 2). Picks the delivery by what
+ * the operator named, then mounts the same two-step correction the delivery
+ * page uses; a link in the operator's words is offered as the new one.
+ */
+export function ReplaceGalleryLinkCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const deliveries = useRecords("deliveryRecords");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const [done, setDone] = useState<string | null>(null);
+  const live = onJob(deliveries, action.projectId).filter((item) => !["revoked", "draft"].includes(str(item.status)));
+  const options = live.map((item) => ({
+    id: item.id,
+    name: str(item.label) || "Delivery",
+    detail: str(item.galleryUrl) || undefined,
+  }));
+  const choice = useSubjectChoice(action.subject, options);
+  const title = `Fix a gallery link · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !deliveries) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (done) return <ActionShell title={title}><Done>{done}</Done></ActionShell>;
+  const delivery = live.find((item) => item.id === choice.chosen) ?? null;
+  const offered = /^https:\/\/\S+$/.test(action.text ?? "") ? (action.text as string) : "";
+  return (
+    <ActionShell
+      detail="The wrong link is taken back and forwards to the right one; the couple gets one email saying so."
+      icon={<Link2 size={15} />}
+      title={title}
+    >
+      {!options.length ? (
+        <Done>Nothing has been delivered on this job yet.</Done>
+      ) : (
+        <SubjectPicker {...choice} noun="delivery" options={options} subject={action.subject} />
+      )}
+      {delivery ? (
+        <Embedded>
+          <ReplaceDeliveryLink
+            defaultOpen
+            delivery={delivery}
+            initialUrl={offered}
+            key={delivery.id}
+            onReplaced={setDone}
+            projectId={job.id}
+          />
+        </Embedded>
+      ) : null}
+    </ActionShell>
+  );
+}
+
+/** "Don't ask them for a review" (Wave 2): the honest stop, not a fake confirmation. */
+export function SkipReviewRequestsCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const reviews = useRecords("reviewRequests");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const title = `Don't ask for a review · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !reviews) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  if (typeof job.reviewRequestsSkippedAt === "string")
+    return <ActionShell title={title}><Done>Review asks are already off for this couple.</Done></ActionShell>;
+  const pending = onJob(reviews, job.id).filter((item) => str(item.status) === "scheduled").length;
+  return (
+    <ActionShell
+      detail={
+        pending
+          ? `${pending} review ${pending === 1 ? "ask hasn't" : "asks haven't"} gone out yet; ${pending === 1 ? "it" : "they"} will be cancelled and none scheduled. Nothing is sent to them.`
+          : "No review asks will be scheduled for this couple. Nothing is sent to them."
+      }
+      icon={<Star size={15} />}
+      title={title}
+    >
+      <Actions
+        busy={runner.busy}
+        label="Don't ask them"
+        onClick={() =>
+          void runner.run(
+            async () => {
+              await sendPostEventCommand("skipReviewRequests", { projectId: job.id, reason: action.text ?? null });
+              return "Done. StudioCue won't ask them for a review.";
+            },
+            { refresh: ["reviewRequests", "projects", "projectCloseouts"] },
           )
         }
       />

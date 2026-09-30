@@ -11,13 +11,16 @@ import {
   markDeliveryComplete,
   recordDeliveryInputSchema,
   releaseDeliverables,
+  replaceDeliveryLink,
+  replaceDeliveryLinkInputSchema,
 } from "./release.js";
 import {
   closeoutStatusFrom,
-  requirementIsAttestable,
   requirementIsSatisfied,
+  requirementMayBeAttested,
   type CloseoutRequirement,
 } from "./closeout-attestation.js";
+import { postProductionUndoRefusal, previousAlbumStatus } from "./undo.js";
 
 const step = z.enum([
   "backup_complete",
@@ -65,6 +68,45 @@ const command = z.discriminatedUnion("type", [
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
     input: z.object({ projectId: z.string(), deliveryDraftId: z.string().min(1) }),
+  }),
+  z.object({
+    /** A wrong gallery link taken back and put right (release.ts). */
+    type: z.literal("replaceDeliveryLink"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: replaceDeliveryLinkInputSchema,
+  }),
+  z.object({
+    /** "Don't ask this couple for a review": pending asks stop, none are scheduled. */
+    type: z.literal("skipReviewRequests"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      reason: z.string().trim().max(500).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /** Untick one post-production step ticked by mistake (./undo.ts). */
+    type: z.literal("undoPostProductionStep"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      step,
+      notes: z.string().max(2000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /** Put an album back one status (./undo.ts). */
+    type: z.literal("revertAlbumStatus"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      albumWorkflowId: z.string(),
+      notes: z.string().max(2000).nullable().default(null),
+    }),
   }),
   z.object({
     type: z.literal("updateAlbumStatus"),
@@ -319,6 +361,186 @@ export const postEventCommand = onRequest(
           { tenantId: parsed.tenantId, actorId: identity.uid, now },
           parsed.input,
         );
+      } else if (parsed.type === "replaceDeliveryLink") {
+        // It writes to the couple and takes a link back out of their hands,
+        // so it is owner-or-admin work, like confirming a review.
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        try {
+          result = await replaceDeliveryLink(
+            db,
+            {
+              tenantId: parsed.tenantId,
+              actorId: identity.uid,
+              idempotencyKey: parsed.idempotencyKey,
+              now,
+            },
+            parsed.input,
+          );
+        } catch (caught: unknown) {
+          // A double press: the new record's id comes from the idempotency key.
+          if ((caught as { code?: unknown }).code === 6)
+            throw new Error("DELIVERY_ALREADY_REPLACED");
+          throw caught;
+        }
+      } else if (parsed.type === "skipReviewRequests") {
+        /**
+         * "Don't ask this couple for a review" (Wave 2).
+         *
+         * The only way to stop the asks was `confirmReview`, which records a
+         * review that never happened — so a studio whose couple complained,
+         * or who asks for reviews by hand, either lied to its own records or
+         * let the asks go. This stops them honestly: every ask not yet sent is
+         * `skipped`, an ask whose email is still queued is `skipped` too (the
+         * email worker re-reads it and holds the send), and the job records
+         * the decision so a later delivery schedules none and closeout does
+         * not wait on one.
+         */
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        const projectReference = db.doc(`projects/${parsed.input.projectId}`);
+        result = await db.runTransaction(async (transaction) => {
+          const [project, asks] = await Promise.all([
+            transaction.get(projectReference),
+            transaction.get(
+              db
+                .collection("reviewRequests")
+                .where("tenantId", "==", parsed.tenantId)
+                .where("projectId", "==", parsed.input.projectId),
+            ),
+          ]);
+          if (!project.exists || project.get("tenantId") !== parsed.tenantId)
+            throw new Error("PROJECT_NOT_FOUND");
+          const emailJobs = await Promise.all(
+            asks.docs.map((ask) =>
+              transaction.get(db.doc(`emailJobs/review_${ask.id}`)),
+            ),
+          );
+          const stopped: string[] = [];
+          asks.docs.forEach((ask, index) => {
+            const status = String(ask.get("status"));
+            const job = emailJobs[index]!;
+            const emailPending =
+              status === "sent" &&
+              job.exists &&
+              ["queued", "retry_scheduled"].includes(
+                String(job.get("status")),
+              );
+            if (status !== "scheduled" && !emailPending) return;
+            stopped.push(ask.id);
+            transaction.update(ask.ref, {
+              status: "skipped",
+              skippedBy: identity.uid,
+              skippedReason: parsed.input.reason,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          });
+          transaction.update(projectReference, {
+            reviewRequestsSkippedAt: now,
+            reviewRequestsSkippedBy: identity.uid,
+            reviewRequestsSkippedReason: parsed.input.reason ?? "studio_skipped",
+            ...(project.get("nextAction") === "Confirm the couple's review" ||
+            project.get("nextAction") === "Monitor delivery and review request"
+              ? { nextAction: "Close out the job" }
+              : {}),
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          return {
+            projectId: parsed.input.projectId,
+            reviewRequestsStopped: stopped.length,
+            reviewRequestIds: stopped,
+            status: "skipped",
+          };
+        });
+      } else if (parsed.type === "undoPostProductionStep") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(
+          `postProductionRecords/${parsed.input.projectId}`,
+        );
+        result = await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(reference);
+          if (!current.exists || current.get("tenantId") !== parsed.tenantId)
+            throw new Error("POST_PRODUCTION_NOT_FOUND");
+          const steps = (current.get("steps") ?? {}) as Record<
+            string,
+            Record<string, unknown> | undefined
+          >;
+          const refusal = postProductionUndoRefusal(steps, parsed.input.step);
+          if (refusal) throw new Error(refusal);
+          const previous = steps[parsed.input.step] ?? null;
+          transaction.update(reference, {
+            [`steps.${parsed.input.step}`]: {
+              complete: false,
+              completedAt: null,
+              completedBy: null,
+              evidenceId: null,
+              notes: parsed.input.notes,
+              undoneAt: now,
+              undoneBy: identity.uid,
+            },
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          // What was undone, in the audit event every command writes below.
+          return {
+            projectId: parsed.input.projectId,
+            step: parsed.input.step,
+            status: "undone",
+            previous,
+          };
+        });
+      } else if (parsed.type === "revertAlbumStatus") {
+        // The same bar as releasing a proof or recording fulfilment.
+        if (
+          !["studio_owner", "studio_admin", "studio_coordinator"].includes(role)
+        )
+          throw new Error("FORBIDDEN");
+        const reference = db.doc(
+          `albumWorkflows/${parsed.input.albumWorkflowId}`,
+        );
+        result = await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(reference);
+          if (
+            !current.exists ||
+            current.get("tenantId") !== parsed.tenantId ||
+            current.get("projectId") !== parsed.input.projectId
+          )
+            throw new Error("ALBUM_WORKFLOW_NOT_FOUND");
+          const from = String(current.get("status"));
+          const history = Array.isArray(current.get("statusHistory"))
+            ? (current.get("statusHistory") as unknown[])
+            : [];
+          const to = previousAlbumStatus(from, history);
+          if (!to) throw new Error("ALBUM_NOTHING_TO_UNDO");
+          /**
+           * Reminders the forward step stopped are not re-armed: a nudge the
+           * couple may already have had, sent again after a correction, is
+           * worse than none. Fulfilment evidence goes with the fulfilment.
+           */
+          transaction.update(reference, {
+            status: to,
+            ...(from === "fulfilled" ? { fulfillmentEvidenceId: null } : {}),
+            statusHistory: [
+              ...history,
+              {
+                status: to,
+                occurredAt: now,
+                actorId: identity.uid,
+                notes: parsed.input.notes ?? `Put back from ${from}.`,
+                undoneFrom: from,
+              },
+            ].slice(-100),
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          return {
+            albumWorkflowId: reference.id,
+            status: to,
+            undoneFrom: from,
+          };
+        });
       } else if (parsed.type === "updateAlbumStatus") {
         const reference = db.doc(
           `albumWorkflows/${parsed.input.albumWorkflowId}`,
@@ -523,13 +745,20 @@ export const postEventCommand = onRequest(
         const client = role === "client";
         if (!client && !["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
-        await reference.update({
-          status: client ? "client_confirmed" : "manually_confirmed",
-          confirmedAt: now,
-          confirmedBy: identity.uid,
-          updatedAt: now,
-          updatedBy: identity.uid,
-        });
+        // A couple's own confirmation is the stronger record; a studio's
+        // "they reviewed us" afterwards (Cue's card offered it on
+        // client_confirmed asks) must not overwrite who confirmed it.
+        const alreadyConfirmed = ["client_confirmed", "manually_confirmed"].includes(
+          String(current.get("status")),
+        );
+        if (!alreadyConfirmed)
+          await reference.update({
+            status: client ? "client_confirmed" : "manually_confirmed",
+            confirmedAt: now,
+            confirmedBy: identity.uid,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
         const pending = await db
           .collection("reviewRequests")
           .where("tenantId", "==", parsed.tenantId)
@@ -546,7 +775,11 @@ export const postEventCommand = onRequest(
         await batch.commit();
         result = {
           reviewRequestId: parsed.input.reviewRequestId,
-          status: client ? "client_confirmed" : "manually_confirmed",
+          status: alreadyConfirmed
+            ? String(current.get("status"))
+            : client
+              ? "client_confirmed"
+              : "manually_confirmed",
           remainingRequestsStopped: true,
         };
       } else if (parsed.type === "prepareCloseout") {
@@ -672,6 +905,9 @@ export const postEventCommand = onRequest(
               Number(finalInvoice?.get("balanceCents") ?? 1) === 0 &&
               finalInvoice?.get("status") === "paid",
             evidenceId: finalInvoice?.id ?? null,
+            // An imported or legacy job with no package: nothing to record a
+            // payment against, so it may be vouched for (closeout-attestation.ts).
+            noAgreedBalance: !String(project.get("packageSnapshotId") ?? ""),
           },
           {
             key: "schedule",
@@ -696,8 +932,16 @@ export const postEventCommand = onRequest(
           {
             key: "review_request",
             label: "Review request sent",
-            complete: Boolean(reviewAsk),
-            evidenceId: reviewAsk?.id ?? null,
+            // The studio chose not to ask (or delivered with no review link):
+            // a decision, recorded on the job, not a gap to vouch around.
+            complete:
+              Boolean(reviewAsk) ||
+              typeof project.get("reviewRequestsSkippedAt") === "string",
+            evidenceId:
+              reviewAsk?.id ??
+              (typeof project.get("reviewRequestsSkippedAt") === "string"
+                ? "review_requests_skipped"
+                : null),
           },
           {
             key: "crew",
@@ -781,8 +1025,6 @@ export const postEventCommand = onRequest(
          */
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("CLOSEOUT_ATTESTATION_PERMISSION_REQUIRED");
-        if (!requirementIsAttestable(parsed.input.requirementKey))
-          throw new Error("CLOSEOUT_REQUIREMENT_NEEDS_EVIDENCE");
         const reference = db.doc(`projectCloseouts/${parsed.input.closeoutId}`);
         result = await db.runTransaction(async (transaction) => {
           const closeout = await transaction.get(reference);
@@ -801,6 +1043,11 @@ export const postEventCommand = onRequest(
             (item) => item.key === parsed.input.requirementKey,
           );
           if (!target) throw new Error("CLOSEOUT_REQUIREMENT_NOT_FOUND");
+          // Read off the stored requirement, not the key alone: the final
+          // balance is vouchable only when the reconciler found no agreed
+          // price to record a payment against.
+          if (!requirementMayBeAttested(target))
+            throw new Error("CLOSEOUT_REQUIREMENT_NEEDS_EVIDENCE");
           // Already proven by the records, so there is nothing to vouch for.
           if (target.complete === true)
             throw new Error("CLOSEOUT_REQUIREMENT_ALREADY_MET");

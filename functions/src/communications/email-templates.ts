@@ -68,6 +68,8 @@ export const emailTemplateKeys = [
   "event_reminder",
   "thank_you",
   "delivery",
+  // A delivery link the studio got wrong, put right (replaceDeliveryLink).
+  "delivery_correction",
   "album_selection_reminder",
   // Two weeks before a gallery's downloads end (H4, Q25).
   "delivery_expiry_reminder",
@@ -1151,6 +1153,43 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: portalUrl
           ? { label: "Your project portal", url: portalUrl }
           : undefined,
+      };
+    }
+    case "delivery_correction": {
+      /**
+       * One email, not a second "your photographs are ready" (Wave 2). It says
+       * plainly that the earlier link was wrong, so a couple who already
+       * opened it — perhaps onto someone else's gallery — knows why, and it
+       * gives the right one. The old link forwards here too, but the email is
+       * what they will act on.
+       */
+      const [item] = deliveryItems(values);
+      const note = stringValue(values, "note");
+      const what = item
+        ? item.mediaType === "video"
+          ? `your ${item.label.toLowerCase().replace(/^your\s+/, "")}`
+          : item.mediaType === "files"
+            ? "your files"
+            : "your photographs"
+        : "your delivery";
+      return {
+        subject: `The right link for ${what} — ${brand.studioName}`,
+        preheader: "The link we sent earlier was wrong. This one is right.",
+        eyebrow: "Corrected link",
+        heading: "Sorry — here's the right link",
+        paragraphs: [
+          greeting,
+          `The link we sent you earlier for ${what} was wrong. Please use the one below instead — the earlier link now brings you here too.`,
+          ...(note ? [note] : []),
+          ...(item?.accessCode
+            ? [`${item.mediaType === "video" ? "Password" : "Access code"}: ${item.accessCode}. Keep it private.`]
+            : []),
+          ...(item?.expirationDate && item.mediaType !== "video"
+            ? [`Please download and back up ${what} before ${humanDate(item.expirationDate, zone)}.`]
+            : []),
+        ],
+        action: item ? { label: deliveryButton(item), url: item.url } : undefined,
+        secondaryAction: portalUrl ? { label: "Your project portal", url: portalUrl } : undefined,
       };
     }
     case "delivery_expiry_reminder": {

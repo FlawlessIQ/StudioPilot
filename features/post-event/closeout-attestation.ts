@@ -22,7 +22,8 @@
  * sentence — money and the agreement. Both already have proper attestation
  * paths that write real evidence (`recordSignedAgreement`,
  * `recordRetainerPayment`); a free-text note beside them would be a hole in the
- * books, not a convenience.
+ * books, not a convenience. The one exception is a job with no agreed price at
+ * all, where there is no proper path to take — see `requirementMayBeAttested`.
  *
  * Pure functions, no I/O.
  */
@@ -39,6 +40,12 @@ export type CloseoutRequirement = {
   complete: boolean;
   evidenceId?: string | null;
   attestation?: CloseoutAttestation | null;
+  /**
+   * Set by the reconciler, never by a client (projectCloseouts are
+   * server-written): the job carries no package snapshot, so no price was
+   * agreed in StudioCue and there is no balance to record a payment against.
+   */
+  noAgreedBalance?: boolean;
 };
 
 /**
@@ -64,6 +71,21 @@ export function requirementIsAttestable(key: string): boolean {
   return ATTESTABLE_CLOSEOUT_KEYS.includes(key);
 }
 
+/**
+ * Whether this requirement, as the reconciler wrote it, may be vouched for.
+ *
+ * The attestable keys, plus one narrow exception (Wave 2): the final balance
+ * on a job with no package snapshot — an imported or legacy booking. The
+ * proper path, `recordFinalPayment`, reads the agreed balance off the
+ * snapshot and so cannot run; the row offered nothing, and "Check again"
+ * looped forever on a job that could never close. With no agreed price there
+ * is no number a note could misstate, so a note is the honest record.
+ */
+export function requirementMayBeAttested(requirement: CloseoutRequirement): boolean {
+  if (requirementIsAttestable(requirement.key)) return true;
+  return requirement.key === "final_balance" && requirement.noAgreedBalance === true;
+}
+
 /** Proven by the records, or vouched for by a person who may vouch for it. */
 export function requirementIsSatisfied(
   requirement: CloseoutRequirement,
@@ -72,7 +94,7 @@ export function requirementIsSatisfied(
   if (!requirement.attestation) return false;
   // An attestation on a key that may not be attested counts for nothing, even
   // if one somehow reached the record.
-  return requirementIsAttestable(requirement.key);
+  return requirementMayBeAttested(requirement);
 }
 
 export function closeoutStatusFrom(
