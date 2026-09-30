@@ -8,6 +8,7 @@ import {
   crewDemand,
   jobCoverage,
   jobPackageSnapshotIds,
+  ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
@@ -190,6 +191,7 @@ export function useTodayInbox(): {
           ),
         ),
         assignments: forProject(crewAssignments.records, projectId),
+        ownerCovers: ownerShootsJob(project),
         scheduleVersion: Number(latestSchedule?.version ?? 0),
       });
       const { current } = projectJourney({

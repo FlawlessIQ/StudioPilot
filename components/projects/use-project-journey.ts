@@ -6,6 +6,7 @@ import {
   crewDemand,
   jobCoverage,
   jobPackageSnapshotIds,
+  ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
@@ -125,6 +126,7 @@ export function useProjectJourney({
       ),
     ),
     assignments: forProject(crewAssignments.records),
+    ownerCovers: ownerShootsJob(journeyProject),
     scheduleVersion: Number(latestSchedule?.version ?? 0),
   });
 

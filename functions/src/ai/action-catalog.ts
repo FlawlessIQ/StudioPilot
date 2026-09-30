@@ -122,6 +122,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "edit_crew_member", scope: "studio", when: "change a crew member's details, rate or trades — name in `subject`" },
   { id: "invite_crew_member", scope: "studio", when: "invite a crew member to the crew app — name in `subject`" },
   { id: "archive_crew_member", scope: "studio", when: "remove a crew member from the active roster — name in `subject`" },
+  { id: "set_owner_shooting", scope: "project", ownerAdminOnly: true, when: "say whether the owner is shooting a job themselves or sending crew for every role (\"I'm not at the Smith wedding\") — `text` is \"yes\" if they are shooting, \"no\" if not" },
   { id: "withdraw_crew", scope: "project", ownerAdminOnly: true, when: "take a crew member off a job (or withdraw an offer) without replacing them — name in `subject`, their reason in `text`" },
   { id: "replace_crew", scope: "project", ownerAdminOnly: true, when: "a crew member can't do a job or should be swapped: take them off and offer the role to the next person on the list — name in `subject`" },
   { id: "approve_crew_plan", scope: "project", when: "approve and send the crew plan StudioCue prepared at booking, or plan the crew for several roles at once" },

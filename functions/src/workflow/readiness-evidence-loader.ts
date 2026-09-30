@@ -30,6 +30,7 @@ import {
   crewDemand,
   jobCoverage,
   jobPackageSnapshotIds,
+  ownerShootsJob,
 } from "../crew/staffing-plan.js";
 
 const text = (value: unknown): string =>
@@ -98,6 +99,7 @@ export async function loadReadinessEvidence(
     coverage: jobCoverage(snapshots.map((snapshot) => snapshot.data())),
     assignments: crew.docs.map((document) => document.data()),
     scheduleVersion: Number(latestSchedule?.get("version") ?? 0),
+    ownerCovers: ownerShootsJob(project.data()),
   });
 
   return readinessEvidenceFromFacts({

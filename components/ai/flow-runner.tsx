@@ -20,6 +20,7 @@ import {
 import {
   coverageRoleForLabel,
   rolesToBook,
+  ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { resolveCoverage } from "@/features/packages/coverage";
 import {
@@ -546,7 +547,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     // that is unknown is the last resort, not the first move.
     const fromReason = `${str(flow.reason)} ${str(flow.title)}`;
     if (/video/i.test(fromReason)) return "Videographer";
-    const stillToBook = rolesToBook(coverageForProject).roles;
+    const stillToBook = rolesToBook(coverageForProject, ownerShootsJob(project)).roles;
     return stillToBook[0]?.role ?? "Second photographer";
   });
   const ranked = rankCrewCandidates({

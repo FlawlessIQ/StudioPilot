@@ -21620,3 +21620,18 @@ label {
   gap: 6px;
   width: 100%;
 }
+
+/* Whether the owner is on this wedding, on the job's crew card (GR, 2026-09-30). */
+.owner-shooting {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 4px 0 10px;
+}
+
+.owner-shooting p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}

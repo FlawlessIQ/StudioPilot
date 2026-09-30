@@ -21,6 +21,7 @@ import {
   crewDemand,
   jobCoverage,
   jobPackageSnapshotIds,
+  ownerShootsJob,
 } from "../crew/staffing-plan.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import {
@@ -1312,6 +1313,7 @@ export const workflowCommand = onRequest(
           ),
           assignments: crewSnapshot.docs.map((document) => document.data()),
           scheduleVersion: Number(latestSchedule?.get("version") ?? 0),
+          ownerCovers: ownerShootsJob(projectSnapshot.data()),
         });
         const evidence = readinessEvidenceFromFacts({
           contractStatus:

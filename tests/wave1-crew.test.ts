@@ -428,3 +428,43 @@ test("the functions copy of crewDemand matches features/", () => {
     body("features/crew/staffing-plan.ts"),
   );
 });
+
+/**
+ * "Gabe usually does every shoot but there may be some where he is not there
+ * and he sends crew" (2026-09-30) — so whether the owner is one of the crew is
+ * set per job, not assumed.
+ */
+test("the owner covers a role unless the job says not this time", async () => {
+  const { crewDemand, ownerShootsJob, rolesToBook } = await import("@/features/crew/staffing-plan");
+  const photoAndVideo = [
+    { role: "photographer" as const, count: 1 },
+    { role: "videographer" as const, count: 1 },
+  ];
+  assert.equal(ownerShootsJob({}), true);
+  assert.equal(ownerShootsJob({ ownerShooting: true }), true);
+  assert.equal(ownerShootsJob({ ownerShooting: false }), false);
+  assert.deepEqual(rolesToBook(photoAndVideo).roles.map((role) => role.coverageRole), ["videographer"]);
+  assert.deepEqual(rolesToBook(photoAndVideo, false).roles.map((role) => role.coverageRole), ["photographer", "videographer"]);
+  assert.equal(rolesToBook(photoAndVideo, false).studioCovers, null);
+  assert.equal(crewDemand({ coverage: photoAndVideo, assignments: [] }).crewRequired, 1);
+  assert.equal(crewDemand({ coverage: photoAndVideo, assignments: [], ownerCovers: false }).crewRequired, 2);
+});
+
+test("every place that counts crew asks the job whether the owner is shooting", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const file of [
+    "components/today/use-today-inbox.ts",
+    "components/projects/use-project-journey.ts",
+    "components/projects/use-readiness-evidence.ts",
+    "components/crew/crew-cascade-workspace.tsx",
+    "components/ai/flow-runner.tsx",
+    "functions/src/workflow/commands.ts",
+    "functions/src/workflow/readiness-evidence-loader.ts",
+    "functions/src/crew/prepare-staffing.ts",
+  ])
+    assert.match(readFileSync(file, "utf8"), /ownerShootsJob\(/, file);
+  const commands = readFileSync("functions/src/crew/commands.ts", "utf8");
+  assert.match(commands, /type: z\.literal\("setOwnerShooting"\)/);
+  assert.match(commands, /ownerShooting: parsed\.input\.ownerShooting,/);
+  assert.match(readFileSync("components/projects/live-project-detail.tsx", "utf8"), /<OwnerShootingToggle ownerShooting=\{ownerShooting\} projectId=\{projectId\} \/>/);
+});

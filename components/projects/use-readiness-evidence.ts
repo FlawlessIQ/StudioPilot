@@ -5,6 +5,7 @@ import {
   crewDemand,
   jobCoverage,
   jobPackageSnapshotIds,
+  ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
@@ -68,6 +69,7 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
       ),
     ),
     assignments: crew,
+    ownerCovers: ownerShootsJob(projectRecord),
     scheduleVersion: Number(latestSchedule?.version ?? 0),
   });
 

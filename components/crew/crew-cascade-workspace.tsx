@@ -28,6 +28,7 @@ import {
   crewDemand,
   jobCoverage,
   jobPackageSnapshotIds,
+  ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { suggestedResponsibilitiesText } from "@/features/crew/responsibilities";
 import {
@@ -514,6 +515,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         packageSnapshots.filter((snapshot) => snapshotIds.includes(snapshot.id)),
       ),
       assignments: assignments.filter((item) => item.projectId === projectId),
+      ownerCovers: ownerShootsJob(project),
     }).open.map((item) => item.role);
 
     const frame = requestAnimationFrame(() => {

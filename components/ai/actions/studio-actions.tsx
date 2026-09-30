@@ -16,6 +16,8 @@ import { CrewRecordActions, crewActionsProps } from "@/components/crew/crew-reco
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
 import { withdrawCrew } from "@/components/crew/withdraw-crew-control";
+import { setOwnerShooting } from "@/components/crew/owner-shooting-toggle";
+import { ownerShootsJob } from "@/features/crew/staffing-plan";
 import { isLiveAssignment } from "@/features/crew/job-stopped";
 import { withdrawConsequence, withdrawDoneMessage } from "@/features/crew/withdraw-copy";
 import { CreateWorkflowForm } from "@/components/workflows/create-workflow-form";
@@ -945,6 +947,57 @@ export function CrewPlanCard({ action }: ActionCardProps) {
       <Embedded>
         <CrewCascadeWorkspace projectId={job.id} />
       </Embedded>
+    </ActionShell>
+  );
+}
+
+/**
+ * "I'm not at the Smith wedding — send crew for everything." Whether the owner
+ * shoots a job is set per job (see OwnerShootingToggle); `text` says which way.
+ */
+export function OwnerShootingCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const title = `Who's shooting · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>I couldn't find that job.</Blocked></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done href={`/studio/projects/${job.id}`} label="Open the job">{runner.done}</Done></ActionShell>;
+  const said = str(action.text).toLowerCase();
+  const wantShooting = !/\b(no|not|isn'?t|won'?t|away|off|crew)\b/.test(said);
+  const now = ownerShootsJob(job);
+  return (
+    <ActionShell
+      detail={
+        wantShooting
+          ? "You're one of the crew on this job, so StudioCue books one fewer person."
+          : "You're not on this one, so every role in the packages is booked from your crew."
+      }
+      icon={<Users size={15} />}
+      title={title}
+    >
+      {now === wantShooting ? (
+        <Done href={`/studio/projects/${job.id}`} label="Open the job">
+          {wantShooting ? "You're already down as shooting this one." : "It's already set to crew for every role."}
+        </Done>
+      ) : (
+        <>
+          <Actions
+            busy={runner.busy}
+            label={wantShooting ? "I'm shooting it" : "Not me this time"}
+            onClick={() =>
+              void runner.run(async () => {
+                await setOwnerShooting(job.id, wantShooting);
+                return wantShooting
+                  ? "Done — you're shooting it, and the crew count is one fewer."
+                  : "Done — every role will be booked from your crew.";
+              }, { refresh: ["projects"] })
+            }
+          />
+          <Notice text={runner.notice} />
+        </>
+      )}
     </ActionShell>
   );
 }

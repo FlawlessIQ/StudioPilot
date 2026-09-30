@@ -5,7 +5,7 @@ import {
   type Firestore,
 } from "firebase-admin/firestore";
 import { combineCoverage, resolveCoverage } from "../packages/coverage.js";
-import { planCrewStaffing } from "./staffing-plan.js";
+import { planCrewStaffing, ownerShootsJob } from "./staffing-plan.js";
 import type { CrewCandidateInput } from "./cascade.js";
 import { cascadeAssignment } from "./offer.js";
 import { crewRequirementsFor } from "./requirements.js";
@@ -301,6 +301,7 @@ export async function prepareCrewStaffing(input: {
     endsAt: window.departureAt,
     candidates,
     depth: 5,
+    ownerCovers: ownerShootsJob(project.data()),
   });
 
   const settings =

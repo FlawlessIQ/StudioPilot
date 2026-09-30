@@ -101,12 +101,20 @@ export type StaffingPlan = {
  * package leads with, so a video-only package books one fewer videographer
  * rather than booking a crew of two and leaving the owner idle.
  */
-export function rolesToBook(coverage: readonly CoverageItem[]): {
+export function rolesToBook(
+  coverage: readonly CoverageItem[],
+  /**
+   * Whether the owner shoots this one. Usually yes — but a studio sometimes
+   * sends crew for every role and isn't there itself, so it is a per-job
+   * choice (`ownerShootsJob`), not a rule (GR Productions, 2026-09-30).
+   */
+  ownerCovers = true,
+): {
   roles: { role: string; coverageRole: CoverageRole }[];
   studioCovers: { role: CoverageRole; label: string } | null;
 } {
   const ordered = coverage.filter((item) => item.count > 0);
-  const lead = ordered[0];
+  const lead = ownerCovers ? ordered[0] : undefined;
   const roles: { role: string; coverageRole: CoverageRole }[] = [];
   for (const item of ordered) {
     const covered = item.role === lead?.role ? 1 : 0;
@@ -332,8 +340,10 @@ export function planCrewStaffing(input: {
   excludedIds?: readonly string[];
   /** How deep each role's cascade should go. */
   depth?: number;
+  /** Whether the owner shoots this job (see `ownerShootsJob`). */
+  ownerCovers?: boolean;
 }): StaffingPlan {
-  const { roles, studioCovers } = rolesToBook(input.coverage);
+  const { roles, studioCovers } = rolesToBook(input.coverage, input.ownerCovers ?? true);
   const plans = assignCandidatesToRoles({ ...input, roles });
   const coverageTotal = input.coverage.reduce((sum, item) => sum + item.count, 0);
   return {
@@ -354,8 +364,21 @@ export function planCrewStaffing(input: {
  */
 export function crewRequiredFromCoverage(
   coverage: readonly CoverageItem[],
+  ownerCovers = true,
 ): number {
-  return rolesToBook(coverage).roles.length;
+  return rolesToBook(coverage, ownerCovers).roles.length;
+}
+
+/**
+ * Whether the owner shoots this job: yes unless the studio said "not me this
+ * time" on the job (`ownerShooting: false`).
+ */
+export function ownerShootsJob(project: unknown): boolean {
+  return !(
+    typeof project === "object" &&
+    project !== null &&
+    (project as Record<string, unknown>).ownerShooting === false
+  );
 }
 
 /**
@@ -433,8 +456,10 @@ export function crewDemand(input: {
   coverage: readonly CoverageItem[];
   assignments: readonly CrewDemandAssignment[];
   scheduleVersion?: number | null;
+  /** Whether the owner shoots this job (see `ownerShootsJob`). */
+  ownerCovers?: boolean;
 }): CrewDemand {
-  const toBook = rolesToBook(input.coverage).roles;
+  const toBook = rolesToBook(input.coverage, input.ownerCovers ?? true).roles;
   const live = input.assignments.filter((assignment) =>
     isLiveAssignment(assignment.status),
   );

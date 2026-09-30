@@ -38,6 +38,8 @@ import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
 import { WithdrawCrewControl } from "@/components/crew/withdraw-crew-control";
+import { OwnerShootingToggle } from "@/components/crew/owner-shooting-toggle";
+import { ownerShootsJob } from "@/features/crew/staffing-plan";
 import {
   allowedProjectTransitions,
   transitionAuthority,
@@ -744,9 +746,12 @@ function ProjectLifecycleLanes({
 function ProjectCrewPanel({
   assignments,
   projectId,
+  ownerShooting,
 }: {
   assignments: LifecycleRecord[];
   projectId: string;
+  /** See OwnerShootingToggle: whether the owner is one of the crew on this job. */
+  ownerShooting: boolean;
 }) {
   const { records: profiles } = useTenantDocuments("crewProfiles");
   const nameFor = (assignment: LifecycleRecord) =>
@@ -772,6 +777,7 @@ function ProjectCrewPanel({
           {live.length ? "Staff another role" : "Staff this job"}
         </Link>
       </header>
+      <OwnerShootingToggle ownerShooting={ownerShooting} projectId={projectId} />
       {live.length ? (
         <ul>
           {live.map((assignment) => {
@@ -1293,6 +1299,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <ProjectJobPlan steps={journey.steps} projectId={projectId} />
           <ProjectCrewPanel
             assignments={related.crewAssignments}
+            ownerShooting={ownerShootsJob(project)}
             projectId={projectId}
           />
           {leadInviteEl}
@@ -1321,6 +1328,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             */}
             <ProjectCrewPanel
               assignments={related.crewAssignments}
+              ownerShooting={ownerShootsJob(project)}
               projectId={projectId}
             />
             <section className="project-now-next" aria-label="Project work summary">

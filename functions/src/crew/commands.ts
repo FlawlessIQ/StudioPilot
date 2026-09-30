@@ -157,6 +157,21 @@ const command = z.discriminatedUnion("type", [
      * and archiving them was refused while they held one. See
      * features/crew/withdraw.ts.
      */
+    /**
+     * Whether the owner shoots this job. Gabe "usually does every shoot but
+     * there may be some where he is not there and he sends crew" — so the
+     * crew a wedding needs is set per job, not by a studio-wide rule
+     * (features/crew/staffing-plan.ts ownerShootsJob).
+     */
+    type: z.literal("setOwnerShooting"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      ownerShooting: z.boolean(),
+    }),
+  }),
+  z.object({
     type: z.literal("withdrawAssignment"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -1428,6 +1443,25 @@ export const crewCommand = onRequest(
           status: "invited",
           inviteExpiresAt,
           inviteUrl,
+        };
+      } else if (parsed.type === "setOwnerShooting") {
+        if (
+          !["studio_owner", "studio_admin"].includes(role) ||
+          !hasProject(parsed.input.projectId)
+        )
+          throw new Error("FORBIDDEN");
+        const projectReference = db.doc(`projects/${parsed.input.projectId}`);
+        const projectDoc = await projectReference.get();
+        if (!projectDoc.exists || projectDoc.get("tenantId") !== parsed.tenantId)
+          throw new Error("PROJECT_NOT_FOUND");
+        await projectReference.update({
+          ownerShooting: parsed.input.ownerShooting,
+          updatedAt: new Date().toISOString(),
+          updatedBy: identity.uid,
+        });
+        result = {
+          projectId: parsed.input.projectId,
+          ownerShooting: parsed.input.ownerShooting,
         };
       } else if (parsed.type === "withdrawAssignment") {
         /**
