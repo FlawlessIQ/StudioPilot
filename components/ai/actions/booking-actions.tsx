@@ -24,6 +24,10 @@ import { ImportedBookingBanner } from "@/components/imports/imported-booking-ban
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
 import { NativeContractStep } from "@/components/contracts/native-contract-step";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
+import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { invoiceVoidRefusal, paymentCorrectable } from "@/features/booking/invoice-corrections";
+import { ApproveFinalInvoice, CorrectPayment, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { statusLabel } from "@/features/format/status-label";
 import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { FILE_BEARING } from "@/features/documents/file-ref";
@@ -995,7 +999,11 @@ export function RetainerInvoiceCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
   const snapshot = snapshots.find((item) => item.id === str(job.packageSnapshotId)) ?? null;
-  const existing = onJob(invoices, job.id).find((item) => /retainer/i.test(str(item.kind) + str(item.type) + str(item.label)));
+  // Only one that stands: a voided or replaced retainer is exactly the case
+  // for raising another.
+  const existing = onJob(invoices, job.id).find(
+    (item) => /retainer/i.test(str(item.kind) + str(item.type) + str(item.label)) && isStandingInvoice(item.status),
+  );
   if (existing) return <ActionShell title={title}><Done>{`A retainer invoice already exists (${str(existing.status) || "raised"}).`}</Done></ActionShell>;
   if (str(job.state) !== "RETAINER_PENDING" || !snapshot)
     return <ActionShell title={title}><Blocked>{`The retainer is invoiced once the contract is signed, and ${jobName(job)} isn't there yet.`}</Blocked></ActionShell>;
@@ -1037,12 +1045,13 @@ export function RecordPaymentCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
   const snapshots = useRecords("packageSnapshots");
   const invoices = useRecords("invoiceReferences");
+  const proposals = useRecords("proposals");
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const [message, setMessage] = useState<string | null>(null);
   const final = action.action === "record_final_payment";
   const title = `Record the ${final ? "final payment" : "retainer"} · ${jobName(job)}`;
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
-  if (loading || !snapshots || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (loading || !snapshots || !invoices || !proposals) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
   const snapshot = snapshots.find((item) => item.id === str(job.packageSnapshotId)) ?? null;
@@ -1063,7 +1072,18 @@ export function RecordPaymentCard({ action }: ActionCardProps) {
     return <ActionShell title={title}><Blocked>{`${jobName(job)} isn't waiting on its retainer.`}</Blocked></ActionShell>;
   if (final && !["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(state))
     return <ActionShell title={title}><Blocked>{`${jobName(job)} isn't booked yet, so there is no balance to record.`}</Blocked></ActionShell>;
-  const invoice = onJob(invoices, job.id).find((item) => (final ? /final|balance/i : /retainer/i).test(str(item.kind) + str(item.type) + str(item.label)));
+  const invoice = onJob(invoices, job.id).find(
+    (item) =>
+      (final ? /final|balance/i : /retainer/i).test(str(item.kind) + str(item.type) + str(item.label)) &&
+      isStandingInvoice(item.status),
+  );
+  // What the server records: the invoice out with the couple when one stands,
+  // otherwise the retainer the couple agreed — not the package's, which a
+  // proposal can override (agreed-retainer.ts).
+  const agreedRetainer = retainerFromSchedule(
+    acceptedProposal(proposals, job.id)?.paymentSchedule,
+    Number(snapshot.retainerCents ?? 0),
+  );
   return (
     <ActionShell detail="You enter when and how they paid; the amount comes from the invoice." icon={<HandCoins size={15} />} title={title}>
       <Embedded>
@@ -1079,7 +1099,7 @@ export function RecordPaymentCard({ action }: ActionCardProps) {
             onRecorded={onRecorded}
             packageSnapshotId={snapshot.id}
             projectId={job.id}
-            retainerLabel={dollars(invoice?.amountCents ?? snapshot.retainerCents)}
+            retainerLabel={dollars(invoice ? invoice.amountCents : agreedRetainer)}
           />
         )}
       </Embedded>
@@ -1100,6 +1120,18 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
   const due = outstandingFinalBalance({ projectId: job.id, proposals, invoices });
+  // Held for the studio to check: never sent, so "already out" was untrue.
+  const held = due.heldForReviewId ? (invoices.find((item) => item.id === due.heldForReviewId) ?? null) : null;
+  if (held)
+    return (
+      <ActionShell
+        detail="It's held because the payments on record don't match what was agreed. Check the amount, then send it — or correct the payment first if one was recorded wrongly."
+        icon={<HandCoins size={15} />}
+        title={title}
+      >
+        <ApproveFinalInvoice amountCents={due.cents} invoice={held} onDone={setMessage} />
+      </ActionShell>
+    );
   if (due.finalStanding)
     return <ActionShell title={title}><Done>{`${jobName(job)}'s final bill is already out. Open Invoices to see where it is.`}</Done></ActionShell>;
   if (!due.cents) return <ActionShell title={title}><Done>{`Nothing is left to pay on ${jobName(job)}.`}</Done></ActionShell>;
@@ -1115,6 +1147,99 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
         packageSnapshotId={str(job.packageSnapshotId) || null}
         projectId={job.id}
       />
+    </ActionShell>
+  );
+}
+
+/** Which bill the operator named, in their words: "the retainer", "the final". */
+function namedInvoiceKind(subject: string | null): "retainer" | "final" | null {
+  const words = (subject ?? "").toLowerCase();
+  if (/final|balance|rest/.test(words)) return "final";
+  if (/retainer|deposit/.test(words)) return "retainer";
+  return null;
+}
+
+const invoiceLine = (invoice: Rec) =>
+  `${str(invoice.kind) === "final" ? "Final balance" : "Retainer"} · ${dollars(invoice.amountCents)} · ${statusLabel(invoice.status)}`;
+
+/** Void a wrong or no-longer-owed bill: the booking page's own control. */
+export function VoidInvoiceCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const invoices = useRecords("invoiceReferences");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const [message, setMessage] = useState<string | null>(null);
+  const title = `Void an invoice · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
+  const kind = namedInvoiceKind(action.subject);
+  const voidable = onJob(invoices, job.id).filter(
+    (item) => invoiceVoidRefusal(item) === null && (!kind || str(item.kind) === kind),
+  );
+  if (!voidable.length)
+    return (
+      <ActionShell title={title}>
+        <Blocked>
+          {`${jobName(job)} has no unpaid ${kind ?? ""} invoice to void. A bill with money on it can't be voided — correct the payment instead, or refund it where it was paid.`.replace(/\s+/g, " ")}
+        </Blocked>
+      </ActionShell>
+    );
+  return (
+    <ActionShell
+      detail="It's voided here and in your invoicing app, so the couple can no longer pay it. You can raise a corrected one afterwards."
+      icon={<Receipt size={15} />}
+      title={title}
+    >
+      <Embedded>
+        {voidable.map((invoice) => (
+          <div key={invoice.id}>
+            <p className="cue-action-note">{invoiceLine(invoice)}</p>
+            <VoidInvoice defaultReason={action.text ?? ""} invoice={invoice} onDone={setMessage} />
+          </div>
+        ))}
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+/** Correct a payment the studio recorded: added to the record, never rewritten. */
+export function CorrectPaymentCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const invoices = useRecords("invoiceReferences");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const [message, setMessage] = useState<string | null>(null);
+  const title = `Correct a payment · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
+  const kind = namedInvoiceKind(action.subject);
+  const correctable = onJob(invoices, job.id).filter(
+    (item) => paymentCorrectable(item) && (!kind || str(item.kind) === kind),
+  );
+  if (!correctable.length)
+    return (
+      <ActionShell title={title}>
+        <Blocked>
+          {`${jobName(job)} has no payment recorded by hand to correct. A payment from QuickBooks or Stripe is corrected there; StudioCue follows it.`}
+        </Blocked>
+      </ActionShell>
+    );
+  return (
+    <ActionShell
+      detail="You enter what actually arrived. The correction is added to the record; the original stays in the history."
+      icon={<HandCoins size={15} />}
+      title={title}
+    >
+      <Embedded>
+        {correctable.map((invoice) => (
+          <div key={invoice.id}>
+            <p className="cue-action-note">{invoiceLine(invoice)}</p>
+            <CorrectPayment invoice={invoice} onDone={setMessage} />
+          </div>
+        ))}
+      </Embedded>
     </ActionShell>
   );
 }

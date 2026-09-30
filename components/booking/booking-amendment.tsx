@@ -411,9 +411,26 @@ export function BookingAmendmentPanel({
   );
 }
 
-/** The job-page button beside Edit job. */
-export function BookingAmendment({ projectId, state }: { projectId: string; state: string }) {
-  const [open, setOpen] = useState(false);
+/**
+ * The job-page button beside Edit job.
+ *
+ * Optionally opened from outside: Edit job points a signed booking's date
+ * here, and its link has to open this sheet rather than describe it.
+ */
+export function BookingAmendment({
+  projectId,
+  state,
+  open: openFromOutside,
+  onOpenChange,
+}: {
+  projectId: string;
+  state: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = openFromOutside ?? ownOpen;
+  const setOpen = onOpenChange ?? setOwnOpen;
   const [notice, setNotice] = useState<string | null>(null);
   if (!AMENDABLE_STATES.includes(state)) return null;
   return (

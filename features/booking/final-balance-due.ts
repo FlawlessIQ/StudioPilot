@@ -23,7 +23,19 @@ export function outstandingFinalBalance(input: {
   projectId: string;
   proposals: readonly Row[] | null | undefined;
   invoices: readonly Row[] | null | undefined;
-}): { cents: number | null; dueDate: string | null; finalStanding: boolean; lastFailure: string | null } {
+}): {
+  cents: number | null;
+  dueDate: string | null;
+  finalStanding: boolean;
+  lastFailure: string | null;
+  /**
+   * A final bill held for the studio to check (`review_required`): standing,
+   * so nothing new is offered, and never sent — so it needs saying. It was
+   * counted only as "a final bill is out", and Today went quiet about a bill
+   * nobody had sent (money audit, wave 1).
+   */
+  heldForReviewId: string | null;
+} {
   const accepted = (input.proposals ?? [])
     .filter((proposal) => proposal.projectId === input.projectId && proposal.status === "accepted")
     .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
@@ -48,6 +60,8 @@ export function outstandingFinalBalance(input: {
     lastFailure: finalBillFailure(
       (input.invoices ?? []).filter((invoice) => invoice.projectId === input.projectId),
     ),
+    heldForReviewId:
+      standing.find((invoice) => invoice.kind === "final" && invoice.status === "review_required")?.id ?? null,
   };
 }
 

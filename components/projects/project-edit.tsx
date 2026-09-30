@@ -6,6 +6,7 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import type { EventDateLock } from "@/features/projects/event-date-lock";
 
 /**
  * Correcting a job.
@@ -24,7 +25,17 @@ import { runCrmCommand } from "@/lib/crm/command-client";
  */
 export function ProjectEdit({
   project,
+  dateLock = null,
+  onChangeBooking,
 }: {
+  /**
+   * Why the date can't be edited here, if it can't
+   * (features/projects/event-date-lock.ts). The server refuses the same
+   * change; this says so before anyone types a date.
+   */
+  dateLock?: EventDateLock;
+  /** Opens "Change the booking", where a signed booking's date moves. */
+  onChangeBooking?: () => void;
   project: {
     id: string;
     name: string;
@@ -110,10 +121,39 @@ export function ProjectEdit({
               Event date
               <input
                 defaultValue={project.eventDate}
-                name="eventDate"
+                // A disabled field is not submitted; the hidden one below
+                // carries the unchanged date so the rest still saves.
+                disabled={dateLock !== null}
+                name={dateLock ? undefined : "eventDate"}
                 required
                 type="date"
               />
+              {dateLock ? <input name="eventDate" type="hidden" value={project.eventDate} /> : null}
+              {dateLock === "signed" ? (
+                <small>
+                  The couple has signed — change the date with{" "}
+                  {onChangeBooking ? (
+                    <button
+                      className="button button-light"
+                      onClick={() => {
+                        setOpen(false);
+                        onChangeBooking();
+                      }}
+                      type="button"
+                    >
+                      Change the booking
+                    </button>
+                  ) : (
+                    "Change the booking"
+                  )}
+                  , so the contract, crew invites and bills move with it.
+                </small>
+              ) : dateLock === "agreement_out" ? (
+                <small>
+                  The agreement out for signature states this date. Withdraw it on the Booking tab first, then change
+                  the date.
+                </small>
+              ) : null}
             </label>
             <label>
               Event type

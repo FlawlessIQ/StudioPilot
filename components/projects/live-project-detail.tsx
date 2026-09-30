@@ -1,6 +1,7 @@
 "use client";
 
-import { BookingAmendment } from "@/components/booking/booking-amendment";
+import { AMENDABLE_STATES, BookingAmendment } from "@/components/booking/booking-amendment";
+import { eventDateLock } from "@/features/projects/event-date-lock";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -827,6 +828,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   );
   const [related, setRelated] = useState<RelatedRecords>(emptyRelatedRecords);
   const [error, setError] = useState<string | null>(null);
+  // "Change the booking", opened from Edit job's locked date as well as its
+  // own button.
+  const [changingBooking, setChangingBooking] = useState(false);
   // One derivation of the project's position, shared by the journey panel
   // and the recommended-move card so they can never disagree.
   const journey = useProjectJourney({
@@ -1147,8 +1151,24 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                 projectId={String(project.id)}
               />
               <ProjectInquiryClose projectId={String(project.id)} state={String(project.state)} />
-              <BookingAmendment projectId={String(project.id)} state={String(project.state)} />
+              <BookingAmendment
+                onOpenChange={setChangingBooking}
+                open={changingBooking}
+                projectId={String(project.id)}
+                state={String(project.state)}
+              />
               <ProjectEdit
+                dateLock={eventDateLock({
+                  state: project.state,
+                  postponedFromState: project.postponedFromState,
+                  bookingCompletedAt: project.bookingCompletedAt,
+                  contractStatuses: related.contracts.map((contract) => contract.status),
+                })}
+                onChangeBooking={
+                  AMENDABLE_STATES.includes(String(project.state))
+                    ? () => setChangingBooking(true)
+                    : undefined
+                }
                 project={{
                   id: String(project.id),
                   name: String(project.name ?? ""),

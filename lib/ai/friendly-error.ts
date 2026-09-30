@@ -75,8 +75,32 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   AMENDMENT_ALREADY_SIGNED: "The couple has already signed this change. It's being applied now.",
   AGREEMENT_ALREADY_SENT:
     "The agreement has already gone to the couple for these packages. Void it on the Booking tab first, then change the packages.",
+  // The void it names exists since the money audit (wave 1): "Void this
+  // invoice" on the booking page and on Invoices.
   INVOICE_ALREADY_RAISED:
-    "An invoice has already been raised for the current total. Void it first, then change the packages.",
+    "An invoice has already been raised for the current total. Use \"Void this invoice\" on the job's Booking tab or on Invoices, then change the packages.",
+  // Voiding a bill, correcting a payment (bookingCommand voidInvoice /
+  // correctPaymentRecord / approveFinalInvoice).
+  INVOICE_NOT_FOUND: "That invoice isn't there any more. Refresh and try again.",
+  INVOICE_NOT_VOIDABLE: "That invoice is already voided, replaced or refused, so there's nothing to void.",
+  INVOICE_HAS_PAYMENT:
+    "Money has been paid on this invoice, so it can't be voided. If that payment was recorded by mistake, correct the payment instead; if it's real, refund it where it was paid.",
+  INVOICE_VOID_PERMISSION_REQUIRED: "Only the studio's owners and admins can void an invoice.",
+  PAYMENT_CORRECTION_PERMISSION_REQUIRED: "Only the studio's owners and admins can correct a payment.",
+  PAYMENT_NOT_STUDIO_RECORDED:
+    "This payment came from your invoicing app, so correct it there. StudioCue follows what it reports.",
+  PAYMENT_AMOUNT_INVALID: "Enter the amount that actually arrived, in dollars and cents.",
+  PAYMENT_EXCEEDS_INVOICE: "That's more than this invoice was for. Enter what was paid against it.",
+  PARTIAL_PAYMENT_AT_PROVIDER:
+    "This invoice lives in your invoicing app, which never saw this payment. Record a part payment there so the balance it charges is right, or correct this to the full amount or to nothing paid.",
+  FINAL_INVOICE_NOT_IN_REVIEW: "That final bill isn't waiting for review any more. Refresh to see where it is.",
+  FINAL_AMOUNT_CHANGED:
+    "The balance changed since this page loaded — a payment was recorded or a bill changed. Refresh and check the new amount before sending.",
+  // Editing a job's date (crmCommand updateProject).
+  EVENT_DATE_LOCKED_AFTER_SIGNING:
+    "The couple has signed, so the date is part of their agreement. Change it with \"Change the booking\" on the job, so the contract, crew invites and bills move with it.",
+  EVENT_DATE_LOCKED_AGREEMENT_OUT:
+    "The agreement out for signature states the current date. Withdraw it on the Booking tab first, then change the date and send it again.",
   PACKAGE_ALREADY_SELECTED:
     "This job already has a package. Open its proposal and use Packages to add another or swap it.",
   PACKAGE_ALREADY_ON_JOB: "That package is already on this job.",
@@ -99,7 +123,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PACKAGE_REQUEST_NOT_AVAILABLE:
     "Your booking can't take another package right now — your agreement may already be on its way. Please message your studio.",
   // Sending the final bill by hand (bookingCommand sendFinalBalance).
-  FINAL_INVOICE_ALREADY_OUT: "A final bill is already out for this job. Open Invoices to see where it is.",
+  FINAL_INVOICE_ALREADY_OUT:
+    "A final bill is already out for this job. Open Invoices to see where it is — void it there if it's wrong, then send a new one.",
   NOTHING_OWED: "Nothing is left to pay on this job, so there's no final bill to send.",
   FINAL_NEEDS_RETAINER_RECORD:
     "There's no retainer on this job, paid or waived, so the balance can't be worked out. If the couple paid one, record it on the booking page. If you're going ahead without one, record the balance as paid another way or bill it from your invoicing app.",

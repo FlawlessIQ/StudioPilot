@@ -49,6 +49,14 @@ const FAILURES: Record<string, ProviderFailure> = {
     title: "The invoice wasn't created",
     provider: "Stripe",
   },
+  void_quickbooks_invoice: {
+    title: "The invoice wasn't voided — void it yourself",
+    provider: "QuickBooks",
+  },
+  void_stripe_invoice: {
+    title: "The invoice wasn't voided — void it yourself",
+    provider: "Stripe",
+  },
   create_consultation_resources: {
     title: "The consultation call wasn't booked",
     provider: "your calendar",

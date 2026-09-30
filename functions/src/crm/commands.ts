@@ -13,7 +13,9 @@ import { senderProtection, senderProtectionReason } from "../intake/ignorable-se
 import { studioMailboxes } from "../communications/inbound.js";
 import { pricePackage } from "../pricing/package-price.js";
 import { packageChangeNeedsApprover } from "../booking/proposal-domain.js";
+import { isStandingInvoice } from "../booking/invoice-standing.js";
 import { holdResumeStates } from "./hold-resume.js";
+import { eventDateLock } from "./event-date-lock.js";
 import {
   readStoppedBilling,
   writeStoppedBilling,
@@ -822,7 +824,15 @@ async function assertPackagesEditable(
       .where("tenantId", "==", input.tenantId)
       .where("projectId", "==", input.projectId),
   );
-  if (invoices.docs.some((invoice) => !["voided", "void", "cancelled"].includes(String(invoice.get("status"))))) {
+  // Only a bill that still stands. A provider-refused (`failed`) or replaced
+  // (`superseded`) attempt was never the couple's to pay, and counting one
+  // blocked every package change with "void it first" on a bill nobody holds.
+  if (
+    invoices.docs.some((invoice) => {
+      const status = String(invoice.get("status"));
+      return isStandingInvoice(status) && !["void", "cancelled"].includes(status);
+    })
+  ) {
     throw new Error("INVOICE_ALREADY_RAISED");
   }
 }
@@ -2408,6 +2418,31 @@ export const crmCommand = onRequest(
           // reason Cue will not staff one.
           if (project.get("archivedAt")) {
             throw new Error("PROJECT_ARCHIVED");
+          }
+          /**
+           * A signed booking's date moves by a booking change, not here.
+           *
+           * This moved the date and nothing else: the signed contract, the
+           * crew's calendar invites, the questionnaire's due date and the day
+           * the final bill is raised all kept the old one. The amendment path
+           * moves every one of them, with the couple's signature. Every other
+           * field stays editable, and so does the date before signing.
+           */
+          if (project.get("eventDate") !== command.input.eventDate) {
+            const contracts = await transaction.get(
+              db
+                .collection("contracts")
+                .where("tenantId", "==", command.tenantId)
+                .where("projectId", "==", command.input.projectId),
+            );
+            const lock = eventDateLock({
+              state: project.get("state"),
+              postponedFromState: project.get("postponedFromState"),
+              bookingCompletedAt: project.get("bookingCompletedAt"),
+              contractStatuses: contracts.docs.map((contract) => contract.get("status")),
+            });
+            if (lock === "signed") throw new Error("EVENT_DATE_LOCKED_AFTER_SIGNING");
+            if (lock === "agreement_out") throw new Error("EVENT_DATE_LOCKED_AGREEMENT_OUT");
           }
           const before = {
             name: project.get("name") ?? null,

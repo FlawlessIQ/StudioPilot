@@ -13,6 +13,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         title="Invoices"
         description="See retainer and final invoice status synced from QuickBooks."
         projectId={project}
+        rowActions="invoice"
       />
       <AutopayHint />
       <FinalInvoiceReconciliation projectId={project} />

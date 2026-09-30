@@ -75,7 +75,10 @@ export function providerReportedInvoice(input: {
   const status = String(current.status);
   if (status === "paid" && STUDIO_VOUCHED.has(String(current.completionAuthority)))
     return { status: "paid", balanceCents: 0, keptReason: "studio_recorded_payment" };
-  if (status === "superseded" || status === "cancelled")
+  // `voided` joins them since StudioCue can void an invoice itself
+  // (voidInvoice). When the provider void fails, the invoice is still open
+  // there, and its next unrelated webhook must not reopen the bill here.
+  if (status === "superseded" || status === "cancelled" || status === "voided")
     return {
       status,
       balanceCents: Number(current.balanceCents ?? 0),

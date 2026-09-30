@@ -48,6 +48,14 @@ export function BookWithoutRetainer({
         return;
       }
       const exceptionId = String(approved.payload.exceptionId ?? "");
+      // A retainer bill already out is voided by the waiver (server side), so
+      // the couple is not asked for money the studio just waived.
+      const voidedCount = Array.isArray(approved.payload.voidedInvoiceIds)
+        ? approved.payload.voidedInvoiceIds.length
+        : 0;
+      const voidedLine = voidedCount
+        ? " The retainer invoice that was out with the couple is voided."
+        : "";
       const gate = await sendBookingCommand({
         type: "runBookingGate",
         idempotencyKey: crypto.randomUUID(),
@@ -59,7 +67,7 @@ export function BookWithoutRetainer({
       });
       const payload = gate.mode === "live" ? gate.payload : {};
       if (payload.passed === true) {
-        onBooked("Booked without the retainer, recorded against your name.");
+        onBooked(`Booked without the retainer, recorded against your name.${voidedLine}`);
         return;
       }
       const blockers = Array.isArray(payload.blockers)
@@ -67,8 +75,8 @@ export function BookWithoutRetainer({
         : [];
       setNotice(
         blockers.length
-          ? `The retainer is waived, but the booking is still waiting on: ${blockers.join(", ")}.`
-          : "The retainer is waived, but the booking couldn't be confirmed yet.",
+          ? `The retainer is waived, but the booking is still waiting on: ${blockers.join(", ")}.${voidedLine}`
+          : `The retainer is waived, but the booking couldn't be confirmed yet.${voidedLine}`,
       );
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "The booking couldn't be confirmed without the retainer."));
@@ -89,7 +97,8 @@ export function BookWithoutRetainer({
         <p>
           For a booking you&rsquo;re confirming without taking a retainer. The
           booking goes ahead now, and the record says the retainer was waived,
-          by you, and why.
+          by you, and why. A retainer invoice already out with the couple is
+          voided, so they aren&rsquo;t asked for it.
         </p>
         <label>
           Why
