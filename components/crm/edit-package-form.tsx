@@ -348,7 +348,9 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           />
           <span>Show this package to clients</span>
           <small>
-            Off keeps it internal — it stays out of quotes and the client portal.
+            Off keeps couples from choosing or asking for it in their portal,
+            and keeps it out of drafted replies. You can still put it in a
+            proposal yourself.
           </small>
         </label>
         <label className="form-checkbox">

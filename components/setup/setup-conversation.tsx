@@ -124,6 +124,10 @@ export function SetupConversation() {
   const { gaps, complete, loading, refresh, calendarConnected } = useSetupState();
   const gapByKey = new Map(gaps.map((gap) => [gap.key, gap]));
   const answered = QUESTIONS.length - gaps.length;
+  // `complete` is "ready to take bookings" (setupComplete), which leaves out
+  // insurance on purpose. The page said "Your studio is set up." over "5 of 6
+  // answered"; now it only says that when every question is answered.
+  const allAnswered = !loading && gaps.length === 0;
 
   /** What a question offers when it isn't answered yet. */
   const answer = (question: Question, gap: SetupGap): ReactNode => {
@@ -202,14 +206,18 @@ export function SetupConversation() {
         <header>
           <p className="eyebrow">Getting started</p>
           <h1>
-            {complete
+            {allAnswered
               ? "Your studio is set up."
-              : "Let's set up your studio."}
+              : complete
+                ? "You're ready to take bookings."
+                : "Let's set up your studio."}
           </h1>
           <p className="setup-lede">
-            {complete
+            {allAnswered
               ? "Everything StudioCue needs is in place. Change any of it whenever your studio does."
-              : "Six questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
+              : complete
+                ? "Everything a booking needs is in place. What's left below only matters if venues ask for it."
+                : "Six questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
           </p>
           {!loading ? (
             <p className="setup-progress">

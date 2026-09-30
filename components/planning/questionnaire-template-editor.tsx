@@ -35,6 +35,12 @@ type EditableField = {
   /** Whether the answer reaches crew on the job. */
   crewVisible: boolean;
   options: string;
+  /**
+   * "Show after" — not editable here, but kept. Saving wrote null for every
+   * field, so editing any question in a template quietly made every
+   * conditional question always show.
+   */
+  conditionalOn?: { fieldId: string; equals: unknown } | null;
 };
 
 type EditableSection = { id: string; title: string; fields: EditableField[] };
@@ -152,6 +158,7 @@ export function QuestionnaireTemplateEditor({
         }))
         .filter((section) => section.fields.length > 0);
       if (!kept.length) throw new Error("Keep at least one question.");
+      const fieldIds = new Set(kept.flatMap((section) => section.fields.map((field) => field.id)));
       await sendPlanningCommand("updateQuestionnaireTemplate", {
         templateId: template.id,
         name: name.trim(),
@@ -175,7 +182,9 @@ export function QuestionnaireTemplateEditor({
                   .map((option) => option.trim())
                   .filter(Boolean)
               : [],
-            conditionalOn: null,
+            // Kept while the question it depends on is still in the form.
+            conditionalOn:
+              field.conditionalOn && fieldIds.has(field.conditionalOn.fieldId) ? field.conditionalOn : null,
           })),
         })),
       });

@@ -20,6 +20,15 @@ import { QuestionnaireTemplateEditor } from "@/components/planning/questionnaire
 import { fieldReachesCrew } from "@/features/questionnaires/crew-brief";
 import { InfoHint } from "@/components/ui/info-hint";
 
+/** A saved "Show after" condition, carried through the editor unchanged. */
+function conditionOf(value: unknown): { fieldId: string; equals: unknown } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const condition = value as Record<string, unknown>;
+  return typeof condition.fieldId === "string" && condition.fieldId
+    ? { fieldId: condition.fieldId, equals: condition.equals }
+    : null;
+}
+
 const fieldTypes = [
   ["text", "Short text"],
   ["long_text", "Long text"],
@@ -308,6 +317,7 @@ export function QuestionnaireBuilder({
                                         options: Array.isArray(f.options)
                                           ? f.options.map(String).join(", ")
                                           : "",
+                                        conditionalOn: conditionOf(f.conditionalOn),
                                       };
                                     })
                                   : [],

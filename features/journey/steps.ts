@@ -689,8 +689,13 @@ export function projectJourney(input: JourneyInput): {
   push({
     key: "run_of_show",
     title: "Run of show",
+    // "Published" is shared, not approved: publishing asks the couple to
+    // approve (approvalState client_pending), and this said "Approved and
+    // shared" from the moment it went out.
     detail: scheduleDone
-      ? "Approved and shared"
+      ? input.scheduleStatus === "approved"
+        ? "Approved and shared"
+        : "Shared with your crew and the couple"
       : scheduleEmptyButSettled
         ? "Approved, but it has no times in it yet"
         : scheduleWaiting

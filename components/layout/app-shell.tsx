@@ -146,6 +146,8 @@ const activeGroups: Record<string, string[]> = {
   // none of which appeared in any group — so all three highlighted Today, which
   // is the one place they are not.
   "Studio settings": ["Settings", "Integrations", "Subscription", "Workflows"],
+  // Without a group of its own, /studio/help lit up Today in the menu.
+  "Help & guides": ["Help & guides"],
 };
 
 const StudioShellContext = createContext(false);

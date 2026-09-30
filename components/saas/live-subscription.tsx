@@ -212,7 +212,10 @@ export function LiveSubscription() {
           <span>
             <small>AI actions · current month</small>
             <strong>{aiActions.toLocaleString()} / {maxAi ? maxAi.toLocaleString() : "—"}</strong>
-            <em>Resets each billing month</em>
+            {/* Not "each billing month": the counter is per calendar month in
+                UTC, whatever the billing date, and a daily cap sits under it
+                (functions/src/saas/usage.ts). */}
+            <em>Resets on the 1st of each month · a daily cap stops runaway use</em>
             <i><b style={{ width: `${maxAi ? Math.min(100, (aiActions / maxAi) * 100) : 0}%` }} /></i>
           </span>
         </article>

@@ -23,15 +23,18 @@ export default async function DeliveryPage({
               <p className="eyebrow">Gallery handoff</p>
               <h1>Delivery</h1>
               {/* Was "StudioCue checks the balance, the contract and the crew
-                  before anything reaches the couple". It checks none of those —
-                  the delivery gate requires the backup, the finished edit and a
-                  ready gallery, which is what the checklist below tracks. Copy
-                  describing the wrong check sent the walk of 2026-08-26 looking
-                  for a balance problem that did not exist. */}
+                  before anything reaches the couple". It checks none of those.
+                  Then it said the edit and a ready gallery gated release too;
+                  the gate is the backup alone (DELIVERY_GATE_STEPS in
+                  features/post-production/checklist.ts, and the release command
+                  in functions/src/post-event/release.ts). Copy describing the
+                  wrong check sends a studio hunting for a block that isn't
+                  there. */}
               <p>
-                Work through post-production, then record the gallery. StudioCue
-                will not release a delivery until the cards are backed up, the
-                editing is finished and the gallery is ready.
+                Work through post-production, then record the gallery. The one
+                step StudioCue requires before anything goes to the couple is
+                backing up the cards; the rest of the checklist tracks your
+                progress.
               </p>
             </div>
           </header>

@@ -142,7 +142,7 @@ const GROUPS: Array<{ label: string; items: HubItem[] }> = [
         href: "/studio/setup",
         icon: Wand2,
         title: "Finish setting up",
-        subtitle: "Packages, agreement, details form, and hours",
+        subtitle: "Inquiries, hours, packages, agreement, details form and insurance",
       },
     ],
   },

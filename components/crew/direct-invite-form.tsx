@@ -7,6 +7,8 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { crewRequirementsFor, type CrewRequirementSettings } from "@/features/crew/requirements";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const localDateTime = (value: Date) => {
@@ -14,34 +16,6 @@ const localDateTime = (value: Date) => {
   return new Date(value.valueOf() - offset).toISOString().slice(0, 16);
 };
 
-/** The same obligations a cascade offer carries, so the two paths agree. */
-const REQUIREMENTS = [
-  {
-    id: "w9",
-    name: "W-9 on file",
-    kind: "w9" as const,
-    required: true,
-    dueAt: null,
-    instructions: "Upload a current signed W-9 for studio review.",
-  },
-  {
-    id: "insurance",
-    name: "Liability insurance",
-    kind: "insurance" as const,
-    required: true,
-    dueAt: null,
-    instructions: "Upload a current certificate of liability insurance.",
-  },
-  {
-    id: "schedule",
-    name: "Current schedule acknowledged",
-    kind: "acknowledgement" as const,
-    required: true,
-    dueAt: null,
-    instructions:
-      "Review and acknowledge the current schedule before event day.",
-  },
-];
 
 /**
  * One named person, one job, no ranking.
@@ -77,6 +51,15 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
   const { records: projects } = useTenantDocuments("projects");
   const { records: profiles } = useTenantDocuments("crewProfiles");
   const { records: assignments } = useTenantDocuments("crewAssignments");
+  // The same obligations a cascade offer carries, from the same setting. This
+  // list used to be written out here with liability insurance always
+  // required, so a direct offer demanded a certificate the studio had
+  // switched off in Studio settings → Crew offers.
+  const workspace = useWorkspace();
+  const { records: tenants } = useTenantDocuments("tenants");
+  const crewSettings = (tenants ?? []).find((entry) => entry.id === workspace.tenantId)?.crewOffers as
+    | CrewRequirementSettings
+    | undefined;
   const { records: schedules } = useTenantDocuments("schedules");
 
   const project = projects?.find((item) => item.id === projectId);
@@ -162,7 +145,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
         scheduleItemIds: [],
         currentScheduleId: latestSchedule?.id ?? null,
         currentScheduleVersion: Number(latestSchedule?.version ?? 0),
-        requirements: REQUIREMENTS,
+        requirements: crewRequirementsFor(crewSettings),
       });
       if (response.persisted) {
         returnToJob({ delayMs: 1600 });
