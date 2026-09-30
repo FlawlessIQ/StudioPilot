@@ -122,6 +122,23 @@ textarea:focus-visible {
   transform: translateY(-1px);
 }
 
+/*
+ * A button given no variant still looks like a button. Twenty-two of them —
+ * Save client, Record payment, Record signature, Waive the retainer — were
+ * bare text on the page, with a transparent border and no fill: "save button
+ * still not a button" (GR, 2026-09-30). :where() keeps this at the weight of
+ * .button itself, so any screen that styles its own buttons still wins.
+ */
+.button:where(:not(.button-dark, .button-light, .button-quiet, .button-danger, .button-secondary, .button-light-on-dark, .button-ghost)) {
+  background: white;
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.button:where(:not(.button-dark, .button-light, .button-quiet, .button-danger, .button-secondary, .button-light-on-dark, .button-ghost)):hover {
+  background: var(--canvas);
+}
+
 .button-dark {
   background: var(--ink);
   color: white;

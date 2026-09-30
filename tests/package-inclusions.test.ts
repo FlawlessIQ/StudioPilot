@@ -139,3 +139,14 @@ test("Part 2 of the booking agreement lists each package with its bullets", asyn
     assert.ok(flat.includes(words), words);
   assert.match(source("functions/src/contracts/combined-commands.ts"), /details: detailsForLine\(proposal\.get\("packageDetails"\), line\.description\)/);
 });
+
+test("a button with no variant is drawn as a button, at .button's own weight", async () => {
+  const css = source("app/globals.css");
+  assert.match(css, /\.button:where\(:not\(\.button-dark, \.button-light, \.button-quiet, \.button-danger, \.button-secondary, \.button-light-on-dark, \.button-ghost\)\) \{\s*background: white;\s*border-color: var\(--line-strong\);/);
+  // Every variant a component uses is one the rule knows, so none is repainted.
+  const known = new Set(["dark", "light", "quiet", "danger", "secondary", "light-on-dark", "ghost", "small", "sm"]);
+  const { execSync } = await import("node:child_process");
+  const used = execSync(`grep -rhoE '"button button-[a-z-]+' components app || true`, { encoding: "utf8" })
+    .split("\n").filter(Boolean).map((match) => match.replace('"button button-', ""));
+  assert.deepEqual([...new Set(used)].filter((variant) => !known.has(variant)), []);
+});
