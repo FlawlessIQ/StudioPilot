@@ -91,6 +91,7 @@ import {
   retrySignedCopy,
   retrySignedCopyInput,
 } from "../contracts/follow-ups.js";
+import { keptMeetingSettings } from "./consultation-settings-merge.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   // StudioCue's own contracts — see ../contracts/commands.ts.
@@ -471,8 +472,10 @@ const commandSchema = z.discriminatedUnion("type", [
         windows: z.array(availabilityWindowSchema).max(21),
         unavailableWindows: z.array(availabilityWindowSchema).max(50).default([]),
         blockedDates: z.array(z.string().date()).max(200),
-        meetingFormats: z.array(z.enum(["zoom", "in_person", "phone"])).min(1).max(3).default(["zoom"]),
-        inPersonLocation: z.string().trim().max(300).nullable().default(null),
+        // No defaults: a save that leaves these out keeps what was saved
+        // (./consultation-settings-merge.ts). Block day used to reset them.
+        meetingFormats: z.array(z.enum(["zoom", "in_person", "phone"])).min(1).max(3).optional(),
+        inPersonLocation: z.string().trim().max(300).nullable().optional(),
       })
       .refine(
         (settings) => settings.mode !== "open_default" || settings.windows.length > 0,
@@ -2630,8 +2633,7 @@ export const bookingCommand = onRequest(
             windows: command.input.windows,
             unavailableWindows: command.input.unavailableWindows,
             blockedDates: command.input.blockedDates,
-            meetingFormats: command.input.meetingFormats,
-            inPersonLocation: command.input.inPersonLocation,
+            ...keptMeetingSettings(command.input, before),
             createdAt: existing.exists ? existing.get("createdAt") : timestamp,
             createdBy: existing.exists ? existing.get("createdBy") : identity.uid,
             updatedAt: timestamp,
