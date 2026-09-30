@@ -232,3 +232,12 @@ test("a crew member's own calendar copy moves: same event, next version, attache
   assert.match(apply, /calendarAttachment:\s*status === "accepted"/);
   assert.match(read("functions/src/operations/jobs.ts"), /type: "text\/calendar"/);
 });
+
+test("booking a call from a job starts on that job, and same-name couples are told apart", () => {
+  // Walked 2026-09-30: "Scheduling a consultation for Harper Lane wedding" over
+  // a form that asked which job, listing two "Harper Lane wedding"s.
+  const calendar = read("components/booking/studio-calendar.tsx");
+  assert.match(calendar, /projectId=\{schedulingFor \? schedulingFor\.id : null\}/);
+  assert.match(calendar, /useState\(initial \? initial\.id : ""\)/);
+  assert.match(calendar, /`\$\{String\(project\.name\)\} · \$\{formatDueDate\(project\.eventDate\)\}`/);
+});

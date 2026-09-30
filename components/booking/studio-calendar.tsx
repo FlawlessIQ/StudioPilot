@@ -45,6 +45,7 @@ import { useTenantDocuments, type TenantDocument } from "@/components/live/tenan
 import { demoTenantDocuments } from "@/features/live/demo-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { liveProjects } from "@/features/projects/put-away";
+import { formatDueDate } from "@/lib/format/event-date";
 import { bookedStates } from "@/features/inquiries/stages";
 
 type SettingsShape = Pick<
@@ -706,7 +707,13 @@ export function StudioCalendar() {
               <ul className="ds-cal-list">
                 {selectedSlots.map((slot) =>
                   selectedBookedKeys.has(slot.startsAt) ? null : (
-                    <SlotRow key={slot.startsAt} slot={slot} tenantId={tenantId} />
+                    <SlotRow
+                      key={slot.startsAt}
+                      // Arrived from a job: its booking form starts on that job.
+                      projectId={schedulingFor ? schedulingFor.id : null}
+                      slot={slot}
+                      tenantId={tenantId}
+                    />
                   ),
                 )}
               </ul>
@@ -859,7 +866,15 @@ function ConsultationActions({
   );
 }
 
-function SlotRow({ slot, tenantId }: { slot: ConsultationSlot; tenantId: string }) {
+function SlotRow({
+  slot,
+  tenantId,
+  projectId,
+}: {
+  slot: ConsultationSlot;
+  tenantId: string;
+  projectId: string | null;
+}) {
   const [open, setOpen] = useState(false);
   return (
     // Compact while idle: eight identical open windows should read as a list of
@@ -869,7 +884,7 @@ function SlotRow({ slot, tenantId }: { slot: ConsultationSlot; tenantId: string 
         {format(new Date(slot.startsAt), "h:mm a")} – {format(new Date(slot.endsAt), "h:mm a")}
       </span>
       {open ? (
-        <BookSlotForm slot={slot} tenantId={tenantId} onCancel={() => setOpen(false)} />
+        <BookSlotForm initialProjectId={projectId} slot={slot} tenantId={tenantId} onCancel={() => setOpen(false)} />
       ) : (
         <button type="button" className="ds-cal-slot-btn" onClick={() => setOpen(true)}>
           Book
@@ -882,14 +897,21 @@ function SlotRow({ slot, tenantId }: { slot: ConsultationSlot; tenantId: string 
 function BookSlotForm({
   slot,
   onCancel,
+  initialProjectId,
 }: {
   slot: ConsultationSlot;
   tenantId: string;
   onCancel: () => void;
+  /** The job the studio came from ("Scheduling a consultation for …"). */
+  initialProjectId: string | null;
 }) {
   const { records: projects, loading } = useTenantDocuments("projects");
-  const [projectId, setProjectId] = useState("");
-  const [contactId, setContactId] = useState("");
+  const initial = initialProjectId ? (projects ?? []).find((project) => project.id === initialProjectId) : undefined;
+  const initialContacts = initial?.clientContactIds;
+  const [projectId, setProjectId] = useState(initial ? initial.id : "");
+  const [contactId, setContactId] = useState(
+    Array.isArray(initialContacts) ? String(initialContacts[0] ?? "") : "",
+  );
   const [mode, setMode] = useState<"zoom" | "in_person" | "phone" | "custom">("zoom");
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -968,7 +990,10 @@ function BookSlotForm({
           <option value="">{loading ? "Loading projects…" : "Select a project"}</option>
           {liveProjects(projects).map((project) => (
             <option value={project.id} key={project.id}>
-              {String(project.name)}
+              {/* Two couples can share a name; the date tells them apart. */}
+              {typeof project.eventDate === "string" && project.eventDate
+                ? `${String(project.name)} · ${formatDueDate(project.eventDate)}`
+                : String(project.name)}
             </option>
           ))}
         </select>
