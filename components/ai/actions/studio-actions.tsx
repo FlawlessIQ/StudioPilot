@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { BadgeCheck, Camera, CheckSquare, ClipboardCheck, Film, Link2, ListChecks, Mail, PackagePlus, Plug, Settings2, Star, UserCog, Users } from "lucide-react";
+import { BadgeCheck, Camera, CheckSquare, ClipboardCheck, Film, Link2, ListChecks, Mail, PackagePlus, Plug, Settings2, Star, UserCog, UserMinus, Users } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { offeredProviders } from "@/features/integrations/schema";
 import type { IntegrationProvider } from "@/features/integrations/schema";
@@ -15,6 +15,9 @@ import { CreateCrewProfileForm } from "@/components/crew/create-crew-profile-for
 import { CrewRecordActions, crewActionsProps } from "@/components/crew/crew-record-actions";
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
+import { withdrawCrew } from "@/components/crew/withdraw-crew-control";
+import { isLiveAssignment } from "@/features/crew/job-stopped";
+import { withdrawConsequence, withdrawDoneMessage } from "@/features/crew/withdraw-copy";
 import { CreateWorkflowForm } from "@/components/workflows/create-workflow-form";
 import { CoiSettings } from "@/components/settings/coi-settings";
 import { AddOnLibrary } from "@/components/library/add-on-library";
@@ -232,6 +235,87 @@ export function WaiveRequirementCard({ action }: ActionCardProps) {
           )
         }
       /> : null}
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * Take someone off a job, or swap them for the next person on the list.
+ *
+ * Asked "take Sam off the Smith wedding" or "Sam can't make it, find someone
+ * else", Cue had nothing to prepare: no command ended one assignment. The card
+ * names the person and says whether they will be emailed before anything
+ * runs, the same sentence the job page's crew card confirms.
+ */
+export function WithdrawCrewCard({ action }: ActionCardProps) {
+  const replace = action.action === "replace_crew";
+  const picked = useAssignmentChoice(action, (assignment) =>
+    isLiveAssignment(assignment.status),
+  );
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const [reason, setReason] = useState(action.text ?? "");
+  const title = `${replace ? "Replace" : "Withdraw"} crew · ${jobName(picked.job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (picked.loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!picked.job) return notFound(title);
+  if (runner.done) {
+    return (
+      <ActionShell title={title}>
+        <Done href={`/studio/crew?project=${encodeURIComponent(picked.job.id)}`} label="Open the job's crew">
+          {runner.done}
+        </Done>
+      </ActionShell>
+    );
+  }
+  const chosen = picked.assignment;
+  const accepted = str(chosen?.status) === "accepted";
+  const name = chosen ? picked.nameOf(chosen) : "";
+  const role = str(chosen?.role) || "Crew";
+  return (
+    <ActionShell
+      detail={
+        chosen
+          ? withdrawConsequence({ name, role, accepted, replace })
+          : "Choose who comes off the job."
+      }
+      icon={<UserMinus size={15} />}
+      title={title}
+    >
+      {!picked.options.length ? (
+        <Blocked>Nobody is booked on, or has an offer out for, this job.</Blocked>
+      ) : (
+        <SubjectPicker {...picked.choice} noun="crew member" options={picked.options} subject={action.subject} />
+      )}
+      {chosen && accepted ? (
+        <Form>
+          <TextField label="Reason (optional — it goes in their email)" onChange={setReason} value={reason} />
+        </Form>
+      ) : null}
+      {picked.options.length ? (
+        <Actions
+          busy={runner.busy}
+          danger
+          disabled={!chosen}
+          label={replace ? "Withdraw and re-offer" : name ? `Withdraw ${name}` : "Withdraw"}
+          onClick={() =>
+            void runner.run(
+              async () => {
+                if (!chosen || !picked.job) return null;
+                const outcome = await withdrawCrew({
+                  projectId: picked.job.id,
+                  assignmentId: chosen.id,
+                  replace,
+                  reason,
+                });
+                return withdrawDoneMessage(outcome, { name, role, replace });
+              },
+              { refresh: ["crewAssignments", "crewCascades", "readinessAssessments"] },
+            )
+          }
+        />
+      ) : null}
       <Notice text={runner.notice} />
     </ActionShell>
   );

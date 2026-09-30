@@ -73,6 +73,10 @@ const FAILURES: Record<string, ProviderFailure> = {
     title: "A crew calendar invite didn't send",
     provider: "your calendar",
   },
+  remove_crew_calendar_invite: {
+    title: "A withdrawn crew member's calendar invite wasn't removed",
+    provider: "your calendar",
+  },
   complete_booking_side_effects: {
     title: "Part of the booking didn't finish",
     provider: null,

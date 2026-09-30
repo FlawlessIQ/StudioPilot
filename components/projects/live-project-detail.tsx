@@ -37,6 +37,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
+import { WithdrawCrewControl } from "@/components/crew/withdraw-crew-control";
 import {
   allowedProjectTransitions,
   transitionAuthority,
@@ -781,9 +782,20 @@ function ProjectCrewPanel({
                   <strong>{nameFor(assignment)}</strong>
                   <small>{String(assignment.role ?? "Crew")}</small>
                 </span>
-                <StatusBadge tone={accepted ? "success" : "info"}>
-                  {accepted ? "Accepted" : "Waiting on them"}
-                </StatusBadge>
+                <span className="project-crew-status">
+                  <StatusBadge tone={accepted ? "success" : "info"}>
+                    {accepted ? "Accepted" : "Waiting on them"}
+                  </StatusBadge>
+                  {/* The only way to take one person off a job that is still
+                      going ahead — see WithdrawCrewControl. */}
+                  <WithdrawCrewControl
+                    accepted={accepted}
+                    assignmentId={String(assignment.id)}
+                    name={nameFor(assignment)}
+                    projectId={projectId}
+                    role={String(assignment.role ?? "Crew")}
+                  />
+                </span>
               </li>
             );
           })}

@@ -35,6 +35,7 @@ import { captureOperationalError } from "./observability.js";
 import { productEvent } from "./product-events.js";
 import {
   addCrewCalendarInvite,
+  removeCrewCalendarInvite,
   completeBookingResources,
   captureZoomMeetingSummary,
   cancelConsultationResources,
@@ -421,6 +422,8 @@ async function providerJob(document: DocumentSnapshot) {
     return uploadDropboxDocument(document);
   if (type === "add_crew_calendar_invite")
     return addCrewCalendarInvite(document);
+  if (type === "remove_crew_calendar_invite")
+    return removeCrewCalendarInvite(document);
   if (type === "save_quickbooks_card") return saveQuickBooksCard(document);
   if (type === "remove_quickbooks_card") return removeQuickBooksCard(document);
   if (type === "charge_saved_card") return chargeSavedCard(document);

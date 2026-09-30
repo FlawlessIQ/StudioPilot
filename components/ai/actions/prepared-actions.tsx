@@ -69,6 +69,7 @@ import {
   SubscriptionCard,
   TeamCard,
   WaiveRequirementCard,
+  WithdrawCrewCard,
 } from "./studio-actions";
 
 /**
@@ -166,6 +167,8 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   waive_crew_requirement: WaiveRequirementCard,
   record_crew_payment: CrewCloseoutCard,
   review_crew_closeout: CrewCloseoutCard,
+  withdraw_crew: WithdrawCrewCard,
+  replace_crew: WithdrawCrewCard,
   // Tasks
   create_task: CreateTaskCard,
   complete_task: CompleteTaskCard,

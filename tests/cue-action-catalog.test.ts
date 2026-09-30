@@ -135,6 +135,7 @@ const REACHED: Record<string, string> = {
   setCrewOfferSettings: "CrewOfferSettings", waiveRequirement: "\"waiveRequirement\"",
   completeRequirement: "CrewCascadeWorkspace", completeAssignment: "CrewCascadeWorkspace",
   reviewAssignmentCloseout: "\"reviewAssignmentCloseout\"", updateAssignmentPayment: "\"updateAssignmentPayment\"",
+  withdrawAssignment: "withdrawCrew(",
   // Tasks and workflows
   createTask: "\"createTask\"", completeTask: "\"completeTask\"", resolveCheckpoint: "ReadinessCheckpoints",
   createWorkflowTemplate: "CreateWorkflowForm",

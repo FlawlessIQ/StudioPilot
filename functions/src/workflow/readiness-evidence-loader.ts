@@ -26,6 +26,11 @@ import {
   readinessEvidenceFromFacts,
   type ReadinessEvidence,
 } from "./checkpoint-evidence.js";
+import {
+  crewDemand,
+  jobCoverage,
+  jobPackageSnapshotIds,
+} from "../crew/staffing-plan.js";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -75,6 +80,25 @@ export async function loadReadinessEvidence(
         Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
     )[0];
   const questionnaire = questionnaires.docs[0];
+  const ownProject = project.exists && project.get("tenantId") === tenantId;
+  // Every package on the job, so a photo + video wedding needs its
+  // videographer as well as its photographers (see crewDemand).
+  const snapshots = ownProject
+    ? (
+        await Promise.all(
+          jobPackageSnapshotIds(project.data()).map((id) =>
+            db.doc(`packageSnapshots/${id}`).get(),
+          ),
+        )
+      ).filter(
+        (snapshot) => snapshot.exists && snapshot.get("tenantId") === tenantId,
+      )
+    : [];
+  const demand = crewDemand({
+    coverage: jobCoverage(snapshots.map((snapshot) => snapshot.data())),
+    assignments: crew.docs.map((document) => document.data()),
+    scheduleVersion: Number(latestSchedule?.get("version") ?? 0),
+  });
 
   return readinessEvidenceFromFacts({
     contractStatus: text(newestContract?.get("status")) || null,
@@ -87,18 +111,13 @@ export async function loadReadinessEvidence(
     scheduleItems: Array.isArray(latestSchedule?.get("items"))
       ? (latestSchedule.get("items") as Array<Record<string, unknown>>)
       : [],
-    crewAccepted: crew.docs.filter(
-      (document) => document.get("status") === "accepted",
-    ).length,
-    // The roles this job needs filled: every assignment offered on it. Zero
-    // means nobody was asked, which is a solo wedding.
-    crewRequired: crew.size,
-    // Against the current version, not merely "has acknowledged something".
-    crewAcknowledgedCurrent: crew.docs.filter(
-      (document) =>
-        Number(document.get("acknowledgedScheduleVersion") ?? -1) ===
-        Number(latestSchedule?.get("version") ?? 0),
-    ).length,
+    // From every package on the job, by trade — not every assignment ever
+    // made, which counted a declined offer as a role still to fill and a
+    // second photographer's yes as the videographer's. Same helper as the
+    // browser (features/crew/staffing-plan.ts), so the two cannot disagree.
+    crewAccepted: demand.crewAccepted,
+    crewRequired: demand.crewRequired,
+    crewAcknowledgedCurrent: demand.crewAcknowledgedCurrent,
     coiStatus:
       text(
         insurance.docs
@@ -110,9 +129,8 @@ export async function loadReadinessEvidence(
           )[0]
           ?.get("status"),
       ) || null,
-    insuranceRequired:
-      project.exists && project.get("tenantId") === tenantId
-        ? text(project.get("insuranceRequired")) || null
-        : null,
+    insuranceRequired: ownProject
+      ? text(project.get("insuranceRequired")) || null
+      : null,
   });
 }

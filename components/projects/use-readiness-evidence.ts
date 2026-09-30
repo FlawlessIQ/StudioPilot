@@ -1,11 +1,11 @@
 "use client";
 
-import {
-  resolveCoverage,
-  totalCoverageCount,
-} from "@/features/packages/coverage";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
-import { crewRequiredFromCoverage } from "@/features/crew/staffing-plan";
+import {
+  crewDemand,
+  jobCoverage,
+  jobPackageSnapshotIds,
+} from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
   readinessEvidenceFromFacts,
@@ -52,19 +52,24 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   const projectRecord = (projects.records ?? []).find(
     (item) => item.id === projectId,
   );
-  const bookedSnapshot = (packageSnapshots.records ?? []).find(
-    (snapshot) => snapshot.id === text(projectRecord?.packageSnapshotId),
-  );
   /**
-   * Whether the package sends anyone besides the studio itself.
+   * The crew this job needs, from every package on it and by trade.
    *
-   * Named for the photographer case it was written for, but the question is
-   * "is there crew still to book" — a package of one photographer and one
-   * videographer needs crew exactly as much as a two-photographer one, and
-   * used to read as needing none.
+   * Read the primary package's photographers alone, so a photo + video
+   * wedding never counted its videographer, and counted every assignment ever
+   * made — a declined offer included — as a role still to fill. The server
+   * scores readiness with the same helper (functions/src/workflow).
    */
-  const packageNeedsSecondShooter =
-    totalCoverageCount(resolveCoverage(bookedSnapshot)) > 1;
+  const snapshotIds = jobPackageSnapshotIds(projectRecord);
+  const demand = crewDemand({
+    coverage: jobCoverage(
+      (packageSnapshots.records ?? []).filter((snapshot) =>
+        snapshotIds.includes(snapshot.id),
+      ),
+    ),
+    assignments: crew,
+    scheduleVersion: Number(latestSchedule?.version ?? 0),
+  });
 
   return readinessEvidenceFromFacts({
     contractStatus: text(latestContract?.status) || null,
@@ -80,30 +85,11 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
     scheduleItems: Array.isArray(latestSchedule?.items)
       ? (latestSchedule.items as Array<Record<string, unknown>>)
       : [],
-    crewAccepted: crew.filter((assignment) => assignment.status === "accepted")
-      .length,
-    /**
-     * The roles this job needs filled, from the package rather than from the
-     * offers already made.
-     *
-     * This counted the assignments that existed, which is zero until somebody
-     * is offered something — so a job that needed three people read as needing
-     * none, and the fallback below supplied a flat 1 however large the package
-     * was. The package has known the answer since it was selected. Offers
-     * already out still count when they exceed it, because a studio that
-     * chose to hire beyond the package has not made the package wrong.
-     */
-    crewRequired: Math.max(
-      crew.length,
-      crewRequiredFromCoverage(resolveCoverage(bookedSnapshot)),
-    ),
-    packageNeedsSecondShooter,
+    crewAccepted: demand.crewAccepted,
+    crewRequired: demand.crewRequired,
+    packageNeedsSecondShooter: demand.packageNeedsCrew,
     // Against the current version, not merely "has acknowledged something".
-    crewAcknowledgedCurrent: crew.filter(
-      (assignment) =>
-        Number(assignment.acknowledgedScheduleVersion ?? -1) ===
-        Number(latestSchedule?.version ?? 0),
-    ).length,
+    crewAcknowledgedCurrent: demand.crewAcknowledgedCurrent,
     coiStatus:
       text(
         forProject(insuranceRequests.records).sort((left, right) =>

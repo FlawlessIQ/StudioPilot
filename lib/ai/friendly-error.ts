@@ -216,8 +216,14 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "You removed someone with that email from your directory. Show archived collaborators and return them, so their history stays on one record.",
   CONTACT_HAS_LIVE_PROJECT:
     "This client has a job that is still live. Close, cancel or finish it first.",
+  // There was no "withdraw" anywhere when this said "settle or withdraw it",
+  // so the studio was told to do something the product could not do.
   CREW_HAS_OPEN_ASSIGNMENT:
-    "This collaborator still holds an assignment. Settle or withdraw it first.",
+    "This collaborator still holds an assignment: they are booked on, or have an offer out for, a job. Open that job, choose Withdraw on their row under Your crew (they're emailed if they had accepted), then archive them.",
+  ASSIGNMENT_NOT_WITHDRAWABLE:
+    "That assignment is already over — declined, expired, withdrawn or completed — so there is nothing to withdraw.",
+  ASSIGNMENT_NOT_FOUND:
+    "That assignment is no longer on this job. Refresh to see who is on it now.",
   PROJECT_HAS_LIVE_CREW:
     "Someone is still waiting on this job. Cancel it — that ends the offers and records why — or settle them first.",
   CREW_IDENTITY_OWNED_BY_MEMBER:

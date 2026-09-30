@@ -4,10 +4,13 @@ import {
   type CrewCandidateRecommendation,
 } from "./cascade.js";
 import {
+  combineCoverage,
   coverageRoleLabel,
+  resolveCoverage,
   type CoverageItem,
   type CoverageRole,
 } from "../packages/coverage.js";
+import { isLiveAssignment } from "./job-stopped.js";
 
 /**
  * Who this job still has to book, and who should be offered each role.
@@ -353,4 +356,122 @@ export function crewRequiredFromCoverage(
   coverage: readonly CoverageItem[],
 ): number {
   return rolesToBook(coverage).roles.length;
+}
+
+/**
+ * The package snapshots a job rests on: the primary, then any added.
+ *
+ * A photo + video wedding carries two — `packageSnapshotId` and
+ * `additionalPackageSnapshotIds` — and every reader of "how much crew does
+ * this job need" read the primary alone. GR Productions sells photography and
+ * video together, so the videographer its couples paid for was invisible to
+ * readiness, to the journey rail and to the manual crew plan. Capped at three
+ * additional, the same as the booking-time planner
+ * (functions/src/crew/prepare-staffing.ts).
+ */
+export function jobPackageSnapshotIds(project: unknown): string[] {
+  const source =
+    typeof project === "object" && project !== null
+      ? (project as Record<string, unknown>)
+      : {};
+  const primary =
+    typeof source.packageSnapshotId === "string" ? source.packageSnapshotId : "";
+  const additional = Array.isArray(source.additionalPackageSnapshotIds)
+    ? source.additionalPackageSnapshotIds
+        .map((value) => (typeof value === "string" ? value : ""))
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+  return [...new Set([primary, ...additional].filter(Boolean))];
+}
+
+/**
+ * Everyone a job's packages send, summed across them.
+ *
+ * No snapshot at all is no coverage, not the one-photographer fallback
+ * `resolveCoverage` applies to a *record*: a job with nothing selected has not
+ * said who is coming.
+ */
+export function jobCoverage(snapshots: readonly unknown[]): CoverageItem[] {
+  if (!snapshots.length) return [];
+  return combineCoverage(snapshots.map((snapshot) => resolveCoverage(snapshot)));
+}
+
+// Any assignment record: a Firestore document, a live client row. Only
+// `status`, `role` and `acknowledgedScheduleVersion` are read.
+export type CrewDemandAssignment = Readonly<Record<string, unknown>>;
+
+export type CrewDemand = {
+  /** People the job needs booked, per trade, never fewer than are live. */
+  crewRequired: number;
+  /** Accepted, each counted against its own trade. */
+  crewAccepted: number;
+  /** Accepted and acknowledged the current schedule version. */
+  crewAcknowledgedCurrent: number;
+  /** The packages send someone besides the studio itself. */
+  packageNeedsCrew: boolean;
+  /** Roles nobody holds a live offer or booking for, in offer order. */
+  open: { role: string; coverageRole: CoverageRole }[];
+};
+
+/**
+ * How much crew a job needs, and how much of that is settled — by trade.
+ *
+ * Readiness, the journey rail and Today each worked this out differently, and
+ * all of them counted heads: the server took every assignment ever made
+ * (declined and expired included) as the requirement, and the browser took
+ * the primary package's photographers. So a wedding needing a videographer
+ * could read "crew confirmed" the moment a second photographer said yes.
+ *
+ * Counted per trade instead. A trade's requirement is what the packages send,
+ * or the people the studio has live in it if that is more (hiring beyond the
+ * package does not make the package wrong); an acceptance only settles its
+ * own trade. Withdrawn, declined and expired offers are history and count for
+ * nothing.
+ */
+export function crewDemand(input: {
+  coverage: readonly CoverageItem[];
+  assignments: readonly CrewDemandAssignment[];
+  scheduleVersion?: number | null;
+}): CrewDemand {
+  const toBook = rolesToBook(input.coverage).roles;
+  const live = input.assignments.filter((assignment) =>
+    isLiveAssignment(assignment.status),
+  );
+  const tradeOf = (assignment: CrewDemandAssignment) =>
+    coverageRoleForLabel(
+      typeof assignment.role === "string" ? assignment.role : "",
+    );
+  const trades = [
+    ...new Set<CoverageRole>([
+      ...toBook.map((role) => role.coverageRole),
+      ...live.map(tradeOf),
+    ]),
+  ];
+  let crewRequired = 0;
+  let crewAccepted = 0;
+  let crewAcknowledgedCurrent = 0;
+  const open: CrewDemand["open"] = [];
+  for (const trade of trades) {
+    const needed = toBook.filter((role) => role.coverageRole === trade);
+    const held = live.filter((assignment) => tradeOf(assignment) === trade);
+    const accepted = held.filter(
+      (assignment) => assignment.status === "accepted",
+    );
+    crewRequired += Math.max(needed.length, held.length);
+    crewAccepted += accepted.length;
+    crewAcknowledgedCurrent += accepted.filter(
+      (assignment) =>
+        Number(assignment.acknowledgedScheduleVersion ?? -1) ===
+        Number(input.scheduleVersion ?? 0),
+    ).length;
+    open.push(...needed.slice(held.length));
+  }
+  return {
+    crewRequired,
+    crewAccepted,
+    crewAcknowledgedCurrent,
+    packageNeedsCrew: toBook.length > 0,
+    open,
+  };
 }

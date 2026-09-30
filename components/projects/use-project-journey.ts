@@ -3,10 +3,10 @@
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
 import {
-  resolveCoverage,
-  totalCoverageCount,
-} from "@/features/packages/coverage";
-import { crewRequiredFromCoverage } from "@/features/crew/staffing-plan";
+  crewDemand,
+  jobCoverage,
+  jobPackageSnapshotIds,
+} from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
 import {
@@ -103,8 +103,8 @@ export function useProjectJourney({
     text(right.createdAt).localeCompare(text(left.createdAt)),
   )[0];
 
-  // The booked package's photographer count: >1 means a second shooter is part
-  // of what the client paid for, so "no crew offered" must not read as solo.
+  // The primary package says whether one has been chosen at all; the crew
+  // count below reads every package on the job.
   const journeyProject = (projectRecords.records ?? []).find(
     (item) => item.id === projectId,
   );
@@ -112,15 +112,21 @@ export function useProjectJourney({
     (snapshot) => snapshot.id === text(journeyProject?.packageSnapshotId),
   );
   /**
-   * Whether the package sends anyone besides the studio itself.
-   *
-   * Named for the photographer case it was written for, but the question is
-   * "is there crew still to book" — a package of one photographer and one
-   * videographer needs crew exactly as much as a two-photographer one, and
-   * used to read as needing none.
+   * The crew this job needs: every package on it, by trade. Same helper and
+   * same inputs as use-readiness-evidence.ts — the rail and the readiness
+   * panel answering one question two ways is the defect it replaces, and a
+   * photo + video wedding used to read "crew confirmed" with no videographer.
    */
-  const packageNeedsSecondShooter =
-    totalCoverageCount(resolveCoverage(bookedSnapshot)) > 1;
+  const snapshotIds = jobPackageSnapshotIds(journeyProject);
+  const demand = crewDemand({
+    coverage: jobCoverage(
+      (packageSnapshots.records ?? []).filter((snapshot) =>
+        snapshotIds.includes(snapshot.id),
+      ),
+    ),
+    assignments: forProject(crewAssignments.records),
+    scheduleVersion: Number(latestSchedule?.version ?? 0),
+  });
 
   const readinessEvidence = useReadinessEvidence(projectId);
 
@@ -222,18 +228,11 @@ export function useProjectJourney({
             )?.eventTypeId,
           ),
     ),
-    crewAccepted: forProject(crewAssignments.records).filter(
-      (assignment) => assignment.status === "accepted",
-    ).length,
-    // Every role offered on this job. Zero means solo — see JourneyInput.
-    // From the package, not from the offers already made. See the same
-    // change in use-readiness-evidence.ts — the two must agree, or the rail
-    // and the readiness panel give one question two answers.
-    crewRequired: Math.max(
-      forProject(crewAssignments.records).length,
-      crewRequiredFromCoverage(resolveCoverage(bookedSnapshot)),
-    ),
-    packageNeedsSecondShooter,
+    crewAccepted: demand.crewAccepted,
+    // Zero means solo — see JourneyInput. From the packages, by trade, and
+    // never fewer than the people live on the job.
+    crewRequired: demand.crewRequired,
+    packageNeedsSecondShooter: demand.packageNeedsCrew,
     // No package locked yet means the crew question is unanswered, not solo.
     packageChosen: bookedSnapshot !== undefined,
     settledCheckpointKeys: forProject(checkpoints.records)

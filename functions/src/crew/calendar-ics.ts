@@ -31,15 +31,23 @@ export function assignmentIcs(input: {
   location: string;
   sequence: number;
   stampedAt: string;
+  /**
+   * The studio withdrew this person. Same UID and a higher SEQUENCE, marked
+   * cancelled, which is how Apple Calendar, Outlook and Google take an event
+   * out of a diary they already hold it in rather than leaving a wedding in
+   * it that nobody is expecting them at.
+   */
+  cancelled?: boolean;
 }): string {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//StudioCue//Crew Assignment//EN",
-    "METHOD:PUBLISH",
+    input.cancelled ? "METHOD:CANCEL" : "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     `UID:${assignmentCalendarUid(input.assignmentId)}`,
     `SEQUENCE:${Math.max(0, Math.floor(input.sequence))}`,
+    ...(input.cancelled ? ["STATUS:CANCELLED"] : []),
     `DTSTAMP:${calendarDate(input.stampedAt)}`,
     `DTSTART:${calendarDate(input.startsAt)}`,
     `DTEND:${calendarDate(input.endsAt)}`,

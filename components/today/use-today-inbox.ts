@@ -4,6 +4,11 @@ import { deliverableDueDate, deliveryProgress, expectedDeliverables } from "@/fe
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
 import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
+import {
+  crewDemand,
+  jobCoverage,
+  jobPackageSnapshotIds,
+} from "@/features/crew/staffing-plan";
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
@@ -175,6 +180,18 @@ export function useTodayInbox(): {
           text(record(action.structuredOutput).trigger) ===
           "day_before_checklist",
       );
+      // The job page's crew reading, exactly: every package on the job, by
+      // trade (crewDemand in features/crew/staffing-plan.ts).
+      const snapshotIds = jobPackageSnapshotIds(project);
+      const demand = crewDemand({
+        coverage: jobCoverage(
+          (packageSnapshots.records ?? []).filter((snapshot) =>
+            snapshotIds.includes(snapshot.id),
+          ),
+        ),
+        assignments: forProject(crewAssignments.records, projectId),
+        scheduleVersion: Number(latestSchedule?.version ?? 0),
+      });
       const { current } = projectJourney({
         projectId,
         state: text(project.state),
@@ -241,12 +258,13 @@ export function useTodayInbox(): {
               ? (latestSchedule.items as Array<Record<string, unknown>>)
               : [],
           ).length > 0,
-        crewAccepted: forProject(crewAssignments.records, projectId).filter(
-          (assignment) => assignment.status === "accepted",
-        ).length,
-        // Same two readings the job page uses, so Today and the job cannot
-        // disagree about whether crew and insurance are outstanding.
-        crewRequired: forProject(crewAssignments.records, projectId).length,
+        // Same readings the job page uses, so Today and the job cannot
+        // disagree about whether crew and insurance are outstanding. This
+        // counted every assignment ever made as the requirement — a declined
+        // offer held the step open — and never saw a videographer.
+        crewAccepted: demand.crewAccepted,
+        crewRequired: demand.crewRequired,
+        packageNeedsSecondShooter: demand.packageNeedsCrew,
         settledCheckpointKeys: forProject(checkpoints.records, projectId)
           .filter((checkpoint) =>
             ["complete", "waived"].includes(text(checkpoint.status)),

@@ -482,8 +482,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           `Compensation: ${compensation}`,
           respondBy ? `Please respond by ${humanDate(respondBy, zone)}.` : "",
         ].filter(Boolean);
+      // The trade the role names: a videographer offered "a photography
+      // assignment" reads it as the wrong email (GR Productions staffs both).
+      const trade = /video|cinema|film/i.test(role) ? "video" : "photography";
       return {
-        subject: `${role ? `${role} — ` : ""}Photography assignment from ${brand.studioName}`,
+        subject: `${role ? `${role} — ` : ""}${trade === "video" ? "Video" : "Photography"} assignment from ${brand.studioName}`,
         preheader: respondBy
           ? `Review the job details and respond by ${humanDate(respondBy, zone)}.`
           : "Review and respond to your assignment.",
@@ -491,7 +494,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `A new assignment is ready`,
         paragraphs: [
           greeting,
-          `We'd like you to review a photography assignment${project}.`,
+          `We'd like you to review a ${trade} assignment${project}.`,
           ...details,
           "Open the secure job brief to review responsibilities and requirements before accepting or declining.",
         ],
@@ -970,6 +973,28 @@ function copyFor(input: RenderEmailInput): EmailCopy {
        * ask them to do anything — there is nothing left for them to do.
        */
       const why = stringValue(values, "reason");
+      /**
+       * The studio took this one person off a job that is still going ahead
+       * (functions/src/crew/commands.ts, withdrawAssignment). The job-stopped
+       * copy below says the event is off — true when a wedding is cancelled,
+       * false here, and a crew member told a wedding was called off may say
+       * so to the couple.
+       */
+      if (stringValue(values, "cause") === "withdrawn") {
+        return {
+          subject: `Released: your ${brand.studioName} assignment${project}`,
+          preheader: "The studio no longer needs you for this job.",
+          eyebrow: "Assignment withdrawn",
+          heading: "You've been released from this job",
+          paragraphs: [
+            greeting,
+            `${brand.studioName} has withdrawn your assignment${project}. You are no longer needed on the day, and nothing further is expected from you.`,
+            ...(why ? [`The studio noted: ${why}`] : []),
+            "If you added it to your calendar, open the attached calendar file and it will be removed.",
+            "Please get in touch if you were counting on this date and want to talk it through.",
+          ],
+        };
+      }
       return {
         subject: `Cancelled: your ${brand.studioName} assignment${project}`,
         preheader: "This job is no longer going ahead.",

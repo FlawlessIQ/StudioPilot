@@ -78,7 +78,7 @@ export const ARCHIVE_REFUSALS: Record<string, string> = {
   CONTACT_HAS_LIVE_PROJECT:
     "This client has a job that is still live. Close, cancel or finish it first.",
   CREW_HAS_OPEN_ASSIGNMENT:
-    "This collaborator still holds an assignment. Settle or withdraw it first.",
+    "This collaborator still holds an assignment: they are booked on, or have an offer out for, a job. Open that job, choose Withdraw on their row under Your crew (they're emailed if they had accepted), then archive them.",
   PROJECT_HAS_LIVE_CREW:
     "Someone is still waiting on this job. Cancel it — that ends the offers and records why — or settle them first.",
   CREW_IDENTITY_OWNED_BY_MEMBER:

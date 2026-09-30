@@ -1517,6 +1517,53 @@ export async function addCrewCalendarInvite(job: DocumentSnapshot) {
 }
 
 /**
+ * Take a withdrawn crew member's Google Calendar invite back.
+ *
+ * `addCrewCalendarInvite` puts the event on the studio's calendar with the
+ * crew member as an attendee (`sendUpdates=all`), so it stays in their diary
+ * until the event itself is deleted — the way a cancelled consultation's
+ * event is removed. Queued by withdrawAssignment in
+ * functions/src/crew/commands.ts. 404 and 410 mean it is already gone, which
+ * is the goal.
+ */
+export async function removeCrewCalendarInvite(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const assignmentId = String(job.get("assignmentId") ?? "");
+  const reference = db.doc(`crewAssignments/${assignmentId}`);
+  const assignment = await reference.get();
+  if (!assignment.exists) throw new Error("ASSIGNMENT_NOT_FOUND");
+  // Never take down the invite of somebody who is on the job.
+  if (assignment.get("status") === "accepted")
+    return { assignmentId, skipped: "still_accepted" };
+  const calendarEventId = text(assignment.get("calendarEventId"));
+  if (!calendarEventId) return { assignmentId, skipped: "no_calendar_event" };
+  const tenantId = String(job.get("tenantId"));
+  const calendar = await connection(tenantId, "google_calendar");
+  if (!calendar.mock) {
+    const calendarId = encodeURIComponent(
+      String(calendar.document.get("selectedResourceId") ?? "primary"),
+    );
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(calendarEventId)}?sendUpdates=all`,
+      {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${calendar.credential?.accessToken}` },
+      },
+    );
+    if (!response.ok && response.status !== 404 && response.status !== 410)
+      throw new Error(`CALENDAR_DELETE_FAILED:${response.status}`);
+  }
+  await reference.update({
+    calendarEventId: null,
+    calendarInviteLink: null,
+    calendarRemovedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    updatedBy: "provider-worker",
+  });
+  return { assignmentId, removed: calendarEventId };
+}
+
+/**
  * What QuickBooks already knows a couple has paid, for importing a booking
  * made before StudioCue.
  *

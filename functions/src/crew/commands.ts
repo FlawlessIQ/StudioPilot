@@ -10,6 +10,9 @@ import { studioHubCors } from "../security/cors.js";
 import { findDuplicateProfile } from "./duplicate-profile.js";
 import { SCHEDULE_REQUIREMENT_ID } from "./requirements.js";
 import { coverageRoleSchema } from "../packages/coverage.js";
+import { assignmentIcs, assignmentPlace } from "./calendar-ics.js";
+import { isLiveAssignment } from "./job-stopped.js";
+import { withdrawalPlan } from "./withdraw.js";
 import {
   appUrl,
   cascadeAssignment,
@@ -142,6 +145,28 @@ const command = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string(),
       cascades: z.array(cascadeInput).min(1).max(10),
+    }),
+  }),
+  z.object({
+    /**
+     * Take one person off a job that is still going ahead, and optionally
+     * offer their role to the next person on the list ("Replace").
+     *
+     * There was no way to do this. Only cancelling or postponing the whole job
+     * ended an assignment; a crew member cannot back out once they accept;
+     * and archiving them was refused while they held one. See
+     * features/crew/withdraw.ts.
+     */
+    type: z.literal("withdrawAssignment"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      assignmentId: z.string(),
+      // Shown to them in the email when they had accepted. Optional: the
+      // studio does not always want to say why.
+      reason: z.string().trim().max(500).nullable().default(null),
+      replace: z.boolean().default(false),
     }),
   }),
   z.object({
@@ -1404,6 +1429,309 @@ export const crewCommand = onRequest(
           inviteExpiresAt,
           inviteUrl,
         };
+      } else if (parsed.type === "withdrawAssignment") {
+        /**
+         * Withdraw one crew member, or replace them.
+         *
+         * Owners and admins only: it ends somebody's booked work and, on
+         * Replace, sends a fee to someone else. The disposition — who is
+         * emailed, what the cascade does — is features/crew/withdraw.ts; this
+         * is the reads and writes, in one transaction so a crew member
+         * accepting at the same moment cannot interleave with it.
+         */
+        if (
+          !["studio_owner", "studio_admin"].includes(role) ||
+          !hasProject(parsed.input.projectId)
+        )
+          throw new Error("FORBIDDEN");
+        const reference = db.doc(
+          `crewAssignments/${parsed.input.assignmentId}`,
+        );
+        const reason = parsed.input.reason || null;
+        result = await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(reference);
+          if (
+            !current.exists ||
+            current.get("tenantId") !== parsed.tenantId ||
+            current.get("projectId") !== parsed.input.projectId
+          )
+            throw new Error("ASSIGNMENT_NOT_FOUND");
+          const cascadeId = String(current.get("cascadeId") ?? "");
+          const cascadeReference = cascadeId
+            ? db.doc(`crewCascades/${cascadeId}`)
+            : null;
+          const cascade = cascadeReference
+            ? await transaction.get(cascadeReference)
+            : null;
+          const ownCascade =
+            cascade?.exists && cascade.get("tenantId") === parsed.tenantId
+              ? cascade
+              : null;
+          const plan = withdrawalPlan({
+            assignmentId: reference.id,
+            status: String(current.get("status") ?? ""),
+            replace: parsed.input.replace,
+            cascade: ownCascade
+              ? {
+                  status: String(ownCascade.get("status") ?? ""),
+                  currentAssignmentId:
+                    (ownCascade.get("currentAssignmentId") as string | null) ??
+                    null,
+                  acceptedAssignmentId:
+                    (ownCascade.get("acceptedAssignmentId") as string | null) ??
+                    null,
+                  currentCandidateIndex: Number(
+                    ownCascade.get("currentCandidateIndex") ?? 0,
+                  ),
+                  candidateIds: Array.isArray(ownCascade.get("candidateIds"))
+                    ? (ownCascade.get("candidateIds") as unknown[]).map(String)
+                    : [],
+                }
+              : null,
+          });
+          if (!plan.withdrawable) throw new Error(plan.code);
+
+          // Every read before any write, as a transaction requires.
+          const profileId = String(current.get("crewProfileId") ?? "");
+          const userId = String(current.get("userId") ?? "");
+          const [profile, project, calendarEvent, projectCrew, membership] =
+            await Promise.all([
+              profileId
+                ? transaction.get(db.doc(`crewProfiles/${profileId}`))
+                : Promise.resolve(null),
+              transaction.get(db.doc(`projects/${parsed.input.projectId}`)),
+              transaction.get(db.doc(`crewCalendarEvents/${reference.id}`)),
+              transaction.get(
+                db
+                  .collection("crewAssignments")
+                  .where("tenantId", "==", parsed.tenantId)
+                  .where("projectId", "==", parsed.input.projectId),
+              ),
+              userId
+                ? transaction.get(
+                    db.doc(`memberships/${parsed.tenantId}_${userId}`),
+                  )
+                : Promise.resolve(null),
+            ]);
+          const nextProfiles =
+            plan.cascade.action === "advance"
+              ? await Promise.all(
+                  plan.cascade.candidateIds.map((candidateId) =>
+                    transaction.get(db.doc(`crewProfiles/${candidateId}`)),
+                  ),
+                )
+              : [];
+          // Nobody already working this job in another role, and nobody who
+          // has left the roster: the same eligibility a decline moves on with,
+          // plus the one a replacement makes likelier.
+          const busyOnJob = new Set(
+            projectCrew.docs
+              .filter(
+                (item) =>
+                  item.id !== reference.id &&
+                  isLiveAssignment(item.get("status")),
+              )
+              .map((item) => String(item.get("crewProfileId") ?? "")),
+          );
+          const nextOffset = nextProfiles.findIndex(
+            (candidate) =>
+              candidate.exists &&
+              candidate.get("tenantId") === parsed.tenantId &&
+              candidate.get("active") === true &&
+              !candidate.get("archivedAt") &&
+              !busyOnJob.has(candidate.id),
+          );
+
+          const projectName =
+            String(project.get("name") ?? "") ||
+            String(current.get("projectName") ?? "") ||
+            "Crew assignment";
+          const role = String(current.get("role") ?? "") || "Crew";
+          const calendarSequence =
+            Number(current.get("calendarSequence") ?? 0) + 1;
+          transaction.update(reference, {
+            // "cancelled", the status job-stopped writes: every reader
+            // (readiness, the crew portal, the archive guard) already treats
+            // it as over.
+            status: "cancelled",
+            cancelledAt: now,
+            cancelledReason: reason,
+            cancelledBy: identity.uid,
+            withdrawnByStudio: true,
+            ...(plan.notify ? { calendarSequence } : {}),
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+
+          let notified = false;
+          if (plan.notify) {
+            const email = String(profile?.get("email") ?? "").trim();
+            // No address, no mail — never fall through to the worker's
+            // client-contact default, which would tell the couple.
+            if (email) {
+              const arrivalAt = String(current.get("arrivalAt") ?? "");
+              const departureAt = String(current.get("departureAt") ?? "");
+              const noticeId = `crew_withdrawn_${reference.id}`;
+              transaction.set(db.doc(`emailJobs/${noticeId}`), {
+                id: noticeId,
+                tenantId: parsed.tenantId,
+                projectId: parsed.input.projectId,
+                assignmentId: reference.id,
+                type: "crew_assignment_cancelled",
+                // Tells the template this person was released from a job
+                // that is still happening, not that the event is off.
+                cause: "withdrawn",
+                recipient: email,
+                recipientName: profile?.get("name") ?? null,
+                crewProfileId: profileId || null,
+                role,
+                reason,
+                // Takes the day out of the diary of anyone who added it from
+                // the crew app — the Google invite, if one went, is removed
+                // by the provider job below.
+                calendarAttachment:
+                  Number.isFinite(Date.parse(arrivalAt)) &&
+                  Number.isFinite(Date.parse(departureAt))
+                    ? {
+                        filename: "studiocue-assignment.ics",
+                        content: assignmentIcs({
+                          assignmentId: reference.id,
+                          startsAt: arrivalAt,
+                          endsAt: departureAt,
+                          projectName,
+                          role,
+                          location: assignmentPlace(current.get("locations")),
+                          sequence: calendarSequence,
+                          stampedAt: now,
+                          cancelled: true,
+                        }),
+                      }
+                    : null,
+                status: "queued",
+                attempts: 0,
+                createdAt: now,
+                updatedAt: now,
+              });
+              notified = true;
+            }
+            if (current.get("calendarEventId")) {
+              transaction.set(
+                db.doc(`providerJobs/crew_calendar_remove_${reference.id}`),
+                {
+                  id: `crew_calendar_remove_${reference.id}`,
+                  tenantId: parsed.tenantId,
+                  projectId: parsed.input.projectId,
+                  assignmentId: reference.id,
+                  type: "remove_crew_calendar_invite",
+                  idempotencyKey: `crew_calendar_remove_${reference.id}`,
+                  status: "queued",
+                  attempts: 0,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+                { merge: true },
+              );
+            }
+          }
+          if (calendarEvent.exists)
+            transaction.update(calendarEvent.ref, {
+              status: "cancelled",
+              updatedAt: now,
+            });
+          /**
+           * Close the job to them.
+           *
+           * Acceptance added the project to their membership so they could
+           * read the day sheet and brief; somebody taken off the job should
+           * not keep reading the couple's timeline. Only a subcontractor's
+           * membership, and only when nothing else keeps them on this job.
+           */
+          const stillOnJob = projectCrew.docs.some(
+            (item) =>
+              item.id !== reference.id &&
+              String(item.get("userId") ?? "") === userId &&
+              (isLiveAssignment(item.get("status")) ||
+                item.get("status") === "completed"),
+          );
+          if (
+            membership?.exists &&
+            membership.get("role") === "subcontractor" &&
+            !stillOnJob
+          )
+            transaction.update(membership.ref, {
+              projectIds: FieldValue.arrayRemove(parsed.input.projectId),
+              updatedAt: now,
+            });
+
+          let replacement: Record<string, unknown> | null = null;
+          if (
+            ownCascade &&
+            plan.cascade.action === "advance" &&
+            nextOffset >= 0
+          ) {
+            const nextIndex = plan.cascade.fromIndex + nextOffset;
+            const nextProfile = nextProfiles[nextOffset]!;
+            const nextAssignmentId = `${ownCascade.id}_offer_${nextIndex + 1}`;
+            const prepared = cascadeAssignment({
+              id: nextAssignmentId,
+              tenantId: parsed.tenantId,
+              cascadeId: ownCascade.id,
+              candidateIndex: nextIndex,
+              profile: nextProfile,
+              cascade: ownCascade.data() ?? {},
+              token: randomBytes(32).toString("base64url"),
+              now,
+              actorId: identity.uid,
+            });
+            transaction.create(
+              db.doc(`crewAssignments/${nextAssignmentId}`),
+              prepared.assignment,
+            );
+            transaction.create(
+              db.doc(`emailJobs/${prepared.emailJob.id}`),
+              prepared.emailJob,
+            );
+            // Back to working its list: a filled cascade is open again.
+            transaction.update(ownCascade.ref, {
+              status: "active",
+              currentCandidateIndex: nextIndex,
+              currentAssignmentId: nextAssignmentId,
+              currentOfferExpiresAt: prepared.expiresAt,
+              acceptedAssignmentId: null,
+              handlingCompletedAt: null,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+            replacement = {
+              assignmentId: nextAssignmentId,
+              crewProfileId: nextProfile.id,
+              name: String(nextProfile.get("name") ?? "") || null,
+            };
+          } else if (ownCascade && plan.cascade.action !== "none") {
+            /**
+             * Nobody else is asked for this slot.
+             *
+             * "cancelled", not "exhausted": exhausted is what Today reads as
+             * "every candidate declined — find crew", which is not what
+             * happened. The role reappears as open on the job (crewDemand)
+             * and in the staffing form, where the studio chooses who next.
+             */
+            transaction.update(ownCascade.ref, {
+              status: "cancelled",
+              currentOfferExpiresAt: null,
+              handlingCompletedAt: now,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          }
+          return {
+            assignmentId: reference.id,
+            status: "cancelled",
+            role,
+            notified,
+            replacement,
+          };
+        });
       } else if (parsed.type === "setAvailability") {
         const profile = await db
           .doc(`crewProfiles/${parsed.input.crewProfileId}`)
@@ -1745,9 +2073,13 @@ export const crewCommand = onRequest(
                     assignmentId: reference.id,
                     crewProfileId: current.get("crewProfileId"),
                     userId: identity.uid,
-                    title: `${String(
-                      cascade.get("role"),
-                    )} · photography assignment`,
+                    // The role's own trade: a videographer's diary read
+                    // "photography assignment".
+                    title: `${String(cascade.get("role"))} · ${
+                      /video|cinema|film/i.test(String(cascade.get("role")))
+                        ? "video"
+                        : "photography"
+                    } assignment`,
                     startsAt: current.get("arrivalAt"),
                     endsAt: current.get("departureAt"),
                     locations: current.get("locations"),

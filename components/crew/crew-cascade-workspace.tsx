@@ -5,10 +5,6 @@ import {
   requireInsuranceOf,
   type CrewRequirementSettings,
 } from "@/features/crew/requirements";
-import {
-  coverageRoleLabel,
-  resolveCoverage,
-} from "@/features/packages/coverage";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowDown,
@@ -29,6 +25,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   assignCandidatesToRoles,
   coverageRoleForLabel,
+  crewDemand,
+  jobCoverage,
+  jobPackageSnapshotIds,
 } from "@/features/crew/staffing-plan";
 import { suggestedResponsibilitiesText } from "@/features/crew/responsibilities";
 import {
@@ -451,7 +450,8 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       !project ||
       !profiles ||
       !schedules ||
-      !packageSnapshots
+      !packageSnapshots ||
+      !assignments
     ) {
       return;
     }
@@ -496,32 +496,25 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     const scheduleResponsibilities = items
       .map((item) => text(item.title))
       .filter(Boolean);
-    const packageSnapshot = packageSnapshots.find(
-      (snapshot) =>
-        snapshot.id === project.packageSnapshotId ||
-        snapshot.projectId === projectId,
-    );
     /**
      * Who the studio still has to book.
      *
-     * The package says who it sends; the lead is the studio itself, so the
-     * first photographer is not a role to offer. Every other person is —
-     * including videographers, who used to be invisible here because coverage
-     * was counted in photographers alone and a video-led package offered
-     * nobody.
+     * Every package on the job, summed — a photo + video wedding carries the
+     * video package in `additionalPackageSnapshotIds`, and reading the primary
+     * alone never offered the videographer row. The old fallback to "any
+     * snapshot on this project" could also pick one a booking change had
+     * replaced. The lead is the studio itself (`rolesToBook`, the rule booking
+     * uses in functions/src/crew/prepare-staffing.ts), and a role somebody
+     * already holds a live offer or booking for is not suggested again — so
+     * after a Withdraw or Replace this lands on exactly the empty role.
      */
-    const coverage = resolveCoverage(packageSnapshot);
-    const suggestedRoles = coverage.flatMap((item) => {
-      // The studio shoots one of them itself.
-      const needed = item.role === "photographer" ? item.count - 1 : item.count;
-      const noun = coverageRoleLabel(item.role, 1);
-      return Array.from({ length: Math.max(0, needed) }, (_value, index) => {
-        if (item.role === "photographer")
-          return index === 0 ? "Second photographer" : `Photographer ${index + 2}`;
-        const title = noun.replace(/^./, (character) => character.toUpperCase());
-        return needed === 1 ? title : `${title} ${index + 1}`;
-      });
-    });
+    const snapshotIds = jobPackageSnapshotIds(project);
+    const suggestedRoles = crewDemand({
+      coverage: jobCoverage(
+        packageSnapshots.filter((snapshot) => snapshotIds.includes(snapshot.id)),
+      ),
+      assignments: assignments.filter((item) => item.projectId === projectId),
+    }).open.map((item) => item.role);
 
     const frame = requestAnimationFrame(() => {
       if (Number.isFinite(rateCents) && rateCents >= 0) {
@@ -537,6 +530,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     });
     return () => cancelAnimationFrame(frame);
   }, [
+    assignments,
     defaultsHydrated,
     eventDate,
     latestSchedule,

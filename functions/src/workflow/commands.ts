@@ -17,6 +17,11 @@ import {
   type ReadinessEvidence,
 } from "./checkpoint-evidence.js";
 import { loadReadinessEvidence } from "./readiness-evidence-loader.js";
+import {
+  crewDemand,
+  jobCoverage,
+  jobPackageSnapshotIds,
+} from "../crew/staffing-plan.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import {
   checkpointIsRequired,
@@ -1288,9 +1293,26 @@ export const workflowCommand = onRequest(
               Number(left.get("version") ?? 0),
           )[0];
         const questionnaire = questionnairesSnapshot.docs[0];
-        const acceptedCrew = crewSnapshot.docs.filter(
-          (document) => document.get("status") === "accepted",
-        ).length;
+        // Every package on the job, read before any write. The crew this job
+        // needs comes from what the packages send, by trade — see
+        // crewDemand in ../crew/staffing-plan.ts.
+        const packageSnapshots = (
+          await Promise.all(
+            jobPackageSnapshotIds(projectSnapshot.data()).map((id) =>
+              transaction.get(db.doc(`packageSnapshots/${id}`)),
+            ),
+          )
+        ).filter(
+          (snapshot) =>
+            snapshot.exists && snapshot.get("tenantId") === command.tenantId,
+        );
+        const demand = crewDemand({
+          coverage: jobCoverage(
+            packageSnapshots.map((snapshot) => snapshot.data()),
+          ),
+          assignments: crewSnapshot.docs.map((document) => document.data()),
+          scheduleVersion: Number(latestSchedule?.get("version") ?? 0),
+        });
         const evidence = readinessEvidenceFromFacts({
           contractStatus:
             (newestBy(contractsSnapshot, "createdAt")?.get("status") as
@@ -1310,17 +1332,14 @@ export const workflowCommand = onRequest(
           scheduleItems: Array.isArray(latestSchedule?.get("items"))
             ? (latestSchedule.get("items") as Array<Record<string, unknown>>)
             : [],
-          crewAccepted: acceptedCrew,
-          // The roles this job needs filled: every assignment offered on it.
-          // Zero means nobody was asked, which is a solo wedding.
-          crewRequired: crewSnapshot.size,
+          // Every assignment ever offered used to be the requirement, so a
+          // declined offer held readiness open and a photographer's yes
+          // settled the videographer's role. Per trade, from the packages.
+          crewAccepted: demand.crewAccepted,
+          crewRequired: demand.crewRequired,
           // Against the current version: a crew member who read June's
           // timeline has not read the one approved in July.
-          crewAcknowledgedCurrent: crewSnapshot.docs.filter(
-            (document) =>
-              Number(document.get("acknowledgedScheduleVersion") ?? -1) ===
-              Number(latestSchedule?.get("version") ?? 0),
-          ).length,
+          crewAcknowledgedCurrent: demand.crewAcknowledgedCurrent,
           coiStatus:
             (newestBy(insuranceSnapshot, "createdAt")?.get("status") as
               | string
