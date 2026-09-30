@@ -1,3 +1,4 @@
+import "@/app/app-styles";
 // Wraps every /auth/* route in the editorial design-system scope so the token
 // bridge + auth overrides re-skin them (login, register, onboarding, workspace
 // picker, password reset, verify-email, and the three invite flows).

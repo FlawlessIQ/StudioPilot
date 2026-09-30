@@ -4,13 +4,8 @@ import { RegisterServiceWorker } from "@/components/pwa/register-service-worker"
 import { ErrorReporter } from "@/components/observability/error-reporter";
 import { IconButtonTitles } from "@/components/ui/icon-button-titles";
 import { SITE_URL } from "@/lib/site";
-import "./globals.css";
-import "./design-system.css";
-import "./legacy-bridge.css";
-import "./contracts.css";
-// The mobile kit (couple and crew). Scoped to `.kit`; see app/kit.css.
-import "./kit-tokens.css";
-import "./kit.css";
+// No stylesheets here: each section's layout imports ./app-styles, so the
+// public inquiry form can load a small sheet of its own (H5).
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

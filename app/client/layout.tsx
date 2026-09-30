@@ -1,3 +1,4 @@
+import "@/app/app-styles";
 import type { Metadata } from "next";
 import { PortalShell } from "@/components/layout/portal-shell";
 

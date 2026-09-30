@@ -1,3 +1,4 @@
+import "@/app/app-styles";
 import Link from "next/link";
 import {
   ArrowRight,

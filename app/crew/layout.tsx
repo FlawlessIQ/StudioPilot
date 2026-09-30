@@ -1,3 +1,4 @@
+import "@/app/app-styles";
 import type { Metadata } from "next";
 import { CrewPortalShell } from "@/components/crew/crew-portal-shell";
 

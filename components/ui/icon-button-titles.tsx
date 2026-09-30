@@ -24,6 +24,9 @@ function apply(element: Element) {
  */
 export function IconButtonTitles() {
   useEffect(() => {
+    // The public inquiry form labels its own controls; a body-wide observer
+    // there only costs a phone time on every keystroke (H5).
+    if (/^\/inquiry(\/|$)/.test(window.location.pathname)) return;
     const sweep = (root: ParentNode) => {
       if (root instanceof Element && root.matches(CONTROLS)) apply(root);
       root.querySelectorAll(CONTROLS).forEach(apply);

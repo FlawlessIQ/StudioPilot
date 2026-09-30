@@ -1,3 +1,4 @@
+import "@/app/app-styles";
 /**
  * Couple-facing pages render inside the design system, as the inquiry form
  * does: without it `--font-display` is undefined here, the heading's `font`
