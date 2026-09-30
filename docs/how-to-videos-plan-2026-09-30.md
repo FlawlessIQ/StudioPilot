@@ -17,6 +17,15 @@ Videos are made by Claude and the ElevenLabs API, working from scripts
 kept in this repo. They are recorded against the seeded emulator, never
 production, and Conor approves each one before it goes live.
 
+**Status (2026-09-30):**
+- **Phase 1 shipped** (d44d085, ce88ece): How-to button and popup, InfoHint v2, the Guides and glossary pages, `/how-to`.
+- **Phase 2 shipped** (2227436, dec993f): 41 explainers and a 40-word glossary. Every studio, couple and crew tab opens its own guide, and there are 55 ⓘ hints plus 3 button hover notes.
+- **Still open:** hints inside the proposal composer and the Insights tiles; a phone check of the portal hints on production; phases 3–4 (videos).
+- **Code/copy mismatches the walk found** were filed as separate tasks:
+  - a manual run of show reaches nobody;
+  - Block day wipes meeting formats;
+  - eight screens whose copy contradicts the code.
+
 Revision, 2026-09-30: the first draft planned 40 videos. Conor cut that to
 wave 1 only, plus text explainers and a full set of hover hints.
 
