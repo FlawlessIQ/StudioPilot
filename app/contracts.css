@@ -282,6 +282,28 @@
   padding: 0.6rem 0.75rem;
 }
 
+/* The label wraps its textarea; without a layout the box sat inline to the
+   right of the sentence, above it (walked 2026-09-30). */
+.native-contract-void {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--ds-line, #e9e1d4);
+  padding-top: 1rem;
+}
+
+.native-contract-void label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.native-contract-void textarea {
+  width: 100%;
+  font-weight: 400;
+  resize: vertical;
+}
+
 .native-contract-preview {
   max-height: 34rem;
   overflow: auto;
