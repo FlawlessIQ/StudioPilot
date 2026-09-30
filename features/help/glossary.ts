@@ -145,6 +145,63 @@ export const GLOSSARY: readonly HelpTerm[] = [
     hint: "An invitation to a photographer to work a date. They accept or decline from their phone; if they decline, offer it to someone else.",
   },
 
+  {
+    id: "coverage",
+    term: "Coverage",
+    audience: "studio",
+    explainer: "packages",
+    hint: "Who you send and for how long: photographers, videographers and hours. It fills your contract and can set a per-crew retainer.",
+  },
+  {
+    id: "quiet-import",
+    term: "Imported, and quiet",
+    audience: "studio",
+    explainer: "import-bookings",
+    hint: "StudioCue sends this couple no emails, invoices, reminders or charges until you bring them in. The portal invite is a separate, optional tick.",
+  },
+  {
+    id: "booking-change",
+    term: "Booking change",
+    audience: "studio",
+    explainer: "booking-change",
+    hint: "A new date or package after the couple has signed. They e-sign an amended agreement; until then their original stands, and payments carry over.",
+  },
+  {
+    id: "autopay",
+    term: "Autopay",
+    audience: "studio",
+    explainer: "final-balance",
+    hint: "Couples save a card when they pay the retainer; the final balance then charges on its due date. Needs QuickBooks Payments.",
+  },
+  {
+    id: "coi",
+    term: "Certificate of insurance",
+    audience: "studio",
+    explainer: "coi",
+    hint: "Proof of your liability cover, issued to a venue that asks for it. StudioCue requests it from your agent and sends it on once you approve.",
+  },
+  {
+    id: "workflow",
+    term: "Workflow",
+    audience: "studio",
+    explainer: "automations",
+    hint: "The checkpoints and automatic emails every booked job of one type gets, dated back from its event.",
+  },
+  {
+    id: "closeout",
+    term: "Closeout",
+    audience: "studio",
+    explainer: "delivery",
+    hint: "The last check before a job closes: contract, final balance, schedule, delivery, album, review request, crew and insurance all settled.",
+  },
+  {
+    id: "studio-roles",
+    term: "Roles",
+    audience: "studio",
+    explainer: "team",
+    hint: "Admin: everything but plan and billing. Coordinator: runs assigned jobs, no money or settings. Photographer or videographer: sees the jobs they shoot.",
+  },
+
   // ── Couple ────────────────────────────────────────────────────────────
   {
     id: "couple-retainer",

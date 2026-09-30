@@ -48,6 +48,7 @@ import {
   type MessageDraftTrigger,
 } from "@/lib/ai/message-draft-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const prompts = [
   "What needs my attention today?",
@@ -375,6 +376,10 @@ export function CopilotWorkspace() {
           ) : null}
           <span className="cue-slashhint">
             Type <kbd>/</kbd> for a command
+            <InfoHint label="Commands">
+              A slash picks a ready-made question, like today’s priorities or who still owes you. It fills the box so
+              you can edit it; nothing sends until you press Send.
+            </InfoHint>
           </span>
           <span className="cue-composer-spacer" />
           <button

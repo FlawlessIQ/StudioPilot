@@ -9,6 +9,7 @@ import { setAutopay, startQuickBooksPaymentsConnect } from "@/lib/integrations/c
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
 import { outsideStepStatus, type OutsideStepRecord } from "@/features/outside-steps/registry";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * Autopay: couples save a card at the deposit and the final balance charges
@@ -84,7 +85,7 @@ export function AutopaySettings() {
       <header className="autopay-head">
         <div>
           <h2 id="autopay-heading">
-            <CreditCard aria-hidden="true" size={17} /> Autopay
+            <CreditCard aria-hidden="true" size={17} /> Autopay <InfoHint term="autopay" />
           </h2>
           <p>
             Couples save a card when they pay their deposit, and the final
@@ -136,7 +137,13 @@ export function AutopaySettings() {
             <span className="outside-step-tile-number">
               {state.enabled ? <CheckCircle2 aria-hidden="true" size={15} /> : 3}
             </span>
-            <strong>Offer autopay to couples</strong>
+            <strong>
+              Offer autopay to couples
+              <InfoHint label="Offer autopay to couples">
+                Couples can then save a card on their payments page. It’s charged on the final invoice’s due date, 14
+                days before the event, with one retry after a decline.
+              </InfoHint>
+            </strong>
             {state.step >= 3 ? (
               <label className="autopay-toggle">
                 <input

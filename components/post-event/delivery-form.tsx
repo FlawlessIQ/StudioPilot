@@ -28,6 +28,7 @@ import {
 import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
 import { addCalendarDays, formatEventDate, todayLocalIso } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * Releasing a job's deliverables (H4, docs/delivery-plan-2026-09-28.md).
@@ -442,7 +443,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
 
           {drafts.length ? (
             <section className="delivery-drafts form-span" aria-label="Caught by the inbox">
-              <p className="eyebrow">Caught by the inbox</p>
+              <p className="eyebrow">
+                Caught by the inbox
+                <InfoHint label="Caught by the inbox">
+                  Links StudioCue read from your gallery host’s “ready” email, forwarded to this job. Add one to this
+                  release, or leave it.
+                </InfoHint>
+              </p>
               {drafts.map((draft) => {
                 const inUse = items.some((item) => item.deliveryDraftId === draft.id);
                 return (

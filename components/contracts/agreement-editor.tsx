@@ -34,6 +34,7 @@ import {
 } from "@/lib/contracts/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type Loaded = {
   templateId: string | null;
@@ -475,7 +476,13 @@ export function AgreementEditor() {
           </p>
           {customFields.length ? (
             <div className="agreement-custom-fields">
-              <p className="native-contract-note">Your own fields — filled in on each contract:</p>
+              <p className="native-contract-note">
+                Your own fields — filled in on each contract:
+                <InfoHint label="Your own fields">
+                  Blanks StudioCue can’t fill from the job, like a second location. You fill them in on each contract,
+                  and a contract with one still blank never sends by itself.
+                </InfoHint>
+              </p>
               {customFields.map((field) => (
                 <label className="agreement-custom-field" key={field.key}>
                   <code>{`{{${field.key}}}`}</code>
@@ -516,7 +523,13 @@ export function AgreementEditor() {
       </div>
 
       <section className="panel">
-        <p className="eyebrow">When a proposal is accepted</p>
+        <p className="eyebrow">
+          When a proposal is accepted
+          <InfoHint label="When a proposal is accepted">
+            Off by default: the contract is written and waits for you to read and sign it. On: StudioCue signs with
+            your typed name and sends it straight away.
+          </InfoHint>
+        </p>
         <h2>{autoSendEnabled ? "StudioCue signs and sends for you" : "StudioCue prepares it for you to send"}</h2>
         <p>
           A contract is always written from this agreement the moment a couple accepts. By default it

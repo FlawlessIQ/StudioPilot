@@ -39,6 +39,7 @@ import { daysUntilEvent, todayLocalIso } from "@/lib/format/event-date";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
 import { statusLabel } from "@/features/format/status-label";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -1002,7 +1003,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
               <div className="crew-cascade-boundary">
                 <Clock3 />
                 <span>
-                  <strong>One offer at a time</strong>
+                  <strong>
+                    One offer at a time <InfoHint term="crew-offer" />
+                  </strong>
                   <small>
                     Each person sees the offer alone. If they accept, the role is
                     filled and nobody else is asked. If they decline or run out of
@@ -1188,7 +1191,13 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
           <header>
             <span>
               <Sparkles aria-hidden="true" />
-              <strong>Prepared when this job was booked</strong>
+              <strong>
+                Prepared when this job was booked
+                <InfoHint label="Prepared offers">
+                  Built from the package’s coverage when the job booked. Nothing is sent until you press “Send these
+                  offers”, unless automatic offers are on in Studio settings.
+                </InfoHint>
+              </strong>
             </span>
             <StatusBadge tone={list(preparedPlan?.roles).some((role) => record(role).gap) ? "warning" : "success"}>
               {preparedRoles.length}{" "}

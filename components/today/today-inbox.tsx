@@ -45,6 +45,7 @@ import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useRouter } from "next/navigation";
 import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -558,7 +559,9 @@ export function TodayInbox() {
           {laneApprove.length ? (
             <section className="today-lane" aria-label="Ready for your approval">
               <div className="today-lane-heading">
-                <h2>Prepared for you</h2>
+                <h2>
+                  Prepared for you <InfoHint term="prepared" />
+                </h2>
                 <span>{laneApprove.length} · one tap each</span>
               </div>
               {(() => {

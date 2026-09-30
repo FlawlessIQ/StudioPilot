@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type Row = Record<string, unknown> & { id: string };
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -33,7 +34,9 @@ export function PackageAddOnPicker({
 
   return (
     <fieldset className="form-span package-add-on-picker">
-      <legend>Add-ons this package suggests</legend>
+      <legend>
+        Add-ons this package suggests <InfoHint term="add-on" />
+      </legend>
       {loading && !records ? <p className="field-hint">Loading your add-ons…</p> : null}
       {!loading && library.length === 0 ? (
         <p className="field-hint">

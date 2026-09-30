@@ -6,6 +6,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { bringImportedBookingLive } from "@/lib/booking/command-client";
 import { runClientInvitation } from "@/lib/client/invitation-client";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * An imported booking, and the decision to bring its couple in.
@@ -102,7 +103,9 @@ export function ImportedBookingBanner({
     <section className="panel imported-booking-banner">
       <MoonStar size={18} aria-hidden="true" />
       <div>
-        <strong>Imported, and quiet</strong>
+        <strong>
+          Imported, and quiet <InfoHint term="quiet-import" />
+        </strong>
         <p>
           This booking predates StudioCue. Nothing has been sent to the couple —
           no emails, invoices, reminders or charges — and nothing will be until

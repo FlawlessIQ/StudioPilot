@@ -12,6 +12,7 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { uploadCoiPdf } from "@/lib/planning/coi-upload";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { formatEventDate } from "@/lib/format/event-date";
+import { ActionHint } from "@/components/ui/info-hint";
 
 type Row = Record<string, unknown> & { id: string };
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -191,20 +192,22 @@ export function CoiRequestActions({
           />
         </label>
         <footer>
-          <button
-            className="button button-dark"
-            disabled={busy || reason.trim().length < 5 || (needsVenueEmail && !venueEmail)}
-            onClick={() =>
-              void run(
-                "approveAndSendCoi",
-                { reason, submissionEmail: venueEmail || null },
-                "Approved and sent to the venue. Their reply is recorded when it comes.",
-              )
-            }
-            type="button"
-          >
-            <Send /> Approve &amp; send to venue
-          </button>
+          <ActionHint hint="Emails the venue the certificate PDF with the event date. Your note is saved as the reason, and their reply is recorded here.">
+            <button
+              className="button button-dark"
+              disabled={busy || reason.trim().length < 5 || (needsVenueEmail && !venueEmail)}
+              onClick={() =>
+                void run(
+                  "approveAndSendCoi",
+                  { reason, submissionEmail: venueEmail || null },
+                  "Approved and sent to the venue. Their reply is recorded when it comes.",
+                )
+              }
+              type="button"
+            >
+              <Send /> Approve &amp; send to venue
+            </button>
+          </ActionHint>
           {status === "under_review" ? (
             <button
               className="button button-danger"

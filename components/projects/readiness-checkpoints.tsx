@@ -22,7 +22,7 @@ import {
 } from "@/features/readiness/checkpoint-resolution";
 import { checkpointSatisfiedByEvidence } from "@/features/readiness/checkpoint-evidence";
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
-import { InfoHint } from "@/components/ui/info-hint";
+import { ActionHint, InfoHint } from "@/components/ui/info-hint";
 import { formatDueDate } from "@/lib/format/event-date";
 
 const text = (value: unknown): string =>
@@ -168,6 +168,7 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
           <p>
             What has to be true before this wedding is ready. Most complete
             themselves when the record arrives; the judgements are yours.
+            <InfoHint term="checkpoint" />
           </p>
         </div>
         <span className="readiness-checkpoints-count">
@@ -250,19 +251,21 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                     </button>
                   ) : null}
                   {waivable ? (
-                    <button
-                      className={resolvable ? "button button-quiet" : "button"}
-                      disabled={busy !== null}
-                      onClick={() =>
-                        setOpen({ id: row.id, resolution: "waived" })
-                      }
-                      type="button"
-                    >
-                      {busy === row.id && !resolvable ? (
-                        <LoaderCircle className="spin" size={14} />
-                      ) : null}
-                      Waive
-                    </button>
+                    <ActionHint hint="Counts this checkpoint as settled without the evidence. Your reason is saved to the audit log under your name.">
+                      <button
+                        className={resolvable ? "button button-quiet" : "button"}
+                        disabled={busy !== null}
+                        onClick={() =>
+                          setOpen({ id: row.id, resolution: "waived" })
+                        }
+                        type="button"
+                      >
+                        {busy === row.id && !resolvable ? (
+                          <LoaderCircle className="spin" size={14} />
+                        ) : null}
+                        Waive
+                      </button>
+                    </ActionHint>
                   ) : null}
                 </span>
               ) : null}

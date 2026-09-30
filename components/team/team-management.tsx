@@ -24,6 +24,7 @@ import {
   ROLE_SUMMARY,
   type AssignableRole,
 } from "@/features/team/role-summaries";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type MemberRow = {
   id: string;
@@ -273,7 +274,9 @@ export function TeamManagement() {
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Invite</p>
-            <h2>Add someone to your studio</h2>
+            <h2>
+              Add someone to your studio <InfoHint term="studio-roles" />
+            </h2>
             <p>They&apos;ll get an email with a link to join. Choose what they can do.</p>
           </div>
         </div>

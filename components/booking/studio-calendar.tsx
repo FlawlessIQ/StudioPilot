@@ -47,6 +47,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { liveProjects } from "@/features/projects/put-away";
 import { formatDueDate } from "@/lib/format/event-date";
 import { bookedStates } from "@/features/inquiries/stages";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type SettingsShape = Pick<
   ConsultationSettings,
@@ -422,6 +423,10 @@ export function StudioCalendar() {
             </span>
             <span className="ds-cal-legend-item is-open">
               <span className="ds-cal-legend-dot" /> Open slots
+              <InfoHint label="Open slots">
+                Times couples can book right now: your weekly hours, minus bookings, blocked days and busy times in a
+                connected Google Calendar.
+              </InfoHint>
             </span>
             <span className="ds-cal-legend-item is-blocked">
               <span className="ds-cal-legend-dot" /> Blocked

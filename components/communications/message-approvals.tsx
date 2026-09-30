@@ -6,6 +6,7 @@ import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tena
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
@@ -59,6 +60,10 @@ export function MessageApprovals({ projectId = null }: { projectId?: string | nu
       <p className="msg-approvals-head">
         <ShieldCheck aria-hidden size={14} />
         Waiting for your approval
+        <InfoHint label="Waiting for your approval">
+          A coordinator wrote these about money, the contract or insurance. Approve to send them to the client, or
+          decline and nothing is sent.
+        </InfoHint>
       </p>
       {waiting.map((draft) => (
         <article className="msg-approval" key={draft.id}>

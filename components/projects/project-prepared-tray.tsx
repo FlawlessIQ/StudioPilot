@@ -20,6 +20,7 @@ import {
 } from "@/features/ai/prepared-groups";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -139,7 +140,9 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
       <header>
         <span><Sparkles size={18} /></span>
         <div>
-          <p className="eyebrow">Prepared for you</p>
+          <p className="eyebrow">
+            Prepared for you <InfoHint term="prepared" />
+          </p>
           <h2>{count ? `${count} ${count === 1 ? "decision" : "decisions"} ready` : "Nothing needs approval"}</h2>
           <p>
             {drafts > count

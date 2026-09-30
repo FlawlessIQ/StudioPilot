@@ -39,6 +39,7 @@ import {
   inquiryUrl,
   type EmbedBuilder,
 } from "@/features/intake/website-embed";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * Studio settings → Inquiry capture.
@@ -398,7 +399,9 @@ export function LeadCaptureView({
       </div>
 
       <div className="capture-address">
-        <small>Your StudioCue address</small>
+        <small>
+          Your StudioCue address <InfoHint term="forwarding-address" />
+        </small>
         <code>{address ?? "…"}</code>
         {address ? <Copyable label="Copy" value={address} /> : null}
         {address ? (

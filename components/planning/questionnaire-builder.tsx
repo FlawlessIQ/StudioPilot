@@ -18,6 +18,7 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { QuestionnaireTemplateEditor } from "@/components/planning/questionnaire-template-editor";
 import { fieldReachesCrew } from "@/features/questionnaires/crew-brief";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const fieldTypes = [
   ["text", "Short text"],
@@ -204,7 +205,13 @@ export function QuestionnaireBuilder({
       <header className="questionnaire-workspace-header">
         <div>
           <p className="eyebrow">Questionnaire tools</p>
-          <h2>{mode === "create" ? "Create a reusable template" : "Send a questionnaire"}</h2>
+          <h2>
+            {mode === "create" ? "Create a reusable template" : "Send a questionnaire"}
+            <InfoHint label="Templates and due dates">
+              Only Active templates can be sent. A form is due the set number of days before the event, with
+              reminders 7, 3 and 1 days before that until the couple sends it.
+            </InfoHint>
+          </h2>
           <p>{mode === "create" ? "Add fields visually and arrange them in the order clients should see." : "Choose an active project and the template you want the client to complete."}</p>
         </div>
         <div className="segmented-control" aria-label="Questionnaire action">

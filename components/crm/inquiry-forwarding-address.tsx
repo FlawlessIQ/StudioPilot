@@ -6,6 +6,7 @@ import { Check, ChevronRight, Copy, Forward } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { LeadCaptureSetup } from "@/components/intake/lead-capture-setup";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * "Forward any inquiry to this address."
@@ -89,7 +90,9 @@ export function InquiryForwardingAddress() {
     <div className="inquiry-forwarding">
       <Forward aria-hidden="true" size={16} />
       <span>
-        <strong>Inquiry by email, The Knot or WeddingWire?</strong>
+        <strong>
+          Inquiry by email, The Knot or WeddingWire? <InfoHint term="forwarding-address" />
+        </strong>
         <small>
           Forward it to <code>{address}</code>{" "}and it becomes an inquiry here,
           with the date checked and a reply drafted.

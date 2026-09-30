@@ -8,6 +8,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const weekdays = [
   { key: "sun", label: "Sunday" },
@@ -315,6 +316,10 @@ export function ConsultationAvailability() {
             <p>
               Set the hours clients can book a consultation on your public scheduling
               link{timezone ? ` (studio timezone: ${timezone})` : ""}.
+              <InfoHint label="Closed or open by default">
+                Closed: only the hours you add can be booked. Open: your widest hours can be booked, except the times
+                you mark unavailable.
+              </InfoHint>
             </p>
           </div>
         </div>
@@ -348,7 +353,13 @@ export function ConsultationAvailability() {
 
         <fieldset className="consultation-availability-section consultation-formats">
           <legend className="consultation-availability-section-label">How you meet</legend>
-          <p>Couples pick one of these when they book.</p>
+          <p>
+            Couples pick one of these when they book.
+            <InfoHint label="How you meet">
+              A video call sends a Zoom link with the confirmation. In person needs the address below; for a phone
+              call, you ring the number they give.
+            </InfoHint>
+          </p>
           {meetingFormatOptions.map((option) => (
             <label key={option.value}>
               <input

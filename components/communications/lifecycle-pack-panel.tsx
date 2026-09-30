@@ -12,6 +12,7 @@ import {
   saveLifecycleSettings,
   type LifecycleSettings,
 } from "@/lib/communications/lifecycle-settings-client";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const COPY: Record<
   keyof LifecycleSettings,
@@ -108,7 +109,13 @@ export function LifecyclePackPanel() {
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Lifecycle pack</p>
-          <h2>Automatic drafts</h2>
+          <h2>
+            Automatic drafts
+            <InfoHint label="Automatic drafts">
+              StudioCue writes these for every booked job on schedule. “Review each time” waits on Today for your
+              approval; “Send automatically” emails the client without you seeing it first.
+            </InfoHint>
+          </h2>
         </div>
         <ShieldCheck aria-hidden="true" />
       </div>

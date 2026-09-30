@@ -26,6 +26,7 @@ import {
   outstandingCloseoutLabels,
   requirementIsAttestable,
 } from "@/features/post-event/closeout-attestation";
+import { ActionHint, InfoHint } from "@/components/ui/info-hint";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -392,6 +393,7 @@ export function DeliveryCloseoutWorkspace({
                   : readyToClose
                     ? "Everything reconciles"
                     : "Wrap up"}
+              <InfoHint term="closeout" />
             </h2>
             <p>
               {archived
@@ -440,14 +442,16 @@ export function DeliveryCloseoutWorkspace({
                     </em>
                   ) : null}
                   {!met && requirementIsAttestable(key) ? (
-                    <button
-                      className="button button-quiet button-sm closeout-attest"
-                      disabled={busy !== null}
-                      onClick={() => setAttesting(key)}
-                      type="button"
-                    >
-                      Mark as done
-                    </button>
+                    <ActionHint hint="Vouch that this happened outside StudioCue. Your note goes in the audit log, and the job shows it was on your word.">
+                      <button
+                        className="button button-quiet button-sm closeout-attest"
+                        disabled={busy !== null}
+                        onClick={() => setAttesting(key)}
+                        type="button"
+                      >
+                        Mark as done
+                      </button>
+                    </ActionHint>
                   ) : null}
                   {/**
                     * Money is not attestable at closeout — it is recorded.

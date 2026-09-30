@@ -14,6 +14,7 @@ import { z } from "zod";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { PackageAddOnPicker } from "@/components/crm/package-add-on-picker";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const schema = z
   .object({
@@ -286,7 +287,7 @@ export function CreatePackageForm({
           <small>{errors.videographers?.message}</small>
         </label>
         <p className="field-hint form-span">
-          Who your studio sends. At least one, in either row.
+          Who your studio sends. At least one, in either row. <InfoHint term="coverage" />
         </p>
         <label>
           Travel area <span className="required-mark">Required</span>

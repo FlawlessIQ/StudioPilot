@@ -26,6 +26,7 @@ import {
   seededManualSchedule,
 } from "@/features/planning/manual-run-of-show";
 import { liveProjects } from "@/features/projects/put-away";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type ScheduleItem = {
   id: string;
@@ -845,7 +846,13 @@ export function AiScheduleGenerator({
           <section className="panel schedule-draft-items">
             <div className="panel-heading">
               <div>
-                <h2>The day</h2>
+                <h2>
+                  The day
+                  <InfoHint label="The day">
+                    Each item says where its time came from: the couple’s answers, one of your timing rules, or an
+                    assumption. Check the assumptions before you publish.
+                  </InfoHint>
+                </h2>
                 <p>Change anything. Your crew sees this once you publish it.</p>
               </div>
               <AlertTriangle />
@@ -1042,7 +1049,13 @@ export function AiScheduleGenerator({
           <div className="human-boundary">
             <CheckCircle2 />
             <span>
-              <strong>Nothing reaches your crew until you publish.</strong>
+              <strong>
+                Nothing reaches your crew until you publish.
+                <InfoHint label="Publishing">
+                  Publishing saves a new version. Accepted crew get the items meant for them and confirm it again; the
+                  couple is asked to approve the items meant for them.
+                </InfoHint>
+              </strong>
               <small>
                 {/* Say what is wrong rather than letting the command refuse. */}
                 {publishBlockers.length

@@ -30,6 +30,7 @@ import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { liveProjects } from "@/features/projects/put-away";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type RequestRecord = Record<string, unknown> & { id: string };
 
@@ -247,7 +248,9 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
         <div className="panel-heading">
           <div>
             <p className="eyebrow">New requirement</p>
-            <h2>Request a certificate</h2>
+            <h2>
+              Request a certificate <InfoHint term="coi" />
+            </h2>
             <p>A unique reply route associates one inbound PDF with this project.</p>
           </div>
           <Send />
@@ -449,7 +452,13 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
         <div className="section-heading-row">
           <div>
             <p className="eyebrow">Certificates of insurance</p>
-            <h2>{requests.length === 1 ? "This job’s certificate" : "Certificates"}</h2>
+            <h2>
+              {requests.length === 1 ? "This job’s certificate" : "Certificates"}
+              <InfoHint label="Chasing your agent">
+                StudioCue follows up with your agent every 3 days, daily in the last week. It stops after 4 follow-ups,
+                or 5 days before the due date.
+              </InfoHint>
+            </h2>
           </div>
         </div>
         <div className="coi-review-list">

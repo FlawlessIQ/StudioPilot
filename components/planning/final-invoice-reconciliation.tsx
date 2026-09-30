@@ -7,6 +7,7 @@ import { FinalBalanceActions } from "@/components/booking/final-balance-actions"
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -45,7 +46,13 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
       <header className="section-heading-row">
         <div>
           <p className="eyebrow">Explainable accounting</p>
-          <h2>Final invoice review</h2>
+          <h2>
+            Final invoice review
+            <InfoHint label="Final invoice review">
+              Final bills are raised automatically 28 days before the event when the retainer was invoiced in
+              QuickBooks or Stripe. Anything else is billed from Today.
+            </InfoHint>
+          </h2>
           <p>
             StudioCue prepares the arithmetic; QuickBooks remains authoritative
             for the invoice, balance, tax, and payment evidence.

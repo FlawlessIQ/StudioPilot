@@ -13,6 +13,7 @@ import {
   publishEffect,
 } from "@/features/workflows/publication";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -448,7 +449,9 @@ export function CreateWorkflowForm({
         </label>
       </div>
       <fieldset className="checkpoint-picker">
-        <legend>Starting checkpoints</legend>
+        <legend>
+          Starting checkpoints <InfoHint term="checkpoint" />
+        </legend>
         {checkpointChoices.map((checkpoint) => (
           <label key={checkpoint.key}>
             <input
@@ -473,7 +476,13 @@ export function CreateWorkflowForm({
         </p>
       ) : null}
       <fieldset className="checkpoint-picker">
-        <legend>Starting automations</legend>
+        <legend>
+          Starting automations
+          <InfoHint label="Starting automations">
+            All ticked by default. The email ones send to the client on schedule, with no draft waiting for approval,
+            so untick any you’d rather send yourself.
+          </InfoHint>
+        </legend>
         {availableAutomations.map((automation) => (
           <label key={automation.key}>
             <input

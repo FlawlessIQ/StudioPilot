@@ -10,6 +10,7 @@ import { contractDocumentSchema } from "@/features/contracts/document";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * "Change the booking": new packages and/or a new date on a job the couple
@@ -429,7 +430,9 @@ export function BookingAmendment({ projectId, state }: { projectId: string; stat
         <div className="record-sheet">
           <header>
             <p className="eyebrow">The booking</p>
-            <h3>Change the booking</h3>
+            <h3>
+              Change the booking <InfoHint term="booking-change" />
+            </h3>
             <p>A new date, a package added or removed. The couple signs the change; the job keeps its stage.</p>
           </header>
           <BookingAmendmentPanel

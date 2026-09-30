@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai/timing-rules-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type RuleRecord = Record<string, unknown> & { id: string };
 
@@ -127,7 +128,13 @@ export function TimingRuleEditor() {
       <header className="panel-heading">
         <div>
           <p className="eyebrow">Studio-owned knowledge</p>
-          <h2>Timing rules</h2>
+          <h2>
+            Timing rules
+            <InfoHint label="Timing rules">
+              Each rule is timed from an anchor, like the ceremony start: a negative offset is minutes before it, and
+              buffers add padding either side. Only approved rules shape drafts.
+            </InfoHint>
+          </h2>
           <p>
             Define the durations and buffers StudioCue may use. AI suggestions
             never become rules until an owner approves them here.

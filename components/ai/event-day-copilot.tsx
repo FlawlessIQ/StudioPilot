@@ -27,6 +27,7 @@ import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { askCopilot, type CopilotResult } from "@/lib/ai/copilot-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
@@ -417,7 +418,12 @@ export function EventDayCopilot({
             <header>
               <BookOpenCheck />
               <span>
-                <h2>Ask the event brief</h2>
+                <h2>
+                  Ask the event brief
+                  <InfoHint label="Ask the event brief">
+                    Answers come from this job’s records, with links to the source. Nothing is changed from here.
+                  </InfoHint>
+                </h2>
                 <p>Answers cite current project records and never alter them.</p>
               </span>
             </header>
