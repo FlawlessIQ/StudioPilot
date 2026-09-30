@@ -134,6 +134,29 @@ export function PostProductionChecklist({
     }
   }
 
+  /**
+   * Untick one step ticked by mistake (Wave 2). The ladder only went forward,
+   * so "Editing finished" on the wrong wedding stayed finished in the
+   * couple's brief. The server audits it and refuses what may not be undone.
+   */
+  async function undo(step: PostProductionStepKey) {
+    setBusy(step);
+    setNotice(null);
+    try {
+      await sendPostEventCommand("undoPostProductionStep", {
+        projectId,
+        step,
+        notes: null,
+      });
+      refreshTenantRecords("postProductionRecords");
+      onChanged?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That step could not be unticked."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <section className="post-production-checklist">
       <header>
@@ -241,6 +264,19 @@ export function PostProductionChecklist({
                   <LoaderCircle className="spin" size={14} />
                 ) : null}
                 Mark done
+              </button>
+            ) : row.undoable ? (
+              <button
+                className="button button-quiet button-sm"
+                disabled={busy !== null}
+                onClick={() => void undo(row.key)}
+                title="Ticked by mistake? Untick it. Recorded in the audit log."
+                type="button"
+              >
+                {busy === row.key ? (
+                  <LoaderCircle className="spin" size={14} />
+                ) : null}
+                Untick
               </button>
             ) : null}
           </li>

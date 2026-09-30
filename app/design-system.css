@@ -4195,3 +4195,47 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Wave 2 corrections: "Wrong link?" on a released delivery, and the confirm
+   step in front of closing a job or stopping its review asks. */
+.replace-delivery-link {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+.replace-delivery-link small {
+  color: var(--ds-muted, #6f7872);
+}
+.replace-delivery-link-form {
+  align-items: stretch;
+  display: grid;
+  gap: 10px;
+  max-width: 32rem;
+}
+.replace-delivery-link-form label {
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 620;
+  gap: 6px;
+}
+.replace-delivery-link-form > span,
+.closeout-confirm > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.closeout-confirm {
+  border: 1px solid var(--ds-line);
+  border-radius: 11px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+.closeout-confirm p {
+  margin: 0;
+}
+.closeout-confirm small {
+  color: var(--ds-muted, #6f7872);
+}

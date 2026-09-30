@@ -24,8 +24,9 @@ import { formatCents } from "@/lib/format/money";
 import {
   closeoutPendingNote,
   outstandingCloseoutLabels,
-  requirementIsAttestable,
+  requirementMayBeAttested,
 } from "@/features/post-event/closeout-attestation";
+import { previousAlbumStatus } from "@/features/post-event/undo";
 import { ActionHint, InfoHint } from "@/components/ui/info-hint";
 
 const text = (value: unknown) =>
@@ -53,6 +54,8 @@ export function DeliveryCloseoutWorkspace({
   const [busy, setBusy] = useState<string | null>(null);
   /** Which requirement's "how do you know?" form is open, if any. */
   const [attesting, setAttesting] = useState<string | null>(null);
+  /** The one confirm step in front of each irreversible or couple-facing act. */
+  const [confirming, setConfirming] = useState<"close" | "skip_reviews" | null>(null);
 
   async function attestRequirement(requirementKey: string, note: string) {
     setBusy("attest");
@@ -134,9 +137,39 @@ export function DeliveryCloseoutWorkspace({
     (candidate) => candidate.projectId === projectId,
   );
 
+  /**
+   * The album's steps, including the two the couple usually takes in their
+   * portal. A couple who emailed their selections, or approved the design by
+   * phone, left the album stuck: the server accepted "selections received"
+   * and "approved" from the studio, but no screen offered them, and "Record
+   * fulfillment" only appears at `approved` (Wave 2).
+   */
+  const ALBUM_STEP_COPY: Record<string, { notes: string; done: string }> = {
+    selections_received: {
+      notes: "Studio recorded the couple's album selections, received outside the portal.",
+      done: "Selections recorded. The selection reminders stop.",
+    },
+    design_sent: {
+      notes: "Studio released a human-created album design proof.",
+      done: "Human-created design proof released to the client.",
+    },
+    revision_requested: {
+      notes: "Studio recorded the couple's request for changes, made outside the portal.",
+      done: "Recorded: they asked for changes.",
+    },
+    approved: {
+      notes: "Studio recorded the couple's approval of the design, given outside the portal.",
+      done: "Recorded: they approved the design.",
+    },
+    fulfilled: {
+      notes: "Studio recorded album fulfillment evidence.",
+      done: "Album fulfillment recorded.",
+    },
+  };
+
   async function updateAlbum(
     albumId: string,
-    status: "design_sent" | "fulfilled",
+    status: "selections_received" | "design_sent" | "revision_requested" | "approved" | "fulfilled",
   ) {
     setBusy(`${albumId}:${status}`);
     setNotice(null);
@@ -146,25 +179,57 @@ export function DeliveryCloseoutWorkspace({
         albumWorkflowId: albumId,
         status,
         evidenceUrl:
-          status === "design_sent" ? evidenceUrl[albumId] || null : null,
+          status === "design_sent" || status === "selections_received"
+            ? evidenceUrl[albumId] || null
+            : null,
         evidenceId:
           status === "fulfilled"
             ? `album_fulfillment_${crypto.randomUUID()}`
             : null,
-        notes:
-          status === "design_sent"
-            ? "Studio released a human-created album design proof."
-            : "Studio recorded album fulfillment evidence.",
+        notes: ALBUM_STEP_COPY[status]!.notes,
       });
-      setNotice(
-        status === "design_sent"
-          ? "Human-created design proof released to the client."
-          : "Album fulfillment recorded.",
-      );
+      refreshTenantRecords("albumWorkflows");
+      setNotice(ALBUM_STEP_COPY[status]!.done);
     } catch (caught: unknown) {
       setNotice(
         friendlyError(caught, "Album status could not update."),
       );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** One step back, for a click made by mistake. Audited server-side. */
+  async function revertAlbum(albumId: string, back: string) {
+    setBusy(`${albumId}:revert`);
+    setNotice(null);
+    try {
+      await sendPostEventCommand("revertAlbumStatus", {
+        projectId,
+        albumWorkflowId: albumId,
+        notes: null,
+      });
+      refreshTenantRecords("albumWorkflows");
+      setNotice(`Put back to "${statusLabel(back)}".`);
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The album could not be put back."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function skipReviews() {
+    setBusy("skip_reviews");
+    setNotice(null);
+    try {
+      await sendPostEventCommand("skipReviewRequests", { projectId, reason: null });
+      setConfirming(null);
+      refreshTenantRecords("reviewRequests", "projects");
+      setNotice("Done. StudioCue won't ask this couple for a review.");
+      // The closeout's review row settles on the decision; re-read it.
+      await runCloseout("prepareCloseout", { quiet: true });
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The review asks could not be stopped."));
     } finally {
       setBusy(null);
     }
@@ -294,6 +359,13 @@ export function DeliveryCloseoutWorkspace({
     deliverySentAt: text(sentDelivery?.sentAt) || null,
     albumStatus: text(projectAlbums[0]?.status) || null,
   };
+  const projectReviews = (reviews ?? []).filter((item) => item.projectId === projectId);
+  const reviewAsksOff = typeof project?.reviewRequestsSkippedAt === "string";
+  // Theirs or the studio's: either way there is nothing left to ask.
+  const reviewConfirmed = projectReviews.some((item) =>
+    ["client_confirmed", "manually_confirmed"].includes(text(item.status)),
+  );
+  const pendingAsks = projectReviews.filter((item) => item.status === "scheduled").length;
   const closed = text(project?.state) === "CLOSED";
   const archived = Boolean(text(project?.archivedAt));
   const readyToClose = closeout?.status === "ready" && !closed;
@@ -337,6 +409,35 @@ export function DeliveryCloseoutWorkspace({
                     </small>
                   </span>
                 </div>
+                {[
+                  "instructions_available",
+                  "instructions_viewed",
+                  "selections_pending",
+                ].includes(String(album.status)) ? (
+                  <label>
+                    They sent their selections another way? Link (optional)
+                    <span>
+                      <input
+                        onChange={(event) =>
+                          setEvidenceUrl((current) => ({
+                            ...current,
+                            [album.id]: event.target.value,
+                          }))
+                        }
+                        type="url"
+                        value={evidenceUrl[album.id] ?? ""}
+                      />
+                      <button
+                        className="button button-light"
+                        disabled={busy !== null}
+                        onClick={() => void updateAlbum(album.id, "selections_received")}
+                        type="button"
+                      >
+                        <CheckCircle2 /> Selections received
+                      </button>
+                    </span>
+                  </label>
+                ) : null}
                 {["selections_received", "revision_requested"].includes(
                   String(album.status),
                 ) ? (
@@ -366,6 +467,27 @@ export function DeliveryCloseoutWorkspace({
                     </span>
                   </label>
                 ) : null}
+                {album.status === "design_sent" ? (
+                  <span className="album-decision-actions">
+                    <button
+                      className="button button-light"
+                      disabled={busy !== null}
+                      onClick={() => void updateAlbum(album.id, "approved")}
+                      title="The couple approved the design by email, phone or in person"
+                      type="button"
+                    >
+                      <CheckCircle2 /> They approved it
+                    </button>
+                    <button
+                      className="button button-quiet"
+                      disabled={busy !== null}
+                      onClick={() => void updateAlbum(album.id, "revision_requested")}
+                      type="button"
+                    >
+                      They asked for changes
+                    </button>
+                  </span>
+                ) : null}
                 {album.status === "approved" ? (
                   <button
                     className="button button-dark"
@@ -376,6 +498,23 @@ export function DeliveryCloseoutWorkspace({
                     <CheckCircle2 /> Record fulfillment
                   </button>
                 ) : null}
+                {(() => {
+                  const back = previousAlbumStatus(
+                    String(album.status),
+                    album.statusHistory,
+                  );
+                  return back ? (
+                    <button
+                      className="button button-quiet button-sm"
+                      disabled={busy !== null}
+                      onClick={() => void revertAlbum(album.id, back)}
+                      title="Undo the last album step, if it was a mistake. Recorded in the audit log."
+                      type="button"
+                    >
+                      Put back to &ldquo;{statusLabel(back)}&rdquo;
+                    </button>
+                  ) : null;
+                })()}
               </article>
             ))}
           </div>
@@ -441,7 +580,19 @@ export function DeliveryCloseoutWorkspace({
                       {closeoutPendingNote(key, pendingContext)}
                     </em>
                   ) : null}
-                  {!met && requirementIsAttestable(key) ? (
+                  {!met && key === "final_balance" && requirement.noAgreedBalance === true ? (
+                    <em className="closeout-pending">
+                      No price was agreed in StudioCue for this job, so there is no balance to record a
+                      payment against. If it&rsquo;s settled, say how you know.
+                    </em>
+                  ) : null}
+                  {!met &&
+                  requirementMayBeAttested({
+                    key,
+                    label: text(requirement.label),
+                    complete: false,
+                    noAgreedBalance: requirement.noAgreedBalance === true,
+                  }) ? (
                     <ActionHint hint="Vouch that this happened outside StudioCue. Your note goes in the audit log, and the job shows it was on your word.">
                       <button
                         className="button button-quiet button-sm closeout-attest"
@@ -499,7 +650,11 @@ export function DeliveryCloseoutWorkspace({
                           maxLength={500}
                           minLength={8}
                           name="note"
-                          placeholder="Ada confirmed by text that they have the gallery"
+                          placeholder={
+                            key === "final_balance"
+                              ? "Paid in full by bank transfer before we moved to StudioCue"
+                              : "Ada confirmed by text that they have the gallery"
+                          }
                           required
                         />
                       </label>
@@ -543,12 +698,95 @@ export function DeliveryCloseoutWorkspace({
             </ul>
           </details>
         ) : null}
+        {/*
+          "Don't ask this couple for a review" (Wave 2). The only stop was
+          "they reviewed us", which records a review that never happened.
+          Offered until the job is closed; the server decides who may.
+        */}
+        {!closed && reviewAsksOff ? (
+          <p className="closeout-confirm">
+            <small>Review asks are off for this couple.</small>
+          </p>
+        ) : !closed && !reviewConfirmed && ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(projectState) ? (
+          <div className="closeout-confirm">
+            {confirming === "skip_reviews" ? (
+              <>
+                <p>
+                  {pendingAsks
+                    ? `The ${pendingAsks === 1 ? "review ask that hasn't gone out" : `${pendingAsks} review asks that haven't gone out`} will be cancelled, and none will be scheduled for this couple. Nothing is sent to them.`
+                    : "No review asks will be scheduled for this couple. Nothing is sent to them."}
+                </p>
+                <span>
+                  <button
+                    className="button button-dark"
+                    disabled={busy !== null}
+                    onClick={() => void skipReviews()}
+                    type="button"
+                  >
+                    Yes, don&rsquo;t ask them
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    disabled={busy !== null}
+                    onClick={() => setConfirming(null)}
+                    type="button"
+                  >
+                    Keep the asks
+                  </button>
+                </span>
+              </>
+            ) : (
+              <button
+                className="button button-quiet button-sm"
+                disabled={busy !== null}
+                onClick={() => setConfirming("skip_reviews")}
+                type="button"
+              >
+                Don&rsquo;t ask this couple for a review
+              </button>
+            )}
+          </div>
+        ) : null}
+        {/*
+          One click used to close and archive with no word of what that does,
+          and CLOSED cannot be reopened (Wave 2). Say it, then do it.
+        */}
+        {readyToClose && confirming === "close" ? (
+          <div className="closeout-confirm" role="alertdialog" aria-label="Close and archive this job?">
+            <p>
+              Closing stops anything still due to the couple — review and album reminders — and the job leaves your
+              active list for the archive. A closed job can&rsquo;t be reopened yet.
+            </p>
+          </div>
+        ) : null}
         <footer>
-          {readyToClose ? (
+          {readyToClose && confirming === "close" ? (
+            <>
+              <button
+                className="button button-dark"
+                disabled={busy !== null}
+                onClick={() => {
+                  setConfirming(null);
+                  void closeAndArchive();
+                }}
+                type="button"
+              >
+                <Archive /> Yes, close and archive
+              </button>
+              <button
+                className="button button-quiet"
+                disabled={busy !== null}
+                onClick={() => setConfirming(null)}
+                type="button"
+              >
+                Not yet
+              </button>
+            </>
+          ) : readyToClose ? (
             <button
               className="button button-dark"
               disabled={busy !== null}
-              onClick={() => void closeAndArchive()}
+              onClick={() => setConfirming("close")}
               type="button"
             >
               <Archive /> Close and archive

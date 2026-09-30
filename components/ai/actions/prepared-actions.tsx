@@ -70,7 +70,9 @@ import {
   ForwardingAddressCard,
   PackageCatalogueCard,
   ReadinessCard,
+  ReplaceGalleryLinkCard,
   SettingsCard,
+  SkipReviewRequestsCard,
   SubscriptionCard,
   TeamCard,
   WaiveRequirementCard,
@@ -196,6 +198,8 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   complete_editing_step: DeliveryCard,
   update_album: DeliveryCard,
   confirm_review: ConfirmReviewCard,
+  replace_gallery_link: ReplaceGalleryLinkCard,
+  skip_review_requests: SkipReviewRequestsCard,
   close_job: DeliveryCard,
   // Team
   invite_team_member: TeamCard,

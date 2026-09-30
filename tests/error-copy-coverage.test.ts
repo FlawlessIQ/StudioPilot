@@ -189,7 +189,6 @@ const KNOWN_GAPS: Record<string, string> = {
   CREW_PLAN_PROJECT_MISMATCH: "crew",
   DELETION_REQUEST_NOT_APPROVABLE: "saas",
   DELETION_REQUEST_NOT_CANCELLABLE: "saas",
-  DELIVERY_NOT_FOUND: "post-event",
   DOCUMENT_PATH_MISMATCH: "crew",
   DRAFT_NOT_READY_TO_SEND: "communications",
   DRAFT_RECIPIENT_REQUIRED: "communications",

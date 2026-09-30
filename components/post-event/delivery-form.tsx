@@ -19,13 +19,14 @@ import {
   defaultKindFor,
   deliverableDueDate,
   deliveryProgress,
-  expectedDeliverables,
   kindDefaults,
   releaseHeadline,
   releasedKind,
   type DeliverableKind,
 } from "@/features/post-event/deliverables";
-import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
+import { jobExpectedDeliverables } from "@/features/post-event/job-deliverables";
+import { jobPackageSnapshotIds } from "@/features/crew/staffing-plan";
+import { ReplaceDeliveryLink } from "@/components/post-event/replace-delivery-link";
 import { addCalendarDays, formatEventDate, todayLocalIso } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -112,23 +113,23 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const releasable = ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(state);
   const gateBlocked = !postProductionOpen || outstandingGateSteps.length > 0 || !releasable;
 
-  const snapshot = (packageSnapshots ?? []).find(
-    (candidate) => candidate.id === project?.packageSnapshotId || candidate.projectId === selectedProjectId,
-  );
-  const expected = useMemo(() => {
-    if (!snapshot) return expectedDeliverables({ coverage: null });
-    const coverage = resolveCoverage(snapshot);
-    return expectedDeliverables({
-      deliverables: snapshot.deliverables,
-      includedDeliverables: snapshot.includedDeliverables,
-      coverage: {
-        photographers: coverageCount(coverage, "photographer"),
-        videographers: coverageCount(coverage, "videographer"),
-      },
-    });
-  }, [snapshot]);
+  /**
+   * Every package on the job, not the primary alone: a photo + video wedding
+   * showed only the gallery here, so releasing it read as "complete delivery"
+   * with the film still owed (Wave 2; features/post-event/job-deliverables.ts).
+   * A job whose snapshot ids are not set yet falls back to snapshots filed
+   * against it, as this form always did.
+   */
+  const snapshots = useMemo(() => {
+    const ids = jobPackageSnapshotIds(project);
+    const all = packageSnapshots ?? [];
+    const named = all.filter((candidate) => ids.includes(candidate.id));
+    return named.length ? named : all.filter((candidate) => candidate.projectId === selectedProjectId).slice(0, 1);
+  }, [packageSnapshots, project, selectedProjectId]);
+  const expected = useMemo(() => jobExpectedDeliverables(snapshots), [snapshots]);
+  // A replaced link is history, not a delivery: it stays out of the list.
   const released = (deliveryRecords ?? [])
-    .filter((item) => item.projectId === selectedProjectId && !item.archivedAt)
+    .filter((item) => item.projectId === selectedProjectId && !item.archivedAt && item.status !== "revoked")
     .sort((left, right) => text(right.sentAt).localeCompare(text(left.sentAt)));
   const progress = deliveryProgress(expected, released);
   const nextKind: DeliverableKind =
@@ -154,9 +155,12 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     ["facebook", reviewLinks.facebook],
     ["custom", reviewLinks.custom],
   ].find(([, value]) => text(value));
-  const albumInPackage = (Array.isArray(snapshot?.includedDeliverables) ? snapshot.includedDeliverables : []).some(
-    (deliverable) => /album/i.test(String(deliverable)),
+  const albumInPackage = snapshots.some((snapshot) =>
+    (Array.isArray(snapshot.includedDeliverables) ? snapshot.includedDeliverables : []).some((deliverable) =>
+      /album/i.test(String(deliverable)),
+    ),
   );
+  const reviewAsksOff = typeof project?.reviewRequestsSkippedAt === "string";
 
   // What the studio has typed; `null` means "not touched — use the records".
   const [itemsEdit, setItems] = useState<Item[] | null>(null);
@@ -168,10 +172,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const [albumInstructionsUrlEdit, setAlbumInstructionsUrl] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Controlled, so a required field inside it (the review link, when this
-  // release completes delivery) can be shown when the browser blocks submit —
-  // a closed <details> swallows the validation bubble and the button looks
-  // dead (audit-2 N6).
+  // Controlled, so a required field inside it (the delivery date) can be
+  // shown when the browser blocks submit — a closed <details> swallows the
+  // validation bubble and the button looks dead (audit-2 N6).
   const [advancedOpenEdit, setAdvancedOpen] = useState<boolean | null>(null);
   // One release, one key, for as long as it takes to succeed (D1).
   const [releaseKey, setReleaseKey] = useState(() => crypto.randomUUID());
@@ -215,7 +218,10 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
     ...items.map((item) => ({ kind: item.kind, status: "sent" })),
   ]);
   const completesDelivery = state === "POST_PRODUCTION" && after.complete;
-  const advancedOpen = advancedOpenEdit ?? (completesDelivery && !reviewUrl);
+  // The review link is optional (Wave 2): without one, or with the asks
+  // turned off for this couple, delivery completes and nothing is scheduled.
+  const asksFollow = Boolean(reviewUrl.trim()) && !reviewAsksOff;
+  const advancedOpen = advancedOpenEdit ?? false;
   const headline = releaseHeadline(
     items.map((item) => ({
       kind: item.kind,
@@ -267,7 +273,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
         saveStudioDefaults: data.get("saveStudioDefaults") === "on",
       },
       completesDelivery
-        ? "Delivered. The couple's email is on its way, and the review asks start in three days."
+        ? asksFollow
+          ? "Delivered. The couple's email is on its way, and the review asks start in three days."
+          : "Delivered. The couple's email is on its way. No review asks were scheduled."
         : `Sent. The couple's email is on its way.${
             after.outstanding.filter((entry) => entry.final).length
               ? ` Still to come: ${after.outstanding.filter((entry) => entry.final).map((entry) => entry.label.toLowerCase()).join(" and ")}.`
@@ -307,7 +315,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       className="delivery-form delivery-release-form"
       onInvalidCapture={() => {
         setAdvancedOpen(true);
-        setNotice("Something below is missing — it's highlighted. This release completes delivery, so the review link is needed.");
+        setNotice("Something below is missing — it's highlighted.");
       }}
       onSubmit={(event) => void submit(event)}
     >
@@ -375,6 +383,13 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
                             : "Not sent yet"}
                         {entry.final ? "" : " · extra"}
                       </small>
+                      {sent ? (
+                        <ReplaceDeliveryLink
+                          delivery={sent}
+                          onReplaced={setNotice}
+                          projectId={selectedProjectId}
+                        />
+                      ) : null}
                     </span>
                   </li>
                 );
@@ -387,6 +402,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
                     <span>
                       <strong>{text(item.label) || KIND_LABEL[releasedKind(item)]}</strong>
                       <small>Sent {text(item.deliveryDate) ? formatEventDate(text(item.deliveryDate)) : ""}</small>
+                      <ReplaceDeliveryLink delivery={item} onReplaced={setNotice} projectId={selectedProjectId} />
                     </span>
                   </li>
                 ))}
@@ -412,7 +428,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
                 {state === "POST_PRODUCTION" && !progress.complete ? (
                   <button
                     className="button button-quiet"
-                    disabled={busy || !reviewUrl}
+                    disabled={busy}
                     onClick={() =>
                       void send(
                         "markDeliveryComplete",
@@ -421,10 +437,12 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
                           reviewDestinationUrl: reviewUrl || null,
                           reviewDestinationLabel: reviewLabel,
                         },
-                        "Delivery closed. The review asks start in three days.",
+                        asksFollow
+                          ? "Delivery closed. The review asks start in three days."
+                          : "Delivery closed. No review asks were scheduled.",
                       )
                     }
-                    title={reviewUrl ? undefined : "Add a review link below first"}
+                    title={asksFollow ? undefined : "No review link, so no review asks will be scheduled"}
                     type="button"
                   >
                     Mark delivery complete
@@ -644,7 +662,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
           >
             <summary>
               {completesDelivery
-                ? "This completes delivery: review asks and album"
+                ? asksFollow
+                  ? "This completes delivery: review asks and album"
+                  : "This completes delivery: album (no review asks)"
                 : "Review asks, album and studio defaults"}
             </summary>
             <div className="delivery-advanced-grid">
@@ -672,14 +692,17 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
                 Review link
                 <input
                   onChange={(event) => setReviewUrl(event.target.value)}
-                  required={completesDelivery}
                   type="url"
                   value={reviewUrl}
                 />
                 <small>
-                  {completesDelivery
-                    ? "Required now: this release completes the job, and two review asks start three days from today."
-                    : "Used when the last final item goes out. The asks wait until then, so a film isn't beaten to it."}
+                  {reviewAsksOff
+                    ? "Review asks are off for this couple, so none will be scheduled."
+                    : !reviewUrl.trim()
+                      ? "Optional. Leave it empty and StudioCue won't ask this couple for a review."
+                      : completesDelivery
+                        ? "This release completes the job: two review asks start three days from today."
+                        : "Used when the last final item goes out. The asks wait until then, so a film isn't beaten to it."}
                 </small>
               </label>
               <label className="delivery-album-toggle">
