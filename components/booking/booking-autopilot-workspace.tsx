@@ -118,6 +118,10 @@ export function BookingAutopilotWorkspace({
   const [actions, setActions] = useState<Value[]>([]);
   const [notes, setNotes] = useState("");
   const [selectedPackageId, setSelectedPackageId] = useState("");
+  // More than one package on a wedding: photo and video, say (Gabe,
+  // 2026-09-30: "Cant pick two packages"). The first chosen stays the main
+  // package; these are added alongside it, on one proposal with one total.
+  const [extraPackageIds, setExtraPackageIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -466,6 +470,20 @@ export function BookingAutopilotWorkspace({
         });
         packageSnapshotId = text(selection.result.packageSnapshotId);
       }
+      // The rest go alongside it, as the proposal's Packages panel adds them.
+      for (const packageId of extraPackageIds) {
+        try {
+          await runCrmCommand("selectPackage", {
+            projectId,
+            packageId,
+            selectedAddOns: [],
+            mode: "add",
+            discount: { type: "none" },
+          });
+        } catch (caught: unknown) {
+          if (!(caught instanceof Error && caught.message.includes("PACKAGE_ALREADY_ON_JOB"))) throw caught;
+        }
+      }
       let projectVersion = Number(project.stateVersion ?? 0);
       if (project.state === "CONSULTATION") {
         const transition = await runCrmCommand("transitionProject", {
@@ -805,22 +823,49 @@ export function BookingAutopilotWorkspace({
               </StatusBadge>
             </header>
             <div className="booking-package-options">
-              {packages.map((studioPackage) => (
+              {packages.map((studioPackage) => {
+                const main = selectedPackageId === studioPackage.id;
+                const extra = extraPackageIds.includes(studioPackage.id);
+                return (
                 <button
-                  className={selectedPackageId === studioPackage.id ? "is-selected" : ""}
+                  aria-pressed={main || extra}
+                  className={main || extra ? "is-selected" : ""}
                   key={studioPackage.id}
-                  onClick={() => setSelectedPackageId(studioPackage.id)}
+                  onClick={() => {
+                    // Tap to add or remove; the first chosen is the main package.
+                    if (main) {
+                      const [next, ...rest] = extraPackageIds;
+                      setSelectedPackageId(next ?? "");
+                      setExtraPackageIds(rest);
+                    } else if (extra) setExtraPackageIds(extraPackageIds.filter((id) => id !== studioPackage.id));
+                    else if (!selectedPackageId) setSelectedPackageId(studioPackage.id);
+                    else if (extraPackageIds.length < 3) setExtraPackageIds([...extraPackageIds, studioPackage.id]);
+                  }}
                   type="button"
                 >
-                  <span>{selectedPackageId === studioPackage.id ? <Check /> : null}</span>
+                  <span>{main || extra ? <Check /> : null}</span>
                   <span>
-                    <small>{studioPackage.id === recommendation.packageId ? "StudioCue recommendation" : "Active package"}</small>
+                    <small>
+                      {main && extraPackageIds.length
+                        ? "Main package"
+                        : extra
+                          ? "Added alongside"
+                          : studioPackage.id === recommendation.packageId
+                            ? "StudioCue recommendation"
+                            : "Active package"}
+                    </small>
                     <strong>{text(studioPackage.name)}</strong>
                     <em>{money(studioPackage.basePriceCents, studioPackage.currency)} · {Math.round(Number(studioPackage.includedCoverageMinutes ?? 0) / 60)} hours · {describeCoverage(resolveCoverage(studioPackage))}</em>
                   </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
+            <p className="booking-package-hint">
+              {extraPackageIds.length
+                ? `${1 + extraPackageIds.length} packages on one proposal, one total. Tap a package to take it off.`
+                : "Tap more than one to offer them together — photo and video, say."}
+            </p>
             <div className="booking-package-rationale">
               <strong>Why this fit was suggested</strong>
               <p>{text(recommendation.rationale)}</p>

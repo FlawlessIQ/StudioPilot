@@ -821,6 +821,13 @@
 .ds-root .booking-consultation-capture label > span,
 .ds-root .booking-consultation-capture label small,
 .ds-root .booking-evidence-heading p:last-child,
+/* "Tap more than one…" under the package picker (several packages on one wedding). */
+.ds-root .booking-package-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--ds-muted);
+}
+
 .ds-root .booking-package-options em,
 .ds-root .booking-package-rationale p,
 .ds-root .booking-package-rationale span,

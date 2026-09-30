@@ -87,6 +87,8 @@ type ProjectOption = {
   contactEmail: string;
   packageSnapshotId: string;
   packageSnapshot: Value;
+  /** Packages added alongside the main one (photo and video, say). */
+  extraSnapshots: Value[];
   openProposalId: string | null;
 };
 
@@ -198,6 +200,7 @@ const mockProject: ProjectOption = {
       "Print release",
     ],
   },
+  extraSnapshots: [],
   openProposalId: null,
 };
 
@@ -410,11 +413,17 @@ async function loadProjectOptions(tenantId: string): Promise<{
             (item): item is string => typeof item === "string",
           )
         : [];
-      const [snapshot, contact] = await Promise.all([
+      const extraIds = Array.isArray(project.get("additionalPackageSnapshotIds"))
+        ? (project.get("additionalPackageSnapshotIds") as unknown[]).filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [];
+      const [snapshot, contact, extras] = await Promise.all([
         getDoc(doc(firestore, "packageSnapshots", packageSnapshotId)),
         contactIds[0]
           ? getDoc(doc(firestore, "contacts", contactIds[0]))
           : Promise.resolve(null),
+        Promise.all(extraIds.map((id) => getDoc(doc(firestore, "packageSnapshots", id)))),
       ]);
       return {
         id: project.id,
@@ -429,6 +438,9 @@ async function loadProjectOptions(tenantId: string): Promise<{
           id: snapshot.id,
           ...(snapshot.data() ?? {}),
         },
+        extraSnapshots: extras
+          .filter((extra) => extra.exists())
+          .map((extra): Value => ({ id: extra.id, ...(extra.data() ?? {}) })),
         openProposalId: openByProject.get(project.id) ?? null,
       };
     }),
@@ -987,6 +999,51 @@ export function StudioProposalComposer() {
    * selectPackage creates the immutable pricing snapshot server-side; the
    * composer then continues with the now-eligible project.
    */
+  /** The job in the list, if it already has a package locked. */
+  function selectedFor(id: string) {
+    return projects?.find((project) => project.id === id) ?? null;
+  }
+
+  /**
+   * Change the packages on a job that already has one: add another beside it
+   * (photo and video), or start over with a different one. Gabe, 2026-09-30:
+   * once a package was locked here there was no way to add a second, and no
+   * way back — "Think we need a back or undo button".
+   */
+  async function openPackagePicker(project: ProjectOption) {
+    setPackagePickerFor({
+      id: project.id,
+      name: project.name,
+      eventDate: project.eventDate,
+      eventType: project.eventType,
+      state: project.state,
+    });
+    if (activePackages !== null || !workspace.tenantId) return;
+    const packageDocs = await getDocs(
+      query(
+        collection(getFirebaseClient().firestore, "packages"),
+        where("tenantId", "==", workspace.tenantId),
+        where("active", "==", true),
+      ),
+    );
+    setActivePackages(packageDocs.docs.map((item): Value => ({ id: item.id, ...item.data() })));
+  }
+
+  async function removeExtraPackage(projectIdToEdit: string, packageSnapshotId: string) {
+    if (!workspace.tenantId) return;
+    setLockingPackageId(packageSnapshotId);
+    setError("");
+    try {
+      await runCrmCommand("removePackage", { projectId: projectIdToEdit, packageSnapshotId });
+      const value = await loadProjectOptions(workspace.tenantId);
+      setProjects(value.ready);
+    } catch (caught: unknown) {
+      setError(friendlyError(caught, "That package couldn't be taken off. Try again."));
+    } finally {
+      setLockingPackageId(null);
+    }
+  }
+
   async function lockPackage(packageId: string, mode: "replace" | "add" = "replace") {
     if (!packagePickerFor || !workspace.tenantId) return;
     // A blank field is no discount, not a zero-value one, and anything that is
@@ -1003,6 +1060,9 @@ export function StudioProposalComposer() {
         packageId,
         selectedAddOns: [],
         mode,
+        // Opened from a job that already has packages: "start over" is asked
+        // for, so the server may replace them.
+        confirmReplace: mode === "replace" && Boolean(selectedFor(packagePickerFor.id)),
         discount: discountCents > 0
           ? { type: "fixed", amountCents: discountCents }
           : { type: "none" },
@@ -1037,6 +1097,16 @@ export function StudioProposalComposer() {
 
   const pricing = objectValue(selected?.packageSnapshot);
   const currency = text(pricing.currency, "USD");
+  // Every package on the job, for the offer snapshot: one proposal, one total.
+  const allSnapshots = selected ? [pricing, ...selected.extraSnapshots.map(objectValue)] : [];
+  const combined = {
+    totalCents: allSnapshots.reduce((sum, item) => sum + number(item.totalCents), 0),
+    discountCents: allSnapshots.reduce((sum, item) => sum + number(item.discountCents), 0),
+    taxCents: allSnapshots.reduce((sum, item) => sum + number(item.taxCents), 0),
+    // Summed, as the server combines them (functions/src/proposals/combined-pricing.ts).
+    retainerCents: allSnapshots.reduce((sum, item) => sum + number(item.retainerCents), 0),
+    names: allSnapshots.map((item) => text(item.packageName, "Package")).join(" + "),
+  };
   const addOns = Array.isArray(pricing.addOns)
     ? pricing.addOns.map(objectValue)
     : [];
@@ -1159,12 +1229,27 @@ export function StudioProposalComposer() {
                 </div>
               ) : packagePickerFor ? (
                 <div className="proposal-package-picker">
-                  <p>
-                    <strong>{packagePickerFor.name}</strong>
-                    {" doesn't have a package locked yet. Choose the "}
-                    {"coverage — pricing snapshots the moment you lock it, "}
-                    {"and the proposal continues right here."}
-                  </p>
+                  {selectedFor(packagePickerFor.id) ? (
+                    <p>
+                      <strong>{packagePickerFor.name}</strong>
+                      {" — add another package beside what's there (photo and video, say), "}
+                      {"or start over with a different one. "}
+                      <button
+                        className="button button-light"
+                        onClick={() => setPackagePickerFor(null)}
+                        type="button"
+                      >
+                        Done
+                      </button>
+                    </p>
+                  ) : (
+                    <p>
+                      <strong>{packagePickerFor.name}</strong>
+                      {" doesn't have a package locked yet. Choose the "}
+                      {"coverage — pricing snapshots the moment you lock it, "}
+                      {"and the proposal continues right here."}
+                    </p>
+                  )}
                   {activePackages === null ? (
                     <small>Loading your packages…</small>
                   ) : activePackages.length === 0 ? (
@@ -1215,7 +1300,7 @@ export function StudioProposalComposer() {
                             </small>
                           </span>
                           <button
-                            className="button button-dark"
+                            className={selectedFor(packagePickerFor.id) ? "button button-light" : "button button-dark"}
                             disabled={lockingPackageId !== null}
                             onClick={() => void lockPackage(studioPackage.id)}
                             type="button"
@@ -1223,7 +1308,7 @@ export function StudioProposalComposer() {
                             {lockingPackageId === studioPackage.id ? (
                               <LoaderCircle className="spin" size={14} />
                             ) : null}
-                            Lock this package
+                            {selectedFor(packagePickerFor.id) ? "Start over with this one" : "Lock this package"}
                           </button>
                           {/* Photo and video on one wedding is the normal sale
                               for a studio that shoots both, and it used to need
@@ -1231,7 +1316,7 @@ export function StudioProposalComposer() {
                               one already locked: one document, one total, both
                               sets of crew. */}
                           <button
-                            className="button button-light"
+                            className={selectedFor(packagePickerFor.id) ? "button button-dark" : "button button-light"}
                             disabled={lockingPackageId !== null}
                             onClick={() => void lockPackage(studioPackage.id, "add")}
                             type="button"
@@ -1301,11 +1386,48 @@ export function StudioProposalComposer() {
                   </span>
                   <span>
                     <FileCheck2 />
-                    <small>Package</small>
+                    <small>{selected.extraSnapshots.length ? "Packages" : "Package"}</small>
                     <strong>
                       {text(pricing.packageName, "Selected package")}
                     </strong>
                   </span>
+                  {/* Every package on the job, and the way to change them:
+                      add one beside it, or start over (Gabe, 2026-09-30). */}
+                  <div className="proposal-selected-packages">
+                    {selected.extraSnapshots.length ? (
+                      <span>
+                        <strong>{text(pricing.packageName, "Package")}</strong>
+                        <small>{money(number(pricing.totalCents), currency)} · main</small>
+                      </span>
+                    ) : null}
+                    {selected.extraSnapshots.map((extra) => (
+                      <span key={String(extra.id)}>
+                        <strong>{text(extra.packageName, "Package")}</strong>
+                        <small>{money(number(extra.totalCents), text(extra.currency, currency))}</small>
+                        {selected.openProposalId ? null : (
+                          <button
+                            aria-label={`Take ${text(extra.packageName, "this package")} off`}
+                            className="button button-light"
+                            disabled={lockingPackageId !== null}
+                            onClick={() => void removeExtraPackage(selected.id, String(extra.id))}
+                            type="button"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {selected.openProposalId || packagePickerFor ? null : (
+                      <button
+                        className="button button-light"
+                        disabled={lockingPackageId !== null}
+                        onClick={() => void openPackagePicker(selected)}
+                        type="button"
+                      >
+                        Add or change packages
+                      </button>
+                    )}
+                  </div>
                   {selected.openProposalId ? (
                     <p>
                       This project already has an open proposal. Continuing
@@ -1435,8 +1557,8 @@ export function StudioProposalComposer() {
             <small>Project total</small>
             {selected ? (
               <>
-                <strong>{money(pricing.totalCents, currency)}</strong>
-                <span>{text(pricing.packageName, "Locked package")}</span>
+                <strong>{money(combined.totalCents, currency)}</strong>
+                <span>{combined.names || "Locked package"}</span>
               </>
             ) : (
               <>
@@ -1446,25 +1568,34 @@ export function StudioProposalComposer() {
             )}
           </div>
           <dl>
-            <div>
-              <dt>Base coverage</dt>
-              <dd>{money(pricing.basePriceCents, currency)}</dd>
-            </div>
+            {allSnapshots.length > 1 ? (
+              allSnapshots.map((item, index) => (
+                <div key={`${text(item.packageName)}-${index}`}>
+                  <dt>{text(item.packageName, "Package")}</dt>
+                  <dd>{money(item.basePriceCents, currency)}</dd>
+                </div>
+              ))
+            ) : (
+              <div>
+                <dt>Base coverage</dt>
+                <dd>{money(pricing.basePriceCents, currency)}</dd>
+              </div>
+            )}
             {addOns.map((item, index) => (
               <div key={`${text(item.name)}-${index}`}>
                 <dt>{text(item.name, "Add-on")}</dt>
                 <dd>{money(item.lineTotalCents, currency)}</dd>
               </div>
             ))}
-            {number(pricing.discountCents) > 0 ? (
+            {combined.discountCents > 0 ? (
               <div>
                 <dt>Discount</dt>
-                <dd>−{money(pricing.discountCents, currency)}</dd>
+                <dd>−{money(combined.discountCents, currency)}</dd>
               </div>
             ) : null}
             <div>
               <dt>Tax</dt>
-              <dd>{money(pricing.taxCents, currency)}</dd>
+              <dd>{money(combined.taxCents, currency)}</dd>
             </div>
           </dl>
           {/* Editable here because an imported price list rarely states a
@@ -1484,14 +1615,16 @@ export function StudioProposalComposer() {
                 type="number"
                 value={
                   retainerOverride === null
-                    ? (number(pricing.retainerCents) / 100).toFixed(2)
+                    ? (combined.retainerCents / 100).toFixed(2)
                     : retainerOverride
                 }
               />
               <em>
                 {retainerOverride === null
-                  ? "From the package"
-                  : `Package says ${money(pricing.retainerCents, currency)}`}
+                  ? allSnapshots.length > 1
+                    ? "From the packages"
+                    : "From the package"
+                  : `${allSnapshots.length > 1 ? "Packages say" : "Package says"} ${money(combined.retainerCents, currency)}`}
               </em>
             </span>
           </div>

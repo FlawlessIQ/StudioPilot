@@ -1503,6 +1503,37 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+/* Every package on the job, and the way to change them (Gabe, 2026-09-30). */
+.proposal-selected-packages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+  padding: 12px 15px;
+  background: #fafbf9;
+}
+
+.proposal-selected-packages > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.proposal-selected-packages > span small {
+  font-size: 12px;
+}
+
+.proposal-selected-packages .button {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
 .proposal-selected-project > p {
   grid-column: 1 / -1;
   margin: 0;
