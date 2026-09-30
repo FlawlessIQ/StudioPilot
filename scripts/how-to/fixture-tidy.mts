@@ -92,4 +92,14 @@ await db.doc("postProductionRecords/job-rivera").set({
 await db.doc("projects/uat-job-a").update({ state: "CONTRACT_PENDING", stateVersion: FieldValue.increment(1) });
 await db.doc("proposals/prop-uat-a-v1").update({ status: "accepted", acceptedAt: daysAgo(1) });
 
+// The demo gives Jordan crew assignments without the project access the real
+// flow grants on accepting an offer, so every demo day sheet read "The latest
+// run of show couldn't be loaded" (firestore.rules, crewScheduleViews).
+const crewUser = await getAuth().getUserByEmail("crew@studiohub.test");
+const crewJobs = await db.collection("crewAssignments").where("tenantId", "==", tenantId).where("userId", "==", crewUser.uid).get();
+const crewProjects = [...new Set(crewJobs.docs.map((doc: { get: (f: string) => unknown }) => String(doc.get("projectId"))))];
+if (crewProjects.length) {
+  await db.doc(`memberships/${tenantId}_${crewUser.uid}`).update({ projectIds: FieldValue.arrayUnion(...crewProjects) });
+}
+
 console.log(`Tidied ${tenantId}: default brand colour, Hana Park's reply drafted.`);
