@@ -10,6 +10,7 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { draftVendorShareMessage } from "@/features/schedules/vendor-share";
 import { formatEventDate } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { ConfirmStep } from "@/components/ui/confirm-step";
 
 /**
  * Sharing the run of show with one external vendor.
@@ -60,6 +61,9 @@ export function VendorShareActions({
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Revoking cut the vendor off on one tap of a text link, days before the
+  // wedding perhaps (wave 3). Say so first.
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const [scope, setScope] = useState<"vendor" | "full">("vendor");
   const [message, setMessage] = useState(() =>
     draftVendorShareMessage({
@@ -267,11 +271,23 @@ export function VendorShareActions({
           </div>
         ) : null}
 
-        {active ? (
+        {active && confirmingRevoke ? (
+          <ConfirmStep
+            busy={busy}
+            cancelLabel="Keep it"
+            confirmLabel="Revoke the link"
+            danger
+            label="Revoke this link?"
+            onCancel={() => setConfirmingRevoke(false)}
+            onConfirm={() => void revoke().then(() => setConfirmingRevoke(false))}
+          >
+            {`${vendor.company || vendor.contactName || "The vendor"}'s link stops opening straight away, and they aren't told. It can't be switched back on — to share again, create a new link and send it to them.`}
+          </ConfirmStep>
+        ) : active ? (
           <button
             className="text-link vendor-share-revoke"
             disabled={busy}
-            onClick={() => void revoke()}
+            onClick={() => setConfirmingRevoke(true)}
             type="button"
           >
             Revoke this link

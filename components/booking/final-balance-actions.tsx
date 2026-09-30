@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { LoaderCircle, Send } from "lucide-react";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
-import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
+import { ConfirmStep } from "@/components/ui/confirm-step";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { jobClientRecipient, recipientLabel } from "@/features/projects/client-recipient";
 import { sendFinalBalance } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
@@ -33,9 +36,26 @@ export function FinalBalanceActions({
   buttonClassName?: string;
   secondaryClassName?: string;
 }) {
+  const workspace = useWorkspace();
+  const { records: projects } = useTenantDocuments("projects");
+  const { records: contacts } = useTenantDocuments("contacts");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * The bill is emailed to the couple the moment it's raised, and it went on
+   * one tap (wave 3). The step names the amount and who gets it.
+   */
+  const [confirming, setConfirming] = useState(false);
+  const recipient = recipientLabel(
+    jobClientRecipient(
+      projects?.find((project) => project.id === projectId),
+      contacts,
+    ),
+  );
+  // sendFinalBalance and recordFinalPayment are owner/admin on the server
+  // (BALANCE_ATTESTATION_PERMISSION_REQUIRED): don't offer what it refuses.
+  const mayBill = workspace.role === "studio_owner" || workspace.role === "studio_admin";
 
   async function send() {
     setBusy(true);
@@ -54,17 +74,42 @@ export function FinalBalanceActions({
       setNotice(friendlyError(caught, "The final bill couldn't be sent."));
     } finally {
       setBusy(false);
+      setConfirming(false);
     }
+  }
+
+  if (!mayBill) {
+    return (
+      <p className="form-notice" role="status">
+        An owner or admin sends the final bill, or records it as paid another way.
+      </p>
+    );
   }
 
   return (
     <div className="final-balance-actions">
+      {confirming ? (
+        <ConfirmStep
+          busy={busy}
+          cancelClassName={secondaryClassName}
+          cancelLabel="Not now"
+          confirmClassName={buttonClassName}
+          confirmLabel={balanceLabel ? `Send the ${balanceLabel} bill` : "Send the bill"}
+          label="Send the final bill?"
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => void send()}
+        >
+          {`${balanceLabel ? `A ${balanceLabel}` : "The"} final bill goes to ${recipient ?? "the couple"} by email from your invoicing app. Once it's out it can be voided, not unsent.`}
+        </ConfirmStep>
+      ) : null}
       <div className="final-balance-buttons">
-        <button className={buttonClassName} disabled={busy} onClick={() => void send()} type="button">
-          {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : <Send aria-hidden size={14} />}
-          {busy ? "Sending…" : balanceLabel ? `Send the final bill · ${balanceLabel}` : "Send the final bill"}
-        </button>
-        {packageSnapshotId && !recording ? (
+        {confirming ? null : (
+          <button className={buttonClassName} disabled={busy} onClick={() => setConfirming(true)} type="button">
+            {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : <Send aria-hidden size={14} />}
+            {busy ? "Sending…" : balanceLabel ? `Send the final bill · ${balanceLabel}` : "Send the final bill"}
+          </button>
+        )}
+        {packageSnapshotId && !recording && !confirming ? (
           <button className={secondaryClassName} disabled={busy} onClick={() => setRecording(true)} type="button">
             Paid another way
           </button>

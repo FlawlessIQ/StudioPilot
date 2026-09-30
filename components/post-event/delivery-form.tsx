@@ -30,6 +30,8 @@ import { ReplaceDeliveryLink } from "@/components/post-event/replace-delivery-li
 import { addCalendarDays, formatEventDate, todayLocalIso } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
+import { ConfirmStep } from "@/components/ui/confirm-step";
+import { jobClientRecipient, recipientLabel } from "@/features/projects/client-recipient";
 
 /**
  * Releasing a job's deliverables (H4, docs/delivery-plan-2026-09-28.md).
@@ -94,6 +96,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const { records: deliveryDrafts } = useTenantDocuments("deliveryDrafts");
   const { records: deliveryRecords } = useTenantDocuments("deliveryRecords");
   const { records: productionRecords } = useTenantDocuments("postProductionRecords");
+  const { records: contacts } = useTenantDocuments("contacts");
   // Hydration flag without a frame to miss (a background tab runs no rAF).
   const interactive = useSyncExternalStore(
     () => () => {},
@@ -176,6 +179,14 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   // shown when the browser blocks submit — a closed <details> swallows the
   // validation bubble and the button looks dead (audit-2 N6).
   const [advancedOpenEdit, setAdvancedOpen] = useState<boolean | null>(null);
+  /**
+   * The release emails the couple, and an email can't be unsent. The preview
+   * above is the approval (Q22), but the button sat directly under a long
+   * form and one press sent it — so the last step names who gets it and what
+   * can be fixed afterwards, then sends. Browser validation still runs first:
+   * the step opens from the form's own submit (wave 3).
+   */
+  const [confirmingRelease, setConfirmingRelease] = useState(false);
   // One release, one key, for as long as it takes to succeed (D1).
   const [releaseKey, setReleaseKey] = useState(() => crypto.randomUUID());
 
@@ -251,6 +262,11 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (!confirmingRelease) {
+      setConfirmingRelease(true);
+      return;
+    }
+    setConfirmingRelease(false);
     const data = new FormData(event.currentTarget);
     const response = await send(
       "recordDelivery",
@@ -746,9 +762,27 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
               <strong>This job is past delivery.</strong>
             </p>
           ) : null}
-          <button className="button button-dark" disabled={!interactive || gateBlocked || busy} type="submit">
-            <Send size={16} /> {busy ? "Sending…" : completesDelivery ? "Release and complete delivery" : "Release to the couple"}
-          </button>
+          {confirmingRelease && !gateBlocked ? (
+            <ConfirmStep
+              busy={busy}
+              cancelLabel="Not yet"
+              className="form-span"
+              confirmLabel={completesDelivery ? "Yes, release and complete delivery" : "Yes, email it now"}
+              confirmType="submit"
+              label="Release to the couple?"
+              onCancel={() => setConfirmingRelease(false)}
+            >
+              {`${recipientLabel(jobClientRecipient(project, contacts)) ?? "The couple"} will be emailed ${
+                items.length > 1 ? `these ${items.length} links` : "this link"
+              } now. An email can't be unsent — if a link turns out wrong, use "Wrong link?" here and they get one email with the right one.${
+                completesDelivery && asksFollow ? " Review asks start in three days." : ""
+              }`}
+            </ConfirmStep>
+          ) : (
+            <button className="button button-dark" disabled={!interactive || gateBlocked || busy} type="submit">
+              <Send size={16} /> {busy ? "Sending…" : completesDelivery ? "Release and complete delivery" : "Release to the couple"}
+            </button>
+          )}
           {notice ? (
             <p className="form-notice form-span" role="status">
               {notice}

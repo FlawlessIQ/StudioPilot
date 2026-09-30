@@ -68,6 +68,7 @@ import {
   type Rec,
 } from "./action-kit";
 import { OwnerOnly } from "./job-actions";
+import { ConfirmStep } from "@/components/ui/confirm-step";
 
 const notFound = (title: string) => (
   <ActionShell title={title}>
@@ -596,6 +597,10 @@ export function ConfirmReviewCard({ action }: ActionCardProps) {
   const reviews = useRecords("reviewRequests");
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const runner = useRunner();
+  // One tap cancelled every review ask still to come, for good — the server
+  // skips them and nothing brings them back (wave 3). A studio that only
+  // wants the asks to stop has "Don't ask them", which records no review.
+  const [confirming, setConfirming] = useState(false);
   const title = `They left a review · ${jobName(job)}`;
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading || !reviews) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -612,19 +617,29 @@ export function ConfirmReviewCard({ action }: ActionCardProps) {
   if (!request) return <ActionShell title={title}><Done>There is no open review request on this job.</Done></ActionShell>;
   return (
     <ActionShell detail="The remaining review reminders to them stop." icon={<Star size={15} />} title={title}>
-      <Actions
-        busy={runner.busy}
-        label="They reviewed us"
-        onClick={() =>
-          void runner.run(
-            async () => {
-              await sendPostEventCommand("confirmReview", { projectId: job.id, reviewRequestId: request.id });
-              return "Recorded. No more review reminders will go to them.";
-            },
-            { refresh: ["reviewRequests", "projects"] },
-          )
-        }
-      />
+      {confirming ? (
+        <ConfirmStep
+          busy={runner.busy}
+          cancelLabel="Not yet"
+          confirmLabel="Yes, they reviewed us"
+          label="Record their review?"
+          onCancel={() => setConfirming(false)}
+          onConfirm={() =>
+            void runner.run(
+              async () => {
+                await sendPostEventCommand("confirmReview", { projectId: job.id, reviewRequestId: request.id });
+                return "Recorded. No more review reminders will go to them.";
+              },
+              { refresh: ["reviewRequests", "projects"] },
+            )
+          }
+        >
+          This records that they left a review and cancels every review ask still to come — that can&rsquo;t be undone.
+          If they haven&rsquo;t reviewed yet and you just want the asks to stop, ask Cue not to ask them instead.
+        </ConfirmStep>
+      ) : (
+        <Actions busy={runner.busy} label="They reviewed us" onClick={() => setConfirming(true)} />
+      )}
       <Notice text={runner.notice} />
     </ActionShell>
   );
@@ -853,7 +868,11 @@ export function SettingsCard({ action }: ActionCardProps) {
     },
     set_automatic_emails: {
       title: "Automatic emails",
-      detail: "Which reminders and notices StudioCue drafts or sends on its own.",
+      // Only these three are governed here (lifecycle-pack-panel.tsx). Review
+      // asks, questionnaire and payment reminders have their own controls, so
+      // the card doesn't claim them.
+      detail:
+        "The schedule confirmation, final balance summary and day-before checklist: whether StudioCue drafts them, and whether they send without your review.",
       ownerOnly: true,
       body: <LifecyclePackPanel />,
       href: "/studio/settings/automatic-drafts",

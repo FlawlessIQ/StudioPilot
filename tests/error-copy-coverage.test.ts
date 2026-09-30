@@ -164,9 +164,6 @@ const GENERIC_ON_PURPOSE: Record<string, string> = {
  * studio walks on its first job, and are worth writing first.
  */
 const KNOWN_GAPS: Record<string, string> = {
-  ACTION_RECEIPT_NOT_CANCELLABLE: "ai",
-  ACTION_RECEIPT_NOT_FOUND: "ai",
-  ACTION_RECEIPT_NOT_RETRYABLE: "ai",
   ACTIVATED_IMPORT_CANNOT_BE_CANCELLED: "studio-import",
   ALBUM_WORKFLOW_NOT_FOUND: "post-event",
   APP_CHECK_REQUIRED: "crm",

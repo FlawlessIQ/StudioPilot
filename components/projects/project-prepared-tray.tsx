@@ -21,6 +21,7 @@ import {
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
+import { ConfirmStep } from "@/components/ui/confirm-step";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -62,6 +63,12 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
   const [reviewingKey, setReviewingKey] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [clearing, setClearing] = useState<string | null>(null);
+  /**
+   * Which bulk dismiss is waiting on its confirm step ("stale", or a group's
+   * key). "Dismiss them" put several drafts away on one tap, for good — a
+   * dismissed draft can't be restored (wave 3).
+   */
+  const [confirmingClear, setConfirmingClear] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const items = useMemo<TrayItem[]>(
@@ -160,15 +167,29 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
             </strong>{" "}
             {staleReasons.join(" ")}
           </span>
-          <button
-            className="button button-light"
-            disabled={clearing !== null}
-            onClick={() => void dismissAll(staleDrafts, "stale")}
-            type="button"
-          >
-            {clearing === "stale" ? "Dismissing…" : "Dismiss them"}
-          </button>
+          {confirmingClear === "stale" ? null : (
+            <button
+              className="button button-light"
+              disabled={clearing !== null}
+              onClick={() => setConfirmingClear("stale")}
+              type="button"
+            >
+              Dismiss them
+            </button>
+          )}
         </div>
+      ) : null}
+      {staleDrafts.length && confirmingClear === "stale" ? (
+        <ConfirmStep
+          busy={clearing === "stale"}
+          cancelLabel="Keep them"
+          confirmLabel={`Dismiss ${staleDrafts.length === 1 ? "it" : `all ${staleDrafts.length}`}`}
+          label="Dismiss the out-of-date drafts?"
+          onCancel={() => setConfirmingClear(null)}
+          onConfirm={() => void dismissAll(staleDrafts, "stale").then(() => setConfirmingClear(null))}
+        >
+          {`${staleDrafts.length === 1 ? "The draft is" : `All ${staleDrafts.length} drafts are`} put away for good — nothing is sent, and they can't be brought back. StudioCue prepares a new one if it's needed again.`}
+        </ConfirmStep>
       ) : null}
       {notice ? (
         <p className="form-notice" role="status">
@@ -207,7 +228,10 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
       )}
       <SheetDialog
         label="Review prepared decision"
-        onClose={() => setReviewingKey(null)}
+        onClose={() => {
+          setReviewingKey(null);
+          setConfirmingClear(null);
+        }}
         open={reviewing != null}
       >
         {reviewing ? (
@@ -226,31 +250,46 @@ export function ProjectPreparedTray({ projectId }: { projectId: string }) {
                     ? ` This is the newest of ${reviewing.entries.length} versions.`
                     : ""}
                 </span>
-                {staleOf(reviewing) ? (
+                {confirmingClear === reviewing.key ? (
+                  // Out of date: the whole group goes. Otherwise only the
+                  // older versions do, and the newest stays to decide.
+                  <ConfirmStep
+                    busy={clearing === reviewing.key}
+                    cancelLabel="Keep them"
+                    confirmLabel={
+                      staleOf(reviewing)
+                        ? `Dismiss ${reviewing.entries.length > 1 ? `all ${reviewing.entries.length}` : "it"}`
+                        : `Dismiss the ${reviewing.entries.length - 1} older`
+                    }
+                    label="Dismiss these drafts?"
+                    onCancel={() => setConfirmingClear(null)}
+                    onConfirm={() =>
+                      void (
+                        staleOf(reviewing)
+                          ? dismissAll(reviewing.entries, reviewing.key).then(() => setReviewingKey(null))
+                          : dismissAll(reviewing.entries.slice(1), reviewing.key)
+                      ).then(() => setConfirmingClear(null))
+                    }
+                  >
+                    Dismissed drafts are put away for good — nothing is sent, and they can&rsquo;t be brought back.
+                  </ConfirmStep>
+                ) : staleOf(reviewing) ? (
                   <button
                     className="button button-dark"
                     disabled={clearing !== null}
-                    onClick={() =>
-                      void dismissAll(reviewing.entries, reviewing.key).then(() =>
-                        setReviewingKey(null),
-                      )
-                    }
+                    onClick={() => setConfirmingClear(reviewing.key)}
                     type="button"
                   >
-                    {clearing === reviewing.key
-                      ? "Dismissing…"
-                      : `Dismiss ${reviewing.entries.length > 1 ? `all ${reviewing.entries.length}` : "it"}`}
+                    {`Dismiss ${reviewing.entries.length > 1 ? `all ${reviewing.entries.length}` : "it"}`}
                   </button>
                 ) : reviewing.entries.some((entry, index) => index > 0 && entry.kind === "ai") ? (
                   <button
                     className="button button-light"
                     disabled={clearing !== null}
-                    onClick={() => void dismissAll(reviewing.entries.slice(1), reviewing.key)}
+                    onClick={() => setConfirmingClear(reviewing.key)}
                     type="button"
                   >
-                    {clearing === reviewing.key
-                      ? "Dismissing…"
-                      : `Dismiss the ${reviewing.entries.length - 1} older`}
+                    {`Dismiss the ${reviewing.entries.length - 1} older`}
                   </button>
                 ) : null}
               </div>

@@ -15,6 +15,7 @@ import { runClientInvitation } from "@/lib/client/invitation-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { formatDueDate } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { ConfirmStep } from "@/components/ui/confirm-step";
 
 export type ClientInviteProjectOption = {
   id: string;
@@ -86,6 +87,8 @@ export function ClientPortalInvite({
     "associate" | "invite" | "revoke" | null
   >(null);
   const [notice, setNotice] = useState("");
+  // Revoke sat beside Resend and killed the couple's link on one tap (wave 3).
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const permitted =
     Boolean(workspace.tenantId) &&
     ["studio_owner", "studio_admin", "studio_coordinator"].includes(
@@ -340,11 +343,24 @@ export function ClientPortalInvite({
             {pendingInvitation ? "Resend invitation" : "Send portal invite"}
           </button>
         ) : null}
-        {pendingInvitation ? (
+        {pendingInvitation && confirmingRevoke ? (
+          <ConfirmStep
+            busy={busy === "revoke"}
+            cancelLabel="Keep it"
+            confirmLabel="Revoke the invitation"
+            danger
+            label="Revoke this invitation?"
+            onCancel={() => setConfirmingRevoke(false)}
+            onConfirm={() => void revoke().then(() => setConfirmingRevoke(false))}
+          >
+            The link in their invitation email stops working, and they aren&rsquo;t told. You can send a fresh
+            invitation afterwards.
+          </ConfirmStep>
+        ) : pendingInvitation ? (
           <button
             className="button button-quiet"
             disabled={busy !== null}
-            onClick={() => void revoke()}
+            onClick={() => setConfirmingRevoke(true)}
             type="button"
           >
             {busy === "revoke" ? (

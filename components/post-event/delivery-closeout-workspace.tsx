@@ -28,6 +28,8 @@ import {
 } from "@/features/post-event/closeout-attestation";
 import { previousAlbumStatus } from "@/features/post-event/undo";
 import { ActionHint, InfoHint } from "@/components/ui/info-hint";
+import { ConfirmStep } from "@/components/ui/confirm-step";
+import { useWorkspace } from "@/features/auth/workspace-context";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -50,12 +52,19 @@ export function DeliveryCloseoutWorkspace({
   const { records: proposals } = useTenantDocuments("proposals");
   const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const { records: deliveries } = useTenantDocuments("deliveryRecords");
+  const workspace = useWorkspace();
   const [evidenceUrl, setEvidenceUrl] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   /** Which requirement's "how do you know?" form is open, if any. */
   const [attesting, setAttesting] = useState<string | null>(null);
   /** The one confirm step in front of each irreversible or couple-facing act. */
   const [confirming, setConfirming] = useState<"close" | "skip_reviews" | null>(null);
+  /**
+   * The album whose "Record fulfillment" is waiting on its confirm step. It
+   * was one tap: the album reads as done to the couple and to closeout, and
+   * its reminders stop (wave 3). It can be stepped back, so the step says so.
+   */
+  const [confirmingFulfillment, setConfirmingFulfillment] = useState<string | null>(null);
 
   async function attestRequirement(requirementKey: string, note: string) {
     setBusy("attest");
@@ -368,7 +377,17 @@ export function DeliveryCloseoutWorkspace({
   const pendingAsks = projectReviews.filter((item) => item.status === "scheduled").length;
   const closed = text(project?.state) === "CLOSED";
   const archived = Boolean(text(project?.archivedAt));
-  const readyToClose = closeout?.status === "ready" && !closed;
+  /**
+   * What the server lets this role do here (functions/src/post-event/
+   * commands.ts): closing, archiving and stopping review asks are owner/
+   * admin; releasing a proof or recording fulfillment is not for staff
+   * photographers. A button the server refuses is a dead end, so a role
+   * without it is told who does it instead (wave 3). Display only.
+   */
+  const mayClose = ["studio_owner", "studio_admin"].includes(workspace.role ?? "");
+  const mayDecideAlbum = ["studio_owner", "studio_admin", "studio_coordinator"].includes(workspace.role ?? "");
+  const closeable = closeout?.status === "ready" && !closed;
+  const readyToClose = closeable && mayClose;
 
   return (
     <section className="delivery-closeout-workspace">
@@ -438,7 +457,8 @@ export function DeliveryCloseoutWorkspace({
                     </span>
                   </label>
                 ) : null}
-                {["selections_received", "revision_requested"].includes(
+                {mayDecideAlbum &&
+                ["selections_received", "revision_requested"].includes(
                   String(album.status),
                 ) ? (
                   <label>
@@ -488,11 +508,28 @@ export function DeliveryCloseoutWorkspace({
                     </button>
                   </span>
                 ) : null}
-                {album.status === "approved" ? (
+                {album.status === "approved" && confirmingFulfillment === album.id ? (
+                  <ConfirmStep
+                    busy={busy === `${album.id}:fulfilled`}
+                    cancelLabel="Not yet"
+                    confirmLabel="Yes, it's delivered"
+                    label="Record the album as fulfilled?"
+                    onCancel={() => setConfirmingFulfillment(null)}
+                    onConfirm={() =>
+                      void updateAlbum(album.id, "fulfilled").then(() => setConfirmingFulfillment(null))
+                    }
+                  >
+                    Record the album as made and delivered? It counts toward closing the job, and any album
+                    reminders stop. Nothing is emailed to the couple. Pressed too soon? &ldquo;Put back to
+                    Approved&rdquo; undoes it.
+                  </ConfirmStep>
+                ) : album.status === "approved" && !mayDecideAlbum ? (
+                  <small>An owner, admin or coordinator records the album as fulfilled.</small>
+                ) : album.status === "approved" ? (
                   <button
                     className="button button-dark"
                     disabled={busy !== null}
-                    onClick={() => void updateAlbum(album.id, "fulfilled")}
+                    onClick={() => setConfirmingFulfillment(album.id)}
                     type="button"
                   >
                     <CheckCircle2 /> Record fulfillment
@@ -707,7 +744,7 @@ export function DeliveryCloseoutWorkspace({
           <p className="closeout-confirm">
             <small>Review asks are off for this couple.</small>
           </p>
-        ) : !closed && !reviewConfirmed && ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(projectState) ? (
+        ) : mayClose && !closed && !reviewConfirmed && ["POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(projectState) ? (
           <div className="closeout-confirm">
             {confirming === "skip_reviews" ? (
               <>
@@ -791,6 +828,8 @@ export function DeliveryCloseoutWorkspace({
             >
               <Archive /> Close and archive
             </button>
+          ) : closeable ? (
+            <small>Everything is in. An owner or admin closes the job.</small>
           ) : null}
           {!closed ? (
             <button
