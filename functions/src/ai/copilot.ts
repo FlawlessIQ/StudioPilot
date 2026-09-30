@@ -42,6 +42,7 @@ import {
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
 import { separateGreeting } from "./reply-format.js";
+import { DEFAULT_PROPOSAL_TERMS, proposalTermsFor } from "../proposals/default-terms.js";
 import {
   MAX_PREPARED_ACTIONS,
   STUDIO_ACTIONS,
@@ -1704,16 +1705,16 @@ async function buildCommandProposalActions(
     const sendsTo: string | null = null;
     if (proposal.commandType === "create_proposal_draft") {
       // A proposal draft needs the project's selected package snapshot for the
-      // required termsSummary. No package selected (or terms too short) → skip,
-      // rather than emit a card that would fail on approval.
+      // required termsSummary. No package selected → skip, rather than emit a
+      // card that would fail on approval. A package with no terms written uses
+      // the default wording (GR, 2026-09-30).
       const projectDoc = await db.doc(`projects/${proposal.projectId}`).get();
       if (!projectDoc.exists || projectDoc.get("tenantId") !== tenantId) continue;
       const snapshotId = projectDoc.get("packageSnapshotId");
       if (typeof snapshotId !== "string" || !snapshotId) continue;
       const snapshot = await db.doc(`packageSnapshots/${snapshotId}`).get();
       if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) continue;
-      const terms = snapshot.get("terms");
-      if (typeof terms !== "string" || terms.trim().length < 10) continue;
+      const terms = proposalTermsFor(snapshot.get("terms"));
       const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       command = {
         domain: "proposal",
@@ -2038,9 +2039,7 @@ async function generateProposalDraft(facts: {
       `${packageName} covers your day the way we talked it through — and nothing here changes without your say-so.`,
     ].join(" ");
     const terms = String(facts.packageSnapshot.terms ?? "").trim();
-    const termsSummary = terms
-      ? `In plain language: ${terms}`
-      : "Coverage and deliverables are governed by the completed studio agreement.";
+    const termsSummary = terms ? `In plain language: ${terms}` : DEFAULT_PROPOSAL_TERMS;
     return {
       draft: proposalDraftSchema.parse({
         introduction: introduction.slice(0, 2000),

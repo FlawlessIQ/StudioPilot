@@ -82,3 +82,13 @@ test("a package with no terms written gets the default wording, long enough to s
   assert.match(brief, /blockingIssues\(action, \{ withEdit: true \}\)/);
   assert.match(brief, /decision: "dismissed"/);
 });
+
+test("the AI draft and Cue use the same default wording as the app", () => {
+  const functionsCopy = readFileSync("functions/src/proposals/default-terms.ts", "utf8");
+  assert.ok(functionsCopy.includes(JSON.stringify(DEFAULT_PROPOSAL_TERMS)), "functions copy matches features/booking/autopilot.ts");
+  const worker = readFileSync("functions/src/operations/ai-pdf.ts", "utf8");
+  assert.match(worker, /const termsSummary=recommended\?proposalTermsFor\(recommended\.get\("terms"\)\):"";/);
+  const cue = readFileSync("functions/src/ai/copilot.ts", "utf8");
+  assert.match(cue, /const terms = proposalTermsFor\(snapshot\.get\("terms"\)\);/);
+  assert.doesNotMatch(cue, /terms\.trim\(\)\.length < 10\) continue;/);
+});

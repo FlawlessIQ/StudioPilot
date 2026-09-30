@@ -18,6 +18,7 @@ import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
+import { proposalTermsFor } from "../proposals/default-terms.js";
 
 /**
  * Fit a field to the PDF service's limit (cloud-run/pdf/main.py). The service
@@ -339,7 +340,9 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
     downstreamCommand:{commandType:"select_package_snapshot",commandId:`select_${projectId}`,executedAt:null},
   },{merge:true});
   const proposalActionId=`ai_proposal_${consultationId}`;
-  const termsSummary=recommended?string(recommended.get("terms")):"";
+  // A package with no terms written drafts with the default wording, not a
+  // failed draft (GR, 2026-09-30); the studio edits it before sending.
+  const termsSummary=recommended?proposalTermsFor(recommended.get("terms")):"";
   batch.set(db.doc(`aiActions/${proposalActionId}`),{
     ...base,
     id:proposalActionId,
