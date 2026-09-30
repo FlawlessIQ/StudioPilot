@@ -1321,6 +1321,34 @@ export function todayInbox(input: TodayInput): TodayInbox {
       proposals: rows(input.proposals) as Array<Record<string, unknown> & { id: string }>,
       invoices: rows(input.invoiceReferences) as Array<Record<string, unknown> & { id: string }>,
     });
+    // A final bill held for review is standing, so the "send" card below
+    // stays away — but it was never sent, and nothing else said so.
+    if (due.heldForReviewId && due.cents) {
+      finalBalanceProjectIds.add(job.id);
+      const held = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: due.cents % 100 ? 2 : 0,
+      }).format(due.cents / 100);
+      act.push({
+        id: `final-balance-review-${job.id}`,
+        lane: "act",
+        kind: "invoice",
+        title: `Check and send ${text(job.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s final bill · ${held}`,
+        detail:
+          "It's held for you to check: the payments on record don't match what was agreed. Nothing has gone to the couple yet.",
+        evidence: null,
+        projectId: job.id,
+        projectName: text(job.name) || null,
+        action: { kind: "link", label: "Check it", href: `/studio/invoices?project=${job.id}` },
+        jobHref: `/studio/projects/${job.id}`,
+        facts: [eventFact(text(job.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),
+        band: bandFor({ eventDate: text(job.eventDate) || null, dueDate: due.dueDate, now }),
+        eventDate: text(job.eventDate) || null,
+        score: score({ lane: "act", severity: "step", eventDate: text(job.eventDate) || null, updatedAt: changedAt(job), now }),
+      });
+      continue;
+    }
     if (!due.cents || due.finalStanding) continue;
     finalBalanceProjectIds.add(job.id);
     // To the cent: this is the figure the bill will carry.

@@ -44,6 +44,8 @@ import {
   crewActionsProps,
 } from "@/components/crew/crew-record-actions";
 import { TaskRecordActions } from "@/components/tasks/task-record-actions";
+import { InvoiceRecordActions } from "@/components/booking/invoice-corrections";
+import { invoiceVoidRefusal, paymentCorrectable } from "@/features/booking/invoice-corrections";
 import { stateTone } from "@/lib/status-tone";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { kindFromValue } from "@/features/library/kinds";
@@ -623,7 +625,7 @@ export function LiveDomainView({
    * and a function prop cannot cross into a client component. The mapping
    * lives here, where the client boundary already is.
    */
-  rowActions?: "vendor" | "crew" | "task";
+  rowActions?: "vendor" | "crew" | "task" | "invoice";
 }) {
   const workspace = useWorkspace();
   const recordsGeneration = useTenantRecordsGeneration();
@@ -1074,7 +1076,7 @@ export function LiveDomainView({
  * server components and React refuses a function prop across that boundary.
  */
 function renderRowActions(
-  kind: "vendor" | "crew" | "task" | undefined,
+  kind: "vendor" | "crew" | "task" | "invoice" | undefined,
   record: Record<string, unknown> & { id: string },
 ): ReactNode {
   if (kind === "vendor") {
@@ -1104,6 +1106,12 @@ function renderRowActions(
   if (kind === "crew") {
     return <CrewRecordActions crew={crewActionsProps(record)} />;
   }
+  if (kind === "invoice") {
+    // Void an unpaid bill, or correct a payment the studio recorded. A row
+    // with neither keeps its plain shape rather than an empty actions cell.
+    if (invoiceVoidRefusal(record) !== null && !paymentCorrectable(record)) return null;
+    return <InvoiceRecordActions invoice={record} />;
+  }
   return null;
 }
 
@@ -1125,7 +1133,7 @@ export function StudioDomainPage({
   projectId?: string;
   beforeContent?: ReactNode;
   /** Passed through to the list — see LiveDomainView's own `rowActions`. */
-  rowActions?: "vendor" | "crew" | "task";
+  rowActions?: "vendor" | "crew" | "task" | "invoice";
 }) {
   return (
     <div className="live-domain-page">

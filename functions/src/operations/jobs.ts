@@ -48,7 +48,10 @@ import {
   moveBookingCalendarEvents,
   reconcileQuickBooksInvoice,
   uploadDropboxDocument,
+  voidQuickBooksInvoice,
+  voidStripeInvoice,
 } from "./provider-runtime.js";
+import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import {
   chargeSavedCard,
   removeQuickBooksCard,
@@ -318,6 +321,23 @@ async function finish(
         // not be lost to a missing invoice.
       });
     }
+    // A void the provider refused. The invoice stays voided in StudioCue —
+    // the studio decided that — and the studio is asked to void it where it
+    // was raised, so the couple isn't left holding a payable bill.
+    if (
+      document.ref.parent.id === "providerJobs" &&
+      ["void_quickbooks_invoice", "void_stripe_invoice"].includes(
+        String(document.get("type")),
+      ) &&
+      !retryable
+    ) {
+      await recordProviderVoidFailed(getFirestore(), document, {
+        code,
+        message,
+      }).catch(() => {
+        // The job's own error record is the authority, and Today shows it.
+      });
+    }
     if (
       document.ref.parent.id === "pdfJobs" &&
       document.get("proposalId")
@@ -416,6 +436,9 @@ async function providerJob(document: DocumentSnapshot) {
     return createStripeInvoice(document);
   if (type === "reconcile_quickbooks_invoice")
     return reconcileQuickBooksInvoice(document);
+  if (type === "void_quickbooks_invoice")
+    return voidQuickBooksInvoice(document);
+  if (type === "void_stripe_invoice") return voidStripeInvoice(document);
   if (type === "complete_booking_side_effects")
     return completeBookingResources(document);
   if (type === "upload_dropbox_document")

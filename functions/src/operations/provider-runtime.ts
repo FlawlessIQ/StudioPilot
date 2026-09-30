@@ -22,6 +22,7 @@ import {
   providerReportedInvoice,
 } from "../booking/invoice-standing.js";
 import { voidInvoiceTask } from "../booking/stopped-billing.js";
+import { providerVoidJobType } from "../booking/invoice-corrections.js";
 
 export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
 export type Credential={
@@ -1058,6 +1059,16 @@ async function landProviderInvoice(reference:FirebaseFirestore.DocumentReference
     const now=String(fields.updatedAt??new Date().toISOString());
     transaction.update(reference,{...fields,providerSkip:{reason:`closed_while_creating_${String(current.get("status"))}`,at:now}});
     const tenantId=String(current.get("tenantId")??"");const projectId=String(current.get("projectId")??"");
+    // Voided in StudioCue while it was being created: the studio has already
+    // said it should not exist, so void the stray there too rather than ask
+    // them to. A failure of that job still ends in a task
+    // (booking/invoice-corrections.ts, recordProviderVoidFailed).
+    const voidType=current.get("status")==="voided"?providerVoidJobType(current.get("provider")):null;
+    if(voidType&&text(fields.providerInvoiceId)){
+      transaction.set(db.doc(`providerJobs/void_${current.id}`),{id:`void_${current.id}`,tenantId,projectId,type:voidType,invoiceId:current.id,providerInvoiceId:fields.providerInvoiceId,idempotencyKey:`void-${current.id}`,status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:true});
+      transaction.update(reference,{providerVoid:{state:"queued",jobId:`void_${current.id}`,at:now}});
+      return{closedMeanwhile:true};
+    }
     const task=voidInvoiceTask({invoice:current,tenantId,projectId,why:"This invoice was created at the provider just after it was settled or closed in StudioCue.",now,actor:"provider-worker"});
     transaction.set(db.doc(`tasks/${task.id}`),task,{merge:true});
     return{closedMeanwhile:true};
@@ -1321,6 +1332,58 @@ export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=get
   // "sent" is a claim about what reached the client and nothing has yet.
   const landed=await landProviderInvoice(reference,{providerInvoiceId,providerCustomerId,providerState:"completed",...(hostedUrl?{hostedUrl}:{}),providerDocNumber:docNumber,lastSyncedAt:now,updatedAt:now,updatedBy:"provider-worker"},{balanceCents,status:provider.mock||alreadyDelivered?"sent":"awaiting_delivery"});
   return{invoiceId,providerInvoiceId,hostedUrl,...landed}}
+
+/**
+ * Voiding an invoice at the provider, after the studio voided it in StudioCue
+ * (booking/invoice-corrections.ts, voidInvoice).
+ *
+ * StudioCue's record is already `voided` when this runs; this makes the
+ * provider agree, so the couple's emailed link stops asking for money. Each
+ * worker reads the invoice first: already void there is success, and money
+ * taken there is a refusal — voiding would unapply a real payment, which is
+ * the studio's call to make in QuickBooks or Stripe, not ours. A refusal is
+ * permanent (a 4xx), so the job dead-letters and the studio gets a task to
+ * void it by hand (operations/jobs.ts → recordProviderVoidFailed).
+ */
+async function markProviderVoided(reference:FirebaseFirestore.DocumentReference,job:DocumentSnapshot,outcome:string){
+  const now=new Date().toISOString();
+  await reference.update({providerVoid:{state:"completed",jobId:job.id,outcome,at:now},updatedAt:now,updatedBy:"provider-worker"});
+}
+
+export async function voidQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
+  const providerInvoiceId=text(job.get("providerInvoiceId"))||text(invoice.get("providerInvoiceId"));
+  if(!providerInvoiceId||providerInvoiceId.startsWith("pending_")){await markProviderVoided(reference,job,"never_created");return{invoiceId,voided:"never_created"}}
+  const provider=await connection(String(job.get("tenantId")),"quickbooks");
+  if(provider.mock){await markProviderVoided(reference,job,"mock");return{invoiceId,voided:"mock"}}
+  const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");
+  const base=quickBooksApiBaseUrl(credential.baseUrl);
+  // The SyncToken the void needs, and what QuickBooks holds now.
+  const found=asRecord((await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED")).Invoice);
+  const total=Math.round(number(found.TotalAmt)*100);const balance=Math.round(number(found.Balance)*100);
+  // A voided QuickBooks invoice keeps its lines at zero: total and balance 0.
+  if(total===0&&balance===0){await markProviderVoided(reference,job,"already_void");return{invoiceId,voided:"already_void"}}
+  if(balance<total)throw new Error(`QUICKBOOKS_INVOICE_HAS_PAYMENT:409:QuickBooks shows a payment of ${((total-balance)/100).toFixed(2)} on this invoice`);
+  await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/invoice?operation=void&minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({Id:providerInvoiceId,SyncToken:String(found.SyncToken??"0")})},"QUICKBOOKS_VOID_FAILED");
+  await markProviderVoided(reference,job,"voided");
+  return{invoiceId,providerInvoiceId,voided:"voided"}}
+
+export async function voidStripeInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
+  const providerInvoiceId=text(job.get("providerInvoiceId"))||text(invoice.get("providerInvoiceId"));
+  if(!providerInvoiceId||providerInvoiceId.startsWith("pending_")){await markProviderVoided(reference,job,"never_created");return{invoiceId,voided:"never_created"}}
+  const provider=await connection(String(job.get("tenantId")),"stripe");
+  if(provider.mock){await markProviderVoided(reference,job,"mock");return{invoiceId,voided:"mock"}}
+  const credential=provider.credential;if(!credential)throw new Error("STRIPE_CREDENTIAL_MISSING");
+  const url=`https://api.stripe.com/v1/invoices/${encodeURIComponent(providerInvoiceId)}`;
+  const current=await providerJson(url,{headers:{authorization:`Bearer ${credential.accessToken}`}},"STRIPE_INVOICE_READ_FAILED");
+  const status=text(current.status);
+  if(status==="void"){await markProviderVoided(reference,job,"already_void");return{invoiceId,voided:"already_void"}}
+  if(status==="paid"||number(current.amount_paid)>0)throw new Error("STRIPE_INVOICE_HAS_PAYMENT:409:Stripe shows a payment on this invoice");
+  // A draft is deleted, not voided: Stripe only voids a finalized invoice.
+  if(status==="draft")await providerJson(url,{method:"DELETE",headers:{authorization:`Bearer ${credential.accessToken}`}},"STRIPE_INVOICE_DELETE_FAILED");
+  else await providerJson(`${url}/void`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/x-www-form-urlencoded","idempotency-key":String(job.get("idempotencyKey")??job.id)}},"STRIPE_VOID_FAILED");
+  const outcome=status==="draft"?"deleted_draft":"voided";
+  await markProviderVoided(reference,job,outcome);
+  return{invoiceId,providerInvoiceId,voided:outcome}}
 
 export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");const providerInvoiceId=String(job.get("providerInvoiceId")??invoice.get("providerInvoiceId")??"");if(!providerInvoiceId)throw new Error("QUICKBOOKS_INVOICE_ID_MISSING");const operation=String(job.get("operation")??"").toLowerCase();let status:string;let balanceCents:number;
   if(["delete","deleted","void","voided"].includes(operation)){status="voided";balanceCents=0}else{const provider=await connection(String(job.get("tenantId")),"quickbooks");if(provider.mock){status=String(invoice.get("status")??"sent");balanceCents=Number(invoice.get("balanceCents")??0)}else{const credential=provider.credential;const realmId=credential?.realmId??String(job.get("realmId")??provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json"}},"QUICKBOOKS_INVOICE_READ_FAILED");const current=asRecord(value.Invoice);balanceCents=Math.max(0,Math.round(number(current.Balance)*100));const totalCents=Math.max(0,Math.round(number(current.TotalAmt)*100));status=balanceCents===0?"paid":balanceCents<totalCents?"partially_paid":"sent"}}

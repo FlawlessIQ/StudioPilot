@@ -246,6 +246,56 @@ export async function sendFinalBalance(projectId: string) {
   });
 }
 
+/**
+ * Void a bill in StudioCue and at the provider (owner/admin). The server
+ * refuses a bill with money on it; see functions/src/booking/invoice-corrections.ts.
+ */
+export async function voidInvoice(input: { projectId: string; invoiceId: string; reason: string }) {
+  return sendBookingCommand({
+    type: "voidInvoice",
+    idempotencyKey: `void_${input.invoiceId}_${crypto.randomUUID()}`,
+    input,
+  });
+}
+
+/**
+ * Correct a payment a person recorded, by a record that supersedes it. The
+ * amount is what actually arrived; the server decides what that makes of the
+ * invoice and refuses anything the provider would contradict.
+ */
+export async function correctPaymentRecord(input: {
+  projectId: string;
+  invoiceId: string;
+  amountCents: number;
+  paidAt: string;
+  method: string;
+  reference: string | null;
+  reason: string;
+}) {
+  return sendBookingCommand({
+    type: "correctPaymentRecord",
+    idempotencyKey: `correct_${input.invoiceId}_${crypto.randomUUID()}`,
+    input,
+  });
+}
+
+/**
+ * Send a final bill held for review. `confirmAmountCents` is the figure the
+ * studio was shown; the server works the balance out again and refuses if it
+ * has changed, so it never takes the amount from here.
+ */
+export async function approveFinalInvoice(input: {
+  projectId: string;
+  invoiceId: string;
+  confirmAmountCents: number;
+}) {
+  return sendBookingCommand({
+    type: "approveFinalInvoice",
+    idempotencyKey: `approve_final_${input.invoiceId}_${crypto.randomUUID()}`,
+    input,
+  });
+}
+
 /* ---------------------------------------------------------------------------
  * Importing bookings a studio already has.
  *

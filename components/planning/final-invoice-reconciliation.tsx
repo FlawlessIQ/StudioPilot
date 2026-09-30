@@ -7,6 +7,8 @@ import { FinalBalanceActions } from "@/components/booking/final-balance-actions"
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ApproveFinalInvoice, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { statusLabel } from "@/features/format/status-label";
 import { InfoHint } from "@/components/ui/info-hint";
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -103,6 +105,17 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
           const calculation = record(invoice.calculation);
           const lines = list(calculation.lines).map(record);
           const discrepancies = list(calculation.discrepancies).map(String);
+          const inReview = invoice.status === "review_required";
+          const provider = invoice.provider === "stripe" ? "Stripe" : "QuickBooks";
+          // The balance as it stands now, for a bill held for review: what
+          // the studio confirms is what the server sends (it re-checks).
+          const reviewDue = inReview
+            ? outstandingFinalBalance({
+                projectId: String(invoice.projectId),
+                proposals,
+                invoices: records,
+              }).cents
+            : null;
           return (
             <article className="panel final-invoice-card" key={invoice.id}>
               <header>
@@ -117,11 +130,9 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   </strong>
                 </span>
                 <StatusBadge
-                  tone={discrepancies.length ? "warning" : "success"}
+                  tone={inReview ? "warning" : invoice.status === "paid" ? "success" : "neutral"}
                 >
-                  {discrepancies.length
-                    ? "Review required"
-                    : "Ready for QuickBooks"}
+                  {inReview ? "Review required" : statusLabel(invoice.status)}
                 </StatusBadge>
               </header>
               <div className="invoice-calculation-lines">
@@ -135,14 +146,19 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   </span>
                 ))}
               </div>
-              {discrepancies.length ? (
+              {inReview ? (
+                /* Held, not sent: nothing went to the provider. This was a
+                   badge and nothing else, so a held bill sat here for good
+                   while Today stopped offering to send one. */
                 <div className="invoice-discrepancies">
                   <CircleAlert />
                   <span>
-                    <strong>The final invoice needs a look</strong>
+                    <strong>This bill is held for you to check before it goes</strong>
                     {discrepancies.map((issue) => (
                       <small key={issue}>
-                        {issue.replaceAll("_", " ").toLocaleLowerCase()}
+                        {issue === "RETAINER_EVIDENCE_MISMATCH"
+                          ? `The retainer on record (${money(calculation.retainerPaidCents, invoice.currency)}) isn't what was agreed (${money(calculation.retainerExpectedCents, invoice.currency)}). If a payment was recorded wrongly, correct it on Invoices first.`
+                          : issue.replaceAll("_", " ").toLocaleLowerCase()}
                       </small>
                     ))}
                   </span>
@@ -152,13 +168,25 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   <CheckCircle2 />
                   <span>
                     <strong>Arithmetic reconciled</strong>
+                    {/* It used to say "Human review is still required before
+                        the provider draft is sent" on every bill — including
+                        ones already sent, where no review was coming. */}
                     <small>
-                      Human review is still required before the provider draft
-                      is sent.
+                      {invoice.status === "paid"
+                        ? "Paid."
+                        : ["draft", "queued"].includes(String(invoice.status))
+                          ? `On its way to ${provider}, which creates it and emails it to the couple.`
+                          : ["voided", "superseded", "failed"].includes(String(invoice.status))
+                            ? "No longer billed."
+                            : `With the couple through ${provider}.`}
                     </small>
                   </span>
                 </div>
               )}
+              {inReview ? (
+                <ApproveFinalInvoice amountCents={reviewDue} invoice={invoice} onDone={setSettled} />
+              ) : null}
+              <VoidInvoice invoice={invoice} onDone={setSettled} />
             </article>
           );
         })}

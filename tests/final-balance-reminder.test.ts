@@ -40,7 +40,13 @@ const rivera = {
 
 test("what's left is the agreed total less what was paid on bills still standing", () => {
   const due = outstandingFinalBalance({ projectId: "p1", ...rivera });
-  assert.deepEqual(due, { cents: 621_930, dueDate: "2026-10-08", finalStanding: false, lastFailure: null });
+  assert.deepEqual(due, {
+    cents: 621_930,
+    dueDate: "2026-10-08",
+    finalStanding: false,
+    lastFailure: null,
+    heldForReviewId: null,
+  });
   const billed = outstandingFinalBalance({
     projectId: "p1",
     proposals: rivera.proposals,

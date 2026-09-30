@@ -16,6 +16,7 @@ import {
   canSendProposal,
 } from "./proposal-domain.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
+import { isStandingInvoice } from "./invoice-standing.js";
 
 const authoringFields = z.object({
   expiresAt: z.string().datetime(),
@@ -896,7 +897,14 @@ export const proposalCommand = onRequest(
               ),
             );
             if (agreementOut) throw new Error("AGREEMENT_ALREADY_SENT");
-            if (invoices.docs.some((invoice) => !["voided", "void", "cancelled"].includes(String(invoice.get("status"))))) {
+            // A standing bill only — see assertPackagesEditable in
+            // crm/commands.ts: a failed or superseded attempt is owed by nobody.
+            if (
+              invoices.docs.some((invoice) => {
+                const status = String(invoice.get("status"));
+                return isStandingInvoice(status) && !["void", "cancelled"].includes(status);
+              })
+            ) {
               throw new Error("INVOICE_ALREADY_RAISED");
             }
             const pricing = combineSnapshotPricing(

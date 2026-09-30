@@ -44,6 +44,8 @@ import {
   bookingAutomationDrivesContract,
 } from "@/features/booking/orchestration";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
+import { CorrectPayment, VoidInvoice } from "@/components/booking/invoice-corrections";
 import { friendlyError as friendlySharedError } from "@/lib/ai/friendly-error";
 import {
   addCalendarDays,
@@ -116,6 +118,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const [openProposal, setOpenProposal] = useState<RecordValue | null>(null);
   const [contract, setContract] = useState<RecordValue | null>(null);
   const [invoice, setInvoice] = useState<RecordValue | null>(null);
+  // The last retainer voided, when nothing stands: said once above the form
+  // that raises its replacement, so the step doesn't look as if it forgot.
+  const [voidedRetainer, setVoidedRetainer] = useState<RecordValue | null>(null);
   // The retainer is only one of a job's invoices. The final balance lives
   // here too, and it is the number that actually needs chasing — leaving it
   // off the money screen was the sharpest finding of the audit.
@@ -244,15 +249,32 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               String(left.createdAt ?? ""),
             ),
           )[0] ?? null;
+      /**
+       * The retainer that stands, not merely the newest.
+       *
+       * Picking the newest regardless meant a voided (or superseded) retainer
+       * sat on this step for good: its branch shows the bill and has no way
+       * to raise another, so a studio that voided a wrong retainer could
+       * never raise the right one here. A refused attempt is still shown when
+       * nothing stands, because "Try again" re-drives that same invoice.
+       */
+      const retainersByAge = invoices.docs
+        .map((item): RecordValue => ({ id: item.id, ...item.data() }))
+        .filter((item) => item.kind === "retainer")
+        .sort((left, right) =>
+          String(right.createdAt ?? "").localeCompare(
+            String(left.createdAt ?? ""),
+          ),
+        );
       const invoiceValue =
-        invoices.docs
-          .map((item): RecordValue => ({ id: item.id, ...item.data() }))
-          .filter((item) => item.kind === "retainer")
-          .sort((left, right) =>
-            String(right.createdAt ?? "").localeCompare(
-              String(left.createdAt ?? ""),
-            ),
-          )[0] ?? null;
+        retainersByAge.find((item) => isStandingInvoice(item.status)) ??
+        retainersByAge.find((item) => item.status === "failed") ??
+        null;
+      setVoidedRetainer(
+        invoiceValue
+          ? null
+          : (retainersByAge.find((item) => item.status === "voided") ?? null),
+      );
       const unpaid = invoices.docs
         .map((item): RecordValue => ({ id: item.id, ...item.data() }))
         .filter(
@@ -428,6 +450,22 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const dueDate = useMemo(
     () => agreedRetainerDueDate ?? addCalendarDays(todayLocalIso(), 7),
     [agreedRetainerDueDate],
+  );
+  /**
+   * The retainer the couple agreed, as "Paid another way" will record it.
+   *
+   * The form's "Records $X" read the package's retainer while the server
+   * records the accepted proposal's (agreed-retainer.ts) — so a studio that
+   * overrode the retainer on the proposal was shown one figure and had
+   * another written against its name.
+   */
+  const agreedRetainerCents = useMemo(
+    () =>
+      retainerFromSchedule(
+        proposal?.paymentSchedule,
+        Number(packageSnapshot?.retainerCents ?? 0),
+      ),
+    [proposal, packageSnapshot],
   );
   /**
    * Whether there is a signing app to send through at all.
@@ -1327,9 +1365,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     }}
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
+                    // A refused invoice is not settled by this: the server
+                    // records the agreed retainer afresh, so show that.
                     retainerLabel={currency(
-                      invoice?.amountCents ?? packageSnapshot.retainerCents,
-                      invoice?.currency ?? packageSnapshot.currency,
+                      agreedRetainerCents,
+                      packageSnapshot.currency,
                     )}
                   />
                 ) : null}
@@ -1435,6 +1475,23 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     standingInvoice
                   />
                 ) : null}
+                {/* A wrong retainer is voided here and raised again below;
+                    a payment recorded by mistake is corrected. Each shows
+                    only where the server would allow it. */}
+                <VoidInvoice
+                  invoice={invoice}
+                  onDone={(message) => {
+                    setNotice(`${message} Raise the corrected retainer below.`);
+                    void load();
+                  }}
+                />
+                <CorrectPayment
+                  invoice={invoice}
+                  onDone={(message) => {
+                    setNotice(message);
+                    void load();
+                  }}
+                />
               </div>
             ) : automationAwaitingSignature ? (
               <div className="booking-complete-message">
@@ -1449,6 +1506,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               </div>
             ) : (
               <div className="booking-action-form">
+                {voidedRetainer ? (
+                  <small>
+                    {`The last retainer invoice (${currency(
+                      voidedRetainer.amountCents,
+                      voidedRetainer.currency,
+                    )}) was voided${
+                      typeof voidedRetainer.voidReason === "string" && voidedRetainer.voidReason
+                        ? `: ${voidedRetainer.voidReason}`
+                        : ""
+                    }. Raise the replacement here.`}
+                  </small>
+                ) : null}
                 <span>
                   <small>
                     {agreedRetainerDueDate
@@ -1514,7 +1583,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
                     retainerLabel={currency(
-                      packageSnapshot.retainerCents,
+                      agreedRetainerCents,
                       packageSnapshot.currency,
                     )}
                   />

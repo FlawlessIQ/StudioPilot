@@ -25,6 +25,16 @@ import { coupleInquiryUrl } from "./consultation-email.js";
 import { mayContactClient } from "../post-event/client-outreach.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { sendFinalBalance, sendFinalBalanceInput } from "./send-final-balance.js";
+import {
+  approveFinalInvoice,
+  approveFinalInvoiceInput,
+  correctPaymentRecord,
+  correctPaymentRecordInput,
+  voidInvoice,
+  voidInvoiceInput,
+  writeInvoiceVoid,
+} from "./invoice-corrections.js";
+import { invoiceVoidRefusal } from "./invoice-corrections-core.js";
 import { planRetainerAttestation } from "./retainer-attestation.js";
 import {
   attachImportedSignedCopy,
@@ -347,6 +357,26 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: sendFinalBalanceInput,
+  }),
+  // Taking back a bill, correcting a payment, sending a final bill held for
+  // review — see ./invoice-corrections.ts.
+  z.object({
+    type: z.literal("voidInvoice"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: voidInvoiceInput,
+  }),
+  z.object({
+    type: z.literal("correctPaymentRecord"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: correctPaymentRecordInput,
+  }),
+  z.object({
+    type: z.literal("approveFinalInvoice"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: approveFinalInvoiceInput,
   }),
   z.object({
     /**
@@ -1734,6 +1764,25 @@ export const bookingCommand = onRequest(
           actorId: identity.uid,
           mockMode,
         });
+      } else if (
+        command.type === "voidInvoice" ||
+        command.type === "correctPaymentRecord" ||
+        command.type === "approveFinalInvoice"
+      ) {
+        const correctionContext = {
+          tenantId: command.tenantId,
+          role: String(membership.role),
+          actorId: identity.uid,
+          now: timestamp,
+          idempotencyKey: command.idempotencyKey,
+          ipAddress: request.ip ?? null,
+          userAgent: request.header("user-agent") ?? null,
+        };
+        if (command.type === "voidInvoice")
+          result = await voidInvoice(firestore, correctionContext, command.input);
+        else if (command.type === "correctPaymentRecord")
+          result = await correctPaymentRecord(firestore, correctionContext, command.input);
+        else result = await approveFinalInvoice(firestore, correctionContext, command.input);
       } else if (command.type === "recordFinalPayment") {
         /**
          * The balance, vouched for by a person.
@@ -2045,12 +2094,39 @@ export const bookingCommand = onRequest(
             `providerJobs/invoice_${failedInvoice.id}`,
           );
           const existingJob = await jobReference.get();
+          /**
+           * Today's figures, unless the provider already holds the invoice.
+           *
+           * The retry used to re-send whatever the failed attempt carried, so
+           * a retainer that failed before the proposal was re-agreed (or whose
+           * due date had since passed) went out at the stale amount and date.
+           * With no provider id, nothing exists at the provider to agree with,
+           * so the amount is the agreed retainer now and the due date is the
+           * one this request carries. An invoice the provider did create keeps
+           * its figures: the retry adopts it rather than raising another.
+           */
+          const neverRaised = !failedInvoice.get("providerInvoiceId");
+          const agreedNow = neverRaised
+            ? await agreedRetainerCents(
+                firestore,
+                command.tenantId,
+                command.input.projectId,
+                packageSnapshot,
+              )
+            : null;
           const retryBatch = firestore.batch();
           retryBatch.update(failedInvoice.ref, {
             status: mockMode ? "sent" : "queued",
             providerState: mockMode ? "completed_mock" : "queued",
             providerError: null,
             deliveryError: null,
+            ...(agreedNow !== null
+              ? {
+                  amountCents: agreedNow,
+                  balanceCents: agreedNow,
+                  dueDate: command.input.dueDate,
+                }
+              : {}),
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
@@ -2099,9 +2175,11 @@ export const bookingCommand = onRequest(
           // Keep a replaced attempt as history rather than deleting it: it is
           // the record of what the provider said, and the next query must not
           // match it again.
-          const supersededInvoices = existingInvoices.docs.map(
-            (document) => document.ref,
-          );
+          // Not a voided one: a void is its own final word, with its reason,
+          // and re-stamping it `superseded` would erase why it ended.
+          const supersededInvoices = existingInvoices.docs
+            .filter((document) => document.get("status") !== "voided")
+            .map((document) => document.ref);
           // Same reasoning as signing above: refuse rather than raise an
           // invoice against a QuickBooks account nobody connected.
           const invoicingProvider = mockMode
@@ -2232,13 +2310,36 @@ export const bookingCommand = onRequest(
                 firestore.doc(`contacts/${contactId}`).get(),
               ),
             ),
+            /**
+             * The waiver on file, whoever asks.
+             *
+             * Only the id passed in was read, and only "Book without the
+             * retainer" ever passed one — "Check and confirm" and Cue sent
+             * null. So a job whose retainer the owner had already waived
+             * failed every later confirm on the retainer, and the only way
+             * through was to waive it again, leaving a duplicate exception
+             * each time (money audit, wave 1). The decision is the job's, not
+             * the button's: look it up.
+             */
             command.input.approvedRetainerExceptionId
               ? firestore
                   .doc(
                     `bookingExceptions/${command.input.approvedRetainerExceptionId}`,
                   )
                   .get()
-              : Promise.resolve(null),
+              : firestore
+                  .collection("bookingExceptions")
+                  .where("tenantId", "==", command.tenantId)
+                  .where("projectId", "==", command.input.projectId)
+                  .where("type", "==", "retainer")
+                  .limit(5)
+                  .get()
+                  .then(
+                    (found) =>
+                      found.docs.find(
+                        (exception) => exception.get("status") === "approved",
+                      ) ?? null,
+                  ),
           ]);
         const blockingStates = new Set([
           "BOOKED",
@@ -2513,49 +2614,104 @@ export const bookingCommand = onRequest(
           throw new Error("RETAINER_EXCEPTION_NOT_READY");
         // Waiving the retainer is not waiving the contract.
         if (completedContracts.empty) throw new Error("SIGNED_CONTRACT_REQUIRED");
-        const exceptionId = stableId(
-          "retainer_exception",
-          command.tenantId,
-          command.idempotencyKey,
-        );
-        const exceptionBatch = firestore.batch();
-        exceptionBatch.create(firestore.doc(`bookingExceptions/${exceptionId}`), {
-          id: exceptionId,
-          tenantId: command.tenantId,
-          projectId: command.input.projectId,
-          type: "retainer",
-          status: "approved",
-          reason: command.input.reason,
-          approvedBy: identity.uid,
-          approvedAt: timestamp,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        });
         const exceptionAuditId = stableId(
           "audit_retainer_exception",
           command.tenantId,
           command.idempotencyKey,
         );
-        exceptionBatch.create(firestore.doc(`auditEvents/${exceptionAuditId}`), {
-          id: exceptionAuditId,
-          tenantId: command.tenantId,
-          projectId: command.input.projectId,
-          actorId: identity.uid,
-          actorType: "user",
-          action: "booking.retainer_exception_approved",
-          entityType: "bookingException",
-          entityId: exceptionId,
-          timestamp,
-          before: null,
-          after: { type: "retainer", status: "approved", reason: command.input.reason },
-          ipAddress: request.ip ?? null,
-          userAgent: request.header("user-agent") ?? null,
-          correlationId: command.idempotencyKey,
-          automationRunId: null,
-          providerEventId: null,
+        result = await firestore.runTransaction(async (transaction) => {
+          const [exceptions, retainers] = await Promise.all([
+            transaction.get(
+              firestore
+                .collection("bookingExceptions")
+                .where("tenantId", "==", command.tenantId)
+                .where("projectId", "==", command.input.projectId)
+                .where("type", "==", "retainer")
+                .limit(5),
+            ),
+            transaction.get(
+              firestore
+                .collection("invoiceReferences")
+                .where("tenantId", "==", command.tenantId)
+                .where("projectId", "==", command.input.projectId)
+                .where("kind", "==", "retainer")
+                .limit(10),
+            ),
+          ]);
+          // One waiver per job. Waiving again — the old way through a
+          // confirm that could not see the first — reuses it.
+          const existing =
+            exceptions.docs.find((exception) => exception.get("status") === "approved") ?? null;
+          const exceptionId =
+            existing?.id ??
+            stableId("retainer_exception", command.tenantId, command.idempotencyKey);
+          /**
+           * A retainer bill already out stops being payable.
+           *
+           * Waiving left it live: the couple's portal kept the pay link and
+           * the final bill — which, on a waiver, is the whole agreed total —
+           * would ask for that money a second time. Only a bill with nothing
+           * paid on it: money received is the studio's to refund or keep.
+           */
+          const toVoid = retainers.docs.filter(
+            (invoice) => invoiceVoidRefusal(invoice.data() ?? {}) === null,
+          );
+          if (!existing)
+            transaction.create(firestore.doc(`bookingExceptions/${exceptionId}`), {
+              id: exceptionId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type: "retainer",
+              status: "approved",
+              reason: command.input.reason,
+              approvedBy: identity.uid,
+              approvedAt: timestamp,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          const voided = toVoid.map((invoice) => ({
+            invoiceId: invoice.id,
+            ...writeInvoiceVoid(firestore, transaction, {
+              invoice,
+              reason: `Retainer waived: ${command.input.reason}`,
+              source: "retainer_waived",
+              actor: identity.uid,
+              now: timestamp,
+            }),
+          }));
+          transaction.create(firestore.doc(`auditEvents/${exceptionAuditId}`), {
+            id: exceptionAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: existing
+              ? "booking.retainer_exception_reaffirmed"
+              : "booking.retainer_exception_approved",
+            entityType: "bookingException",
+            entityId: exceptionId,
+            timestamp,
+            before: null,
+            after: {
+              type: "retainer",
+              status: "approved",
+              reason: command.input.reason,
+              voidedInvoiceIds: voided.map((entry) => entry.invoiceId),
+            },
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId: command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          return {
+            exceptionId,
+            status: "approved",
+            reused: Boolean(existing),
+            voidedInvoiceIds: voided.map((entry) => entry.invoiceId),
+            providerVoidQueued: voided.some((entry) => entry.providerVoid === "queued"),
+          };
         });
-        await exceptionBatch.commit();
-        result = { exceptionId, status: "approved" };
       } else if (
         command.type === "agreementDraftFromImport" ||
         command.type === "saveAgreementTemplate" ||
