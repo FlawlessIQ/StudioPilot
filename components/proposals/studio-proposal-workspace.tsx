@@ -2410,51 +2410,6 @@ export function StudioProposalWorkspace({
                   </div>
                 ) : (
                   <>
-
-                  </>
-                )}
-              </div>
-            ) : null}
-
-            {["sent", "viewed"].includes(status) ? (
-              <div className="proposal-action-stack">
-                <div className="proposal-delivery-state">
-                  <span><Mail /></span>
-                  <div>
-                    <small>Email delivery</small>
-                    <strong>
-                      {statusLabel(
-                        text(proposal.emailDeliveryStatus, "queued"),
-                      )}
-                    </strong>
-                    {/**
-                      * The address, not just the state.
-                      *
-                      * A studio sent this proposal four times and never
-                      * received one, because the client's email held a typo he
-                      * could not correct. Every send succeeded. What the card
-                      * told him was "Queued", so he read it as a delivery
-                      * fault and resent — three more times, to the same wrong
-                      * address. Naming the recipient is what would have ended
-                      * it on the first send, and it costs one line.
-                      */}
-                    {text(objectValue(proposal.clientSnapshot).email) ? (
-                      <small className="proposal-delivery-recipient">
-                        to {text(objectValue(proposal.clientSnapshot).email)}
-                      </small>
-                    ) : null}
-                  </div>
-                </div>
-                <dl className="proposal-client-activity">
-                  <div>
-                    <dt>Sent</dt>
-                    <dd>{date(proposal.sentAt, true)}</dd>
-                  </div>
-                  <div>
-                    <dt>Viewed</dt>
-                    <dd>{date(proposal.viewedAt, true, "Not yet")}</dd>
-                  </div>
-                </dl>
                 <button
                   className="button button-light"
                   disabled={working !== null}
@@ -2511,6 +2466,8 @@ export function StudioProposalWorkspace({
                   * "studio_attested"` so the two are never confused.
                   */}
                 {recordAcceptance}
+                  </>
+                )}
               </div>
             ) : null}
 

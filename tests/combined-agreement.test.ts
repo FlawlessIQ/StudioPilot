@@ -159,3 +159,10 @@ test("a proposal inside a live booking agreement can't be resent, re-issued or a
   const workspace = readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8");
   assert.match(workspace, /\{proposal\.combinedContractId \? \(/);
 });
+
+test("the sent proposal's panel is rendered once", () => {
+  const workspace = readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8");
+  // A scripted edit once duplicated the whole panel (acee781): every line of
+  // it appeared twice on the page.
+  assert.equal(workspace.split('className="proposal-delivery-state"').length - 1, 1);
+});
