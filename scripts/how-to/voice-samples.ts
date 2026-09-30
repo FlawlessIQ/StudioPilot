@@ -35,8 +35,8 @@ const PREMADE: Voice[] = [
 
 const wanted = process.argv.slice(2);
 const voices = await elevenlabs<{ voices: Voice[] }>("/voices")
-  .then((result) => result.voices)
-  .catch(() => (wanted.length ? wanted.map((id) => ({ voice_id: id, name: id })) : PREMADE));
+  .then((result): Voice[] => result.voices)
+  .catch((): Voice[] => (wanted.length ? wanted.map((id) => ({ voice_id: id, name: id })) : PREMADE));
 
 const byScore = (voice: Voice) => {
   const labels = Object.values(voice.labels ?? {}).join(" ").toLowerCase() + " " + (voice.description ?? "").toLowerCase();
