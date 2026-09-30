@@ -21436,3 +21436,17 @@ label {
   max-height: none;
   overflow: visible;
 }
+.proposal-combined-note {
+  background: var(--soft);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+}
+.proposal-combined-note small {
+  color: var(--muted);
+}
+.proposal-combined-note .button {
+  justify-self: start;
+  margin-top: 4px;
+}

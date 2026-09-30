@@ -573,6 +573,21 @@ export const proposalCommand = onRequest(
           assertProjectAccess(membership, projectId);
           const currentStatus = stringValue(proposal.get("status"));
           assertProposalAction(currentStatus, command.type);
+          // A proposal sent inside a booking agreement (H2) is answered by
+          // signing that agreement. Resending it alone, re-issuing it or
+          // recording an acceptance would each move the price or the job out
+          // from under the agreement the couple is signing, so they wait
+          // until the agreement is withdrawn.
+          const combinedContractId = stringValue(proposal.get("combinedContractId"));
+          if (
+            combinedContractId &&
+            ["resend", "reissue", "record_acceptance", "send"].includes(command.type)
+          ) {
+            const combined = await transaction.get(db.doc(`contracts/${combinedContractId}`));
+            if (combined.exists && !["voided", "failed", "superseded"].includes(stringValue(combined.get("status")))) {
+              throw new Error("PROPOSAL_IN_BOOKING_AGREEMENT");
+            }
+          }
           const before = {
             status: currentStatus,
             draftRevision: numberValue(proposal.get("draftRevision")) || 1,

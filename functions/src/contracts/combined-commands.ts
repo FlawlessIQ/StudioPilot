@@ -305,6 +305,10 @@ export async function sendCombinedAgreement(
       // The same validity window a proposal sent on its own gets.
       expiresAt: expiryOnSend(proposal.get("expiresAt"), new Date(context.timestamp)),
       combinedContractId: contractId,
+      // The proposal's delivery line tracks the agreement's email: it went
+      // out inside it (walked 2026-09-29: the page said "Not sent").
+      emailJobId: `contract_ready_${contractId}`,
+      emailDeliveryStatus: "queued",
       updatedAt: context.timestamp,
       updatedBy: context.actorId,
     });
@@ -352,6 +356,8 @@ export async function sendCombinedAgreement(
       tenantId: context.tenantId,
       projectId: input.projectId,
       contractId,
+      // The email worker marks the proposal sent (or failed) from this.
+      proposalId: input.proposalId,
       type: "contract_ready",
       combined: true,
       recipient: clientEmail,

@@ -145,3 +145,17 @@ test("Part 2 dates its payments as Part 1 does", () => {
   assert.match(part2, /May 29, 2027/);
   assert.doesNotMatch(part2, /2027-05-29/);
 });
+
+test("the proposal's delivery line follows the agreement's email", () => {
+  const commands = readFileSync("functions/src/contracts/combined-commands.ts", "utf8");
+  assert.match(commands, /emailJobId: `contract_ready_\$\{contractId\}`,\s*emailDeliveryStatus: "queued"/);
+  assert.match(commands, /proposalId: input\.proposalId,\s*type: "contract_ready"/);
+});
+
+test("a proposal inside a live booking agreement can't be resent, re-issued or accepted on its own", () => {
+  const proposals = readFileSync("functions/src/booking/proposals.ts", "utf8");
+  assert.match(proposals, /\["resend", "reissue", "record_acceptance", "send"\]\.includes\(command\.type\)/);
+  assert.match(proposals, /throw new Error\("PROPOSAL_IN_BOOKING_AGREEMENT"\)/);
+  const workspace = readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8");
+  assert.match(workspace, /\{proposal\.combinedContractId \? \(/);
+});

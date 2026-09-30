@@ -87,6 +87,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PACKAGE_LIMIT_REACHED: "A job can hold four packages at most. Remove one before adding another.",
   ADD_ON_NOT_FOUND: "That extra isn't in your library any more. Refresh and choose again.",
   CUSTOM_ADD_ON_INCOMPLETE: "Give the extra a name and a price.",
+  PROPOSAL_IN_BOOKING_AGREEMENT: "This proposal went out inside a booking agreement. Withdraw the agreement on the job's Booking tab first, then change or resend the proposal.",
   PROPOSAL_ACCEPTED_BY_SIGNING: "This proposal is accepted by signing your booking agreement. Open the agreement to review and sign it.",
   COMBINED_AGREEMENT_NOT_ENABLED: "Sending the terms and prices together isn't switched on for your studio.",
   PROPOSAL_NOT_SENDABLE: "This proposal has already been answered or replaced. Refresh to see its latest version.",
