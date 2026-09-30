@@ -854,8 +854,14 @@ export function ContractCard({ action }: ActionCardProps) {
   const title = `${titles[action.action]} · ${jobName(job)}`;
   if (loading || !proposals || !contracts || native.loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
-  const proposal = acceptedProposal(proposals, job.id);
   const contract = liveContract(contracts, job.id);
+  // A booking agreement is out before its proposal is accepted — voiding it
+  // must not wait for an acceptance only its signature can give.
+  const proposal =
+    acceptedProposal(proposals, job.id) ??
+    (str(contract?.mode) === "combined"
+      ? (onJob(proposals, job.id).find((item) => item.id === str(contract?.proposalId)) ?? null)
+      : null);
   if (!native.enabled)
     return (
       <ActionShell title={title}>

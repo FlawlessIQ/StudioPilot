@@ -129,6 +129,7 @@ export function BookingAutopilotWorkspace({
   // and status label here without a reload. Falls back to the one-shot getDoc
   // read below until the store has it.
   const { records: projectRecords } = useTenantDocuments("projects");
+  const { records: contractRecords } = useTenantDocuments("contracts");
 
   const load = useCallback(async () => {
     if (!workspace.tenantId) return;
@@ -305,6 +306,16 @@ export function BookingAutopilotWorkspace({
   const laterBookingState = pastProposal(liveState);
   // PROPOSAL is past preparing one, not past the couple's answer.
   const proposalSettled = proposalAccepted(liveState);
+  // A booking agreement is out at PROPOSAL: the couple's answer is the
+  // signature, and "record their yes in the contract step" is refused.
+  const bookingAgreementOut = Boolean(
+    contractRecords?.some(
+      (entry) =>
+        entry.projectId === projectId &&
+        entry.mode === "combined" &&
+        ["sent", "viewed"].includes(text(entry.status)),
+    ),
+  );
   /**
    * The consultation already happened, whatever this page can see of it.
    *
@@ -556,6 +567,14 @@ export function BookingAutopilotWorkspace({
                 <p>
                   The agreement, the retainer and the balance for this job are
                   below.
+                </p>
+              </>
+            ) : bookingAgreementOut ? (
+              <>
+                <h1>The booking agreement is with the client.</h1>
+                <p>
+                  Signing it accepts the proposal, and the retainer follows.
+                  To change anything, withdraw it in the contract step below.
                 </p>
               </>
             ) : (

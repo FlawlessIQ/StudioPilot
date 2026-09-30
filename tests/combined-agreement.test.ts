@@ -237,3 +237,13 @@ test("the job's open-items list names a booking agreement, not vendor evidence",
   assert.match(source, /"Sign the booking agreement"/);
   assert.doesNotMatch(source, /detail: `[^`]*provider evidence pending/);
 });
+
+test("a live booking agreement can be withdrawn from the Booking tab and from Cue", () => {
+  const booking = readFileSync("components/booking/project-booking-workspace.tsx", "utf8");
+  assert.match(booking, /nativeActive && \(proposal \|\| combinedOut\)/);
+  assert.match(booking, /\{proposal && contract\?\.status !== "completed" \? \(/);
+  const cue = readFileSync("components/ai/actions/booking-actions.tsx", "utf8");
+  assert.match(cue, /str\(contract\?\.mode\) === "combined"/);
+  const hero = readFileSync("components/booking/booking-autopilot-workspace.tsx", "utf8");
+  assert.match(hero, /The booking agreement is with the client\./);
+});

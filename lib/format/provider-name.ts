@@ -11,6 +11,7 @@
  */
 
 const BRANDS: Record<string, string> = {
+  studiocue: "StudioCue",
   quickbooks: "QuickBooks",
   docusign: "DocuSign",
   dropbox_sign: "Dropbox Sign",

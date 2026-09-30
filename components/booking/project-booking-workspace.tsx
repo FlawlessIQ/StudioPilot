@@ -445,6 +445,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    * a signing app is offered — nothing here is deleted, only branched.
    */
   const signingOffered = signingProvider !== null;
+  /**
+   * A booking agreement (H2) goes out while the proposal is still only sent,
+   * and the contract step waited for an accepted one — so the studio had no
+   * way to withdraw it, though every screen sent them here to do so (walked
+   * 2026-09-30).
+   */
+  const combinedOut = Boolean(
+    contract?.mode === "combined" &&
+      ["sent", "viewed"].includes(String(contract.status)) &&
+      openProposal,
+  );
   const nativeActive =
     nativeSigning.enabled &&
     (Boolean(nativeSigning.agreementTemplateId) || contract?.provider === "studiocue");
@@ -836,7 +847,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 : null}
             </p>
             ) : null}
-            {nativeActive && proposal ? (
+            {nativeActive && (proposal || combinedOut) ? (
               <>
                 <NativeContractStep
                   contract={contract}
@@ -851,9 +862,12 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     void load();
                   }}
                   projectId={projectId}
-                  proposal={proposal}
+                  proposal={(proposal ?? openProposal)!}
                 />
-                {contract?.status !== "completed" ? (
+                {/* A booking agreement is signed in the portal or withdrawn;
+                    a hand-recorded signature would skip the acceptance it
+                    carries. */}
+                {proposal && contract?.status !== "completed" ? (
                   <RecordSignedAgreement
                     primary={false}
                     onRecorded={(message) => {
