@@ -35,14 +35,43 @@ export function safeBrandColor(value: unknown): string | null {
 }
 
 /** https only: a logo is shown on pages served over https and in email. */
+/**
+ * The storage service whose *page* this link is, or null. Dropbox previews,
+ * Drive, iCloud and the rest share pages, not images: GR Productions' logo was
+ * a Dropbox preview behind Dropbox's sign-in, and showed as a broken image on
+ * its form, emails and portal (2026-09-30). A public Dropbox share link with
+ * `raw=1` does serve the image, so that one passes.
+ */
+export function logoPageService(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  if (host === "dropbox.com") {
+    const shared = /^\/(s|scl\/fi)\//.test(url.pathname);
+    return shared && url.searchParams.get("raw") === "1" ? null : "Dropbox";
+  }
+  if (host === "drive.google.com" || host === "docs.google.com") return "Google Drive";
+  if (host === "photos.google.com" || host === "photos.app.goo.gl") return "Google Photos";
+  if (host.endsWith("icloud.com")) return "iCloud";
+  if (host === "onedrive.live.com" || host === "1drv.ms" || host.endsWith("sharepoint.com")) return "OneDrive";
+  if (host === "canva.com" || host.endsWith(".canva.com")) return "Canva";
+  return null;
+}
+
 export function safeLogoUrl(value: unknown): string | null {
   const url = text(value);
   if (!url) return null;
   try {
-    return new URL(url).protocol === "https:" ? url : null;
+    if (new URL(url).protocol !== "https:") return null;
   } catch {
     return null;
   }
+  // A page is not an image: the studio's initial beats a broken picture.
+  return logoPageService(url) ? null : url;
 }
 
 export function resolveTenantBrand(data: TenantData, fallbackName = "Your studio"): TenantBrand {

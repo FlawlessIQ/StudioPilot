@@ -9,6 +9,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { LOGO_CONTENT_TYPES, uploadStudioLogo } from "@/lib/branding/logo-upload";
+import { logoUrlProblem } from "@/features/branding/logo-url";
 
 type Branding = {
   tenantId: string;
@@ -38,6 +39,10 @@ export function EmailBranding() {
   const [loading, setLoading] = useState(dataIsLive);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // The link that failed to load as an image, so the warning clears itself
+  // when the link changes.
+  const [brokenLogo, setBrokenLogo] = useState<string | null>(null);
+  const logoProblem = logoUrlProblem(branding.logoUrl);
 
   useEffect(() => {
     let active = true;
@@ -90,8 +95,13 @@ export function EmailBranding() {
   }
 
   /**
-   * The upload writes into the same `logoUrl` the form already saves, so the
-   * studio still presses Save and nothing about the command changes.
+   * Choosing a file is the whole job: it uploads and saves in one go.
+   *
+   * It used to fill in the link field and ask for a Save as well — a second
+   * step that is easy to miss, and a studio that missed it kept whatever logo
+   * it had before (GR Productions kept a Dropbox page that shows nowhere).
+   * Saving sends the rest of the form as it stands, which is what pressing
+   * Save would have sent.
    */
   async function uploadLogo(file: File) {
     setUploading(true);
@@ -102,8 +112,12 @@ export function EmailBranding() {
         return;
       }
       const url = await uploadStudioLogo(branding.tenantId, file);
-      update("logoUrl", url);
-      setNotice("Logo uploaded. Save to apply it.");
+      const next = { ...branding, logoUrl: url };
+      setBranding(next);
+      await persist(
+        next,
+        "Logo uploaded and saved. It's on your emails, proposals, client portal and inquiry form.",
+      );
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That logo could not be uploaded."));
     } finally {
@@ -113,6 +127,14 @@ export function EmailBranding() {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (logoProblem) {
+      setNotice(logoProblem);
+      return;
+    }
+    await persist(branding, "Email branding saved. New messages will use this design.");
+  }
+
+  async function persist(next: Branding, success: string) {
     setSaving(true);
     setNotice(null);
     try {
@@ -133,9 +155,11 @@ export function EmailBranding() {
             ? { "x-firebase-appcheck": appCheckToken }
             : {}),
         },
-        body: JSON.stringify(branding),
+        body: JSON.stringify(next),
       });
-      const result = (await response.json()) as {
+      // A relay failure can answer with no JSON at all; that is "could not be
+      // saved", not a parser error shown to the studio.
+      const result = (await response.json().catch(() => ({}))) as {
         error?: string;
         emailBranding?: { primaryColor?: string };
       };
@@ -147,7 +171,7 @@ export function EmailBranding() {
         primaryColor:
           result.emailBranding?.primaryColor ?? current.primaryColor,
       }));
-      setNotice("Email branding saved. New messages will use this design.");
+      setNotice(success);
     } catch (caught: unknown) {
       setNotice(
         friendlyError(caught, "Email branding could not be saved."),
@@ -237,7 +261,7 @@ export function EmailBranding() {
             <span>
               {uploading
                 ? "Uploading…"
-                : "PNG, JPEG, WebP or SVG, under 2 MB. Appears on your proposals, your client portal and your emails."}
+                : "Choose the file from your computer — PNG, JPEG, WebP or SVG, under 2 MB. It's saved straight away and appears on your emails, proposals, client portal and inquiry form."}
             </span>
           </label>
           {branding.logoUrl ? (
@@ -246,9 +270,15 @@ export function EmailBranding() {
               <img
                 alt="Your studio logo"
                 className="branding-logo-preview"
+                onError={() => setBrokenLogo(branding.logoUrl)}
                 src={branding.logoUrl}
                 style={{ maxHeight: 64, maxWidth: 220 }}
               />
+              {brokenLogo === branding.logoUrl && !logoProblem ? (
+                <span role="alert">
+                  This link doesn&apos;t load as an image, so it won&apos;t show anywhere. Upload the file instead.
+                </span>
+              ) : null}
               <button
                 className="button button-ghost branding-logo-remove"
                 onClick={() => update("logoUrl", "")}
@@ -259,14 +289,16 @@ export function EmailBranding() {
             </label>
           ) : null}
           <label>
-            Logo URL <span>(optional — set by the upload above)</span>
+            Or a link to the image <span>(optional — the upload fills this in)</span>
             <input
+              aria-invalid={logoProblem ? true : undefined}
               type="url"
               inputMode="url"
               placeholder="https://yourstudio.com/logo.png"
               value={branding.logoUrl}
               onChange={(event) => update("logoUrl", event.target.value)}
             />
+            {logoProblem ? <span role="alert">{logoProblem}</span> : null}
           </label>
           {/**
             * The letterhead.

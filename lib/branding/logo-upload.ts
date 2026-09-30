@@ -1,6 +1,6 @@
 "use client";
 
-import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
+import { connectStorageEmulator, getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
 /**
@@ -50,6 +50,8 @@ export function checkLogoFile(file: { type: string; size: number }): LogoRejecti
   return { ok: true };
 }
 
+let storageEmulatorConnected = false;
+
 /** Uploads the logo and returns the URL to store on the tenant. */
 export async function uploadStudioLogo(
   tenantId: string,
@@ -59,6 +61,16 @@ export async function uploadStudioLogo(
   if (!check.ok) throw new Error(check.reason);
   const client = getFirebaseClient();
   const storage = getStorage(client.app);
+  // Locally, the emulator — as the import and booking uploads do. Without it
+  // the upload went to the real bucket and hung.
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" && !storageEmulatorConnected) {
+    try {
+      connectStorageEmulator(storage, "127.0.0.1", 9199);
+    } catch {
+      // Another uploader may already have connected this shared app instance.
+    }
+    storageEmulatorConnected = true;
+  }
   /**
    * A new object name per upload rather than one fixed "logo.png".
    *
