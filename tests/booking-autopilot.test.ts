@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { groundedBookingDraft } from "../features/booking/autopilot";
+import { DEFAULT_PROPOSAL_TERMS, groundedBookingDraft } from "../features/booking/autopilot";
 import {
   bookingAutomationAwaitsProvider,
   bookingAutomationDrivesContract,
@@ -95,7 +95,11 @@ test("booking draft requires approved consultation context and terms", () => {
   assert.deepEqual(withoutContext.blockers, [
     "CONSULTATION_SUMMARY_REQUIRED",
   ]);
-  assert.deepEqual(withoutTerms.blockers, ["APPROVED_TERMS_REQUIRED"]);
+  // A package with no terms written no longer blocks the brief: the default
+  // wording stands in, and the studio can edit it before sending.
+  assert.deepEqual(withoutTerms.blockers, []);
+  assert.equal(withoutTerms.termsDefaulted, true);
+  assert.equal(withoutTerms.proposal?.termsSummary, DEFAULT_PROPOSAL_TERMS);
 });
 
 test("booking automation waits for provider evidence in sequence", () => {

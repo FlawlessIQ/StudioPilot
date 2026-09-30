@@ -17,6 +17,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { proposalTermsFor } from "@/features/booking/autopilot";
 import {
   ArrowLeft,
   ArrowRight,
@@ -911,7 +912,7 @@ export function StudioProposalComposer() {
           setProjectId(requestedProject.id);
           setNotes(cleanIntro(text(requestedProject.packageSnapshot.description, "")));
           setTermsSummary(
-            text(requestedProject.packageSnapshot.terms, ""),
+            proposalTermsFor(requestedProject.packageSnapshot.terms),
           );
           const event = new Date(`${requestedProject.eventDate}T12:00:00`);
           if (!Number.isNaN(event.valueOf())) {
@@ -984,7 +985,7 @@ export function StudioProposalComposer() {
     );
     if (!nextProject) return;
     setNotes(cleanIntro(text(nextProject.packageSnapshot.description, "")));
-    setTermsSummary(text(nextProject.packageSnapshot.terms, ""));
+    setTermsSummary(proposalTermsFor(nextProject.packageSnapshot.terms));
     const event = new Date(`${nextProject.eventDate}T12:00:00`);
     setBalanceDueDate(
       Number.isNaN(event.valueOf())
@@ -1080,7 +1081,7 @@ export function StudioProposalComposer() {
       if (readyProject) {
         setProjectId(readyProject.id);
         setNotes(cleanIntro(text(readyProject.packageSnapshot.description, "")));
-        setTermsSummary(text(readyProject.packageSnapshot.terms, ""));
+        setTermsSummary(proposalTermsFor(readyProject.packageSnapshot.terms));
         const event = new Date(`${readyProject.eventDate}T12:00:00`);
         if (!Number.isNaN(event.valueOf())) {
           setBalanceDueDate(dateInput(addDays(event, -14).toISOString()));

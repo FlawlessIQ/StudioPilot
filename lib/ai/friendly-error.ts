@@ -80,6 +80,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PACKAGE_ALREADY_SELECTED:
     "This job already has a package. Open its proposal and use Packages to add another or swap it.",
   PACKAGE_ALREADY_ON_JOB: "That package is already on this job.",
+  // decideAiAction on work that is missing a decision only a person can make.
+  AI_ACTION_HAS_BLOCKING_ISSUES:
+    "This needs a decision from you first — StudioCue couldn't pick the package. Choose it on the booking brief and the draft follows.",
+  AI_ACTION_NOT_APPROVED: "Approve this first, then it can go ahead.",
   PACKAGE_REQUEST_NOT_AVAILABLE:
     "Your booking can't take another package right now — your agreement may already be on its way. Please message your studio.",
   // Sending the final bill by hand (bookingCommand sendFinalBalance).

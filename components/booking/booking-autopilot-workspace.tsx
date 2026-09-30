@@ -29,6 +29,7 @@ import {
 } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { blockingIssues } from "@/features/ai/blocking-issues";
 import { groundedBookingDraft } from "@/features/booking/autopilot";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { sendBookingCommand } from "@/lib/booking/command-client";
@@ -443,7 +444,23 @@ export function BookingAutopilotWorkspace({
         (action): action is Value =>
           action !== undefined && action.status === "review_required",
       );
+      // An action the server would refuse to approve — the AI picked no
+      // package, or the package had no terms — is settled by the studio's own
+      // choice on this page. Set it aside rather than approve it: approving
+      // it was refused, and the draft never got made (GR, 2026-09-30).
+      const setAside = new Set(
+        approvals
+          .filter((action) => blockingIssues(action, { withEdit: true }).length > 0)
+          .map((action) => action.id),
+      );
       for (const action of approvals) {
+        if (setAside.has(action.id)) {
+          await runAiQueueCommand({
+            type: "decideAiAction",
+            input: { actionId: action.id, decision: "dismissed" },
+          });
+          continue;
+        }
         await runAiQueueCommand({
           type: "decideAiAction",
           input: {
@@ -509,7 +526,13 @@ export function BookingAutopilotWorkspace({
       });
       const createdProposalId = text(created.result.proposalId);
       setProposalId(createdProposalId);
+      // Only an approved action records what it led to.
+      const approvedOnly = (actionId: string) =>
+        !setAside.has(actionId) &&
+        (approvals.some((action) => action.id === actionId) ||
+          text(actions.find((action) => action.id === actionId)?.status) === "approved");
       await Promise.all([
+        approvedOnly(packageAction.id) &&
         runAiQueueCommand({
           type: "recordAiExecution",
           input: {
@@ -519,6 +542,7 @@ export function BookingAutopilotWorkspace({
               "Created an immutable snapshot of the studio-approved package. Pricing still comes from the package record.",
           },
         }),
+        approvedOnly(proposalAction.id) &&
         runAiQueueCommand({
           type: "recordAiExecution",
           input: {
@@ -895,6 +919,12 @@ export function BookingAutopilotWorkspace({
               {busy === "proposal" ? <LoaderCircle className="spin" /> : <FileText />}
               Approve inputs & create draft
             </button>
+            {groundedDraft.termsDefaulted ? (
+              <p className="booking-package-hint">
+                This package has no terms written, so the draft uses standard
+                wording. Change it on the draft before you send.
+              </p>
+            ) : null}
             {proposalId ? (
               <Link href={`/studio/proposals/${proposalId}`}>
                 Open proposal draft <ArrowRight />

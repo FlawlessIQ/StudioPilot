@@ -44,6 +44,7 @@ import type { OutsideStepReminder } from "@/features/outside-steps/registry";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
+import { BOOKING_BRIEF_CAPABILITIES, blockingIssues } from "@/features/ai/blocking-issues";
 
 /** When a final balance becomes Today's business: the journey's own "one month out" step opens at 45. */
 const FINAL_BALANCE_WINDOW_DAYS = 45;
@@ -1470,6 +1471,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   };
 
   // ── Approve · AI-prepared work ─────────────────────────────────────
+  const briefCards = new Set<string>();
   for (const action of rows(input.aiActions)) {
     if (text(action.status) !== "review_required") continue;
     // Already on its inquiry's card, above.
@@ -1510,6 +1512,54 @@ export function todayInbox(input: TodayInput): TodayInbox {
           Boolean(text(leadById.get(leadId)?.projectId)),
       })
     ) {
+      continue;
+    }
+    /**
+     * Work the server won't approve as it stands — the AI picked no package,
+     * or the package had no terms. "Approve" here was refused on every press
+     * (GR, 2026-09-30). Send the studio to where the decision is made; the
+     * booking pair is one card, "pick the packages", not two dead ends.
+     */
+    const issues = blockingIssues(action);
+    if (issues.length) {
+      const capability = text(action.capability);
+      const projectId = text(action.projectId);
+      const onBrief = BOOKING_BRIEF_CAPABILITIES.has(capability) && Boolean(projectId);
+      // Once a proposal exists the question is answered; nothing to pick.
+      if (onBrief && !["LEAD", "CONSULTATION"].includes(stateFor(action.projectId) ?? "")) continue;
+      if (onBrief && briefCards.has(projectId)) continue;
+      if (onBrief) briefCards.add(projectId);
+      const who = (nameFor(action.projectId) ?? text(projectById.get(projectId)?.name)).replace(/\s+wedding$/i, "").trim();
+      act.push({
+        id: onBrief ? `ai-brief-${projectId}` : `ai-${action.id}`,
+        lane: "act",
+        kind: toneKindFor(capability || text(action.assetType) || text(action.type)),
+        title: onBrief
+          ? `Pick ${who ? `${who}'s` : "the"} packages for the proposal`
+          : text(action.title) || "Prepared work needs you",
+        detail: onBrief
+          ? "StudioCue couldn't choose a package from the consultation. Pick one or more on the booking brief and it drafts the proposal."
+          : issues.map((issue) => issue.message).filter(Boolean).join(" ") || "StudioCue needs a decision before this can go ahead.",
+        evidence: "StudioCue prepared this — you decide",
+        projectId: projectId || null,
+        projectName: nameFor(action.projectId),
+        action: {
+          kind: "link",
+          label: onBrief ? "Pick packages" : "Open",
+          href: onBrief
+            ? `/studio/booking?project=${projectId}`
+            : projectId
+              ? `/studio/projects/${projectId}`
+              : "/studio/ai-queue",
+        },
+        jobHref: projectId ? `/studio/projects/${projectId}` : null,
+        facts: [eventFact(eventFor(action.projectId), now), waitingFact(changedAt(action), now)].filter(
+          (fact): fact is string => Boolean(fact),
+        ),
+        band: bandFor({ eventDate: eventFor(action.projectId), now }),
+        eventDate: eventFor(action.projectId),
+        score: score({ lane: "act", severity: "step", eventDate: eventFor(action.projectId), updatedAt: changedAt(action), now }),
+      });
       continue;
     }
     approve.push({
