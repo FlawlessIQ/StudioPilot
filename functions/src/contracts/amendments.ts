@@ -37,6 +37,9 @@ import {
 } from "./commands.js";
 import { contractDocumentSchema, type ContractBlock, type ContractDocument } from "./document.js";
 import { contractDocumentHash, sha256Text } from "./document-hash.js";
+import { applyAmendment } from "../booking/amendment-apply.js";
+import { clientOutreachStop, mayContactClient } from "../post-event/client-outreach.js";
+import { resendBlockedUntil } from "./resend.js";
 
 /**
  * Changing a signed booking: the studio's commands.
@@ -47,7 +50,10 @@ import { contractDocumentHash, sha256Text } from "./document-hash.js";
  *                        to sign in their portal
  * recordAmendmentSigned  the couple signed outside StudioCue (paper, the
  *                        studio's own agreement), and the studio vouches for it
- * cancelAmendment        withdraw a change not yet signed
+ * cancelAmendment        withdraw a change not yet signed (the couple is told
+ *                        when they had been sent it)
+ * resendAmendment        email the couple the change to sign again, now
+ * retryAmendmentApply    run the apply again for a signed change it failed on
  *
  * Nothing here changes the job. The change is applied when it is signed —
  * functions/src/booking/amendment-apply.ts, a trigger on the amendment —
@@ -89,6 +95,63 @@ export const cancelAmendmentInput = z.object({
   amendmentId: z.string().min(1),
   reason: z.string().trim().max(500).nullable().default(null),
 });
+
+export const resendAmendmentInput = z.object({
+  amendmentId: z.string().min(1),
+});
+
+export const retryAmendmentApplyInput = z.object({
+  amendmentId: z.string().min(1),
+});
+
+/**
+ * The "please sign" email for a change: the one sendAmendment queues, and the
+ * one resendAmendment queues again. `awaitingAmendmentId` lets the email worker
+ * drop it if the change is signed or withdrawn before it goes.
+ */
+function amendmentReadyEmail(input: {
+  id: string;
+  tenantId: string;
+  projectId: string;
+  contactId: string | null;
+  recipient: string;
+  recipientName: string | null;
+  projectName: string;
+  changes: string[];
+  actionUrl: string;
+  amendmentId: string;
+  timestamp: string;
+  again: boolean;
+}) {
+  return {
+    id: input.id,
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    contactId: input.contactId,
+    recipient: input.recipient,
+    recipientName: input.recipientName,
+    projectName: input.projectName,
+    type: "manual_message",
+    customSubject: input.again
+      ? "Reminder: a change to your booking is waiting for your signature"
+      : "Please review and sign a change to your booking",
+    customBody: [
+      input.again
+        ? "A quick reminder: the change to your booking is ready for you to sign. Here's what changes:"
+        : "We've written up the change to your booking. Here's what changes:",
+      ...input.changes.map((line) => `• ${line}`),
+      "Everything else stays as you agreed. Please read it through and sign when you're happy — the original agreement stands until you do.",
+    ].join("\n"),
+    actionLabel: "Review and sign",
+    actionUrl: input.actionUrl,
+    category: "contract",
+    awaitingAmendmentId: input.amendmentId,
+    status: "queued",
+    attempts: 0,
+    createdAt: input.timestamp,
+    updatedAt: input.timestamp,
+  };
+}
 
 /** "2026-09-29" → "September 29, 2026", as the couple reads a date. */
 function longSignedDate(value: string): string {
@@ -644,6 +707,14 @@ async function liveAmendment(db: Firestore, context: CommandContext, amendmentId
   return amendment;
 }
 
+/** Why a change that is not a draft can't be signed and sent, by what it is now. */
+function notDraftRefusal(status: unknown) {
+  if (status === "draft") return;
+  if (status === "cancelled") throw new Error("AMENDMENT_WITHDRAWN");
+  if (status === "signed" || status === "applied") throw new Error("AMENDMENT_ALREADY_SIGNED");
+  throw new Error("AMENDMENT_NOT_DRAFT");
+}
+
 /** The base the change was written against must still be the job's. */
 async function requireStillCurrent(db: Firestore, amendment: DocumentSnapshot) {
   const project = await db.doc(`projects/${text(amendment.get("projectId"))}`).get();
@@ -665,14 +736,17 @@ export async function sendAmendment(context: CommandContext, input: z.infer<type
   requireOwnerOrAdmin(context.membership, "CONTRACT_SIGNING_PERMISSION_REQUIRED");
   const db = getFirestore();
   const amendment = await liveAmendment(db, context, input.amendmentId);
-  if (amendment.get("status") !== "draft") throw new Error("AMENDMENT_NOT_DRAFT");
+  // One code per cause: these used to share the contract's codes, whose copy
+  // ("prepare it again", "reissue the proposal") named steps a booking change
+  // does not have.
+  notDraftRefusal(amendment.get("status"));
   if (amendment.get("signingMode") !== "studiocue" || !amendment.get("document")) throw new Error("AMENDMENT_RECORD_ONLY");
-  if (amendment.get("documentHash") !== input.documentHash) throw new Error("CONTRACT_CHANGED");
+  if (amendment.get("documentHash") !== input.documentHash) throw new Error("AMENDMENT_CHANGED");
   const document = contractDocumentSchema.parse(amendment.get("document"));
-  if (contractDocumentHash(document) !== input.documentHash) throw new Error("CONTRACT_CHANGED");
-  if ((amendment.get("unresolvedFields") as unknown[] | undefined)?.length) throw new Error("CONTRACT_FIELDS_MISSING");
+  if (contractDocumentHash(document) !== input.documentHash) throw new Error("AMENDMENT_CHANGED");
+  if ((amendment.get("unresolvedFields") as unknown[] | undefined)?.length) throw new Error("AMENDMENT_FIELDS_MISSING");
   const clientEmail = text(amendment.get("clientEmail"));
-  if (!clientEmail) throw new Error("CLIENT_EMAIL_REQUIRED");
+  if (!clientEmail) throw new Error("AMENDMENT_CLIENT_EMAIL_REQUIRED");
   const project = await requireStillCurrent(db, amendment);
   const projectId = project.id;
   const clientContactId = strings(project.get("clientContactIds"))[0] ?? "";
@@ -724,29 +798,23 @@ export async function sendAmendment(context: CommandContext, input: z.infer<type
     updatedBy: context.actorId,
   });
   const emailJobId = `amendment_ready_${amendment.id}`;
-  batch.set(db.doc(`emailJobs/${emailJobId}`), {
-    id: emailJobId,
-    tenantId: context.tenantId,
-    projectId,
-    contactId: clientContactId || null,
-    recipient: clientEmail,
-    recipientName: text(amendment.get("clientName")) || null,
-    projectName: text(project.get("name")),
-    type: "manual_message",
-    customSubject: "Please review and sign a change to your booking",
-    customBody: [
-      "We've written up the change to your booking. Here's what changes:",
-      ...changes.map((line) => `• ${line}`),
-      "Everything else stays as you agreed. Please read it through and sign when you're happy — the original agreement stands until you do.",
-    ].join("\n"),
-    actionLabel: "Review and sign",
-    actionUrl: invitation ? invitation.inviteUrl : `${appUrl}${path}`,
-    category: "contract",
-    status: "queued",
-    attempts: 0,
-    createdAt: context.timestamp,
-    updatedAt: context.timestamp,
-  });
+  batch.set(
+    db.doc(`emailJobs/${emailJobId}`),
+    amendmentReadyEmail({
+      id: emailJobId,
+      tenantId: context.tenantId,
+      projectId,
+      contactId: clientContactId || null,
+      recipient: clientEmail,
+      recipientName: text(amendment.get("clientName")) || null,
+      projectName: text(project.get("name")),
+      changes,
+      actionUrl: invitation ? invitation.inviteUrl : `${appUrl}${path}`,
+      amendmentId: amendment.id,
+      timestamp: context.timestamp,
+      again: false,
+    }),
+  );
   if (invitation && clientContactId) {
     batch.set(
       db.doc(`clientInvitations/${invitation.invitationId}`),
@@ -807,7 +875,8 @@ export async function recordAmendmentSigned(
   const amendment = await liveAmendment(db, context, input.amendmentId);
   if (amendment.get("status") === "signed" || amendment.get("status") === "applied")
     return { amendmentId: amendment.id, status: String(amendment.get("status")), alreadySigned: true };
-  if (!LIVE_AMENDMENT.has(text(amendment.get("status")))) throw new Error("AMENDMENT_NOT_DRAFT");
+  // Signed and applied returned above, so the only other status is withdrawn.
+  if (!LIVE_AMENDMENT.has(text(amendment.get("status")))) throw new Error("AMENDMENT_WITHDRAWN");
   const project = await requireStillCurrent(db, amendment);
   const batch = db.batch();
   batch.update(amendment.ref, {
@@ -854,9 +923,33 @@ export async function cancelAmendment(context: CommandContext, input: z.infer<ty
   if (amendment.get("status") === "cancelled") return { amendmentId: amendment.id, status: "cancelled" };
   if (!LIVE_AMENDMENT.has(text(amendment.get("status")))) throw new Error("AMENDMENT_ALREADY_SIGNED");
   const projectReference = db.doc(`projects/${text(amendment.get("projectId"))}`);
+  let coupleTold = false;
   await db.runTransaction(async (transaction) => {
     const [current, project] = await Promise.all([transaction.get(amendment.ref), transaction.get(projectReference)]);
     if (!LIVE_AMENDMENT.has(text(current.get("status")))) throw new Error("AMENDMENT_ALREADY_SIGNED");
+    // A change the couple was sent sat in their inbox and portal asking for a
+    // signature; withdrawing it used to make it vanish with no word, so they
+    // were left wondering whether their booking had changed. It has not: say
+    // so. A draft they never saw needs no email.
+    const clientEmail = text(current.get("clientEmail"));
+    coupleTold = current.get("status") === "sent" && Boolean(clientEmail);
+    if (coupleTold)
+      transaction.set(db.doc(`emailJobs/amendment_withdrawn_${amendment.id}`), {
+        id: `amendment_withdrawn_${amendment.id}`,
+        tenantId: context.tenantId,
+        projectId: projectReference.id,
+        contactId: strings(project.get("clientContactIds"))[0] ?? null,
+        recipient: clientEmail,
+        recipientName: text(current.get("clientName")) || null,
+        projectName: text(project.get("name")) || null,
+        type: "amendment_withdrawn",
+        amendmentId: amendment.id,
+        changes: strings(current.get("changes")),
+        status: "queued",
+        attempts: 0,
+        createdAt: context.timestamp,
+        updatedAt: context.timestamp,
+      });
     transaction.update(amendment.ref, {
       status: "cancelled",
       cancelledAt: context.timestamp,
@@ -888,7 +981,7 @@ export async function cancelAmendment(context: CommandContext, input: z.infer<ty
       entityId: amendment.id,
       timestamp: context.timestamp,
       before: { status: current.get("status") },
-      after: { status: "cancelled", reason: input.reason },
+      after: { status: "cancelled", reason: input.reason, coupleTold },
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
       correlationId: context.idempotencyKey,
@@ -896,5 +989,158 @@ export async function cancelAmendment(context: CommandContext, input: z.infer<ty
       providerEventId: null,
     });
   });
-  return { amendmentId: amendment.id, status: "cancelled" };
+  return { amendmentId: amendment.id, status: "cancelled", coupleTold };
+}
+
+/**
+ * Email the couple the change to sign again, now.
+ *
+ * The 3- and 7-day reminders cover contracts only; a booking change had no
+ * way to reach the couple a second time at all. Owner/admin, as sending it
+ * was; at most once an hour (./resend.ts).
+ */
+export async function resendAmendment(context: CommandContext, input: z.infer<typeof resendAmendmentInput>) {
+  requireOwnerOrAdmin(context.membership, "CONTRACT_SIGNING_PERMISSION_REQUIRED");
+  const db = getFirestore();
+  const amendment = await liveAmendment(db, context, input.amendmentId);
+  const status = text(amendment.get("status"));
+  if (status === "cancelled") throw new Error("AMENDMENT_WITHDRAWN");
+  if (status === "signed" || status === "applied") throw new Error("AMENDMENT_ALREADY_SIGNED");
+  if (status !== "sent") throw new Error("AMENDMENT_NOT_SENT");
+  const clientEmail = text(amendment.get("clientEmail"));
+  if (!clientEmail) throw new Error("AMENDMENT_CLIENT_EMAIL_REQUIRED");
+  const project = await db.doc(`projects/${text(amendment.get("projectId"))}`).get();
+  const projectData = project.exists && project.get("tenantId") === context.tenantId ? project.data() : null;
+  if (!mayContactClient(projectData))
+    throw new Error(`CLIENT_OUTREACH_STOPPED:${clientOutreachStop(projectData) ?? "job_missing"}`);
+  const clientContactId = strings(project.get("clientContactIds"))[0] ?? "";
+  const contact = clientContactId ? await db.doc(`contacts/${clientContactId}`).get() : null;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
+  const path = "/client/contract";
+  const result = await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(amendment.ref);
+    if (current.get("status") !== "sent") throw new Error("AMENDMENT_NOT_SENT");
+    const blockedUntil = resendBlockedUntil(
+      [current.get("sentAt"), current.get("lastResentAt")],
+      Date.parse(context.timestamp),
+    );
+    if (blockedUntil) throw new Error(`RESEND_TOO_SOON:${blockedUntil}`);
+    const count = num(current.get("resendCount")) + 1;
+    // A couple still without a portal account gets a fresh invitation link;
+    // the id is theirs for this job, so it replaces the last one's token.
+    const invitation =
+      !contact?.get("portalUserId") && clientContactId
+        ? mintClientInvitation({ tenantId: context.tenantId, projectId: project.id, email: clientEmail, appUrl, next: path })
+        : null;
+    const emailJobId = `amendment_ready_${amendment.id}_again_${count}`;
+    transaction.create(
+      db.doc(`emailJobs/${emailJobId}`),
+      amendmentReadyEmail({
+        id: emailJobId,
+        tenantId: context.tenantId,
+        projectId: project.id,
+        contactId: clientContactId || null,
+        recipient: clientEmail,
+        recipientName: text(current.get("clientName")) || null,
+        projectName: text(project.get("name")),
+        changes: strings(current.get("changes")),
+        actionUrl: invitation ? invitation.inviteUrl : `${appUrl}${path}`,
+        amendmentId: amendment.id,
+        timestamp: context.timestamp,
+        again: true,
+      }),
+    );
+    if (invitation)
+      transaction.set(
+        db.doc(`clientInvitations/${invitation.invitationId}`),
+        {
+          id: invitation.invitationId,
+          tenantId: context.tenantId,
+          projectId: project.id,
+          contactId: clientContactId,
+          email: invitation.email,
+          normalizedEmail: invitation.email,
+          status: "pending",
+          tokenHash: invitation.tokenHash,
+          expiresAt: invitation.expiresAt,
+          revokedAt: null,
+          lastSentAt: context.timestamp,
+          latestEmailJobId: emailJobId,
+          updatedAt: context.timestamp,
+          updatedBy: context.actorId,
+        },
+        { merge: true },
+      );
+    transaction.update(amendment.ref, { lastResentAt: context.timestamp, resendCount: count });
+    const auditId = stableId("audit_amendment_resent", context.tenantId, context.idempotencyKey);
+    transaction.set(db.doc(`auditEvents/${auditId}`), {
+      id: auditId,
+      tenantId: context.tenantId,
+      projectId: project.id,
+      actorId: context.actorId,
+      actorType: "user",
+      action: "booking.amendment_resent",
+      entityType: "bookingAmendment",
+      entityId: amendment.id,
+      timestamp: context.timestamp,
+      before: { resendCount: count - 1 },
+      after: { resendCount: count, emailJobId },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      correlationId: context.idempotencyKey,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    return { amendmentId: amendment.id, emailJobId, resendCount: count };
+  });
+  return result;
+}
+
+/**
+ * The couple signed, and the change did not go through.
+ *
+ * The apply runs in a trigger (../booking/amendment-apply.ts). When it failed,
+ * the change sat at "signed" for good: the booking kept the old date and
+ * packages, and Withdraw refused because it was signed. This runs the same
+ * apply again, as the studio. It is idempotent — `appliedAt` is set once — so
+ * pressing it on a change that has meanwhile gone through does nothing.
+ */
+export async function retryAmendmentApply(context: CommandContext, input: z.infer<typeof retryAmendmentApplyInput>) {
+  requireOwnerOrAdmin(context.membership, "CONTRACT_SIGNING_PERMISSION_REQUIRED");
+  const db = getFirestore();
+  const amendment = await liveAmendment(db, context, input.amendmentId);
+  const status = text(amendment.get("status"));
+  if (status === "applied" || amendment.get("appliedAt")) return { amendmentId: amendment.id, status: "applied", applied: true };
+  if (status !== "signed") throw new Error("AMENDMENT_NOT_SIGNED");
+  const auditId = stableId("audit_amendment_apply_retried", context.tenantId, context.idempotencyKey);
+  await db.doc(`auditEvents/${auditId}`).set({
+    id: auditId,
+    tenantId: context.tenantId,
+    projectId: text(amendment.get("projectId")),
+    actorId: context.actorId,
+    actorType: "user",
+    action: "booking.amendment_apply_retried",
+    entityType: "bookingAmendment",
+    entityId: amendment.id,
+    timestamp: context.timestamp,
+    before: { status },
+    after: null,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    correlationId: context.idempotencyKey,
+    automationRunId: null,
+    providerEventId: null,
+  });
+  let outcome: { applied: boolean };
+  try {
+    outcome = await applyAmendment(db, amendment.id);
+  } catch (caught: unknown) {
+    console.error("amendment apply retry failed", amendment.id, caught);
+    throw new Error("AMENDMENT_APPLY_FAILED");
+  }
+  const after = await amendment.ref.get();
+  // Nothing thrown and still not applied: a record the change depends on is
+  // gone (applyAmendment returns rather than guesses). Say so, not "done".
+  if (!outcome.applied && after.get("status") !== "applied") throw new Error("AMENDMENT_APPLY_FAILED");
+  return { amendmentId: amendment.id, status: "applied", applied: true };
 }

@@ -21,25 +21,36 @@ function stableId(scope: string, ...parts: string[]): string {
   return `${scope}_${createHash("sha256").update(parts.join(":")).digest("hex").slice(0, 32)}`;
 }
 
-/** What the couple sees of a change waiting for them. Never the studio's notes on money it owes. */
+/**
+ * What the couple sees of a change waiting for them. Never the studio's notes
+ * on money it owes — nor the studio's reason for withdrawing one.
+ *
+ * A change the studio withdrew after sending is included, so the portal can
+ * say so: it used to vanish from under a couple who had been emailed to sign
+ * it. A draft they were never sent is not.
+ */
 export async function pendingAmendmentFor(db: Firestore, tenantId: string, projectId: string) {
   const found = await db
     .collection("bookingAmendments")
     .where("tenantId", "==", tenantId)
     .where("projectId", "==", projectId)
-    .where("status", "in", ["sent", "signed", "applied"])
-    .limit(10)
+    .where("status", "in", ["sent", "signed", "applied", "cancelled"])
+    .limit(20)
     .get();
-  const newest = found.docs.sort((a, b) =>
+  const shown = found.docs.filter((doc) => doc.get("status") !== "cancelled" || Boolean(doc.get("sentAt")));
+  const newest = shown.sort((a, b) =>
     String(b.get("sentAt") ?? b.get("updatedAt") ?? "").localeCompare(String(a.get("sentAt") ?? a.get("updatedAt") ?? "")),
   )[0];
   if (!newest || newest.get("signingMode") !== "studiocue") return null;
+  const withdrawn = newest.get("status") === "cancelled";
   return {
     id: newest.id,
     status: String(newest.get("status")),
+    withdrawnAt: withdrawn ? (newest.get("cancelledAt") ?? null) : null,
     changes: Array.isArray(newest.get("changes")) ? (newest.get("changes") as unknown[]).map(String) : [],
-    document: newest.get("document") ?? null,
-    documentHash: newest.get("documentHash") ?? null,
+    // Nothing to read or sign in a withdrawn change.
+    document: withdrawn ? null : (newest.get("document") ?? null),
+    documentHash: withdrawn ? null : (newest.get("documentHash") ?? null),
     studioSignerName: String((newest.get("studioSignature") as Record<string, unknown> | null)?.typedName ?? ""),
     sentAt: newest.get("sentAt") ?? null,
     signedAt: newest.get("signedAt") ?? null,
@@ -95,7 +106,7 @@ export async function signAmendment(
         return { amendmentId: input.amendmentId, status, alreadySigned: true };
       throw new SigningRefused("CONTRACT_ALREADY_SIGNED");
     }
-    if (status === "cancelled") throw new SigningRefused("CONTRACT_VOIDED");
+    if (status === "cancelled") throw new SigningRefused("CHANGE_WITHDRAWN");
     if (status !== "sent") throw new SigningRefused("CONTRACT_NOT_SENT");
     const role = membership.exists && membership.get("status") === "active" ? membership.get("role") : null;
     if (role !== "client") throw new SigningRefused("SIGNER_NOT_A_CLIENT");

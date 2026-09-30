@@ -21419,6 +21419,10 @@ label {
 .proposal-packages-list > li > span:first-child {
   flex: 1 1 12rem;
 }
+/* The discount on one package, edited under its row. */
+.proposal-packages-list .proposal-packages-discount {
+  flex: 1 1 100%;
+}
 /* "Send as one booking agreement" on the proposal (H2). */
 .combined-agreement-send {
   border-top: 1px solid var(--border);

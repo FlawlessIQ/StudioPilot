@@ -665,8 +665,16 @@ async function settleCoupleRequests(
   await batch.commit();
 }
 
+/**
+ * Retried, as the job-dispatch triggers are (operations/task-queue.ts): a
+ * transient failure in the apply used to leave the change at "signed" for
+ * good — the couple had signed, the booking never took it. The same event is
+ * redelivered, so the before/after guard below still holds, and applyAmendment
+ * is idempotent (`appliedAt`). A failure that never clears is what the
+ * studio's "Apply it again" (retryAmendmentApply) is for.
+ */
 export const bookingAmendmentSigned = onDocumentWritten(
-  "bookingAmendments/{amendmentId}",
+  { document: "bookingAmendments/{amendmentId}", retry: true },
   async (event) => {
     const after = event.data?.after;
     const before = event.data?.before;

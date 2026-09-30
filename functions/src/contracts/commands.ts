@@ -781,6 +781,14 @@ export async function voidContract(
   });
 }
 
+/** What the job needs next once its contract is withdrawn. Pure. */
+export function voidedContractNextAction(mode: unknown): string {
+  // A booking agreement (H2) carries the proposal; the job is back at it.
+  return mode === "combined"
+    ? "Correct the proposal, or send a new booking agreement"
+    : "Prepare a new contract and send it";
+}
+
 /**
  * Withdraw a StudioCue contract that has not been signed. A signed contract is
  * never voided: it is the record of what two parties agreed, and a change is a
@@ -820,6 +828,14 @@ export async function voidStudioCueContract(
       voidedAt: input.timestamp,
       voidedBy: input.actorId,
       voidReason: input.reason,
+      updatedAt: input.timestamp,
+      updatedBy: input.actorId,
+    });
+    // The job's next step was "Waiting for the client to sign", set when this
+    // went out — and it stayed that way after the withdrawal, so Today and the
+    // job page kept saying the couple had something to sign.
+    transaction.update(db.doc(`projects/${input.projectId}`), {
+      nextAction: voidedContractNextAction(contract.get("mode")),
       updatedAt: input.timestamp,
       updatedBy: input.actorId,
     });

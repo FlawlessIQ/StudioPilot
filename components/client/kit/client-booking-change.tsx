@@ -10,6 +10,7 @@ import { currentEsignConsent } from "@/features/contracts/esign-consent";
 import { normaliseTypedName, signingRefusalCopy, type SigningRefusal } from "@/features/contracts/signing-policy";
 import { formatSignedAt } from "@/features/contracts/format";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { withdrawnChangeShown } from "@/features/contracts/couple-view";
 import { dataIsLive } from "@/lib/runtime-mode";
 import {
   getClientBookingChange,
@@ -36,6 +37,7 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
   const [typedName, setTypedName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openedAt] = useState(() => Date.now());
 
   useEffect(() => {
     if (!dataIsLive || !workspace.tenantId || !workspace.projectId) return;
@@ -50,6 +52,26 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
 
   if (!change) return null;
   const studio = workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : "Your studio";
+  // Withdrawn after it was sent: it used to vanish from under a couple who had
+  // been emailed to sign it, or refuse their signature with "they'll send a
+  // new one". Say what happened and that nothing changed.
+  if (change.status === "cancelled") {
+    if (!withdrawnChangeShown(change, openedAt, compact)) return null;
+    return (
+      <Card>
+        <p className="kit-eyebrow">Change withdrawn</p>
+        <h2 className="kit-section">{`${studio} withdrew the change to your booking`}</h2>
+        {change.changes.length ? (
+          <ul className="kit-body">
+            {change.changes.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
+        <p className="kit-body">Your booking stands exactly as it was, and there&rsquo;s nothing for you to sign.</p>
+      </Card>
+    );
+  }
   const signed = ["signed", "applied"].includes(change.status);
   // A signed change is worth a line for a while, not forever.
   if (signed && compact) return null;
@@ -79,7 +101,7 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
           ? signingRefusalCopy[code as SigningRefusal]
           : "Your signature didn't go through. Check your connection and try again — nothing was signed.",
       );
-      if (code === "DOCUMENT_CHANGED") setReload((value) => value + 1);
+      if (code === "DOCUMENT_CHANGED" || code === "CHANGE_WITHDRAWN") setReload((value) => value + 1);
     } finally {
       setBusy(false);
     }

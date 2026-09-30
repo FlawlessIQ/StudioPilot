@@ -192,10 +192,13 @@ test("a job's extras re-price its package into a new snapshot, and never re-deri
   assert.match(handler, /await assertPackagesEditable\(transaction/);
   // A new, immutable snapshot that says which one it replaced.
   assert.match(handler, /supersedesSnapshotId: target/);
-  // Priced from what the couple was quoted, through the one function.
-  assert.match(handler, /basePriceCents: Number\(previous\.get\("basePriceCents"\)/);
-  assert.match(handler, /: \{ type: "fixed", amountCents: Number\(previous\.get\("retainerCents"\) \?\? 0\) \}/);
-  assert.match(handler, /const priced = pricePackage\(\{/);
+  // Priced from what the couple was quoted, through the one function — now
+  // shared with setPackageDiscount as repriceSnapshot.
+  assert.match(handler, /const priced = repriceSnapshot\(previous, packageDocument, lines, discountRule\)/);
+  const reprice = commands.slice(commands.indexOf("function repriceSnapshot("));
+  assert.match(reprice, /basePriceCents: Number\(previous\.get\("basePriceCents"\)/);
+  assert.match(reprice, /: \{ type: "fixed", amountCents: Number\(previous\.get\("retainerCents"\) \?\? 0\) \}/);
+  assert.match(reprice, /return pricePackage\(\{/);
   // The panel revises the proposal after, like any package change.
   const panel = readFileSync("components/proposals/proposal-packages-panel.tsx", "utf8");
   assert.match(panel, /runCrmCommand\("setJobAddOns"/);

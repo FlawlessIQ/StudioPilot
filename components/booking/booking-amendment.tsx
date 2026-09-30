@@ -95,6 +95,13 @@ export function BookingAmendmentPanel({
     ((amendments as Rec[] | null) ?? []).find(
       (item) => item.id === str(project?.pendingAmendmentId) && ["draft", "sent"].includes(str(item.status)),
     ) ?? null;
+  // Signed, and the job hasn't taken it: the apply runs straight after the
+  // signature, so this is either a moment old or stuck. It used to show
+  // nothing at all — the form offered a new change as if none were signed.
+  const signedNotApplied =
+    ((amendments as Rec[] | null) ?? []).find(
+      (item) => item.id === str(project?.pendingAmendmentId) && str(item.status) === "signed" && !item.appliedAt,
+    ) ?? null;
 
   const [date, setDate] = useState<string | null>(prefill?.eventDate ?? null);
   const [keep, setKeep] = useState<string[] | null>(null);
@@ -110,6 +117,11 @@ export function BookingAmendmentPanel({
   const [recordMethod, setRecordMethod] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Withdrawing and recording a signature each ask once more, saying what
+  // follows; both used to act on the first tap.
+  const [confirming, setConfirming] = useState<"withdraw" | "record" | null>(null);
+  const [withdrawReason, setWithdrawReason] = useState("");
   // Back to the choices from a draft; writing it up again replaces the draft.
   const [editing, setEditing] = useState(false);
   // Which upcoming calls move with the date; null until the studio touches one.
@@ -168,18 +180,71 @@ export function BookingAmendmentPanel({
     }
   }
 
-  async function act(type: string, input: Record<string, unknown>, done: string) {
+  /** `stay`: the panel keeps showing the change, with the result as a notice. */
+  async function act(type: string, input: Record<string, unknown>, done: string, stay = false) {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await run(type, input);
       refreshTenantRecords("bookingAmendments", "projects", "proposals", "contracts", "invoiceReferences", "tasks");
-      onDone?.(done);
+      setConfirming(null);
+      if (stay) setNotice(done);
+      else onDone?.(done);
     } catch (caught) {
       setError(friendlyError(caught, "That couldn't be done."));
     } finally {
       setBusy(false);
     }
+  }
+
+  if (signedNotApplied) {
+    const signedAt = Date.parse(str(signedNotApplied.signedAt) || str(signedNotApplied.updatedAt));
+    // A few minutes is a moment; past that the apply has failed.
+    const stuck = !Number.isFinite(signedAt) || openedAt - signedAt > 5 * 60_000;
+    return (
+      <div className="amendment-panel">
+        <p className="eyebrow">Signed</p>
+        <ul className="amendment-changes">
+          {(Array.isArray(signedNotApplied.changes) ? (signedNotApplied.changes as unknown[]).map(String) : []).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+        <p className="form-notice" role="status">
+          {stuck
+            ? "The couple signed this change, but the booking hasn't taken it yet — putting it through didn't finish. Apply it again; nothing is done twice."
+            : "The couple signed this change. The booking is taking it now — refresh in a moment."}
+        </p>
+        {notice ? (
+          <p className="form-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {stuck ? (
+          ownerOrAdmin ? (
+            <footer className="amendment-actions">
+              <button
+                className="button button-dark"
+                disabled={busy}
+                onClick={() =>
+                  void act("retryAmendmentApply", { amendmentId: signedNotApplied.id }, "Applied. The booking now has the change.")
+                }
+                type="button"
+              >
+                {busy ? "Applying…" : "Apply it again"}
+              </button>
+            </footer>
+          ) : (
+            <p className="amendment-hint">An owner or admin can apply it again.</p>
+          )
+        ) : null}
+      </div>
+    );
   }
 
   // A change written up, or out with the couple.
@@ -212,8 +277,15 @@ export function BookingAmendmentPanel({
         </p>
         {sent ? (
           <p className="form-notice" role="status">
-            Sent to the couple to sign. Their current agreement stands until they do; when they sign, the job takes the change.
+            {`Sent to the couple to sign. Their current agreement stands until they do; when they sign, the job takes the change.${
+              pending.lastResentAt
+                ? ` Sent again ${callWhen(str(pending.lastResentAt), Intl.DateTimeFormat().resolvedOptions().timeZone)}.`
+                : ""
+            }`}
           </p>
+        ) : null}
+        {sent && !ownerOrAdmin ? (
+          <p className="amendment-hint">An owner or admin can send it to the couple again, or record a signature taken another way.</p>
         ) : null}
         {!sent && parsed.success ? (
           <details className="amendment-document">
@@ -255,30 +327,65 @@ export function BookingAmendmentPanel({
             </label>
           </div>
         ) : null}
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <footer className="amendment-actions">
-          {!sent ? (
-            <button className="button button-light" disabled={busy} onClick={() => setEditing(true)} type="button">
-              Change it
-            </button>
-          ) : null}
-          <button
-            className="button button-light"
-            disabled={busy}
-            onClick={() => void act("cancelAmendment", { amendmentId: pending.id, reason: null }, "The change is withdrawn. Nothing about the booking changed.")}
-            type="button"
-          >
-            Withdraw the change
-          </button>
-          {ownerOrAdmin ? (
-            recording ? (
+        {confirming === "withdraw" ? (
+          <div className="amendment-confirm" role="group" aria-label="Withdraw the change">
+            <p className="form-notice">
+              {sent
+                ? "Withdraw this change? The couple can no longer sign it, and they're emailed that it was withdrawn and their booking stands as it was."
+                : "Withdraw this change? It was never sent, so the couple hears nothing. The booking stays as it is."}
+            </p>
+            <label className="is-wide">
+              Why (optional — for the job&apos;s history; the couple doesn&apos;t see it)
+              <input maxLength={500} onChange={(event) => setWithdrawReason(event.target.value)} value={withdrawReason} />
+            </label>
+            <footer className="amendment-actions">
+              <button className="button button-light" disabled={busy} onClick={() => setConfirming(null)} type="button">
+                Keep it
+              </button>
               <button
                 className="button button-dark"
-                disabled={busy || recordName.trim().length < 2 || recordMethod.trim().length < 2}
+                disabled={busy}
+                onClick={() =>
+                  void act(
+                    "cancelAmendment",
+                    { amendmentId: pending.id, reason: withdrawReason.trim() || null },
+                    sent
+                      ? "The change is withdrawn, and the couple is being emailed that their booking stands as it was."
+                      : "The change is withdrawn. Nothing about the booking changed.",
+                  )
+                }
+                type="button"
+              >
+                {busy ? "Withdrawing…" : "Withdraw the change"}
+              </button>
+            </footer>
+          </div>
+        ) : null}
+        {confirming === "record" ? (
+          <div className="amendment-confirm" role="group" aria-label="Record their signature">
+            <p className="form-notice">
+              {`Record ${recordName.trim() || "their"} signature? The booking takes the change now, and it can't be undone — a further change is a new one.`}
+            </p>
+            <ul className="amendment-changes">
+              {num(pending.dateShiftDays) !== 0 ? (
+                <li>
+                  The wedding date moves. Crew who said yes are asked to confirm the new day, and calendar events, due dates and the
+                  calls you ticked move with it.
+                </li>
+              ) : null}
+              <li>Unpaid invoices written for the old total or date are replaced with new ones.</li>
+              {num(moneyInfo.refundCents) > 0 ? (
+                <li>{`A task is added to refund the couple ${money(moneyInfo.refundCents, currency)}.`}</li>
+              ) : null}
+              <li>The couple is emailed that the change is confirmed.</li>
+            </ul>
+            <footer className="amendment-actions">
+              <button className="button button-light" disabled={busy} onClick={() => setConfirming(null)} type="button">
+                Not yet
+              </button>
+              <button
+                className="button button-dark"
+                disabled={busy}
                 onClick={() =>
                   void act(
                     "recordAmendmentSigned",
@@ -288,7 +395,53 @@ export function BookingAmendmentPanel({
                 }
                 type="button"
               >
-                {busy ? "Saving…" : "Record their signature"}
+                {busy ? "Saving…" : "Record it and apply the change"}
+              </button>
+            </footer>
+          </div>
+        ) : null}
+        {notice ? (
+          <p className="form-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <footer className="amendment-actions" hidden={confirming !== null}>
+          {!sent ? (
+            <button className="button button-light" disabled={busy} onClick={() => setEditing(true)} type="button">
+              Change it
+            </button>
+          ) : null}
+          <button className="button button-light" disabled={busy} onClick={() => setConfirming("withdraw")} type="button">
+            Withdraw the change
+          </button>
+          {/* The 3- and 7-day reminders are the contract's; a change had no
+              way to reach the couple twice. */}
+          {sent && ownerOrAdmin && !recording ? (
+            <button
+              className="button button-light"
+              disabled={busy}
+              onClick={() =>
+                void act("resendAmendment", { amendmentId: pending.id }, "Sent to the couple again.", true)
+              }
+              type="button"
+            >
+              {busy ? "Sending…" : "Send it again"}
+            </button>
+          ) : null}
+          {ownerOrAdmin ? (
+            recording ? (
+              <button
+                className="button button-dark"
+                disabled={busy || recordName.trim().length < 2 || recordMethod.trim().length < 2}
+                onClick={() => setConfirming("record")}
+                type="button"
+              >
+                Record their signature
               </button>
             ) : (
               <button className="button button-light" onClick={() => setRecording(true)} type="button">

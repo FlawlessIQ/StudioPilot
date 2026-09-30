@@ -13,6 +13,7 @@ import {
   packageChangeAlreadyApplied,
 } from "@/features/proposals/workspace-guards";
 import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
+import { discountFromForm, discountLabel, discountRuleOf } from "@/features/proposals/package-discount";
 
 /**
  * The packages on this proposal, and the way to change them.
@@ -61,6 +62,11 @@ export function ProposalPackagesPanel({
   const contracts = useTenantDocuments("contracts");
   const [picking, setPicking] = useState<"add" | "replace" | null>(null);
   const [extrasFor, setExtrasFor] = useState<string | null>(null);
+  // The discount editor, one package at a time. The composer set a discount
+  // only when a package was first locked; after that it could not change.
+  const [discountFor, setDiscountFor] = useState<string | null>(null);
+  const [discountKind, setDiscountKind] = useState<"none" | "percentage" | "fixed">("percentage");
+  const [discountValue, setDiscountValue] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,17 +94,28 @@ export function ProposalPackagesPanel({
       ["queued", "sent", "delivered", "viewed", "partially_signed", "completed"].includes(text(contract.status)),
   );
 
-  async function change(label: string, action: () => Promise<unknown>) {
+  /**
+   * `loses` names what the change takes off the job ("Photo booth", a whole
+   * package). On a draft that went through on one tap and was gone; now it is
+   * said first, sent or not.
+   */
+  async function change(label: string, action: () => Promise<unknown>, loses: string | null = null) {
     if (
       sentToCouple &&
       !window.confirm(
-        status === "accepted"
-          ? `${coupleName} have accepted this proposal. Changing the packages makes a revised proposal for them to accept — the accepted one stays in the version history, and the agreement waits for the new one. Go ahead?`
-          : `${coupleName} have already been sent this proposal. Changing the packages makes a revised version to send them; this one stays in the version history. Go ahead?`,
+        [
+          loses,
+          status === "accepted"
+            ? `${coupleName} have accepted this proposal. Changing the packages makes a revised proposal for them to accept — the accepted one stays in the version history, and the agreement waits for the new one. Go ahead?`
+            : `${coupleName} have already been sent this proposal. Changing the packages makes a revised version to send them; this one stays in the version history. Go ahead?`,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       )
     ) {
       return;
     }
+    if (!sentToCouple && loses && !window.confirm(`${loses}\n\nGo ahead?`)) return;
     setBusy(label);
     setError(null);
     try {
@@ -125,40 +142,93 @@ export function ProposalPackagesPanel({
     }
   }
 
-  const add = (packageId: string, mode: "add" | "replace") =>
-    change(`${mode}-${packageId}`, async () => {
-      await runCrmCommand("selectPackage", {
-        projectId,
-        packageId,
-        selectedAddOns: [],
-        mode,
-        confirmReplace: mode === "replace",
-        discount: { type: "none" },
-      });
+  const extrasOf = (snapshot: Row | undefined) =>
+    (Array.isArray(snapshot?.addOns) ? (snapshot.addOns as Row[]) : []).map((line) => text(line.name, "Extra"));
+  const add = (packageId: string, mode: "add" | "replace") => {
+    // A swap replaces the one package on the job: its extras don't carry
+    // over (they were priced for it); its discount does ("keep").
+    const replaced = onJob[0]?.snapshot;
+    const lostExtras = mode === "replace" ? extrasOf(replaced) : [];
+    const newName = text(active.find((option) => option.id === packageId)?.name, "the new package");
+    return change(
+      `${mode}-${packageId}`,
+      async () => {
+        await runCrmCommand("selectPackage", {
+          projectId,
+          packageId,
+          selectedAddOns: [],
+          mode,
+          confirmReplace: mode === "replace",
+          // Swap used to send "none" and silently drop a discount the couple
+          // was promised. "keep" carries it to the new package.
+          discount: { type: "keep" },
+        });
+      },
+      mode === "replace" && lostExtras.length
+        ? `Swapping ${text(replaced?.packageName, "the package")} for ${newName} takes its extras off: ${lostExtras.join(", ")}. Add them again to ${newName} if they still want them.`
+        : null,
+    );
+  };
+  const setExtras = (packageSnapshotId: string, lines: JobAddOnLine[]) => {
+    const snapshot = snapshotById.get(packageSnapshotId);
+    const kept = new Set(lines.map((line) => line.name));
+    const dropped = extrasOf(snapshot).filter((name) => !kept.has(name));
+    return change(`extras-${packageSnapshotId}`,
+      async () => {
+        await runCrmCommand("setJobAddOns", {
+          projectId,
+          packageSnapshotId,
+          addOns: lines.map((line) =>
+            line.addOnId
+              ? { addOnId: line.addOnId, quantity: line.quantity }
+              : {
+                  addOnId: null,
+                  name: line.name,
+                  unitPriceCents: line.unitPriceCents,
+                  taxable: line.taxable,
+                  quantity: line.quantity,
+                  saveToLibrary: line.saveToLibrary === true,
+                },
+          ),
+        });
+        setExtrasFor(null);
+        refreshTenantRecords("addOns");
+      },
+      dropped.length
+        ? `This takes ${dropped.join(", ")} off ${text(snapshot?.packageName, "the package")}, and the price comes down with it.`
+        : null,
+    );
+  };
+  const remove = (packageSnapshotId: string) => {
+    const snapshot = snapshotById.get(packageSnapshotId);
+    const extras = extrasOf(snapshot);
+    return change(
+      `remove-${packageSnapshotId}`,
+      () => runCrmCommand("removePackage", { projectId, packageSnapshotId }),
+      `This takes ${text(snapshot?.packageName, "the package")} (${money(cents(snapshot?.totalCents), text(snapshot?.currency, "USD"))}) off the job${
+        extras.length ? `, with its extras: ${extras.join(", ")}` : ""
+      }. Adding it back later starts it at today's price.`,
+    );
+  };
+  const saveDiscount = (packageSnapshotId: string) => {
+    const parsed = discountFromForm(discountKind, discountValue);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+    return change(`discount-${packageSnapshotId}`, async () => {
+      await runCrmCommand("setPackageDiscount", { projectId, packageSnapshotId, discount: parsed.rule });
+      setDiscountFor(null);
     });
-  const setExtras = (packageSnapshotId: string, lines: JobAddOnLine[]) =>
-    change(`extras-${packageSnapshotId}`, async () => {
-      await runCrmCommand("setJobAddOns", {
-        projectId,
-        packageSnapshotId,
-        addOns: lines.map((line) =>
-          line.addOnId
-            ? { addOnId: line.addOnId, quantity: line.quantity }
-            : {
-                addOnId: null,
-                name: line.name,
-                unitPriceCents: line.unitPriceCents,
-                taxable: line.taxable,
-                quantity: line.quantity,
-                saveToLibrary: line.saveToLibrary === true,
-              },
-        ),
-      });
-      setExtrasFor(null);
-      refreshTenantRecords("addOns");
-    });
-  const remove = (packageSnapshotId: string) =>
-    change(`remove-${packageSnapshotId}`, () => runCrmCommand("removePackage", { projectId, packageSnapshotId }));
+  };
+  const openDiscount = (id: string, snapshot: Row | undefined) => {
+    const rule = discountRuleOf(snapshot);
+    setDiscountKind(rule.type === "none" ? "percentage" : rule.type);
+    setDiscountValue(
+      rule.type === "percentage" ? String(rule.basisPoints / 100) : rule.type === "fixed" ? (rule.amountCents / 100).toFixed(2) : "",
+    );
+    setDiscountFor(discountFor === id ? null : id);
+  };
 
   return (
     <section className="proposal-packages-panel" aria-labelledby="proposal-packages-title">
@@ -195,8 +265,21 @@ export function ProposalPackagesPanel({
               <small>
                 {money(cents(snapshot?.totalCents), text(snapshot?.currency, "USD"))}
                 {index === 0 && onJob.length > 1 ? " · main package" : ""}
+                {discountLabel(discountRuleOf(snapshot), text(snapshot?.currency, "USD"))
+                  ? ` · ${discountLabel(discountRuleOf(snapshot), text(snapshot?.currency, "USD"))}`
+                  : ""}
               </small>
             </span>
+            {agreementOut ? null : (
+              <button
+                className="button button-light"
+                disabled={busy !== null}
+                onClick={() => openDiscount(id, snapshot)}
+                type="button"
+              >
+                Discount
+              </button>
+            )}
             {agreementOut ? null : (
               <button
                 className="button button-light"
@@ -231,6 +314,49 @@ export function ProposalPackagesPanel({
                 Swap
               </button>
             )}
+            {discountFor === id ? (
+              <div className="proposal-packages-picker proposal-packages-discount" role="group" aria-label={`Discount on ${text(snapshot?.packageName, "this package")}`}>
+                <small>
+                  A percentage stays a percentage when extras change; an amount stays that amount. The proposal is priced again.
+                </small>
+                <label className="proposal-field">
+                  Discount
+                  <select
+                    onChange={(event) => setDiscountKind(event.target.value as "none" | "percentage" | "fixed")}
+                    value={discountKind}
+                  >
+                    <option value="percentage">Percent off</option>
+                    <option value="fixed">Amount off</option>
+                    <option value="none">No discount</option>
+                  </select>
+                </label>
+                {discountKind !== "none" ? (
+                  <label className="proposal-field">
+                    {discountKind === "percentage" ? "Percent" : "Amount"}
+                    <input
+                      inputMode="decimal"
+                      onChange={(event) => setDiscountValue(event.target.value)}
+                      placeholder={discountKind === "percentage" ? "10" : "250.00"}
+                      value={discountValue}
+                    />
+                  </label>
+                ) : null}
+                <span>
+                  <button className="button button-light" disabled={busy !== null} onClick={() => setDiscountFor(null)} type="button">
+                    Cancel
+                  </button>{" "}
+                  <button
+                    className="button button-dark"
+                    disabled={busy !== null}
+                    onClick={() => void saveDiscount(id)}
+                    type="button"
+                  >
+                    {busy === `discount-${id}` ? <LoaderCircle className="spin" size={14} /> : null}
+                    Save the discount
+                  </button>
+                </span>
+              </div>
+            ) : null}
             {extrasFor === id ? (
               <JobAddOnsEditor
                 busy={busy === `extras-${id}`}
@@ -256,7 +382,9 @@ export function ProposalPackagesPanel({
           <small>
             {picking === "add"
               ? "Choose a package to add. The proposal is priced again with both."
-              : "Choose the package to use instead."}
+              : discountLabel(discountRuleOf(onJob[0]?.snapshot))
+                ? `Choose the package to use instead. Their discount (${discountLabel(discountRuleOf(onJob[0]?.snapshot), text(onJob[0]?.snapshot?.currency, "USD"))}) carries over.`
+                : "Choose the package to use instead."}
           </small>
           {active.length === 0 ? <small>No active packages. Add one in Library → Packages.</small> : null}
           {active.map((option) => (

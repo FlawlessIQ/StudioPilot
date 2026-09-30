@@ -70,30 +70,13 @@ function nestedString(value: unknown, key: string): string {
   return typeof nested === "string" ? nested : "";
 }
 
+/**
+ * The shared copy, with this page's fallback. A local map used to sit here,
+ * looked up by the already-translated sentence — so it never matched, and its
+ * copy (some of it wrong) was dead. The codes live in lib/ai/friendly-error.ts.
+ */
 function friendlyError(error: unknown): string {
-  const message =
-    friendlySharedError(error, "This action could not be completed.");
-  const known: Record<string, string> = {
-    CONTRACT_NOT_READY:
-      "The accepted proposal must be ready before a contract can be sent.",
-    ACCEPTED_PROPOSAL_REQUIRED:
-      "The client must accept the current proposal first.",
-    CONTRACT_ALREADY_EXISTS:
-      "A contract already exists for this accepted proposal.",
-    RETAINER_NOT_READY:
-      "The completed contract must be confirmed before creating the retainer.",
-    RETAINER_INVOICE_ALREADY_EXISTS:
-      "A retainer invoice already exists for this project.",
-    PROJECT_VERSION_CONFLICT:
-      "The project changed. Refresh and run the booking review again.",
-  };
-  // Domain codes win; anything else goes through the shared helper so raw
-  // infrastructure text ("Firebase client configuration is incomplete: …")
-  // never reaches the notice.
-  return (
-    known[message] ??
-    friendlySharedError(error, "This action could not be completed.")
-  );
+  return friendlySharedError(error, "This action could not be completed.");
 }
 
 function currency(cents: unknown, code: unknown): string {
@@ -916,6 +899,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {proposal && contract?.status !== "completed" ? (
                   <RecordSignedAgreement
                     primary={false}
+                    supersedes={Boolean(
+                      contract &&
+                        contract.provider === "studiocue" &&
+                        ["sent", "viewed"].includes(String(contract.status)),
+                    )}
                     onRecorded={(message) => {
                       setNotice(message);
                       refreshTenantRecords(

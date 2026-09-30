@@ -25,6 +25,9 @@ import { formatSignedAt as formatDateTime } from "@/features/contracts/format";
 
 type ContractRecord = Record<string, unknown> & { id: string };
 
+/** Past this, a signed copy that hasn't appeared is stuck, not on its way. */
+const SIGNED_COPY_OVERDUE_MS = 30 * 60 * 1000;
+
 type SignatureSummary = {
   id: string;
   role: "studio" | "client";
@@ -91,6 +94,10 @@ export function ClientContractSigning({
   const [signOpen, setSignOpen] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
   const viewedFor = useRef<string | null>(null);
+  // As of opening the page, not re-read on every render.
+  const [openedAt] = useState(() => Date.now());
+  const completedAt = Date.parse(String(contract.completedAt ?? ""));
+  const copyOverdue = Number.isFinite(completedAt) && openedAt - completedAt > SIGNED_COPY_OVERDUE_MS;
 
   useEffect(() => {
     if (!awaiting || status !== "sent") return;
@@ -202,7 +209,13 @@ export function ClientContractSigning({
             {clientSignature
               ? `You signed on ${formatDateTime(clientSignature.signedAt)}.`
               : "Every signature is in."}{" "}
-            A copy has been emailed to you{typeof contract.signedCopyPath === "string" ? " and is ready to download" : " and will be ready to download here shortly"}.
+            {/* The copy is emailed when it is made, not when they sign — and
+                when making it failed this said "shortly" for good. */}
+            {typeof contract.signedCopyPath === "string"
+              ? "A copy has been emailed to you and is ready to download."
+              : copyOverdue
+                ? "Your signed copy is taking longer than usual. Your studio can make it again — message them if you need it."
+                : "Your signed copy is being made. It'll be emailed to you and appear here in a minute or two."}
           </p>
           {typeof contract.signedCopyPath === "string" ? (
             <Button disabled={downloading} icon={downloading ? undefined : Download} onClick={() => void download()}>
@@ -220,6 +233,20 @@ export function ClientContractSigning({
           <h2 className="kit-section">This agreement was withdrawn</h2>
           <p className="kit-body">
             {`${studioName ?? "Your studio"} withdrew it, so it can’t be signed. They’ll send an updated agreement.`}
+          </p>
+        </Card>
+      ) : null}
+      {/* Retired because the studio recorded the signature they took another
+          way. It had no card, so the page showed an unsigned agreement with no
+          word about why it couldn't be signed. */}
+      {status === "superseded" ? (
+        <Card tone="accent">
+          <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+            <CheckCircle2 aria-hidden size={14} /> Nothing to sign
+          </p>
+          <h2 className="kit-section">Your studio has your signed agreement</h2>
+          <p className="kit-body">
+            {`${studioName ?? "Your studio"} recorded your signature on the agreement you signed with them another way, so this copy doesn’t need signing. There’s nothing more for you to do here.`}
           </p>
         </Card>
       ) : null}

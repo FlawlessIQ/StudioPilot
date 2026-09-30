@@ -763,6 +763,20 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     )
       return { held: "contract_no_longer_awaiting_signature", type };
   }
+  // The same for a booking change's "please sign" email (sent, or sent again
+  // by the studio): one the couple has since signed, or the studio withdrew,
+  // is not one to ask them about.
+  if (document.get("awaitingAmendmentId")) {
+    const amendment = await getFirestore()
+      .doc(`bookingAmendments/${String(document.get("awaitingAmendmentId"))}`)
+      .get();
+    if (
+      !amendment.exists ||
+      amendment.get("tenantId") !== document.get("tenantId") ||
+      amendment.get("status") !== "sent"
+    )
+      return { held: "amendment_no_longer_awaiting_signature", type };
+  }
   // A consultation email is rendered from the consultation as it is now
   // (booking/consultation-email.ts): the Zoom link the provider worker made
   // after booking, the time after a move — and nothing at all for a meeting

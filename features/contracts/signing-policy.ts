@@ -24,7 +24,13 @@ export type SigningRefusal =
   | "CONSENT_OUTDATED"
   | "NAME_REQUIRED"
   /** A booking agreement whose proposal has passed its validity date (H2). */
-  | "PROPOSAL_EXPIRED";
+  | "PROPOSAL_EXPIRED"
+  /**
+   * A change to a signed booking that the studio withdrew. Not
+   * CONTRACT_VOIDED, whose "they'll send a new one" is wrong here: nothing new
+   * is coming, and the booking stands as it was.
+   */
+  | "CHANGE_WITHDRAWN";
 
 export type SigningDecision =
   | { allowed: true; alreadySigned: false }
@@ -104,4 +110,5 @@ export const signingRefusalCopy: Record<SigningRefusal, string> = {
   CONSENT_OUTDATED: "The terms for signing electronically were updated while this page was open. Reload the page, read them, and sign again.",
   NAME_REQUIRED: "Type your full name as your signature.",
   PROPOSAL_EXPIRED: "The prices in this agreement were valid until a date that has now passed. Message your studio and they'll send it again.",
+  CHANGE_WITHDRAWN: "Your studio withdrew this change, so there's nothing to sign. Your booking stands exactly as it was.",
 };

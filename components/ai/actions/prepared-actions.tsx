@@ -114,8 +114,10 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   complete_consultation: ExistingConsultationCard,
   // Packages and proposals
   change_booking: ChangeBookingCard,
+  resend_booking_change: ChangeBookingCard,
   swap_package: ChangePackagesCard,
   remove_package: ChangePackagesCard,
+  set_package_discount: ChangePackagesCard,
   approve_package_request: PackageRequestCard,
   decline_package_request: PackageRequestCard,
   draft_proposal: DraftProposalCard,
@@ -133,6 +135,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   sign_and_send_contract: ContractCard,
   send_contract: ContractCard,
   void_contract: ContractCard,
+  resend_contract: ContractCard,
   share_signed_copy: SignedCopyCard,
   record_signed_contract: RecordSignedContractCard,
   // Money

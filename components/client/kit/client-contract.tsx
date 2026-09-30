@@ -17,6 +17,7 @@ import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { ClientBookingChange } from "@/components/client/kit/client-booking-change";
 import { ClientAddPackage } from "@/components/client/kit/client-add-package";
 import { InfoHint } from "@/components/ui/info-hint";
+import { coupleContract } from "@/features/contracts/couple-view";
 
 /**
  * The couple's agreement, on a phone (M3 of
@@ -34,10 +35,8 @@ export function ClientContract() {
   const [providerOpened, setProviderOpened] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const refreshContracts = contracts.refresh;
-  const contract = useMemo(
-    () => [...contracts.value].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))[0],
-    [contracts.value],
-  );
+  // The agreement that stands, not merely the newest write (see coupleContract).
+  const contract = useMemo(() => coupleContract(contracts.value), [contracts.value]);
   const contractStatus = text(contract?.status);
 
   useEffect(() => {
@@ -99,6 +98,8 @@ export function ClientContract() {
               ? "Signed by you and your studio."
               : contractStatus === "voided"
                 ? "This version was withdrawn."
+                : contractStatus === "superseded"
+                  ? "Your studio has your signed agreement — there's nothing to sign here."
                 : contract.mode === "combined"
                   ? "Your terms and your coverage and price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
                   : "Read it through, then tap Review & sign. It’s written from the proposal you accepted."}

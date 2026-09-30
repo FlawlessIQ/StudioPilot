@@ -81,14 +81,35 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "This job has no accepted proposal to change. Send and sign the booking first.",
   NOTHING_TO_CHANGE: "Nothing would change. Pick a new date or different packages.",
   AMENDMENT_NOT_FOUND: "That change isn't there any more. Refresh to see the booking as it stands.",
-  AMENDMENT_NOT_DRAFT: "That change has already gone to the couple. Refresh to see where it is.",
+  // sendAmendment on a change that is already out; a withdrawn or signed one
+  // has its own code below.
+  AMENDMENT_NOT_DRAFT:
+    "This change is already signed for the studio and with the couple. To nudge them, use Send it again on Change the booking.",
+  AMENDMENT_WITHDRAWN:
+    "That change was withdrawn, so it can't be sent or signed. Write up a new one on Change the booking if the booking still needs to change.",
+  AMENDMENT_NOT_SENT:
+    "This change hasn't gone to the couple yet. Sign it for the studio and send it first.",
+  AMENDMENT_NOT_SIGNED:
+    "The couple hasn't signed this change yet, so there's nothing to apply. It goes through as soon as they sign.",
+  AMENDMENT_APPLY_FAILED:
+    "The signed change still couldn't be applied, so the booking hasn't changed yet. Try again in a few minutes; if it keeps failing, contact support and we'll put it through.",
+  // sendAmendment's own causes. These used to throw the contract's codes,
+  // whose copy named steps a change doesn't have ("reissue the proposal").
+  AMENDMENT_CHANGED:
+    "The change was written up again while you were reading it. Read it once more, then sign and send.",
+  AMENDMENT_FIELDS_MISSING:
+    "Some details in the amended agreement are blank — a field on your agreement the job's records can't fill. Add it to the job (or to your agreement), then use Change it to write the change up again.",
+  AMENDMENT_CLIENT_EMAIL_REQUIRED:
+    "The couple has no email address on file, so the change has nowhere to go. Add one to their contact, then write the change up again.",
   AMENDMENT_RECORD_ONLY:
     "Signing in StudioCue isn't switched on for your studio, so record the couple's signature once they've signed it another way.",
   AMENDMENT_STALE:
     "The job changed after this was written up. Write the change up again so the couple signs what's true now.",
-  AMENDMENT_ALREADY_SIGNED: "The couple has already signed this change. It's being applied now.",
-  AGREEMENT_ALREADY_SENT:
-    "The agreement has already gone to the couple for these packages. Void it on the Booking tab first, then change the packages.",
+  // Not "being applied now": a signed change whose apply failed stayed signed
+  // for good, and this told the studio to wait for something that wasn't
+  // happening.
+  AMENDMENT_ALREADY_SIGNED:
+    "The couple has already signed this change, so it can't be withdrawn. If the booking hasn't taken it yet, open Change the booking and use Apply it again.",
   // The void it names exists since the money audit (wave 1): "Void this
   // invoice" on the booking page and on Invoices.
   INVOICE_ALREADY_RAISED:
@@ -452,8 +473,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Only the studio owner or an admin can record a payment by hand.",
   PACKAGE_SNAPSHOT_NOT_FOUND:
     "The locked package for this job could not be found, so there is no price to record against.",
+  // Thrown when the job isn't at "Contract pending": before the proposal is
+  // accepted, or after the agreement is already signed.
   CONTRACT_NOT_READY:
-    "The accepted proposal must be ready before a contract can be sent.",
+    "This job isn't waiting for its agreement. An agreement goes out after the couple accepts the proposal and before it's signed — refresh the job to see which step it's on.",
   ACCEPTED_PROPOSAL_REQUIRED:
     "The client needs to accept the proposal before the agreement can go out.",
 
@@ -483,7 +506,16 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CONTRACT_ALREADY_COMPLETED:
     "This job's agreement is already signed.",
   CONTRACT_ALREADY_EXISTS:
-    "An agreement is already out for this job. Withdraw it first if it needs to change.",
+    "This job already has an agreement out for signature. Open the Booking tab: withdraw that one first if it needs to change, or send it again to remind them.",
+  CONTRACT_NOT_AWAITING_SIGNATURE:
+    "This agreement isn't waiting for their signature any more — it was signed or withdrawn. Refresh the Booking tab to see where it stands.",
+  AGREEMENT_PRICES_EXPIRED:
+    "The prices in this booking agreement have passed their date, so the couple can't sign it. Withdraw it, and send a new one from the proposal.",
+  SIGNED_COPY_NOT_EXPECTED:
+    "Only an agreement the couple signed in StudioCue has a signed copy to make. Refresh the Booking tab.",
+  // The couple's side of a withdrawn booking change (server/contracts/amendment-signing.ts).
+  CHANGE_WITHDRAWN:
+    "Your studio withdrew this change, so there's nothing to sign. Your booking stands exactly as it was.",
   SIGNED_COPY_NOT_FILED:
     "This contract's signed copy isn't filed yet, so there's nothing to share. Attach the signed copy first.",
   CONTRACT_NOT_FOUND:
@@ -591,6 +623,23 @@ const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
         : detail === "cancelled"
           ? "This wedding is cancelled, so nothing was sent to the couple."
           : "That job isn't there any more, so nothing was sent.",
+  // A package change once an agreement is out. The remedy depends on which
+  // agreement (functions/src/crm/commands.ts assertPackagesEditable); this
+  // used to tell all three to "void it on the Booking tab".
+  AGREEMENT_ALREADY_SENT: (detail) =>
+    detail === "signed"
+      ? "The agreement for these packages is signed, so a package change is a booking change the couple signs. Use Change the booking on the job."
+      : detail === "provider"
+        ? "The agreement for these packages went out through your signing app. Cancel it there first, then change the packages."
+        : "The agreement has already gone to the couple for these packages. Withdraw it on the job's Booking tab first, then change the packages.",
+  // Sending an agreement or a booking change again, within the hour. The
+  // server says when the next one may go.
+  RESEND_TOO_SOON: (detail) => {
+    const at = new Date(detail);
+    return Number.isNaN(at.valueOf())
+      ? "It went to them less than an hour ago. Give them a little time, then send it again."
+      : `It went to them less than an hour ago. Give them a little time — you can send it again after ${at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.`;
+  },
   // A booking change to a date another job holds. The server names the job.
   DATE_TAKEN: (detail) =>
     detail

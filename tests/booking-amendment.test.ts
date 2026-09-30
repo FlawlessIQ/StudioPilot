@@ -83,7 +83,7 @@ test("signing a change never moves the job's stage, and both signatures run thro
   const apply = read("functions/src/booking/amendment-apply.ts");
   const projectUpdate = apply.slice(apply.indexOf("transaction.update(projectReference, {"));
   assert.doesNotMatch(projectUpdate.slice(0, projectUpdate.indexOf("});")), /\bstate:/);
-  assert.match(apply, /export const bookingAmendmentSigned = onDocumentWritten\(\s*"bookingAmendments\/\{amendmentId\}"/);
+  assert.match(apply, /export const bookingAmendmentSigned = onDocumentWritten\(\s*\{ document: "bookingAmendments\/\{amendmentId\}", retry: true \}/);
   assert.match(read("functions/src/index.ts"), /export \{ bookingAmendmentSigned \} from "\.\/booking\/amendment-apply\.js"/);
   // The couple's portal signature and the studio's recorded one both only set "signed".
   assert.match(read("server/contracts/amendment-signing.ts"), /status: "signed",/);
