@@ -416,3 +416,45 @@ test(
     }
   },
 );
+
+test(
+  "Anyone can play the how-to videos, and nobody can write them",
+  { skip: !firestoreHost || !storageHost },
+  async () => {
+    const [firestoreAddress, firestorePortValue] = (firestoreHost ?? "127.0.0.1:8080").split(":");
+    const [storageAddress, storagePortValue] = (storageHost ?? "127.0.0.1:9199").split(":");
+    const environment = await initializeTestEnvironment({
+      projectId: "studiohub-dev",
+      firestore: {
+        host: firestoreAddress,
+        port: Number(firestorePortValue),
+        rules: await readFile(new URL("../firestore.rules", import.meta.url), "utf8"),
+      },
+      storage: {
+        host: storageAddress,
+        port: Number(storagePortValue),
+        rules: await readFile(new URL("../storage.rules", import.meta.url), "utf8"),
+      },
+    });
+    const video = new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]);
+    try {
+      await environment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "memberships/tenant-a_owner-a"), {
+          tenantId: "tenant-a", userId: "owner-a", status: "active",
+          role: "studio_owner", projectIds: [],
+        });
+        await uploadBytes(ref(context.storage(), "public/how-to/today.v1.mp4"), video, { contentType: "video/mp4" });
+      });
+      // Signed out — the public /how-to pages — and signed in alike.
+      await assertSucceeds(getBytes(ref(environment.unauthenticatedContext().storage(), "public/how-to/today.v1.mp4")));
+      await assertSucceeds(getBytes(ref(environment.authenticatedContext("owner-a").storage(), "public/how-to/today.v1.mp4")));
+      // Nobody writes from a browser, a studio owner included.
+      await assertFails(uploadBytes(ref(environment.unauthenticatedContext().storage(), "public/how-to/evil.mp4"), video, { contentType: "video/mp4" }));
+      await assertFails(uploadBytes(ref(environment.authenticatedContext("owner-a").storage(), "public/how-to/today.v1.mp4"), video, { contentType: "video/mp4" }));
+      // And it opens nothing next to it.
+      await assertFails(getBytes(ref(environment.unauthenticatedContext().storage(), "public/other/file.mp4")));
+    } finally {
+      await environment.cleanup();
+    }
+  },
+);

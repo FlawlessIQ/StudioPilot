@@ -1,1 +1,403 @@
-{}
+{
+  "contract-retainer": {
+    "version": 1,
+    "durationSec": 74.9,
+    "orientation": "landscape",
+    "file": "contract-retainer.v1.mp4",
+    "poster": "contract-retainer.v1.jpg",
+    "captions": "contract-retainer.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "The Booking tab"
+      },
+      {
+        "at": 21.2,
+        "title": "The agreement"
+      },
+      {
+        "at": 34.8,
+        "title": "The retainer"
+      },
+      {
+        "at": 56.4,
+        "title": "Confirm the booking"
+      }
+    ],
+    "transcript": "Let's get a couple booked. Open their job, and choose Booking from the tabs along the top. A wedding is booked once two things are in: the signed agreement and the paid retainer. The row of three steps shows where this couple is: contract, retainer, then booking. Below it is the agreement. Once a couple accepts your proposal, it goes out for them to sign online. Here, one of them has signed so far. StudioCue reminds them to sign, and moves on by itself the moment it's done. Next is the retainer. Here's a couple who've signed, and whose retainer invoice has gone out. When they pay online, it's recorded here by itself. If they paid you another way, like a bank transfer, open Retainer paid outside StudioCue. Add the date it arrived and how it was paid, then tap Record the payment. With the agreement signed and the retainer in, confirm the booking. Tap Check and confirm. The job is booked. It moves from Inquiries to Jobs, and planning begins: the questionnaire, the crew, and the run of show.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "4be4c15"
+  },
+  "couple-sign": {
+    "version": 1,
+    "durationSec": 56.5,
+    "orientation": "portrait",
+    "file": "couple-sign.v1.mp4",
+    "poster": "couple-sign.v1.jpg",
+    "captions": "couple-sign.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "Finding it"
+      },
+      {
+        "at": 13.7,
+        "title": "Reading it"
+      },
+      {
+        "at": 27.3,
+        "title": "Signing"
+      },
+      {
+        "at": 42.9,
+        "title": "Done"
+      }
+    ],
+    "transcript": "Let's sign your agreement. You'll get an email with a link, or you can find it in your portal: tap Plan at the bottom of the screen. Under Booking, tap Agreement. This is your agreement with your photographer, written from the proposal you accepted. Take your time and read it through. If there's anything you'd like changed, ask before you sign, using the link just above the sign button. When you're happy, tap Review and sign at the bottom of the screen. Tick the box to agree to sign electronically, then type your full name. Your typed name is your signature. Then tap Sign agreement. That's it: your agreement is signed. A copy is emailed to you, and you can download it here any time. Next comes your retainer, which reserves your date.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "4be4c15"
+  },
+  "couple-tour": {
+    "version": 1,
+    "durationSec": 64.6,
+    "orientation": "portrait",
+    "file": "couple-tour.v1.mp4",
+    "poster": "couple-tour.v1.jpg",
+    "captions": "couple-tour.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "Home"
+      },
+      {
+        "at": 13.2,
+        "title": "Your next step"
+      },
+      {
+        "at": 21.6,
+        "title": "Your journey"
+      },
+      {
+        "at": 29.1,
+        "title": "The tabs"
+      },
+      {
+        "at": 54.7,
+        "title": "Help"
+      }
+    ],
+    "transcript": "Welcome to your wedding portal. Everything between booking and your photos happens here. Let's take a quick look around. At the top is the countdown to your day. Just below, the highlighted card shows your next step: the one thing to do right now. Tap its button, and it takes you straight there. Scroll down, and you'll see Your journey: every step from booking to your photos, ticking off as each one is done. Along the bottom of the screen are four tabs. Plan keeps everything in one list: your proposal, your agreement, payments, your questionnaire and your timeline. Messages is a chat with your photographer. Their replies come here, and to your email too. And Files holds everything they've shared with you, along with your signed agreement and your invoices. Not sure what something means? Tap the question mark at the top of any screen for a short guide.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "4be4c15"
+  },
+  "crew-offer": {
+    "version": 1,
+    "durationSec": 83.4,
+    "orientation": "landscape",
+    "file": "crew-offer.v1.mp4",
+    "poster": "crew-offer.v1.jpg",
+    "captions": "crew-offer.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "Finding it"
+      },
+      {
+        "at": 32.1,
+        "title": "The plan"
+      },
+      {
+        "at": 47.7,
+        "title": "The order"
+      },
+      {
+        "at": 62.1,
+        "title": "Sending offers"
+      }
+    ],
+    "transcript": "Let's book a second shooter. Open the job, choose the Plan tab along the top, then Crew for this job. The green card at the top is where you fill a role. StudioCue ranks the people you work with by availability, clashes, travel and paperwork, and you decide the final order. If you already know exactly who you want, tap I know who I want, and the job goes straight to that one person. Otherwise, let StudioCue rank your options. Below it, the plan is already filled in from the job: the role, the arrival and departure times, the rate, and what they'll cover. Response window is how long each person has to answer, before the offer moves to the next name. Under Recommended order is everyone who fits, best match first. Use the arrows to change the order, or Exclude someone. It also flags anything still missing, like a W-9. Request paperwork asks them for it. Offers go out one at a time. If the first person declines, or doesn't answer in time, the next is asked. When it looks right, tap Approve crew plan and start. Jordan gets an email and answers from their phone. This page shows who's been asked, and who's accepted.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "4be4c15"
+  },
+  "crew-offer-accept": {
+    "version": 1,
+    "durationSec": 57.5,
+    "orientation": "portrait",
+    "file": "crew-offer-accept.v1.mp4",
+    "poster": "crew-offer-accept.v1.jpg",
+    "captions": "crew-offer-accept.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "Finding offers"
+      },
+      {
+        "at": 12.9,
+        "title": "The offer"
+      },
+      {
+        "at": 31.9,
+        "title": "Answering"
+      }
+    ],
+    "transcript": "When a studio wants you for a job, you'll get an email, and the offer appears on your Today screen, under Needs you. Tap the offer to open it. At the top is the job and your role. Below that are the date and times, where it is, and the fee. Answer by tells you how long the offer stays open. After that, the studio may ask someone else. Scroll down to What you'd do, to see exactly what the studio needs from you on the day. If you can do it, tap Accept at the bottom of the screen. You're booked. The job moves to Jobs, and its day sheet appears once the studio shares the run of show. You can add it to your calendar too. If you can't make it, tap Decline instead. You can tell the studio why, so they know whether it was the date, the fee, or the job.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "4be4c15"
+  },
+  "delivery": {
+    "version": 1,
+    "durationSec": 72.2,
+    "orientation": "landscape",
+    "file": "delivery.v1.mp4",
+    "poster": "delivery.v1.jpg",
+    "captions": "delivery.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "The Delivery tab"
+      },
+      {
+        "at": 8.9,
+        "title": "Post-production"
+      },
+      {
+        "at": 18.9,
+        "title": "The release"
+      },
+      {
+        "at": 33.1,
+        "title": "The couple's email"
+      },
+      {
+        "at": 48.8,
+        "title": "Delivered"
+      }
+    ],
+    "transcript": "Let's deliver a couple's photos. Open their job, and choose Delivery from the tabs along the top. At the top is the post-production checklist. Cards backed up is the one step that must be done before anything goes out. The rest simply track your progress. Below it, under Send photos or a film, add what you're sending. Paste the link to your gallery, and add its access code if it has one. Downloads until is the date the couple is asked to save everything by. Add a line from you if you like. Just below, you can see the email the couple will get. The review link is where they'll be asked for a review, a few days after this goes out. Then tap Release and complete delivery. That's it. The couple gets one email, and everything lands in their portal. Back on the job, the stages now show Delivered, and the job history records the gallery going out. Review requests follow three and ten days later. And once everything's settled, you close the job from the Delivery tab, under Closing the job.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "4be4c15"
+  },
+  "inquiry": {
+    "version": 1,
+    "durationSec": 70.3,
+    "orientation": "landscape",
+    "file": "inquiry.v1.mp4",
+    "poster": "inquiry.v1.jpg",
+    "captions": "inquiry.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "Where inquiries arrive"
+      },
+      {
+        "at": 18.2,
+        "title": "Reply from Today"
+      },
+      {
+        "at": 50.3,
+        "title": "If they go quiet"
+      }
+    ],
+    "transcript": "Let's answer a new inquiry. When a couple gets in touch, they show up in two places: in Inquiries, here in the menu, and on your Today tab. Hana Park is at the top. The words under her name, Your move, tell you she's waiting on you. The quickest way to answer is from Today. Open it from the menu, and scroll down to Hana's card. StudioCue has already written a reply for you. It's right there on the card, under Reply ready. It thanks her, answers her question, and includes a link where she can add her details and pick a time to talk. Want to change anything? Tap Edit. When it reads right, tap Send reply. That's it. The reply goes out from your studio, and Hana's inquiry moves along. If a couple doesn't answer, StudioCue drafts a follow-up on day three and again on day seven, ready for you to send the same way. And if an inquiry doesn't book, close it and say why. It moves to Closed, and if the couple writes again, it reopens by itself.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "acfa740"
+  },
+  "inquiry-capture": {
+    "version": 1,
+    "durationSec": 63.3,
+    "orientation": "landscape",
+    "file": "inquiry-capture.v1.mp4",
+    "poster": "inquiry-capture.v1.jpg",
+    "captions": "inquiry-capture.v1.vtt",
+    "chapters": [
+      {
+        "at": 3.1,
+        "title": "Finding it"
+      },
+      {
+        "at": 19.7,
+        "title": "Four ways in"
+      },
+      {
+        "at": 45.3,
+        "title": "Test it"
+      }
+    ],
+    "transcript": "Let's get your inquiries coming straight into StudioCue. Open Studio settings from the menu on the left, then choose Inquiry capture. At the top is your StudioCue address. Anything sent or forwarded to it becomes an inquiry, with a reply drafted for you. Below it are four ways to bring inquiries in. The easiest is the first one: put StudioCue's own inquiry form on your website. Tap it, pick the website builder you use, and copy the code into your site. No forwarding needed. If you'd rather keep your own form, or you get inquiries by email, from The Knot or WeddingWire, the other three options forward them in instead. When you're set up, tap Test and send yourself an inquiry, so you can see exactly how it arrives. From then on, every inquiry lands in Inquiries and on Today, with a reply drafted. The couple hears nothing until you send it.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "acfa740"
+  },
+  "job-page": {
+    "version": 1,
+    "durationSec": 70.8,
+    "orientation": "landscape",
+    "file": "job-page.v1.mp4",
+    "poster": "job-page.v1.jpg",
+    "captions": "job-page.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "Finding a job"
+      },
+      {
+        "at": 14.6,
+        "title": "Where it is"
+      },
+      {
+        "at": 22.8,
+        "title": "Your next move"
+      },
+      {
+        "at": 31,
+        "title": "The tabs"
+      },
+      {
+        "at": 39,
+        "title": "The journey"
+      },
+      {
+        "at": 45.8,
+        "title": "Job history"
+      }
+    ],
+    "transcript": "Let's look at a job. Open Jobs from the menu on the left. Each row is one wedding, with its date and what's next. Tap a couple's name to open their job. Under the couple's name is a row of stages, from the enquiry to delivery. The highlighted one shows where this wedding is right now. Below that, the big green card is your next move: the one thing to do on this job now. Its button takes you straight there. The tabs just above hold the detail for each stage: Overview, Booking, Plan, and Delivery. On the right-hand side, the journey lists every step of the wedding, and ticks each one off as it's done. Back in the middle, Job history keeps the whole record. Log a call, add a task, or ask Cue a question about this job. Further down, anything StudioCue has drafted for this job waits under Prepared for you, ready to approve. As the couple signs, pays, and fills things in, the job moves along by itself.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "acfa740"
+  },
+  "proposal": {
+    "version": 1,
+    "durationSec": 87.3,
+    "orientation": "landscape",
+    "file": "proposal.v1.mp4",
+    "poster": "proposal.v1.jpg",
+    "captions": "proposal.v1.vtt",
+    "chapters": [
+      {
+        "at": 3.2,
+        "title": "Starting a proposal"
+      },
+      {
+        "at": 15.2,
+        "title": "The package"
+      },
+      {
+        "at": 40.8,
+        "title": "The introduction"
+      },
+      {
+        "at": 49.9,
+        "title": "The dates"
+      },
+      {
+        "at": 57,
+        "title": "Approve and send"
+      }
+    ],
+    "transcript": "Let's build a proposal. Open the couple's job. When they're ready for pricing, the big green card at the top says Prepare proposal. Tap the button on that card to open the proposal. A proposal has three short parts. The first is the package they're booking. Each of your packages is listed here, with its price. Tap Lock this package on the one they want. From that moment the price is fixed, so later changes to your packages won't affect it. The dark card on the right keeps a running summary of the offer: the total, the tax, and the retainer that holds their date. The second part is a short introduction the couple will read. Tap Draft from what they told you to have one written from their inquiry, or write your own. The third part sets the dates: when the proposal expires, and when the retainer and the final balance are due. Then tap Create draft. Nothing goes to the couple yet. Check it over, then tap Approve this proposal. StudioCue now makes a branded PDF of the proposal. It only takes a moment. Last, tick Ready to share with the client, and tap Send proposal. The couple gets a branded email with a link to their portal, where they can accept the proposal, or ask for changes.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "acfa740"
+  },
+  "setup": {
+    "version": 1,
+    "durationSec": 57.8,
+    "orientation": "landscape",
+    "file": "setup.v1.mp4",
+    "poster": "setup.v1.jpg",
+    "captions": "setup.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "Finding setup"
+      },
+      {
+        "at": 17.4,
+        "title": "The questions"
+      },
+      {
+        "at": 43.4,
+        "title": "Skip anything"
+      }
+    ],
+    "transcript": "Let's set up your studio. On the Today tab, look for the card that says Finish setting up your studio, and tap Continue setup. Setup is six short questions. Each one says why it matters, and most can be answered right here on the page. The ones with a tick are already done. The first asks how inquiries reach you, so every new couple lands in StudioCue. The next one sets when couples can book a call with you. Tap Use Mon to Fri, nine to five, or choose your own hours. Further down, you'll tell StudioCue what you charge, how your clients sign, what you ask couples before the day, and who sends your insurance certificates. You can skip anything you're not ready for. StudioCue brings it back on Today when a job actually needs it, and every answer can be changed later in Studio settings.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "acfa740"
+  },
+  "today": {
+    "version": 1,
+    "durationSec": 100.6,
+    "orientation": "landscape",
+    "file": "today.v1.mp4",
+    "poster": "today.v1.jpg",
+    "captions": "today.v1.vtt",
+    "chapters": [
+      {
+        "at": 3.1,
+        "title": "Finding Today"
+      },
+      {
+        "at": 18.8,
+        "title": "The headline card"
+      },
+      {
+        "at": 32.5,
+        "title": "Prepared for you"
+      },
+      {
+        "at": 63,
+        "title": "Only you can do this"
+      },
+      {
+        "at": 72.1,
+        "title": "In motion"
+      },
+      {
+        "at": 89.3,
+        "title": "Help on every screen"
+      }
+    ],
+    "transcript": "Let's go through the Today tab. You'll find it at the top of the menu on the left. Today is your inbox. It shows everything that's waiting on you, with the most urgent things first. And if nothing's waiting, nothing is wrong. Start with the big green card at the top. This is the headline card, and it always shows the one thing that most needs you right now. Here, a couple's payment is overdue. The button on the card takes you straight to it. Just below the headline card is a list called Prepared for you. Each card in this list is something StudioCue has already drafted for you, like a reminder, a reply, or a next step. Each one needs just one decision from you. To read a draft before deciding, tap Review on its card. If it looks right, approve it as it is, or edit it first. Nothing goes to a couple until you say so. Once it's approved, it drops off your list. Keep scrolling, and you'll reach the things only you can decide, grouped by how late they are, starting with anything that's already late. Now look over on the right-hand side, at the card called In motion. It counts the jobs that are waiting on someone else: a couple, a provider, or a date. There's nothing for you to do with those. Each one comes back to Today by itself when it needs you again. Finally, see the How to button at the top of the screen? It's on every page, and it opens a guide to whatever you're looking at.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "acfa740"
+  },
+  "tour": {
+    "version": 1,
+    "durationSec": 77.8,
+    "orientation": "landscape",
+    "file": "tour.v1.mp4",
+    "poster": "tour.v1.jpg",
+    "captions": "tour.v1.vtt",
+    "chapters": [
+      {
+        "at": 3,
+        "title": "The menu"
+      },
+      {
+        "at": 9.3,
+        "title": "Today"
+      },
+      {
+        "at": 18.1,
+        "title": "Inquiries"
+      },
+      {
+        "at": 31.6,
+        "title": "Jobs"
+      },
+      {
+        "at": 43.4,
+        "title": "Cue"
+      },
+      {
+        "at": 53,
+        "title": "Everything else"
+      },
+      {
+        "at": 65.4,
+        "title": "Help"
+      }
+    ],
+    "transcript": "Let's take a quick tour of StudioCue. Everything starts from the menu down the left-hand side of the screen. At the top of the menu is Today. It's your inbox: everything that needs a decision from you, with the most urgent things first. Just below it is Inquiries. This is everyone who's asked about a date but hasn't booked yet. The tabs along the top sort them by stage, from new, through the consultation and proposal, to signing. Once a couple books, their wedding moves to Jobs. Each row is one wedding. Open one, and you'll see that wedding's whole story in one place, and the one thing to do next. Back in the menu, Cue is your assistant. Ask it anything about your studio, or ask it to do something, and it prepares the work for you to approve. Under More, you'll find your calendar, messages, clients and insights. And under Studio, the Library holds your packages and templates, and Studio settings holds everything else. Whenever you're not sure what to do, look for the How to button at the top of every screen. It opens a guide to whatever you're looking at.",
+    "recordedAt": "2026-09-30",
+    "recordedCommit": "acfa740"
+  }
+}

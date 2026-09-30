@@ -38,7 +38,13 @@ export function helpVideo(
   if (!id || !base) return null;
   const entry = VIDEOS[id];
   if (!entry) return null;
-  const url = (file: string) => `${base.replace(/\/+$/, "")}/${encodeURIComponent(file)}`;
+  // Either a folder URL the file is appended to, or a template with {file}
+  // in it — Firebase Storage's public URL puts the name mid-path:
+  // …/o/public%2Fhow-to%2F{file}?alt=media
+  const url = (file: string) =>
+    base.includes("{file}")
+      ? base.replace("{file}", encodeURIComponent(file))
+      : `${base.replace(/\/+$/, "")}/${encodeURIComponent(file)}`;
   return {
     id,
     ...entry,

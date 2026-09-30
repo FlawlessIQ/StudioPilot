@@ -41,6 +41,15 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  # The how-to videos (scripts/how-to/publish.ts uploads them to the public
+  # folder storage.rules opens; features/help/video-manifest.json lists them).
+  # {file} is replaced with the file name. Unset, the app shows the written
+  # guides without video.
+  - variable: NEXT_PUBLIC_HOW_TO_MEDIA_BASE
+    value: https://firebasestorage.googleapis.com/v0/b/studiohub-prod.firebasestorage.app/o/public%2Fhow-to%2F{file}?alt=media
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_APP_VERSION
     value: firebase-production
     availability:

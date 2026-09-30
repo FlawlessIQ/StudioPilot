@@ -13,8 +13,10 @@ export function HelpVideoPlayer({ id }: { id: string | undefined }) {
   if (!video) return null;
   return (
     <figure className="help-video" data-orientation={video.orientation}>
+      {/* crossOrigin: captions from another origin load only with CORS. */}
       <video
         controls
+        crossOrigin="anonymous"
         playsInline
         poster={video.posterSrc}
         preload="none"

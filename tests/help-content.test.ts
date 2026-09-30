@@ -141,4 +141,10 @@ test("videos are only shown once the pipeline has published them", () => {
   for (const id of helpVideoIds()) assert.ok(EXPLAINERS.some((guide) => guide.video === id), `${id} has no explainer`);
   assert.equal(helpVideo("today", undefined), null, "no media base, no video");
   assert.equal(helpVideo("not-a-video", "https://example.test"), null);
+  const [first] = helpVideoIds();
+  if (first) {
+    const template = helpVideo(first, "https://media.test/o/public%2Fhow-to%2F{file}?alt=media")!;
+    assert.match(template.src, /^https:\/\/media\.test\/o\/public%2Fhow-to%2F[^/?]+\.mp4\?alt=media$/);
+    assert.match(helpVideo(first, "https://media.test/how-to/")!.src, /^https:\/\/media\.test\/how-to\/[^/]+\.mp4$/);
+  }
 });

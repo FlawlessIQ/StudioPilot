@@ -24,6 +24,12 @@ production, and Conor approves each one before it goes live.
   - **Recording:** CDP screencast at a 1440×810 viewport with 2× pixels, downscaled to 1080p. It beat recordVideo on sharpness and gives frame timestamps for the audio sync.
   - **Isolated stack:** `scripts/how-to/stack.sh` runs a worktree, emulators on the 1xxxx ports, a snapshot, and the app on :3100.
   - **Voices:** `scripts/how-to/voice-samples.ts` is ready and waits on `ELEVENLABS_API_KEY`.
+- **Phase 4 shipped:** all 13 videos are recorded, approved and published.
+  - **Storage:** `public/how-to/` holds versioned `<id>.v1.mp4/.jpg/.vtt` files, cached forever.
+  - **Rules:** readable by anyone, never writable, covered by a test.
+  - **CORS:** the bucket allows GET and HEAD from StudioCue's own origins only, which captions and `crossOrigin` video need.
+  - **App:** `NEXT_PUBLIC_HOW_TO_MEDIA_BASE` is set in `apphosting.yaml`.
+  - **Re-cut:** run `scripts/how-to/make.ts <id>`, then `publish.ts <id>` (which bumps the version), commit the manifest, and roll out.
 - **Still open:** hints inside the proposal composer and the Insights tiles; a phone check of the portal hints on production; phases 3–4 (videos).
 - **Code/copy mismatches the walk found** were filed as separate tasks:
   - a manual run of show reaches nobody;

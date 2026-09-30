@@ -183,6 +183,19 @@ service firebase.storage {
         && membership(tenantId).role in ["studio_owner", "studio_admin"];
     }
 
+    /*
+     * StudioCue's own how-to videos (docs/how-to-videos-plan-2026-09-30.md):
+     * the MP4s, posters and captions every studio, couple and crew member
+     * plays from a screen's How to button, and the public /how-to pages.
+     * Readable by anyone, including the signed-out website; written only by
+     * scripts/how-to/publish.ts with an admin credential, which rules don't
+     * govern. No tenant data ever lives here.
+     */
+    match /public/how-to/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /tenants/{tenantId}/cueAttachments/{userId}/{fileName} {
       allow read: if false;
       allow create: if activeMember(tenantId)
