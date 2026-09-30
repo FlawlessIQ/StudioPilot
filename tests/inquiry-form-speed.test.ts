@@ -129,11 +129,16 @@ test("the inquiry page looks the studio up once, both queries together", () => {
 test("an address suggestion does not wait on three lookups in a row", () => {
   const route = source("app/api/public/places/route.ts");
   assert.match(route, /tenantBySlug = new Map/);
-  assert.match(
-    route,
-    /Promise\.all\(\[\s*activeTenantId\(input\.tenantSlug\),\s*withinRateLimit\(/,
-  );
+  // The limit answers from memory; the shared Firestore count runs off the
+  // response path (it took 137–197 ms of every suggestion on production).
+  assert.match(route, /const allowed = allowedNow\(id\);\s*countShared\(id\);/);
+  assert.match(route, /void withinRateLimit\(id\)\.then/);
+  assert.doesNotMatch(route, /await (Promise\.all\(\[[^\]]*)?withinRateLimit/);
   assert.match(route, /"server-timing"/);
+  // A browser that's over the limit is told, once, and stops asking.
+  const field = source("components/forms/address-field.tsx");
+  assert.match(field, /caught\.message === "PLACES_429"\) setPaused\(true\)/);
+  assert.match(field, /if \(live === false \|\| paused\) return;/);
 });
 
 /**

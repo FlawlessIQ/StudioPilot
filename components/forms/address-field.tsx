@@ -65,6 +65,9 @@ export function AddressField({
   const listId = `${inputId}-suggestions`;
   const [text, setText] = useState(() => (value ? placeLabel(value) : ""));
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  // Too many lookups from this browser this hour: say so once and stop
+  // asking, rather than leaving them waiting on a list that won't come.
+  const [paused, setPaused] = useState(false);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(-1);
@@ -107,6 +110,8 @@ export function AddressField({
   const status =
     live === false
       ? "Address lookup is not connected, so there is nothing to choose from. What you type is saved as you type it."
+      : paused
+        ? "Suggestions are paused for a while. Type the full address; it's saved as you type it."
       : query.length >= 3 && searched === query && !busy && visible.length === 0
         ? "No match found. What you type is saved as you type it."
         : null;
@@ -120,7 +125,7 @@ export function AddressField({
     // Once the provider has told us it is not configured, stop asking. The
     // answer will not change within this page load, and the notice below
     // already says so.
-    if (live === false) return;
+    if (live === false || paused) return;
     const target: PlacesSource =
       sourceKind === "public" && tenantSlug
         ? { kind: "public", tenantSlug }
@@ -143,7 +148,10 @@ export function AddressField({
         })
         // Autocomplete is an enhancement. Losing it is not an error the
         // person filling in a venue needs to hear about.
-        .catch(() => setSuggestions([]))
+        .catch((caught: unknown) => {
+          setSuggestions([]);
+          if (caught instanceof Error && caught.message === "PLACES_429") setPaused(true);
+        })
         .finally(() => setBusy(false));
     }, 260);
     return () => {
@@ -152,7 +160,7 @@ export function AddressField({
     };
     // `source` is a fresh object each render for the studio case; keying on
     // its kind and slug keeps this from re-running every render.
-  }, [query, country, live, sourceKind, tenantSlug]);
+  }, [query, country, live, paused, sourceKind, tenantSlug]);
 
   useEffect(() => {
     if (!open) return;
