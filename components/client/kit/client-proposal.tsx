@@ -30,6 +30,7 @@ import {
 } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { ClientAddPackage } from "@/components/client/kit/client-add-package";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * The proposal, on a phone (M3 of docs/mobile-first-client-crew-plan-2026-09-28.md).
@@ -246,7 +247,13 @@ export function ClientProposal() {
 
         {payments.length ? (
           <section className="kit-stack-tight" aria-label="Payment plan">
-            <h2 className="kit-subsection">Payment plan</h2>
+            <h2 className="kit-subsection">
+              Payment plan
+              <InfoHint label="Payment plan">
+                When each part of the total is due. Accepting doesn’t charge anything; each payment comes later as its
+                own secure invoice.
+              </InfoHint>
+            </h2>
             <List>
               {payments.map((payment, index) => (
                 <Row

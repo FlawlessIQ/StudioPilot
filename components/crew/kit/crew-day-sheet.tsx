@@ -32,6 +32,7 @@ import {
   type Value,
 } from "@/components/crew/kit/crew-data";
 import { StudioMessage } from "@/components/crew/kit/crew-parts";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type CachedCrewBrief = {
   /** Absent on copies saved before the client's brief was kept offline. */
@@ -291,7 +292,9 @@ function LiveDaySheet({
     <>
       <Main label="Day sheet">
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">{`Day sheet · version ${version}`}</p>
+          <p className="kit-eyebrow">
+            {`Day sheet · version ${version}`} <InfoHint term="day-sheet" />
+          </p>
           <h1 className="kit-title">{name}</h1>
           <p className="kit-body">
             {`${dayLabel(assignment.arrivalAt, zone)} · ${text(assignment.role, "Crew")}`}

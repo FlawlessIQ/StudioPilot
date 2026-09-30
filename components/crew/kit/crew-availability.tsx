@@ -21,6 +21,7 @@ import { availabilityNeedsFutureWindows } from "@/features/crew/availability-mom
 import { daysFromWindow, describeAvailability, localDay, windowFromDays } from "@/features/crew/availability-days";
 import { crewPublicError } from "@/lib/crew/public-error";
 import { crewCommand, CrewLoadState, text, useCrewData, type Value } from "@/components/crew/kit/crew-data";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type Status = "available" | "tentative" | "unavailable";
 const STATUS_OPTIONS: ReadonlyArray<{ value: Status; label: string }> = [
@@ -190,7 +191,13 @@ export function CrewAvailability() {
       <Main label="Calendar">
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Your calendar</p>
-          <h1 className="kit-title">When you can work</h1>
+          <h1 className="kit-title">
+            When you can work
+            <InfoHint label="Your calendar">
+              Marking days only tells studios when to ask you. You’re booked for a date only when you accept an offer
+              for it.
+            </InfoHint>
+          </h1>
           <p className="kit-body">Tap a day to mark it. Accepting a job is what actually books you.</p>
         </div>
 

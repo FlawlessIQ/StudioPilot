@@ -16,6 +16,7 @@ import {
   signClientBookingChange,
   type ClientBookingChange as Change,
 } from "@/lib/client/portal-client";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * A change to a booking the couple already signed.
@@ -101,7 +102,9 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
       <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
         <PenLine aria-hidden size={14} /> A change to sign
       </p>
-      <h2 className="kit-section">{`${studio} sent a change to your booking`}</h2>
+      <h2 className="kit-section">
+        {`${studio} sent a change to your booking`} <InfoHint term="couple-booking-change" />
+      </h2>
       <ul className="kit-body">
         {change.changes.map((line) => (
           <li key={line}>{line}</li>

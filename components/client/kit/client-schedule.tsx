@@ -17,6 +17,7 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { number, text, useProject, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type Item = Record<string, unknown>;
 type Sheet = { kind: "approve" } | { kind: "changes"; item: Item | null } | null;
@@ -142,7 +143,9 @@ export function ClientSchedule() {
 
         {actionable ? (
           <Card tone="accent">
-            <h2 className="kit-section">Ready for you to check</h2>
+            <h2 className="kit-section">
+              Ready for you to check <InfoHint term="couple-timeline" />
+            </h2>
             <p className="kit-body">
               Look through the times. If one’s not right, tap “Ask about this” on it. If it all looks good, approve
               it so your studio and crew can plan from it.

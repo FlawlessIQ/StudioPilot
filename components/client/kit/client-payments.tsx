@@ -17,6 +17,7 @@ import {
   useReserveYourDate,
 } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /** "retainer" and "final" are the system's words, not a couple's. */
 function invoiceName(kind: unknown): string {
@@ -135,7 +136,13 @@ export function ClientPayments() {
         )}
 
         <section className="kit-stack-tight" aria-label="Payment schedule">
-          <h2 className="kit-subsection">Schedule</h2>
+          <h2 className="kit-subsection">
+            Schedule
+            <InfoHint label="Schedule">
+              Every invoice for your booking, soonest first. Pay each from its secure link when it’s due; paid ones
+              stay here for your records.
+            </InfoHint>
+          </h2>
           <List>
             {standing.map((invoice) => (
               <Row

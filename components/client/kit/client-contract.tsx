@@ -16,6 +16,7 @@ import {
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { ClientBookingChange } from "@/components/client/kit/client-booking-change";
 import { ClientAddPackage } from "@/components/client/kit/client-add-package";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * The couple's agreement, on a phone (M3 of
@@ -90,7 +91,9 @@ export function ClientContract() {
         <ClientBookingChange />
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Agreement</p>
-          <h1 className="kit-title">Your agreement</h1>
+          <h1 className="kit-title">
+            Your agreement <InfoHint term="couple-agreement" />
+          </h1>
           <p className="kit-body">
             {contractStatus === "completed"
               ? "Signed by you and your studio."

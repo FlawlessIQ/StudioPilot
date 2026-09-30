@@ -12,6 +12,7 @@ import {
   tokenizeCardWithIntuit,
   type ClientAutopayStatus,
 } from "@/lib/client/portal-client";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const money = (cents: number, currency: string) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
@@ -142,6 +143,7 @@ export function ClientAutopay() {
           <strong id="client-autopay-heading">
             {method?.status === "active" ? "Your final balance pays itself" : "Pay your final balance automatically"}
           </strong>
+          <InfoHint term="couple-autopay" />
           <small>
             {method?.status === "active"
               ? `${method.brand ?? "Card"} ending ${method.last4 ?? ""} will be charged ${money(status.amountCents, status.currency)} on ${longDate(status.dueDate)}. You'll get a receipt by email.`

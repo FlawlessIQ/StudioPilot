@@ -74,7 +74,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     id: "final-balance",
     term: "Final balance",
     audience: "studio",
-    hint: "What's left to pay after the retainer, billed ahead of the wedding. If the couple saved a card, it's charged automatically.",
+    hint: "What's left after the retainer. It's billed 28 days before the wedding when it can be, or from Today; with autopay on, a saved card pays it.",
   },
   {
     id: "package",
@@ -113,10 +113,10 @@ export const GLOSSARY: readonly HelpTerm[] = [
   },
   {
     id: "inquiry-link",
-    term: "Inquiry link",
+    term: "Couple's inquiry link",
     audience: "studio",
     explainer: "inquiry",
-    hint: "Your studio's inquiry form. Put it on your website or share it anywhere; every submission lands in Inquiries.",
+    hint: "Each couple's own link, added to your first reply once your consultation hours are set. They add details and pick a time to talk.",
   },
   {
     id: "forwarding-address",
@@ -150,7 +150,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     id: "couple-retainer",
     term: "Retainer",
     audience: "couple",
-    hint: "Your first payment. It holds your date, and it's due when you sign.",
+    hint: "Your first payment. It holds your date, and its invoice arrives after you sign.",
   },
   {
     id: "couple-final-balance",
@@ -166,20 +166,70 @@ export const GLOSSARY: readonly HelpTerm[] = [
     hint: "Every step from booking to your photos, in order. Each one ticks off as it's done.",
   },
 
+  {
+    id: "couple-agreement",
+    term: "Agreement",
+    audience: "couple",
+    explainer: "couple-sign",
+    hint: "Your contract with your studio. Read it, then sign here with your typed name; a signed copy is emailed to you and kept on this page.",
+  },
+  {
+    id: "couple-booking-change",
+    term: "A change to your booking",
+    audience: "couple",
+    explainer: "couple-sign",
+    hint: "Your studio changed your date or package after you signed. Signing updates your agreement; until you do, the original still stands.",
+  },
+  {
+    id: "couple-autopay",
+    term: "Paying automatically",
+    audience: "couple",
+    explainer: "couple-pay",
+    hint: "Save a card and your final balance is charged on its due date, tried once more 3 days later if declined. Remove the card any time before.",
+  },
+  {
+    id: "couple-timeline",
+    term: "Your timeline",
+    audience: "couple",
+    explainer: "couple-day",
+    hint: "Your wedding day, hour by hour. Each update is a new version; approving one tells your studio and crew these times are right.",
+  },
+
   // ── Crew ──────────────────────────────────────────────────────────────
   {
     id: "crew-offer-crew",
     term: "Offer",
     audience: "crew",
-    explainer: "crew-tour",
+    explainer: "crew-offer-accept",
     hint: "A studio asking you to work a date. The details and the fee are in the offer; accept or decline.",
   },
   {
     id: "day-sheet",
     term: "Day sheet",
     audience: "crew",
-    explainer: "crew-tour",
+    explainer: "crew-day",
     hint: "Everything for the day: where to be and when, your role, who to call, and the running order.",
+  },
+  {
+    id: "call-time",
+    term: "Call time",
+    audience: "crew",
+    explainer: "crew-day",
+    hint: "When you're due to arrive at the job. Times are in the wedding's time zone.",
+  },
+  {
+    id: "crew-checklist",
+    term: "Checklist",
+    audience: "crew",
+    explainer: "crew-day",
+    hint: "What the studio needs before the day: paperwork to send, gear to confirm, the run of show to read. Items tick off when done or waived.",
+  },
+  {
+    id: "crew-closeout",
+    term: "Hours and expenses",
+    audience: "crew",
+    explainer: "crew-closeout",
+    hint: "Your hours, expenses and file links for a job. The studio reviews them, then schedules your payment.",
   },
 ];
 

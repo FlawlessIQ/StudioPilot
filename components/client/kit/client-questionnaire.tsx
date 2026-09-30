@@ -50,6 +50,7 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { date, text, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type ResponseRecord = Record<string, unknown> & { id: string };
 
@@ -420,7 +421,13 @@ function QuestionnaireForm({
           </div>
           <div className="kit-stack-tight">
             <p className="kit-eyebrow">{name}</p>
-            <h1 className="kit-title">{outstanding.length ? "Nearly there" : "Ready to send"}</h1>
+            <h1 className="kit-title">
+              {outstanding.length ? "Nearly there" : "Ready to send"}
+              <InfoHint label="Sending your answers">
+                Required questions must be answered before you can send. After that, your studio has your answers; to
+                change one, just message them.
+              </InfoHint>
+            </h1>
             <p className="kit-body">
               {outstanding.length
                 ? `${outstanding.length === 1 ? "One question needs" : `${outstanding.length} questions need`} an answer before this goes to ${studioName}.`

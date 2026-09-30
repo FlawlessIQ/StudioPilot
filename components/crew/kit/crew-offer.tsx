@@ -47,6 +47,7 @@ import {
   type CrewData,
   type Value,
 } from "@/components/crew/kit/crew-data";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const REASONS = [
   { value: "date", label: "I'm not free" },
@@ -147,7 +148,10 @@ function OfferDetail({ data, offer, now }: { data: CrewData; offer: Value; now: 
     <>
       <Main label="Offer">
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">{status === "accepted" ? "Booked" : status === "declined" ? "Declined" : "New offer"}</p>
+          <p className="kit-eyebrow">
+            {status === "accepted" ? "Booked" : status === "declined" ? "Declined" : "New offer"}
+            <InfoHint term="crew-offer-crew" />
+          </p>
           <h1 className="kit-title">{name}</h1>
           <p className="kit-body">{text(offer.role, "Crew")}</p>
         </div>

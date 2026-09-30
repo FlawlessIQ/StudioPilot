@@ -35,6 +35,7 @@ import {
   type Value,
 } from "@/components/crew/kit/crew-data";
 import { RequirementSend, StudioMessage } from "@/components/crew/kit/crew-parts";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const DOCUMENT_KINDS = ["w9", "insurance", "file"];
 const done = (item: Record<string, unknown>) => ["complete", "waived"].includes(String(item.status));
@@ -150,7 +151,9 @@ function JobDetail({ data, assignment, now }: { data: CrewData; assignment: Valu
       </List>
 
       <section aria-label="Checklist" className="kit-stack-tight" id="checklist">
-        <h2 className="kit-subsection">Checklist</h2>
+        <h2 className="kit-subsection">
+          Checklist <InfoHint term="crew-checklist" />
+        </h2>
         {requirements.length ? (
           <Card>
             <ul className="kit-checklist">

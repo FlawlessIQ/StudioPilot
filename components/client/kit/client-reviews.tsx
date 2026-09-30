@@ -9,6 +9,7 @@ import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { text, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * The review ask (M5 of docs/mobile-first-client-crew-plan-2026-09-28.md).
@@ -79,7 +80,13 @@ export function ClientReviews() {
       ) : (
         <Card tone="accent">
           <Heart aria-hidden size={26} />
-          <h2 className="kit-section">Would you share a few words?</h2>
+          <h2 className="kit-section">
+            Would you share a few words?
+            <InfoHint label="Leaving a review">
+              Your review is posted on the review site, not here. Tapping “I’ve left my review” just tells your studio
+              and stops the reminders.
+            </InfoHint>
+          </h2>
           <p className="kit-body">
             {`If you loved working with ${studioName}, a short review on ${site} helps other couples find them. It takes a minute.`}
           </p>

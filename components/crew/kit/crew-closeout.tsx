@@ -25,6 +25,7 @@ import {
   type Value,
 } from "@/components/crew/kit/crew-data";
 import { StudioMessage } from "@/components/crew/kit/crew-parts";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /** "HH:MM" on this phone's clock, for a time input. */
 function clock(iso: unknown): string {
@@ -130,7 +131,9 @@ function CloseoutDetail({ data, assignment }: { data: CrewData; assignment: Valu
     <>
       <Main label="Hours and expenses">
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">Hours and expenses</p>
+          <p className="kit-eyebrow">
+            Hours and expenses <InfoHint term="crew-closeout" />
+          </p>
           <h1 className="kit-title">{name}</h1>
           <p className="kit-body">{dayLabel(assignment.arrivalAt)}</p>
         </div>

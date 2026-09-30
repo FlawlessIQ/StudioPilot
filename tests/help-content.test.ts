@@ -91,7 +91,7 @@ test("every studio, couple and crew tab opens a guide of its own", () => {
   const client = tabHrefs("components/layout/portal-shell.tsx", "clientTabs");
   const crew = tabHrefs("components/crew/crew-portal-shell.tsx", "crewTabs");
   assert.ok(client.length >= 4 && crew.length >= 4);
-  for (const href of client.filter((item) => item === "/client" || item === "/client/plan"))
+  for (const href of client)
     assert.equal(helpForRoute(href, "couple").fallback, false, href);
   for (const href of crew) assert.equal(helpForRoute(href, "crew").fallback, false, href);
   for (const href of ["/studio", "/studio/leads", "/studio/projects", "/studio/help"])
@@ -101,8 +101,8 @@ test("every studio, couple and crew tab opens a guide of its own", () => {
 test("a screen with no guide of its own falls back to its audience's tour", () => {
   assert.equal(helpForRoute("/studio/audit", "studio").primary.id, "tour");
   assert.equal(helpForRoute("/studio/audit", "studio").fallback, true);
-  assert.equal(helpForRoute("/client/messages", "couple").primary.id, "couple-tour");
-  assert.equal(helpForRoute("/crew/closeout", "crew").primary.id, "crew-tour");
+  assert.equal(helpForRoute("/client/some-new-screen", "couple").primary.id, "couple-tour");
+  assert.equal(helpForRoute("/crew/some-new-screen", "crew").primary.id, "crew-tour");
 });
 
 test("the most specific route wins, and a guide's related list never repeats it", () => {

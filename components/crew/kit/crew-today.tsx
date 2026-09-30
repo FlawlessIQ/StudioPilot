@@ -18,6 +18,7 @@ import {
   timeLabel,
   useCrewData,
 } from "@/components/crew/kit/crew-data";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /** "today", "tomorrow", "in 6 days". */
 function whenFrom(iso: string, now: number): string {
@@ -72,6 +73,7 @@ export function CrewToday() {
           <h2 className="kit-section">{jobName(data, next)}</h2>
           <p className="kit-body">
             <strong>{`${dayLabel(next.arrivalAt, zone)} · call ${timeLabel(next.arrivalAt, zone)}`}</strong>
+            <InfoHint term="call-time" />
             <br />
             {text(next.role, "Crew")}
           </p>
@@ -93,7 +95,12 @@ export function CrewToday() {
 
       {!nothing ? (
         <section aria-label="Needs you" className="kit-stack-tight">
-          <h2 className="kit-subsection">Needs you</h2>
+          <h2 className="kit-subsection">
+            Needs you
+            <InfoHint label="Needs you">
+              Only what’s waiting on you: offers to answer, a run of show to confirm, and hours to send in after a job.
+            </InfoHint>
+          </h2>
           <List>
             {attention.invitations.map((offer) => (
               <Row

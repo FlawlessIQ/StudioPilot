@@ -20,6 +20,7 @@ import {
   type Value,
 } from "@/components/crew/kit/crew-data";
 import { ProfileDocumentSend } from "@/components/crew/kit/crew-parts";
+import { InfoHint } from "@/components/ui/info-hint";
 
 const capitalise = (value: string) => value.slice(0, 1).toLocaleUpperCase() + value.slice(1);
 
@@ -160,7 +161,13 @@ function Profile({ data, profile }: { data: CrewData; profile: Value }) {
         </section>
 
         <section aria-label="Your papers" className="kit-stack">
-          <h2 className="kit-subsection">Your papers</h2>
+          <h2 className="kit-subsection">
+            Your papers
+            <InfoHint label="Your papers">
+              What your studio needs before you work: your W-9 and insurance certificate. The studio checks each one,
+              and sends the crew agreement for signing.
+            </InfoHint>
+          </h2>
           <div className="kit-stack-tight">
             <strong>W-9</strong>
             <ProfileDocumentSend crewProfileId={profile.id} kind="w9" onSent={data.refresh} status={text(profile.w9Status)} />

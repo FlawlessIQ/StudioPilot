@@ -30,6 +30,7 @@ import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { date, text, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /** Mock mode answers locally, so every step can be walked. */
 async function postEvent(type: string, input: Record<string, unknown>) {
@@ -162,7 +163,12 @@ function DeliverableCard({ deliverable, now }: { deliverable: ClientDeliverable;
       {deliverable.code ? (
         <div className="kit-code">
           <span className="kit-code-value">
-            <span className="kit-caption">{deliverable.codeLabel}</span>
+            <span className="kit-caption">
+              {deliverable.codeLabel}
+              <InfoHint label={deliverable.codeLabel}>
+                The gallery asks for this when you open it. Tap Copy, then paste it there. Keep it private.
+              </InfoHint>
+            </span>
             <strong>{deliverable.code}</strong>
           </span>
           <Button
@@ -274,7 +280,13 @@ function AlbumSection({
 
   return (
     <section aria-label="Your album" className="kit-stack-tight">
-      <h2 className="kit-subsection">Your album</h2>
+      <h2 className="kit-subsection">
+        Your album
+        <InfoHint label="Your album">
+          Choose photos from your gallery, tell your studio here when you’ve sent them, then approve the design. Once
+          approved, it’s made exactly as shown.
+        </InfoHint>
+      </h2>
       <Card>
         <ol className="kit-journey">
           {ALBUM_STEPS.map((step, index) => {
