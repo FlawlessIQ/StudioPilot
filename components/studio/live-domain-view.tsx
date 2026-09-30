@@ -599,7 +599,9 @@ function tone(value: unknown) {
 
 /** A raw status code as words: "sent_to_venue" → "Sent to venue". Anything else as it is. */
 function badgeWords(value: string | number): string | number {
-  return typeof value === "string" && /^[a-z]+(?:_[a-z]+)*$/.test(value)
+  // display() has often already spaced it ("needs details"), which the
+  // snake_case test missed and left lower-case beside "Being reviewed".
+  return typeof value === "string" && /^[a-z]+(?:[_ ][a-z]+)*$/.test(value)
     ? `${value[0]!.toUpperCase()}${value.slice(1).replace(/_/g, " ")}`
     : value;
 }

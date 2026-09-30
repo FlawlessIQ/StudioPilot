@@ -252,3 +252,11 @@ test("both paths that send a certificate to the venue carry the event date", () 
     assert.match(source.slice(at, at + 600), /eventDate: requirement\.get\("eventDate"\) \?\? null/);
   }
 });
+
+test("a request StudioCue started but has not sent is not called 'on its way'", () => {
+  const panel = readFileSync("components/planning/coi-workflow-panel.tsx", "utf8");
+  assert.match(panel, /\["needs_details", "prepared", "self_serve"\]\.includes/);
+  assert.match(panel, /nothing has gone to your agent yet/);
+  const list = readFileSync("components/studio/live-domain-view.tsx", "utf8");
+  assert.match(list, /\/\^\[a-z\]\+\(\?:\[_ \]\[a-z\]\+\)\*\$\//);
+});

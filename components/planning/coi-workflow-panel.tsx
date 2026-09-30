@@ -211,13 +211,32 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
       ),
   );
 
+  // Prepared by StudioCue but not sent: "already on its way" was untrue for a
+  // request still waiting on the venue's details (walked 2026-09-30).
+  const notSentYet = Boolean(
+    projectId &&
+      requests.some(
+        (request) =>
+          request.projectId === projectId &&
+          ["needs_details", "prepared", "self_serve"].includes(String(request.status)),
+      ),
+  );
+
   return (
     <div className="coi-workflow-panel">
       {openForThisJob && !requestAnother ? (
         <section className="panel coi-request-collapsed">
           <p>
-            <strong>A certificate is already on its way for this job.</strong>
-            <small>Its progress is below. A second venue, or a new certificate after a change? Request another.</small>
+            <strong>
+              {notSentYet
+                ? "StudioCue has started this job's certificate request."
+                : "A certificate is already on its way for this job."}
+            </strong>
+            <small>
+              {notSentYet
+                ? "Finish it below; nothing has gone to your agent yet. A second venue? Request another."
+                : "Its progress is below. A second venue, or a new certificate after a change? Request another."}
+            </small>
           </p>
           <button className="button button-light" onClick={() => setRequestAnother(true)} type="button">
             <Send aria-hidden="true" size={15} /> Request another certificate
