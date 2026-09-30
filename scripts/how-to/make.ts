@@ -57,7 +57,7 @@ for (const id of ids) {
   }
   const holdFor = (i: number) => {
     const line = lines.get(i);
-    const pause = (script.steps[i]!.pauseAfterMs ?? 450) / 1000;
+    const pause = (script.steps[i]!.pauseAfterMs ?? 700) / 1000;
     return line ? line.durationSec + pause : 0;
   };
 

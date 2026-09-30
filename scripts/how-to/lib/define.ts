@@ -35,7 +35,7 @@ export type Step = {
   /** What the narrator says while this step's actions run. Omit for a silent step. */
   say?: string;
   do: Action[];
-  /** Extra breath after the narration, in ms (default 450). */
+  /** Extra breath after the narration, in ms (default 700). */
   pauseAfterMs?: number;
   /** Take the poster frame from this step. */
   poster?: boolean;
