@@ -178,7 +178,7 @@ export function BookingAmendmentPanel({
             <div className="record-sheet-fields">
               <label className="is-wide">
                 Your name, as your signature for the studio
-                <input onChange={(event) => setSigner(event.target.value)} value={signer} />
+                <input autoComplete="name" onChange={(event) => setSigner(event.target.value)} placeholder="Your full name" value={signer} />
               </label>
               <label className="is-wide amendment-consent">
                 <input checked={consent} onChange={(event) => setConsent(event.target.checked)} type="checkbox" />
@@ -271,9 +271,7 @@ export function BookingAmendmentPanel({
     <div className="amendment-panel">
       <div className="record-sheet-fields">
         <label>
-          <span>
-            <CalendarClock aria-hidden size={13} /> Wedding date
-          </span>
+          <span>Wedding date</span>
           <input onChange={(event) => setDate(event.target.value)} type="date" value={newDate} />
         </label>
         <fieldset className="is-wide amendment-packages">

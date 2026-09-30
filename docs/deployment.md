@@ -140,6 +140,20 @@ the production web build. Verify a test subscription, provider webhook replay,
 dead-letter alert, support-access expiry, tenant isolation, backup restore, and
 tenant export/deletion drill.
 
+**Rules deploy on their own.** Neither a functions deploy nor an App Hosting
+rollout ships `firestore.rules` or `storage.rules`. A change that adds a
+collection the browser reads must also run:
+
+```bash
+firebase deploy --only firestore:rules --project production
+```
+
+Otherwise production refuses every client read of it, and the screen shows
+empty instead of failing. This happened on 2026-09-29: booking amendments
+were written on the server, but the studio's panel never saw them until the
+rules were deployed. The emulator loads rules from the file, so local walks
+cannot catch it.
+
 The legacy Sites connection metadata in `.openai/hosting.json` is retained for
 traceability, but the production web application is deployed through Firebase
 App Hosting from the GitHub `main` branch. Automatic rollouts are enabled for

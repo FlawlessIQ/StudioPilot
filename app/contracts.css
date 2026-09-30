@@ -470,8 +470,9 @@
 .amendment-money{margin:0;font-size:13px;font-weight:650}
 .amendment-document summary{cursor:pointer;font-size:13px;font-weight:650}
 .amendment-document .contract-sheet{margin-top:8px;max-height:420px;overflow:auto}
-.amendment-consent{display:flex!important;gap:8px;align-items:flex-start;font-weight:500}
-.amendment-consent input,.amendment-check input{width:auto;margin-top:2px}
+/* The touch-target floor makes the checkbox 44px tall; centre it on its text. */
+.amendment-consent{display:flex!important;gap:8px;align-items:center;font-weight:500}
+.amendment-consent input,.amendment-check input{width:auto;margin:0;flex:none}
 .amendment-packages{border:0;margin:0;padding:0;display:grid;gap:6px}
 .amendment-packages legend{font-size:12px;font-weight:650;margin-bottom:4px}
 .amendment-check{display:flex!important;gap:8px;align-items:center;font-size:13px;font-weight:500}
