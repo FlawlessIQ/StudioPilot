@@ -456,6 +456,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       ["sent", "viewed"].includes(String(contract.status)) &&
       openProposal,
   );
+  // A withdrawn agreement before any acceptance is not where the booking
+  // stands: the proposal is, with its own next moves (walked 2026-09-30 —
+  // "Contract · Cancelled · Signed with StudioCue" replaced "open the
+  // proposal" and "record their yes").
+  const shownContract =
+    contract && (proposal || !["voided", "superseded", "declined"].includes(String(contract.status)))
+      ? contract
+      : null;
   const nativeActive =
     nativeSigning.enabled &&
     (Boolean(nativeSigning.agreementTemplateId) || contract?.provider === "studiocue");
@@ -526,8 +534,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
        */
       note: contractComplete
         ? "Signed"
-        : contract
-          ? statusLabel(String(contract.status))
+        : shownContract
+          ? statusLabel(String(shownContract.status))
           : bookingComplete
             ? "Not recorded here"
             : proposal
@@ -811,11 +819,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               </span>
               <StatusBadge
                 tone={
-                  contractComplete ? "success" : contract ? "info" : "neutral"
+                  contractComplete ? "success" : shownContract ? "info" : "neutral"
                 }
               >
-                {contract
-                  ? statusLabel(contract.status)
+                {shownContract
+                  ? statusLabel(shownContract.status)
                   : proposal
                     ? nativeActive
                       ? // A StudioCue contract may already be prepared and
@@ -967,7 +975,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   />
                 ) : null}
               </div>
-            ) : contract ? (
+            ) : shownContract ? (
               <div className="booking-evidence">
                 {/* The provider's envelope id is an internal reference, not a
                     number the couple would ever quote. Who signed it and when
@@ -976,15 +984,21 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   <small>Signed with</small>
                   <strong>
                     {providerName(
-                      String(contract.provider ?? "the signing provider"),
+                      String(shownContract.provider ?? "the signing provider"),
                     )}
                   </strong>
                 </span>
                 <span>
                   <small>Sent</small>
                   <strong>
-                    {contract.sentAt
-                      ? formatDueDate(String(contract.sentAt))
+                    {/* A timestamp, not a calendar date: read as a date it
+                        showed the UTC day ("Sep 30" for 10:25 PM on the 29th). */}
+                    {shownContract.sentAt
+                      ? new Date(String(shownContract.sentAt)).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
                       : "Queued"}
                   </strong>
                 </span>

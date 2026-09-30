@@ -254,3 +254,10 @@ test("the agreement states the retainer the schedule bills, not the package's pe
   const cue = readFileSync("components/ai/actions/booking-actions.tsx", "utf8");
   assert.match(cue, /dollars\(retainerFromSchedule\(proposal\?\.paymentSchedule/);
 });
+
+test("a withdrawn agreement before acceptance hands the Booking tab back to the proposal", () => {
+  const booking = readFileSync("components/booking/project-booking-workspace.tsx", "utf8");
+  assert.match(booking, /const shownContract =\s*contract && \(proposal \|\| !\["voided", "superseded", "declined"\]/);
+  assert.match(booking, /\) : shownContract \? \(\s*<div className="booking-evidence">/);
+  assert.doesNotMatch(booking, /formatDueDate\(String\((shown)?[cC]ontract\.sentAt\)\)/);
+});

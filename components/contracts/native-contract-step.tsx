@@ -274,7 +274,9 @@ export function NativeContractStep({
                   void run(
                     "void",
                     () => voidContract({ projectId, contractId: live.id, reason: voidReason.trim() }),
-                    "Withdrawn. The client was told. Prepare a new one when you're ready.",
+                    live.mode === "combined"
+                      ? "Withdrawn. The client was told. Correct the proposal, or send a new booking agreement from it."
+                      : "Withdrawn. The client was told. Prepare a new one when you're ready.",
                   ).then(() => setVoiding(false))
                 }
                 type="button"
