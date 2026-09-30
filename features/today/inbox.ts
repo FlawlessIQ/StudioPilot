@@ -22,6 +22,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
+import { ignorableSenderOf, notInquiryAllowed } from "@/features/intake/not-inquiry";
 import {
   inquiryDraftIsOrphaned,
   preparedWorkIsMoot,
@@ -125,6 +126,14 @@ export type TodayAction =
       followUp?: boolean;
       /** The date is already booked: the card offers "Close — date taken". */
       dateTaken?: boolean;
+      /**
+       * Whether "Not an inquiry" will be accepted: not for a lead whose job
+       * the studio made by hand or has moved on (notInquiryAllowed). Absent
+       * is read as allowed, for callers that predate it.
+       */
+      notInquiryAllowed?: boolean;
+      /** The address "not an inquiry" could also ignore, to name first. */
+      ignorableSender?: string | null;
       reply: {
         actionId: string;
         recipient: string | null;
@@ -205,6 +214,8 @@ export type TodayMaybeInquiry = {
    * Still not counted and never the headline — the sender is unconfirmed.
    */
   fromForm: boolean;
+  /** The address "not an inquiry" could ignore, named before it does (features/intake/not-inquiry.ts). */
+  ignorableSender: string | null;
 };
 
 export type TodayInbox = {
@@ -779,6 +790,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         fromForm:
           (source === "website_form" || source.startsWith("marketplace_")) &&
           Boolean(text(lead.email) || text(lead.phone)),
+        ignorableSender: ignorableSenderOf(lead),
       });
       continue;
     }
@@ -824,6 +836,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
         projectId: job?.id ?? null,
         followUp: Boolean(followUp),
         dateTaken: Boolean(text(lead.eventDate)) && dateTaken,
+        notInquiryAllowed: notInquiryAllowed(job),
+        ignorableSender: ignorableSenderOf(lead),
         reply: reply
           ? {
               actionId: reply.id,

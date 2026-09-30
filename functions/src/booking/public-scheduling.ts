@@ -384,6 +384,9 @@ export const publicConsultationScheduling = onRequest(
         tenantId: link.get("tenantId"),
         projectId: link.get("projectId"),
         contactId: link.get("contactId"),
+        // Rendered from the consultation when it goes, so it carries the Zoom
+        // link the provider worker makes after this (booking/consultation-email.ts).
+        consultationId,
         type: "consultation_confirmation",
         startsAt: selected.startsAt,
         status: "queued",
@@ -711,6 +714,9 @@ async function handleInquiryCommand(
     tenantId: context.tenantId,
     projectId: project.id,
     contactId,
+    // Rendered from the consultation when it goes, so it carries the Zoom
+    // link the provider worker makes after this (booking/consultation-email.ts).
+    consultationId,
     type: "consultation_confirmation",
     startsAt: selected.startsAt,
     location,

@@ -262,6 +262,12 @@ export const communicationsCommand = onRequest(
               : null,
           lastCaptureAt: settings.get("lastCaptureAt") ?? null,
           testWindowUntil: settings.get("testWindowUntil") ?? null,
+          // Senders "not an inquiry" taught capture to drop. Listed so a
+          // wrong one can be seen and removed (crm removeIgnoredSender):
+          // capture drops their mail without a trace anywhere else.
+          ignoredSenders: ((settings.get("notInquirySenders") as unknown[] | undefined) ?? []).filter(
+            (value): value is string => typeof value === "string",
+          ),
           lastTest:
             lastTest?.exists && lastTest.get("tenantId") === command.tenantId
               ? {

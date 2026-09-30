@@ -1,6 +1,7 @@
 "use client";
 
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
+import { isLiveConsultation } from "@/features/consultations/live";
 import {
   resolveCoverage,
   totalCoverageCount,
@@ -172,7 +173,8 @@ export function useProjectJourney({
               }).replied,
             }
           : null,
-    hasConsultation: forProject(consultations.records).length > 0,
+    // A cancelled or replaced consultation is not a booked meeting.
+    hasConsultation: forProject(consultations.records).some(isLiveConsultation),
     proposalStatus:
       text(
         forProject(proposals.records).sort((left, right) =>

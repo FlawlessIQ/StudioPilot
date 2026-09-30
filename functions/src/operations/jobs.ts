@@ -17,6 +17,11 @@ import {
 } from "../communications/email-templates.js";
 import { runAiJob, runPdfJob } from "./ai-pdf.js";
 import {
+  CONSULTATION_EMAIL_TYPES,
+  CONSULTATION_MEETING_PENDING,
+  consultationEmailPlanFor,
+} from "../booking/consultation-email.js";
+import {
   applyMessageToConversation,
   conversationIdFor,
 } from "../communications/conversation.js";
@@ -644,6 +649,25 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     )
       return { held: "contract_no_longer_awaiting_signature", type };
   }
+  // A consultation email is rendered from the consultation as it is now
+  // (booking/consultation-email.ts): the Zoom link the provider worker made
+  // after booking, the time after a move — and nothing at all for a meeting
+  // cancelled before its confirmation went. A confirmation whose meeting is
+  // still being made waits for it, through the ordinary retry backoff.
+  let consultationValues: Record<string, unknown> = {};
+  if (CONSULTATION_EMAIL_TYPES.includes(type)) {
+    const plan = await consultationEmailPlanFor(getFirestore(), {
+      jobId: document.id,
+      job: objectValue(document.data()),
+      // `document` was read before the claim counted this attempt.
+      attempt: Number(document.get("attempts") ?? 0) + 1,
+      maxAttempts: Number(document.get("maxAttempts") ?? 5),
+    });
+    if (plan.kind === "hold") return { held: plan.reason, type };
+    if (plan.kind === "wait")
+      throw new Error(`${CONSULTATION_MEETING_PENDING}:the meeting link is still being made`);
+    consultationValues = plan.values;
+  }
   const recipient = await recipientFor(document);
   const context = await emailContext(document, recipient);
   const rendered = renderEmailTemplate({
@@ -651,7 +675,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     brand: context.brand,
     recipientName: context.recipientName,
     projectName: context.projectName,
-    values: context.values,
+    values: { ...context.values, ...consultationValues },
     template: context.template,
   });
 

@@ -33,6 +33,9 @@ export const emailTemplateKeys = [
   "consultation_confirmation",
   "consultation_invitation",
   "consultation_reminder",
+  // The studio moved or cancelled the couple's consultation.
+  "consultation_rescheduled",
+  "consultation_cancelled",
   "package_follow_up",
   "proposal_sent",
   "contract_sent",
@@ -366,6 +369,37 @@ function deliveryButton(item: DeliveryEmailItem): string {
   return "Open your photographs";
 }
 
+/**
+ * How to meet, for a consultation email.
+ *
+ * `joinUrl` is read from the consultation at send time
+ * (booking/consultation-email.ts). A video call without one says the studio
+ * will send the link, rather than "any final meeting details", which reads as
+ * if there were nothing to wait for.
+ */
+function consultationMeetingDetails(values: Record<string, unknown>): {
+  line: string;
+  joinUrl: string;
+} {
+  const joinUrl = safeUrl(stringValue(values, "joinUrl"));
+  const location = stringValue(values, "location");
+  if (joinUrl) return { joinUrl, line: `Join the video call here: ${joinUrl}` };
+  if (values.meetingDetailsPending === true)
+    return {
+      joinUrl: "",
+      line: "It's a video call — we'll send you the link to join before the appointment.",
+    };
+  if (stringValue(values, "meetingMode") === "phone")
+    return {
+      joinUrl: "",
+      line: location
+        ? `We'll call you on ${location}.`
+        : "We'll call you at the number you gave us.",
+    };
+  if (location) return { joinUrl: "", line: `Location or meeting details: ${location}` };
+  return { joinUrl: "", line: "We'll share any final meeting details before the appointment." };
+}
+
 function copyFor(input: RenderEmailInput): EmailCopy {
   const { brand, values } = input;
   // The event's own zone, put on the job by the sender (see emailContext).
@@ -557,31 +591,75 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : undefined,
       };
     case "consultation_confirmation":
-    case "consultation_reminder": {
+    case "consultation_reminder":
+    case "consultation_rescheduled": {
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const isReminder = input.key === "consultation_reminder";
+      const isMove = input.key === "consultation_rescheduled";
+      // Their own inquiry page (/i/…): the same page shows, moves or cancels it.
+      const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
+      const details = consultationMeetingDetails(values);
+      // The join link is the one thing they need on the day, so it is the
+      // button whenever there is one; moving the call comes second.
+      const primary = details.joinUrl
+        ? { label: "Join the video call", url: details.joinUrl }
+        : actionUrl
+          ? { label: "View consultation", url: actionUrl }
+          : undefined;
+      const manage = rescheduleUrl
+        ? { label: "Reschedule or cancel", url: rescheduleUrl }
+        : undefined;
       return {
-        subject: `${isReminder ? "Reminder: " : ""}Consultation with ${brand.studioName}`,
-        preheader: `${isReminder ? "Your consultation is coming up." : "Your consultation is confirmed."}`,
-        eyebrow: isReminder ? "Consultation reminder" : "Consultation confirmed",
-        heading: isReminder ? "We’ll see you soon" : "Your consultation is booked",
+        subject: isMove
+          ? `New time for your consultation with ${brand.studioName}`
+          : `${isReminder ? "Reminder: " : ""}Consultation with ${brand.studioName}`,
+        preheader: isMove
+          ? `Your consultation has moved${startsAt ? ` to ${startsAt}` : ""}.`
+          : isReminder
+            ? "Your consultation is coming up."
+            : "Your consultation is confirmed.",
+        eyebrow: isMove
+          ? "Consultation moved"
+          : isReminder
+            ? "Consultation reminder"
+            : "Consultation confirmed",
+        heading: isMove
+          ? "Your consultation has a new time"
+          : isReminder
+            ? "We’ll see you soon"
+            : "Your consultation is booked",
         paragraphs: [
           greeting,
-          `We${isReminder ? "'re looking forward to" : " confirmed"} your consultation${startsAt ? ` on ${startsAt}` : ""}.`,
-          stringValue(values, "location")
-            ? `Location or meeting details: ${stringValue(values, "location")}`
-            : "We'll share any final meeting details before the appointment.",
+          isMove
+            ? `We've moved your consultation${startsAt ? ` to ${startsAt}` : ""}. Everything else stays the same.`
+            : `We${isReminder ? "'re looking forward to" : " confirmed"} your consultation${startsAt ? ` on ${startsAt}` : ""}.`,
+          details.line,
         ],
-        action: actionUrl
-          ? { label: "View consultation", url: actionUrl }
-          : safeUrl(stringValue(values, "rescheduleUrl"))
-            ? { label: "Reschedule or cancel", url: safeUrl(stringValue(values, "rescheduleUrl")) }
-            : undefined,
-        // Booked from their own inquiry link: the same page moves or cancels it.
-        secondaryAction:
-          actionUrl && safeUrl(stringValue(values, "rescheduleUrl"))
-            ? { label: "Reschedule or cancel", url: safeUrl(stringValue(values, "rescheduleUrl")) }
-            : undefined,
+        action: primary ?? manage,
+        secondaryAction: primary ? manage : undefined,
+        note: manage
+          ? undefined
+          : "Need a different time? Reply to this email and we'll sort it out.",
+      };
+    }
+    case "consultation_cancelled": {
+      const startsAt = humanDate(stringValue(values, "startsAt"), zone);
+      const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
+      return {
+        subject: `Your consultation with ${brand.studioName} is cancelled`,
+        preheader: `Your consultation${startsAt ? ` on ${startsAt}` : ""} is no longer happening.`,
+        eyebrow: "Consultation cancelled",
+        heading: "Your consultation is cancelled",
+        paragraphs: [
+          greeting,
+          `We've cancelled your consultation${startsAt ? ` on ${startsAt}` : ""}, so there's no need to join.`,
+          rescheduleUrl
+            ? "If you'd still like to talk, pick another time that suits you."
+            : "If you'd still like to talk, reply to this email and we'll find another time.",
+        ],
+        action: rescheduleUrl
+          ? { label: "Pick another time", url: rescheduleUrl }
+          : undefined,
       };
     }
     case "consultation_invitation":

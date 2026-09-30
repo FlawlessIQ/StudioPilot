@@ -67,6 +67,8 @@ import { runCrmCommand } from "@/lib/crm/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
+import { useZoomConnected } from "@/components/integrations/use-capability";
+import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
 import { ProjectJobPlan } from "@/components/projects/project-job-plan";
@@ -533,6 +535,9 @@ function ConsultationInviteAction({
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Zoom only when it is connected; otherwise the call they pick is a phone
+  // call rather than a video call nobody will send a link for.
+  const zoomConnected = useZoomConnected();
   async function send() {
     setBusy(true);
     setNotice(null);
@@ -540,7 +545,7 @@ function ConsultationInviteAction({
       await runPublicScheduling({
         type: "create_link",
         idempotencyKey: crypto.randomUUID(),
-        input: { projectId, contactId, mode: "zoom" },
+        input: { projectId, contactId, mode: defaultConsultationMode(zoomConnected) },
       });
       setNotice("Scheduling invitation queued for delivery.");
     } catch (caught: unknown) {

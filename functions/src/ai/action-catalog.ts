@@ -47,6 +47,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "keep_inquiry_open", scope: "project", when: "stop follow-ups asking about a quiet inquiry and keep it open" },
   { id: "not_an_inquiry", scope: "studio", when: "an item held as 'Maybe an inquiry' is not one (spam, a vendor, a newsletter) — name it in `subject`" },
   { id: "confirm_inquiry", scope: "studio", when: "an item held as 'Maybe an inquiry' IS a real inquiry — name it in `subject`" },
+  { id: "unignore_sender", scope: "studio", ownerAdminOnly: true, when: "see or undo the email senders StudioCue ignores because a message from them was marked 'not an inquiry' (e.g. the studio's website form stopped arriving)" },
   { id: "add_contact", scope: "studio", when: "add a person (client, planner, parent) to the studio's contacts" },
   { id: "edit_contact", scope: "project", when: "correct the couple's name, email or phone — say which in `field`, new value in `text`" },
   { id: "add_client_to_job", scope: "project", when: "add a second client (partner, parent, planner) to a job" },

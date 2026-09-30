@@ -533,11 +533,178 @@ export async function rescheduleConsultationResources(job: DocumentSnapshot) {
   return { consultationId, startsAt, endsAt, moved };
 }
 
-export async function createConsultationResources(job:DocumentSnapshot){const db=getFirestore();const consultationId=job.id.replace(/^consultation_/,"");const consultationReference=db.doc(`consultations/${consultationId}`);let consultation=await consultationReference.get();if(!consultation.exists)throw new Error("CONSULTATION_NOT_FOUND");const tenantId=String(job.get("tenantId"));let meetingId:string|null=consultation.get("meetingId")||null;let joinUrl:string|null=consultation.get("joinUrl")||null;
-  if(consultation.get("providerState")==="completed")return{consultationId,meetingId:consultation.get("meetingId"),calendarEventId:consultation.get("calendarEventId")};
-  if(consultation.get("mode")==="zoom"&&!meetingId){const zoom=await connection(tenantId,"zoom");if(zoom.mock){meetingId=mockId("zoom",job.id);joinUrl=`https://zoom.example.test/j/${meetingId}`}else{const scopes=Array.isArray(zoom.document.get("scopes"))?zoom.document.get("scopes") as unknown[]:[];const summaryEnabled=zoom.document.get("meetingSummaryEnabled")!==false&&scopes.includes("meeting:read:summary");const value=await providerJson(`${zoom.credential?.baseUrl??"https://api.zoom.us"}/v2/users/me/meetings`,{method:"POST",headers:{authorization:`Bearer ${zoom.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({topic:"Photography consultation",type:2,start_time:consultation.get("startsAt"),duration:Math.max(1,Math.round((new Date(String(consultation.get("endsAt"))).valueOf()-new Date(String(consultation.get("startsAt"))).valueOf())/60000)),timezone:consultation.get("timezone"),settings:{waiting_room:true,auto_recording:"none",...(summaryEnabled?{auto_start_meeting_summary:true,who_will_receive_summary:1}:{})}})},"ZOOM_CREATE_FAILED");meetingId=String(value.id);joinUrl=text(value.join_url)}await consultationReference.update({meetingId,joinUrl,location:joinUrl??consultation.get("location"),providerState:"meeting_created",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});consultation=await consultationReference.get()}
-  let calendarEventId=String(consultation.get("calendarEventId")??"");let calendarHtmlLink:string|null=consultation.get("calendarHtmlLink")??null;try{const calendar=await connection(tenantId,"google_calendar");if(!calendarEventId&&calendar.mock){calendarEventId=mockId("gcal",job.id);calendarHtmlLink=`https://calendar.example.test/${calendarEventId}`}else if(!calendarEventId){const calendarId=encodeURIComponent(String(calendar.document.get("selectedResourceId")??"primary"));const providerEventId=createHash("sha256").update(`consultation:${consultationId}`).digest("hex").slice(0,32);const url=`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;const create=await fetch(url,{method:"POST",headers:{authorization:`Bearer ${calendar.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({id:providerEventId,summary:"Photography consultation",description:joinUrl??"StudioCue consultation",start:{dateTime:consultation.get("startsAt"),timeZone:consultation.get("timezone")},end:{dateTime:consultation.get("endsAt"),timeZone:consultation.get("timezone")},extendedProperties:{private:{studioHubConsultationId:consultationId}}})});const value=create.status===409?await providerJson(`${url}/${providerEventId}`,{headers:{authorization:`Bearer ${calendar.credential?.accessToken}`}},"CALENDAR_READ_FAILED"):asRecord(await create.json().catch(()=>({})));if(!create.ok&&create.status!==409)throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);calendarEventId=text(value.id);calendarHtmlLink=text(value.htmlLink)||null;await consultationReference.update({calendarEventId,calendarHtmlLink,providerState:"calendar_created",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"})}}catch(caught:unknown){await consultationReference.update({calendarSkipReason:caught instanceof Error?caught.message:"GOOGLE_CALENDAR_UNAVAILABLE",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"})}
-  await consultationReference.update({meetingId,joinUrl,location:joinUrl??consultation.get("location"),calendarEventId,calendarHtmlLink,providerState:"completed",updatedAt:new Date().toISOString(),updatedBy:"provider-worker"});return{consultationId,meetingId,calendarEventId}}
+/**
+ * The meeting-link step could not run for a reason that retrying will not fix:
+ * nothing connected, or a connection that must be made again. Anything else
+ * (a Zoom outage, a 500) still fails the job so it is retried.
+ */
+export const ZOOM_UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
+  "ZOOM_NOT_CONNECTED",
+  "ZOOM_CREDENTIAL_MISSING",
+  "ZOOM_REAUTH_REQUIRED",
+]);
+
+/** What the studio is told when a video consultation has no Zoom link. */
+export function zoomSkipMessage(code: string): string {
+  return code === "ZOOM_NOT_CONNECTED"
+    ? "Zoom isn't connected, so no meeting link was made. Send them a video link yourself, or connect Zoom."
+    : "Zoom needs reconnecting, so no meeting link was made. Send them a video link yourself, or reconnect Zoom.";
+}
+
+export async function createConsultationResources(job: DocumentSnapshot) {
+  return createConsultationResourcesWith(job, { db: getFirestore(), connect: connection });
+}
+
+/** The same, with its reads and connections passed in — a seam for tests. */
+export async function createConsultationResourcesWith(
+  job: Pick<DocumentSnapshot, "id" | "get">,
+  deps: {
+    db: Pick<FirebaseFirestore.Firestore, "doc">;
+    connect: (tenantId: string, provider: Provider) => ReturnType<typeof connection>;
+  },
+) {
+  const { db, connect } = deps;
+  const consultationId = job.id.replace(/^consultation_/, "");
+  const consultationReference = db.doc(`consultations/${consultationId}`);
+  let consultation = await consultationReference.get();
+  if (!consultation.exists) throw new Error("CONSULTATION_NOT_FOUND");
+  const tenantId = String(job.get("tenantId"));
+  let meetingId: string | null = consultation.get("meetingId") || null;
+  let joinUrl: string | null = consultation.get("joinUrl") || null;
+  if (consultation.get("providerState") === "completed")
+    return { consultationId, meetingId: consultation.get("meetingId"), calendarEventId: consultation.get("calendarEventId") };
+
+  /**
+   * Zoom is the default way to meet, and most studios have not connected it.
+   * `connection()` threw ZOOM_NOT_CONNECTED here, outside any try, so the
+   * calendar step below never ran, the job dead-lettered, and the consultation
+   * sat at `providerState: "queued"` for ever — no link, no calendar event,
+   * and nothing telling the studio why. Now a Zoom that cannot be reached is
+   * recorded on the consultation, where the calendar shows it, and the rest
+   * of the booking carries on; the couple's confirmation says the studio will
+   * send the link (booking/consultation-email.ts).
+   */
+  let meetingSkipReason: string | null = null;
+  if (consultation.get("mode") === "zoom" && !meetingId) {
+    let zoom: Awaited<ReturnType<typeof connect>> | null = null;
+    try {
+      zoom = await connect(tenantId, "zoom");
+    } catch (caught: unknown) {
+      const code = caught instanceof Error ? caught.message : "ZOOM_UNAVAILABLE";
+      if (!ZOOM_UNAVAILABLE_CODES.has(code)) throw caught;
+      meetingSkipReason = code;
+    }
+    if (zoom) {
+      if (zoom.mock) {
+        meetingId = mockId("zoom", job.id);
+        joinUrl = `https://zoom.example.test/j/${meetingId}`;
+      } else {
+        const scopes = Array.isArray(zoom.document.get("scopes")) ? (zoom.document.get("scopes") as unknown[]) : [];
+        const summaryEnabled = zoom.document.get("meetingSummaryEnabled") !== false && scopes.includes("meeting:read:summary");
+        const value = await providerJson(
+          `${zoom.credential?.baseUrl ?? "https://api.zoom.us"}/v2/users/me/meetings`,
+          {
+            method: "POST",
+            headers: { authorization: `Bearer ${zoom.credential?.accessToken}`, "content-type": "application/json" },
+            body: JSON.stringify({
+              topic: "Photography consultation",
+              type: 2,
+              start_time: consultation.get("startsAt"),
+              duration: Math.max(
+                1,
+                Math.round(
+                  (new Date(String(consultation.get("endsAt"))).valueOf() -
+                    new Date(String(consultation.get("startsAt"))).valueOf()) /
+                    60000,
+                ),
+              ),
+              timezone: consultation.get("timezone"),
+              settings: {
+                waiting_room: true,
+                auto_recording: "none",
+                ...(summaryEnabled ? { auto_start_meeting_summary: true, who_will_receive_summary: 1 } : {}),
+              },
+            }),
+          },
+          "ZOOM_CREATE_FAILED",
+        );
+        meetingId = String(value.id);
+        joinUrl = text(value.join_url);
+      }
+      await consultationReference.update({
+        meetingId,
+        joinUrl,
+        location: joinUrl ?? consultation.get("location"),
+        meetingSkipReason: null,
+        meetingSkipMessage: null,
+        providerState: "meeting_created",
+        updatedAt: new Date().toISOString(),
+        updatedBy: "provider-worker",
+      });
+      consultation = await consultationReference.get();
+    }
+  }
+
+  let calendarEventId = String(consultation.get("calendarEventId") ?? "");
+  let calendarHtmlLink: string | null = consultation.get("calendarHtmlLink") ?? null;
+  try {
+    const calendar = await connect(tenantId, "google_calendar");
+    if (!calendarEventId && calendar.mock) {
+      calendarEventId = mockId("gcal", job.id);
+      calendarHtmlLink = `https://calendar.example.test/${calendarEventId}`;
+    } else if (!calendarEventId) {
+      const calendarId = encodeURIComponent(String(calendar.document.get("selectedResourceId") ?? "primary"));
+      const providerEventId = createHash("sha256").update(`consultation:${consultationId}`).digest("hex").slice(0, 32);
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;
+      const create = await fetch(url, {
+        method: "POST",
+        headers: { authorization: `Bearer ${calendar.credential?.accessToken}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          id: providerEventId,
+          summary: "Photography consultation",
+          description: joinUrl ?? (meetingSkipReason ? "Video call — send the couple a meeting link." : "StudioCue consultation"),
+          start: { dateTime: consultation.get("startsAt"), timeZone: consultation.get("timezone") },
+          end: { dateTime: consultation.get("endsAt"), timeZone: consultation.get("timezone") },
+          extendedProperties: { private: { studioHubConsultationId: consultationId } },
+        }),
+      });
+      const value =
+        create.status === 409
+          ? await providerJson(`${url}/${providerEventId}`, { headers: { authorization: `Bearer ${calendar.credential?.accessToken}` } }, "CALENDAR_READ_FAILED")
+          : asRecord(await create.json().catch(() => ({})));
+      if (!create.ok && create.status !== 409) throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);
+      calendarEventId = text(value.id);
+      calendarHtmlLink = text(value.htmlLink) || null;
+      await consultationReference.update({
+        calendarEventId,
+        calendarHtmlLink,
+        providerState: "calendar_created",
+        updatedAt: new Date().toISOString(),
+        updatedBy: "provider-worker",
+      });
+    }
+  } catch (caught: unknown) {
+    await consultationReference.update({
+      calendarSkipReason: caught instanceof Error ? caught.message : "GOOGLE_CALENDAR_UNAVAILABLE",
+      updatedAt: new Date().toISOString(),
+      updatedBy: "provider-worker",
+    });
+  }
+  await consultationReference.update({
+    meetingId,
+    joinUrl,
+    location: joinUrl ?? consultation.get("location"),
+    calendarEventId,
+    calendarHtmlLink,
+    ...(meetingSkipReason
+      ? { meetingSkipReason, meetingSkipMessage: zoomSkipMessage(meetingSkipReason) }
+      : {}),
+    providerState: "completed",
+    updatedAt: new Date().toISOString(),
+    updatedBy: "provider-worker",
+  });
+  return { consultationId, meetingId, calendarEventId, meetingSkipReason };
+}
 
 export function zoomSummaryText(value: Json): string {
   const details = Array.isArray(value.summary_details)

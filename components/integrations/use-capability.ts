@@ -11,6 +11,7 @@ import type {
   RoutableConnection,
 } from "@/features/integrations/routing";
 import { getFirebaseClient } from "@/lib/firebase/client";
+import { zoomIsConnected } from "@/features/consultations/meeting-mode";
 
 type StatusPayload = {
   connections: RoutableConnection[];
@@ -100,4 +101,38 @@ export function useCapability(
   }, [capability]);
 
   return readiness;
+}
+
+/**
+ * Whether Zoom will make a meeting link: null while loading, then a yes or
+ * no. A new consultation defaults to Zoom only on a yes
+ * (features/consultations/meeting-mode.ts).
+ */
+export function useZoomConnected(): boolean | null {
+  const [connected, setConnected] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadStatus()
+      .then((status) => {
+        if (!live) return;
+        setConnected(
+          zoomIsConnected(
+            capabilityReadiness({
+              capability: "meetings",
+              connections: status.connections,
+              selections: status.selections,
+            }),
+          ),
+        );
+      })
+      // A failed status read settles as "not connected" rather than loading
+      // for ever — the form still needs a default.
+      .catch(() => {
+        if (live) setConnected(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return connected;
 }

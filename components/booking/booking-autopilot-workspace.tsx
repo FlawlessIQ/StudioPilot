@@ -31,6 +31,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { blockingIssues } from "@/features/ai/blocking-issues";
 import { groundedBookingDraft } from "@/features/booking/autopilot";
+import { currentConsultation } from "@/features/consultations/live";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -186,12 +187,11 @@ export function BookingAutopilotWorkspace({
         projectSnapshot.get("tenantId") !== workspace.tenantId
       )
         throw new Error("Project not found in this workspace.");
-      const consultationValue =
-        consultationSnapshot.docs
-          .map((item): Value => ({ id: item.id, ...item.data() }))
-          .sort((left, right) =>
-            text(right.startsAt).localeCompare(text(left.startsAt)),
-          )[0] ?? null;
+      // The latest one that is on or happened: a cancelled call is not the
+      // one to write notes against.
+      const consultationValue = currentConsultation(
+        consultationSnapshot.docs.map((item): Value => ({ id: item.id, ...item.data() })),
+      );
       const actionValues = actionSnapshot.docs.map(
         (item): Value => ({ id: item.id, ...item.data() }),
       );

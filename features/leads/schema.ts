@@ -137,6 +137,8 @@ export const leadSchema = auditFieldsSchema.extend({
   formBuilder: z.string().max(40).optional(),
   formBuilderLabel: z.string().max(80).optional(),
   formName: z.string().max(160).nullable().optional(),
+  /** The address the captured message came from (not the couple's). */
+  notificationSender: z.string().max(320).optional(),
   captureRoute: z.enum(["forward", "graph", "gmail"]).optional(),
   captureId: z.string().optional(),
   fieldProvenance: z

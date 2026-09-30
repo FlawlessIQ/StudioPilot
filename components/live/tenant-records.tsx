@@ -75,6 +75,7 @@ import {
   MaybeInquiryPrompt,
   leadSourceLabel,
 } from "@/components/leads/lead-capture-review";
+import { ignorableSenderOf } from "@/features/intake/not-inquiry";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -1123,7 +1124,7 @@ export function LiveMaybeInquiries() {
         <div>
           <h2>Maybe an inquiry</h2>
           <p>
-            {`${maybes.length === 1 ? "One email" : `${maybes.length} emails`} we weren't sure about. Keep the real ones; the rest won't be captured again.`}
+            {`${maybes.length === 1 ? "One email" : `${maybes.length} emails`} we weren't sure about. Keep the real ones; for the rest, you choose whether to ignore their sender.`}
           </p>
         </div>
       </div>
@@ -1143,6 +1144,7 @@ export function LiveMaybeInquiries() {
               compact
               leadId={item.id}
               onAnswered={() => refreshTenantRecords("leads", "projects", "conversations", "contacts")}
+              sender={ignorableSenderOf(item)}
             />
           </li>
         ))}
@@ -1257,6 +1259,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
         <MaybeInquiryPrompt
           leadId={lead.id}
           onAnswered={() => refreshTenantRecords("leads", "projects", "conversations", "contacts")}
+          sender={ignorableSenderOf(lead)}
         />
       ) : null}
       {typeof lead.eventDate === "string" && lead.eventDate && lead.availabilityStatus === "conflict" ? (

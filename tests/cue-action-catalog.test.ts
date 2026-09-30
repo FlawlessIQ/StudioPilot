@@ -83,6 +83,7 @@ const REACHED: Record<string, string> = {
   archiveContact: "ClientRecordActions", addProjectClient: "ProjectAddClient", associateClientProject: "ProjectAddClient",
   updateProject: "\"updateProject\"", transitionProject: "\"transitionProject\"", archiveProject: "\"archiveProject\"",
   updateLead: "\"updateLead\"", markLeadNotInquiry: "\"markLeadNotInquiry\"", closeInquiry: "\"closeInquiry\"",
+  removeIgnoredSender: "IgnoredSenders",
   reopenInquiry: "reopenInquiry", inquiryHeardElsewhere: "inquiryHeardElsewhere", keepInquiryOpen: "keepInquiryOpen",
   invite: "type: \"invite\"", revoke: "type: \"revoke\"", status: "type: \"status\"",
   previewProjectPurge: "DeleteJobPermanently", purgeProject: "DeleteJobPermanently",

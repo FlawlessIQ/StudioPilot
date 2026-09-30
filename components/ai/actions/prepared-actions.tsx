@@ -14,6 +14,7 @@ import {
   EditJobCard,
   InquiryOneTapCard,
   MaybeInquiryCard,
+  IgnoredSendersCard,
   MoveStageCard,
   PortalInviteCard,
 } from "./job-actions";
@@ -89,6 +90,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   heard_from_couple: InquiryOneTapCard,
   not_an_inquiry: MaybeInquiryCard,
   confirm_inquiry: MaybeInquiryCard,
+  unignore_sender: IgnoredSendersCard,
   add_contact: AddContactCard,
   edit_contact: EditContactCard,
   add_client_to_job: AddClientToJobCard,

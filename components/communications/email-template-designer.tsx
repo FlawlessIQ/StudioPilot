@@ -28,6 +28,8 @@ const templateKeys = [
   "consultation_confirmation",
   "consultation_invitation",
   "consultation_reminder",
+  "consultation_rescheduled",
+  "consultation_cancelled",
   "package_follow_up",
   "proposal_sent",
   "contract_sent",

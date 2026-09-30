@@ -9,6 +9,8 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
+import { useZoomConnected } from "@/components/integrations/use-capability";
+import { defaultMeetingFormats, videoCallDetail } from "@/features/consultations/meeting-mode";
 
 const weekdays = [
   { key: "sun", label: "Sunday" },
@@ -44,6 +46,8 @@ type FormState = {
 type MeetingFormat = "zoom" | "in_person" | "phone";
 
 const meetingFormatOptions: Array<{ value: MeetingFormat; label: string; detail: string }> = [
+  // The detail is replaced at render with what will actually happen: a Zoom
+  // link only goes out when Zoom is connected (videoCallDetail).
   { value: "zoom", label: "Video call", detail: "A Zoom link goes out with the confirmation." },
   { value: "in_person", label: "In person", detail: "At the place you give below." },
   { value: "phone", label: "Phone call", detail: "You call the number they gave you." },
@@ -186,6 +190,17 @@ export function ConsultationAvailability() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [newBlockedDate, setNewBlockedDate] = useState("");
+  const zoomConnected = useZoomConnected();
+  // Whether the formats shown are the studio's (saved, or ticked here) rather
+  // than the default. Only the default follows whether Zoom is connected.
+  const [formatsChosen, setFormatsChosen] = useState(false);
+
+  useEffect(() => {
+    if (loading || formatsChosen || zoomConnected === null) return;
+    void Promise.resolve().then(() =>
+      setForm((current) => ({ ...current, meetingFormats: defaultMeetingFormats(zoomConnected) })),
+    );
+  }, [loading, formatsChosen, zoomConnected]);
 
   useEffect(() => {
     let active = true;
@@ -204,6 +219,7 @@ export function ConsultationAvailability() {
         if (!active) return;
         setTimezone(String(tenant.get("timezone") ?? "America/New_York"));
         if (!settings.exists()) return;
+        setFormatsChosen(true);
         const data = settings.data();
         setForm({
           durationMinutes: Number(data.durationMinutes ?? defaultState.durationMinutes),
@@ -356,27 +372,30 @@ export function ConsultationAvailability() {
           <p>
             Couples pick one of these when they book.
             <InfoHint label="How you meet">
-              A video call sends a Zoom link with the confirmation. In person needs the address below; for a phone
-              call, you ring the number they give.
+              {zoomConnected
+                ? "A video call sends a Zoom link with the confirmation."
+                : "A video call needs Zoom connected for StudioCue to send the link; until then you send it yourself."}{" "}
+              In person needs the address below; for a phone call, you ring the number they give.
             </InfoHint>
           </p>
           {meetingFormatOptions.map((option) => (
             <label key={option.value}>
               <input
                 checked={form.meetingFormats.includes(option.value)}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setFormatsChosen(true);
                   setForm((current) => ({
                     ...current,
                     meetingFormats: event.target.checked
                       ? [...current.meetingFormats, option.value]
                       : current.meetingFormats.filter((value) => value !== option.value),
-                  }))
-                }
+                  }));
+                }}
                 type="checkbox"
               />
               <span>
                 <strong>{option.label}</strong>
-                <small>{option.detail}</small>
+                <small>{option.value === "zoom" ? videoCallDetail(zoomConnected) : option.detail}</small>
               </span>
             </label>
           ))}
