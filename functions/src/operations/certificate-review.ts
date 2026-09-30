@@ -117,6 +117,10 @@ export function describeDiscrepancy(discrepancy: Discrepancy): {
  * migration, and leaves every real disagreement standing.
  */
 export function stillDisagrees(discrepancy: Discrepancy): boolean {
+  if (discrepancy.field === "certificateHolder")
+    return !holderMatches(discrepancy.expected, discrepancy.extracted);
+  if (discrepancy.field === "coverageTypes")
+    return !coverageMatches(discrepancy.expected, discrepancy.extracted.split(/,\s*/));
   if (discrepancy.field === "eventDate")
     return !sameCalendarDate(discrepancy.expected, discrepancy.extracted);
   if (discrepancy.field.startsWith("requiredLimits.")) {
@@ -126,4 +130,57 @@ export function stillDisagrees(discrepancy: Discrepancy): boolean {
     return carried === null || carried < required;
   }
   return true;
+}
+
+/** Letters and digits only, so "Harvard College," and "harvard college" agree. */
+function plain(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether the certificate names the holder the venue asked for.
+ *
+ * A certificate's holder box is the name followed by the address, and the
+ * extractor returns the box as written: "President and Fellows of Harvard
+ * College Arnold Arboretum, 125 Arborway, Boston" against a requirement of
+ * "President and Fellows of Harvard College" was flagged as blocking, on a
+ * correct certificate (walked 2026-09-30). The name must lead the box; a
+ * different entity ("Oakhill Barn Events Inc." for "Oak Hill Barn LLC") still
+ * disagrees.
+ */
+export function holderMatches(expected: unknown, extracted: unknown): boolean {
+  const want = plain(expected);
+  const got = plain(extracted);
+  if (!want) return true;
+  return got === want || got.startsWith(`${want} `);
+}
+
+const COVERAGE_ALIASES: Array<[RegExp, string]> = [
+  [/\b(cgl|gl)\b/g, "general liability"],
+  [/\bauto\b/g, "automobile"],
+  [/\bwc\b/g, "workers compensation"],
+  [/\bworkers comp\b/g, "workers compensation"],
+];
+
+function coverageWords(value: unknown): string {
+  let words = plain(value).replace(/\bworker s\b/g, "workers");
+  for (const [pattern, replacement] of COVERAGE_ALIASES) words = words.replace(pattern, replacement);
+  return ` ${words} `;
+}
+
+/**
+ * Whether a certificate's coverage lines include what the venue asked for.
+ *
+ * ACORD certificates print "COMMERCIAL GENERAL LIABILITY"; venues write
+ * "General liability". An exact compare flagged that as missing cover, as
+ * blocking. A line counts when it contains the asked-for words in order.
+ */
+export function coverageMatches(expected: unknown, extracted: unknown[]): boolean {
+  const want = coverageWords(expected);
+  if (!want.trim()) return true;
+  return extracted.some((line) => coverageWords(line).includes(want));
 }

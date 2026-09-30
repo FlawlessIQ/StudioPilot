@@ -231,3 +231,9 @@ test("the proposal page guards its actions only while the booking agreement is l
   assert.match(source, /combinedAgreementLive\(proposal, contracts\.records\)/);
   assert.match(source, /\["sent", "viewed"\]\.includes\(text\(contract\.status/);
 });
+
+test("the job's open-items list names a booking agreement, not vendor evidence", () => {
+  const source = readFileSync("features/projects/lifecycle-projection.ts", "utf8");
+  assert.match(source, /"Sign the booking agreement"/);
+  assert.doesNotMatch(source, /detail: `[^`]*provider evidence pending/);
+});

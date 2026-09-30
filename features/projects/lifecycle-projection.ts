@@ -317,8 +317,18 @@ export function projectLifecycleProjection(input: {
     lanes.client.push(
       item({
         id: `contract-${activeContract.id}`,
-        label: "Complete contract signatures",
-        detail: `${list(activeContract.signers).length || "Required"} signer records · provider evidence pending`,
+        // Was "2 signer records · provider evidence pending" — the vendor-era
+        // wording, shown on agreements StudioCue itself is collecting.
+        label:
+          text(activeContract.mode) === "combined"
+            ? "Sign the booking agreement"
+            : "Sign the contract",
+        detail:
+          text(activeContract.status) === "viewed"
+            ? "Opened, not signed yet"
+            : text(activeContract.status) === "sent"
+              ? "Sent, not opened yet"
+              : "Not sent yet",
         status: "waiting",
         owner: "Client",
         dueAt: due(activeContract),

@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   calendarDate,
+  coverageMatches,
   describeDiscrepancy,
   fieldLabel,
+  holderMatches,
   limitDollars,
   sameCalendarDate,
   stillDisagrees,
@@ -154,4 +156,28 @@ test("everything else is left standing", () => {
     }),
     true,
   );
+});
+
+test("a holder box that leads with the venue's entity is a match; a different entity is not", () => {
+  const expected = "President and Fellows of Harvard College";
+  assert.equal(holderMatches(expected, "President and Fellows of Harvard College Arnold Arboretum, 125 Arborway, Boston, MA 02130"), true);
+  assert.equal(holderMatches(expected, "president & fellows of harvard college"), true);
+  assert.equal(holderMatches("Oak Hill Barn LLC", "Oakhill Barn Events Inc."), false);
+  assert.equal(holderMatches("Oak Hill Barn LLC", "Oak Hill Barn LLCX Holdings"), false);
+  assert.equal(stillDisagrees({ field: "certificateHolder", expected, extracted: `${expected}, 125 Arborway`, severity: "blocking" }), false);
+});
+
+test("ACORD coverage lines satisfy the venue's plainer names", () => {
+  assert.equal(coverageMatches("General liability", ["COMMERCIAL GENERAL LIABILITY"]), true);
+  assert.equal(coverageMatches("General liability", ["CGL"]), true);
+  assert.equal(coverageMatches("Workers' compensation", ["WORKERS COMPENSATION AND EMPLOYERS' LIABILITY"]), true);
+  assert.equal(coverageMatches("Liquor liability", ["COMMERCIAL GENERAL LIABILITY"]), false);
+  assert.equal(stillDisagrees({ field: "coverageTypes", expected: "General liability", extracted: "COMMERCIAL GENERAL LIABILITY", severity: "blocking" }), false);
+});
+
+test("the extractor asks for named limits, so a general liability limit can be read at all", () => {
+  const source = readFileSync("functions/src/operations/ai-pdf.ts", "utf8");
+  assert.match(source, /limits:\{type:"OBJECT",properties:\{generalLiability:/);
+  assert.match(source, /holderMatches\(requirement\.get\("certificateHolder"\)/);
+  assert.match(source, /coverageMatches\(coverage,actualCoverage\)/);
 });
