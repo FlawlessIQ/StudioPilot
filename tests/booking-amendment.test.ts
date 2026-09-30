@@ -146,6 +146,15 @@ test("a couple can ask to change a signed booking, and Today answers with a chan
   assert.deepEqual(cards.map((card) => card.id).sort(), ["package-request-d1", "package-request-k1"]);
   const date = cards.find((card) => card.id === "package-request-d1")!;
   assert.equal(date.title, "Nora & Quill want to move their date to Feb 13, 2027");
+  // A job named "… wedding" reads as the couple.
+  const named = todayInbox({
+    now: "2026-09-29T15:00:00Z",
+    projects: [{ id: "p2", name: "Alex & Sam Rivera wedding", state: "BOOKED", archivedAt: null, eventDate: "2027-06-20", pendingAmendmentId: "amendment_x" }],
+    packageRequests: [{ id: "d9", projectId: "p2", kind: "date_change", requestedDate: "2026-10-22", status: "pending", createdAt: "2026-09-29T14:00:00Z" }],
+  }).act.find((item) => item.id === "package-request-d9")!;
+  assert.equal(named.title, "Alex & Sam Rivera want to move their date to Oct 22, 2026");
+  // With a change already out, the card opens it rather than asking for a new one.
+  assert.equal(named.action.kind === "package_request" ? named.action.label : "", "Open the change");
   assert.match(date.detail, /booking change for them to sign/);
   assert.ok(date.action.kind === "package_request" && date.action.amend && date.action.requestKind === "date_change");
   assert.equal(date.action.kind === "package_request" ? date.action.label : "", "Write up the change");

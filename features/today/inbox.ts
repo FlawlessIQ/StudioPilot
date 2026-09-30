@@ -876,18 +876,24 @@ export function todayInbox(input: TodayInput): TodayInbox {
           }).format(request.basePriceCents / 100)
         : null;
     const note = text(request.note).trim();
+    // "Alex & Sam Rivera want to…", not "Alex & Sam Rivera wedding want to…".
+    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "A couple";
+    // A change already written up for this job: the next step is it, not a new one.
+    const changeOut = amend && Boolean(text(job.pendingAmendmentId));
     act.push({
       id: `package-request-${request.id}`,
       lane: "act",
       kind: "package",
       title:
         requestKind === "date_change"
-          ? `${text(job.name) || "A couple"} want to move their date to ${requestedDate ? formatDueDate(requestedDate) : "a new date"}`
-          : `${text(job.name) || "A couple"} want to add ${text(request.packageName) || "a package"}`,
+          ? `${couple} want to move their date to ${requestedDate ? formatDueDate(requestedDate) : "a new date"}`
+          : `${couple} want to add ${text(request.packageName) || "a package"}`,
       detail: [
         requestKind === "package" ? price : null,
         note ? `“${note.length > 120 ? `${note.slice(0, 119)}…` : note}”` : null,
-        amend
+        changeOut
+          ? "A change is written up for them. Open it to send it, or see that it's waiting for their signature."
+          : amend
           ? "They've signed, so it's a booking change for them to sign — check it, then send it."
           : requestKind === "date_change"
             ? "Check you're free, then change the date on the job."
@@ -904,7 +910,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: text(job.name) || null,
       action: {
         kind: "package_request",
-        label: amend ? "Write up the change" : requestKind === "date_change" ? "Open the job" : "Add and revise",
+        label: changeOut ? "Open the change" : amend ? "Write up the change" : requestKind === "date_change" ? "Open the job" : "Add and revise",
         requestId: request.id,
         projectId,
         requestKind,
