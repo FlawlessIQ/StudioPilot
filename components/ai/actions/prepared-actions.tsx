@@ -8,6 +8,7 @@ import {
   AddContactCard,
   ArchiveJobCard,
   CloseInquiryCard,
+  ContactArchiveCard,
   CreateJobCard,
   DeleteJobCard,
   EditContactCard,
@@ -23,6 +24,7 @@ import {
   ChangeBookingCard,
   ChangePackagesCard,
   ConfirmBookingCard,
+  ConsultationCorrectionCard,
   ContractCard,
   DraftProposalCard,
   EditProposalCard,
@@ -41,6 +43,7 @@ import {
   RetainerInvoiceCard,
   ScheduleConsultationCard,
   SignedCopyCard,
+  UndoAcceptanceCard,
 } from "./booking-actions";
 import {
   AddVendorCard,
@@ -74,6 +77,7 @@ import {
   SettingsCard,
   SkipReviewRequestsCard,
   SubscriptionCard,
+  TaskChangeCard,
   TeamCard,
   WaiveRequirementCard,
   WithdrawCrewCard,
@@ -102,6 +106,8 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   unignore_sender: IgnoredSendersCard,
   add_contact: AddContactCard,
   edit_contact: EditContactCard,
+  archive_contact: ContactArchiveCard,
+  restore_contact: ContactArchiveCard,
   add_client_to_job: AddClientToJobCard,
   invite_couple_to_portal: PortalInviteCard,
   revoke_portal_invite: PortalInviteCard,
@@ -114,6 +120,8 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   reschedule_consultation: ExistingConsultationCard,
   cancel_consultation: ExistingConsultationCard,
   complete_consultation: ExistingConsultationCard,
+  mark_consultation_no_show: ConsultationCorrectionCard,
+  reopen_consultation: ConsultationCorrectionCard,
   // Packages and proposals
   change_booking: ChangeBookingCard,
   resend_booking_change: ChangeBookingCard,
@@ -132,6 +140,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   withdraw_proposal: ProposalStepCard,
   remake_proposal_pdf: ProposalStepCard,
   record_proposal_acceptance: RecordAcceptanceCard,
+  undo_acceptance: UndoAcceptanceCard,
   // Contract
   prepare_contract: ContractCard,
   sign_and_send_contract: ContractCard,
@@ -170,6 +179,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   request_coi: CoiCard,
   decide_coi: CoiCard,
   send_coi_to_venue: CoiCard,
+  resend_coi: CoiCard,
   add_vendor: AddVendorCard,
   edit_vendor: VendorChangeCard,
   remove_vendor: VendorChangeCard,
@@ -192,7 +202,11 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   // Tasks
   create_task: CreateTaskCard,
   complete_task: CompleteTaskCard,
+  edit_task: TaskChangeCard,
+  reopen_task: TaskChangeCard,
+  cancel_task: TaskChangeCard,
   resolve_checkpoint: ReadinessCard,
+  reopen_checkpoint: ReadinessCard,
   // After the event
   record_delivery: DeliveryCard,
   complete_editing_step: DeliveryCard,

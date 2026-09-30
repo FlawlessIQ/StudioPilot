@@ -9742,6 +9742,21 @@ textarea:focus-visible {
   font-size: 9px;
 }
 
+/* A consultation's corrections — missed, invite to rebook, reopen (wave 3).
+   See components/booking/consultation-corrections.tsx. */
+.consultation-corrections {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.consultation-corrections .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
 /*
   A statement of fact, not an outstanding item.
   Same card, flattened: no shadow, no white ground, so a job booked outside
@@ -21138,6 +21153,16 @@ label {
 .coi-upload {
   cursor: pointer;
   justify-self: start;
+}
+/* Send a request again with corrected details (wave 3). */
+.coi-resend > summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 620;
+}
+.coi-resend[open] > summary {
+  margin-bottom: 10px;
 }
 
 /* Library → Add-ons (H2). */

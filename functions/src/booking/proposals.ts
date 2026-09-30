@@ -14,6 +14,7 @@ import {
   canApproveProposal,
   canCreateProposalForProject,
   canSendProposal,
+  planUndoAcceptance,
 } from "./proposal-domain.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { isStandingInvoice } from "./invoice-standing.js";
@@ -113,6 +114,9 @@ const commandSchema = z.discriminatedUnion("type", [
       // Throw away a draft, or take back a sent proposal — proposal-domain.ts.
       "discard_draft",
       "withdraw",
+      // An acceptance recorded by mistake, taken back — proposal-domain.ts
+      // planUndoAcceptance.
+      "undo_acceptance",
     ]),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -616,6 +620,166 @@ export const proposalCommand = onRequest(
           };
           let output: CommandResult;
 
+          if (command.type === "undo_acceptance") {
+            // The same authority that may record an acceptance may take one
+            // back; the couple's own acceptance too, which the UI says.
+            if (!canApproveProposal(membership.role)) {
+              throw new Error("APPROVAL_PERMISSION_REQUIRED");
+            }
+            const projectReference = db.doc(`projects/${projectId}`);
+            const orchestrationReference = db.doc(`bookingOrchestrations/${projectId}`);
+            const draftReference = db.doc(`contractDrafts/${projectId}`);
+            const decisionTaskReference = db.doc(`tasks/proposal_decision_${proposal.id}`);
+            const [project, contracts, invoices, draft, orchestration, decisionTask] = await Promise.all([
+              transaction.get(projectReference),
+              transaction.get(
+                db.collection("contracts").where("tenantId", "==", command.tenantId).where("projectId", "==", projectId),
+              ),
+              transaction.get(
+                db.collection("invoiceReferences").where("tenantId", "==", command.tenantId).where("projectId", "==", projectId),
+              ),
+              transaction.get(draftReference),
+              transaction.get(orchestrationReference),
+              transaction.get(decisionTaskReference),
+            ]);
+            if (!project.exists || project.get("tenantId") !== command.tenantId) {
+              throw new Error("PROJECT_NOT_FOUND");
+            }
+            const draftIsThisProposal =
+              draft.exists &&
+              draft.get("tenantId") === command.tenantId &&
+              draft.get("proposalId") === proposal.id;
+            const plan = planUndoAcceptance({
+              proposal: {
+                status: currentStatus,
+                acceptancePriorStatus: proposal.get("acceptancePriorStatus"),
+                sentAt: proposal.get("sentAt"),
+                viewedAt: proposal.get("viewedAt"),
+                acceptanceAuthority: proposal.get("acceptanceAuthority"),
+                acceptedWithContractId: proposal.get("acceptedWithContractId"),
+                combinedContractId: proposal.get("combinedContractId"),
+              },
+              projectState: stringValue(project.get("state")),
+              contractStatuses: contracts.docs.map((contract) => stringValue(contract.get("status"))),
+              draftStatus: draftIsThisProposal ? stringValue(draft.get("status")) : null,
+              standingInvoices: invoices.docs.filter((invoice) => {
+                const status = stringValue(invoice.get("status"));
+                return isStandingInvoice(status) && !["void", "voided", "cancelled"].includes(status);
+              }).length,
+            });
+            if (!plan.ok) throw new Error(plan.refusal);
+            transaction.update(proposalReference, {
+              status: plan.restoreStatus,
+              acceptedAt: null,
+              decisionBy: null,
+              acceptanceAuthority: null,
+              acceptanceEvidence: null,
+              acceptancePriorStatus: null,
+              // Kept beside the proposal, so the next person to open it can see
+              // an acceptance was recorded and taken back, and by whom.
+              acceptanceUndone: {
+                undoneAt: timestamp,
+                undoneBy: identity.uid,
+                reason: command.input.reason || null,
+                acceptedAt: proposal.get("acceptedAt") ?? null,
+                acceptedByCouple: plan.acceptedByCouple,
+              },
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            const priorStateVersion = numberValue(project.get("stateVersion"));
+            transaction.update(projectReference, {
+              state: "PROPOSAL",
+              stateVersion: priorStateVersion + 1,
+              nextAction: "Waiting for the couple to accept the proposal",
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            // Written from a deal that is no longer agreed, and never sent.
+            if (plan.discardDraft) {
+              transaction.update(draftReference, {
+                status: "discarded",
+                discardedAt: timestamp,
+                discardedReason: "The acceptance it was written from was undone.",
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            // Nothing should follow a signature that is no longer coming.
+            const stoppedPlan =
+              orchestration.exists &&
+              orchestration.get("tenantId") === command.tenantId &&
+              ["active", "needs_attention"].includes(stringValue(orchestration.get("status")));
+            if (stoppedPlan) {
+              transaction.update(orchestrationReference, {
+                status: "cancelled",
+                currentStep: "cancelled",
+                cancelledAt: timestamp,
+                cancelledReason: "acceptance_undone",
+                updatedAt: timestamp,
+              });
+            }
+            // "Prepare client agreement" was for the acceptance just undone.
+            if (
+              decisionTask.exists &&
+              !["complete", "completed", "cancelled"].includes(stringValue(decisionTask.get("status")))
+            ) {
+              transaction.update(decisionTaskReference, {
+                status: "cancelled",
+                cancelledAt: timestamp,
+                cancelledBy: identity.uid,
+                cancelReason: "The acceptance was undone.",
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            const undoAuditId = stableId("audit_acceptance_undone", command.tenantId, command.idempotencyKey);
+            transaction.create(db.doc(`auditEvents/${undoAuditId}`), {
+              id: undoAuditId,
+              tenantId: command.tenantId,
+              projectId,
+              actorId: identity.uid,
+              actorType: "user",
+              action: "proposal.acceptance_undone",
+              entityType: "proposal",
+              entityId: proposal.id,
+              timestamp,
+              before: {
+                status: "accepted",
+                projectState: "CONTRACT_PENDING",
+                stateVersion: priorStateVersion,
+                acceptanceAuthority: proposal.get("acceptanceAuthority") ?? null,
+              },
+              after: {
+                status: plan.restoreStatus,
+                projectState: "PROPOSAL",
+                stateVersion: priorStateVersion + 1,
+                discardedContractDraft: plan.discardDraft,
+                stoppedBookingPlan: stoppedPlan,
+                reason: command.input.reason || null,
+              },
+              ipAddress: request.ip ?? null,
+              userAgent,
+              correlationId,
+              automationRunId: null,
+              providerEventId: null,
+            });
+            const undone = {
+              proposalId: proposal.id,
+              status: plan.restoreStatus,
+              projectState: "PROPOSAL",
+              discardedContractDraft: plan.discardDraft,
+              stoppedBookingPlan: stoppedPlan,
+            };
+            transaction.create(executionReference, {
+              tenantId: command.tenantId,
+              idempotencyKey: command.idempotencyKey,
+              result: undone,
+              createdAt: timestamp,
+            });
+            return undone;
+          }
+
           if (command.type === "record_acceptance") {
             // The same authority that may send a proposal may record that it
             // was accepted: both are the studio speaking for the client
@@ -666,6 +830,8 @@ export const proposalCommand = onRequest(
               // Never "client": everything downstream reads this to tell an
               // acceptance the couple made from one the studio vouched for.
               acceptanceAuthority: "studio_attested",
+              // Where it goes back to if this acceptance is undone.
+              acceptancePriorStatus: priorStatus,
               acceptanceEvidence: {
                 kind: "manual_attestation",
                 acceptedBy: command.input.acceptedBy,

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { LoaderCircle, PencilLine } from "lucide-react";
+import { ArchiveRestore, LoaderCircle, PencilLine } from "lucide-react";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { ArchiveToggle } from "@/components/records/archive-toggle";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -36,6 +37,7 @@ export function ClientRecordActions({
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const role = useWorkspace().role;
 
   async function save(values: FormData) {
     setBusy(true);
@@ -59,6 +61,57 @@ export function ClientRecordActions({
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Editing and archiving a client is an owner/admin decision on the server
+   * (crm/commands.ts updateContact, archiveContact). A coordinator was shown
+   * both and refused with FORBIDDEN after filling the form in.
+   */
+  if (role !== "studio_owner" && role !== "studio_admin") return null;
+
+  /**
+   * Archived: read-only, with Restore. The edit form used to open here and the
+   * server refused the save as "could not be found" about the record on
+   * screen. Restoring is the one thing to do, then edit as usual.
+   */
+  const restore = (
+    <ArchiveToggle
+      archived={archived}
+      kind="client"
+      onDone={(message) => {
+        setNotice(message);
+        refreshTenantRecords("contacts");
+      }}
+      run={async (restoring) => {
+        await runCrmCommand("archiveContact", {
+          contactId: client.id,
+          restore: restoring,
+        });
+      }}
+    />
+  );
+  if (archived) {
+    return (
+      <details className="ds-people-invite record-edit">
+        <summary>
+          <ArchiveRestore aria-hidden="true" size={14} /> Archived — restore
+        </summary>
+        <div>
+          <p className="record-edit-locked">
+            {client.displayName}
+            {client.email ? ` · ${client.email}` : ""}
+            {client.phone ? ` · ${client.phone}` : ""}. Archived clients can&rsquo;t be edited — restore them first.
+          </p>
+          {restore}
+          {notice ? (
+            <p className="form-notice" role="status">
+              {notice}
+            </p>
+          ) : null}
+        </div>
+      </details>
+    );
   }
 
   return (
@@ -142,20 +195,7 @@ export function ClientRecordActions({
             Save client
           </button>
         </form>
-        <ArchiveToggle
-          archived={archived}
-          kind="client"
-          onDone={(message) => {
-            setNotice(message);
-            refreshTenantRecords("contacts");
-          }}
-          run={async (restore) => {
-            await runCrmCommand("archiveContact", {
-              contactId: client.id,
-              restore,
-            });
-          }}
-        />
+        {restore}
         {notice ? (
           <p className="form-notice" role="status">
             {notice}

@@ -72,6 +72,10 @@ export const coiChaseScheduler = onSchedule(
       if (settings?.dial === "off") continue;
       const project = await db.doc(`projects/${text(request.get("projectId"))}`).get();
       if (!project.exists || clientOutreachStop(project.data())) continue;
+      // Belt and braces: "not required" cancels open requests when it is set
+      // (planning/commands.ts), but a request that slipped past that must not
+      // be chased for a certificate nobody needs.
+      if (project.get("insuranceRequired") === "not_required") continue;
 
       const chaseCount = Number(request.get("chaseCount") ?? 0);
       const correcting = request.get("status") === "correction_required";
@@ -101,8 +105,11 @@ export const coiChaseScheduler = onSchedule(
         continue;
       }
 
+      // A request re-sent with corrected details (coi/actions.ts resendCoi)
+      // is chased as corrected, not as first sent.
+      const requestJobId = text(request.get("requestEmailJobId")) || `coi_request_${request.id}`;
       const originalJob = await db
-        .doc(`emailJobs/${correcting ? "coi_correction" : "coi_request"}_${request.id}`)
+        .doc(`emailJobs/${correcting ? `coi_correction_${request.id}` : requestJobId}`)
         .get();
       if (!originalJob.exists) continue;
       const chaseNumber = chaseCount + 1;

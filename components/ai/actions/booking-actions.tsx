@@ -37,7 +37,12 @@ import { bookingBlockerLabel } from "@/features/booking/blocker-label";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
-import { packageChangeAlreadyApplied, proposalAlreadyRevised } from "@/features/proposals/workspace-guards";
+import {
+  ACCEPTANCE_AGREEMENT_OUT,
+  packageChangeAlreadyApplied,
+  proposalAlreadyRevised,
+} from "@/features/proposals/workspace-guards";
+import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import {
   ActionShell,
   Actions,
@@ -894,6 +899,190 @@ export function RecordAcceptanceCard({ action }: ActionCardProps) {
           proposalId={proposal.id}
         />
       </Embedded>
+    </ActionShell>
+  );
+}
+
+/**
+ * Take back an acceptance recorded by mistake (wave 3). The server decides —
+ * proposal-domain.ts planUndoAcceptance — and refuses while an agreement is
+ * out; this card says so first rather than offering a tap that fails.
+ */
+export function UndoAcceptanceCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const proposals = useRecords("proposals");
+  const contracts = useRecords("contracts");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const [reason, setReason] = useState(action.text ?? "");
+  const title = `Undo the acceptance · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !proposals || !contracts) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (runner.done) return <ActionShell title={title}><Done href={`/studio/projects/${job.id}`} label="Open the job">{runner.done}</Done></ActionShell>;
+  const proposal = acceptedProposal(proposals, job.id);
+  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no accepted proposal to undo.`}</Blocked></ActionShell>;
+  if (proposal.acceptedWithContractId || proposal.combinedContractId)
+    return (
+      <ActionShell title={title}>
+        <Blocked>They accepted by signing the booking agreement. Withdraw the agreement on the job&apos;s Booking tab instead.</Blocked>
+      </ActionShell>
+    );
+  if (str(job.state) !== "CONTRACT_PENDING")
+    return (
+      <ActionShell title={title}>
+        <Blocked>{`${jobName(job)} has moved on past the agreement, so its acceptance can't be undone. Use Change the booking, or cancel the job.`}</Blocked>
+      </ActionShell>
+    );
+  if (onJob(contracts, job.id).some((item) => ACCEPTANCE_AGREEMENT_OUT.includes(str(item.status))))
+    return (
+      <ActionShell title={title}>
+        <Blocked>The agreement has already gone to the couple for this acceptance. Void it first (ask me to void the contract), then undo the acceptance.</Blocked>
+      </ActionShell>
+    );
+  const byCouple = str(proposal.acceptanceAuthority) !== "studio_attested";
+  return (
+    <ActionShell
+      detail={
+        byCouple
+          ? "The couple accepted this themselves, in their portal. The proposal goes back to how it was and the job back to Proposal; they can accept again. Nothing is emailed."
+          : "The acceptance you recorded is taken back. The proposal goes back to how it was and the job back to Proposal. Nothing is emailed."
+      }
+      icon={<ShieldCheck size={15} />}
+      title={title}
+    >
+      <Form>
+        <TextField label="Why (optional, for your records)" onChange={setReason} value={reason} />
+      </Form>
+      <Actions
+        busy={runner.busy}
+        danger
+        label="Undo the acceptance"
+        onClick={() =>
+          void runner.run(
+            async () => {
+              const undone = await runProposalCommand("undo_acceptance", {
+                proposalId: proposal.id,
+                ...(reason.trim() ? { reason: reason.trim().slice(0, 500) } : {}),
+              });
+              return undone.result.discardedContractDraft === true
+                ? `Undone. ${jobName(job)} is back at Proposal, and the unsent agreement draft was discarded.`
+                : `Undone. ${jobName(job)} is back at Proposal.`;
+            },
+            { refresh: ["proposals", "projects", "contracts", "tasks"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * They didn't turn up, or a consultation was marked held by mistake (wave 3).
+ * A no-show offers the scheduling link the job page already sends.
+ */
+export function ConsultationCorrectionCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const consultations = useRecords("consultations");
+  const zoomConnected = useZoomConnected();
+  const runner = useRunner();
+  const [invited, setInvited] = useState<string | null>(null);
+  // "Now" fixed per mount, so a render stays pure.
+  const [now] = useState(() => Date.now());
+  const noShow = action.action === "mark_consultation_no_show";
+  const title = `${noShow ? "They missed the consultation" : "Reopen the consultation"} · ${jobName(job)}`;
+  if (loading || !consultations) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  const clientId = str(arr(job.clientContactIds)[0]);
+  const invite = clientId ? (
+    <button
+      className="button button-light"
+      disabled={runner.busy || Boolean(invited)}
+      onClick={() =>
+        void runner.run(async () => {
+          await runPublicScheduling({
+            type: "create_link",
+            idempotencyKey: crypto.randomUUID(),
+            input: { projectId: job.id, contactId: clientId, mode: defaultConsultationMode(zoomConnected) },
+          });
+          setInvited("They're being emailed a link to pick another time.");
+        })
+      }
+      type="button"
+    >
+      Invite them to rebook
+    </button>
+  ) : null;
+  if (runner.done)
+    return (
+      <ActionShell title={title}>
+        <Done>{runner.done}</Done>
+        {noShow && !invited ? <div className="copilot-flow-actions">{invite}</div> : null}
+        {invited ? <p className="cue-action-note">{invited}</p> : null}
+        <Notice text={runner.notice} />
+      </ActionShell>
+    );
+  const candidates = onJob(consultations, job.id)
+    .filter((item) =>
+      !item.archivedAt &&
+      (noShow
+        ? str(item.status) === "scheduled" && Date.parse(str(item.startsAt)) <= now
+        : ["completed", "no_show"].includes(str(item.status))),
+    )
+    .sort((a, b) => str(b.startsAt).localeCompare(str(a.startsAt)));
+  const consultation = candidates[0] ?? null;
+  if (!consultation)
+    return (
+      <ActionShell title={title}>
+        <Blocked>
+          {noShow
+            ? `There is no consultation on ${jobName(job)} that has already started.`
+            : `There is no consultation on ${jobName(job)} marked as held or missed.`}
+        </Blocked>
+      </ActionShell>
+    );
+  if (!noShow && !["LEAD", "CONSULTATION"].includes(str(job.state)))
+    return (
+      <ActionShell title={title}>
+        <Blocked>{`${jobName(job)} has moved on past the consultation, so it can't be reopened.`}</Blocked>
+      </ActionShell>
+    );
+  const future = Date.parse(str(consultation.startsAt)) > now;
+  return (
+    <ActionShell
+      detail={
+        noShow
+          ? `${when(consultation.startsAt)}. It's marked as missed and the job stays where it is. Nothing is emailed — you can invite them to pick another time next.`
+          : future
+            ? `${when(consultation.startsAt)}. It goes back on as booked.`
+            : `${when(consultation.startsAt)}. It goes back to waiting for your notes. The brief StudioCue already drafted stays.`
+      }
+      icon={<CalendarX size={15} />}
+      title={title}
+    >
+      <Actions
+        busy={runner.busy}
+        label={noShow ? "Mark as missed" : "Reopen it"}
+        onClick={() =>
+          void runner.run(
+            async () => {
+              await sendBookingCommand({
+                type: noShow ? "markConsultationNoShow" : "reopenConsultation",
+                idempotencyKey: crypto.randomUUID(),
+                input: { projectId: job.id, consultationId: consultation.id },
+              });
+              return noShow
+                ? "Marked as missed. Invite them to pick another time when you're ready."
+                : future
+                  ? "Reopened. It's back on as booked."
+                  : "Reopened. It's waiting for your notes again.";
+            },
+            { refresh: ["consultations", "projects"] },
+          )
+        }
+      />
+      <Notice text={runner.notice} />
     </ActionShell>
   );
 }

@@ -9,6 +9,8 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { liveProjects } from "@/features/projects/put-away";
+import { AssigneeSelect } from "@/components/tasks/task-assignee";
+import { assigneeFields } from "@/features/tasks/assignee";
 
 const schema = z.object({
   projectId: z.string().trim().min(1),
@@ -25,6 +27,8 @@ export function CreateTaskForm({ initialProjectId = "" }: { initialProjectId?: s
     useTenantDocuments("projects");
   const [outcome, setOutcome] = useState<{ persisted: boolean; reference: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Who it's for. Every task used to go to "a coordinator", whoever that was.
+  const [assignee, setAssignee] = useState("role:studio_coordinator");
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -45,8 +49,7 @@ export function CreateTaskForm({ initialProjectId = "" }: { initialProjectId?: s
         checkpointId: null,
         title: values.title,
         description: values.description,
-        assignedUserId: null,
-        assignedRole: "studio_coordinator",
+        ...assigneeFields(assignee),
         dueDate: values.dueDate,
         priority: values.priority,
         blocking: values.blocking,
@@ -69,6 +72,7 @@ export function CreateTaskForm({ initialProjectId = "" }: { initialProjectId?: s
         <label>Due date <span className="required-mark">Required</span><input {...register("dueDate")} required type="date" /><small>{errors.dueDate?.message}</small></label>
         <label className="form-span">Task title <span className="required-mark">Required</span><input {...register("title")} placeholder="What needs to be done?" required /><small>{errors.title?.message}</small></label>
         <label className="form-span">Description<textarea {...register("description")} placeholder="Add instructions, context, or expected evidence." rows={3} /></label>
+        <AssigneeSelect onChange={setAssignee} value={assignee} />
         <label>Priority<select {...register("priority")}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
         <label className="check-control"><input {...register("blocking")} type="checkbox" /><span>Affects readiness</span></label>
       </div>

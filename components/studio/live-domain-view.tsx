@@ -1099,7 +1099,16 @@ function renderRowActions(
   if (kind === "task") {
     return (
       <TaskRecordActions
-        task={{ id: record.id, status: String(record.status ?? "") }}
+        task={{
+          id: record.id,
+          status: String(record.status ?? ""),
+          title: typeof record.title === "string" ? record.title : "",
+          description: typeof record.description === "string" ? record.description : "",
+          dueDate: typeof record.dueDate === "string" ? record.dueDate : null,
+          priority: typeof record.priority === "string" ? record.priority : "normal",
+          assignedUserId: typeof record.assignedUserId === "string" ? record.assignedUserId : null,
+          assignedRole: typeof record.assignedRole === "string" ? record.assignedRole : null,
+        }}
       />
     );
   }

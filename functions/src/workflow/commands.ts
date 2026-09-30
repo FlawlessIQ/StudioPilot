@@ -29,6 +29,12 @@ import {
   checkpointIsSatisfied,
   readinessScore,
 } from "./readiness-score.js";
+import {
+  assigneeRefusal,
+  checkpointReopenRefusal,
+  reopenedCheckpointStatus,
+  taskMoveRefusal,
+} from "./task-edits.js";
 
 type CheckpointStatus =
   | "not_started"
@@ -203,6 +209,55 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ taskId: z.string().min(1) }),
+  }),
+  z.object({
+    /**
+     * Change an open task: its words, when it's due, who it's for, how urgent.
+     * Omitted fields are left as they are; null clears the ones that may be
+     * empty. See ./task-edits.ts for what a task may do once it exists.
+     */
+    type: z.literal("updateTask"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      taskId: z.string().min(1),
+      title: z.string().trim().min(2).max(200).optional(),
+      description: z.string().trim().max(3000).optional(),
+      dueDate: z.string().date().nullable().optional(),
+      assignedUserId: z.string().min(1).nullable().optional(),
+      assignedRole: z.string().min(1).nullable().optional(),
+      priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+    }),
+  }),
+  z.object({
+    // A task marked done (or cancelled) by mistake, open again.
+    type: z.literal("reopenTask"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ taskId: z.string().min(1) }),
+  }),
+  z.object({
+    // Called off rather than done. The row stays as the record of it.
+    type: z.literal("cancelTask"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      taskId: z.string().min(1),
+      reason: z.string().trim().max(500).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /**
+     * Un-resolve a checkpoint a person marked done or waived by mistake.
+     * Owner/admin, with a reason, because it changes what readiness says.
+     */
+    type: z.literal("reopenCheckpoint"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      checkpointId: z.string().min(1),
+      reason: z.string().trim().min(10).max(2000),
+    }),
   }),
   z.object({
     type: z.literal("recalculateReadiness"),
@@ -564,7 +619,10 @@ export const workflowCommand = onRequest(
       return;
     }
     if (
-      command.type === "createWorkflowTemplate" &&
+      (command.type === "createWorkflowTemplate" ||
+        // Reopening changes what readiness says about a job; an owner or
+        // admin decides that, as they decide waivers.
+        command.type === "reopenCheckpoint") &&
       !managerRoles.includes(membership.role)
     ) {
       response.status(403).json({ error: "FORBIDDEN" });
@@ -617,7 +675,10 @@ export const workflowCommand = onRequest(
      * where it is the row being mutated.
      */
     let checkpointEvidence: ReadinessEvidence = noReadinessEvidence;
-    if (command.type === "resolveCheckpoint") {
+    if (
+      command.type === "resolveCheckpoint" ||
+      command.type === "reopenCheckpoint"
+    ) {
       const target = await db
         .doc(`checkpoints/${command.input.checkpointId}`)
         .get();
@@ -1196,6 +1257,10 @@ export const workflowCommand = onRequest(
           if (!hasProjectAccess(membership, task.projectId)) {
             throw new Error("PROJECT_ACCESS_DENIED");
           }
+          // There was no guard here, so a cancelled task could be flipped to
+          // done — recording work nobody did.
+          const refusal = taskMoveRefusal(task.status, "complete");
+          if (refusal) throw new Error(refusal);
           transaction.update(taskReference, {
             status: "complete",
             completedAt: timestamp,
@@ -1204,6 +1269,269 @@ export const workflowCommand = onRequest(
             updatedBy: identity.uid,
           });
           const output = { taskId: command.input.taskId, status: "complete" };
+          writeExecution(
+            transaction,
+            executionReference,
+            command.tenantId,
+            command.idempotencyKey,
+            output,
+            timestamp,
+          );
+          return output;
+        }
+
+        if (
+          command.type === "updateTask" ||
+          command.type === "reopenTask" ||
+          command.type === "cancelTask"
+        ) {
+          const taskReference = db.doc(`tasks/${command.input.taskId}`);
+          const taskSnapshot = await transaction.get(taskReference);
+          const task = taskSnapshot.data() as
+            | (Record<string, unknown> & {
+                tenantId: string;
+                projectId: string;
+                status: string;
+              })
+            | undefined;
+          if (!task || task.tenantId !== command.tenantId) {
+            throw new Error("TASK_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membership, task.projectId)) {
+            throw new Error("PROJECT_ACCESS_DENIED");
+          }
+          const move =
+            command.type === "updateTask"
+              ? "update"
+              : command.type === "reopenTask"
+                ? "reopen"
+                : "cancel";
+          const refusal = taskMoveRefusal(task.status, move);
+          if (refusal) throw new Error(refusal);
+
+          let changes: Record<string, unknown>;
+          if (command.type === "updateTask") {
+            const { taskId: _taskId, ...fields } = command.input;
+            void _taskId;
+            // Naming a person is checked against who is actually on the team
+            // now: the picker is the browser's, the decision is the server's.
+            const assignedUserId =
+              fields.assignedUserId === undefined
+                ? undefined
+                : fields.assignedUserId;
+            const assignee =
+              typeof assignedUserId === "string"
+                ? await transaction.get(
+                    db.doc(`memberships/${command.tenantId}_${assignedUserId}`),
+                  )
+                : null;
+            const assigneeProblem = assigneeRefusal({
+              assignedUserId,
+              assignedRole: fields.assignedRole,
+              membership: assignee?.exists ? (assignee.data() ?? null) : null,
+              tenantId: command.tenantId,
+            });
+            if (assigneeProblem) throw new Error(assigneeProblem);
+            changes = Object.fromEntries(
+              Object.entries(fields).filter(([, value]) => value !== undefined),
+            );
+            if (!Object.keys(changes).length) throw new Error("NO_TASK_CHANGES");
+          } else if (command.type === "reopenTask") {
+            changes = {
+              status: "not_started",
+              completedAt: null,
+              completedBy: null,
+              cancelledAt: null,
+              cancelledBy: null,
+              cancelReason: null,
+            };
+          } else {
+            changes = {
+              status: "cancelled",
+              cancelledAt: timestamp,
+              cancelledBy: identity.uid,
+              cancelReason: command.input.reason,
+            };
+          }
+          transaction.update(taskReference, {
+            ...changes,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const auditId = randomUUID();
+          transaction.create(
+            db.doc(`auditEvents/${auditId}`),
+            auditDocument({
+              id: auditId,
+              tenantId: command.tenantId,
+              projectId: task.projectId,
+              actorId: identity.uid,
+              action:
+                move === "update"
+                  ? "task.updated"
+                  : move === "reopen"
+                    ? "task.reopened"
+                    : "task.cancelled",
+              entityType: "task",
+              entityId: command.input.taskId,
+              timestamp,
+              before: Object.fromEntries(
+                Object.keys(changes).map((key) => [key, task[key] ?? null]),
+              ),
+              after: changes,
+              correlationId,
+              userAgent,
+            }),
+          );
+          const output = {
+            taskId: command.input.taskId,
+            status: String(changes.status ?? task.status),
+          };
+          writeExecution(
+            transaction,
+            executionReference,
+            command.tenantId,
+            command.idempotencyKey,
+            output,
+            timestamp,
+          );
+          return output;
+        }
+
+        if (command.type === "reopenCheckpoint") {
+          const checkpointReference = db.doc(
+            `checkpoints/${command.input.checkpointId}`,
+          );
+          const checkpointSnapshot = await transaction.get(checkpointReference);
+          const checkpoint = checkpointSnapshot.data() as
+            | CheckpointDocument
+            | undefined;
+          if (!checkpoint || checkpoint.tenantId !== command.tenantId) {
+            throw new Error("CHECKPOINT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membership, checkpoint.projectId)) {
+            throw new Error("PROJECT_ACCESS_DENIED");
+          }
+          const refusal = checkpointReopenRefusal(checkpoint.status);
+          if (refusal) throw new Error(refusal);
+          const checkpointsSnapshot = await transaction.get(
+            db
+              .collection("checkpoints")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", checkpoint.projectId)
+              .where("archivedAt", "==", null),
+          );
+          const allCheckpoints = checkpointsSnapshot.docs.map(
+            (document) =>
+              ({ id: document.id, ...document.data() }) as CheckpointDocument,
+          );
+          const settledBefore = (id: string) => {
+            const found = allCheckpoints.find((candidate) => candidate.id === id);
+            return Boolean(
+              found && checkpointIsSatisfied(found, timestamp, checkpointEvidence),
+            );
+          };
+          const history = Array.isArray(checkpoint.reopenHistory)
+            ? (checkpoint.reopenHistory as unknown[])
+            : [];
+          const reopened: CheckpointDocument = {
+            ...checkpoint,
+            id: checkpoint.id,
+            status: reopenedCheckpointStatus(
+              checkpoint.dependencyIds.every(settledBefore),
+            ),
+            completionTimestamp: null,
+            completionActorId: null,
+            waiverReason: null,
+            waiverExpiresAt: null,
+            // What was recorded stays readable: the evidence and notes are
+            // the history of the mistake as much as of the step.
+            reopenHistory: [
+              ...history,
+              {
+                reopenedAt: timestamp,
+                reopenedBy: identity.uid,
+                reason: command.input.reason,
+                priorStatus: checkpoint.status,
+              },
+            ].slice(-20),
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          };
+          /**
+           * A step this one unlocked, and nobody has started, waits again.
+           * Anything already done stays done: reopening one step does not
+           * undo work the studio has since recorded.
+           */
+          const projected = allCheckpoints.map((candidate) =>
+            candidate.id === checkpoint.id ? reopened : candidate,
+          );
+          const satisfiedIds = new Set(
+            projected
+              .filter((candidate) =>
+                checkpointIsSatisfied(candidate, timestamp, checkpointEvidence),
+              )
+              .map((candidate) => candidate.id),
+          );
+          const relocked = projected.map((candidate) =>
+            candidate.status === "ready" &&
+            candidate.id !== checkpoint.id &&
+            candidate.dependencyIds.includes(checkpoint.id) &&
+            !candidate.dependencyIds.every((id) => satisfiedIds.has(id))
+              ? {
+                  ...candidate,
+                  status: "not_started" as const,
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                }
+              : candidate,
+          );
+          for (const candidate of relocked) {
+            const original = allCheckpoints.find((item) => item.id === candidate.id);
+            if (
+              candidate.id === checkpoint.id ||
+              original?.status !== candidate.status
+            ) {
+              transaction.set(db.doc(`checkpoints/${candidate.id}`), candidate);
+            }
+          }
+          const projection = await writeReadiness(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: checkpoint.projectId,
+            workflowRunId: checkpoint.workflowRunId,
+            checkpoints: relocked,
+            timestamp,
+            actorId: identity.uid,
+            evidence: checkpointEvidence,
+          });
+          const auditId = randomUUID();
+          transaction.create(
+            db.doc(`auditEvents/${auditId}`),
+            auditDocument({
+              id: auditId,
+              tenantId: command.tenantId,
+              projectId: checkpoint.projectId,
+              actorId: identity.uid,
+              action: "checkpoint.reopened",
+              entityType: "checkpoint",
+              entityId: checkpoint.id,
+              timestamp,
+              before: { status: checkpoint.status },
+              after: {
+                status: reopened.status,
+                readinessScore: projection.score,
+                reason: command.input.reason,
+              },
+              correlationId,
+              userAgent,
+            }),
+          );
+          const output = {
+            checkpointId: checkpoint.id,
+            status: reopened.status,
+            readinessScore: projection.score,
+            ready: projection.ready,
+          };
           writeExecution(
             transaction,
             executionReference,

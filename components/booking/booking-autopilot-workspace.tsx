@@ -56,6 +56,7 @@ import {
   proposalAccepted,
 } from "@/features/projects/stage-progress";
 import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
+import { ConsultationCorrections } from "@/components/booking/consultation-corrections";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -120,6 +121,8 @@ export function BookingAutopilotWorkspace({
   const gate = useWorkspaceGate();
   const [project, setProject] = useState<Value | null>(null);
   const [consultation, setConsultation] = useState<Value | null>(null);
+  /** The newest consultation, when it is one they didn't turn up to. */
+  const [missed, setMissed] = useState<Value | null>(null);
   const [packages, setPackages] = useState<Value[]>([]);
   const [actions, setActions] = useState<Value[]>([]);
   const [notes, setNotes] = useState("");
@@ -193,9 +196,16 @@ export function BookingAutopilotWorkspace({
         throw new Error("Project not found in this workspace.");
       // The latest one that is on or happened: a cancelled call is not the
       // one to write notes against.
-      const consultationValue = currentConsultation(
-        consultationSnapshot.docs.map((item): Value => ({ id: item.id, ...item.data() })),
+      const consultationValues = consultationSnapshot.docs.map(
+        (item): Value => ({ id: item.id, ...item.data() }),
       );
+      const consultationValue = currentConsultation(consultationValues);
+      // A no-show newer than anything on or held: the page offers "invite
+      // them to rebook" rather than "schedule the consultation first".
+      const newest = consultationValues
+        .filter((item) => !item.archivedAt && item.status !== "cancelled")
+        .sort((left, right) => text(right.startsAt).localeCompare(text(left.startsAt)))[0];
+      setMissed(newest?.status === "no_show" ? newest : null);
       const actionValues = actionSnapshot.docs.map(
         (item): Value => ({ id: item.id, ...item.data() }),
       );
@@ -353,6 +363,9 @@ export function BookingAutopilotWorkspace({
    * conversation is behind them.
    */
   const consultationBehindThem = pastConsultation(liveState);
+  const clientContactId = Array.isArray(project?.clientContactIds)
+    ? text((project.clientContactIds as unknown[])[0]) || null
+    : null;
   const expiry = useMemo(() => futureDate(14), []);
   const retainerDueDate = useMemo(() => futureDateString(7), []);
   const balanceDue = useMemo(() => {
@@ -666,6 +679,18 @@ export function BookingAutopilotWorkspace({
         </header>
       )}
 
+      {consultation && !laterBookingState ? (
+        // They didn't show, or it was marked held by mistake. Renders nothing
+        // when neither applies.
+        <ConsultationCorrections
+          consultation={consultation}
+          contactId={clientContactId}
+          onChanged={() => void load()}
+          projectId={projectId}
+          projectState={liveState}
+        />
+      ) : null}
+
       {laterBookingState ? (
         /**
          * Past the proposal, so no consultation guidance at all.
@@ -732,6 +757,21 @@ export function BookingAutopilotWorkspace({
             </span>
           </section>
         )
+      ) : !consultation && missed ? (
+        <section className="booking-autopilot-empty">
+          <CircleAlert />
+          <span>
+            <strong>They missed the consultation.</strong>
+            <small>The job stays where it is. Invite them to pick another time, or reopen it if they did come.</small>
+          </span>
+          <ConsultationCorrections
+            consultation={missed}
+            contactId={clientContactId}
+            onChanged={() => void load()}
+            projectId={projectId}
+            projectState={liveState}
+          />
+        </section>
       ) : !consultation && consultationBehindThem && !proposalId ? (
         // The stage moved past consultation without a meeting record (handled
         // over the phone, stage advanced by hand). Don't demand a

@@ -430,6 +430,70 @@ const CONTACT_FIELDS: Record<string, string> = {
   mobile: "phone",
 };
 
+/**
+ * Archive or restore a client (wave 3): the same command as the Clients row.
+ * The candidates are narrowed by the words the operator used, since a studio
+ * has hundreds of contacts and the pick list shows every candidate.
+ */
+export function ContactArchiveCard({ action }: ActionCardProps) {
+  const contacts = useRecords("contacts");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const runner = useRunner();
+  const restoring = action.action === "restore_contact";
+  const words = (action.subject ?? "").toLowerCase().split(/\s+/).filter((word) => word.length > 1);
+  const pool = (contacts ?? [])
+    .filter((contact) => Boolean(contact.archivedAt) === restoring)
+    .filter((contact) => {
+      if (!words.length) return true;
+      const haystack = `${contactName(contact)} ${str(contact.email)}`.toLowerCase();
+      return words.some((word) => haystack.includes(word));
+    })
+    .sort((left, right) => str(right.updatedAt).localeCompare(str(left.updatedAt)))
+    .slice(0, 12);
+  const options = pool.map((contact) => ({ id: contact.id, name: contactName(contact), detail: str(contact.email) || undefined }));
+  const choice = useSubjectChoice(action.subject, options);
+  const title = restoring ? "Restore a client" : "Archive a client";
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (!contacts) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  const contact = pool.find((item) => item.id === choice.chosen) ?? null;
+  return (
+    <ActionShell
+      detail={
+        restoring
+          ? "They come back to the working list, and can be edited again."
+          : "Off the working list; nothing is deleted. Not while a job of theirs is still live."
+      }
+      icon={<Archive size={15} />}
+      title={title}
+    >
+      {options.length ? (
+        <SubjectPicker {...choice} noun="client" options={options} subject={action.subject} />
+      ) : (
+        <Blocked>{restoring ? "No archived client matches that." : "No client matches that."}</Blocked>
+      )}
+      {options.length ? (
+        <Actions
+          busy={runner.busy}
+          disabled={!contact}
+          label={restoring ? "Restore" : "Archive"}
+          onClick={() =>
+            void runner.run(
+              async () => {
+                if (!contact) return null;
+                await runCrmCommand("archiveContact", { contactId: contact.id, restore: restoring });
+                return restoring ? `${contactName(contact)} is back on the list.` : `${contactName(contact)} is archived.`;
+              },
+              { refresh: ["contacts"] },
+            )
+          }
+        />
+      ) : null}
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
 export function EditContactCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
   const contacts = useRecords("contacts");

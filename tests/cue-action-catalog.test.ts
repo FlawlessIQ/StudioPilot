@@ -157,6 +157,12 @@ const REACHED: Record<string, string> = {
   // Wave 2: corrections after the event.
   replaceDeliveryLink: "ReplaceDeliveryLink", skipReviewRequests: "\"skipReviewRequests\"",
   undoPostProductionStep: "PostProductionChecklist", revertAlbumStatus: "DeliveryCloseoutWorkspace",
+  // Wave 3: undo for records.
+  undo_acceptance: "\"undo_acceptance\"",
+  updateTask: "\"updateTask\"", reopenTask: "\"reopenTask\"", cancelTask: "\"cancelTask\"",
+  reopenCheckpoint: "ReadinessCheckpoints",
+  markConsultationNoShow: "\"markConsultationNoShow\"", reopenConsultation: "\"reopenConsultation\"",
+  resendCoi: "CoiWorkflowPanel",
   // Team and studio
   inviteMember: "TeamManagement", revokeInvitation: "TeamManagement", updateMember: "TeamManagement",
   setAutopay: "AutopaySettings", setOutsideStep: "OutsideStepCard",

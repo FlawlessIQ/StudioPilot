@@ -906,6 +906,9 @@ function repriceSnapshot(
 const managerRoles = ["studio_owner", "studio_admin"];
 const allowedRoles = [...managerRoles, "studio_coordinator"];
 
+/** The states in which a job's client may be archived: the job is over. */
+export const CONTACT_ARCHIVABLE_PROJECT_STATES = ["CLOSED", "CANCELLED", "ARCHIVED", "LOST"];
+
 /**
  * Whether this member may act on this particular project.
  *
@@ -2378,11 +2381,13 @@ export const crmCommand = onRequest(
           const contact = await transaction.get(contactReference);
           if (
             !contact.exists ||
-            contact.get("tenantId") !== command.tenantId ||
-            contact.get("archivedAt")
+            contact.get("tenantId") !== command.tenantId
           ) {
             throw new Error("CONTACT_NOT_FOUND");
           }
+          // Said as what it is. An archived client used to be refused as "could
+          // not be found" while the studio was looking straight at them.
+          if (contact.get("archivedAt")) throw new Error("CONTACT_ARCHIVED");
           const before = {
             firstName: contact.get("firstName") ?? null,
             lastName: contact.get("lastName") ?? null,
@@ -3307,7 +3312,10 @@ export const crmCommand = onRequest(
             const projectIds = Array.isArray(contact.get("projectIds"))
               ? (contact.get("projectIds") as string[])
               : [];
-            const settled = ["CLOSED", "CANCELLED", "ARCHIVED"];
+            // LOST is settled too: an inquiry that went elsewhere is as over as
+            // a cancelled one, and its client was refused with "close, cancel
+            // or finish it first" about a job already closed as lost.
+            const settled = CONTACT_ARCHIVABLE_PROJECT_STATES;
             for (const projectId of projectIds.slice(0, 30)) {
               const project = await transaction.get(
                 db.doc(`projects/${projectId}`),

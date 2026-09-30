@@ -3992,6 +3992,58 @@
   font-size: 11.5px;
 }
 
+/* Editing a task in its row (wave 3): the row's full width, laid out like
+   the client/vendor edit form beside it (.record-edit form). */
+.live-domain-row-has-actions > .task-row-actions:has(.task-edit-form) {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+}
+
+.task-edit-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.task-edit-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ds-ink-soft, #5c665f);
+}
+
+.task-edit-form input,
+.task-edit-form textarea,
+.task-edit-form select {
+  border: 1px solid var(--ds-line, #e0e5df);
+  border-radius: 9px;
+  background: var(--ds-paper, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  min-height: 34px;
+  padding: 7px 10px;
+  width: 100%;
+}
+
+.task-edit-form .task-edit-span,
+.task-edit-form > div {
+  grid-column: 1 / -1;
+}
+
+.task-edit-form > div {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .task-edit-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* The phone job layout stacks: the consolidated plan, the advance controls,
    then the thread. */
 .ds-root .job-mobile {

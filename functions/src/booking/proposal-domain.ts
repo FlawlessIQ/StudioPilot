@@ -60,7 +60,14 @@ export type ProposalAction =
    * what they were offered — and their page says it's no longer on offer.
    * Never an accepted one: that is a booking, and changes to it are signed.
    */
-  | "withdraw";
+  | "withdraw"
+  /**
+   * An acceptance recorded by mistake — the wrong job, or a "yes" that turned
+   * out to be a "maybe". The proposal goes back to where it was and the job to
+   * Proposal, while nothing has gone out on the strength of it. See
+   * planUndoAcceptance below.
+   */
+  | "undo_acceptance";
 
 const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>> = {
   update_draft: ["draft"],
@@ -87,6 +94,7 @@ const actionStatuses: Readonly<Record<ProposalAction, readonly ProposalStatus[]>
   revise_packages: ["draft", "internal_review", "approved", "sent", "viewed", "accepted"],
   discard_draft: ["draft", "internal_review", "approved"],
   withdraw: ["sent", "viewed"],
+  undo_acceptance: ["accepted"],
 };
 
 export function assertProposalAction(
@@ -152,4 +160,76 @@ export function proposalEmailDeliveryStatus(event: string): string | null {
   ].includes(event)
     ? event
     : null;
+}
+
+/**
+ * Undoing an acceptance, decided from the records. Pure.
+ *
+ * Nothing reversed `record_acceptance`, though CONTRACT_PENDING → PROPOSAL is
+ * an edge the state machine has always allowed. `revise_packages` from an
+ * accepted proposal got close, but only after a package change, and it was
+ * refused the moment acceptance had prepared or sent a contract.
+ *
+ * The line is what has left the studio on the strength of the acceptance:
+ *   - an agreement out for signature, or signed → refused; withdraw (void)
+ *     the agreement first, which is its own deliberate act
+ *   - an unsent contract draft StudioCue prepared on acceptance → discarded
+ *     with it, since it was written for a deal that is no longer agreed
+ *   - a standing bill → refused; void it first
+ * An agreement the couple signed to accept (H2's booking agreement) is not an
+ * acceptance to undo at all.
+ */
+export type UndoAcceptancePlan =
+  | { ok: false; refusal: string }
+  | {
+      ok: true;
+      /** The proposal's status before it was accepted. */
+      restoreStatus: "approved" | "sent" | "viewed";
+      discardDraft: boolean;
+      acceptedByCouple: boolean;
+    };
+
+export const AGREEMENT_OUT = ["queued", "sent", "delivered", "viewed", "partially_signed", "completed", "signed"];
+const RESTORABLE = ["approved", "sent", "viewed"] as const;
+
+export function planUndoAcceptance(input: {
+  proposal: {
+    status: string;
+    acceptancePriorStatus?: unknown;
+    sentAt?: unknown;
+    viewedAt?: unknown;
+    acceptanceAuthority?: unknown;
+    acceptedWithContractId?: unknown;
+    combinedContractId?: unknown;
+  };
+  projectState: string;
+  contractStatuses: readonly string[];
+  /** contractDrafts/{projectId}, when it is for this proposal. */
+  draftStatus: string | null;
+  /** Bills on the job still owed (standing and not void). */
+  standingInvoices: number;
+}): UndoAcceptancePlan {
+  if (input.proposal.status !== "accepted") return { ok: false, refusal: "PROPOSAL_NOT_ACCEPTED" };
+  if (input.proposal.acceptedWithContractId || input.proposal.combinedContractId)
+    return { ok: false, refusal: "ACCEPTED_BY_SIGNING" };
+  if (input.projectState !== "CONTRACT_PENDING") return { ok: false, refusal: "PROJECT_PAST_ACCEPTANCE" };
+  if (input.contractStatuses.some((status) => AGREEMENT_OUT.includes(status)))
+    return { ok: false, refusal: "AGREEMENT_OUT_WITHDRAW_FIRST" };
+  if (input.standingInvoices > 0) return { ok: false, refusal: "INVOICE_ALREADY_RAISED" };
+  const recorded = String(input.proposal.acceptancePriorStatus ?? "");
+  // Acceptances recorded before `acceptancePriorStatus` existed: read it off
+  // the record's own dates, the furthest the couple is known to have got.
+  const restoreStatus = (RESTORABLE as readonly string[]).includes(recorded)
+    ? (recorded as (typeof RESTORABLE)[number])
+    : input.proposal.viewedAt
+      ? "viewed"
+      : input.proposal.sentAt
+        ? "sent"
+        : "approved";
+  return {
+    ok: true,
+    restoreStatus,
+    discardDraft: input.draftStatus === "draft",
+    acceptedByCouple: input.proposal.acceptanceAuthority !== "studio_attested",
+  };
 }

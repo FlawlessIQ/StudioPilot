@@ -24,6 +24,7 @@ import { checkpointSatisfiedByEvidence } from "@/features/readiness/checkpoint-e
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import { ActionHint, InfoHint } from "@/components/ui/info-hint";
 import { formatDueDate } from "@/lib/format/event-date";
+import { useWorkspace } from "@/features/auth/workspace-context";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -58,8 +59,11 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<{
     id: string;
-    resolution: CheckpointResolution;
+    // "reopen": un-resolve a row a person marked done or waived by mistake.
+    resolution: CheckpointResolution | "reopen";
   } | null>(null);
+  const role = useWorkspace().role;
+  const canReopen = role === "studio_owner" || role === "studio_admin";
   const [notice, setNotice] = useState<string | null>(null);
 
   const rows = (checkpoints ?? [])
@@ -115,12 +119,18 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
 
   async function resolve(
     checkpointId: string,
-    resolution: CheckpointResolution,
+    resolution: CheckpointResolution | "reopen",
     reason: string,
   ) {
     setBusy(checkpointId);
     setNotice(null);
     try {
+      if (resolution === "reopen") {
+        await runWorkflowCommand("reopenCheckpoint", { checkpointId, reason });
+        setOpen(null);
+        refreshTenantRecords("checkpoints", "readinessAssessments", "projects");
+        return;
+      }
       await runWorkflowCommand("resolveCheckpoint", {
         checkpointId,
         resolution,
@@ -198,6 +208,10 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                 : checkpointWaitingReason(row);
           // The sentence says what it waits on; this says where to start it.
           const source = waiting ? checkpointRecordSource(row.templateKey) : null;
+          // Only what a person resolved can be un-resolved: a row the records
+          // prove stays proven whatever is clicked here.
+          const reopenable =
+            canReopen && (row.status === "complete" || row.status === "waived");
           return (
             <li
               className={
@@ -268,6 +282,20 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                     </ActionHint>
                   ) : null}
                 </span>
+              ) : reopenable ? (
+                <span className="readiness-checkpoint-actions">
+                  <ActionHint hint="Puts this back as outstanding, for a step marked done or waived by mistake. Your reason is saved to the audit log.">
+                    <button
+                      className="button button-quiet"
+                      disabled={busy !== null}
+                      onClick={() => setOpen({ id: row.id, resolution: "reopen" })}
+                      type="button"
+                    >
+                      {busy === row.id ? <LoaderCircle className="spin" size={14} /> : null}
+                      Reopen
+                    </button>
+                  </ActionHint>
+                </span>
               ) : null}
               {open?.id === row.id ? (
                 <form
@@ -284,7 +312,9 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                   <label>
                     {open.resolution === "complete"
                       ? "How do you know?"
-                      : "Why is this being waived?"}
+                      : open.resolution === "reopen"
+                        ? "Why reopen it?"
+                        : "Why is this being waived?"}
                     <input
                       maxLength={2000}
                       minLength={MINIMUM_CHECKPOINT_REASON}
@@ -292,7 +322,9 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                       placeholder={
                         open.resolution === "complete"
                           ? "Confirmed the ceremony location with the venue by phone"
-                          : "The venue does not require a certificate"
+                          : open.resolution === "reopen"
+                            ? "Marked done on the wrong wedding"
+                            : "The venue does not require a certificate"
                       }
                       required
                     />
@@ -303,7 +335,11 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                   </small>
                   <div>
                     <button className="button" type="submit">
-                      {open.resolution === "complete" ? "Mark done" : "Waive it"}
+                      {open.resolution === "complete"
+                        ? "Mark done"
+                        : open.resolution === "reopen"
+                          ? "Reopen it"
+                          : "Waive it"}
                     </button>
                     <button
                       className="button button-quiet"
