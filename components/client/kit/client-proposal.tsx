@@ -150,7 +150,7 @@ export function ClientProposal() {
         ) : null}
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Proposal · version {number(proposal.version)}</p>
-          <h1 className="kit-title">{text(pricing.packageName, "Photography proposal")}</h1>
+          <h1 className="kit-title">{text(pricing.packageName, "Your proposal")}</h1>
           <p className="kit-body">
             Prepared for {text(event.name, "your project")} ·{" "}
             {actionable ? `valid until ${date(proposal.expiresAt)}` : status.replaceAll("_", " ")}

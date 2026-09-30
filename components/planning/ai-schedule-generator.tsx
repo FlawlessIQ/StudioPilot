@@ -26,7 +26,9 @@ import {
   seededManualSchedule,
 } from "@/features/planning/manual-run-of-show";
 import { liveProjects } from "@/features/projects/put-away";
+import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
+import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
 
 type ScheduleItem = {
   id: string;
@@ -186,6 +188,8 @@ export function AiScheduleGenerator({
   const returnToJob = useReturnToJob(projectId);
   const [notice, setNotice] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  // Vendors whose links still show the version just replaced (publishSchedule).
+  const [staleVendors, setStaleVendors] = useState(0);
   /**
    * The questions, on their way to the couple.
    *
@@ -228,14 +232,19 @@ export function AiScheduleGenerator({
         )[0],
     [projectId, questionnaires],
   );
-  const selectedPackage = useMemo(
+  /**
+   * The length of the day, from every package on the job.
+   *
+   * This read one snapshot — the job's primary, or failing that any snapshot
+   * on the project, a replaced one included — so a photo-and-video booking was
+   * given the photo package's minutes and the video coverage was cut short.
+   */
+  const packageMinutes = useMemo(
     () =>
-      packageSnapshots?.find(
-        (snapshot) =>
-          snapshot.id === selectedProject?.packageSnapshotId ||
-          snapshot.projectId === projectId,
+      jobCoverageMinutes(
+        currentJobSnapshots(packageSnapshots ?? [], selectedProject),
       ),
-    [packageSnapshots, projectId, selectedProject?.packageSnapshotId],
+    [packageSnapshots, selectedProject],
   );
   const selectedSchedule = useMemo(
     () =>
@@ -304,11 +313,7 @@ export function AiScheduleGenerator({
       "reception-time",
       "reception_time",
     ]);
-    const minutes = Number(
-      selectedPackage?.includedCoverageMinutes ??
-        selectedPackage?.coverageMinutes ??
-        480,
-    );
+    const minutes = packageMinutes ?? 480;
     const safeMinutes =
       Number.isFinite(minutes) && minutes >= 30 && minutes <= 1440
         ? minutes
@@ -391,7 +396,7 @@ export function AiScheduleGenerator({
   }, [
     packageSnapshots,
     questionnaires,
-    selectedPackage,
+    packageMinutes,
     selectedProject,
     selectedQuestionnaire,
   ]);
@@ -573,15 +578,22 @@ export function AiScheduleGenerator({
         coverageMinutes: derivedCoverageMinutes,
         items: draft.items,
       });
+      const stale = Number(
+        (response.result as { staleVendorShareCount?: unknown }).staleVendorShareCount ?? 0,
+      );
       setNotice(
-        response.persisted
-          ? "Published. Your crew can see it now — taking you back to the job."
-          : "Development preview validated the schedule without publishing.",
+        !response.persisted
+          ? "Development preview validated the schedule without publishing."
+          : stale > 0
+            ? "Published. Your crew can see it now. Your vendors still have the old version — send them this one below."
+            : "Published. Your crew can see it now — taking you back to the job.",
       );
       // Say it, then show it. The job page lists this step as complete and
       // names the next move, which is the confirmation the notice alone
-      // could not give from the bottom of a long page.
-      if (response.persisted) returnToJob();
+      // could not give from the bottom of a long page. Unless vendors hold
+      // the old version: then the next move is here, and leaving would hide it.
+      if (response.persisted && stale > 0) setStaleVendors(stale);
+      else if (response.persisted) returnToJob();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "Publish failed."));
     } finally {
@@ -841,6 +853,7 @@ export function AiScheduleGenerator({
           {notice}
         </p>
       ) : null}
+      {staleVendors > 0 && projectId ? <VendorReshareBanner projectId={projectId} /> : null}
       {draft ? (
         <>
           <section className="panel schedule-draft-items">

@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTimelineAnswer } from "@/components/planning/record-timeline-answer";
 import { FileLink, FileLinks } from "@/components/documents/file-link";
 import { FILE_BEARING, refFromPointer, type FileRef } from "@/features/documents/file-ref";
 import { useEffect, useState, type FormEvent } from "react";
@@ -645,6 +646,10 @@ export function LiveRecordDetail({
           <article className="panel" key={label}><small>{label}</small><strong>{show(nested(record, fields), label)}</strong></article>
         ))}
       </section>
+      {/* The couple's answer given outside the portal, on the current version. */}
+      {kind === "schedule" && typeof record.projectId === "string" ? (
+        <RecordTimelineAnswer projectId={record.projectId} />
+      ) : null}
       {items.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Schedule items</h2><p>Current immutable version</p></div></div>{items.map((item, index) => <article key={String(item.id ?? index)}><time>{show(item.startAt, "Arrival")}</time><span><strong>{show(item.title, "Title")}</strong><small>{show(item.location, "Location")}</small></span><small>{show(item.endAt, "Departure")}</small></article>)}</section> : null}
       {requirements.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Requirements</h2><p>Verified completion evidence</p></div></div>{requirements.map((item, index) => <article key={String(item.id ?? index)}><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")}</small></span>{requirementFile(item) ? <FileLink file={requirementFile(item)!} /> : null}<StatusBadge>{show(item.status, "Status")}</StatusBadge></article>)}</section> : null}
       {checkpoints.length ? (

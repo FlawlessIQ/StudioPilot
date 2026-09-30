@@ -48,6 +48,20 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   QUESTIONNAIRE_ALREADY_SUBMITTED:
     "You've already sent this to your studio. Message them if you'd like to change an answer.",
   RESPONSE_NOT_FOUND: "This questionnaire couldn't be found. Refresh and try again.",
+  // The studio's side of a questionnaire after it went out (planningCommand
+  // reopen/withdraw/resendQuestionnaire). QUESTIONNAIRE_WITHDRAWN can reach
+  // the couple too, so it is worded for either.
+  QUESTIONNAIRE_WITHDRAWN: "This questionnaire was withdrawn by the studio, so it can't be changed or sent.",
+  QUESTIONNAIRE_ALREADY_REOPENED: "This questionnaire is already open for the couple to change.",
+  QUESTIONNAIRE_NOT_RETURNED: "Only a questionnaire the couple has sent back can be reopened.",
+  QUESTIONNAIRE_NOT_WITHDRAWABLE:
+    "The couple has already sent this questionnaire back, so it can't be withdrawn. Edit their answers or reopen it instead.",
+  QUESTIONNAIRE_ALREADY_RETURNED:
+    "The couple has already sent this questionnaire back, so there's nothing to remind them about. Reopen it if they need to change an answer.",
+  // Recording the couple's answer on a timeline (approveSchedule from the studio).
+  SCHEDULE_SUPERSEDED: "A newer version of this timeline exists. Record their answer on the current one.",
+  SCHEDULE_ALREADY_APPROVED: "The couple has already approved this version.",
+  SCHEDULE_ANSWER_DETAILS_REQUIRED: "Say who gave the answer, how and when, then record it.",
   // The couple's album (postEventCommand updateAlbumStatus).
   ALBUM_STEP_NOT_AVAILABLE:
     "Your album has moved on since this page opened. Refresh to see where it is now.",

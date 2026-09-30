@@ -183,11 +183,17 @@ export function QuestionnaireBuilder({
     const element = event.currentTarget;
     const form = new FormData(element);
     try {
-      await sendPlanningCommand("assignQuestionnaire", {
+      const response = await sendPlanningCommand("assignQuestionnaire", {
         projectId: String(form.get("projectId")),
         templateId: String(form.get("templateId")),
       });
-      setNotice("Questionnaire assigned. Its due date was calculated from the project date.");
+      // Sending a form the job already has re-sends it (a reminder) instead
+      // of making the couple a second copy.
+      setNotice(
+        (response.result as { resent?: unknown }).resent === true
+          ? "They already have this questionnaire, so they were emailed a reminder about it instead of a second copy."
+          : "Questionnaire assigned. Its due date was calculated from the project date.",
+      );
       element.reset();
       // The panel above this form lists what is assigned, and without this it
       // kept reading "No questionnaires assigned" directly under a notice

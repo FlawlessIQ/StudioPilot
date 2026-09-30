@@ -8,6 +8,10 @@ import { consumeAiQuota, refundAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { productEvent } from "../operations/product-events.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
+import {
+  jobPackageSnapshotIds,
+  schedulePackageFact,
+} from "./schedule-package-facts.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -197,7 +201,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
           parts: [
             {
               text:
-                "Draft a photography run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (card backups, gear staging, travel buffers, meal breaks). Default any client-relevant moment to \"shared\". This is an unapproved draft requiring human review.",
+                "Draft a photography run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (card backups, gear staging, travel buffers, meal breaks). Default any client-relevant moment to \"shared\". Packages: packageFact can list several packages for the same day (a photo package and a video package, say); plan for every role in its coverage across the whole coverage window, and never shorten the day to one package's minutes. photographerIds names every studio crew member working an item, whatever their role — photographers and videographers alike. This is an unapproved draft requiring human review.",
             },
           ],
         },
@@ -420,7 +424,7 @@ export const aiScheduleCommand = onRequest(
         consumeAiQuota(transaction, db, input.tenantId, now),
       );
       quotaReservation = { tenantId: input.tenantId, reservedAt: now };
-      const [questionnaires, timingRules, crewAssignments, packageSnapshot] =
+      const [questionnaires, timingRules, crewAssignments, packageSnapshots] =
         await Promise.all([
           db
             .collection("questionnaireResponses")
@@ -436,14 +440,24 @@ export const aiScheduleCommand = onRequest(
             .where("tenantId", "==", input.tenantId)
             .where("projectId", "==", input.projectId)
             .get(),
-          typeof project.get("packageSnapshotId") === "string"
-            ? db
-                .doc(
-                  `packageSnapshots/${String(project.get("packageSnapshotId"))}`,
-                )
-                .get()
-            : Promise.resolve(null),
+          // Every package on the job, not only the first (schedule-package-facts.ts).
+          Promise.all(
+            jobPackageSnapshotIds({
+              packageSnapshotId: project.get("packageSnapshotId"),
+              additionalPackageSnapshotIds: project.get(
+                "additionalPackageSnapshotIds",
+              ),
+            }).map((id) => db.doc(`packageSnapshots/${id}`).get()),
+          ),
         ]);
+      const packageFact = schedulePackageFact(
+        packageSnapshots
+          .filter(
+            (snapshot) =>
+              snapshot.exists && snapshot.get("tenantId") === input.tenantId,
+          )
+          .map((snapshot) => ({ id: snapshot.id, data: record(snapshot.data()) })),
+      );
       const questionnaireFacts = questionnaires.docs
         .filter((item) =>
           ["submitted", "locked"].includes(String(item.get("status"))),
@@ -487,19 +501,7 @@ export const aiScheduleCommand = onRequest(
         },
         questionnaireFacts,
         approvedTimingRules,
-        packageFact:
-          packageSnapshot?.exists
-            ? {
-                sourceId: packageSnapshot.id,
-                packageName: packageSnapshot.get("packageName"),
-                coverageMinutes:
-                  packageSnapshot.get("includedCoverageMinutes") ??
-                  packageSnapshot.get("coverageMinutes"),
-                addOns:
-                  packageSnapshot.get("addOns") ??
-                  packageSnapshot.get("selectedAddOns"),
-              }
-            : null,
+        packageFact,
         crewFacts: crewAssignments.docs
           .filter((item) => item.get("status") === "accepted")
           .map((item) => ({
@@ -585,9 +587,8 @@ export const aiScheduleCommand = onRequest(
           projectId: input.projectId,
           questionnaireIds: questionnaireFacts.map((item) => item.sourceId),
           timingRuleIds: approvedTimingRules.map((item) => item.sourceId),
-          packageSnapshotId: packageSnapshot?.exists
-            ? packageSnapshot.id
-            : null,
+          packageSnapshotId: packageFact?.sourceId ?? null,
+          packageSnapshotIds: packageFact?.sourceIds ?? [],
           crewAssignmentIds: crewAssignments.docs
             .filter((item) => item.get("status") === "accepted")
             .map((item) => item.id),

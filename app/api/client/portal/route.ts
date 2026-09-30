@@ -5,6 +5,7 @@ import {
 } from "@/features/packages/coverage";
 import { pendingAmendmentFor, signAmendment } from "@/server/contracts/amendment-signing";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
+import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
 import { pricePackage } from "@/features/pricing/package-price";
 import { z } from "zod";
 import { todayInZone } from "@/lib/format/event-date";
@@ -303,6 +304,10 @@ const clientRecordFields = {
     // to the agreement instead of offering "Accept". Missing from this list,
     // the page never knew, and offered Accept.
     "combinedContractId",
+    // Each package's bullets (functions/src/packages/inclusions.ts). Written
+    // for the couple's page, which cannot read package snapshots, and then
+    // left out of this list, so the couple never saw them.
+    "packageDetails",
   ],
   packageSnapshots: [
     "packageName",
@@ -466,6 +471,21 @@ async function clientRecords(
     .where("projectId", "==", projectId)
     .limit(100)
     .get();
+  /**
+   * Only the packages on the job now, in the job's order.
+   *
+   * Snapshots are immutable and never deleted, so a replaced or removed
+   * package stays on the project, and "Your package" showed whichever
+   * snapshot came back first, which could be the one swapped out.
+   */
+  let currentSnapshotIds: string[] | null = null;
+  if (collectionName === "packageSnapshots") {
+    const project = await adminFirestore.doc(`projects/${projectId}`).get();
+    currentSnapshotIds =
+      project.exists && project.get("tenantId") === tenantId
+        ? jobPackageSnapshotIds(project.data())
+        : [];
+  }
   if (collectionName === "proposals") {
     await Promise.all(
       snapshot.docs
@@ -549,8 +569,18 @@ async function clientRecords(
       }
     });
   }
-  return snapshot.docs.flatMap((document) => {
+  const documents = currentSnapshotIds
+    ? currentSnapshotIds.flatMap((id) => snapshot.docs.filter((document) => document.id === id))
+    : snapshot.docs;
+  return documents.flatMap((document) => {
     const value = document.data();
+    // A withdrawn questionnaire is not theirs to fill in any more.
+    if (
+      collectionName === "questionnaireResponses" &&
+      (value.archivedAt || value.status === "withdrawn")
+    ) {
+      return [];
+    }
     if (
       collectionName === "proposals" &&
       !["sent", "viewed", "accepted", "declined", "expired", "superseded", "withdrawn"].includes(
@@ -742,6 +772,9 @@ async function clientProject(tenantId: string, projectId: string) {
           return ["client_review", "approved", "published", "changes_requested"].includes(
             String(value.status),
           );
+        }
+        if (collectionName === "questionnaireResponses") {
+          return !value.archivedAt && value.status !== "withdrawn";
         }
         return true;
       });

@@ -95,7 +95,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Proposal",
     audience: "studio",
     explainer: "proposal",
-    hint: "What a couple sees before they book: the package, any add-ons, the price and the payment plan. They accept it in their portal.",
+    hint: "What a couple sees before they book: their packages, any add-ons, the price and the payment plan. They accept it in their portal.",
   },
   {
     id: "agreement",

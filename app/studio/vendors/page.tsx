@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 import { VendorCreateForm } from "@/components/planning/vendor-create-form";
+import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
 import { PeopleSectionNav } from "@/components/layout/people-section-nav";
 
 export default async function VendorsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
@@ -20,6 +21,7 @@ export default async function VendorsPage({ searchParams }: { searchParams: Prom
         </header>
         <PeopleSectionNav />
         {project ? <ProjectContextBar projectId={project} /> : null}
+        {project ? <VendorReshareBanner projectId={project} /> : null}
         {/* Per-row editing and archiving — the two things this page could
             never do. See components/planning/vendor-record-actions.tsx. */}
         <LiveDomainView

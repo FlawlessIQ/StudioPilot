@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarRange, Copy, Mail, MailOpen, ShieldAlert, Store } from "lucide-react";
+import { CalendarRange, ClipboardList, Copy, Mail, MailOpen, ShieldAlert, Store } from "lucide-react";
+import { parseQuestionnaireSections } from "@/features/questionnaires/client-form";
+import { statusLabel } from "@/features/format/status-label";
+import { QuestionnaireResponseActions } from "@/components/planning/questionnaire-response-actions";
+import { RecordTimelineAnswer } from "@/components/planning/record-timeline-answer";
+import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { sendOutcomeCopy } from "@/lib/communications/send-outcome";
@@ -58,13 +63,125 @@ export function TimelineCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   return (
     <ActionShell
-      detail="Built from their questionnaire, the package and your timing rules. You edit it; publishing sends it to the crew and, for anything shared, to the couple."
+      detail="Built from their questionnaire, the job's packages and your timing rules. You edit it; publishing sends it to the crew and, for anything shared, to the couple."
       icon={<CalendarRange size={15} />}
       title={title}
     >
       <Embedded>
         <AiScheduleGenerator initialProjectId={job.id} />
       </Embedded>
+    </ActionShell>
+  );
+}
+
+/**
+ * The couple's questionnaire after it went out: remind, correct, reopen,
+ * withdraw. The same panel the response page mounts, opened on one action.
+ */
+export function QuestionnaireCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const responses = useRecords("questionnaireResponses");
+  const ONLY: Record<string, "edit" | "reopen" | "resend" | "withdraw"> = {
+    resend_questionnaire: "resend",
+    edit_questionnaire_answers: "edit",
+    reopen_questionnaire: "reopen",
+    withdraw_questionnaire: "withdraw",
+  };
+  const only = ONLY[action.action];
+  const titles: Record<string, string> = {
+    resend_questionnaire: "Remind them about their questionnaire",
+    edit_questionnaire_answers: "Change their questionnaire answers",
+    reopen_questionnaire: "Reopen their questionnaire",
+    withdraw_questionnaire: "Withdraw their questionnaire",
+  };
+  const live = onJob(responses, action.projectId).filter((response) => !response.archivedAt);
+  const options = live.map((response) => ({
+    id: response.id,
+    name: str(response.templateName) || "Questionnaire",
+    detail: str(response.status) ? statusLabel(response.status) : undefined,
+  }));
+  const choice = useSubjectChoice(action.subject, options);
+  const title = `${titles[action.action] ?? "Their questionnaire"} · ${jobName(job)}`;
+  if (loading || !responses) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  const response = live.find((item) => item.id === choice.chosen) ?? null;
+  return (
+    <ActionShell
+      detail={
+        only === "resend"
+          ? "The same form, emailed again — never a second copy."
+          : only === "reopen"
+            ? "They can change their answers and send it back; the crew keep the last answers until then."
+            : only === "withdraw"
+              ? "Only a form they have not sent back. They stop seeing it."
+              : "Your changes are recorded as yours. A sent-back form stays sent back."
+      }
+      icon={<ClipboardList size={15} />}
+      title={title}
+    >
+      {!options.length ? (
+        <Blocked>This job has no questionnaire out. Ask me to send one.</Blocked>
+      ) : (
+        <SubjectPicker {...choice} noun="questionnaire" options={options} subject={action.subject} />
+      )}
+      {response ? (
+        <Embedded>
+          {/* The panel refreshes the records itself; the new status arrives
+              through `responses`, and its own notice says what happened. */}
+          <QuestionnaireResponseActions
+            key={response.id}
+            onChanged={() => undefined}
+            only={only}
+            response={response}
+            sections={parseQuestionnaireSections(
+              response.templateSnapshot && typeof response.templateSnapshot === "object"
+                ? (response.templateSnapshot as Rec).sections
+                : undefined,
+            )}
+          />
+        </Embedded>
+      ) : null}
+    </ActionShell>
+  );
+}
+
+/** The couple said yes (or "not quite") on the phone: the studio records it. */
+export function RecordTimelineApprovalCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const contacts = useRecords("contacts");
+  const title = `Record their answer on the timeline · ${jobName(job)}`;
+  if (loading || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  return (
+    <ActionShell detail="Who said so, how and when is kept with it. Only the newest version can take an answer." icon={<CalendarRange size={15} />} title={title}>
+      <Embedded>
+        <RecordTimelineAnswer coupleName={contactName(primaryContact(job, contacts))} projectId={job.id} />
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+/** Every vendor still on an older timeline gets the current one. */
+export function ReshareRunOfShowCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const shares = useRecords("scheduleShares");
+  const schedules = useRecords("schedules");
+  const title = `Send vendors the new timeline · ${jobName(job)}`;
+  if (loading || !shares || !schedules) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  const newest = onJob(schedules, job.id).sort((a, b) => Number(b.version ?? 0) - Number(a.version ?? 0))[0];
+  const stale = onJob(shares, job.id).filter(
+    (share) => str(share.status) !== "revoked" && !share.revokedAt && newest && share.scheduleId !== newest.id,
+  );
+  return (
+    <ActionShell detail="Each gets a fresh link to the current version, by email where you have their address." icon={<Store size={15} />} title={title}>
+      {stale.length ? (
+        <Embedded>
+          <VendorReshareBanner projectId={job.id} />
+        </Embedded>
+      ) : (
+        <Done>Every vendor you shared the timeline with already has the current version.</Done>
+      )}
     </ActionShell>
   );
 }
