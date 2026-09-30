@@ -41,6 +41,7 @@ import {
 } from "@/features/today/inbox";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
+import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useRouter } from "next/navigation";
@@ -411,6 +412,10 @@ export function TodayInbox() {
               ) : !loading && lead?.action.kind === "close_inquiry" ? (
                 <span className="today-inquiry-buttons">
                   <CloseInquiryActions action={lead.action} onCleared={() => clear(lead.id)} />
+                </span>
+              ) : !loading && lead?.action.kind === "email_problem" ? (
+                <span className="today-inquiry-buttons">
+                  <EmailProblemActions action={lead.action} onCleared={() => clear(lead.id)} />
                 </span>
               ) : !loading && lead ? (
                 <Link className="today-hero-go" href={leadHref}>
@@ -1036,6 +1041,8 @@ function TodayCard({
           <PackageRequestActions action={item.action} onChangeBooking={onChangeBooking} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
           <CloseInquiryActions action={item.action} onCleared={onCleared} />
+        ) : item.action.kind === "email_problem" ? (
+          <EmailProblemActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "automation" ? (
           <button
             className="today-card-primary"
@@ -1304,6 +1311,65 @@ function CloseInquiryActions({ action, onCleared }: { action: CloseInquiryAction
       <Link className="today-card-secondary" href={action.href}>
         Open
       </Link>
+      {notice ? (
+        <span className="today-card-notice" role="status">
+          {notice}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+type EmailProblemAction = Extract<TodayItem["action"], { kind: "email_problem" }>;
+
+/**
+ * An email that did not reach someone, settled on the card.
+ *
+ * Retry sends a failed email again (communicationsCommand retryEmailJob — the
+ * server re-checks the job's contact rules and refuses for a job put away,
+ * paused or cancelled). A bounce cannot be retried to the same address, so it
+ * offers the place the address lives instead. Leave it clears the card.
+ */
+function EmailProblemActions({ action, onCleared }: { action: EmailProblemAction; onCleared?: () => void }) {
+  const [busy, setBusy] = useState<"retry" | "dismiss" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function run(type: "retryEmailJob" | "dismissEmailProblem") {
+    setBusy(type === "retryEmailJob" ? "retry" : "dismiss");
+    setNotice(null);
+    try {
+      const result = await sendCommunicationsCommand({
+        type,
+        idempotencyKey: `${type}_${action.emailJobId}_${Date.now()}`,
+        input: { emailJobId: action.emailJobId },
+      });
+      if (result.mode === "preview") {
+        setNotice("Preview mode — nothing was sent.");
+        setBusy(null);
+        return;
+      }
+      refreshTenantRecords("emailJobs");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That didn't go through. Try again."));
+      setBusy(null);
+    }
+  }
+  return (
+    <>
+      {action.canRetry ? (
+        <button className="today-card-primary" disabled={busy !== null} onClick={() => void run("retryEmailJob")} type="button">
+          {busy === "retry" ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
+          {busy === "retry" ? "Sending…" : "Retry"}
+        </button>
+      ) : null}
+      {action.fixHref ? (
+        <Link className={action.canRetry ? "today-card-secondary" : "today-card-primary"} href={action.fixHref}>
+          Fix the address
+        </Link>
+      ) : null}
+      <button className="today-card-secondary" disabled={busy !== null} onClick={() => void run("dismissEmailProblem")} type="button">
+        {busy === "dismiss" ? "Clearing…" : "Leave it"}
+      </button>
       {notice ? (
         <span className="today-card-notice" role="status">
           {notice}

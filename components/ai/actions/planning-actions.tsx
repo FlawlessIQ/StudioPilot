@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CalendarRange, Copy, Mail, MailOpen, ShieldAlert, Store } from "lucide-react";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
+import { sendOutcomeCopy } from "@/lib/communications/send-outcome";
 import { AiScheduleGenerator } from "@/components/planning/ai-schedule-generator";
 import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
 import { TimelineAuthorityPanel } from "@/components/planning/timeline-authority-panel";
@@ -405,16 +406,19 @@ export function ReplyCard({ action }: ActionCardProps) {
         onClick={() =>
           void runner.run(
             async () => {
+              // Said as it is: queued, held for approval, or (preview) not
+              // sent at all — never a flat "Sent." (lib/communications/send-outcome.ts).
               if (thread) {
-                await sendCommunicationsCommand({
-                  type: "replyToConversation",
-                  idempotencyKey: crypto.randomUUID(),
-                  input: { conversationId: thread.id, body: body.trim() },
-                });
-                return "Sent.";
+                return sendOutcomeCopy(
+                  await sendCommunicationsCommand({
+                    type: "replyToConversation",
+                    idempotencyKey: crypto.randomUUID(),
+                    input: { conversationId: thread.id, body: body.trim() },
+                  }),
+                );
               }
               if (!contact) return null;
-              await sendCommunicationsCommand({
+              const sent = await sendCommunicationsCommand({
                 type: "sendMessage",
                 idempotencyKey: crypto.randomUUID(),
                 input: {
@@ -428,7 +432,7 @@ export function ReplyCard({ action }: ActionCardProps) {
                   scheduledFor: null,
                 },
               });
-              return "Sent.";
+              return sendOutcomeCopy(sent);
             },
             { refresh: ["conversations", "messages", "communicationDrafts"] },
           )

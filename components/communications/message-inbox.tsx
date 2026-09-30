@@ -81,10 +81,16 @@ function deliveryLabel(status: string | null): string | null {
   if (value === "open" || value === "opened") return "Opened";
   if (value === "click" || value === "clicked") return "Link opened";
   if (["sent", "processed", "succeeded"].includes(value)) return "Sent";
-  if (value === "queued" || value === "scheduled") return "Waiting to send";
+  // `deferred` is the receiving server saying "not yet" — SendGrid keeps
+  // trying, so it is still on its way, not lost.
+  if (value === "queued" || value === "scheduled" || value === "deferred")
+    return "Waiting to send";
   if (value === "running") return "Sending";
   if (value === "retry_scheduled") return "Retrying";
-  if (["failed", "bounce", "bounced", "dropped", "dead_letter", "spamreport"].includes(value))
+  // `blocked` is a refusal by the receiving server (sendgrid-events.ts,
+  // delivery-reconciler.ts); it showed no label at all, so a refused email
+  // looked like any other.
+  if (["failed", "bounce", "bounced", "blocked", "dropped", "dead_letter", "spamreport"].includes(value))
     return "Did not arrive";
   if (value === "mock") return "Test only";
   return null;

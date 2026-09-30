@@ -65,7 +65,13 @@ export function TrustDialOffers() {
     for (const action of actions ?? []) {
       const trigger = lifecycleTriggerOf(action as Record<string, unknown>);
       const decision = action.decision as
-        | { actorId?: string; action?: string; decidedAt?: string; editDelta?: unknown }
+        | {
+            actorId?: string;
+            action?: string;
+            decidedAt?: string;
+            editDelta?: unknown;
+            emailJobId?: unknown;
+          }
         | null
         | undefined;
       // Human decisions only: an auto-sent message is not evidence of trust.
@@ -75,6 +81,10 @@ export function TrustDialOffers() {
         decidedAt: decision.decidedAt,
         approved: decision.action === "approved",
         edited: Boolean(decision.editDelta),
+        // Only an approval that queued the email counts toward trust
+        // (decideAiAction records the job it created).
+        sent:
+          typeof decision.emailJobId === "string" && decision.emailJobId !== "",
       });
     }
     return out;

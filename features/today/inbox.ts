@@ -45,6 +45,8 @@ import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
 import { BOOKING_BRIEF_CAPABILITIES, blockingIssues } from "@/features/ai/blocking-issues";
+import { emailProblemOf } from "@/features/today/email-problems";
+import { dispatchesOnApproval } from "@/features/ai/approval-consequence";
 
 /** When a final balance becomes Today's business: the journey's own "one month out" step opens at 45. */
 const FINAL_BALANCE_WINDOW_DAYS = 45;
@@ -136,6 +138,21 @@ export type TodayAction =
          */
         bookingLinkIncluded?: boolean | null;
       } | null;
+    }
+  /**
+   * An email that did not reach someone (features/today/email-problems.ts):
+   * Retry a failed send, Fix the address where it lives, or Leave it — on the
+   * card, rather than a link to Messages, which never showed failed mail.
+   */
+  | {
+      kind: "email_problem";
+      label: string;
+      emailJobId: string;
+      recipient: string | null;
+      subject: string | null;
+      reason: string;
+      canRetry: boolean;
+      fixHref: string | null;
     }
   /** Nothing to do — the engines handled it. */
   | { kind: "none"; label: string };
@@ -960,6 +977,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
     dueDate?: string | null;
     extraFacts?: Array<string | null>;
     kind?: LibraryKind | null;
+    /** Acts on the card itself instead of linking away. */
+    action?: TodayAction;
   }) => {
     act.push({
       id: item.id,
@@ -970,7 +989,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       evidence: "StudioCue stopped safely — this one needs you",
       projectId: item.projectId ?? null,
       projectName: item.projectName ?? null,
-      action: {
+      action: item.action ?? {
         kind: "link",
         label: item.label ?? "Resolve",
         href: item.href,
@@ -1220,17 +1239,36 @@ export function todayInbox(input: TodayInput): TodayInbox {
       updatedAt: changedAt(job),
     });
   }
-  for (const job of rows(input.emailJobs).filter(failed))
+  // Failed sends and bounces alike: who it was for, what it was, and why —
+  // with Retry / Fix the address / Leave it on the card.
+  for (const job of rows(input.emailJobs)) {
+    const problem = emailProblemOf(job);
+    if (!problem) continue;
     exception({
       id: `email-${job.id}`,
       kind: "email",
-      title: "An email did not send",
-      detail: `${nameFor(job.projectId) ?? "Studio"} · ${readable(job.type)}`,
-      href: "/studio/messages",
+      title: problem.title,
+      detail: [
+        problem.subject ?? readable(job.type),
+        `to ${problem.recipient ?? "the client"}`,
+      ].join(" · "),
+      href: problem.fixHref ?? "/studio/messages",
       projectId: text(job.projectId) || null,
       projectName: nameFor(job.projectId),
       updatedAt: changedAt(job),
+      extraFacts: [problem.reason],
+      action: {
+        kind: "email_problem",
+        label: problem.canRetry ? "Retry" : "Fix the address",
+        emailJobId: job.id,
+        recipient: problem.recipient,
+        subject: problem.subject,
+        reason: problem.reason,
+        canRetry: problem.canRetry,
+        fixHref: problem.fixHref,
+      },
     });
+  }
   for (const connection of rows(input.integrationConnections)) {
     if (text(connection.status) !== "error" && !connection.lastError) continue;
     exception({
@@ -1576,7 +1614,16 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: nameFor(action.projectId),
       action: {
         kind: "approve",
-        label: "Approve",
+        // Named by what the tap does: approving a client message sends it.
+        label: dispatchesOnApproval({
+          capability: text(action.capability) || null,
+          downstreamCommandType: text(asRecord(action.downstreamCommand).commandType) || null,
+          recipient: text(asRecord(action.structuredOutput).recipientEmail) || null,
+          subject: text(asRecord(action.structuredOutput).subject) || null,
+          body: text(asRecord(action.structuredOutput).body) || null,
+        })
+          ? "Approve & send"
+          : "Approve",
         actionId: action.id,
         href: action.projectId ? `/studio/projects/${text(action.projectId)}` : "/studio",
         preview: previewOf(action.structuredOutput),

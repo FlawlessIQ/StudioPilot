@@ -26,6 +26,14 @@ export type LifecycleDecision = {
   decidedAt: string;
   approved: boolean;
   edited: boolean;
+  /**
+   * Whether approving actually sent the message. Until decideAiAction learned
+   * to send lifecycle drafts, every approval here was "approved" and nothing
+   * went — three of those earned an offer to auto-send a message the studio
+   * had never once seen go out. An approval that sent nothing is not evidence
+   * either way, so it is skipped. Omitted means sent.
+   */
+  sent?: boolean;
 };
 
 const TITLE_TRIGGERS: Record<string, LifecycleTrigger> = {
@@ -77,6 +85,7 @@ export function trustDialOffers(
     if (!setting.enabled || setting.autoSend) continue;
     const recent = decisions
       .filter((decision) => decision.trigger === trigger)
+      .filter((decision) => !(decision.approved && decision.sent === false))
       .sort((left, right) => right.decidedAt.localeCompare(left.decidedAt))
       .slice(0, TRUST_DIAL_THRESHOLD);
     if (

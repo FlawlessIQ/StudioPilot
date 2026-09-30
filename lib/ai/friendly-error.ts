@@ -84,6 +84,14 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   AI_ACTION_HAS_BLOCKING_ISSUES:
     "This needs a decision from you first — StudioCue couldn't pick the package. Choose it on the booking brief and the draft follows.",
   AI_ACTION_NOT_APPROVED: "Approve this first, then it can go ahead.",
+  // decideAiAction on work already decided — a second tap, a second tab. The
+  // server refuses rather than send the couple the same email twice.
+  AI_ACTION_ALREADY_DECIDED:
+    "Already done — this was approved or put away a moment ago, so nothing was sent again.",
+  // Retry / Leave it on Today's "An email did not send" card.
+  EMAIL_JOB_NOT_FOUND: "That email isn't there any more. Refresh and try again.",
+  EMAIL_JOB_NOT_RETRYABLE:
+    "That email has already gone out, or is on its way, so there's nothing to retry.",
   PACKAGE_REQUEST_NOT_AVAILABLE:
     "Your booking can't take another package right now — your agreement may already be on its way. Please message your studio.",
   // Sending the final bill by hand (bookingCommand sendFinalBalance).
@@ -522,6 +530,16 @@ const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
  * These say what to change instead.
  */
 const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
+  // Sending to a couple whose job says "stop" (post-event/client-outreach.ts):
+  // an approved draft or a retried email. The detail is why.
+  CLIENT_OUTREACH_STOPPED: (detail) =>
+    detail === "put_away"
+      ? "This job is put away, so nothing was sent to the couple. Bring the job back first if you still want to write to them."
+      : detail === "automations_paused"
+        ? "Messages to this couple are paused on the job, so nothing was sent. Bring them in on the job first."
+        : detail === "cancelled"
+          ? "This wedding is cancelled, so nothing was sent to the couple."
+          : "That job isn't there any more, so nothing was sent.",
   // A booking change to a date another job holds. The server names the job.
   DATE_TAKEN: (detail) =>
     detail

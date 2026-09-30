@@ -11,6 +11,12 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { emailTemplateKeys } from "./email-templates.js";
 import { productEvent } from "../operations/product-events.js";
+import { dismissAnsweredReplyDrafts } from "./answered-drafts.js";
+import { conversationIdFor } from "./conversation.js";
+import {
+  clientOutreachStop,
+  mayContactClient,
+} from "../post-event/client-outreach.js";
 
 const messageInput = z.object({
   projectId: z.string().min(1),
@@ -86,6 +92,25 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ draftId: z.string().min(1) }),
+  }),
+  z.object({
+    /**
+     * Send a failed email again, from the Today card that reported it. Until
+     * this existed only a platform admin could, so a studio told "An email did
+     * not send" had nothing to press — the card linked to Messages, which
+     * never reads emailJobs, and stayed on Today for good.
+     */
+    type: z.literal("retryEmailJob"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ emailJobId: z.string().min(1).max(240) }),
+  }),
+  z.object({
+    /** "Leave it": the studio has seen the failed or bounced email and moved on. */
+    type: z.literal("dismissEmailProblem"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ emailJobId: z.string().min(1).max(240) }),
   }),
   z.object({
     type: z.literal("saveTemplateVersion"),
@@ -416,6 +441,22 @@ export const communicationsCommand = onRequest(
         );
         const requiresApproval = sensitive && !canApprove(role);
         const batch = db.batch();
+        // A message that goes now answers the couple, so any reply StudioCue
+        // drafted for them is moot — left pending, Today offered to send it too.
+        if (!requiresApproval && !command.input.scheduledFor) {
+          await dismissAnsweredReplyDrafts(db, batch, {
+            tenantId: command.tenantId,
+            conversationId: conversationIdFor({
+              tenantId: command.tenantId,
+              projectId: project.id,
+              participant: { email: String(contact.get("email") ?? "") },
+            }),
+            leadId: null,
+            projectId: project.id,
+            actorId: identity.uid,
+            now,
+          });
+        }
         batch.create(db.doc(`communicationDrafts/${draftId}`), {
           id: draftId,
           tenantId: command.tenantId,
@@ -555,6 +596,17 @@ export const communicationsCommand = onRequest(
 
         const jobId = `reply_${executionId}`;
         const batch = db.batch();
+        // The studio answered by hand — often with the AI draft pasted into the
+        // reply box and edited. Put the draft away in the same commit, or it
+        // stays on Today and one tap sends the couple the answer twice.
+        await dismissAnsweredReplyDrafts(db, batch, {
+          tenantId: command.tenantId,
+          conversationId: command.input.conversationId,
+          leadId: (conversation.get("leadId") as string | null) ?? null,
+          projectId,
+          actorId: identity.uid,
+          now,
+        });
         batch.set(db.doc(`emailJobs/${jobId}`), {
           id: jobId,
           tenantId: command.tenantId,
@@ -829,6 +881,100 @@ export const communicationsCommand = onRequest(
           });
           transaction.create(db.doc(`productEvents/${sendEvent.id}`), sendEvent);
           return { draftId: draft.id, queued: true };
+        });
+      } else if (
+        command.type === "retryEmailJob" ||
+        command.type === "dismissEmailProblem"
+      ) {
+        if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
+        const emailJobId = command.input.emailJobId;
+        const jobReference = db.doc(`emailJobs/${emailJobId}`);
+        const job = await jobReference.get();
+        if (!job.exists || job.get("tenantId") !== command.tenantId)
+          throw new Error("EMAIL_JOB_NOT_FOUND");
+        // Asked before the retry, and again by the worker as it sends
+        // (clientOutreachGuard): a job put away, paused or cancelled since the
+        // email failed is not a job whose couple should now hear from us.
+        const projectId = String(job.get("projectId") ?? "");
+        if (command.type === "retryEmailJob" && projectId) {
+          const project = await db.doc(`projects/${projectId}`).get();
+          const data =
+            project.exists && project.get("tenantId") === command.tenantId
+              ? project.data()
+              : null;
+          if (!mayContactClient(data))
+            throw new Error(
+              `CLIENT_OUTREACH_STOPPED:${clientOutreachStop(data) ?? "job_missing"}`,
+            );
+        }
+        const type = command.type;
+        result = await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(jobReference);
+          const status = String(current.get("status") ?? "");
+          let outcome: Record<string, unknown>;
+          if (type === "retryEmailJob") {
+            // Already on its way — a second press must not queue it twice.
+            if (["queued", "running", "retry_scheduled"].includes(status)) {
+              return { emailJobId, status, retried: true };
+            }
+            if (!["failed", "dead_letter"].includes(status))
+              throw new Error("EMAIL_JOB_NOT_RETRYABLE");
+            transaction.update(jobReference, {
+              status: "queued",
+              // A fresh run. Left at the old count the worker saw a job already
+              // at maxAttempts, and the first hiccup was final.
+              attempts: 0,
+              error: null,
+              nextAttemptAt: null,
+              completedAt: null,
+              clientOutreachGuard: true,
+              retriedAt: now,
+              retriedBy: identity.uid,
+              studioDismissedAt: null,
+              updatedAt: now,
+            });
+            outcome = { emailJobId, status: "queued", retried: true };
+          } else {
+            transaction.update(jobReference, {
+              studioDismissedAt: now,
+              studioDismissedBy: identity.uid,
+              updatedAt: now,
+            });
+            outcome = { emailJobId, dismissed: true };
+          }
+          transaction.create(executionReference, {
+            tenantId: command.tenantId,
+            userId: identity.uid,
+            commandType: type,
+            idempotencyKey: command.idempotencyKey,
+            result: outcome,
+            createdAt: now,
+          });
+          transaction.create(
+            db.doc(`auditEvents/${type === "retryEmailJob" ? "email_retry" : "email_dismiss"}_${executionId}`),
+            {
+              id: `${type === "retryEmailJob" ? "email_retry" : "email_dismiss"}_${executionId}`,
+              tenantId: command.tenantId,
+              projectId: projectId || null,
+              actorId: identity.uid,
+              actorType: "user",
+              action:
+                type === "retryEmailJob"
+                  ? "message.retry_requested"
+                  : "message.failure_dismissed",
+              entityType: "emailJob",
+              entityId: emailJobId,
+              timestamp: now,
+              before: { status },
+              after: outcome,
+              ipAddress: null,
+              userAgent: request.header("user-agent") ?? null,
+              correlationId: command.idempotencyKey,
+              automationRunId: null,
+              providerEventId: null,
+            },
+          );
+          return outcome;
         });
       } else if (command.type === "saveTemplateVersion") {
         if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
