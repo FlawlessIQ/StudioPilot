@@ -21,6 +21,18 @@ function money(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD" }).format(cents / 100);
 }
 
+
+/** Starting points for a one-off extra; the studio names and prices it. */
+const COMMON_EXTRAS = [
+  "Engagement shoot",
+  "Photo booth",
+  "Boudoir session",
+  "Extra hour of coverage",
+  "Second shooter",
+  "Rehearsal dinner",
+  "Parent albums",
+] as const;
+
 /**
  * The extras on one package on a job (H2 slice 3): what the package
  * suggests, anything in the library, or a one-off written for this couple —
@@ -193,13 +205,26 @@ export function JobAddOnsEditor({
       </div>
       {writing ? (
         <div className="job-add-ons-custom">
+          {/* The extras studios add most, one tap to start from. */}
+          <div className="job-add-ons-ideas" role="group" aria-label="Common extras">
+            {COMMON_EXTRAS.map((idea) => (
+              <button
+                className="button button-light button-sm"
+                key={idea}
+                onClick={() => setCustom({ ...custom, name: idea })}
+                type="button"
+              >
+                {idea}
+              </button>
+            ))}
+          </div>
           <label className="job-add-ons-field job-add-ons-grow">
             <span>What it is</span>
             <input
               autoFocus
               maxLength={120}
               onChange={(event) => setCustom({ ...custom, name: event.target.value })}
-              placeholder="Special family shots"
+              placeholder="Engagement shoot"
               value={custom.name}
             />
           </label>

@@ -179,6 +179,14 @@ export function ProposalPackagesPanel({
           </button>
         ) : null}
       </div>
+      {/* "We should add a way to add custom stuff … engagement shoot, photo
+          booth" — the Extras editor already did, behind a button labelled
+          only "Extras" (GR, 2026-09-30). Say what it is for. */}
+      {!agreementOut ? (
+        <p className="proposal-packages-hint">
+          Engagement shoot, photo booth, an extra hour? Add them to a package with Add extras — from your library, or written just for this couple.
+        </p>
+      ) : null}
       <ul className="proposal-packages-list">
         {onJob.map(({ id, snapshot }, index) => (
           <li key={id}>
@@ -196,7 +204,10 @@ export function ProposalPackagesPanel({
                 onClick={() => setExtrasFor(extrasFor === id ? null : id)}
                 type="button"
               >
-                Extras{Array.isArray(snapshot?.addOns) && snapshot.addOns.length ? ` (${snapshot.addOns.length})` : ""}
+                <Plus size={14} />
+                {Array.isArray(snapshot?.addOns) && snapshot.addOns.length
+                  ? `Extras (${snapshot.addOns.length})`
+                  : "Add extras"}
               </button>
             )}
             {agreementOut ? null : onJob.length > 1 ? (

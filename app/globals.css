@@ -21546,3 +21546,18 @@ label {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* What the Extras button is for, and quick starts for a one-off extra (GR, 2026-09-30). */
+.proposal-packages-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.job-add-ons-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
