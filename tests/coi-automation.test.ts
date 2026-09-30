@@ -237,3 +237,8 @@ test("the agent's correction and the venue's copy never greet the couple, and na
   assert.doesNotMatch(venue.text, /Harper/);
   assert.match(venue.text, /for Arnold Arboretum, for the event on June 12, 2027\./);
 });
+
+test("a certificate decision refreshes the list above the card", () => {
+  const source = readFileSync("components/planning/coi-request-actions.tsx", "utf8");
+  assert.match(source, /if \(outcome\.persisted\) refreshTenantRecords\("insuranceRequests"/);
+});

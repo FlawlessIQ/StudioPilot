@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, Copy, ExternalLink, Send, Upload, XCircle } from "lucide-react";
 import { FileLinks } from "@/components/documents/file-link";
+import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { AddressField } from "@/components/forms/address-field";
 import type { CapturedPlace } from "@/features/places/schema";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -49,6 +50,9 @@ export function CoiRequestActions({
     try {
       const outcome = await sendPlanningCommand(type, { projectId, requestId: request.id, ...input });
       setNotice(outcome.persisted ? success : "Development preview — nothing was sent.");
+      // This card listens live; the list above it reads the shared store,
+      // which kept saying "under review" after a request was sent back.
+      if (outcome.persisted) refreshTenantRecords("insuranceRequests", "projects", "checkpoints");
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That didn't go through. Try again."));
     } finally {
