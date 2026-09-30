@@ -189,11 +189,15 @@ export async function loadContractSources(
     Math.max(0, ...allSnapshots.map((data) => Number(data.includedCoverageMinutes) || 0)),
   );
   const coverage = [coverageRoles, hours].filter(Boolean).join(", ");
+  // "What's included", the words the studio edits and the proposal shows, so
+  // the agreement and the proposal list the same things. The older
+  // deliverables list only when there's no description.
   const includedFor = (data: Record<string, unknown>) => {
-    const listed = Array.isArray(data.includedDeliverables)
+    const written = packageInclusionItems(data.description);
+    if (written.length) return written;
+    return Array.isArray(data.includedDeliverables)
       ? (data.includedDeliverables as unknown[]).map(text).filter(Boolean)
       : [];
-    return listed.length ? listed : packageInclusionItems(data.description);
   };
   // One package reads as its list; several each start with their name.
   const deliverables =

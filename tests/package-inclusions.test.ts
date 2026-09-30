@@ -111,3 +111,31 @@ test("QuickBooks matches a customer by name before creating one, and names a cla
   assert.match(runtime, /\/already exists\/i\.test\(caught\.message\)/);
   assert.match(runtime, /create\(`\$\{displayName\} \(\$\{email\}\)`\.slice\(0,100\),"-2"\)/);
 });
+
+test("the agreement lists what the proposal lists: the package's What's included", () => {
+  const sources = source("functions/src/contracts/sources.ts");
+  assert.match(sources, /const written = packageInclusionItems\(data\.description\);\s*if \(written\.length\) return written;/);
+  assert.match(source("components/proposals/proposal-packages-panel.tsx"), /<p className="eyebrow">Change packages<\/p>/);
+});
+
+test("Part 2 of the booking agreement lists each package with its bullets", async () => {
+  const { buildCombinedAgreement } = await import("@/features/contracts/combined");
+  const { document } = buildCombinedAgreement(
+    { format: "structured", title: "Agreement", blocks: [{ type: "paragraph", content: [{ text: "Terms." }] }] } as never,
+    {
+      currency: "USD",
+      lineItems: [
+        { description: "Gold Photo Package", quantity: 1, totalCents: 499900, kind: "package", details: ["Unlimited photography", "Album"] },
+        { description: "Silver Cinematic Package", quantity: 1, totalCents: 299900, kind: "package", details: ["One videographer for 8 hours"] },
+      ],
+      discountCents: 0,
+      taxCents: 0,
+      totalCents: 799800,
+      paymentSchedule: [],
+    },
+  );
+  const flat = JSON.stringify(document.blocks);
+  for (const words of ["Gold Photo Package — $4,999.00", "Unlimited photography", "Silver Cinematic Package — $2,999.00", "One videographer for 8 hours"])
+    assert.ok(flat.includes(words), words);
+  assert.match(source("functions/src/contracts/combined-commands.ts"), /details: detailsForLine\(proposal\.get\("packageDetails"\), line\.description\)/);
+});

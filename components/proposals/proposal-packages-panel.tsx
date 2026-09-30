@@ -147,7 +147,8 @@ export function ProposalPackagesPanel({
     <section className="proposal-packages-panel" aria-labelledby="proposal-packages-title">
       <div className="proposal-packages-heading">
         <div>
-          <p className="eyebrow">Packages</p>
+          {/* Not "Packages": the priced list above now carries that name. */}
+          <p className="eyebrow">Change packages</p>
           <h2 id="proposal-packages-title">What they&apos;re booking</h2>
         </div>
         {onJob.length < 4 && !agreementOut ? (

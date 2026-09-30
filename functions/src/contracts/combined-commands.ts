@@ -1,3 +1,4 @@
+import { detailsForLine } from "../packages/inclusions.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { expiryOnSend } from "../booking/proposal-expiry.js";
@@ -96,6 +97,7 @@ async function resolveCombined(
       quantity: Math.max(1, Number(line.quantity ?? 1)),
       totalCents: Number(line.totalCents ?? 0),
       kind: typeof line.kind === "string" ? line.kind : undefined,
+      details: detailsForLine(proposal.get("packageDetails"), line.description),
     })),
     discountCents: Number(pricing.discountCents ?? 0),
     taxCents: Number(pricing.taxCents ?? 0),

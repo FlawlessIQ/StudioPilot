@@ -20,7 +20,14 @@ export type CombinedSection = {
 
 export type CoverageInput = {
   currency: string;
-  lineItems: ReadonlyArray<{ description: string; quantity: number; totalCents: number; kind?: string }>;
+  lineItems: ReadonlyArray<{
+    description: string;
+    quantity: number;
+    totalCents: number;
+    kind?: string;
+    /** What the package includes, one bullet each (the proposal's packageDetails). */
+    details?: readonly string[];
+  }>;
   discountCents: number;
   taxCents: number;
   totalCents: number;
@@ -49,7 +56,17 @@ function coverageBlocks(coverage: CoverageInput): ContractBlock[] {
   ];
   if (packages.length) {
     blocks.push({ type: "heading", level: 2, content: text(packages.length > 1 ? "Packages" : "Package") });
-    blocks.push({ type: "list", items: packages.map((line) => ({ content: text(lineText(line)) })) });
+    if (packages.some((line) => line.details?.length)) {
+      // Each package with what it includes beneath it, as the proposal shows
+      // it: the couple signs the same list they were offered (GR, 2026-09-30).
+      for (const line of packages) {
+        blocks.push({ type: "paragraph", content: [{ text: lineText(line), bold: true as const }] });
+        if (line.details?.length)
+          blocks.push({ type: "list", items: line.details.map((item) => ({ content: text(item) })) });
+      }
+    } else {
+      blocks.push({ type: "list", items: packages.map((line) => ({ content: text(lineText(line)) })) });
+    }
   }
   if (extras.length) {
     blocks.push({ type: "heading", level: 2, content: text("Extras") });
