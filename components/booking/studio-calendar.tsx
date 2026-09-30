@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AvailabilityDialog } from "@/components/booking/availability-dialog";
 import { CapabilityNote } from "@/components/integrations/capability-note";
+import { useZoomConnected } from "@/components/integrations/use-capability";
+import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import {
   addMonths,
   eachDayOfInterval,
@@ -671,6 +673,11 @@ export function StudioCalendar() {
                       <span className="ds-cal-row-name">
                         {project ? String(project.name) : "Booked"}
                       </span>
+                      {/* A video call the provider worker could not give a
+                          Zoom link (not connected): the studio sends one. */}
+                      {typeof booking.meetingSkipMessage === "string" && booking.meetingSkipMessage ? (
+                        <small className="ds-cal-consult-note">{booking.meetingSkipMessage}</small>
+                      ) : null}
                       <ConsultationActions
                         booking={booking}
                         freeSlots={selectedSlots.filter(
@@ -754,7 +761,8 @@ function ConsultationActions({
   const consultationId = String(booking.id);
   const slot = freeSlots.find((value) => value.startsAt === target);
 
-  async function send(input: Record<string, unknown>, done: string) {
+  /** `done` is told whether the client was emailed, so it says what happened. */
+  async function send(input: Record<string, unknown>, done: (clientNotified: boolean) => string) {
     setBusy(true);
     setNotice(null);
     try {
@@ -762,7 +770,7 @@ function ConsultationActions({
       setNotice(
         outcome.mode === "preview"
           ? "Development preview: validated but not persisted."
-          : done,
+          : done(outcome.payload.clientNotified === true),
       );
       setConfirmCancel(false);
     } catch (caught: unknown) {
@@ -821,7 +829,12 @@ function ConsultationActions({
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                   },
                 },
-                "Consultation moved. The calendar invitation and any Zoom meeting were updated.",
+                (notified) =>
+                  `Consultation moved. Your calendar and any Zoom meeting follow it${
+                    notified
+                      ? ", and the client is emailed the new time"
+                      : "; the client was not emailed, so let them know"
+                  }.`,
               );
             }}
           >
@@ -849,7 +862,12 @@ function ConsultationActions({
               idempotencyKey: crypto.randomUUID(),
               input: { projectId, consultationId, reason: null },
             },
-            "Consultation cancelled. The calendar entry and any Zoom meeting were removed.",
+            (notified) =>
+              `Consultation cancelled. It comes off your calendar and any Zoom meeting is removed${
+                notified
+                  ? "; the client is emailed"
+                  : "; the client was not emailed, so let them know"
+              }.`,
           );
         }}
       >
@@ -917,7 +935,12 @@ function BookSlotForm({
   const [contactId, setContactId] = useState(
     Array.isArray(initialContacts) ? String(initialContacts[0] ?? "") : "",
   );
-  const [mode, setMode] = useState<"zoom" | "in_person" | "phone" | "custom">("zoom");
+  // Zoom only when Zoom is connected (features/consultations/meeting-mode.ts);
+  // null until the studio picks, so the default can follow the answer.
+  const zoomConnected = useZoomConnected();
+  const [picked, setPicked] = useState<"zoom" | "in_person" | "phone" | "custom" | null>(null);
+  const mode = picked ?? defaultConsultationMode(zoomConnected);
+  const setMode = setPicked;
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);

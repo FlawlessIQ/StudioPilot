@@ -6825,6 +6825,54 @@ textarea:focus-visible {
   padding: 0;
 }
 
+/* "Not an inquiry", confirmed: names the sender before it is ignored. */
+.not-inquiry-confirm {
+  align-items: center;
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.not-inquiry-confirm > span {
+  flex: 1 1 100%;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Settings → Inquiry capture: senders "not an inquiry" taught it to drop. */
+.ignored-senders {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ignored-senders ul {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ignored-senders li {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.ignored-senders li code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ignored-senders small {
+  color: var(--muted);
+}
+
 .maybe-inquiry-tray ul {
   display: grid;
   list-style: none;

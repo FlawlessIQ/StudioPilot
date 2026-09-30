@@ -2,6 +2,7 @@
 
 import { deliverableDueDate, deliveryProgress, expectedDeliverables } from "@/features/post-event/deliverables";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
+import { isLiveConsultation } from "@/features/consultations/live";
 import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
@@ -190,8 +191,8 @@ export function useTodayInbox(): {
               }).replied,
             }
           : null,
-        hasConsultation:
-          forProject(consultations.records, projectId).length > 0,
+        // A cancelled or replaced consultation is not a booked meeting.
+        hasConsultation: forProject(consultations.records, projectId).some(isLiveConsultation),
         proposalStatus:
           text(
             forProject(proposals.records, projectId).sort((left, right) =>

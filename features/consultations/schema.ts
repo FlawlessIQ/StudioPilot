@@ -33,6 +33,11 @@ export const consultationSchema = auditFieldsSchema.extend({
   cancelledAt: z.string().datetime().nullable().optional(),
   cancellationReason: z.string().max(500).nullable().optional(),
   rescheduledAt: z.string().datetime().nullable().optional(),
+  // Written by the provider worker when a video call could not get a Zoom
+  // link (not connected, or needs reconnecting): the code, and the sentence
+  // the studio is shown.
+  meetingSkipReason: z.string().nullable().optional(),
+  meetingSkipMessage: z.string().nullable().optional(),
   archivedAt: z.string().datetime().nullable(),
 });
 

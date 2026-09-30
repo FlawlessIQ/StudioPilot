@@ -28,6 +28,8 @@ import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/bo
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { FILE_BEARING } from "@/features/documents/file-ref";
 import { bookingBlockerLabel } from "@/features/booking/blocker-label";
+import { useZoomConnected } from "@/components/integrations/use-capability";
+import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import {
   ActionShell,
@@ -78,11 +80,13 @@ const MODES = [
   { value: "phone", label: "Phone" },
 ];
 
-function modeFromWords(words: string | null): string {
+/** The way to meet the operator named, or null when they named none. */
+function modeFromWords(words: string | null): string | null {
   const text = (words ?? "").toLowerCase();
   if (/in.?person|coffee|studio|meet (at|up)|office/.test(text)) return "in_person";
   if (/phone|call me|ring/.test(text)) return "phone";
-  return "zoom";
+  if (/zoom|video/.test(text)) return "zoom";
+  return null;
 }
 
 const when = (iso: unknown): string => {
@@ -128,7 +132,11 @@ export function ScheduleConsultationCard({ action }: ActionCardProps) {
   const runner = useRunner();
   const [date, setDate] = useState(action.date ?? "");
   const [time, setTime] = useState(action.time ?? "");
-  const [mode, setMode] = useState(modeFromWords(action.text));
+  // Unnamed, it is Zoom only when Zoom is connected — otherwise a "video
+  // call" with no link (features/consultations/meeting-mode.ts).
+  const zoomConnected = useZoomConnected();
+  const [picked, setMode] = useState<string | null>(modeFromWords(action.text));
+  const mode = picked ?? defaultConsultationMode(zoomConnected);
   const [location, setLocation] = useState("");
   const title = `Book a consultation with ${jobName(job)}`;
   if (loading || !contacts || !availability) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -140,7 +148,13 @@ export function ScheduleConsultationCard({ action }: ActionCardProps) {
   const clash = startsAt && endsAt ? overlaps(availability.busy, startsAt, endsAt) : false;
   return (
     <ActionShell
-      detail={`${availability.duration} minutes. ${contactName(contact)} gets a confirmation email${mode === "zoom" ? " with the Zoom link" : ""}, and it goes on your calendar.`}
+      detail={`${availability.duration} minutes. ${contactName(contact)} gets a confirmation email${
+        mode === "zoom"
+          ? zoomConnected
+            ? " with the Zoom link"
+            : " saying you'll send the video link — Zoom isn't connected, so send it yourself"
+          : ""
+      }, and it goes on your calendar.`}
       icon={<CalendarClock size={15} />}
       title={title}
     >
@@ -173,7 +187,7 @@ export function ScheduleConsultationCard({ action }: ActionCardProps) {
                   location: mode === "in_person" ? location.trim() || null : null,
                 },
               });
-              return `Booked for ${when(startsAt)}. ${contactName(contact)} has been sent the details.`;
+              return `Booked for ${when(startsAt)}. ${contactName(contact)} is being emailed a confirmation.`;
             },
             { refresh: ["consultations", "projects"] },
           )
@@ -182,6 +196,11 @@ export function ScheduleConsultationCard({ action }: ActionCardProps) {
       <Notice text={runner.notice} />
     </ActionShell>
   );
+}
+
+/** Whether the booking command emailed the couple (it says, on a move or cancel). */
+function notifiedOf(outcome: Awaited<ReturnType<typeof sendBookingCommand>>): boolean {
+  return outcome.mode === "live" && outcome.payload.clientNotified === true;
 }
 
 /** Reschedule, cancel or write up a consultation already on the calendar. */
@@ -224,9 +243,9 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
     <ActionShell
       detail={
         kind === "reschedule_consultation"
-          ? `Now ${when(consultation.startsAt)}. They get an updated invitation.`
+          ? `Now ${when(consultation.startsAt)}. They're emailed the new time, and your calendar${consultation.joinUrl ? " and the Zoom meeting" : ""} follow it.`
           : kind === "cancel_consultation"
-            ? `${when(consultation.startsAt)}. It comes off both calendars${consultation.joinUrl ? " and the Zoom meeting is removed" : ""}.`
+            ? `${when(consultation.startsAt)}. They're emailed that it's cancelled; it comes off your calendar${consultation.joinUrl ? " and the Zoom meeting is removed" : ""}.`
             : `${when(consultation.startsAt)}. Your notes feed the proposal and the job's brief.`
       }
       icon={kind === "cancel_consultation" ? <CalendarX size={15} /> : <CalendarClock size={15} />}
@@ -263,20 +282,24 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
           void runner.run(
             async () => {
               if (kind === "reschedule_consultation") {
-                await sendBookingCommand({
+                const moved = await sendBookingCommand({
                   type: "rescheduleConsultation",
                   idempotencyKey: crypto.randomUUID(),
                   input: { projectId: job.id, consultationId: consultation.id, startsAt, endsAt, timezone: browserZone() },
                 });
-                return `Moved to ${when(startsAt)}. They've been sent the new time.`;
+                return notifiedOf(moved)
+                  ? `Moved to ${when(startsAt)}. They're being emailed the new time.`
+                  : `Moved to ${when(startsAt)}. They weren't emailed, so let them know.`;
               }
               if (kind === "cancel_consultation") {
-                await sendBookingCommand({
+                const cancelled = await sendBookingCommand({
                   type: "cancelConsultation",
                   idempotencyKey: crypto.randomUUID(),
                   input: { projectId: job.id, consultationId: consultation.id, reason: reason.trim() || null },
                 });
-                return "The consultation is cancelled.";
+                return notifiedOf(cancelled)
+                  ? "The consultation is cancelled, and they're being emailed."
+                  : "The consultation is cancelled. They weren't emailed, so let them know.";
               }
               await sendBookingCommand({
                 type: "completeConsultation",

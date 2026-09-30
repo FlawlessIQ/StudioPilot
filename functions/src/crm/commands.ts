@@ -9,6 +9,8 @@ import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { teamRoleForEmail } from "./team-email.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { forwarderKey } from "../intake/short-address.js";
+import { senderProtection, senderProtectionReason } from "../intake/ignorable-sender.js";
+import { studioMailboxes } from "../communications/inbound.js";
 import { pricePackage } from "../pricing/package-price.js";
 import { packageChangeNeedsApprover } from "../booking/proposal-domain.js";
 import { holdResumeStates } from "./hold-resume.js";
@@ -442,14 +444,28 @@ const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
-     * "Not an inquiry": file the capture away and stop capturing that sender.
+     * "Not an inquiry": file the capture away, and — only when the studio
+     * chose to, having been shown the address — stop capturing that sender.
      * The sender is the address the notification came from (a newsletter, a
-     * vendor), never the person — so one tap teaches capture for good.
+     * vendor), never the person. It used to be learned on every tap, and a
+     * studio's own website form or mailbox, learned once, silently dropped
+     * every inquiry after it; those are now never learned
+     * (intake/ignorable-sender.ts), and removeIgnoredSender undoes the rest.
      */
     type: z.literal("markLeadNotInquiry"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
-    input: z.object({ leadId: z.string().min(1) }),
+    input: z.object({
+      leadId: z.string().min(1),
+      ignoreSender: z.boolean().default(false),
+    }),
+  }),
+  z.object({
+    /** Start capturing a sender that "not an inquiry" taught capture to ignore. */
+    type: z.literal("removeIgnoredSender"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ sender: z.string().trim().toLowerCase().min(3).max(320) }),
   }),
   z.object({
     /**
@@ -2752,6 +2768,26 @@ export const crmCommand = onRequest(
               )
             );
           });
+          // The sender is remembered only when the studio asked for it, and
+          // never when it is the couple's own address, the studio's own
+          // mailbox, or a form/marketplace address every real inquiry also
+          // comes from (intake/ignorable-sender.ts). Otherwise only this one
+          // message is filed away. Read before the first write.
+          const protection = command.input.ignoreSender
+            ? senderProtection({
+                sender: typeof sender === "string" ? sender : null,
+                leadEmail: String(lead.get("email") ?? ""),
+                formBuilder:
+                  typeof lead.get("formBuilder") === "string"
+                    ? String(lead.get("formBuilder"))
+                    : typeof capture?.get("builder") === "string"
+                      ? String(capture.get("builder"))
+                      : null,
+                studioAddresses: await studioMailboxes(db, command.tenantId, settings),
+              })
+            : null;
+          const learn =
+            command.input.ignoreSender && protection === null && typeof sender === "string";
           transaction.update(leadReference, {
             status: "archived",
             needsConfirmation: false,
@@ -2770,13 +2806,6 @@ export const crmCommand = onRequest(
               updatedBy: identity.uid,
             });
           }
-          // A capture from a person's own address (a manual forward, a reply)
-          // must not teach capture to ignore that person. Only a sender that
-          // isn't the lead itself is remembered.
-          const learn =
-            typeof sender === "string" &&
-            sender &&
-            sender !== String(lead.get("email") ?? "").toLowerCase();
           if (learn) {
             const known = (settings.get("notInquirySenders") as string[] | undefined) ?? [];
             const inquirySenders = (settings.get("inquirySenders") as string[] | undefined) ?? [];
@@ -2830,7 +2859,66 @@ export const crmCommand = onRequest(
           const output = {
             leadId: command.input.leadId,
             ignoredSender: learn ? (sender as string) : null,
+            // Asked to ignore it and didn't: why, for the screen to say.
+            senderKept:
+              command.input.ignoreSender && protection
+                ? {
+                    sender: typeof sender === "string" ? sender : null,
+                    reason: protection,
+                    message: senderProtectionReason(protection),
+                  }
+                : null,
           };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "removeIgnoredSender") {
+          // The sender lists steer what capture keeps, so — like the form
+          // mappings beside them — only owners and admins change them.
+          if (!["studio_owner", "studio_admin"].includes(membershipData.role)) {
+            throw new Error("FORBIDDEN");
+          }
+          const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
+          const settings = await transaction.get(settingsReference);
+          const known = (settings.get("notInquirySenders") as string[] | undefined) ?? [];
+          const removed = known.includes(command.input.sender);
+          if (removed) {
+            transaction.set(
+              settingsReference,
+              {
+                tenantId: command.tenantId,
+                notInquirySenders: known.filter((value) => value !== command.input.sender),
+                updatedAt: timestamp,
+              },
+              { merge: true },
+            );
+            const auditId = randomUUID();
+            transaction.create(db.doc(`auditEvents/${auditId}`), {
+              id: auditId,
+              tenantId: command.tenantId,
+              projectId: null,
+              actorId: identity.uid,
+              actorType: "user",
+              action: "lead_capture.ignored_sender_removed",
+              entityType: "leadCaptureSettings",
+              entityId: command.tenantId,
+              timestamp,
+              before: { ignoredSender: command.input.sender },
+              after: { ignoredSender: null },
+              ipAddress: null,
+              userAgent: request.header("user-agent") ?? null,
+              correlationId,
+              automationRunId: null,
+              providerEventId: null,
+            });
+          }
+          const output = { sender: command.input.sender, removed };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

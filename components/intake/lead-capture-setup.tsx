@@ -40,6 +40,7 @@ import {
   type EmbedBuilder,
 } from "@/features/intake/website-embed";
 import { InfoHint } from "@/components/ui/info-hint";
+import { IgnoredSenders } from "@/components/intake/ignored-senders";
 
 /**
  * Studio settings → Inquiry capture.
@@ -81,6 +82,8 @@ export type LeadCaptureSetupState = {
     verdict: string;
   } | null;
   forms: Array<{ formKey: string; label: string | null; mappedFields: number }>;
+  /** Senders "not an inquiry" taught capture to drop (absent from older servers). */
+  ignoredSenders?: string[];
 };
 
 export type LeadCaptureActions = {
@@ -438,6 +441,8 @@ export function LeadCaptureView({
           </button>
         ))}
       </div>
+
+      {setup ? <IgnoredSenders onChanged={actions.refresh} senders={setup.ignoredSenders ?? []} /> : null}
 
       {setup && address ? (
         <CaptureSheets actions={actions} address={address} onChange={setSheet} setup={setup} sheet={sheet} />

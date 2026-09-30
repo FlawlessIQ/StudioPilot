@@ -15,9 +15,9 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
-  X,
 } from "lucide-react";
 import { KindGlyph } from "@/components/library/kind-glyph";
+import { NotInquiryConfirm } from "@/components/leads/not-inquiry-confirm";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
@@ -1093,8 +1093,10 @@ type InquiryAction = Extract<TodayItem["action"], { kind: "inquiry" }>;
  * the editor), and **Not an inquiry**. Without one, the lead page is where
  * the reply is prepared, so the card links there.
  *
- * "Not an inquiry" archives the lead, teaches capture to skip that sender,
- * and retires the pending reply draft — so it asks once before doing it.
+ * "Not an inquiry" archives the lead and retires the pending reply draft. It
+ * asks first, naming the sender, whether to ignore that sender from now on or
+ * just this one (NotInquiryConfirm) — and it is not offered at all on a job
+ * the server would refuse it for (notInquiryAllowed).
  */
 function InquiryActions({
   action,
@@ -1148,19 +1150,6 @@ function InquiryActions({
     }
   }
 
-  async function notAnInquiry() {
-    setBusy("remove");
-    setNotice(null);
-    try {
-      await runCrmCommand("markLeadNotInquiry", { leadId: action.leadId });
-      onCleared?.();
-    } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "That couldn't be removed. Try again."));
-      setBusy(null);
-      setConfirming(false);
-    }
-  }
-
   const primaryClass = variant === "hero" ? "today-hero-go" : "today-card-primary";
   const secondaryClass =
     variant === "hero" ? "today-hero-secondary" : "today-card-secondary";
@@ -1184,26 +1173,15 @@ function InquiryActions({
         </blockquote>
       ) : null}
       {confirming ? (
-        <div className="today-inquiry-confirm" role="group" aria-label="Not an inquiry">
-          <span>Remove it? StudioCue will skip this sender from now on.</span>
-          <button
-            className={primaryClass}
-            disabled={busy !== null}
-            onClick={() => void notAnInquiry()}
-            type="button"
-          >
-            {busy === "remove" ? <LoaderCircle className="spin" size={14} /> : <X size={14} />}
-            {busy === "remove" ? "Removing…" : "Yes, not an inquiry"}
-          </button>
-          <button
-            className={secondaryClass}
-            disabled={busy !== null}
-            onClick={() => setConfirming(false)}
-            type="button"
-          >
-            Keep it
-          </button>
-        </div>
+        <NotInquiryConfirm
+          className="today-inquiry-confirm"
+          leadId={action.leadId}
+          onCancel={() => setConfirming(false)}
+          onDone={() => onCleared?.()}
+          primaryClass={primaryClass}
+          secondaryClass={secondaryClass}
+          sender={action.ignorableSender ?? null}
+        />
       ) : (
         <div className="today-inquiry-buttons">
           {reply ? (
@@ -1242,7 +1220,7 @@ function InquiryActions({
             >
               They replied elsewhere
             </button>
-          ) : (
+          ) : action.notInquiryAllowed !== false ? (
             <button
               className={secondaryClass}
               disabled={busy !== null}
@@ -1251,7 +1229,7 @@ function InquiryActions({
             >
               Not an inquiry
             </button>
-          )}
+          ) : null}
           {action.dateTaken ? (
             <button
               className={secondaryClass}

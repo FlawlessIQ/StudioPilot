@@ -69,6 +69,7 @@ export function TodayMaybeInquiries({
             <MaybeInquiryPrompt
               compact
               leadId={item.leadId}
+              sender={item.ignorableSender}
               onAnswered={() => {
                 onAnswered(item.leadId);
                 refreshTenantRecords("leads", "projects", "conversations", "contacts");

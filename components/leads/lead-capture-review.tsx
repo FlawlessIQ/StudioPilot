@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, LoaderCircle, Pencil, X } from "lucide-react";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { NotInquiryConfirm } from "@/components/leads/not-inquiry-confirm";
 
 /**
  * Reviewing an inquiry StudioCue read from the studio's inbox.
@@ -207,35 +208,37 @@ export function LeadDetailsEditor({ lead, onSaved }: { lead: Lead; onSaved: () =
 /**
  * "Is this an inquiry?" — for a capture the reader wasn't sure about.
  *
- * Yes keeps it and remembers the form's sender; No files it away and stops
- * capturing that sender. Either answer teaches capture, so the same question
- * is not asked twice about the same form.
+ * Yes keeps it and remembers the form's sender. No files it away — and asks
+ * first, naming the sender, whether to ignore that sender from now on or just
+ * this one message (NotInquiryConfirm), because an ignored sender's mail is
+ * dropped without a trace.
  */
 export function MaybeInquiryPrompt({
   leadId,
   onAnswered,
   compact = false,
+  sender = null,
 }: {
   leadId: string;
   onAnswered: (answer: "inquiry" | "not_inquiry") => void;
   compact?: boolean;
+  /** The address "not an inquiry" could ignore (features/intake/not-inquiry.ts). */
+  sender?: string | null;
 }) {
-  const [busy, setBusy] = useState<"inquiry" | "not_inquiry" | null>(null);
+  const [busy, setBusy] = useState<"inquiry" | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function answer(choice: "inquiry" | "not_inquiry") {
-    setBusy(choice);
+  async function confirmInquiry() {
+    setBusy("inquiry");
     setNotice(null);
     try {
-      const response =
-        choice === "inquiry"
-          ? await runCrmCommand("updateLead", { leadId, confirmInquiry: true })
-          : await runCrmCommand("markLeadNotInquiry", { leadId });
+      const response = await runCrmCommand("updateLead", { leadId, confirmInquiry: true });
       if (!response.persisted) {
         setNotice("Preview: your answer would be saved.");
         return;
       }
-      onAnswered(choice);
+      onAnswered("inquiry");
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "We couldn't save that. Try again."));
     } finally {
@@ -254,14 +257,25 @@ export function MaybeInquiryPrompt({
           </small>
         </span>
       )}
-      <div className="lead-action-row">
-        <button className="button button-dark button-sm" disabled={busy !== null} onClick={() => void answer("inquiry")} type="button">
-          {busy === "inquiry" ? <LoaderCircle className="spin" /> : <Check />}{" "}Yes, an inquiry
-        </button>
-        <button className="button button-light button-sm" disabled={busy !== null} onClick={() => void answer("not_inquiry")} type="button">
-          {busy === "not_inquiry" ? <LoaderCircle className="spin" /> : <X />}{" "}Not an inquiry
-        </button>
-      </div>
+      {confirming ? (
+        <NotInquiryConfirm
+          leadId={leadId}
+          onCancel={() => setConfirming(false)}
+          onDone={() => onAnswered("not_inquiry")}
+          primaryClass="button button-dark button-sm"
+          secondaryClass="button button-light button-sm"
+          sender={sender}
+        />
+      ) : (
+        <div className="lead-action-row">
+          <button className="button button-dark button-sm" disabled={busy !== null} onClick={() => void confirmInquiry()} type="button">
+            {busy === "inquiry" ? <LoaderCircle className="spin" /> : <Check />}{" "}Yes, an inquiry
+          </button>
+          <button className="button button-light button-sm" disabled={busy !== null} onClick={() => setConfirming(true)} type="button">
+            <X />{" "}Not an inquiry
+          </button>
+        </div>
+      )}
       {notice ? <small className="form-notice" role="status">{notice}</small> : null}
     </div>
   );

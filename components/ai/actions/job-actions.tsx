@@ -11,6 +11,9 @@ import { runCrmCommand } from "@/lib/crm/command-client";
 import { runClientInvitation } from "@/lib/client/invitation-client";
 import { CreateProjectForm } from "@/components/crm/create-project-form";
 import { CreateContactForm } from "@/components/crm/create-contact-form";
+import { ignorableSenderOf } from "@/features/intake/not-inquiry";
+import { IgnoredSenders } from "@/components/intake/ignored-senders";
+import { useLeadCaptureSetup } from "@/components/intake/lead-capture-setup";
 import { ProjectEdit } from "@/components/projects/project-edit";
 import { ProjectAddClient } from "@/components/projects/project-add-client";
 import { ClientRecordActions } from "@/components/clients/client-record-actions";
@@ -20,6 +23,7 @@ import {
   ActionShell,
   Actions,
   Blocked,
+  CheckField,
   Done,
   Embedded,
   Form,
@@ -314,22 +318,35 @@ export function MaybeInquiryCard({ action }: ActionCardProps) {
     detail: [str(lead.eventDate), str(lead.email)].filter(Boolean).join(" · ") || undefined,
   }));
   const choice = useSubjectChoice(action.subject, options);
+  // Off unless ticked: an ignored sender's mail is dropped for good, and the
+  // studio should see which address that is first (NotInquiryConfirm).
+  const [ignoreSender, setIgnoreSender] = useState(false);
   const title = confirming ? "Confirm it's an inquiry" : "Mark it as not an inquiry";
   if (!leads) return <ActionShell title={title}><Loading /></ActionShell>;
   if (runner.done) return <ActionShell title={title}><Done href="/studio/leads" label="Open Inquiries">{runner.done}</Done></ActionShell>;
   if (!held.length) return <ActionShell title={title}><Done>Nothing is waiting in “Maybe an inquiry”.</Done></ActionShell>;
   const lead = held.find((item) => item.id === choice.chosen) ?? null;
+  const sender = ignorableSenderOf(lead);
   return (
     <ActionShell
       detail={
         confirming
           ? "It becomes a real inquiry: a job is made for it and a reply is drafted."
-          : "It is dropped, and mail from that sender is ignored from now on."
+          : "It is dropped. Its sender keeps being captured unless you tick below."
       }
       icon={<Inbox size={15} />}
       title={title}
     >
       <SubjectPicker {...choice} noun="held message" options={options} subject={action.subject} />
+      {!confirming && sender ? (
+        <Form>
+          <CheckField
+            checked={ignoreSender}
+            label={`Also ignore everything from ${sender} from now on`}
+            onChange={setIgnoreSender}
+          />
+        </Form>
+      ) : null}
       <Actions
         busy={runner.busy}
         danger={!confirming}
@@ -343,14 +360,49 @@ export function MaybeInquiryCard({ action }: ActionCardProps) {
                 await runCrmCommand("updateLead", { leadId: lead.id, confirmInquiry: true });
                 return `${leadName(lead)} is now an inquiry.`;
               }
-              await runCrmCommand("markLeadNotInquiry", { leadId: lead.id });
-              return `${leadName(lead)} is dropped. Mail from that sender will be ignored.`;
+              const wantsIgnore = Boolean(sender) && ignoreSender;
+              const { result } = await runCrmCommand("markLeadNotInquiry", {
+                leadId: lead.id,
+                ignoreSender: wantsIgnore,
+              });
+              const kept = result.senderKept as { message?: unknown } | null | undefined;
+              if (wantsIgnore && kept && typeof kept.message === "string")
+                return `${leadName(lead)} is dropped. StudioCue will keep capturing ${sender}: ${kept.message}`;
+              return wantsIgnore
+                ? `${leadName(lead)} is dropped, and mail from ${sender} will be ignored. Undo it in Settings → Inquiry capture.`
+                : `${leadName(lead)} is dropped. Its sender is still captured.`;
             },
             { refresh: ["leads", "projects"] },
           )
         }
       />
       <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * The senders "not an inquiry" taught capture to ignore, with Remove — the
+ * same list as Settings → Inquiry capture, so "why aren't my form's inquiries
+ * arriving?" can be answered and fixed from Cue.
+ */
+export function IgnoredSendersCard() {
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const { setup, actions, error, unavailable } = useLeadCaptureSetup();
+  const title = "Senders StudioCue ignores";
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (unavailable) return <ActionShell title={title}><Blocked>Inquiry capture isn&apos;t available on this workspace yet.</Blocked></ActionShell>;
+  if (error) return <ActionShell title={title}><Blocked>{error}</Blocked></ActionShell>;
+  if (!setup) return <ActionShell title={title}><Loading /></ActionShell>;
+  return (
+    <ActionShell
+      detail="Mail from these is dropped without a trace. Remove one and its messages are captured again."
+      icon={<Inbox size={15} />}
+      title={title}
+    >
+      <Embedded>
+        <IgnoredSenders onChanged={actions.refresh} senders={setup.ignoredSenders ?? []} />
+      </Embedded>
     </ActionShell>
   );
 }

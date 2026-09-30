@@ -167,7 +167,7 @@ async function studioAddresses(db: FirebaseFirestore.Firestore, tenantId: string
  * that asked to forward to StudioCue. Trust for the short address rests on
  * this list, so it is built only from what the studio controls.
  */
-async function studioMailboxes(
+export async function studioMailboxes(
   db: FirebaseFirestore.Firestore,
   tenantId: string,
   settings: FirebaseFirestore.DocumentSnapshot,

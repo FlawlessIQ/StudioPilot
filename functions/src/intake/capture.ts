@@ -491,6 +491,9 @@ async function writeLead(
     source,
     formBuilder: read.builder,
     formBuilderLabel: read.builderLabel,
+    // The address it came from, so "not an inquiry" can name the sender it
+    // would ignore before the studio agrees to (features/intake/not-inquiry.ts).
+    notificationSender: read.notificationSender,
     formName: read.formName,
     captureRoute: input.route,
     captureId: input.captureId,

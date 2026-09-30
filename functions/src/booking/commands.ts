@@ -21,6 +21,8 @@ import {
 } from "./agreed-final-balance.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
 import { consultationBookingAdvancesTo } from "./consultation-advance.js";
+import { coupleInquiryUrl } from "./consultation-email.js";
+import { mayContactClient } from "../post-event/client-outreach.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { sendFinalBalance, sendFinalBalanceInput } from "./send-final-balance.js";
 import { planRetainerAttestation } from "./retainer-attestation.js";
@@ -674,6 +676,15 @@ export const bookingCommand = onRequest(
         // hear about. Mirrors public-scheduling's consultation_confirmation
         // enqueue. Guarded by the consultation .create() above, which throws on
         // a retry before this runs, so it cannot double-send.
+        //
+        // It is rendered from the consultation when it goes, not from these
+        // fields (booking/consultation-email.ts): the Zoom link does not exist
+        // yet, and is made by the provider worker a moment from now.
+        const confirmationRescheduleUrl = await coupleInquiryUrl(firestore, {
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          now: timestamp,
+        }).catch(() => null);
         await firestore
           .doc(`emailJobs/consultation_confirmation_${consultationId}`)
           .create({
@@ -681,9 +692,11 @@ export const bookingCommand = onRequest(
             tenantId: command.tenantId,
             projectId: command.input.projectId,
             contactId: command.input.contactId,
+            consultationId,
             type: "consultation_confirmation",
             startsAt: command.input.startsAt,
             location: command.input.location ?? null,
+            rescheduleUrl: confirmationRescheduleUrl,
             status: "queued",
             attempts: 0,
             createdAt: timestamp,
@@ -753,8 +766,11 @@ export const bookingCommand = onRequest(
         const consultationReference = firestore.doc(
           `consultations/${command.input.consultationId}`,
         );
-        result = await firestore.runTransaction(async (transaction) => {
-          const consultation = await transaction.get(consultationReference);
+        const cancelled = await firestore.runTransaction(async (transaction) => {
+          const [consultation, project] = await Promise.all([
+            transaction.get(consultationReference),
+            transaction.get(firestore.doc(`projects/${command.input.projectId}`)),
+          ]);
           if (
             !consultation.exists ||
             consultation.get("tenantId") !== command.tenantId ||
@@ -765,7 +781,7 @@ export const bookingCommand = onRequest(
           // Cancelling an already-cancelled consultation is a no-op rather than
           // an error, so a retried click cannot fail after the first succeeded.
           if (status === "cancelled")
-            return { consultationId: command.input.consultationId, status };
+            return { consultationId: command.input.consultationId, status, tell: null };
           if (status !== "scheduled")
             throw new Error("CONSULTATION_NOT_CANCELLABLE");
           transaction.update(consultationReference, {
@@ -775,8 +791,53 @@ export const bookingCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
-          return { consultationId: command.input.consultationId, status: "cancelled" };
+          return {
+            consultationId: command.input.consultationId,
+            status: "cancelled",
+            tell: mayContactClient(project.exists ? project.data() : null)
+              ? {
+                  contactId: (consultation.get("contactId") as string | null) ?? null,
+                  startsAt: String(consultation.get("startsAt") ?? ""),
+                }
+              : null,
+          };
         });
+        // The couple is told, by email. The studio's calendar event never had
+        // them on it (it carries no attendees), so Google's own cancellation
+        // notice reached nobody, and "it comes off both calendars" was only
+        // ever true of one. Only on the click that cancelled it — a repeat is
+        // a no-op above — and never to a couple the studio has stopped
+        // writing to (mayContactClient: archived, paused, called off).
+        let clientNotified = false;
+        if (cancelled.tell) {
+          await firestore
+            .doc(`emailJobs/consultation_cancelled_${command.input.consultationId}`)
+            .create({
+              id: `consultation_cancelled_${command.input.consultationId}`,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              contactId: cancelled.tell.contactId,
+              consultationId: command.input.consultationId,
+              type: "consultation_cancelled",
+              startsAt: cancelled.tell.startsAt,
+              // Where they can pick another time, when the job has one.
+              rescheduleUrl: await coupleInquiryUrl(firestore, {
+                tenantId: command.tenantId,
+                projectId: command.input.projectId,
+                now: timestamp,
+              }).catch(() => null),
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          clientNotified = true;
+        }
+        result = {
+          consultationId: cancelled.consultationId,
+          status: cancelled.status,
+          clientNotified,
+        };
         // The external resources are removed by the worker, not here: deleting a
         // Google event and a Zoom meeting are non-transactional side effects and
         // must not run inside the Firestore transaction above. calendarEventId
@@ -806,8 +867,11 @@ export const bookingCommand = onRequest(
         const consultationReference = firestore.doc(
           `consultations/${command.input.consultationId}`,
         );
-        result = await firestore.runTransaction(async (transaction) => {
-          const consultation = await transaction.get(consultationReference);
+        const moved = await firestore.runTransaction(async (transaction) => {
+          const [consultation, project] = await Promise.all([
+            transaction.get(consultationReference),
+            transaction.get(firestore.doc(`projects/${command.input.projectId}`)),
+          ]);
           if (
             !consultation.exists ||
             consultation.get("tenantId") !== command.tenantId ||
@@ -818,9 +882,10 @@ export const bookingCommand = onRequest(
             throw new Error("CONSULTATION_NOT_RESCHEDULABLE");
           // The consultation moves in place and keeps its id, so the calendar
           // event id — sha256("consultation:<id>") — stays stable and the
-          // client's existing invitation updates instead of being replaced by a
-          // second event. supersedesId stays reserved for a future "rebook as a
-          // new consultation" flow, which is a different intent.
+          // studio's event moves instead of being replaced by a second one.
+          // (The couple is not on that event; they are emailed below.)
+          // supersedesId stays reserved for a future "rebook as a new
+          // consultation" flow, which is a different intent.
           transaction.update(consultationReference, {
             startsAt: command.input.startsAt,
             endsAt: command.input.endsAt,
@@ -833,6 +898,9 @@ export const bookingCommand = onRequest(
             consultationId: command.input.consultationId,
             startsAt: command.input.startsAt,
             endsAt: command.input.endsAt,
+            tell: mayContactClient(project.exists ? project.data() : null)
+              ? { contactId: (consultation.get("contactId") as string | null) ?? null }
+              : null,
           };
         });
         if (!mockMode) {
@@ -850,6 +918,44 @@ export const bookingCommand = onRequest(
               createdAt: timestamp,
             });
         }
+        // The couple hears the new time by email — the only way they can:
+        // the studio's calendar event carries no attendees, so its
+        // `sendUpdates=all` reaches nobody. Keyed by this command, so a retry
+        // cannot send twice; a second move before this goes out holds this
+        // one (booking/consultation-email.ts), and the second says the time.
+        let clientNotified = false;
+        if (moved.tell) {
+          const emailJobId = stableId(
+            "consultation_rescheduled",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          await firestore.doc(`emailJobs/${emailJobId}`).create({
+            id: emailJobId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            contactId: moved.tell.contactId,
+            consultationId: command.input.consultationId,
+            type: "consultation_rescheduled",
+            startsAt: command.input.startsAt,
+            rescheduleUrl: await coupleInquiryUrl(firestore, {
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              now: timestamp,
+            }).catch(() => null),
+            status: "queued",
+            attempts: 0,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          clientNotified = true;
+        }
+        result = {
+          consultationId: moved.consultationId,
+          startsAt: moved.startsAt,
+          endsAt: moved.endsAt,
+          clientNotified,
+        };
       } else if (command.type === "createEnvelope") {
         const batchSupersede: FirebaseFirestore.DocumentReference[] = [];
         const [project, proposal, existingContracts] = await Promise.all([

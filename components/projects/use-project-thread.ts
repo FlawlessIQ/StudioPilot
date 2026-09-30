@@ -38,8 +38,10 @@ export function useProjectThread(input: {
     (rows ?? []).filter((item) => item.projectId === input.projectId);
 
   const projectConsultations = mine(consultations.records);
+  // Still to happen: "Log a call" writes against this one, and a cancelled
+  // or replaced consultation is not a call to log.
   const openConsultation = projectConsultations
-    .filter((item) => text(item.status) !== "completed")
+    .filter((item) => text(item.status) === "scheduled" && !item.archivedAt)
     .sort((left, right) =>
       text(right.startsAt).localeCompare(text(left.startsAt)),
     )[0];
