@@ -91,3 +91,23 @@ test("the proposal says Packages, lists bullets, and the package editor can chan
   assert.match(source("functions/src/crm/commands.ts"), /terms: z\.string\(\)\.trim\(\)\.max\(6000\)\.optional\(\),/);
   assert.match(source("lib/branding/logo-upload.ts"), /const prepared = \(await trimmedLogo\(file\)\) \?\? file;/);
 });
+
+test("a dialog keeps focus in its fields while the reader types", () => {
+  const sheet = source("components/ui/sheet-dialog.tsx");
+  assert.match(sheet, /if \(event\.key === "Escape"\) closeRef\.current\(\);/);
+  assert.match(sheet, /\}, \[open\]\);/, "the focus effect runs on open and close only");
+  assert.doesNotMatch(sheet, /\}, \[open, onClose\]\);/);
+});
+
+test("the agreement lists every package's coverage and inclusions", () => {
+  const sources = source("functions/src/contracts/sources.ts");
+  assert.match(sources, /combineCoverage\(allSnapshots\.map\(\(data\) => resolveCoverage\(data\)\)\)/);
+  assert.match(sources, /return items\.length \? \[`\$\{text\(data\.packageName\) \|\| "Package"\}:`, \.\.\.items\] : \[\];/);
+});
+
+test("QuickBooks matches a customer by name before creating one, and names a clash apart", () => {
+  const runtime = source("functions/src/operations/provider-runtime.ts");
+  assert.match(runtime, /select \* from Customer where DisplayName = /);
+  assert.match(runtime, /\/already exists\/i\.test\(caught\.message\)/);
+  assert.match(runtime, /create\(`\$\{displayName\} \(\$\{email\}\)`\.slice\(0,100\),"-2"\)/);
+});

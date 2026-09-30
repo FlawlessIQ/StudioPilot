@@ -48,3 +48,13 @@ test("the other statuses each say what to do about that status", () => {
   assert.match(unknown, /could not create the request/);
   assert.doesNotMatch(unknown, /NaN|undefined/);
 });
+
+test("QuickBooks's own reason is shown, not e-signature advice", () => {
+  const hint = providerFailureHint(
+    "QUICKBOOKS_CUSTOMER_CREATE_FAILED:400:The name supplied already exists. : null",
+    "QuickBooks",
+    false,
+  );
+  assert.match(hint, /QuickBooks said: "The name supplied already exists\."/);
+  assert.doesNotMatch(hint, /signer role/);
+});

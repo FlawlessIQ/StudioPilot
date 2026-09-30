@@ -739,8 +739,31 @@ export async function quickBooksCustomerId(
   const found=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${query}&minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_CUSTOMER_SEARCH_FAILED");
   const customers=asRecord(found.QueryResponse).Customer;
   let customerId=Array.isArray(customers)?text(asRecord(customers[0]).Id):"";
+  /**
+   * The same name, no email match: QuickBooks names must be unique, so
+   * creating "Dionne Rhodes" again was refused with "The name supplied
+   * already exists" and the retainer never billed (GR, 2026-09-30). A
+   * customer of that name with this email or none is this client; one with
+   * a different email is someone else, so the new one is named apart.
+   */
   if(!customerId){
-    const created=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/customer?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":`${idempotencyKey}-customer`.slice(0,50)},body:JSON.stringify({DisplayName:displayName,PrimaryEmailAddr:{Address:email},...(text(contact.get("phone"))?{PrimaryPhone:{FreeFormNumber:text(contact.get("phone"))}}:{})})},"QUICKBOOKS_CUSTOMER_CREATE_FAILED");
+    const byName=encodeURIComponent(`select * from Customer where DisplayName = '${displayName.replaceAll("'","\\'")}' maxresults 1`);
+    const named=await providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/query?query=${byName}&minorversion=75`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}},"QUICKBOOKS_CUSTOMER_SEARCH_FAILED");
+    const match=asRecord((asRecord(named.QueryResponse).Customer as unknown[]|undefined)?.[0]);
+    const matchEmail=text(asRecord(match.PrimaryEmailAddr).Address).toLowerCase();
+    if(text(match.Id)&&(!matchEmail||matchEmail===email.toLowerCase()))customerId=text(match.Id);
+  }
+  if(!customerId){
+    const create=(name:string,suffix:string)=>providerJson(`${base}/v3/company/${encodeURIComponent(realmId)}/customer?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":`${idempotencyKey}-customer${suffix}`.slice(0,50)},body:JSON.stringify({DisplayName:name,PrimaryEmailAddr:{Address:email},...(text(contact.get("phone"))?{PrimaryPhone:{FreeFormNumber:text(contact.get("phone"))}}:{})})},"QUICKBOOKS_CUSTOMER_CREATE_FAILED");
+    let created:Record<string,unknown>;
+    try{
+      created=await create(displayName,"");
+    }catch(caught){
+      // Taken by another customer, a vendor or an employee (QuickBooks names
+      // are unique across all three): the same person with their email.
+      if(!(caught instanceof Error&&/already exists/i.test(caught.message)))throw caught;
+      created=await create(`${displayName} (${email})`.slice(0,100),"-2");
+    }
     customerId=text(asRecord(created.Customer).Id);
   }
   if(!customerId)throw new Error("QUICKBOOKS_CUSTOMER_ID_MISSING");

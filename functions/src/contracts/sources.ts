@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { describeCoverage, resolveCoverage } from "../packages/coverage.js";
+import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
+import { packageInclusionItems } from "../packages/inclusions.js";
 import {
   importedAgreementText,
   type ContractCustomField,
@@ -170,12 +171,38 @@ export async function loadContractSources(
     : [];
   const clientName = text(client.displayName);
   const clientEmail = text(client.email).toLowerCase();
-  const coverageRoles = describeCoverage(resolveCoverage(snapshotData));
-  const hours = hoursPhrase(Number(snapshotData.includedCoverageMinutes));
+  /**
+   * Every package on the proposal, not only the first. GR's photo + video
+   * agreement said "2 photographers, 8 hours" and listed only the photo
+   * package's inclusions (2026-09-30): the videographer and the whole video
+   * package were missing from what the couple signed.
+   */
+  const soldSnapshots = [
+    ...(snapshot?.exists && snapshot.get("tenantId") === input.tenantId ? [snapshot] : []),
+    ...additionalSnapshots,
+  ].map((document) => record(document.data()));
+  const allSnapshots = soldSnapshots.length ? soldSnapshots : [snapshotData];
+  const coverageRoles = describeCoverage(
+    combineCoverage(allSnapshots.map((data) => resolveCoverage(data))),
+  );
+  const hours = hoursPhrase(
+    Math.max(0, ...allSnapshots.map((data) => Number(data.includedCoverageMinutes) || 0)),
+  );
   const coverage = [coverageRoles, hours].filter(Boolean).join(", ");
-  const deliverables = Array.isArray(snapshotData.includedDeliverables)
-    ? (snapshotData.includedDeliverables as unknown[]).map(text).filter(Boolean)
-    : [];
+  const includedFor = (data: Record<string, unknown>) => {
+    const listed = Array.isArray(data.includedDeliverables)
+      ? (data.includedDeliverables as unknown[]).map(text).filter(Boolean)
+      : [];
+    return listed.length ? listed : packageInclusionItems(data.description);
+  };
+  // One package reads as its list; several each start with their name.
+  const deliverables =
+    allSnapshots.length > 1
+      ? allSnapshots.flatMap((data) => {
+          const items = includedFor(data);
+          return items.length ? [`${text(data.packageName) || "Package"}:`, ...items] : [];
+        })
+      : includedFor(allSnapshots[0]!);
 
   return {
     clientEmail,

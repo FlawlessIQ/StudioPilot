@@ -20,8 +20,23 @@ export function providerFailureHint(
       : `${provider} needs a paid API plan to send agreements. Upgrade it, turn on test mode in Integrations to rehearse the booking, or send this one outside StudioCue and record the signature below.`;
   if (status === 401 || status === 403)
     return `${provider} rejected the connection. Reconnect it in Integrations and try again.`;
-  if (status === 400)
+  if (status === 400) {
+    // Signer roles are an e-signature thing. QuickBooks refusing an invoice
+    // was told to check its agreement template (GR, 2026-09-30); it says what
+    // was wrong, so show that.
+    if (/quickbooks/i.test(provider)) {
+      const said = message
+        .split(":")
+        .slice(2)
+        .join(":")
+        .replace(/\s*:\s*null\s*$/i, "")
+        .trim();
+      return said
+        ? `QuickBooks said: "${said.slice(0, 200)}" Try again, or record the payment below if it was paid another way.`
+        : "QuickBooks refused the request. Try again, or record the payment below if it was paid another way.";
+    }
     return `${provider} rejected the request — usually the agreement template's signer role does not match. Check the template, then try again.`;
+  }
   if (status === 429)
     return `${provider} is rate limiting. Wait a moment and try again.`;
   return `${provider} could not create the request. Check the connection in Integrations, then try again.`;

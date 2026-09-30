@@ -45,6 +45,21 @@ export function SheetDialog({
   // that a dialog inside a scrolled or transformed ancestor gets clipped by
   // it. Both go away at the document root.
 
+  /**
+   * The latest onClose, read by the key handler, so the effect below runs
+   * only when the dialog opens and closes.
+   *
+   * It used to depend on `onClose`, and callers pass an arrow made fresh each
+   * render — so every keystroke in a field inside re-ran it: focus went back
+   * to the page, then to the panel, and the field lost it. Typing a name to
+   * sign an agreement took a click per letter (GR, 2026-09-30), as the
+   * schedule's fields had before.
+   */
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
     returnFocusTo.current = document.activeElement;
@@ -52,7 +67,7 @@ export function SheetDialog({
     // than continuing through the page behind.
     panel.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeRef.current();
     };
     document.addEventListener("keydown", onKey);
     // The page behind must not scroll under the panel.
@@ -65,7 +80,7 @@ export function SheetDialog({
       // reader at the top of the document.
       (returnFocusTo.current as HTMLElement | null)?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   // No mounted flag: `open` is driven by a click, so it is always false
   // during SSR and the document always exists by the time this renders.
