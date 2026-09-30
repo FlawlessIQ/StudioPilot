@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -34,14 +34,14 @@ export function OwnerShootingToggle({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The job page reads the project once; show the answer just given.
-  const [shooting, setShooting] = useState(ownerShooting);
-  useEffect(() => setShooting(ownerShooting), [ownerShooting]);
+  const [given, setGiven] = useState<boolean | null>(null);
+  const shooting = given ?? ownerShooting;
   const change = async () => {
     setBusy(true);
     setError(null);
     try {
       await setOwnerShooting(projectId, !shooting);
-      setShooting(!shooting);
+      setGiven(!shooting);
     } catch (caught: unknown) {
       setError(friendlyError(caught, "That couldn't be changed. Try again."));
     } finally {

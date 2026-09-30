@@ -962,7 +962,7 @@ export function OwnerShootingCard({ action }: ActionCardProps) {
   const title = `Who's shooting · ${jobName(job)}`;
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
-  if (!job) return <ActionShell title={title}><Blocked>I couldn't find that job.</Blocked></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>{"I couldn't find that job."}</Blocked></ActionShell>;
   if (runner.done) return <ActionShell title={title}><Done href={`/studio/projects/${job.id}`} label="Open the job">{runner.done}</Done></ActionShell>;
   const said = str(action.text).toLowerCase();
   const wantShooting = !/\b(no|not|isn'?t|won'?t|away|off|crew)\b/.test(said);
