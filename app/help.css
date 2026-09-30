@@ -538,7 +538,8 @@
   background: var(--surface, #fff);
   color: var(--ink);
   box-shadow: 0 8px 28px rgb(23 26 24 / 16%);
-  font-family: inherit;
+  /* Not inherited: the ⓘ often sits in a heading set in the display serif. */
+  font-family: var(--font-instrument), var(--font-geist-sans), system-ui, sans-serif;
   font-size: 0.8rem;
   font-weight: 400;
   line-height: 1.5;
@@ -641,8 +642,10 @@
   outline: 2px solid color-mix(in srgb, var(--success) 55%, transparent);
   outline-offset: 2px;
 }
-/* On a phone the studio's top bar keeps the icon and drops the word. */
-@media (max-width: 560px) {
+/* Where the top bar is tight — a phone, or a narrow window beside the
+   sidebar — the button keeps its icon and drops the word, so "New project"
+   never wraps onto two lines. */
+@media (max-width: 1100px) {
   .ds-topbar .how-to-trigger {
     padding: 7px;
   }
@@ -666,6 +669,7 @@
   gap: 18px;
   padding: 26px 26px 22px;
   color: var(--ink);
+  font-family: var(--font-instrument), var(--font-geist-sans), system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.55;
 }
