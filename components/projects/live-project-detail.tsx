@@ -233,6 +233,7 @@ function displayDate(value: unknown): string {
 
 function ProjectStageControl({
   projectId,
+  bookingAgreementOut = false,
   state,
   stateVersion,
   onTransition,
@@ -251,6 +252,12 @@ function ProjectStageControl({
    * different names for it. This card steps aside and points up.
    */
   journeyAdvance: { targetState: string; label: string } | null;
+  /**
+   * A booking agreement (H2) is out: signing it is what accepts the proposal,
+   * so "Record their acceptance" would be refused — and would strand the
+   * agreement if it weren't.
+   */
+  bookingAgreementOut?: boolean;
 }) {
   const target = forwardStage[state];
   const [busy, setBusy] = useState(false);
@@ -259,6 +266,7 @@ function ProjectStageControl({
   if (!target || !allowedProjectTransitions[state].includes(target)) {
     return null;
   }
+  if (bookingAgreementOut && state === "PROPOSAL") return null;
   /**
    * A gated stage used to render nothing at all.
    *
@@ -1053,6 +1061,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     ) : null;
   const stageControlEl = (
     <ProjectStageControl
+      bookingAgreementOut={related.contracts.some(
+        (contract) => contract.mode === "combined" && ["sent", "viewed"].includes(String(contract.status)),
+      )}
       journeyAdvance={
         journey.current?.advance
           ? {

@@ -1,6 +1,7 @@
 "use client";
 
 import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 import { undatedPaymentDue } from "@/features/contracts/document";
 import {
   describeCoverage,
@@ -1531,6 +1532,7 @@ export function StudioProposalWorkspace({
   recordAcceptance?: boolean;
 }) {
   const workspace = useWorkspace();
+  const contracts = useTenantDocuments("contracts");
   const [proposal, setProposal] = useState<Value | null | undefined>(
     dataIsLive ? undefined : { ...mockProposal, id },
   );
@@ -2393,7 +2395,7 @@ export function StudioProposalWorkspace({
                     <dd>{date(proposal.viewedAt, true, "Not yet")}</dd>
                   </div>
                 </dl>
-                {proposal.combinedContractId ? (
+                {combinedAgreementLive(proposal, contracts.records) ? (
                   // Sent inside a booking agreement (H2): resending the
                   // proposal alone, re-issuing it or recording an acceptance
                   // would each pull the price out from under the agreement
@@ -2466,6 +2468,19 @@ export function StudioProposalWorkspace({
                   * "studio_attested"` so the two are never confused.
                   */}
                 {recordAcceptance}
+                {/**
+                  * A booking agreement that was withdrawn (or declined for
+                  * changes) leaves the proposal sent with nothing live to
+                  * sign; without this the studio could only send the proposal
+                  * alone.
+                  */}
+                {proposal.combinedContractId ? (
+                  <CombinedAgreementSend
+                    onSent={() => window.location.reload()}
+                    projectId={String(proposal.projectId ?? "")}
+                    proposalId={String(proposal.id)}
+                  />
+                ) : null}
                   </>
                 )}
               </div>
@@ -2549,5 +2564,24 @@ export function StudioProposalWorkspace({
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * The note that hides Resend and Re-issue belongs only while the couple has a
+ * booking agreement in front of them. Once it is withdrawn or declined the
+ * proposal is an ordinary sent proposal again.
+ */
+function combinedAgreementLive(
+  proposal: Value,
+  contracts: Array<Record<string, unknown> & { id: string }> | null,
+) {
+  const contractId = text(proposal.combinedContractId, "");
+  if (!contractId) return false;
+  // Until contracts load, keep the guarded view rather than flash the actions.
+  if (!contracts) return true;
+  const contract = contracts.find((record) => record.id === contractId);
+  return Boolean(
+    contract && ["sent", "viewed"].includes(text(contract.status, "")),
   );
 }

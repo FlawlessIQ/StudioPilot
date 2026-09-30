@@ -78,7 +78,18 @@ export const contractReminderScheduler = onSchedule(
       const project = await db.doc(`projects/${projectId}`).get();
       if (!project.exists || project.get("tenantId") !== tenantId) continue;
       if (clientAutomationsPaused(project.data())) continue;
-      if (project.get("state") !== "CONTRACT_PENDING") continue;
+      // A booking agreement (H2) waits while the job is still at PROPOSAL —
+      // signing it is what accepts the proposal. Checking CONTRACT_PENDING
+      // alone meant a couple sitting on one was never reminded.
+      const combined = contract.get("mode") === "combined";
+      if (project.get("state") !== (combined ? "PROPOSAL" : "CONTRACT_PENDING")) continue;
+      if (combined) {
+        // Its prices are the proposal's; once those have lapsed, signing is
+        // refused, and a reminder would only send the couple to an error.
+        const proposal = await db.doc(`proposals/${String(contract.get("proposalId") ?? "")}`).get();
+        const expiresAt = Date.parse(String(proposal.get("expiresAt") ?? ""));
+        if (!proposal.exists || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) continue;
+      }
       const signers = Array.isArray(contract.get("signers"))
         ? (contract.get("signers") as Array<Record<string, unknown>>)
         : [];

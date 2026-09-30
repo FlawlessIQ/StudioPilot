@@ -1471,6 +1471,16 @@ async function decideProposal({
     ) {
       throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
     }
+    // Asking for changes on a proposal sent inside a booking agreement (H2)
+    // withdraws the agreement too: its Part 2 is this proposal's price, and
+    // the couple has just said it isn't right. Left out, the agreement stayed
+    // "waiting to sign" and signing it failed with a message about the studio
+    // having changed it.
+    const combinedContractId = safeString(proposal.get("combinedContractId"));
+    const combinedContract =
+      decision === "declined" && combinedContractId
+        ? await transaction.get(adminFirestore.doc(`contracts/${combinedContractId}`))
+        : null;
 
     const now = new Date().toISOString();
     const plan = planClientProposalDecision({
@@ -1495,6 +1505,34 @@ async function decideProposal({
     };
 
     if (!plan.alreadyComplete) {
+      if (
+        combinedContract?.exists &&
+        combinedContract.get("tenantId") === tenantId &&
+        ["sent", "viewed"].includes(String(combinedContract.get("status")))
+      ) {
+        transaction.update(combinedContract.ref, {
+          status: "voided",
+          voidedAt: now,
+          voidedBy: actorId,
+          voidReason: `The couple asked for changes: ${reason ?? ""}`.trim().slice(0, 500),
+          updatedAt: now,
+          updatedBy: actorId,
+        });
+        transaction.create(adminFirestore.doc(`auditEvents/${decisionId}_agreement`), {
+          tenantId,
+          actor: actorId,
+          actorType: "client",
+          action: "contract.withdrawn_for_changes",
+          entityType: "contract",
+          entityId: combinedContract.id,
+          timestamp: now,
+          beforeSnapshot: { status: combinedContract.get("status") },
+          afterSnapshot: { status: "voided", reason },
+          correlationId: decisionId,
+          automationRunId: null,
+          providerEventId: null,
+        });
+      }
       transaction.update(proposalReference, {
         status: plan.proposalStatus,
         acceptedAt: decision === "accepted" ? now : null,

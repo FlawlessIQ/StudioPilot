@@ -205,6 +205,11 @@ export type JourneyInput = {
   lead: { id: string; status: string; replied?: boolean } | null;
   hasConsultation: boolean;
   proposalStatus: string | null;
+  /**
+   * The proposal went out inside a booking agreement (H2) that is waiting for
+   * the couple: signing it is the acceptance, so the step says so.
+   */
+  bookingAgreementOut?: boolean;
   contractStatus: string | null;
   retainerInvoiceStatus: string | null;
   finalInvoiceStatus: string | null;
@@ -503,15 +508,18 @@ export function projectJourney(input: JourneyInput): {
   const proposalWaiting = ["sent", "viewed"].includes(
     input.proposalStatus ?? "",
   );
+  const agreementOut = proposalWaiting && input.bookingAgreementOut === true;
   push({
     key: "proposal",
-    title: "Proposal",
+    title: agreementOut ? "Booking agreement" : "Proposal",
     explain: proposalInferred,
     detail: proposalDone
       ? proposalInferred
         ? "Accepted outside StudioCue — no proposal on file here"
         : "Accepted"
-      : proposalWaiting
+      : agreementOut
+        ? "With the couple to sign — signing both parts accepts the proposal"
+        : proposalWaiting
         ? "With the client to decide"
         : consulted
           ? "Packages and pricing, ready to send"
@@ -531,7 +539,7 @@ export function projectJourney(input: JourneyInput): {
         ? null
         : {
             kind: "link",
-            label: proposalWaiting ? "View proposal" : "Prepare proposal",
+            label: agreementOut ? "View booking agreement" : proposalWaiting ? "View proposal" : "Prepare proposal",
             // No proposal yet → straight into the guided composer (which also
             // locks a package when one is missing). An existing proposal →
             // the project's proposal list.

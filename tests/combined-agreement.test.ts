@@ -179,3 +179,55 @@ test("the couple's portal is sent what the booking agreement screens check", () 
   const signing = readFileSync("components/client/contract-signing.tsx", "utf8");
   assert.match(signing, /contract\.mode === "combined" && Array\.isArray\(contract\.sections\)/);
 });
+
+test("asking for changes withdraws the booking agreement with the proposal", () => {
+  const route = readFileSync("app/api/client/portal/route.ts", "utf8");
+  assert.match(route, /decision === "declined" && combinedContractId/);
+  assert.match(route, /action: "contract\.withdrawn_for_changes"/);
+});
+
+test("a couple sitting on a booking agreement is reminded, until its prices lapse", () => {
+  const reminders = readFileSync("functions/src/contracts/reminders.ts", "utf8");
+  assert.match(reminders, /project\.get\("state"\) !== \(combined \? "PROPOSAL" : "CONTRACT_PENDING"\)/);
+  assert.match(reminders, /expiresAt <= Date\.now\(\)\) continue;/);
+});
+
+test("while a booking agreement is out, the job says so — and doesn't offer to record an acceptance", async () => {
+  const { projectJourney } = await import("@/features/journey/steps");
+  const base = {
+    projectId: "p1",
+    state: "PROPOSAL",
+    eventDate: "2027-10-09",
+    today: "2026-09-30",
+    lead: { id: "l1", status: "converted" },
+    hasConsultation: true,
+    proposalStatus: "sent",
+    contractStatus: "sent",
+    retainerInvoiceStatus: null,
+    finalInvoiceStatus: null,
+    questionnaireStatus: null,
+    questionnaireHasAnswers: false,
+    scheduleStatus: null,
+    scheduleHasUsableItems: false,
+    crewAccepted: 0,
+    crewCascadeActive: false,
+    coiStatus: null,
+    insuranceRequired: null,
+    dayBeforeDraftStatus: null,
+    hasDelivery: false,
+    albumOrReviewDone: false,
+  } as const;
+  const step = (input: Record<string, unknown>) =>
+    projectJourney(input as never).steps.find((item) => item.key === "proposal");
+  assert.equal(step(base)?.title, "Proposal");
+  assert.equal(step({ ...base, bookingAgreementOut: true })?.title, "Booking agreement");
+  assert.match(String(step({ ...base, bookingAgreementOut: true })?.detail), /signing both parts accepts the proposal/);
+  const detail = readFileSync("components/projects/live-project-detail.tsx", "utf8");
+  assert.match(detail, /if \(bookingAgreementOut && state === "PROPOSAL"\) return null;/);
+});
+
+test("the proposal page guards its actions only while the booking agreement is live", () => {
+  const source = readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8");
+  assert.match(source, /combinedAgreementLive\(proposal, contracts\.records\)/);
+  assert.match(source, /\["sent", "viewed"\]\.includes\(text\(contract\.status/);
+});

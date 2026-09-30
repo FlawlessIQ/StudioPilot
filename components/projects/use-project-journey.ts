@@ -179,6 +179,9 @@ export function useProjectJourney({
           text(right.createdAt).localeCompare(text(left.createdAt)),
         )[0]?.status,
       ) || null,
+    bookingAgreementOut: forProject(contracts.records).some(
+      (contract) => contract.mode === "combined" && ["sent", "viewed"].includes(text(contract.status)),
+    ),
     contractStatus:
       text(
         forProject(contracts.records).sort((left, right) =>
