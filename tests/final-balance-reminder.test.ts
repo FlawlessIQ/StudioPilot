@@ -55,8 +55,51 @@ test("what's left is the agreed total less what was paid on bills still standing
   assert.equal(paidUp.cents, null);
 });
 
-test("Today's 'send final invoice' step is a card that sends it, not a link to a page that can't", () => {
+test("an unbilled balance gets its own Today card, even behind an earlier step", () => {
   const inbox = todayInbox({
+    now: "2026-09-30T12:00:00Z",
+    projects: [
+      { id: "p1", name: "Alex & Sam Rivera wedding", state: "BOOKED", eventDate: "2026-10-22", packageSnapshotId: "snap1", archivedAt: null },
+      // Months away: not yet Today's business.
+      { id: "p2", name: "Far Away wedding", state: "BOOKED", eventDate: "2027-06-01", packageSnapshotId: "snap2", archivedAt: null },
+    ],
+    proposals: rivera.proposals,
+    invoiceReferences: rivera.invoices,
+    // Walked on production: the journey's current step was "send the form",
+    // and the balance never surfaced behind it.
+    journeys: [
+      {
+        stepKey: "questionnaire",
+        projectId: "p1",
+        projectName: "Alex & Sam Rivera wedding",
+        eventDate: "2026-10-22",
+        state: "BOOKED",
+        stepTitle: "Questionnaire",
+        stepDetail: "Prep locations, times, and family names",
+        owner: "studio",
+        actionLabel: "Send the form",
+        actionHref: "/studio/questionnaires?project=p1",
+        updatedAt: "2026-09-30T11:00:00Z",
+      },
+    ],
+  });
+  const card = inbox.act.find((item) => item.id === "final-balance-p1");
+  assert.ok(card, "the card");
+  assert.equal(card!.title, "Bill Alex & Sam Rivera's final balance · $6,219.30");
+  assert.match(card!.detail, /^Due Oct 8, 2026\. Nothing has billed it yet/);
+  assert.deepEqual(card!.action, {
+    kind: "final_balance",
+    label: "Send the final bill",
+    projectId: "p1",
+    packageSnapshotId: "snap1",
+    balanceCents: 621_930,
+  });
+  assert.ok(inbox.act.some((item) => item.id === "journey-p1"), "the form step still shows");
+  assert.ok(!inbox.act.some((item) => item.id === "final-balance-p2"));
+  // A superseded final is not an overdue balance.
+  assert.ok(!inbox.act.some((item) => item.id === "invoice-old-final"));
+  // When the journey's current step *is* the balance, it gives way to the card.
+  const same = todayInbox({
     now: "2026-09-30T12:00:00Z",
     projects: [{ id: "p1", name: "Alex & Sam Rivera wedding", state: "BOOKED", eventDate: "2026-10-22", packageSnapshotId: "snap1", archivedAt: null }],
     proposals: rivera.proposals,
@@ -69,27 +112,18 @@ test("Today's 'send final invoice' step is a card that sends it, not a link to a
         eventDate: "2026-10-22",
         state: "BOOKED",
         stepTitle: "Final balance",
-        stepDetail: "Total − retainer, computed exactly · one month out",
+        stepDetail: "Total − retainer",
         owner: "studio",
         actionLabel: "Send final invoice",
         actionHref: "/studio/invoices?project=p1",
-        updatedAt: "2026-09-30T11:00:00Z",
+        updatedAt: null,
       },
     ],
   });
-  const card = inbox.act.find((item) => item.id === "journey-p1");
-  assert.ok(card, "the card");
-  assert.equal(card!.title, "Bill Alex & Sam Rivera's final balance · $6,219.30");
-  assert.match(card!.detail, /^Due Oct 8, 2026\. Nothing has billed it yet/);
-  assert.deepEqual(card!.action, {
-    kind: "final_balance",
-    label: "Send the final bill",
-    projectId: "p1",
-    packageSnapshotId: "snap1",
-    balanceCents: 621_930,
-  });
-  // A superseded final is not an overdue balance.
-  assert.ok(!inbox.act.concat(inbox.approve ?? []).some((item) => item.id === "invoice-old-final"));
+  assert.deepEqual(
+    same.act.filter((item) => item.projectId === "p1").map((item) => item.id),
+    ["final-balance-p1"],
+  );
 });
 
 test("sending by hand resolves the customer; the scheduler still never bills anyone new", () => {
