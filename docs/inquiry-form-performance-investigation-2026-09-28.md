@@ -160,3 +160,16 @@ uses the same pieces. Apply the same budgets and fixes there.
   - every keystroke shows in **< 100 ms** (INP well under 200 ms);
   - address suggestions within **~400 ms** of a pause.
 - **Nothing typed is ever lost.**
+
+## Done, 2026-09-30 (measured on production, `/inquiry?studio=flawlessiq-14313514`)
+
+| | 2026-09-28 | 2026-09-30 | How |
+|---|---|---|---|
+| CSS | 729 KB, 6,369 rules | **59 KB, 405 rules** | eaad22f: the app's stylesheets moved from the root layout to each section's layout (`app/app-styles.ts`). `/inquiry` loads `app/inquiry/inquiry.css` plus the kit. Checked by computed style on every step. |
+| JavaScript | 885 KB (1.5 MB before Phase 0) | **602 KB** | 19e7286: the browser check is Zod-free (`features/leads/public-intake-validate.ts`), which removed a 265 KB chunk. It is held to the schema by `tests/public-intake-validate.test.ts`. |
+| Suggestion | 300–400 ms (137–197 ms of it the rate-limit transaction) | **150–250 ms** (checks ≈1 ms) | 9ddf872: the limit is answered from memory, and the shared Firestore count runs off the response path. |
+| Service worker, body observer | on | **off on `/inquiry`** | eaad22f |
+
+Also: a browser over the suggestion limit is now told once that suggestions are paused, instead of the list silently stopping.
+
+**What's left.** The remaining 602 KB is mostly React and the Next.js runtime (222 KB + 138 KB). Getting under the 250 KB target would mean not using React for this page, which isn't worth it for one form. A phone-class profile (4× CPU) is still to do on a real device.
