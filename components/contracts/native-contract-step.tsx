@@ -16,6 +16,7 @@ import {
 import { STUDIO_SIGNING_STATEMENT } from "@/features/contracts/esign-consent";
 import { formatSignedAt } from "@/features/contracts/format";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
+import { agreementChangedSincePrepared } from "@/features/contracts/agreement-version";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
@@ -40,6 +41,8 @@ type Draft = {
   clientName: string;
   clientEmail: string;
   templateVersion: number;
+  /** The agreement version this draft was prepared from, and sends against. */
+  templateVersionId?: string;
   source: string;
 };
 
@@ -77,6 +80,8 @@ export function NativeContractStep({
   const [voidReason, setVoidReason] = useState("");
   const [showText, setShowText] = useState(false);
   const [reload, setReload] = useState(0);
+  /** The studio's agreement as it stands, to notice a draft written from an older one. */
+  const [currentVersionId, setCurrentVersionId] = useState<string | null>(null);
 
   const live = contract && ["sent", "viewed", "completed"].includes(String(contract.status))
     ? contract
@@ -98,6 +103,26 @@ export function NativeContractStep({
           : null;
       setDraft(usable);
       setOverrides(usable?.mergeOverrides ?? {});
+      // The same lookup the server makes (loadAgreementTemplate): the tenant's
+      // default agreement, unless archived, at its current version.
+      let current: string | null = null;
+      if (usable && workspace.tenantId) {
+        try {
+          const tenant = await getDoc(doc(firestore, "tenants", workspace.tenantId));
+          const settings = tenant.get("defaultContractSettings") as { agreementTemplateId?: unknown } | undefined;
+          const templateId = typeof settings?.agreementTemplateId === "string" ? settings.agreementTemplateId : "";
+          if (templateId) {
+            const head = await getDoc(doc(firestore, "agreementTemplates", templateId));
+            if (head.exists() && head.get("status") !== "archived" && typeof head.get("currentVersionId") === "string") {
+              current = head.get("currentVersionId") as string;
+            }
+          }
+        } catch {
+          // Unreadable is not "changed": the server still refuses a stale send.
+          current = null;
+        }
+      }
+      setCurrentVersionId(current);
     } catch {
       setDraft(null);
     } finally {
@@ -137,6 +162,14 @@ export function NativeContractStep({
     (field) => !recordOnlyFields.has(field.key) && field.source !== "record",
   );
   const missing = draft?.unresolvedFields ?? [];
+  /**
+   * The studio edited its agreement after this draft was prepared. Sending
+   * resolves against the draft's pinned version, so the old wording would go
+   * out; the server refuses that now, and this says so before they sign.
+   */
+  const agreementStale = draft
+    ? agreementChangedSincePrepared(draft.templateVersionId, currentVersionId)
+    : false;
 
   async function run(label: string, action: () => Promise<unknown>, done: string | null) {
     setBusy(label);
@@ -151,7 +184,10 @@ export function NativeContractStep({
       setReload((current) => current + 1);
     } catch (caught: unknown) {
       setError(friendlyError(caught, "That didn't go through. Try again."));
-      if (caught instanceof Error && caught.message === "CONTRACT_CHANGED") {
+      if (
+        caught instanceof Error &&
+        ["CONTRACT_CHANGED", "AGREEMENT_CHANGED_SINCE_PREPARED"].includes(caught.message)
+      ) {
         setReload((current) => current + 1);
       }
     } finally {
@@ -337,6 +373,12 @@ export function NativeContractStep({
             : "Prepared from agreement version "}
           {draft.templateVersion}. Highlighted text came from the job&rsquo;s records.
         </p>
+        {agreementStale ? (
+          <p className="native-contract-note" role="status">
+            <strong>Your agreement changed since this was prepared — update it.</strong>{" "}
+            Updating writes it again from your current agreement, keeping the details you filled in.
+          </p>
+        ) : null}
       </div>
       {fillable.length ? (
         <div className="native-contract-fields">
@@ -357,8 +399,13 @@ export function NativeContractStep({
         </div>
       ) : null}
       <div className="native-contract-actions">
-        {fillable.length ? (
-          <button className="button button-light" disabled={busy !== null} onClick={() => void prepare()} type="button">
+        {fillable.length || agreementStale ? (
+          <button
+            className={agreementStale ? "button button-dark" : "button button-light"}
+            disabled={busy !== null}
+            onClick={() => void prepare()}
+            type="button"
+          >
             <RotateCw aria-hidden size={15} className={busy === "prepare" ? "spin" : undefined} />
             {busy === "prepare" ? "Updating…" : "Update the contract"}
           </button>
@@ -391,14 +438,16 @@ export function NativeContractStep({
         <div className="native-contract-actions">
           <button
             className="button button-dark"
-            disabled={busy !== null || missing.length > 0}
+            disabled={busy !== null || missing.length > 0 || agreementStale}
             onClick={() => void send()}
             type="button"
           >
             {busy === "send" ? <LoaderCircle className="spin" aria-hidden size={15} /> : <Send aria-hidden size={15} />}
             {busy === "send" ? "Sending…" : `Sign & send to ${draft.clientName || "the client"}`}
           </button>
-          {missing.length ? (
+          {agreementStale ? (
+            <span className="native-contract-note">Update it to your current agreement first.</span>
+          ) : missing.length ? (
             <span className="native-contract-note">Fill in the highlighted details first.</span>
           ) : (
             <span className="native-contract-note">It goes to {draft.clientEmail}.</span>

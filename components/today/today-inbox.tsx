@@ -43,6 +43,10 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
+import {
+  packageChangeAlreadyApplied,
+  proposalAlreadyRevised,
+} from "@/features/proposals/workspace-guards";
 import { useRouter } from "next/navigation";
 import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -1390,7 +1394,6 @@ function PackageRequestActions({
     setBusy("add");
     setNotice(null);
     try {
-      let alreadyAdded = false;
       try {
         await runCrmCommand("selectPackage", {
           projectId: action.projectId,
@@ -1400,14 +1403,22 @@ function PackageRequestActions({
           discount: { type: "none" },
         });
       } catch (caught: unknown) {
-        // Added already, from the proposal or Cue: the request is met.
-        if (!(caught instanceof Error && caught.message.includes("PACKAGE_ALREADY_ON_JOB"))) throw caught;
-        alreadyAdded = true;
+        // Added already — from the proposal, Cue, or this button's first
+        // attempt — so the package is on the job either way.
+        if (!packageChangeAlreadyApplied(caught)) throw caught;
       }
+      // Revised whether or not the add was new. Skipping it on "already on
+      // the job" meant a retry after a failed revise never re-priced the
+      // proposal, and the couple couldn't accept it (PACKAGE_SNAPSHOT_CONFLICT).
       let resultProposalId: string | null = null;
-      if (action.proposalId && !alreadyAdded) {
-        const revised = await runProposalCommand("revise_packages", { proposalId: action.proposalId });
-        resultProposalId = typeof revised.result.proposalId === "string" ? revised.result.proposalId : action.proposalId;
+      if (action.proposalId) {
+        try {
+          const revised = await runProposalCommand("revise_packages", { proposalId: action.proposalId });
+          resultProposalId = typeof revised.result.proposalId === "string" ? revised.result.proposalId : action.proposalId;
+        } catch (caught: unknown) {
+          // The first attempt revised it and only closing the request failed.
+          if (!proposalAlreadyRevised(caught)) throw caught;
+        }
       }
       await runCrmCommand("decidePackageRequest", {
         requestId: action.requestId,

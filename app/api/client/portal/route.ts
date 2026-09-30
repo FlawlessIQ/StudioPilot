@@ -21,7 +21,10 @@ import {
   adminFirestore,
 } from "@/server/firebase/admin";
 import { buildClientPortalExperience } from "@/server/client/portal-experience";
-import { planClientProposalDecision } from "@/server/client/proposal-decision";
+import {
+  currentCoupleProposal,
+  planClientProposalDecision,
+} from "@/server/client/proposal-decision";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { isAmendable } from "@/features/booking/amendable";
 import {
@@ -653,6 +656,11 @@ async function clientRecords(
   });
 }
 
+/** A stored id list, or none. */
+function stringIds(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+}
+
 async function clientProject(tenantId: string, projectId: string) {
   const availabilityCollections = {
     proposal: "proposals",
@@ -675,14 +683,17 @@ async function clientProject(tenantId: string, projectId: string) {
       .where("visibility", "in", ["client", "shared"])
       .limit(100)
       .get(),
-    ...Object.values(availabilityCollections).map((collectionName) =>
-      adminFirestore
+    ...Object.values(availabilityCollections).map((collectionName) => {
+      const scoped = adminFirestore
         .collection(collectionName)
         .where("tenantId", "==", tenantId)
-        .where("projectId", "==", projectId)
+        .where("projectId", "==", projectId);
+      // Newest first for proposals: unordered, a job with more than ten
+      // versions could leave the current one out of the ten read.
+      return (collectionName === "proposals" ? scoped.orderBy("version", "desc") : scoped)
         .limit(10)
-        .get(),
-    ),
+        .get();
+    }),
   ]);
   if (
     !projectSnapshot.exists ||
@@ -757,13 +768,13 @@ async function clientProject(tenantId: string, projectId: string) {
   const questionnaireStatus =
     safeString(availabilitySnapshots[questionnaireIndex].docs[0]?.get("status")) ?? null;
   const proposalIndex = Object.keys(availabilityCollections).indexOf("proposal");
-  // A discarded draft was never theirs to see, so it isn't "the current one".
-  const currentProposal = [...availabilitySnapshots[proposalIndex].docs]
-    .filter((document) => document.get("status") !== "discarded")
-    .sort(
-    (left, right) =>
-      Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
-  )[0];
+  // Only a version the couple has been given. A draft, one in review or
+  // approved-but-unsent after a reissue or revise was taken as "current", and
+  // their page said the proposal was being prepared while they held one.
+  const currentProposal = currentCoupleProposal(
+    availabilitySnapshots[proposalIndex].docs,
+    (document) => ({ status: document.get("status"), version: document.get("version") }),
+  );
   const storedProposalStatus = currentProposal
     ? String(currentProposal.get("status") ?? "")
     : null;
@@ -1500,11 +1511,13 @@ async function decideProposal({
         state: String(project.get("state") ?? ""),
         packageSnapshotId:
           safeString(project.get("packageSnapshotId")) ?? null,
+        additionalPackageSnapshotIds: stringIds(project.get("additionalPackageSnapshotIds")),
       },
       proposal: {
         status: String(proposal.get("status") ?? ""),
         expiresAt: String(proposal.get("expiresAt") ?? ""),
         packageSnapshotId,
+        additionalPackageSnapshotIds: stringIds(proposal.get("additionalPackageSnapshotIds")),
       },
     });
     const response = {
