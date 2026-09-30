@@ -52,6 +52,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     billVideographers?: boolean;
     deliverables?: EditableDeliverable[];
     addOnIds?: string[];
+    description?: string;
+    terms?: string;
   }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +79,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     : null;
 
   const name = edits.name ?? String(record?.name ?? "");
+  const description = edits.description ?? String(record?.description ?? "");
+  const terms = edits.terms ?? String(record?.terms ?? "");
   const basePrice =
     edits.basePrice ?? String(Number(record?.basePriceCents ?? 0) / 100);
   const mode = edits.mode ?? storedMode;
@@ -157,6 +161,10 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
       setError("Choose at least one role the retainer charges for.");
       return;
     }
+    if (edits.description !== undefined && description.trim().length < 10) {
+      setError("Say what the package includes — at least a line.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -190,6 +198,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         })),
         // Only when changed: an untouched list is left exactly as stored.
         ...(edits.addOnIds ? { addOnIds: edits.addOnIds } : {}),
+        ...(edits.description !== undefined ? { description: description.trim() } : {}),
+        ...(edits.terms !== undefined ? { terms: terms.trim() } : {}),
         active,
         publicVisible,
       });
@@ -215,6 +225,33 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         <label className="form-span">
           Package name
           <input onChange={(event) => set("name", event.target.value)} value={name} />
+        </label>
+        {/* It could be written only when the package was made. GR asked to
+            turn a paragraph into bullets and had nowhere to do it
+            (2026-09-30). Each line is a bullet on the proposal. */}
+        <label className="form-span">
+          What&apos;s included
+          <textarea
+            onChange={(event) => set("description", event.target.value)}
+            rows={8}
+            value={description}
+          />
+          <small>
+            One item per line — each line is a bullet on the proposal. A
+            paragraph is split at its sentences.
+          </small>
+        </label>
+        <label className="form-span">
+          Terms
+          <textarea
+            onChange={(event) => set("terms", event.target.value)}
+            rows={3}
+            value={terms}
+          />
+          <small>
+            Shown on the proposal as its terms summary. Leave it empty and
+            proposals use standard wording you can change on each one.
+          </small>
         </label>
         <label>
           Price (USD)

@@ -1,5 +1,6 @@
 "use client";
 
+import { detailsForLine } from "@/features/packages/inclusions";
 import { useMemo, useState } from "react";
 import { ArrowLeft, BadgeCheck, MessageCircle, ShieldCheck, XCircle } from "lucide-react";
 import {
@@ -203,11 +204,21 @@ export function ClientProposal() {
         <section className="kit-stack-tight" aria-label="What’s included">
           <h2 className="kit-subsection">What’s included</h2>
           <List>
-            {lines.map((line, index) => (
+            {lines.map((line, index) => {
+              // What the package includes, as the studio wrote it, one line
+              // each — every package, not only the first (GR, 2026-09-30).
+              const bullets = detailsForLine(proposal.packageDetails, line.description);
+              return (
               <Row
                 key={`${String(line.description)}-${index}`}
                 subtitle={
-                  number(line.quantity) > 1
+                  bullets.length ? (
+                    <span className="kit-row-bullets">
+                      {bullets.map((item) => (
+                        <span key={item}>{item}</span>
+                      ))}
+                    </span>
+                  ) : number(line.quantity) > 1
                     ? `${number(line.quantity)} × ${money(line.unitPriceCents, currency)}`
                     : undefined
                 }
@@ -216,7 +227,8 @@ export function ClientProposal() {
                 // `totalCents`. Reading one name rendered $0.00 on the other.
                 trailing={money(line.lineTotalCents ?? line.totalCents, currency)}
               />
-            ))}
+              );
+            })}
           </List>
         </section>
 

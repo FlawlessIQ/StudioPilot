@@ -1,3 +1,4 @@
+import { packageDetails } from "../packages/inclusions.js";
 import { expiryOnSend } from "./proposal-expiry.js";
 import { createHash } from "node:crypto";
 import { getFirestore, type Transaction } from "firebase-admin/firestore";
@@ -428,7 +429,7 @@ export const proposalCommand = onRequest(
              * returns. Each is tenant-checked: a snapshot id is not a
              * capability.
              */
-            const additionalPackageData = (
+            const additionalSnapshots = (
               await Promise.all(
                 additionalSnapshotIds
                   .slice(0, 3)
@@ -436,13 +437,14 @@ export const proposalCommand = onRequest(
                     transaction.get(db.doc(`packageSnapshots/${id}`)),
                   ),
               )
-            )
-              .filter(
-                (snapshot) =>
-                  snapshot.exists &&
-                  snapshot.get("tenantId") === command.tenantId,
-              )
-              .map((snapshot) => objectValue(snapshot.data()));
+            ).filter(
+              (snapshot) =>
+                snapshot.exists &&
+                snapshot.get("tenantId") === command.tenantId,
+            );
+            const additionalPackageData = additionalSnapshots.map((snapshot) =>
+              objectValue(snapshot.data()),
+            );
             // Each snapshot carries the discount the studio applied when
             // locking it. Not recomputed here, and never invented: there is
             // no automatic bundle discount.
@@ -492,6 +494,15 @@ export const proposalCommand = onRequest(
               },
               additionalPackageSnapshotIds: additionalSnapshotIds,
               pricingSnapshot: combinedPricing,
+              // Each package's "what's included" as bullets, for the couple's
+              // page, which can't read package snapshots.
+              packageDetails: packageDetails([
+                { id: packageSnapshotId, data: packageData },
+                ...additionalSnapshots.map((snapshot) => ({
+                  id: snapshot.id,
+                  data: objectValue(snapshot.data()),
+                })),
+              ]),
               // From the combined pricing the proposal carries, not the
               // primary package: a second package's price was missing from
               // the schedule until the draft was next saved (H2, M4).
@@ -750,6 +761,19 @@ export const proposalCommand = onRequest(
             }
             const pricing = objectValue(proposal.get("pricingSnapshot"));
             const nextRevision = currentRevision + 1;
+            /**
+             * Left out means "as it was"; null means "back to the packages'".
+             * Every save from the draft page and Cue left it out, and each one
+             * put a studio's hand-set retainer back to the package's — GR's $10
+             * test retainer became $0 (2026-09-30).
+             */
+            const storedOverride = proposal.get("retainerOverrideCents");
+            const retainerOverrideCents =
+              command.input.retainerOverrideCents === undefined
+                ? typeof storedOverride === "number"
+                  ? storedOverride
+                  : null
+                : command.input.retainerOverrideCents;
             transaction.update(proposalReference, {
               expiresAt: command.input.expiresAt,
               notes: command.input.notes,
@@ -758,12 +782,9 @@ export const proposalCommand = onRequest(
                 pricing,
                 command.input.retainerDueDate,
                 command.input.balanceDueDate,
-                command.input.retainerOverrideCents,
+                retainerOverrideCents,
               ),
-              retainerOverrideCents:
-                typeof command.input.retainerOverrideCents === "number"
-                  ? command.input.retainerOverrideCents
-                  : null,
+              retainerOverrideCents,
               draftRevision: nextRevision,
               updatedAt: timestamp,
               updatedBy: identity.uid,
@@ -888,6 +909,9 @@ export const proposalCommand = onRequest(
               additionalPackageSnapshotIds: owned.slice(1).map((snapshot) => snapshot.id),
               pricingSnapshot: pricing,
               paymentSchedule: schedule,
+              packageDetails: packageDetails(
+                owned.map((snapshot) => ({ id: snapshot.id, data: objectValue(snapshot.data()) })),
+              ),
             };
             if (["draft", "internal_review", "approved"].includes(currentStatus)) {
               // Nobody outside the studio has seen it: price it again in place,

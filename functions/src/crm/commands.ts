@@ -535,6 +535,8 @@ const commandSchema = z.discriminatedUnion("type", [
       packageId: z.string().min(1),
       name: z.string().trim().min(2).max(120).optional(),
       description: z.string().trim().min(10).max(3000).optional(),
+      /** The package's own terms line for proposals; empty clears it. */
+      terms: z.string().trim().max(6000).optional(),
       basePriceCents: z.number().int().nonnegative().safe().optional(),
       retainerRule: z
         .discriminatedUnion("type", [

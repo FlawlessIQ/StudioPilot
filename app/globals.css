@@ -1866,6 +1866,15 @@ textarea:focus-visible {
   gap: 4px;
 }
 
+/* What each package includes, one line each (GR, 2026-09-30). */
+.proposal-package-bullets {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .proposal-workspace-lines small,
 .proposal-workspace-lines dt {
   color: var(--muted);

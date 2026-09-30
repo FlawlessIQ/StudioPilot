@@ -79,12 +79,79 @@ export async function uploadStudioLogo(
    * silently rewrite history. A new name means old documents keep the mark they
    * were sent with.
    */
-  const extension = file.name.includes(".")
-    ? file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase().slice(0, 5)
-    : "png";
+  const prepared = (await trimmedLogo(file)) ?? file;
+  const extension =
+    prepared !== file
+      ? "png"
+      : file.name.includes(".")
+        ? file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase().slice(0, 5)
+        : "png";
   const objectName = `tenants/${tenantId}/branding/logo-${Date.now()}.${extension}`;
-  const stored = await uploadBytes(ref(storage, objectName), file, {
-    contentType: file.type,
+  const stored = await uploadBytes(ref(storage, objectName), prepared, {
+    contentType: prepared.type || file.type,
   });
   return getDownloadURL(stored.ref);
+}
+
+/** The longest side a stored logo keeps: sharp in an email header, small to fetch. */
+const LOGO_MAX_SIDE = 1200;
+
+/**
+ * The logo without its empty margin, at a sensible size.
+ *
+ * GR Productions uploaded a 9000 x 9738 PNG whose wordmark filled a band across
+ * the middle: every header scaled the whole square down, and the name printed a
+ * few millimetres wide (2026-09-30). Trims near-white and transparent edges
+ * and caps the size. An SVG, or anything the browser can't draw, goes up as
+ * it is; the PDF renderer trims too.
+ */
+async function trimmedLogo(file: File): Promise<Blob | null> {
+  if (file.type === "image/svg+xml" || typeof createImageBitmap !== "function") return null;
+  try {
+    const bitmap = await createImageBitmap(file);
+    // Scan at a bounded size: a 9000-pixel canvas is hundreds of megabytes.
+    const scan = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scan));
+    const height = Math.max(1, Math.round(bitmap.height * scan));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+    const { data } = context.getImageData(0, 0, width, height);
+    let left = width, top = height, right = -1, bottom = -1;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const at = (y * width + x) * 4;
+        const alpha = data[at + 3]!;
+        if (alpha < 16) continue;
+        const light = 0.299 * data[at]! + 0.587 * data[at + 1]! + 0.114 * data[at + 2]!;
+        if (light >= 235) continue;
+        if (x < left) left = x;
+        if (x > right) right = x;
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+      }
+    }
+    if (right < 0) return null;
+    const pad = Math.max(4, Math.round(0.02 * Math.max(right - left, bottom - top)));
+    left = Math.max(0, left - pad);
+    top = Math.max(0, top - pad);
+    right = Math.min(width - 1, right + pad);
+    bottom = Math.min(height - 1, bottom + pad);
+    const cropWidth = right - left + 1;
+    const cropHeight = bottom - top + 1;
+    // Nothing worth changing: leave the studio's own file alone.
+    if (scan === 1 && cropWidth >= width * 0.95 && cropHeight >= height * 0.95 && Math.max(width, height) <= LOGO_MAX_SIDE) return null;
+    const fit = Math.min(1, LOGO_MAX_SIDE / Math.max(cropWidth, cropHeight));
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.round(cropWidth * fit));
+    out.height = Math.max(1, Math.round(cropHeight * fit));
+    out.getContext("2d")?.drawImage(canvas, left, top, cropWidth, cropHeight, 0, 0, out.width, out.height);
+    return await new Promise<Blob | null>((resolve) => out.toBlob(resolve, "image/png"));
+  } catch {
+    return null;
+  }
 }

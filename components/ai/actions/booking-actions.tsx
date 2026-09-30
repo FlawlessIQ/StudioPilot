@@ -615,11 +615,11 @@ export function EditProposalCard({ action }: ActionCardProps) {
                 expiresAt: `${expiresValue}T23:59:59.000Z`,
                 notes: noteValue.trim() || null,
                 termsSummary: str(proposal.termsSummary),
-                retainerDueDate: str(proposal.retainerDueDate) || null,
-                balanceDueDate: str(proposal.balanceDueDate) || null,
-                ...(typeof proposal.retainerOverrideCents === "number"
-                  ? { retainerOverrideCents: proposal.retainerOverrideCents }
-                  : {}),
+                // The dates live on the payment schedule; the proposal has no
+                // retainerDueDate field, so every save here cleared them.
+                retainerDueDate: scheduleDue(proposal.paymentSchedule, 0),
+                balanceDueDate: scheduleDue(proposal.paymentSchedule, 1),
+                // Left out, the server keeps the retainer the studio set.
               });
               return "The draft is saved.";
             },
@@ -1310,4 +1310,11 @@ export function ChangeBookingCard({ action }: ActionCardProps) {
 /** On a signed booking, a package or date change goes through the couple. */
 export function signedBookingChange(job: Rec | null): boolean {
   return Boolean(job && AMENDABLE_STATES.includes(str(job.state)));
+}
+
+/** A payment's due date from a proposal's schedule, as the draft command takes it. */
+function scheduleDue(schedule: unknown, index: number): string | null {
+  const entry = Array.isArray(schedule) ? schedule[index] : null;
+  const due = entry && typeof entry === "object" ? (entry as Record<string, unknown>).dueDate : null;
+  return typeof due === "string" && due ? due.slice(0, 10) : null;
 }

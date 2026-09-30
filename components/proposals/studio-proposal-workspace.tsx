@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { proposalTermsFor } from "@/features/booking/autopilot";
+import { detailsForLine, packageDetails, type PackageDetail } from "@/features/packages/inclusions";
 import {
   ArrowLeft,
   ArrowRight,
@@ -215,19 +216,6 @@ function objectValue(value: unknown): Record<string, unknown> {
 
 function text(value: unknown, fallback = "—"): string {
   return typeof value === "string" && value.trim() ? value : fallback;
-}
-
-/**
- * Package descriptions in the library are often written with ".." between
- * clauses ("coverage each.. Drone included.."). That copy is prefilled into
- * the client-facing proposal introduction, so collapse those runs into a
- * single sentence break before the client ever sees it.
- */
-function cleanIntro(value: string): string {
-  return value
-    .replace(/\s*\.{2,}\s*/g, ". ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
 }
 
 function number(value: unknown): number {
@@ -910,7 +898,9 @@ export function StudioProposalComposer() {
         );
         if (requestedProject) {
           setProjectId(requestedProject.id);
-          setNotes(cleanIntro(text(requestedProject.packageSnapshot.description, "")));
+          // Not the package description: that now shows under each package, as
+          // bullets, and pasting one package's here left the other out (GR).
+          setNotes("");
           setTermsSummary(
             proposalTermsFor(requestedProject.packageSnapshot.terms),
           );
@@ -984,7 +974,9 @@ export function StudioProposalComposer() {
       (project) => project.id === nextProjectId,
     );
     if (!nextProject) return;
-    setNotes(cleanIntro(text(nextProject.packageSnapshot.description, "")));
+    // Not the package description: that now shows under each package, as
+          // bullets, and pasting one package's here left the other out (GR).
+          setNotes("");
     setTermsSummary(proposalTermsFor(nextProject.packageSnapshot.terms));
     const event = new Date(`${nextProject.eventDate}T12:00:00`);
     setBalanceDueDate(
@@ -1080,7 +1072,9 @@ export function StudioProposalComposer() {
       setPackagePickerFor(null);
       if (readyProject) {
         setProjectId(readyProject.id);
-        setNotes(cleanIntro(text(readyProject.packageSnapshot.description, "")));
+        // Not the package description: that now shows under each package, as
+          // bullets, and pasting one package's here left the other out (GR).
+          setNotes("");
         setTermsSummary(proposalTermsFor(readyProject.packageSnapshot.terms));
         const event = new Date(`${readyProject.eventDate}T12:00:00`);
         if (!Number.isNaN(event.valueOf())) {
@@ -1691,6 +1685,10 @@ export function StudioProposalWorkspace({
   const [retainerDueDate, setRetainerDueDate] = useState(
     dataIsLive ? "" : "2027-02-05",
   );
+  /** The retainer the studio typed, in dollars; null is "as the proposal has it". */
+  const [draftRetainer, setDraftRetainer] = useState<string | null>(null);
+  /** Each package's bullets, for a proposal written before it stored them. */
+  const [snapshotDetails, setSnapshotDetails] = useState<PackageDetail[]>([]);
   const [balanceDueDate, setBalanceDueDate] = useState(
     dataIsLive ? "" : "2027-05-29",
   );
@@ -1713,6 +1711,29 @@ export function StudioProposalWorkspace({
       : [];
     setRetainerDueDate(dateInput(paymentValues[0]?.dueDate));
     setBalanceDueDate(dateInput(paymentValues[1]?.dueDate));
+    setDraftRetainer(null);
+    if (!Array.isArray(value.packageDetails)) {
+      const snapshotIds = [
+        text(value.packageSnapshotId, ""),
+        ...(Array.isArray(value.additionalPackageSnapshotIds)
+          ? value.additionalPackageSnapshotIds.map(String)
+          : []),
+      ].filter(Boolean);
+      const snapshots = await Promise.all(
+        snapshotIds.map((snapshotId) =>
+          getDoc(doc(firestore, "packageSnapshots", snapshotId)).catch(() => null),
+        ),
+      );
+      setSnapshotDetails(
+        packageDetails(
+          snapshots
+            .filter((snapshot) => snapshot?.exists())
+            .map((snapshot) => ({ id: snapshot!.id, data: snapshot!.data() as Record<string, unknown> })),
+        ),
+      );
+    } else {
+      setSnapshotDetails([]);
+    }
     const allVersions = await getDocs(
       query(
         collection(firestore, "proposals"),
@@ -1818,6 +1839,13 @@ export function StudioProposalWorkspace({
         input.termsSummary = termsSummary;
         input.retainerDueDate = retainerDueDate || null;
         input.balanceDueDate = balanceDueDate || null;
+        // Only when the studio changed it; left out, the server keeps it.
+        if (draftRetainer !== null) {
+          input.retainerOverrideCents = Math.max(
+            0,
+            Math.round(Number(draftRetainer || 0) * 100),
+          );
+        }
       }
       const command = await runProposalCommand(type, input);
       if (!command.persisted) {
@@ -2108,18 +2136,31 @@ export function StudioProposalWorkspace({
 
           <section className="proposal-workspace-investment">
             <div>
-              <p className="eyebrow">Investment</p>
+              <p className="eyebrow">Packages</p>
               <strong>{money(pricing.totalCents, currency)}</strong>
             </div>
             <div className="proposal-workspace-lines">
-              {lines.map((line, index) => (
+              {lines.map((line, index) => {
+                const bullets = detailsForLine(
+                  Array.isArray(proposal.packageDetails) ? proposal.packageDetails : snapshotDetails,
+                  line.description,
+                );
+                return (
                 <article key={`${text(line.description)}-${index}`}>
                   <span>
                     <strong>{text(line.description, "Coverage")}</strong>
-                    <small>
-                      {number(line.quantity)} ×{" "}
-                      {money(line.unitPriceCents, currency)}
-                    </small>
+                    {bullets.length ? (
+                      <ul className="proposal-package-bullets">
+                        {bullets.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <small>
+                        {number(line.quantity)} ×{" "}
+                        {money(line.unitPriceCents, currency)}
+                      </small>
+                    )}
                   </span>
                   {/* Same defect the client portal had, in the same file that
                       reads the correct name at line 1223: the stored field is
@@ -2130,7 +2171,8 @@ export function StudioProposalWorkspace({
                     {money(line.lineTotalCents ?? line.totalCents, currency)}
                   </strong>
                 </article>
-              ))}
+                );
+              })}
               <dl>
                 <div>
                   <dt>Subtotal</dt>
@@ -2181,6 +2223,28 @@ export function StudioProposalWorkspace({
                     type="date"
                     value={expiresOn}
                   />
+                </label>
+                {/* The retainer could be set only when the proposal was
+                    first made; a couple asking for different packages left
+                    the studio no way to change it (GR, 2026-09-30). */}
+                <label className="proposal-field">
+                  <span>Retainer amount</span>
+                  <input
+                    aria-label="Retainer amount"
+                    min="0"
+                    onChange={(eventValue) => setDraftRetainer(eventValue.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={
+                      draftRetainer ??
+                      (number(payments[0]?.amountCents) / 100).toFixed(2)
+                    }
+                  />
+                  <small>
+                    {typeof proposal.retainerOverrideCents === "number"
+                      ? `Set by you. The packages say ${money(pricing.retainerCents, currency)}.`
+                      : "From the packages. Change it for this couple here."}
+                  </small>
                 </label>
                 <label className="proposal-field">
                   <span>Retainer due</span>

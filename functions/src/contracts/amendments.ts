@@ -1,3 +1,4 @@
+import { packageDetails } from "../packages/inclusions.js";
 import { randomUUID } from "node:crypto";
 import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
@@ -473,6 +474,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     packageSnapshotId: nextSnapshots[0]!.id,
     additionalPackageSnapshotIds: nextSnapshots.slice(1).map((entry) => entry.id),
     pricingSnapshot: pricing,
+    packageDetails: packageDetails(nextSnapshots),
     paymentSchedule: schedule,
     eventSnapshot,
     retainerOverrideCents: money.retainerCents,

@@ -36,6 +36,9 @@ app = FastAPI(title="StudioCue PDF Service")
 class LineItem(BaseModel):
     description: str = Field(min_length=1, max_length=240)
     amount: str = Field(min_length=1, max_length=40)
+    # What the package includes, one bullet each. Empty for an add-on line or
+    # a caller from before packages carried them.
+    details: list[str] = Field(default_factory=list, max_length=40)
 
 
 class PaymentItem(BaseModel):
@@ -130,7 +133,7 @@ def _brand_cell(data, styles):
     try:
         with urllib.request.urlopen(data.logo_url, timeout=5) as response:
             raw = response.read(2 * 1024 * 1024)
-        logo = Image(io.BytesIO(raw))
+        logo = Image(io.BytesIO(_trimmed_logo(raw)))
         ratio = logo.imageHeight / logo.imageWidth if logo.imageWidth else 1
         logo.drawWidth = min(1.9 * inch, logo.imageWidth)
         logo.drawHeight = logo.drawWidth * ratio
@@ -154,6 +157,52 @@ def _brand_cell(data, styles):
         )
     except Exception:
         return name_cell
+
+
+def _trimmed_logo(raw: bytes) -> bytes:
+    """The logo without the empty margin around it, at a sensible size.
+
+    GR Productions' logo is 9000 x 9738 pixels, mostly white: scaled to fit the
+    header, the wordmark in the middle printed a few millimetres wide. Anything
+    that will not open as an image is returned untouched for the caller to try.
+    """
+    try:
+        from PIL import Image as PILImage, ImageChops
+
+        with PILImage.open(io.BytesIO(raw)) as source:
+            image = source.convert("RGBA")
+        # Ink is anything not transparent and not near-white.
+        white = PILImage.new("RGBA", image.size, (255, 255, 255, 255))
+        flattened = PILImage.alpha_composite(white, image).convert("L")
+        ink = flattened.point(lambda value: 255 if value < 235 else 0)
+        box = ink.getbbox()
+        if box:
+            pad = max(4, int(0.02 * max(box[2] - box[0], box[3] - box[1])))
+            image = image.crop(
+                (
+                    max(0, box[0] - pad),
+                    max(0, box[1] - pad),
+                    min(image.width, box[2] + pad),
+                    min(image.height, box[3] + pad),
+                )
+            )
+        image.thumbnail((1200, 1200))
+        out = io.BytesIO()
+        image.save(out, format="PNG")
+        return out.getvalue()
+    except Exception:
+        return raw
+
+
+def _line_cell(item: LineItem, styles: Any) -> Any:
+    """A package's name, with what it includes as bullets beneath it."""
+    if not item.details:
+        return Paragraph(escape(item.description), styles["BodyStudio"])
+    bullets = "".join(f"<br/>\u2022&nbsp;&nbsp;{escape(detail[:300])}" for detail in item.details[:40])
+    return Paragraph(
+        f"<font color='#1E2A25'><b>{escape(item.description)}</b></font>{bullets}",
+        styles["BodyStudio"],
+    )
 
 
 def build_proposal_pdf(data: ProposalRequest) -> bytes:
@@ -207,8 +256,10 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
     story.extend([header, Spacer(1, 0.32 * inch), Paragraph("PREPARED FOR", ParagraphStyle(name="Eyebrow", parent=styles["Meta"], textColor=accent, spaceAfter=8)), Paragraph(escape(data.client_name), styles["Client"]), Paragraph(escape(data.event_summary), styles["BodyStudio"]), Spacer(1, 0.32 * inch)])
     story.extend([Paragraph(escape(data.package_name), styles["Heading"]), Paragraph(escape(data.introduction or data.package_description), styles["BodyStudio"]), Spacer(1, 0.22 * inch)])
 
-    rows = [[Paragraph("INVESTMENT", styles["Brand"]), Paragraph("AMOUNT", styles["RightMeta"])]]
-    rows.extend([[Paragraph(escape(item.description), styles["BodyStudio"]), Paragraph(escape(item.amount), styles["RightMeta"])] for item in data.line_items])
+    # "Packages", not "Investment": it lists what the couple is booking, each
+    # package with its own bullets (GR Productions, 2026-09-30).
+    rows = [[Paragraph("PACKAGES", styles["Brand"]), Paragraph("AMOUNT", styles["RightMeta"])]]
+    rows.extend([[_line_cell(item, styles), Paragraph(escape(item.amount), styles["RightMeta"])] for item in data.line_items])
     rows.append([Paragraph("<b>Total</b>", styles["BodyStudio"]), Paragraph(f"<b>{escape(data.total)}</b>", styles["RightMeta"])])
     pricing = Table(rows, colWidths=[5.2 * inch, 1.3 * inch], repeatRows=1)
     pricing.setStyle(TableStyle([
@@ -218,7 +269,7 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
         ("LEFTPADDING", (0, 0), (-1, -1), 10),
         ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     story.extend([pricing, Spacer(1, 0.22 * inch)])
     payment_rows = [

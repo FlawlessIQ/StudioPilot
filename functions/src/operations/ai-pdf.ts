@@ -19,6 +19,7 @@ import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { proposalTermsFor } from "../proposals/default-terms.js";
+import { detailsForLine, packageDetails } from "../packages/inclusions.js";
 
 /**
  * Fit a field to the PDF service's limit (cloud-run/pdf/main.py). The service
@@ -770,6 +771,9 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
     const snapshots=(await Promise.all(
       snapshotIds.map(id=>db.doc(`packageSnapshots/${id}`).get()),
     )).filter(document=>document.exists);
+    // Each package's "what's included", from its snapshot, so the document
+    // lists every package's bullets and not one package's paragraph.
+    const details=packageDetails(snapshots.map(document=>({id:document.id,data:record(document.data())})));
     const coverageRoles=new Set(
       snapshots.flatMap(document=>
         (Array.isArray(document.get("includedCoverage"))?document.get("includedCoverage") as unknown[]:[])
@@ -810,7 +814,7 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         package_description:`${coverageWord} coverage and deliverables as selected.`,
         introduction:clipForPdf(string(proposal.get("notes")),3000),
         terms_summary:clipForPdf(string(proposal.get("termsSummary")),3000),
-        line_items:normalizedLines.slice(0,50).map(value=>{const line=record(value);return{description:clipForPdf(string(line.description)||packageName,240),amount:money(line.totalCents,currency)}}),
+        line_items:normalizedLines.slice(0,50).map(value=>{const line=record(value);return{description:clipForPdf(string(line.description)||packageName,240),amount:money(line.totalCents,currency),details:detailsForLine(details,string(line.description)).slice(0,30).map(item=>clipForPdf(item,300))}}),
         payment_schedule:paymentSchedule.slice(0,20).map(value=>{const item=record(value);return{label:clipForPdf(string(item.label)||"Payment",120),amount:money(item.amountCents,currency),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}}),
         total:money(pricing.totalCents,currency),
         // The retainer the schedule on the same page asks for: an override
@@ -820,6 +824,7 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         expires_on:String(proposal.get("expiresAt")).slice(0,10),
         generated_at:generatedAt,
       },
+      packageDetails:details,
     }}
   if(type==="schedule_pdf"){const schedule=await db.doc(`schedules/${String(job.get("scheduleId"))}`).get();if(!schedule.exists)throw new Error("SCHEDULE_NOT_FOUND");const items=Array.isArray(schedule.get("items"))?schedule.get("items") as Array<Json>:[];return{endpoint:"schedules",entity:schedule,payload:{tenant_name:tenantName,project_id:String(schedule.get("projectId")),schedule_id:schedule.id,version:Number(schedule.get("version")),timezone:String(schedule.get("timezone")),items:items.map(item=>({start:String(item.startAt),end:String(item.endAt),title:String(item.title),location:String(item.location??"")})),generated_at:generatedAt}}}
   if(type==="closeout_pdf"){const closeout=await db.doc(`projectCloseouts/${String(job.get("closeoutId"))}`).get();if(!closeout.exists)throw new Error("CLOSEOUT_NOT_FOUND");const project=await db.doc(`projects/${String(closeout.get("projectId"))}`).get();const requirements=Array.isArray(closeout.get("requirements"))?closeout.get("requirements") as Array<Json>:[];return{endpoint:"closeouts",entity:closeout,payload:{tenant_name:tenantName,project_id:String(closeout.get("projectId")),closeout_id:closeout.id,project_name:String(project.get("name")??closeout.get("projectId")),requirements:requirements.map(item=>({label:String(item.label),complete:Boolean(item.complete),evidence_id:item.evidenceId??null})),generated_at:generatedAt}}}
@@ -888,6 +893,9 @@ export async function runPdfJob(job:DocumentSnapshot){
   batch.update(input.entity.ref,{
     [field]:documentId,
     ...(isProposal?{pdfState:"ready"}:{}),
+    // Filled in for a proposal written before packageDetails existed, so the
+    // couple's page lists what each package includes (GR, 2026-09-30).
+    ...(isProposal&&"packageDetails" in input&&Array.isArray(input.packageDetails)?{packageDetails:input.packageDetails}:{}),
     updatedAt:now,
     updatedBy:"pdf-worker",
   });

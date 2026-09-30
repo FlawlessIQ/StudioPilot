@@ -741,6 +741,15 @@ textarea.kit-input {
   color: var(--kit-caption);
   font-size: 13px;
 }
+/* A package's inclusions under its name, one per line. */
+.kit-row-bullets {
+  display: grid;
+  gap: 3px;
+  margin-top: 4px;
+}
+.kit-row-bullets > span::before {
+  content: "• ";
+}
 .kit-row-trailing {
   display: inline-flex;
   flex-shrink: 0;
