@@ -50,7 +50,28 @@ as it was.
 | Couple requests | Pending `packageRequests` that the change satisfies (the package is now on the job, or the date matches) are marked approved with `resultAmendmentId`. |
 | Emails | Couple: confirmation. Studio: notification. Crew: re-offer. |
 
-**Not moved:** consultations. They aren't tied to the wedding date.
+**Consultations (added 2026-09-30):**
+- When the date moves, the change sheet lists the couple's upcoming calls
+  with the time each would move to: the same local time, the same number of
+  days on, and correct across a daylight-saving change (`shiftInZone`).
+- Calls within eight weeks of the wedding are pre-ticked. Each new time is
+  checked against the studio's Google Calendar (`getCalendarBusyIntervals`)
+  and its other consultations. A clash is shown, not refused.
+- On signing, ticked calls move in place through the same
+  `reschedule_consultation_resources` job as `rescheduleConsultation`, so the
+  Zoom meeting and the couple's invitation update. A call rescheduled some
+  other way since is left alone.
+- The couple reads each move as a line in the change.
+
+**Crew calendars StudioCue didn't create (added 2026-09-30):**
+- Every assignment carries `calendarSequence`, which rises on each date move.
+- The "your date moved" email to crew who had accepted attaches the next
+  version of the same event (`functions/src/crew/calendar-ics.ts`: same UID,
+  higher SEQUENCE). Opening it moves the event in Apple, Google or Outlook.
+- The in-app download (`lib/crew/calendar-file.ts`) uses the same UID and
+  sequence, so re-adding replaces instead of duplicating.
+- Events StudioCue created through the studio's Google Calendar are patched
+  directly (`move_booking_calendar_events`).
 
 ## Couples asking
 
