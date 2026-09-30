@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AvailabilityDialog } from "@/components/booking/availability-dialog";
+import { ConsultationCorrections } from "@/components/booking/consultation-corrections";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
@@ -251,7 +252,14 @@ export function StudioCalendar() {
     const map = new Map<string, TenantDocument[]>();
     for (const consultation of consultations) {
       const startsAt = consultation.startsAt;
-      if (typeof startsAt !== "string" || consultation.status !== "scheduled") continue;
+      // Held and missed ones stay on the day too, so a consultation marked
+      // either way by mistake can be found and reopened (wave 3). Only
+      // `scheduled` ones hold time — see `busy` below.
+      if (
+        typeof startsAt !== "string" ||
+        !["scheduled", "completed", "no_show"].includes(String(consultation.status))
+      )
+        continue;
       const key = localDateKey(startsAt, timezone);
       const list = map.get(key) ?? [];
       list.push(consultation);
@@ -659,7 +667,7 @@ export function StudioCalendar() {
             <div className="ds-cal-section">
               <p className="ds-cal-section-label">
                 <span className="ds-cal-legend-dot" style={{ color: "var(--ds-amber)" }} />
-                Booked consultations
+                Consultations
               </p>
               <ul className="ds-cal-list">
                 {selectedBookings.map((booking) => {
@@ -678,11 +686,32 @@ export function StudioCalendar() {
                       {typeof booking.meetingSkipMessage === "string" && booking.meetingSkipMessage ? (
                         <small className="ds-cal-consult-note">{booking.meetingSkipMessage}</small>
                       ) : null}
-                      <ConsultationActions
-                        booking={booking}
-                        freeSlots={selectedSlots.filter(
-                          (slot) => !selectedBookedKeys.has(slot.startsAt),
-                        )}
+                      {booking.status === "scheduled" ? (
+                        <ConsultationActions
+                          booking={booking}
+                          freeSlots={selectedSlots.filter(
+                            (slot) => !selectedBookedKeys.has(slot.startsAt),
+                          )}
+                        />
+                      ) : (
+                        <small className="ds-cal-consult-note">
+                          {booking.status === "no_show" ? "Missed" : "Held"}
+                        </small>
+                      )}
+                      {/* Missed, invite to rebook, reopen. Nothing when none applies. */}
+                      <ConsultationCorrections
+                        compact
+                        consultation={booking}
+                        contactId={
+                          typeof booking.contactId === "string"
+                            ? booking.contactId
+                            : Array.isArray(project?.clientContactIds) &&
+                                typeof project.clientContactIds[0] === "string"
+                              ? project.clientContactIds[0]
+                              : null
+                        }
+                        projectId={String(booking.projectId ?? "")}
+                        projectState={String(project?.state ?? "")}
                       />
                       {project ? (
                         <a className="ds-cal-row-link" href={`/studio/projects/${project.id}`}>

@@ -346,6 +346,7 @@ export function CoiCard({ action }: ActionCardProps) {
     request_coi: "Request a certificate of insurance",
     decide_coi: "Review the certificate of insurance",
     send_coi_to_venue: "Send the certificate to the venue",
+    resend_coi: "Correct and resend the certificate",
   };
   const title = `${titles[action.action]} · ${jobName(job)}`;
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;

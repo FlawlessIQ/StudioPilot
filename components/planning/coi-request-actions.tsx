@@ -62,6 +62,35 @@ export function CoiRequestActions({
   }
 
   const copy = (value: string) => void navigator.clipboard?.writeText(value);
+  const ownerOrAdmin = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+
+  // The certificate from the insurer's portal, dropped here. Offered wherever
+  // the server takes an upload (coi/actions.ts attachCoiUpload), not only on
+  // the self-serve card: a corrected PDF is the usual answer to a correction.
+  const upload = (
+    <label className="button button-dark coi-upload">
+      <Upload aria-hidden="true" size={15} /> {busy ? "Uploading…" : "Upload the certificate (PDF)"}
+      <input
+        accept="application/pdf"
+        className="sr-only"
+        disabled={busy}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file || !workspace.tenantId) return;
+          setBusy(true);
+          setNotice(null);
+          void uploadCoiPdf({ tenantId: workspace.tenantId, projectId, requestId: request.id, file })
+            .then((uploaded) =>
+              sendPlanningCommand("attachCoiUpload", { projectId, requestId: request.id, ...uploaded }),
+            )
+            .then(() => setNotice("Uploaded. It's being checked — you'll approve it in a minute."))
+            .catch((caught: unknown) => setNotice(friendlyError(caught, "That upload didn't work.")))
+            .finally(() => setBusy(false));
+        }}
+        type="file"
+      />
+    </label>
+  );
   const holder = text(requirement?.certificateHolder) || text(requirement?.venueLegalName);
   const venueAddress = text(requirement?.venueAddress);
   const eventDate = text(requirement?.eventDate);
@@ -146,34 +175,26 @@ export function CoiRequestActions({
             <ExternalLink aria-hidden="true" size={15} /> Open your insurer&rsquo;s portal
           </a>
         ) : null}
-        <label className="button button-dark coi-upload">
-          <Upload aria-hidden="true" size={15} /> {busy ? "Uploading…" : "Upload the certificate (PDF)"}
-          <input
-            accept="application/pdf"
-            className="sr-only"
-            disabled={busy}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (!file || !workspace.tenantId) return;
-              setBusy(true);
-              setNotice(null);
-              void uploadCoiPdf({ tenantId: workspace.tenantId, projectId, requestId: request.id, file })
-                .then((uploaded) =>
-                  sendPlanningCommand("attachCoiUpload", { projectId, requestId: request.id, ...uploaded }),
-                )
-                .then(() => setNotice("Uploaded. It's being checked — you'll approve it in a minute."))
-                .catch((caught: unknown) => setNotice(friendlyError(caught, "That upload didn't work.")))
-                .finally(() => setBusy(false));
-            }}
-            type="file"
-          />
-        </label>
+        {upload}
       </div>
     );
-  } else if (status === "under_review" || status === "approved") {
+  } else if (
+    status === "under_review" ||
+    status === "approved" ||
+    // Sent back, then judged right after all (or the agent explained): the
+    // studio can approve it from here, as decideCoi always allowed, or drop
+    // in the corrected PDF themselves.
+    (status === "correction_required" && files.length > 0 && ownerOrAdmin)
+  ) {
     const needsVenueEmail = !text(requirement?.submissionEmail);
     body = (
       <div className="coi-inline-form">
+        {status === "correction_required" ? (
+          <p className="coi-status-note">
+            Sent back to your agent for a correction. If it was right after all, approve it here — or upload the
+            corrected PDF yourself.
+          </p>
+        ) : null}
         <FileLinks files={files} />
         {needsVenueEmail ? (
           <label>
@@ -219,6 +240,7 @@ export function CoiRequestActions({
             </button>
           ) : null}
         </footer>
+        {status === "correction_required" ? upload : null}
       </div>
     );
   } else if (status === "failed") {
@@ -267,6 +289,27 @@ export function CoiRequestActions({
                     ? "Arrived — being checked. It'll be ready to approve shortly."
                     : "StudioCue is waiting for the next step."}
         </p>
+        {/* The server takes an upload while it is still being asked for. */}
+        {status === "requested" || status === "correction_required" ? upload : null}
+        {status === "requested" || status === "correction_required" ? (
+          <CoiResendToAgent
+            busy={busy}
+            onResend={(changes) =>
+              void run("resendCoi", changes, "Sent again with the corrected details. StudioCue chases the new one.")
+            }
+            requestEmail={text(request.requestEmail) || text(settings?.agentEmail)}
+            requirement={requirement}
+          />
+        ) : null}
+        {(status === "sent_to_venue" || status === "venue_acknowledged") && ownerOrAdmin ? (
+          <CoiResendToVenue
+            busy={busy}
+            current={text(requirement?.submissionEmail)}
+            onResend={(submissionEmail) =>
+              void run("resendCoi", { submissionEmail }, `Sent again to ${submissionEmail}. Their reply is recorded when it comes.`)
+            }
+          />
+        ) : null}
       </>
     );
   }
@@ -280,5 +323,96 @@ export function CoiRequestActions({
         </p>
       ) : null}
     </>
+  );
+}
+
+/**
+ * The request went out with the wrong venue details, or to the wrong agent:
+ * send it again corrected (coi/actions.ts resendCoi). Only what changed is
+ * sent; the reply comes back to the same address either way.
+ */
+function CoiResendToAgent({
+  requirement,
+  requestEmail,
+  busy,
+  onResend,
+}: {
+  requirement: Row | undefined;
+  requestEmail: string;
+  busy: boolean;
+  onResend: (changes: Record<string, unknown>) => void;
+}) {
+  const [legalName, setLegalName] = useState(text(requirement?.venueLegalName));
+  const [holder, setHolder] = useState(text(requirement?.certificateHolder));
+  const [address, setAddress] = useState(text(requirement?.venueAddress));
+  const [agentEmail, setAgentEmail] = useState(requestEmail);
+  const changes: Record<string, unknown> = {
+    ...(legalName.trim() && legalName.trim() !== text(requirement?.venueLegalName) ? { venueLegalName: legalName.trim() } : {}),
+    ...(holder.trim() && holder.trim() !== text(requirement?.certificateHolder) ? { certificateHolder: holder.trim() } : {}),
+    ...(address.trim() && address.trim() !== text(requirement?.venueAddress) ? { venueAddress: address.trim() } : {}),
+    ...(agentEmail.trim() && agentEmail.trim() !== requestEmail ? { agentEmail: agentEmail.trim() } : {}),
+  };
+  return (
+    <details className="coi-resend">
+      <summary>Wrong details on the request? Send it again corrected</summary>
+      <div className="coi-inline-form">
+        <label>
+          Venue&rsquo;s legal name
+          <input onChange={(event) => setLegalName(event.target.value)} value={legalName} />
+        </label>
+        <label>
+          Certificate holder
+          <input onChange={(event) => setHolder(event.target.value)} value={holder} />
+        </label>
+        <label>
+          Venue address
+          <input onChange={(event) => setAddress(event.target.value)} value={address} />
+        </label>
+        <label>
+          Your agent&rsquo;s email
+          <input onChange={(event) => setAgentEmail(event.target.value)} type="email" value={agentEmail} />
+        </label>
+        <footer>
+          <button
+            className="button button-dark"
+            disabled={busy || !Object.keys(changes).length}
+            onClick={() => onResend(changes)}
+            type="button"
+          >
+            <Send /> Send it again
+          </button>
+        </footer>
+      </div>
+    </details>
+  );
+}
+
+/** It went to the wrong venue address: send it again to the right one. */
+function CoiResendToVenue({
+  current,
+  busy,
+  onResend,
+}: {
+  current: string;
+  busy: boolean;
+  onResend: (submissionEmail: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && email.trim() !== current;
+  return (
+    <details className="coi-resend">
+      <summary>Sent to the wrong address? Send it again</summary>
+      <div className="coi-inline-form">
+        <label>
+          The venue&rsquo;s right email
+          <input onChange={(event) => setEmail(event.target.value)} placeholder={current} type="email" value={email} />
+        </label>
+        <footer>
+          <button className="button button-dark" disabled={busy || !valid} onClick={() => onResend(email.trim())} type="button">
+            <Send /> Send it to the venue again
+          </button>
+        </footer>
+      </div>
+    </details>
   );
 }

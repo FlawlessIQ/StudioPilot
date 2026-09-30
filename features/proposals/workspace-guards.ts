@@ -126,3 +126,20 @@ export function proposalWithCouple<T extends { id: string; status?: unknown; ver
       .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0] ?? null
   );
 }
+
+/**
+ * Contract statuses that mean an agreement has gone out (or been signed) on
+ * the strength of an acceptance. While one exists the server refuses
+ * `undo_acceptance` — mirrors AGREEMENT_OUT in
+ * functions/src/booking/proposal-domain.ts; tests/wave3-undo.test.ts holds the
+ * two lists together.
+ */
+export const ACCEPTANCE_AGREEMENT_OUT: readonly string[] = [
+  "queued",
+  "sent",
+  "delivered",
+  "viewed",
+  "partially_signed",
+  "completed",
+  "signed",
+];

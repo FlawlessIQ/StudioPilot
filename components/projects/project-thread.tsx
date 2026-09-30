@@ -40,6 +40,8 @@ import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
+import { AssigneeSelect } from "@/components/tasks/task-assignee";
+import { assigneeFields } from "@/features/tasks/assignee";
 
 const DAY = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
@@ -573,6 +575,8 @@ function ThreadComposer({
     consultationId ? "note" : "ask",
   );
   const [value, setValue] = useState("");
+  // Who a task added here is for; it used to be "a coordinator" always.
+  const [assignee, setAssignee] = useState("role:studio_coordinator");
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -622,8 +626,7 @@ function ThreadComposer({
           checkpointId: null,
           title: body.slice(0, 200),
           description: "",
-          assignedUserId: null,
-          assignedRole: "studio_coordinator",
+          ...assigneeFields(assignee),
           dueDate: null,
           priority: "normal",
           blocking: false,
@@ -724,15 +727,18 @@ function ThreadComposer({
                 </button>
               ))}
             </div>
+          ) : mode === "task" ? (
+            <span className="thread-task-assignee">
+              <AssigneeSelect onChange={setAssignee} value={assignee} />
+            </span>
           ) : (
             <small className="thread-composer-hint">
               {mode === "note"
                 ? "Saved to this job, and StudioCue drafts what follows."
-                : mode === "task"
-                  ? "Added to your tasks for this job."
-                  : // Ask mode says this above the box already, where it is
-                    // read before the question rather than after it.
-                    ""}
+                : // Ask mode says this above the box already, where it is
+                  // read before the question rather than after it. Task mode
+                  // shows who the task is for instead.
+                  ""}
             </small>
           )}
           <button

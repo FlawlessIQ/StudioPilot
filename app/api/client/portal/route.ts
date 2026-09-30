@@ -1599,6 +1599,11 @@ async function decideProposal({
       }
       transaction.update(proposalReference, {
         status: plan.proposalStatus,
+        // Where the proposal goes back to if the studio undoes this
+        // acceptance (functions/src/booking/proposal-domain.ts).
+        ...(decision === "accepted"
+          ? { acceptancePriorStatus: String(proposal.get("status") ?? "") || null }
+          : {}),
         acceptedAt: decision === "accepted" ? now : null,
         declinedAt: decision === "declined" ? now : null,
         declineReason: decision === "declined" ? reason : null,

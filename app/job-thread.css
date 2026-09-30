@@ -638,6 +638,27 @@
   font-size: 11.5px;
 }
 
+/* Who a task added from the composer is for (wave 3). */
+.thread-task-assignee label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted, #8a938d);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.thread-task-assignee select {
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 8px;
+  background: var(--paper, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
 .thread-suggestions {
   display: flex;
   flex-wrap: wrap;

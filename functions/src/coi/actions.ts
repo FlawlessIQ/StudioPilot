@@ -8,6 +8,7 @@ import {
   venueProfileFrom,
   venueProfileId,
 } from "./automation.js";
+import { COI_APPROVABLE_STATUSES, planCoiResend } from "./corrections.js";
 
 /**
  * The studio's side of an automated COI (H3, docs/coi-automation-plan-2026-09-28.md):
@@ -195,7 +196,9 @@ export async function approveAndSendCoi(
 ): Promise<Record<string, unknown>> {
   if (!["studio_owner", "studio_admin"].includes(context.role)) throw new Error("FORBIDDEN");
   const { reference, request, requirement } = await loadRequest(db, context, input.projectId, input.requestId);
-  if (!["under_review", "approved"].includes(text(request.get("status")))) throw new Error("COI_NOT_REVIEWABLE");
+  // Includes a certificate the studio sent back and then decided was right —
+  // see COI_APPROVABLE_STATUSES.
+  if (!COI_APPROVABLE_STATUSES.includes(text(request.get("status")))) throw new Error("COI_NOT_REVIEWABLE");
   const object = text(request.get("temporaryObject"));
   if (!object.startsWith("gs://")) throw new Error("COI_DOCUMENT_MISSING");
   const submissionEmail = input.submissionEmail ?? (text(requirement.get("submissionEmail")) || null);
@@ -305,4 +308,161 @@ export async function approveAndSendCoi(
   });
   await batch.commit();
   return { requestId: input.requestId, status: "sent_to_venue" };
+}
+
+export const resendCoiInput = z.object({
+  projectId: z.string(),
+  requestId: z.string(),
+  /** Corrections to what the agent was asked to put on the certificate. */
+  certificateHolder: z.string().trim().min(2).max(300).optional(),
+  venueLegalName: z.string().trim().min(2).max(300).optional(),
+  venueAddress: z.string().trim().min(5).max(500).optional(),
+  /** A different agent to ask. */
+  agentEmail: z.string().trim().email().nullable().default(null),
+  /** Where the venue really wants the certificate. */
+  submissionEmail: z.string().trim().email().nullable().default(null),
+});
+
+/**
+ * Send it again, with the details corrected (see planCoiResend).
+ *
+ * There was no way to: a request that went out with the wrong venue address
+ * could only be chased as it was, and a certificate sent to the wrong venue
+ * email had been sent for good. Each resend is its own email job, so nothing
+ * already sent is rewritten and a retry cannot send twice.
+ */
+export async function resendCoi(
+  db: Firestore,
+  context: Context,
+  input: z.infer<typeof resendCoiInput>,
+): Promise<Record<string, unknown>> {
+  if (!STUDIO.includes(context.role)) throw new Error("FORBIDDEN");
+  const { reference, request, requirement } = await loadRequest(db, context, input.projectId, input.requestId);
+  const status = text(request.get("status"));
+  const corrected: Array<[string, string | undefined]> = [
+    ["certificateHolder", input.certificateHolder],
+    ["venueLegalName", input.venueLegalName],
+    ["venueAddress", input.venueAddress],
+  ];
+  const venueChanges: Record<string, string> = {};
+  for (const [key, value] of corrected) {
+    if (value !== undefined && value !== text(requirement.get(key))) venueChanges[key] = value;
+  }
+  const plan = planCoiResend({
+    status,
+    role: context.role,
+    submissionEmail: input.submissionEmail,
+    venueDetailsChanged: Object.keys(venueChanges).length > 0,
+    agentEmail: input.agentEmail,
+  });
+  if (!plan.ok) throw new Error(plan.refusal);
+  const resendNumber = Number(request.get("resendCount") ?? 0) + 1;
+  const batch = db.batch();
+
+  if (plan.to === "agent") {
+    const originalJobId = text(request.get("requestEmailJobId")) || `coi_request_${input.requestId}`;
+    const original = await db.doc(`emailJobs/${originalJobId}`).get();
+    if (!original.exists) throw new Error("COI_NOT_RESENDABLE");
+    const priorRequirement = (original.get("requirement") ?? {}) as Record<string, unknown>;
+    const jobId = `coi_request_${input.requestId}_r${resendNumber}`;
+    batch.create(db.doc(`emailJobs/${jobId}`), {
+      ...original.data(),
+      id: jobId,
+      recipient: input.agentEmail ?? original.get("recipient"),
+      // The same reply address: an answer to either email comes back here.
+      requirement: { ...priorRequirement, ...venueChanges },
+      correctedResend: resendNumber,
+      chaseNumber: null,
+      status: "queued",
+      attempts: 0,
+      createdAt: context.now,
+      updatedAt: context.now,
+    });
+    if (Object.keys(venueChanges).length) {
+      batch.update(requirement.ref, { ...venueChanges, updatedAt: context.now, updatedBy: context.actorId });
+    }
+    batch.update(reference, {
+      status: "requested",
+      requestEmail: input.agentEmail ?? text(request.get("requestEmail")),
+      ...(venueChanges.venueLegalName ? { venueName: venueChanges.venueLegalName } : {}),
+      // Chases copy this job from now on, so they repeat the corrected one.
+      requestEmailJobId: jobId,
+      requestedAt: context.now,
+      chaseCount: 0,
+      lastChasedAt: null,
+      escalatedAt: null,
+      escalationReason: null,
+      resendCount: resendNumber,
+      updatedAt: context.now,
+      updatedBy: context.actorId,
+    });
+  } else {
+    const originalJobId = text(request.get("venueEmailJobId")) || `coi_venue_${input.requestId}`;
+    const original = await db.doc(`emailJobs/${originalJobId}`).get();
+    if (!original.exists) throw new Error("COI_NOT_RESENDABLE");
+    const jobId = `coi_venue_${input.requestId}_r${resendNumber}`;
+    batch.create(db.doc(`emailJobs/${jobId}`), {
+      ...original.data(),
+      id: jobId,
+      recipient: input.submissionEmail,
+      correctedResend: resendNumber,
+      status: "queued",
+      attempts: 0,
+      createdAt: context.now,
+      updatedAt: context.now,
+    });
+    batch.update(requirement.ref, {
+      submissionEmail: input.submissionEmail,
+      updatedAt: context.now,
+      updatedBy: context.actorId,
+    });
+    batch.update(reference, {
+      // The wrong address may have acknowledged; the right one hasn't yet.
+      status: "sent_to_venue",
+      venueAcknowledgedAt: null,
+      venueEmailJobId: jobId,
+      sentToVenueAt: context.now,
+      resendCount: resendNumber,
+      updatedAt: context.now,
+      updatedBy: context.actorId,
+    });
+    // Venue memory learns the right address, not the wrong one.
+    const key = text(requirement.get("venueKey")) || venueKey({ name: requirement.get("venueLegalName") });
+    if (key) {
+      batch.set(
+        db.doc(`venueCoiProfiles/${venueProfileId(context.tenantId, key)}`),
+        { submissionEmail: input.submissionEmail, updatedAt: context.now, updatedBy: context.actorId },
+        { merge: true },
+      );
+    }
+  }
+  batch.create(db.doc(`auditEvents/coi_resend_${input.requestId}_${resendNumber}`), {
+    tenantId: context.tenantId,
+    projectId: input.projectId,
+    actorId: context.actorId,
+    actorType: "user",
+    action: plan.to === "agent" ? "coi.request_resent" : "coi.venue_resent",
+    entityType: "insuranceRequest",
+    entityId: input.requestId,
+    timestamp: context.now,
+    before: {
+      status,
+      requestEmail: request.get("requestEmail") ?? null,
+      submissionEmail: requirement.get("submissionEmail") ?? null,
+      ...Object.fromEntries(Object.keys(venueChanges).map((key) => [key, requirement.get(key) ?? null])),
+    },
+    after: {
+      to: plan.to,
+      requestEmail: input.agentEmail,
+      submissionEmail: input.submissionEmail,
+      ...venueChanges,
+    },
+    ipAddress: null,
+    userAgent: null,
+    correlationId: `coi_resend_${input.requestId}_${resendNumber}`,
+    automationRunId: null,
+    providerEventId: null,
+  });
+  await batch.commit();
+  return { requestId: input.requestId, to: plan.to, resendNumber };
 }

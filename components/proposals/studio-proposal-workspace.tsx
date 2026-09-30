@@ -78,6 +78,7 @@ import {
   type ProposalStageVerdict,
 } from "@/features/proposals/eligibility";
 import {
+  ACCEPTANCE_AGREEMENT_OUT,
   combinedAgreementLive,
   draftFormDirty,
   proposalHasLapsed,
@@ -1739,6 +1740,9 @@ export function StudioProposalWorkspace({
   /** Which undo is being confirmed: discarding a draft, or withdrawing a sent one. */
   const [closing, setClosing] = useState<null | "discard" | "withdraw">(null);
   const [withdrawReason, setWithdrawReason] = useState("");
+  /** "Undo this acceptance", being confirmed. */
+  const [undoingAcceptance, setUndoingAcceptance] = useState(false);
+  const [undoReason, setUndoReason] = useState("");
   /** "Now" for the expiry check, fixed per mount so a render stays pure. */
   const [openedAt] = useState(() => Date.now());
 
@@ -1982,6 +1986,10 @@ export function StudioProposalWorkspace({
             : "Proposal email queued again.",
         record_acceptance:
           "Acceptance recorded against your name. The agreement is the next step.",
+        undo_acceptance:
+          command.result.discardedContractDraft === true
+            ? "Acceptance undone. The job is back at Proposal, and the unsent agreement draft was discarded."
+            : "Acceptance undone. The job is back at Proposal and the couple can accept again from their page.",
       };
       /**
        * The two PDF commands read their outcome off the record.
@@ -2054,6 +2062,16 @@ export function StudioProposalWorkspace({
    * server judges it, so nothing is offered here that it will refuse.
    */
   const agreementLive = combinedAgreementLive(proposal.combinedContractId, contracts.records);
+  /**
+   * An agreement already out (or signed) on this job — the server refuses to
+   * undo an acceptance then, so the page says what to do instead of offering
+   * a button that fails.
+   */
+  const acceptanceAgreementOut = (contracts.records ?? []).some(
+    (contract) =>
+      contract.projectId === proposal.projectId &&
+      ACCEPTANCE_AGREEMENT_OUT.includes(String(contract.status ?? "")),
+  );
   /** Sent, and past its date: the couple's page says expired and refuses a yes. */
   const lapsed = proposalHasLapsed(status, proposal.expiresAt, openedAt);
   // Owner/admin only on the server (record_acceptance), and refused while the
@@ -2817,6 +2835,78 @@ export function StudioProposalWorkspace({
                   Continue to project <ArrowRight />
                 </Link>
               </div>
+            ) : null}
+
+            {/* Undo an acceptance recorded by mistake. Owner/admin on the
+                server, and only while nothing has gone out on the strength
+                of it (proposal-domain.ts planUndoAcceptance) — an agreement
+                out for signature is withdrawn first, as its own act. */}
+            {status === "accepted" && canApprove && !proposal.acceptedWithContractId && !proposal.combinedContractId ? (
+              acceptanceAgreementOut ? (
+                <p className="proposal-permission-note">
+                  The agreement has already gone to the couple for this acceptance. To undo it, withdraw the
+                  agreement on the job&rsquo;s Booking tab first.
+                </p>
+              ) : (
+                <div className="proposal-undo">
+                  {!undoingAcceptance ? (
+                    <button
+                      className="button button-quiet"
+                      disabled={working !== null}
+                      onClick={() => setUndoingAcceptance(true)}
+                      type="button"
+                    >
+                      <X aria-hidden="true" size={14} />
+                      Undo this acceptance
+                    </button>
+                  ) : (
+                    <div className="proposal-undo-confirm" role="group" aria-label="Confirm">
+                      <p>
+                        {proposal.acceptanceAuthority === "studio_attested"
+                          ? "Undo the acceptance you recorded? "
+                          : "The couple accepted this themselves, in their portal. Undo it anyway? "}
+                        The proposal goes back to how it was before, the job goes back to Proposal, and any
+                        agreement draft StudioCue prepared for it is discarded. Nothing is emailed — tell them
+                        yourself. They can accept again from their page.
+                      </p>
+                      <label className="proposal-field">
+                        <span>Why (for your records, optional)</span>
+                        <input
+                          maxLength={500}
+                          onChange={(event) => setUndoReason(event.target.value)}
+                          value={undoReason}
+                        />
+                      </label>
+                      <div className="proposal-undo-actions">
+                        <button
+                          className="button button-danger"
+                          disabled={working !== null}
+                          onClick={() =>
+                            void (async () => {
+                              const done = await run(
+                                "undo_acceptance",
+                                undoReason.trim() ? { reason: undoReason.trim() } : {},
+                              );
+                              if (done) setUndoingAcceptance(false);
+                            })()
+                          }
+                          type="button"
+                        >
+                          {working === "undo_acceptance" ? <LoaderCircle className="spin" /> : null}
+                          Undo the acceptance
+                        </button>
+                        <button
+                          className="button button-light"
+                          onClick={() => setUndoingAcceptance(false)}
+                          type="button"
+                        >
+                          Keep it
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
             ) : null}
 
             {/* Undo, for what hasn't become a booking. A draft nobody has

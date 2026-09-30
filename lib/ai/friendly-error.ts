@@ -300,6 +300,28 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CREW_IDENTITY_OWNED_BY_MEMBER:
     "They have their own account now, so their name and email are theirs to change. You can still update rate, specialties and areas.",
   CONTACT_NOT_FOUND: "That client record could not be found.",
+  // Wave 3: undo. Each says what is in the way and what to do about it.
+  CONTACT_ARCHIVED: "This client is archived. Restore them first, then edit their details.",
+  NO_TASK_CHANGES: "Nothing about the task changed, so there was nothing to save.",
+  TASK_CANCELLED: "That task was cancelled. Reopen it first if it still needs doing.",
+  TASK_ALREADY_COMPLETE: "That task is already done. Reopen it first to change it.",
+  TASK_NOT_SETTLED: "That task is still open, so there's nothing to reopen.",
+  TASK_ASSIGNEE_INVALID: "That person isn't an active member of your team. Pick someone who is, or a role.",
+  CHECKPOINT_NOT_RESOLVED: "That readiness item isn't marked done or waived, so there's nothing to reopen.",
+  PROPOSAL_NOT_ACCEPTED: "That proposal isn't accepted, so there's no acceptance to undo.",
+  ACCEPTED_BY_SIGNING:
+    "The couple accepted this by signing the booking agreement. Withdraw the agreement on the job's Booking tab instead.",
+  PROJECT_PAST_ACCEPTANCE:
+    "This job has moved on past the agreement, so its acceptance can't be undone. Use Change the booking, or cancel the job.",
+  AGREEMENT_OUT_WITHDRAW_FIRST:
+    "The agreement has already gone to the couple on the strength of this acceptance. Withdraw it on the job's Booking tab first, then undo the acceptance.",
+  CONSULTATION_NOT_MARKABLE: "Only a booked consultation can be marked as missed.",
+  CONSULTATION_NOT_STARTED: "That consultation hasn't started yet, so nobody has missed it.",
+  CONSULTATION_NOT_REOPENABLE: "Only a consultation marked as held or missed can be reopened.",
+  PROJECT_PAST_CONSULTATION:
+    "This job has moved on past the consultation, so the consultation can't be reopened.",
+  COI_NOTHING_CORRECTED: "Change the venue's details or the agent's email first — nothing was different to send.",
+  COI_NOT_RESENDABLE: "This certificate isn't at a point where it can be sent again. Refresh to see where it is.",
   ACCEPTED_PROPOSAL_IS_FINAL:
     "This proposal has been accepted, so it cannot be changed. Start a new one if the details need to move.",
   PROPOSAL_ALREADY_SUPERSEDED:

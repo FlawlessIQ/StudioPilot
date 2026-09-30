@@ -21,6 +21,10 @@ import {
 } from "./agreed-final-balance.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
 import { consultationBookingAdvancesTo } from "./consultation-advance.js";
+import {
+  consultationCorrectionRefusal,
+  reopenedConsultationNeedsNotes,
+} from "./consultation-undo.js";
 import { coupleInquiryUrl } from "./consultation-email.js";
 import { mayContactClient } from "../post-event/client-outreach.js";
 import { isStandingInvoice } from "./invoice-standing.js";
@@ -283,6 +287,37 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       consultationId: z.string().min(1),
       reason: z.string().trim().max(500).nullable(),
+    }),
+  }),
+  z.object({
+    /**
+     * They didn't turn up. `no_show` has been in the schema since it was
+     * written and nothing wrote it, so a missed call was either left
+     * "scheduled" for ever or cancelled — which emails the couple that the
+     * studio called it off. The job stays where it is; the studio invites
+     * them to pick another time with the existing scheduling link.
+     */
+    type: z.literal("markConsultationNoShow"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      consultationId: z.string().min(1),
+    }),
+  }),
+  z.object({
+    /**
+     * A consultation marked held (or a no-show) by mistake, open again: back
+     * to scheduled if it is still to come, otherwise back to waiting for its
+     * notes. Cancel and reschedule both require `scheduled`, so without this
+     * a mis-click was permanent.
+     */
+    type: z.literal("reopenConsultation"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      consultationId: z.string().min(1),
     }),
   }),
   z.object({
@@ -612,10 +647,20 @@ export const bookingCommand = onRequest(
             status: "completed",
             internalNotes: command.input.notes,
             completedAt: consultation.get("completedAt") ?? timestamp,
-            aiReview: {
-              status: "queued",
-              humanReviewRequired: true,
-            },
+            /**
+             * Queued only when this write queues the analysis. Saving notes a
+             * second time — after reopening a consultation, or correcting
+             * them — finds the job already made and queues nothing, and a
+             * "queued" review with no job behind it held the booking page on
+             * "Grounding the booking brief…" for good. The brief already
+             * drafted stays.
+             */
+            aiReview: existingJob.exists
+              ? (consultation.get("aiReview") ?? { status: "queued", humanReviewRequired: true })
+              : {
+                  status: "queued",
+                  humanReviewRequired: true,
+                },
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
@@ -927,6 +972,102 @@ export const bookingCommand = onRequest(
               { merge: true },
             );
         }
+      } else if (
+        command.type === "markConsultationNoShow" ||
+        command.type === "reopenConsultation"
+      ) {
+        const move = command.type === "markConsultationNoShow" ? "no_show" : "reopen";
+        const consultationReference = firestore.doc(
+          `consultations/${command.input.consultationId}`,
+        );
+        const projectReference = firestore.doc(`projects/${command.input.projectId}`);
+        result = await firestore.runTransaction(async (transaction) => {
+          const [consultation, project] = await Promise.all([
+            transaction.get(consultationReference),
+            transaction.get(projectReference),
+          ]);
+          if (
+            !consultation.exists ||
+            consultation.get("tenantId") !== command.tenantId ||
+            consultation.get("projectId") !== command.input.projectId
+          )
+            throw new Error("CONSULTATION_NOT_FOUND");
+          if (!project.exists || project.get("tenantId") !== command.tenantId)
+            throw new Error("PROJECT_NOT_FOUND");
+          const status = String(consultation.get("status"));
+          const startsAt = String(consultation.get("startsAt") ?? "");
+          const refusal = consultationCorrectionRefusal({
+            move,
+            status,
+            startsAt,
+            now: timestamp,
+            projectState: String(project.get("state") ?? ""),
+          });
+          if (refusal) throw new Error(refusal);
+          const needsNotes =
+            move === "reopen" && reopenedConsultationNeedsNotes(startsAt, timestamp);
+          // The job is deliberately left where it is: a missed call is still
+          // a consultation to have, and a reopened one is still the one held.
+          transaction.update(
+            consultationReference,
+            move === "no_show"
+              ? {
+                  status: "no_show",
+                  noShowAt: timestamp,
+                  noShowBy: identity.uid,
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                }
+              : {
+                  status: "scheduled",
+                  completedAt: null,
+                  noShowAt: null,
+                  noShowBy: null,
+                  reopenedAt: timestamp,
+                  reopenedBy: identity.uid,
+                  updatedAt: timestamp,
+                  updatedBy: identity.uid,
+                },
+          );
+          if (move === "no_show" || needsNotes) {
+            transaction.update(projectReference, {
+              nextAction:
+                move === "no_show"
+                  ? "They missed the consultation — invite them to pick another time"
+                  : "Write up the consultation",
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
+          const auditId = stableId(
+            move === "no_show" ? "audit_consultation_no_show" : "audit_consultation_reopened",
+            command.tenantId,
+            command.idempotencyKey,
+          );
+          transaction.create(firestore.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: move === "no_show" ? "consultation.no_show" : "consultation.reopened",
+            entityType: "consultation",
+            entityId: command.input.consultationId,
+            timestamp,
+            before: { status },
+            after: { status: move === "no_show" ? "no_show" : "scheduled", needsNotes },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId: request.header("x-correlation-id") ?? command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          return {
+            consultationId: command.input.consultationId,
+            status: move === "no_show" ? "no_show" : "scheduled",
+            needsNotes,
+          };
+        });
       } else if (command.type === "rescheduleConsultation") {
         const start = new Date(command.input.startsAt);
         const end = new Date(command.input.endsAt);

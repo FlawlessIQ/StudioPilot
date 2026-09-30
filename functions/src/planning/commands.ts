@@ -16,7 +16,10 @@ import {
   attachCoiUploadInput,
   completeCoiDetails,
   completeCoiDetailsInput,
+  resendCoi,
+  resendCoiInput,
 } from "../coi/actions.js";
+import { coiRequestIsOpen } from "../coi/corrections.js";
 import { getFirestore, type DocumentData } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -401,6 +404,14 @@ const command = z.discriminatedUnion("type", [
     input: approveAndSendCoiInput,
   }),
   z.object({
+    // Send it again with corrected details — to the agent, or to the venue
+    // at the right address (coi/corrections.ts planCoiResend).
+    type: z.literal("resendCoi"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: resendCoiInput,
+  }),
+  z.object({
     /**
      * Whose timeline is the real one for this wedding, and the planner's
      * latest version when it's theirs. See
@@ -617,7 +628,8 @@ export const planningCommand = onRequest(
         parsed.type === "approvePreparedCoi" ||
         parsed.type === "completeCoiDetails" ||
         parsed.type === "attachCoiUpload" ||
-        parsed.type === "approveAndSendCoi"
+        parsed.type === "approveAndSendCoi" ||
+        parsed.type === "resendCoi"
       ) {
         await requireEntitlement(db, parsed.tenantId, "coiEnabled");
       }
@@ -1780,6 +1792,8 @@ export const planningCommand = onRequest(
         result = await attachCoiUpload(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
       } else if (parsed.type === "approveAndSendCoi") {
         result = await approveAndSendCoi(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
+      } else if (parsed.type === "resendCoi") {
+        result = await resendCoi(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
       } else if (parsed.type === "setTimelineAuthority") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         const project = db.doc(`projects/${parsed.input.projectId}`);
@@ -1845,14 +1859,78 @@ export const planningCommand = onRequest(
         if (!snapshot.exists || snapshot.get("tenantId") !== parsed.tenantId) {
           throw new Error("NOT_FOUND");
         }
-        await project.update({
-          insuranceRequired: parsed.input.insuranceRequired,
-          updatedAt: now,
-          updatedBy: identity.uid,
-        });
+        /**
+         * "Not required" ends what was asking for one. It used to change this
+         * field alone, so the chase scheduler went on emailing the agent about
+         * a certificate nobody needed and the Today card stayed. Open requests
+         * are cancelled and filed away — kept, as the record of what was
+         * asked — and a certificate already at the venue is left as it is.
+         */
+        const cancelled: string[] = [];
+        if (parsed.input.insuranceRequired === "not_required") {
+          const requests = await db
+            .collection("insuranceRequests")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .limit(20)
+            .get();
+          const batch = db.batch();
+          for (const insuranceRequest of requests.docs) {
+            if (!coiRequestIsOpen(insuranceRequest.data())) continue;
+            cancelled.push(insuranceRequest.id);
+            batch.update(insuranceRequest.ref, {
+              status: "cancelled",
+              cancelledReason: "not_required",
+              priorStatus: insuranceRequest.get("status") ?? null,
+              archivedAt: now,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+            const requirementId = insuranceRequest.get("requirementId");
+            if (typeof requirementId === "string" && requirementId) {
+              batch.set(
+                db.doc(`insuranceRequirements/${requirementId}`),
+                { status: "cancelled", archivedAt: now, updatedAt: now, updatedBy: identity.uid },
+                { merge: true },
+              );
+            }
+          }
+          batch.update(project, {
+            insuranceRequired: parsed.input.insuranceRequired,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+          if (cancelled.length) {
+            batch.create(db.doc(`auditEvents/${stable("audit_coi_not_required", parsed.tenantId, parsed.idempotencyKey)}`), {
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              actorId: identity.uid,
+              actorType: "user",
+              action: "coi.requests_cancelled",
+              entityType: "project",
+              entityId: parsed.input.projectId,
+              timestamp: now,
+              before: { insuranceRequired: snapshot.get("insuranceRequired") ?? null },
+              after: { insuranceRequired: "not_required", cancelledRequestIds: cancelled },
+              ipAddress: request.ip ?? null,
+              userAgent: request.get("user-agent") ?? null,
+              correlationId: parsed.idempotencyKey,
+              automationRunId: null,
+              providerEventId: null,
+            });
+          }
+          await batch.commit();
+        } else {
+          await project.update({
+            insuranceRequired: parsed.input.insuranceRequired,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
+        }
         result = {
           projectId: parsed.input.projectId,
           insuranceRequired: parsed.input.insuranceRequired,
+          cancelledRequests: cancelled.length,
         };
       } else if (parsed.type === "publishSchedule") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");

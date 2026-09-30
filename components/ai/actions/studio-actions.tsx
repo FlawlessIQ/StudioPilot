@@ -40,6 +40,8 @@ import { StudioIdentitySettings } from "@/components/settings/studio-identity";
 import { DataControls } from "@/components/settings/data-controls";
 import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 import { InquiryForwardingAddress, InquiryForwardingSettings } from "@/components/crm/inquiry-forwarding-address";
+import { AssigneeSelect } from "@/components/tasks/task-assignee";
+import { assigneeFields, assigneeValue } from "@/features/tasks/assignee";
 import {
   ActionShell,
   Actions,
@@ -454,6 +456,7 @@ export function CreateTaskCard({ action }: ActionCardProps) {
   const [title, setTitle] = useState((action.text ?? "").slice(0, 200));
   const [due, setDue] = useState(action.date ?? "");
   const [priority, setPriority] = useState("normal");
+  const [assignee, setAssignee] = useState("");
   const heading = `Add a task to ${jobName(job)}`;
   if (loading) return <ActionShell title={heading}><Loading /></ActionShell>;
   if (!job) return notFound(heading);
@@ -474,6 +477,7 @@ export function CreateTaskCard({ action }: ActionCardProps) {
           ]}
           value={priority}
         />
+        <AssigneeSelect onChange={setAssignee} value={assignee} />
       </Form>
       <Actions
         busy={runner.busy}
@@ -488,8 +492,7 @@ export function CreateTaskCard({ action }: ActionCardProps) {
                 checkpointId: null,
                 title: title.trim(),
                 description: "",
-                assignedUserId: null,
-                assignedRole: null,
+                ...assigneeFields(assignee),
                 dueDate: /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null,
                 priority,
                 blocking: false,
@@ -514,10 +517,39 @@ export function CompleteTaskCard({ action }: ActionCardProps) {
   const open = onJob(tasks, action.projectId).filter((task) => !DONE_TASK.has(str(task.status)));
   const options = open.map((task) => ({ id: task.id, name: str(task.title) || "Task", detail: str(task.dueDate) ? `Due ${str(task.dueDate)}` : undefined }));
   const choice = useSubjectChoice(action.subject, options);
+  const [completedId, setCompletedId] = useState<string | null>(null);
+  const undo = useRunner();
   const title = `Mark a task done · ${jobName(job)}`;
   if (loading || !tasks) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
-  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  // Done is one tap, so it keeps a way back: a mis-tap reopens the task.
+  if (runner.done)
+    return (
+      <ActionShell title={title}>
+        <Done>{undo.done ?? runner.done}</Done>
+        {completedId && !undo.done ? (
+          <div className="copilot-flow-actions">
+            <button
+              className="button button-light"
+              disabled={undo.busy}
+              onClick={() =>
+                void undo.run(
+                  async () => {
+                    await runWorkflowCommand("reopenTask", { taskId: completedId });
+                    return "Undone — it's open again.";
+                  },
+                  { refresh: ["tasks"] },
+                )
+              }
+              type="button"
+            >
+              {undo.busy ? "Working…" : "Undo"}
+            </button>
+          </div>
+        ) : null}
+        <Notice text={undo.notice} />
+      </ActionShell>
+    );
   const task = open.find((item) => item.id === choice.chosen) ?? null;
   return (
     <ActionShell icon={<CheckSquare size={15} />} title={title}>
@@ -532,9 +564,139 @@ export function CompleteTaskCard({ action }: ActionCardProps) {
               async () => {
                 if (!task) return null;
                 await runWorkflowCommand("completeTask", { taskId: task.id });
+                setCompletedId(task.id);
                 return `“${str(task.title)}” is done.`;
               },
               { refresh: ["tasks", "checkpoints", "readinessAssessments"] },
+            )
+          }
+        />
+      ) : null}
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * Edit, reopen or cancel a task (wave 3): the same commands as the row on
+ * /studio/tasks. Reopen picks among settled tasks; edit and cancel among open
+ * ones.
+ */
+export function TaskChangeCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const tasks = useRecords("tasks");
+  const runner = useRunner();
+  const kind = action.action as "edit_task" | "reopen_task" | "cancel_task";
+  const pool = onJob(tasks, action.projectId).filter((task) =>
+    kind === "reopen_task" ? DONE_TASK.has(str(task.status)) : !DONE_TASK.has(str(task.status)),
+  );
+  const options = pool.map((task) => ({
+    id: task.id,
+    name: str(task.title) || "Task",
+    detail: kind === "reopen_task" ? str(task.status) : str(task.dueDate) ? `Due ${str(task.dueDate)}` : undefined,
+  }));
+  const choice = useSubjectChoice(action.subject, options);
+  const task = pool.find((item) => item.id === choice.chosen) ?? null;
+  const [edits, setEdits] = useState<{
+    id: string;
+    title: string;
+    dueDate: string;
+    priority: string;
+    assignee: string;
+    description: string;
+  } | null>(null);
+  const [reason, setReason] = useState(kind === "cancel_task" ? action.text ?? "" : "");
+  const titles = { edit_task: "Change a task", reopen_task: "Reopen a task", cancel_task: "Cancel a task" };
+  const title = `${titles[kind]} · ${jobName(job)}`;
+  if (loading || !tasks) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  // The edit form starts from the chosen task, and from the words the
+  // operator used for a new due date or title.
+  const form =
+    task && kind === "edit_task"
+      ? edits?.id === task.id
+        ? edits
+        : {
+            id: task.id,
+            title: str(task.title),
+            dueDate: action.date ?? str(task.dueDate),
+            priority: str(task.priority) || "normal",
+            assignee: assigneeValue(task),
+            description: str(task.description),
+          }
+      : null;
+  const change = (patch: Partial<NonNullable<typeof form>>) => form && setEdits({ ...form, ...patch });
+  return (
+    <ActionShell
+      detail={
+        kind === "cancel_task"
+          ? "It stays on the list as a record, marked cancelled."
+          : kind === "reopen_task"
+            ? "It goes back on the list as not started."
+            : "Only your team sees tasks."
+      }
+      icon={<ListChecks size={15} />}
+      title={title}
+    >
+      {!options.length ? (
+        <Done>{kind === "reopen_task" ? "No done or cancelled tasks on this job." : "No open tasks on this job."}</Done>
+      ) : (
+        <SubjectPicker {...choice} noun="task" options={options} subject={action.subject} />
+      )}
+      {form ? (
+        <Form>
+          <TextField label="Task" onChange={(value) => change({ title: value })} value={form.title} />
+          <TextField label="Due" onChange={(value) => change({ dueDate: value })} type="date" value={form.dueDate} />
+          <AssigneeSelect onChange={(value) => change({ assignee: value })} value={form.assignee} />
+          <SelectField
+            label="Priority"
+            onChange={(value) => change({ priority: value })}
+            options={[
+              { value: "low", label: "Low" },
+              { value: "normal", label: "Normal" },
+              { value: "high", label: "High" },
+              { value: "urgent", label: "Urgent" },
+            ]}
+            value={form.priority}
+          />
+          <TextAreaField label="Notes" onChange={(value) => change({ description: value })} rows={2} value={form.description} />
+        </Form>
+      ) : null}
+      {task && kind === "cancel_task" ? (
+        <Form>
+          <TextField label="Why (optional)" onChange={setReason} value={reason} />
+        </Form>
+      ) : null}
+      {options.length ? (
+        <Actions
+          busy={runner.busy}
+          danger={kind === "cancel_task"}
+          disabled={!task || (form !== null && form.title.trim().length < 2)}
+          label={kind === "edit_task" ? "Save" : kind === "reopen_task" ? "Reopen it" : "Cancel it"}
+          onClick={() =>
+            void runner.run(
+              async () => {
+                if (!task) return null;
+                if (kind === "edit_task" && form) {
+                  await runWorkflowCommand("updateTask", {
+                    taskId: task.id,
+                    title: form.title.trim(),
+                    description: form.description.trim(),
+                    dueDate: /^\d{4}-\d{2}-\d{2}$/.test(form.dueDate) ? form.dueDate : null,
+                    priority: form.priority,
+                    ...assigneeFields(form.assignee),
+                  });
+                  return `Saved “${form.title.trim()}”.`;
+                }
+                if (kind === "reopen_task") {
+                  await runWorkflowCommand("reopenTask", { taskId: task.id });
+                  return `“${str(task.title)}” is open again.`;
+                }
+                await runWorkflowCommand("cancelTask", { taskId: task.id, reason: reason.trim().slice(0, 500) || null });
+                return `“${str(task.title)}” is cancelled.`;
+              },
+              { refresh: ["tasks"] },
             )
           }
         />
@@ -550,7 +712,15 @@ export function ReadinessCard({ action }: ActionCardProps) {
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   return (
-    <ActionShell detail="Mark an item done when it was handled outside StudioCue; only the owner can waive one." icon={<ClipboardCheck size={15} />} title={title}>
+    <ActionShell
+      detail={
+        action.action === "reopen_checkpoint"
+          ? "Reopen an item marked done or waived by mistake — owners and admins, with a reason."
+          : "Mark an item done when it was handled outside StudioCue; only the owner can waive one."
+      }
+      icon={<ClipboardCheck size={15} />}
+      title={title}
+    >
       <Embedded>
         <ReadinessCheckpoints projectId={job.id} />
       </Embedded>

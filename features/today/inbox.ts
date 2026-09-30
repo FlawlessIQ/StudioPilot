@@ -1116,14 +1116,17 @@ export function todayInbox(input: TodayInput): TodayInbox {
       detail: nameFor(task.projectId) ?? "Studio task",
       dueDate: due,
       extraFacts: [`was due ${formatDueDate(due)}`],
+      // The task list, filtered to the job: that is where Mark done, Edit and
+      // Cancel are. The card used to open the job page, which has none of
+      // them, so an overdue task could be looked at from Today but not done.
       href: task.projectId
-        ? `/studio/projects/${text(task.projectId)}`
+        ? `/studio/tasks?project=${encodeURIComponent(text(task.projectId))}`
         : "/studio/tasks",
       projectId: text(task.projectId) || null,
       projectName: nameFor(task.projectId),
       eventDate: eventFor(task.projectId),
       updatedAt: changedAt(task),
-      label: task.projectId ? "Open the job" : "Open the task",
+      label: "Open the task",
     });
   }
 
