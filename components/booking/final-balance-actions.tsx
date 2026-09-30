@@ -79,6 +79,7 @@ export function FinalBalanceActions({
             refreshTenantRecords("invoiceReferences", "projects", "checkpoints");
             onDone?.(message);
           }}
+          defaultOpen
           packageSnapshotId={packageSnapshotId}
           projectId={projectId}
         />

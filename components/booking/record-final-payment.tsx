@@ -26,6 +26,7 @@ export function RecordFinalPayment({
   balanceLabel,
   providerLabel,
   standingInvoice,
+  defaultOpen = false,
 }: {
   /** Called with the confirmation to show; the parent owns it, because this
    * control is often unmounted by the reload that follows. */
@@ -38,6 +39,8 @@ export function RecordFinalPayment({
   providerLabel?: string | null;
   /** True when an invoice already stands and this settles it. */
   standingInvoice?: boolean;
+  /** Open, for a surface that already asked "paid another way?". */
+  defaultOpen?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -74,7 +77,7 @@ export function RecordFinalPayment({
   }
 
   return (
-    <details className="record-signed-agreement">
+    <details className="record-signed-agreement" open={defaultOpen}>
       <summary>
         <Banknote aria-hidden="true" size={15} />
         Balance paid outside StudioCue? Record it

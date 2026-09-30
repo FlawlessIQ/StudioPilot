@@ -746,6 +746,7 @@ export function TodayInbox() {
                 refreshTenantRecords("invoiceReferences", "projects", "checkpoints");
                 setSettling(null);
               }}
+              defaultOpen
               packageSnapshotId={settling.packageSnapshotId}
               projectId={settling.projectId}
             />
