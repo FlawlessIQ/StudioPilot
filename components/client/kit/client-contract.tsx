@@ -14,6 +14,8 @@ import {
   useReserveYourDate,
 } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
+import { ClientBookingChange } from "@/components/client/kit/client-booking-change";
+import { ClientAddPackage } from "@/components/client/kit/client-add-package";
 
 /**
  * The couple's agreement, on a phone (M3 of
@@ -63,6 +65,7 @@ export function ClientContract() {
     return (
       <Main label="Your agreement">
         {progress}
+        <ClientBookingChange />
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Agreement</p>
           <h1 className="kit-title">Your agreement</h1>
@@ -84,6 +87,7 @@ export function ClientContract() {
     return (
       <Main label="Your agreement">
         {progress}
+        <ClientBookingChange />
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Agreement</p>
           <h1 className="kit-title">Your agreement</h1>
@@ -101,6 +105,7 @@ export function ClientContract() {
           studioColor={workspace.tenantBrand?.primaryColor ?? null}
           studioName={studioName}
         />
+        <ClientAddPackage place="agreement" />
         <PoweredBy />
       </Main>
     );
@@ -139,6 +144,7 @@ export function ClientContract() {
     <>
       <Main label="Your agreement">
         {progress}
+        <ClientBookingChange />
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Agreement · {statusLabel(contract.status)}</p>
           <h1 className="kit-title">Photography services agreement</h1>
@@ -212,6 +218,7 @@ export function ClientContract() {
         >
           <MessageCircle aria-hidden size={15} /> Ask your studio about this agreement
         </Link>
+        <ClientAddPackage place="agreement" />
         <PoweredBy />
       </Main>
 

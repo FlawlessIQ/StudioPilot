@@ -21,6 +21,7 @@ import { BookWithoutRetainer } from "@/components/booking/book-without-retainer"
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { ExistingBookingForm } from "@/components/imports/existing-booking-form";
 import { NativeContractStep } from "@/components/contracts/native-contract-step";
+import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { FILE_BEARING } from "@/features/documents/file-ref";
 import { bookingBlockerLabel } from "@/features/booking/blocker-label";
@@ -316,6 +317,8 @@ export function ChangePackagesCard({ action }: ActionCardProps) {
   const title = `${removing ? "Remove a package from" : "Swap the package on"} ${jobName(job)}`;
   if (loading || !proposals || !contacts || !snapshots) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
+  if (signedBookingChange(job))
+    return <ChangeBookingCard action={action} />;
   const proposal = revisableProposal(proposals, job.id);
   if (proposal)
     return (
@@ -407,7 +410,9 @@ export function PackageRequestCard({ action }: ActionCardProps) {
   const approving = action.action === "approve_package_request";
   const title = `${approving ? "Add the package they asked for" : "Decline their package request"} · ${jobName(job)}`;
   const pending = onJob(requests, action.projectId).filter((item) => item.status === "pending");
-  const options = pending.map((item) => ({ id: item.id, name: str(item.packageName) || "Package", detail: str(item.note) || undefined }));
+  const requestName = (item: Rec) =>
+    str(item.kind) === "date_change" ? `Move the date to ${str(item.requestedDate)}` : str(item.packageName) || "Package";
+  const options = pending.map((item) => ({ id: item.id, name: requestName(item), detail: str(item.note) || undefined }));
   const choice = useSubjectChoice(action.subject, options);
   if (loading || !requests || !proposals) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
@@ -415,6 +420,35 @@ export function PackageRequestCard({ action }: ActionCardProps) {
   if (!pending.length) return <ActionShell title={title}><Done>{`${jobName(job)} has no package request waiting.`}</Done></ActionShell>;
   const request = pending.find((item) => item.id === choice.chosen) ?? null;
   const proposal = revisableProposal(proposals, job.id);
+  // Signed: the answer is a booking change they sign, prefilled with the ask.
+  if (approving && AMENDABLE_STATES.includes(str(job.state)))
+    return (
+      <ActionShell
+        detail="They've signed, so this is a booking change for them to sign. Their agreement stands until they do."
+        icon={<PackageOpen size={15} />}
+        title={`Write up the change they asked for · ${jobName(job)}`}
+      >
+        {options.length > 1 ? <SubjectPicker {...choice} noun="request" options={options} subject={action.subject} /> : null}
+        {request ? (
+          <BookingAmendmentPanel
+            key={request.id}
+            prefill={{
+              eventDate: str(request.kind) === "date_change" ? str(request.requestedDate) || null : null,
+              addPackageIds: str(request.kind) === "date_change" ? [] : [str(request.packageId)].filter(Boolean),
+            }}
+            projectId={job.id}
+          />
+        ) : null}
+      </ActionShell>
+    );
+  if (approving && request && str(request.kind) === "date_change")
+    return (
+      <ActionShell icon={<PackageOpen size={15} />} title={title}>
+        <p className="cue-action-note">
+          {`Not signed yet, so the date is simply edited: ask me to change ${jobName(job)}'s date to ${str(request.requestedDate)}, or use Edit job. The request clears once the date moves.`}
+        </p>
+      </ActionShell>
+    );
   return (
     <ActionShell
       detail={
@@ -426,7 +460,7 @@ export function PackageRequestCard({ action }: ActionCardProps) {
       title={title}
     >
       {options.length > 1 ? <SubjectPicker {...choice} noun="request" options={options} subject={action.subject} /> : null}
-      {request ? <p className="cue-action-note">{`${str(request.packageName)}${str(request.note) ? ` — “${str(request.note)}”` : ""}`}</p> : null}
+      {request ? <p className="cue-action-note">{`${requestName(request)}${str(request.note) ? ` — “${str(request.note)}”` : ""}`}</p> : null}
       <Actions
         busy={runner.busy}
         danger={!approving}
@@ -714,7 +748,9 @@ export function ProposalStepCard({ action }: ActionCardProps) {
               ? "It is already a draft."
               : "Once it has been sent it can't go back to draft. Ask me to correct it instead."
             : status === "accepted"
-              ? "They've accepted it, so it can't be changed here. Change the packages to send a revised proposal."
+              ? signedBookingChange(job)
+                ? "They've signed, so this proposal is final. Ask me to change the booking — they sign the change and their agreement stands until they do."
+                : "They've accepted it. Change the packages to send them a revised proposal."
               : "It hasn't been sent yet."}
         </Blocked>
         {open}
@@ -1206,4 +1242,31 @@ export function SignedCopyCard({ action }: ActionCardProps) {
       </Embedded>
     </ActionShell>
   );
+}
+
+/**
+ * Changing a booking the couple already signed: a new date, a package added
+ * or removed. The same panel as the job page's "Change the booking".
+ */
+export function ChangeBookingCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const title = `Change the booking · ${jobName(job)}`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  return (
+    <ActionShell
+      detail="The couple signs the change; their current agreement stands until they do, and the job keeps its stage."
+      icon={<CalendarClock size={15} />}
+      title={title}
+    >
+      <Embedded>
+        <BookingAmendmentPanel projectId={job.id} />
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+/** On a signed booking, a package or date change goes through the couple. */
+export function signedBookingChange(job: Rec | null): boolean {
+  return Boolean(job && AMENDABLE_STATES.includes(str(job.state)));
 }

@@ -192,7 +192,11 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // prompt no longer carries the update_project rule, and swapping or
   // removing a package is a card rather than directions. Scenarios K1–K14
   // in docs/cue-scenarios.md re-run on production before shipping.
-  const EXPECTED = 19012;
+  // Bumped 2026-09-29: once the couple has signed, a change of packages or
+  // date is a booking change they sign (change_booking) — the old line said
+  // the agreement or invoice "must be voided first". K-scenarios re-run on
+  // production before shipping.
+  const EXPECTED = 19067;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,

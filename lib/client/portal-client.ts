@@ -188,8 +188,20 @@ export function getClientAvailablePackages(
 
 export type ClientPackageAdditions = {
   canRequest: boolean;
+  /** Whether they can ask to move their date. */
+  canRequestDate?: boolean;
+  /** Signed: the studio answers with a booking change for them to sign. */
+  signed?: boolean;
   options: Array<Record<string, unknown> & { id: string }>;
-  requests: Array<{ id: string; packageId: string; packageName: string; status: string; createdAt: string }>;
+  requests: Array<{
+    id: string;
+    kind?: string;
+    requestedDate?: string | null;
+    packageId: string;
+    packageName: string;
+    status: string;
+    createdAt: string;
+  }>;
 };
 
 /** What the couple could ask to add to their booking, and what they've asked. */
@@ -204,6 +216,18 @@ export function requestClientPackage(tenantId: string, projectId: string, packag
     tenantId,
     projectId,
     packageId,
+    note,
+    idempotencyKey: crypto.randomUUID(),
+  });
+}
+
+/** Ask the studio to move the wedding date; it lands on their Today. */
+export function requestClientDateChange(tenantId: string, projectId: string, eventDate: string, note: string | null) {
+  return portalRequest<{ requestId: string; status: string }>({
+    type: "request_date_change",
+    tenantId,
+    projectId,
+    eventDate,
     note,
     idempotencyKey: crypto.randomUUID(),
   });
@@ -359,6 +383,38 @@ export function signClientCombinedAgreement(input: {
     alreadySigned: boolean;
   }>({
     type: "sign_combined_agreement",
+    ...input,
+    consent: true,
+  });
+}
+
+export type ClientBookingChange = {
+  id: string;
+  status: string;
+  changes: string[];
+  document: unknown;
+  documentHash: string | null;
+  studioSignerName: string;
+  sentAt: string | null;
+  signedAt: string | null;
+};
+
+/** A change to a signed booking, waiting for the couple (server/contracts/amendment-signing.ts). */
+export function getClientBookingChange(tenantId: string, projectId: string) {
+  return portalRequest<{ change: ClientBookingChange | null }>({ type: "booking_change", tenantId, projectId });
+}
+
+export function signClientBookingChange(input: {
+  tenantId: string;
+  projectId: string;
+  amendmentId: string;
+  documentHash: string;
+  typedName: string;
+  consentVersion: string;
+  idempotencyKey: string;
+}) {
+  return portalRequest<{ amendmentId: string; status: string; alreadySigned: boolean }>({
+    type: "sign_amendment",
     ...input,
     consent: true,
   });

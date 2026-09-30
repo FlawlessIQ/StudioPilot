@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Clock3, PlusCircle } from "lucide-react";
-import { Button, ButtonRow, Card, List, Pill, Row, TextArea } from "@/components/kit/kit";
+import { ArrowLeft, CalendarDays, Clock3, PlusCircle } from "lucide-react";
+import { Button, ButtonRow, Card, Field, List, Pill, Row, TextArea } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   getClientPackageAdditions,
+  requestClientDateChange,
   requestClientPackage,
   type ClientPackageAdditions,
 } from "@/lib/client/portal-client";
@@ -20,13 +21,28 @@ import { money, text } from "@/components/client/live-client-views";
  * studio and hope; the portal refused a second package outright. This is a
  * request, not a change: the studio approves it on Today and the couple gets
  * a revised proposal to accept, so the studio still decides what it can cover
- * and nothing about the deal moves until they accept. Shown only while the
- * booking can still change — before the agreement or an invoice goes out.
+ * and nothing about the deal moves until they accept.
+ *
+ * After they've signed, the same request is still open to them — for a
+ * package or a new date — and the studio answers it with a booking change for
+ * them to sign (client-booking-change.tsx). On the agreement page
+ * (`place="agreement"`) it shows only then.
  */
-export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {}) {
+function longDate(value: string | null | undefined) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
+    : "a new date";
+}
+
+export function ClientAddPackage({
+  allowNew = true,
+  place = "proposal",
+}: { allowNew?: boolean; place?: "proposal" | "agreement" } = {}) {
   const workspace = useWorkspace();
   const [additions, setAdditions] = useState<ClientPackageAdditions | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
+  const [movingDate, setMovingDate] = useState(false);
+  const [newDate, setNewDate] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -51,7 +67,14 @@ export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {
   const pending = additions.requests.filter((request) => request.status === "pending");
   const recent = additions.requests.filter((request) => request.status !== "pending").slice(0, 1);
   const choosing = asking ? additions.options.find((option) => option.id === asking) : undefined;
-  if (!additions.canRequest && !pending.length && !recent.length) return null;
+  if (place === "agreement" && !additions.signed) return null;
+  if (!additions.canRequest && !additions.canRequestDate && !pending.length && !recent.length) return null;
+  const signed = Boolean(additions.signed);
+  const whatFollows = signed
+    ? "They'll send you the change to sign. Your booking stays as it is until you do."
+    : "They'll send you an updated proposal to accept.";
+  const nameOf = (request: ClientPackageAdditions["requests"][number]) =>
+    request.kind === "date_change" ? `moving your date to ${longDate(request.requestedDate)}` : request.packageName;
 
   async function send() {
     if (!asking || !workspace.tenantId || !workspace.projectId) return;
@@ -61,7 +84,7 @@ export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {
       await requestClientPackage(workspace.tenantId, workspace.projectId, asking, note.trim() || null);
       setAsking(null);
       setNote("");
-      setNotice("Sent to your studio. They'll send you an updated proposal to accept.");
+      setNotice(`Sent to your studio. ${whatFollows}`);
       setReload((value) => value + 1);
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "Your request couldn't be sent. Please message your studio instead."));
@@ -70,9 +93,29 @@ export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {
     }
   }
 
+  async function sendDate() {
+    if (!newDate || !workspace.tenantId || !workspace.projectId) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await requestClientDateChange(workspace.tenantId, workspace.projectId, newDate, note.trim() || null);
+      setMovingDate(false);
+      setNewDate("");
+      setNote("");
+      // The "Requested" card below says what happens next.
+      setNotice("Sent to your studio.");
+      setReload((value) => value + 1);
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "Your request couldn't be sent. Please message your studio instead."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const heading = signed ? "Need to change your booking?" : "Add to your booking";
   return (
-    <section className="kit-stack-tight" aria-label="Add to your booking">
-      <h2 className="kit-subsection">Add to your booking</h2>
+    <section className="kit-stack-tight" aria-label={heading}>
+      <h2 className="kit-subsection">{heading}</h2>
       {notice ? (
         <p className="kit-note" role="status">
           {notice}
@@ -82,8 +125,8 @@ export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {
         <Card key={request.id}>
           <Pill icon={Clock3}>Requested</Pill>
           <p className="kit-body">
-            You asked to add <strong>{request.packageName}</strong>. Your studio is reviewing it and will send you an
-            updated proposal to accept.
+            {request.kind === "date_change" ? "You asked about " : "You asked to add "}
+            <strong>{nameOf(request)}</strong>. Your studio is reviewing it. {whatFollows}
           </p>
         </Card>
       ))}
@@ -97,7 +140,9 @@ export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {
         ) : request.status === "declined" ? (
           <Card key={request.id}>
             <p className="kit-body">
-              {`Your studio couldn't add ${request.packageName} this time — they'll be in touch.`}
+              {request.kind === "date_change"
+                ? `Your studio couldn't move your date to ${longDate(request.requestedDate)} — they'll be in touch.`
+                : `Your studio couldn't add ${request.packageName} this time — they'll be in touch.`}
             </p>
           </Card>
         ) : null,
@@ -106,8 +151,10 @@ export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {
         <Card>
           <p className="kit-body">
             Ask your studio to add <strong>{text(choosing.name, "this package")}</strong> (
-            {money(choosing.basePriceCents, choosing.currency)})? They&apos;ll send you an updated proposal with the new
-            total. Nothing changes until you accept it.
+            {money(choosing.basePriceCents, choosing.currency)})?{" "}
+            {signed
+              ? "They'll send you the change, with the new total, to sign. Nothing changes until you do."
+              : "They'll send you an updated proposal with the new total. Nothing changes until you accept it."}
           </p>
           <TextArea
             label="Anything they should know? (optional)"
@@ -124,10 +171,43 @@ export function ClientAddPackage({ allowNew = true }: { allowNew?: boolean } = {
             </Button>
           </ButtonRow>
         </Card>
-      ) : allowNew && additions.canRequest && additions.options.length ? (
-        <List label="Packages you can add">
+      ) : movingDate ? (
+        <Card>
+          <Field
+            label="The date you'd like"
+            min={new Date().toISOString().slice(0, 10)}
+            onChange={(event) => setNewDate(event.target.value)}
+            type="date"
+            value={newDate}
+          />
+          <TextArea
+            label="Anything they should know? (optional)"
+            onChange={(event) => setNote(event.target.value)}
+            rows={3}
+            value={note}
+          />
+          <p className="kit-caption">{`Your studio checks they're free first. ${whatFollows}`}</p>
+          <ButtonRow>
+            <Button disabled={busy} icon={ArrowLeft} onClick={() => setMovingDate(false)} size="compact" variant="secondary">
+              Go back
+            </Button>
+            <Button disabled={busy || !newDate} onClick={() => void sendDate()}>
+              {busy ? "Sending…" : "Send request"}
+            </Button>
+          </ButtonRow>
+        </Card>
+      ) : allowNew && ((additions.canRequest && additions.options.length) || (signed && additions.canRequestDate)) ? (
+        <List label={signed ? "Changes you can ask for" : "Packages you can add"}>
+          {signed && additions.canRequestDate && !pending.some((request) => request.kind === "date_change") ? (
+            <Row
+              icon={CalendarDays}
+              onClick={() => setMovingDate(true)}
+              subtitle="Ask your studio about a new date"
+              title="Move your wedding date"
+            />
+          ) : null}
           {additions.options
-            .filter((option) => !pending.some((request) => request.packageId === option.id))
+            .filter((option) => additions.canRequest && !pending.some((request) => request.packageId === option.id))
             .map((option) => (
               <Row
                 icon={PlusCircle}

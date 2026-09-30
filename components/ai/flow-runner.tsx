@@ -33,6 +33,7 @@ import {
 } from "@/features/ai/flow-subject";
 import type { CopilotFlow } from "@/lib/ai/copilot-client";
 import { needsQualifier, sharedNames } from "@/features/crew/shared-names";
+import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 const num = (value: unknown) => (typeof value === "number" ? value : 0);
@@ -99,6 +100,8 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
     (invoice) =>
       invoice.projectId === projectId && !["voided", "void", "cancelled"].includes(str(invoice.status)),
   );
+  // Signed or booked: a package change is an amendment the couple signs.
+  const signedBooking = adding && AMENDABLE_STATES.includes(str(project?.state));
   const locked =
     adding &&
     (agreementOut ||
@@ -234,13 +237,16 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
         </p>
       ) : null}
       {locked ? (
-        <p role="status">
-          {agreementOut
-            ? `The agreement has gone out for ${jobName}'s current packages. Void it on the job's Booking tab first, then add the package.`
-            : invoiceRaised
-              ? `An invoice has been raised for ${jobName}'s current total. Void it first, then add the package.`
-              : `${jobName} is booked, so its packages are fixed.`}
-        </p>
+        <div role="status">
+          {signedBooking
+            ? `${jobName} is signed, so adding a package is a change the couple signs — below. Their agreement stands until they do.`
+            : agreementOut
+              ? `The agreement has gone out for ${jobName}'s current packages. Void it on the job's Booking tab first, then add the package.`
+              : invoiceRaised
+                ? `An invoice has been raised for ${jobName}'s current total. Void it first, then add the package.`
+                : `${jobName}'s packages can't change right now.`}
+          {signedBooking ? <BookingAmendmentPanel projectId={projectId} /> : null}
+        </div>
       ) : options.length === 0 ? (
         <p role="status">{adding ? "No other active packages to add." : "No active packages to choose from yet."}</p>
       ) : (

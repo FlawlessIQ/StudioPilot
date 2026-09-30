@@ -171,6 +171,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Changes to a signed booking. Written only by the server
+    // (functions/src/contracts/amendments.ts, server/contracts/amendment-signing.ts).
+    match /bookingAmendments/{amendmentId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow write: if false;
+    }
+    match /amendmentProposals/{proposalId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow write: if false;
+    }
     // Leads change only through crmCommand (updateLead, closeInquiry, …),
     // which audits each edit and keeps the job in step. A direct browser write
     // could set status, needsConfirmation or fieldProvenance behind both.

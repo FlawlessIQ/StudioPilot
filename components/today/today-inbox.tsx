@@ -5,6 +5,7 @@ import Link from "next/link";
 import { TrustDialOffers } from "@/components/communications/trust-dial-offers";
 import {
   ArrowRight,
+  CalendarClock,
   CalendarDays,
   Check,
   CircleAlert,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
+import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { AiQueueCard, AutomationApprovalCard } from "@/components/ai/ai-approval-queue";
 import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
@@ -120,6 +122,10 @@ export function TodayInbox() {
   // The AI action being reviewed in the sheet — the whole point of the rethink:
   // review this exact prepared task in context, without leaving Today.
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  // A couple's request on a signed booking, being written up as a change.
+  // Held here, not in the card: Today unmounts its cards while it refreshes,
+  // and the draft the sheet writes is exactly such a refresh.
+  const [changing, setChanging] = useState<PackageRequestAction | null>(null);
   // Opened from an inquiry card's "Edit": the review sheet starts in the editor.
   const [reviewEditing, setReviewEditing] = useState(false);
   const isPhone = useIsPhone();
@@ -613,6 +619,7 @@ export function TodayInbox() {
                         item={item}
                         key={item.id}
                         onCleared={() => clear(item.id)}
+                        onChangeBooking={setChanging}
                         onEdit={(actionId) => {
                           setReviewEditing(true);
                           setReviewingId(actionId);
@@ -710,6 +717,26 @@ export function TodayInbox() {
             }}
             startEditing={reviewEditing}
           />
+        ) : null}
+      </SheetDialog>
+      <SheetDialog label="Change the booking" onClose={() => setChanging(null)} open={changing != null}>
+        {changing ? (
+          <div className="record-sheet">
+            <header>
+              <p className="eyebrow">The booking</p>
+              <h3>Change the booking</h3>
+              <p>What they asked for is filled in. They sign the change; their agreement stands until they do.</p>
+            </header>
+            <BookingAmendmentPanel
+              key={changing.requestId}
+              onDone={() => setChanging(null)}
+              prefill={{
+                eventDate: changing.requestKind === "date_change" ? changing.requestedDate : null,
+                addPackageIds: changing.requestKind === "package" && changing.packageId ? [changing.packageId] : [],
+              }}
+              projectId={changing.projectId}
+            />
+          </div>
         ) : null}
       </SheetDialog>
       <SheetDialog
@@ -830,9 +857,12 @@ function TodayCard({
   onReview,
   onReviewApproval,
   onEdit,
+  onChangeBooking,
   showEvidence = true,
 }: {
   item: TodayItem;
+  /** Opens the booking-change sheet for a couple's request on a signed job. */
+  onChangeBooking?: (action: PackageRequestAction) => void;
   tone: "act" | "approve" | "fyi";
   onCleared?: () => void;
   /** Opens the full review sheet for this prepared action, in context. */
@@ -956,7 +986,7 @@ function TodayCard({
             </button>
           </>
         ) : item.action.kind === "package_request" ? (
-          <PackageRequestActions action={item.action} onCleared={onCleared} />
+          <PackageRequestActions action={item.action} onChangeBooking={onChangeBooking} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
           <CloseInquiryActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "automation" ? (
@@ -1244,7 +1274,15 @@ type PackageRequestAction = Extract<TodayItem["action"], { kind: "package_reques
  * again — then opens the revised proposal to check and send. "Not now" closes
  * the request; the couple's portal says the studio will be in touch.
  */
-function PackageRequestActions({ action, onCleared }: { action: PackageRequestAction; onCleared?: () => void }) {
+function PackageRequestActions({
+  action,
+  onCleared,
+  onChangeBooking,
+}: {
+  action: PackageRequestAction;
+  onCleared?: () => void;
+  onChangeBooking?: (action: PackageRequestAction) => void;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<"add" | "decline" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -1303,16 +1341,30 @@ function PackageRequestActions({ action, onCleared }: { action: PackageRequestAc
 
   return (
     <>
-      <button className="today-card-primary" disabled={busy !== null} onClick={() => void add()} type="button">
-        {busy === "add" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
-        {busy === "add" ? "Adding…" : action.label}
-      </button>
+      {action.amend ? (
+        // Signed: the answer is a booking change they sign. The request reads
+        // as met once it's applied (functions/src/booking/amendment-apply.ts).
+        <button className="today-card-primary" onClick={() => onChangeBooking?.(action)} type="button">
+          <CalendarClock size={14} /> {action.label}
+        </button>
+      ) : action.requestKind === "date_change" ? (
+        <Link className="today-card-primary" href={`/studio/projects/${action.projectId}`}>
+          {action.label} <ArrowRight size={14} />
+        </Link>
+      ) : (
+        <button className="today-card-primary" disabled={busy !== null} onClick={() => void add()} type="button">
+          {busy === "add" ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
+          {busy === "add" ? "Adding…" : action.label}
+        </button>
+      )}
       <button className="today-card-secondary" disabled={busy !== null} onClick={() => void decline()} type="button">
         Not now
       </button>
-      <Link className="today-card-secondary" href={`/studio/projects/${action.projectId}`}>
-        Open the job
-      </Link>
+      {action.requestKind === "date_change" && !action.amend ? null : (
+        <Link className="today-card-secondary" href={`/studio/projects/${action.projectId}`}>
+          Open the job
+        </Link>
+      )}
       {notice ? (
         <span className="today-card-notice" role="status">
           {notice}

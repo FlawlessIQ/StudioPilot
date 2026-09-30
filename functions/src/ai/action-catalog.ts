@@ -63,6 +63,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "complete_consultation", scope: "project", when: "mark a consultation as held, with notes in `text`" },
   // Packages and proposals
   { id: "add_package", scope: "project", flow: "select_package", when: "choose a package, or add another package to a job (they want video too) — package name in `subject`" },
+  { id: "change_booking", scope: "project", when: "change a booking the couple already signed or booked: move the wedding date, add or remove a package — date in `date`, package in `subject`" },
   { id: "swap_package", scope: "project", when: "replace a job's main package with a different one — package name in `subject`" },
   { id: "remove_package", scope: "project", when: "take a package off a job — package name in `subject`" },
   { id: "approve_package_request", scope: "project", when: "approve a couple's request (from their portal) to add a package" },

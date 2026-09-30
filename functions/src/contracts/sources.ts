@@ -53,7 +53,12 @@ export async function loadContractSources(
   input: { tenantId: string; projectId: string; proposalId: string; today: string },
 ): Promise<{ sources: ContractSources; clientEmail: string; clientName: string }> {
   const [proposal, project, tenant] = await Promise.all([
-    db.doc(`proposals/${input.proposalId}`).get(),
+    // A booking change's proposal is held apart until it is signed, so no
+    // reader of `proposals` mistakes it for the current one
+    // (./amendments.ts).
+    input.proposalId.startsWith("amend_")
+      ? db.doc(`amendmentProposals/${input.proposalId}`).get()
+      : db.doc(`proposals/${input.proposalId}`).get(),
     db.doc(`projects/${input.projectId}`).get(),
     db.doc(`tenants/${input.tenantId}`).get(),
   ]);

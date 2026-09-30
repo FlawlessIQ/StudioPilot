@@ -93,6 +93,8 @@ const REACHED: Record<string, string> = {
   approve: "\"approve\"", send: "\"send\"", resend: "\"resend\"", reissue: "\"reissue\"",
   return_to_draft: "\"return_to_draft\"", regenerate_pdf: "\"regenerate_pdf\"", revise_packages: "\"revise_packages\"",
   record_acceptance: "RecordProposalAcceptance",
+  draftAmendment: "BookingAmendmentPanel", sendAmendment: "BookingAmendmentPanel",
+  recordAmendmentSigned: "BookingAmendmentPanel", cancelAmendment: "BookingAmendmentPanel",
   // Consultations, contract, money, booking
   scheduleConsultation: "\"scheduleConsultation\"", rescheduleConsultation: "\"rescheduleConsultation\"",
   cancelConsultation: "\"cancelConsultation\"", completeConsultation: "\"completeConsultation\"",

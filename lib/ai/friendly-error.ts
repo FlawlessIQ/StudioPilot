@@ -57,7 +57,22 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "This version isn't waiting for your answer any more. Refresh to see the latest from your studio.",
   // Changing a job's packages (selectPackage / removePackage / revise_packages).
   PACKAGES_LOCKED_AFTER_SIGNING:
-    "The agreement is signed, so the packages are fixed. Changing them now needs a new agreement — talk to the couple first.",
+    "The agreement is signed, so a package change is a booking change the couple signs. Use Change the booking on the job.",
+  // Changing a signed booking (bookingCommand draftAmendment / sendAmendment / …).
+  AMENDMENT_NOT_AVAILABLE:
+    "This job can't take a booking change at this stage. Changes open once the agreement is signed and close after the wedding.",
+  AMENDMENT_ALREADY_SENT:
+    "A change is already with the couple. Wait for them to sign it, or withdraw it before writing another.",
+  AMENDMENT_NEEDS_ACCEPTED_PROPOSAL:
+    "This job has no accepted proposal to change. Send and sign the booking first.",
+  NOTHING_TO_CHANGE: "Nothing would change. Pick a new date or different packages.",
+  AMENDMENT_NOT_FOUND: "That change isn't there any more. Refresh to see the booking as it stands.",
+  AMENDMENT_NOT_DRAFT: "That change has already gone to the couple. Refresh to see where it is.",
+  AMENDMENT_RECORD_ONLY:
+    "Signing in StudioCue isn't switched on for your studio, so record the couple's signature once they've signed it another way.",
+  AMENDMENT_STALE:
+    "The job changed after this was written up. Write the change up again so the couple signs what's true now.",
+  AMENDMENT_ALREADY_SIGNED: "The couple has already signed this change. It's being applied now.",
   AGREEMENT_ALREADY_SENT:
     "The agreement has already gone to the couple for these packages. Void it on the Booking tab first, then change the packages.",
   INVOICE_ALREADY_RAISED:
@@ -67,6 +82,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PACKAGE_ALREADY_ON_JOB: "That package is already on this job.",
   PACKAGE_REQUEST_NOT_AVAILABLE:
     "Your booking can't take another package right now — your agreement may already be on its way. Please message your studio.",
+  DATE_IN_PAST: "That date has already passed. Choose a date that's still to come.",
   PACKAGE_REQUEST_NOT_FOUND: "That request isn't there any more. Refresh and try again.",
   PACKAGE_LIMIT_REACHED: "A job can hold four packages at most. Remove one before adding another.",
   ADD_ON_NOT_FOUND: "That extra isn't in your library any more. Refresh and choose again.",
@@ -492,6 +508,11 @@ const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
  * These say what to change instead.
  */
 const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
+  // A booking change to a date another job holds. The server names the job.
+  DATE_TAKEN: (detail) =>
+    detail
+      ? `${detail.trim()} already has that date. Choose "We can cover both" if you can, or pick another date.`
+      : 'Another job already has that date. Choose "We can cover both" if you can, or pick another date.',
   // Every command endpoint returns this for any schema failure, so it is the
   // most-hit error in the product and had no entry at all.
   // Importing existing bookings: both carry the sentence the server wrote,

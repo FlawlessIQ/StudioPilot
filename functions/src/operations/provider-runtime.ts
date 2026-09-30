@@ -402,6 +402,71 @@ export async function cancelConsultationResources(job: DocumentSnapshot) {
   return { consultationId, removed };
 }
 
+/**
+ * A booking change moved the wedding: the studio's all-day event and each crew
+ * member's invite follow it (booking amendments,
+ * functions/src/booking/amendment-apply.ts). The events keep their ids, so
+ * anyone who accepted sees the same event move rather than a second one.
+ */
+export async function moveBookingCalendarEvents(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const tenantId = String(job.get("tenantId"));
+  const projectId = String(job.get("projectId"));
+  const project = await db.doc(`projects/${projectId}`).get();
+  if (!project.exists || project.get("tenantId") !== tenantId) throw new Error("PROJECT_NOT_FOUND");
+  const date = String(project.get("eventDate"));
+  const moved: string[] = [];
+  let calendar: Awaited<ReturnType<typeof connection>>;
+  try {
+    calendar = await connection(tenantId, "google_calendar");
+  } catch {
+    // No calendar connected: nothing to move.
+    return { projectId, eventDate: date, moved, skipped: "calendar_not_connected" };
+  }
+  const calendarId = encodeURIComponent(String(calendar.document.get("selectedResourceId") ?? "primary"));
+  const patch = async (eventId: string, body: Record<string, unknown>) => {
+    if (calendar.mock) return;
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+      {
+        method: "PATCH",
+        headers: {
+          authorization: `Bearer ${calendar.credential?.accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    // Gone from the calendar is not a reason to fail the rest.
+    if (!response.ok && response.status !== 404 && response.status !== 410)
+      throw new Error(`CALENDAR_UPDATE_FAILED:${response.status}`);
+  };
+  const projectEventId = text(project.get("calendarEventId"));
+  if (projectEventId) {
+    const end = new Date(`${date}T00:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + 1);
+    await patch(projectEventId, { start: { date }, end: { date: end.toISOString().slice(0, 10) } });
+    moved.push("studio_event");
+  }
+  const timeZone = text(project.get("timezone")) || "UTC";
+  const assignments = await db
+    .collection("crewAssignments")
+    .where("tenantId", "==", tenantId)
+    .where("projectId", "==", projectId)
+    .limit(40)
+    .get();
+  for (const assignment of assignments.docs) {
+    const eventId = text(assignment.get("calendarEventId"));
+    if (!eventId) continue;
+    await patch(eventId, {
+      start: { dateTime: String(assignment.get("arrivalAt")), timeZone },
+      end: { dateTime: String(assignment.get("departureAt")), timeZone },
+    });
+    moved.push(`crew:${assignment.id}`);
+  }
+  return { projectId, eventDate: date, moved };
+}
+
 export async function rescheduleConsultationResources(job: DocumentSnapshot) {
   const { consultationId, reference, consultation } = await consultationFor(job);
   const tenantId = String(job.get("tenantId"));

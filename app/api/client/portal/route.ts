@@ -3,6 +3,7 @@ import {
   resolveCoverage,
   type CoverageRole,
 } from "@/features/packages/coverage";
+import { pendingAmendmentFor, signAmendment } from "@/server/contracts/amendment-signing";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { pricePackage } from "@/features/pricing/package-price";
 import { z } from "zod";
@@ -22,6 +23,7 @@ import {
 import { buildClientPortalExperience } from "@/server/client/portal-experience";
 import { planClientProposalDecision } from "@/server/client/proposal-decision";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { isAmendable } from "@/features/booking/amendable";
 import {
   signContract,
   SigningRefused,
@@ -128,6 +130,23 @@ const requestSchema = z.discriminatedUnion("type", [
     idempotencyKey: z.string().min(8).max(160),
   }),
   z.object({
+    /** A change to a signed booking, waiting for the couple. See server/contracts/amendment-signing.ts. */
+    type: z.literal("booking_change"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    type: z.literal("sign_amendment"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    amendmentId: z.string().min(1).max(160),
+    documentHash: z.string().regex(/^[a-f0-9]{64}$/),
+    typedName: z.string().max(200),
+    consent: z.literal(true),
+    consentVersion: z.string().min(1).max(80),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
     type: z.literal("available_packages"),
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
@@ -170,6 +189,14 @@ const requestSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
     packageId: z.string().min(1).max(160),
+    note: z.string().trim().max(500).nullable().default(null),
+    idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
+    type: z.literal("request_date_change"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     note: z.string().trim().max(500).nullable().default(null),
     idempotencyKey: z.string().min(8).max(160),
   }),
@@ -923,29 +950,44 @@ async function packageAdditions(tenantId: string, projectId: string) {
   const invoiceRaised = invoices.docs.some(
     (invoice) => !["voided", "void", "cancelled"].includes(String(invoice.get("status"))),
   );
+  // Once they've signed, a request is still welcome: the studio answers it
+  // with a booking change they sign (functions/src/contracts/amendments.ts).
+  const signed = isAmendable(project.get("state"));
+  const beforeSigning = PACKAGE_REQUEST_STATES.includes(String(project.get("state")));
   const canRequest =
     onJobSnapshotIds.length > 0 &&
     onJobSnapshotIds.length < 4 &&
-    PACKAGE_REQUEST_STATES.includes(String(project.get("state"))) &&
-    !agreementOut &&
-    !invoiceRaised;
+    ((beforeSigning && !agreementOut && !invoiceRaised) || signed);
+  const eventDate = safeString(project.get("eventDate"));
   return {
     canRequest,
+    // A new date can be asked for whenever there is a date to move.
+    canRequestDate: Boolean(eventDate) && (beforeSigning || signed),
+    signed,
     options: canRequest ? packages.filter((option) => !onJobPackageIds.has(option.id)) : [],
     requests: requests.docs
-      .map((request) => ({
-        id: request.id,
-        packageId: String(request.get("packageId") ?? ""),
-        packageName: String(request.get("packageName") ?? "Package"),
-        // Met another way — the studio added it from the proposal or Cue —
-        // reads as done, not "still reviewing".
-        status:
-          String(request.get("status") ?? "pending") === "pending" &&
-          onJobPackageIds.has(String(request.get("packageId") ?? ""))
-            ? "approved"
-            : String(request.get("status") ?? "pending"),
-        createdAt: String(request.get("createdAt") ?? ""),
-      }))
+      .map((request) => {
+        const kind = String(request.get("kind") ?? "package");
+        const requestedDate = safeString(request.get("requestedDate"));
+        // Met another way — the studio added it from the proposal or Cue, or
+        // the date already moved — reads as done, not "still reviewing".
+        const met =
+          kind === "date_change"
+            ? Boolean(requestedDate) && requestedDate === eventDate
+            : onJobPackageIds.has(String(request.get("packageId") ?? ""));
+        return {
+          id: request.id,
+          kind,
+          requestedDate,
+          packageId: String(request.get("packageId") ?? ""),
+          packageName: String(request.get("packageName") ?? "Package"),
+          status:
+            String(request.get("status") ?? "pending") === "pending" && met
+              ? "approved"
+              : String(request.get("status") ?? "pending"),
+          createdAt: String(request.get("createdAt") ?? ""),
+        };
+      })
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
   };
 }
@@ -976,6 +1018,7 @@ async function requestPackageForClient(input: {
       tenantId: input.tenantId,
       projectId: input.projectId,
       projectName,
+      kind: "package",
       packageId: option.id,
       packageName: option.name,
       basePriceCents: option.basePriceCents,
@@ -1027,7 +1070,113 @@ async function requestPackageForClient(input: {
         messagePreview: [
           `${option.name} (${price}).`,
           input.note ? `“${input.note.replace(/[.!?]*$/, "")}.”` : null,
-          "Approve it on Today and they get a revised proposal to accept.",
+          additions.signed
+            ? "Write it up on Today as a booking change for them to sign."
+            : "Approve it on Today and they get a revised proposal to accept.",
+        ]
+          .filter(Boolean)
+          .join(" "),
+        projectName,
+        actionUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/studio`,
+        status: "queued",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+  return { requestId, status: "pending" };
+}
+
+/**
+ * The couple asks to move their wedding date. It lands on the studio's Today
+ * beside package requests; the studio answers with a booking change (signed
+ * jobs) or by editing the job, and the request reads as met once the date
+ * has moved.
+ */
+async function requestDateChangeForClient(input: {
+  tenantId: string;
+  projectId: string;
+  eventDate: string;
+  note: string | null;
+  actorId: string;
+  actorName: string | null;
+}) {
+  const additions = await packageAdditions(input.tenantId, input.projectId);
+  if (!additions.canRequestDate) throw new Error("PACKAGE_REQUEST_NOT_AVAILABLE");
+  const project = await adminFirestore.doc(`projects/${input.projectId}`).get();
+  if (safeString(project.get("eventDate")) === input.eventDate) throw new Error("NOTHING_TO_CHANGE");
+  if (input.eventDate < new Date().toISOString().slice(0, 10)) throw new Error("DATE_IN_PAST");
+  const requestId = `datereq_${createHash("sha256").update(`${input.tenantId}:${input.projectId}:${input.eventDate}`).digest("hex").slice(0, 32)}`;
+  const reference = adminFirestore.doc(`packageRequests/${requestId}`);
+  const now = new Date().toISOString();
+  const projectName = safeString(project.get("name")) ?? "Your booking";
+  const created = await adminFirestore.runTransaction(async (transaction) => {
+    const existing = await transaction.get(reference);
+    if (existing.exists && existing.get("status") === "pending") return false;
+    transaction.set(reference, {
+      id: requestId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      projectName,
+      kind: "date_change",
+      requestedDate: input.eventDate,
+      packageId: null,
+      packageName: null,
+      basePriceCents: null,
+      currency: null,
+      note: input.note,
+      status: "pending",
+      requestedBy: input.actorId,
+      requestedByName: input.actorName,
+      decidedAt: null,
+      decidedBy: null,
+      resultProposalId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    transaction.set(adminFirestore.doc(`auditEvents/${requestId}_${Date.parse(now)}`), {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      actorType: "client",
+      action: "booking.date_change_requested_by_client",
+      entityType: "packageRequest",
+      entityId: requestId,
+      timestamp: now,
+      before: { eventDate: safeString(project.get("eventDate")) },
+      after: { requestedDate: input.eventDate, note: input.note },
+      ipAddress: null,
+      userAgent: null,
+      correlationId: requestId,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    return true;
+  });
+  if (created) {
+    const recipient = await studioNotificationAddress(adminFirestore, adminAuth, input.tenantId).catch(() => null);
+    if (recipient) {
+      const longDate = new Date(`${input.eventDate}T12:00:00Z`).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+      await adminFirestore.doc(`emailJobs/notify_${requestId}_${Date.parse(now)}`).set({
+        id: `notify_${requestId}_${Date.parse(now)}`,
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        type: "client_message_received",
+        recipient,
+        senderName: input.actorName ?? "Your couple",
+        messageSubject: `They'd like to move their date to ${longDate}`,
+        messagePreview: [
+          input.note ? `“${input.note.replace(/[.!?]*$/, "")}.”` : null,
+          additions.signed
+            ? "Check the date is free, then write it up on Today as a booking change for them to sign."
+            : "Check the date is free, then change it on the job.",
         ]
           .filter(Boolean)
           .join(" "),
@@ -1768,10 +1917,15 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parsed.type === "booking_change") {
+      return Response.json({ change: await pendingAmendmentFor(adminFirestore, parsed.tenantId, parsed.projectId) });
+    }
+
     if (
       parsed.type === "view_contract" ||
       parsed.type === "sign_contract" ||
-      parsed.type === "sign_combined_agreement"
+      parsed.type === "sign_combined_agreement" ||
+      parsed.type === "sign_amendment"
     ) {
       const signer = {
         uid: identity.uid,
@@ -1806,6 +1960,23 @@ export async function POST(request: Request) {
         parsed.tenantId,
       ).catch(() => null);
       try {
+        if (parsed.type === "sign_amendment") {
+          return Response.json(
+            await signAmendment(adminFirestore, {
+              tenantId: parsed.tenantId,
+              projectId: parsed.projectId,
+              amendmentId: parsed.amendmentId,
+              documentHash: parsed.documentHash,
+              typedName: parsed.typedName,
+              consent: parsed.consent,
+              consentVersion: parsed.consentVersion,
+              idempotencyKey: parsed.idempotencyKey,
+              signer,
+              evidence,
+            }),
+            { status: 201 },
+          );
+        }
         if (parsed.type === "sign_combined_agreement") {
           return Response.json(
             await signCombinedAgreement(adminFirestore, {
@@ -1872,6 +2043,20 @@ export async function POST(request: Request) {
           tenantId: parsed.tenantId,
           projectId: parsed.projectId,
           packageId: parsed.packageId,
+          note: parsed.note,
+          actorId: identity.uid,
+          actorName: safeString(identity.name) ?? safeString(identity.email),
+        }),
+        { status: 201 },
+      );
+    }
+
+    if (parsed.type === "request_date_change") {
+      return Response.json(
+        await requestDateChangeForClient({
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          eventDate: parsed.eventDate,
           note: parsed.note,
           actorId: identity.uid,
           actorName: safeString(identity.name) ?? safeString(identity.email),

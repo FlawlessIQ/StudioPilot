@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientBookingChange } from "@/components/client/kit/client-booking-change";
 import { useState } from "react";
 import { CalendarDays, CheckCircle2, Clock3, MapPin, ShieldCheck } from "lucide-react";
 import { Button, Card, Main, Pill, PoweredBy, Steps } from "@/components/kit/kit";
@@ -69,6 +70,9 @@ export function ClientHome() {
         {value.eventDate ? <Pill icon={CalendarDays}>{date(value.eventDate)}</Pill> : null}
         {venue ? <Pill icon={MapPin}>{venue}</Pill> : null}
       </div>
+
+      {/* A change to their signed booking, waiting for their signature. */}
+      <ClientBookingChange compact />
 
       {reserve ? (
         <Card tone="accent">

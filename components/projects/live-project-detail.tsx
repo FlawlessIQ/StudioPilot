@@ -1,5 +1,6 @@
 "use client";
 
+import { BookingAmendment } from "@/components/booking/booking-amendment";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -1115,6 +1116,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                 projectId={String(project.id)}
               />
               <ProjectInquiryClose projectId={String(project.id)} state={String(project.state)} />
+              <BookingAmendment projectId={String(project.id)} state={String(project.state)} />
               <ProjectEdit
                 project={{
                   id: String(project.id),

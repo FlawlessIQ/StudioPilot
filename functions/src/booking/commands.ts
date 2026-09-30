@@ -58,6 +58,16 @@ import {
   voidContract,
   voidContractInput,
 } from "../contracts/commands.js";
+import {
+  cancelAmendment,
+  cancelAmendmentInput,
+  draftAmendment,
+  draftAmendmentInput,
+  recordAmendmentSigned,
+  recordAmendmentSignedInput,
+  sendAmendment,
+  sendAmendmentInput,
+} from "../contracts/amendments.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   // StudioCue's own contracts — see ../contracts/commands.ts.
@@ -84,6 +94,31 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: sendContractInput,
+  }),
+  // Changing a signed booking — see ../contracts/amendments.ts.
+  z.object({
+    type: z.literal("draftAmendment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: draftAmendmentInput,
+  }),
+  z.object({
+    type: z.literal("sendAmendment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: sendAmendmentInput,
+  }),
+  z.object({
+    type: z.literal("recordAmendmentSigned"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: recordAmendmentSignedInput,
+  }),
+  z.object({
+    type: z.literal("cancelAmendment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: cancelAmendmentInput,
   }),
   // One send, two signatures — see ../contracts/combined-commands.ts.
   z.object({
@@ -2408,7 +2443,11 @@ export const bookingCommand = onRequest(
         command.type === "sendCombinedAgreement" ||
         command.type === "setContractAutoSend" ||
         command.type === "setSignedCopyShared" ||
-        command.type === "voidContract"
+        command.type === "voidContract" ||
+        command.type === "draftAmendment" ||
+        command.type === "sendAmendment" ||
+        command.type === "recordAmendmentSigned" ||
+        command.type === "cancelAmendment"
       ) {
         const contractContext = {
           tenantId: command.tenantId,
@@ -2450,6 +2489,14 @@ export const bookingCommand = onRequest(
           result = await setContractAutoSend(contractContext, command.input);
         else if (command.type === "setSignedCopyShared")
           result = await setSignedCopyShared(contractContext, command.input);
+        else if (command.type === "draftAmendment")
+          result = await draftAmendment(contractContext, command.input);
+        else if (command.type === "sendAmendment")
+          result = await sendAmendment(contractContext, command.input);
+        else if (command.type === "recordAmendmentSigned")
+          result = await recordAmendmentSigned(contractContext, command.input);
+        else if (command.type === "cancelAmendment")
+          result = await cancelAmendment(contractContext, command.input);
         else result = await voidContract(contractContext, command.input);
       } else if (command.type === "previewExistingBookings") {
         result = await previewExistingBookings({

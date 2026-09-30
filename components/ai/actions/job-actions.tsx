@@ -14,6 +14,7 @@ import { ProjectEdit } from "@/components/projects/project-edit";
 import { ProjectAddClient } from "@/components/projects/project-add-client";
 import { ClientRecordActions } from "@/components/clients/client-record-actions";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
+import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import {
   ActionShell,
   Actions,
@@ -117,6 +118,19 @@ export function EditJobCard({ action }: ActionCardProps) {
       </ActionShell>
     );
   }
+  // A signed booking's date is the couple's agreement too: they sign the move.
+  if (field === "eventDate" && AMENDABLE_STATES.includes(str(job.state)))
+    return (
+      <ActionShell
+        detail="They've signed for the current date, so the move goes to them to sign. Their agreement stands until they do."
+        icon={<PencilLine size={15} />}
+        title={`Move the date · ${jobName(job)}`}
+      >
+        <Embedded>
+          <BookingAmendmentPanel projectId={job.id} />
+        </Embedded>
+      </ActionShell>
+    );
   const was = (current as Record<string, string | null>)[field] ?? "";
   const label = JOB_FIELDS[field]!;
   const valid = field === "eventDate" ? /^\d{4}-\d{2}-\d{2}$/.test(value) : value.trim().length > 0;

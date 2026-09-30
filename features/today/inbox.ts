@@ -35,6 +35,7 @@ import {
   groupProviderFailures,
 } from "@/features/today/provider-failure";
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
+import { isAmendable } from "@/features/booking/amendable";
 import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
 import type { OutsideStepReminder } from "@/features/outside-steps/registry";
@@ -62,6 +63,11 @@ export type TodayAction =
       label: string;
       requestId: string;
       projectId: string;
+      /** "package" (add one) or "date_change" (move the wedding). */
+      requestKind: "package" | "date_change";
+      /** Signed: answered with a booking change the couple signs. */
+      amend: boolean;
+      requestedDate: string | null;
       packageId: string;
       packageName: string;
       /** The proposal the addition revises — the newest still in play. */
@@ -849,6 +855,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const projectId = text(request.projectId);
     const job = inquiryJobById.get(projectId);
     if (!job || job.archivedAt) continue;
+    const requestKind = text(request.kind) === "date_change" ? "date_change" : "package";
+    const requestedDate = text(request.requestedDate) || null;
+    // Already moved: nothing left to decide.
+    if (requestKind === "date_change" && requestedDate === text(job.eventDate)) continue;
+    const amend = isAmendable(job.state);
     const proposal = rows(input.proposals)
       .filter(
         (candidate) =>
@@ -869,15 +880,22 @@ export function todayInbox(input: TodayInput): TodayInbox {
       id: `package-request-${request.id}`,
       lane: "act",
       kind: "package",
-      title: `${text(job.name) || "A couple"} want to add ${text(request.packageName) || "a package"}`,
+      title:
+        requestKind === "date_change"
+          ? `${text(job.name) || "A couple"} want to move their date to ${requestedDate ? formatDueDate(requestedDate) : "a new date"}`
+          : `${text(job.name) || "A couple"} want to add ${text(request.packageName) || "a package"}`,
       detail: [
-        price,
+        requestKind === "package" ? price : null,
         note ? `“${note.length > 120 ? `${note.slice(0, 119)}…` : note}”` : null,
-        text(proposal?.status) === "accepted"
-          ? "Adding it makes a revised proposal for them to accept."
-          : proposal
-            ? "Adding it prices their proposal again."
-            : null,
+        amend
+          ? "They've signed, so it's a booking change for them to sign — check it, then send it."
+          : requestKind === "date_change"
+            ? "Check you're free, then change the date on the job."
+            : text(proposal?.status) === "accepted"
+              ? "Adding it makes a revised proposal for them to accept."
+              : proposal
+                ? "Adding it prices their proposal again."
+                : null,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -886,9 +904,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: text(job.name) || null,
       action: {
         kind: "package_request",
-        label: "Add and revise",
+        label: amend ? "Write up the change" : requestKind === "date_change" ? "Open the job" : "Add and revise",
         requestId: request.id,
         projectId,
+        requestKind,
+        amend,
+        requestedDate,
         packageId: text(request.packageId),
         packageName: text(request.packageName) || "the package",
         proposalId: proposal?.id ?? null,

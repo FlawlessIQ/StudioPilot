@@ -150,9 +150,13 @@ test("a proposal's schedule follows every package, and keeps a hand-set retainer
 });
 
 test("the final invoice and the portal balance bill what was agreed (M2/M3)", () => {
+  // The scheduler and a signed booking change both raise the final through
+  // one function (functions/src/booking/final-invoice.ts).
   const scheduler = readFileSync("functions/src/operations/invoice-scheduler.ts", "utf8");
-  assert.match(scheduler, /\.where\("status", "==", "accepted"\)/);
-  assert.match(scheduler, /retainerFromSchedule\(\s*accepted\?\.get\("paymentSchedule"\)/);
+  assert.match(scheduler, /raiseFinalInvoice\(db, transaction, project,/);
+  const finalInvoice = readFileSync("functions/src/booking/final-invoice.ts", "utf8");
+  assert.match(finalInvoice, /\.where\("status", "==", "accepted"\)/);
+  assert.match(finalInvoice, /retainerFromSchedule\(\s*accepted\?\.get\("paymentSchedule"\)/);
   const portal = readFileSync("app/api/client/portal/route.ts", "utf8");
   assert.match(portal, /Math\.max\(0, totalCents - Number\(retainer\?\.amountCents \?\? 0\)\)/);
 });

@@ -19,6 +19,7 @@ import {
 } from "./job-actions";
 import {
   BringBookingLiveCard,
+  ChangeBookingCard,
   ChangePackagesCard,
   ConfirmBookingCard,
   ContractCard,
@@ -102,6 +103,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   cancel_consultation: ExistingConsultationCard,
   complete_consultation: ExistingConsultationCard,
   // Packages and proposals
+  change_booking: ChangeBookingCard,
   swap_package: ChangePackagesCard,
   remove_package: ChangePackagesCard,
   approve_package_request: PackageRequestCard,
