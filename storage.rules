@@ -196,6 +196,13 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Screenshots sent with feedback. Written by the feedback command only;
+    // they can show client details, so only the StudioCue team reads them.
+    match /feedback/{tenantId}/{fileName} {
+      allow read: if request.auth != null && request.auth.token.platformAdmin == true;
+      allow write: if false;
+    }
+
     match /tenants/{tenantId}/cueAttachments/{userId}/{fileName} {
       allow read: if false;
       allow create: if activeMember(tenantId)

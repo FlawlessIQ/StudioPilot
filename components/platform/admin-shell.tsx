@@ -12,6 +12,7 @@ import {
   Flag,
   LifeBuoy,
   Menu,
+  MessageSquareHeart,
   ScrollText,
   Users,
   X,
@@ -28,6 +29,7 @@ const nav = [
   ["Failed jobs", "/platform-admin/failed-jobs", CircleAlert],
   ["Feature flags", "/platform-admin/feature-flags", Flag],
   ["Audit logs", "/platform-admin/audit-logs", ScrollText],
+  ["Feedback", "/platform-admin/feedback", MessageSquareHeart],
   ["Support", "/platform-admin/support", LifeBuoy],
   ["System health", "/platform-admin/system-health", Activity],
 ] as const;

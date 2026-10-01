@@ -16,6 +16,7 @@ import { getStorage } from "firebase-admin/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
   isAuthEmailType,
+  isPlatformEmailType,
   renderEmailTemplate,
   type EmailBrand,
   type EmailTemplateOverride,
@@ -649,7 +650,8 @@ async function emailContext(
 
   // Auth mail (verification / reset) is from the PLATFORM, not the studio, so it
   // never wears the tenant's name, logo, or accent — see AUTH_EMAIL_TYPES.
-  const isAuth = isAuthEmailType(templateKey);
+  // Feedback mail between a studio and the StudioCue team is platform mail too.
+  const isAuth = isPlatformEmailType(templateKey);
   const brand: EmailBrand = isAuth
     ? {
         studioName: "StudioCue",
@@ -1030,6 +1032,29 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
         disposition: "attachment",
       },
     ];
+  }
+  // The screen a studio was on when they sent feedback, for the team inbox.
+  // Written by the feedback command under feedback/ in the default bucket;
+  // anything else in this field is ignored rather than fetched.
+  const screenshotPath = document.get("feedbackScreenshotPath");
+  if (
+    type === "feedback_received" &&
+    !payload.attachments &&
+    typeof screenshotPath === "string" &&
+    /^feedback\/[^/]+\/fb_[a-f0-9]+\.(jpg|png|webp)$/.test(screenshotPath)
+  ) {
+    const [bytes] = await getStorage().bucket().file(screenshotPath).download();
+    if (bytes.length <= 15 * 1024 * 1024) {
+      const extension = screenshotPath.split(".").pop() ?? "jpg";
+      payload.attachments = [
+        {
+          content: bytes.toString("base64"),
+          type: extension === "jpg" ? "image/jpeg" : `image/${extension}`,
+          filename: `screenshot.${extension}`,
+          disposition: "attachment",
+        },
+      ];
+    }
   }
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",

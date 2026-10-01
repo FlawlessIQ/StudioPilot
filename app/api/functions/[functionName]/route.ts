@@ -21,6 +21,7 @@ const functionNames = [
   "crewInvitationCommand",
   "crewInvitationPreview",
   "crmCommand",
+  "feedbackCommand",
   "integrationOAuth",
   "integrationsCommand",
   // Reached through this relay like every other private Function: in

@@ -1059,3 +1059,553 @@
     gap: 28px;
   }
 }
+
+/* ── Feedback (components/feedback/feedback-launcher.tsx) ───────────────────
+   The Feedback button floats in the corner of every studio screen on a
+   desktop. On a phone it is hidden — it would sit on the tab bar — and "Send
+   feedback" lives in the More drawer instead. The sheet renders outside
+   .ds-root, so it styles its own type and uses :root tokens. */
+.feedback-fab {
+  /* A tab on the right edge rather than a corner button: it sits in the
+     page's gutter, so it never covers a row's arrow, a Send button or a
+     sticky bar the way a bottom-right button did. */
+  position: fixed;
+  top: 50%;
+  right: 0;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 8px;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--line));
+  border-left: 0;
+  border-radius: 0 10px 10px 0;
+  background: var(--paper, #fff);
+  color: var(--ink);
+  box-shadow: 0 6px 18px rgba(23, 26, 24, 0.1);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  writing-mode: vertical-rl;
+  /* Reads bottom to top; the radius above is on the side that ends up left. */
+  transform: translateY(-50%) rotate(180deg);
+  cursor: pointer;
+}
+.feedback-fab > svg {
+  rotate: 90deg;
+}
+.feedback-fab:hover {
+  border-color: var(--success);
+  color: var(--success);
+}
+.feedback-fab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--success) 55%, transparent);
+  outline-offset: 2px;
+}
+.feedback-fab:disabled {
+  cursor: progress;
+  opacity: 0.8;
+}
+@media (max-width: 860px) {
+  .feedback-fab {
+    display: none;
+  }
+}
+/* Out of the way while any sheet is open (How to, a job's sheets, its own):
+   it painted above the dimmed backdrop and read as part of the dialog. */
+body:has(.sheet-backdrop) .feedback-fab {
+  display: none;
+}
+/* The drawer's "Send feedback": phones only, where the button above is not. */
+.ds-root .ds-nav-feedback {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  /* Family only: size and weight come from .ds-nav-item, like its links. */
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+@media (min-width: 861px) {
+  .ds-root .ds-nav-feedback-section {
+    display: none;
+  }
+}
+.feedback-spin {
+  animation: feedback-spin 0.9s linear infinite;
+}
+@keyframes feedback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.feedback-panel {
+  display: grid;
+  gap: 18px;
+  padding: 26px 26px 22px;
+  color: var(--ink);
+  font-family: var(--font-instrument), var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.feedback-head {
+  display: grid;
+  gap: 4px;
+  padding-right: 36px;
+}
+.feedback-head h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+.feedback-head p:not(.feedback-eyebrow) {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.feedback-eyebrow {
+  margin: 0;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.feedback-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.feedback-kinds legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.feedback-kind {
+  position: relative;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.feedback-kind input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.feedback-kind[data-active="true"] {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+}
+.feedback-kind:has(input:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--success) 55%, transparent);
+  outline-offset: 2px;
+}
+.feedback-field {
+  display: grid;
+  gap: 7px;
+}
+.feedback-field span {
+  font-size: 14px;
+  font-weight: 600;
+}
+.feedback-field textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper, #fff);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+.feedback-field textarea:focus {
+  border-color: var(--success);
+  outline: none;
+}
+.feedback-shot {
+  display: grid;
+}
+.feedback-shot:has(img) {
+  grid-template-columns: 132px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.feedback-shot img {
+  width: 132px;
+  max-height: 100px;
+  object-fit: cover;
+  object-position: top left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.feedback-shot > div {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+}
+.feedback-shot strong,
+.feedback-attach strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.feedback-shot small,
+.feedback-attach small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.feedback-attach {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.feedback-attach:hover {
+  border-color: var(--success);
+}
+.feedback-attach > span {
+  display: grid;
+  gap: 2px;
+}
+.feedback-attach input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.feedback-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.feedback-link:hover {
+  color: var(--ink);
+}
+.feedback-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+}
+.feedback-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--success);
+}
+.feedback-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fbeceb;
+  color: #8e2b22;
+  font-size: 14px;
+}
+.feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+.feedback-primary,
+.feedback-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+.feedback-primary {
+  border: 1px solid var(--success);
+  background: var(--success);
+  color: #fff;
+}
+.feedback-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.feedback-secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+.feedback-done {
+  justify-items: center;
+  padding-top: 38px;
+  text-align: center;
+}
+.feedback-done > svg {
+  color: var(--success);
+}
+.feedback-done h2 {
+  margin: 0;
+  font-size: 21px;
+}
+.feedback-done p {
+  max-width: 400px;
+  margin: 0;
+  color: var(--muted);
+}
+@media (max-width: 520px) {
+  .feedback-panel {
+    padding: 22px 18px 18px;
+  }
+  .feedback-shot:has(img) {
+    grid-template-columns: 96px 1fr;
+  }
+  .feedback-shot img {
+    width: 96px;
+  }
+}
+/* "Still unclear? Tell the team" beside All guides in the How-to popup. */
+.how-to-foot:has(.how-to-feedback) {
+  justify-content: space-between;
+}
+.how-to-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.how-to-feedback:hover {
+  color: var(--ink);
+}
+
+/* "Your feedback" in Help & guides (components/feedback/your-feedback.tsx). */
+.your-feedback {
+  display: grid;
+  gap: 16px;
+}
+.your-feedback-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.your-feedback-head > span {
+  display: grid;
+  gap: 3px;
+}
+.your-feedback-head small,
+.your-feedback-empty {
+  color: var(--muted);
+}
+.your-feedback-head .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.your-feedback-empty {
+  margin: 0;
+}
+.your-feedback-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.your-feedback-list li {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.your-feedback-list p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.your-feedback-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.your-feedback-meta > span {
+  color: var(--ink);
+  font-weight: 600;
+}
+.your-feedback-status {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.your-feedback-status[data-status="planned"] {
+  background: #fff4e0;
+  color: #85520f;
+}
+.your-feedback-status[data-status="shipped"] {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.your-feedback-note {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* Platform admin → Feedback (components/platform/feedback-triage.tsx). */
+.feedback-triage {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+.feedback-triage-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.feedback-triage-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.feedback-triage-filters button[data-active="true"] {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+}
+.feedback-triage-filters small {
+  color: var(--muted);
+  font-weight: 500;
+}
+.feedback-triage-empty {
+  margin: 0;
+  color: var(--muted);
+}
+.feedback-triage-list {
+  display: grid;
+  gap: 14px;
+}
+.feedback-card {
+  display: grid;
+  gap: 12px;
+}
+.feedback-card > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.feedback-card > header small {
+  color: var(--muted);
+}
+.feedback-card-kind {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+}
+.feedback-card-kind[data-kind="broken"] {
+  background: #fbeceb;
+  color: #8e2b22;
+}
+.feedback-card-kind[data-kind="praise"] {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.feedback-card-message {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.feedback-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0;
+  font-size: 13px;
+}
+.feedback-card-facts dt {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.feedback-card-facts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+.feedback-card-triage {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  align-items: end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.feedback-card-triage label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.feedback-card-triage select,
+.feedback-card-triage input {
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.feedback-card-result {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+@media (max-width: 760px) {
+  .feedback-card-triage {
+    grid-template-columns: 1fr;
+  }
+}

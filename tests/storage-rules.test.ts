@@ -458,3 +458,47 @@ test(
     }
   },
 );
+
+test(
+  "Feedback screenshots are read by the StudioCue team only, and written by no browser",
+  { skip: !firestoreHost || !storageHost },
+  async () => {
+    const [firestoreAddress, firestorePortValue] = (firestoreHost ?? "127.0.0.1:8080").split(":");
+    const [storageAddress, storagePortValue] = (storageHost ?? "127.0.0.1:9199").split(":");
+    const environment = await initializeTestEnvironment({
+      projectId: "studiohub-dev",
+      firestore: {
+        host: firestoreAddress,
+        port: Number(firestorePortValue),
+        rules: await readFile(new URL("../firestore.rules", import.meta.url), "utf8"),
+      },
+      storage: {
+        host: storageAddress,
+        port: Number(storagePortValue),
+        rules: await readFile(new URL("../storage.rules", import.meta.url), "utf8"),
+      },
+    });
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+    const path = "feedback/tenant-a/fb_0123abcd.jpg";
+    try {
+      await environment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), "memberships/tenant-a_owner-a"), {
+          tenantId: "tenant-a", userId: "owner-a", status: "active",
+          role: "studio_owner", projectIds: [],
+        });
+        await uploadBytes(ref(context.storage(), path), jpeg, { contentType: "image/jpeg" });
+      });
+      const team = environment.authenticatedContext("platform-a", { platformAdmin: true }).storage();
+      await assertSucceeds(getBytes(ref(team, path)));
+      // A screenshot can show client details: not even the studio that sent
+      // it reads it back, and nobody uploads one from a browser.
+      const owner = environment.authenticatedContext("owner-a").storage();
+      await assertFails(getBytes(ref(owner, path)));
+      await assertFails(getBytes(ref(environment.unauthenticatedContext().storage(), path)));
+      await assertFails(uploadBytes(ref(owner, "feedback/tenant-a/fb_forged.jpg"), jpeg, { contentType: "image/jpeg" }));
+      await assertFails(uploadBytes(ref(team, "feedback/tenant-a/fb_forged.jpg"), jpeg, { contentType: "image/jpeg" }));
+    } finally {
+      await environment.cleanup();
+    }
+  },
+);

@@ -14,6 +14,7 @@ import {
   LifeBuoy,
   Inbox,
   Menu,
+  MessageSquareHeart,
   MessageSquareText,
   Plus,
   Settings,
@@ -26,6 +27,8 @@ import { subscriptionGrantsAccess } from "@/features/subscriptions/entitlements"
 import { CueMark } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { HowToButton } from "@/components/help/how-to";
+import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
+import { openFeedback } from "@/components/feedback/feedback-events";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
 import { AuthBoundary } from "@/features/auth/auth-boundary";
@@ -164,6 +167,7 @@ const studioRouteLabels: Record<string, string> = {
   crew: "Crew",
   delivery: "Delivery",
   "event-day": "Event day",
+  help: "Help & guides",
   documents: "Documents",
   insurance: "Insurance",
   integrations: "Integrations",
@@ -375,6 +379,23 @@ function StudioShell({
                 })}
               </div>
             ))}
+            {/* Phones only (help.css): on a desktop the floating Feedback
+                button does this, and on a phone it would sit on the tab bar.
+                The drawer closes first so the screenshot is of the screen,
+                not the drawer. */}
+            <div className="ds-nav-section ds-nav-feedback-section">
+              <button
+                className="ds-nav-item ds-nav-feedback"
+                onClick={() => {
+                  setNavigationOpen(false);
+                  window.setTimeout(() => openFeedback(), 320);
+                }}
+                type="button"
+              >
+                <MessageSquareHeart size={17} strokeWidth={1.8} />
+                <span>Send feedback</span>
+              </button>
+            </div>
           </nav>
 
           <details className="ds-user">
@@ -532,6 +553,7 @@ function StudioShell({
           </main>
         </div>
       </div>
+      <FeedbackLauncher />
     </div>
   );
 }

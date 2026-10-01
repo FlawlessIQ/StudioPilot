@@ -84,6 +84,7 @@ export {
   tenantExportScheduler,
 } from "./saas/data-lifecycle.js";
 export { supportTenantSummary } from "./saas/support.js";
+export { feedbackCommand } from "./feedback/commands.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { autopayScheduler } from "./billing/autopay.js";
 export { aiCopilotCommand } from "./ai/copilot.js";

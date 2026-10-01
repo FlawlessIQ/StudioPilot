@@ -104,6 +104,7 @@ app_services=(
   crewinvitationcommand
   crewinvitationpreview
   crmcommand
+  feedbackcommand
   dropboxsignwebhook
   docusignwebhook
   # integrationoauth was retired on August 19, 2026. Leaving it here would be

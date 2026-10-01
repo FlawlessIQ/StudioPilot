@@ -201,6 +201,10 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // StudioCue's own staff (platform admin), not a studio.
   setFeatureFlag: "platform", suspendTenant: "platform", repairOwnerMembership: "platform", grantSupportAccess: "platform",
   rerunJob: "platform", revokeSupportAccess: "platform", approveDeletion: "platform",
+  setFeedbackStatus: "platform",
+  // Feedback to the StudioCue team, from the Feedback button: what the studio
+  // writes, in their own words, with a picture of the screen they were on.
+  submitFeedback: "the Feedback button",
   // The system does these; no person asks for them.
   instantiateWorkflow: "runs at booking", recalculateReadiness: "readiness triggers",
   decideAutomationApproval: "automation approvals on Today", cancelReceipt: "action receipts on Today", retryReceipt: "action receipts on Today",

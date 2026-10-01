@@ -57,7 +57,7 @@ prepare() {
   sed -E "s#^(NEXT_PUBLIC_APP_URL)=.*#\1=http://localhost:$PORT#" $ROOT/functions/.env.local > $APP/functions/.env.local
   # Inbound mail, so the studio's forwarding address exists to be shown. Local
   # only: nothing reaches this stack from the real inbound domain.
-  { echo "SENDGRID_INBOUND_DOMAIN=inbound.studio-cue.com"; echo "INBOUND_REPLY_SIGNING_SECRET=how-to-stack-local-only"; } >> $APP/functions/.env.local
+  { echo "SENDGRID_INBOUND_DOMAIN=inbound.studio-cue.com"; echo "INBOUND_REPLY_SIGNING_SECRET=how-to-stack-local-only"; echo "FEEDBACK_INBOX=team@studiohub.test"; } >> $APP/functions/.env.local
 
   node -e '
     const fs = require("fs"); const f = process.argv[1]; const c = JSON.parse(fs.readFileSync(f, "utf8"));

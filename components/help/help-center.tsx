@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
 import { GlossaryList, GuideLibrary } from "@/components/help/guide-library";
+import { YourFeedback } from "@/components/feedback/your-feedback";
 
 /**
  * The workspace had no Help, Docs, or Support entry, and nothing in-app mapped
@@ -110,6 +111,11 @@ export function HelpCenter() {
       <section className="help-section" id="glossary">
         <p className="eyebrow">Words to know</p>
         <GlossaryList audience="studio" />
+      </section>
+
+      <section className="help-section" id="feedback">
+        <p className="eyebrow">Your feedback</p>
+        <YourFeedback />
       </section>
 
       <section className="help-section">

@@ -99,6 +99,7 @@ const USER_FACING_HANDLERS = [
   "crew/invitations.ts",
   "crm/commands.ts",
   "crm/public-lead.ts",
+  "feedback/commands.ts",
   // Dispatched from bookingCommand; its refusals reach the studio importing.
   "imports/commands.ts",
   "integrations/commands.ts",

@@ -262,6 +262,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   // the studio, not about a job — this used to say "for the selected project"
   // on screens that had none selected.
   FORBIDDEN: "You don't have permission to do this in this studio. Ask the studio owner or an admin.",
+  // The Feedback button (functions/src/feedback).
+  SCREENSHOT_INVALID: "The screenshot couldn't be sent. Remove it and try again.",
+  SCREENSHOT_TOO_LARGE: "The screenshot is too large to send. Remove it, or attach a smaller image.",
+  FEEDBACK_NOT_FOUND: "That feedback isn't there any more. Refresh the list.",
   PROJECT_ACCESS_DENIED:
     "This job isn't one you have access to. Ask the studio owner or an admin to add you to it, or to make the change.",
   // A coordinator acting on a project outside their assigned list. Distinct

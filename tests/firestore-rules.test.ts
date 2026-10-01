@@ -528,3 +528,71 @@ test(
     }
   },
 );
+
+test(
+  "Feedback is readable by the person who sent it and the team, and written only by the server",
+  { skip: !emulatorHost },
+  async () => {
+    const [host, portValue] = (emulatorHost ?? "127.0.0.1:8080").split(":");
+    const rules = await readFile(new URL("../firestore.rules", import.meta.url), "utf8");
+    const environment = await initializeTestEnvironment({
+      projectId: `studiohub-feedback-rules-${Date.now()}`,
+      firestore: { host, port: Number(portValue), rules },
+    });
+    try {
+      await environment.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        for (const [userId, role] of [
+          ["owner-a", "studio_owner"],
+          ["coordinator-a", "studio_coordinator"],
+        ] as const) {
+          await setDoc(doc(adminDb, `memberships/tenant-a_${userId}`), {
+            tenantId: "tenant-a",
+            userId,
+            status: "active",
+            role,
+            projectIds: [],
+          });
+        }
+        await setDoc(doc(adminDb, "feedback/fb_owner"), {
+          tenantId: "tenant-a",
+          userId: "owner-a",
+          kind: "idea",
+          message: "More templates",
+          status: "received",
+          createdAt: "2026-09-30T10:00:00.000Z",
+        });
+        await setDoc(doc(adminDb, "feedbackRateLimits/owner-a"), { count: 1 });
+      });
+
+      const ownerDb = environment.authenticatedContext("owner-a").firestore();
+      await assertSucceeds(getDoc(doc(ownerDb, "feedback/fb_owner")));
+      // "Your feedback" queries by tenant and sender.
+      await assertSucceeds(
+        getDocs(
+          query(
+            collection(ownerDb, "feedback"),
+            where("tenantId", "==", "tenant-a"),
+            where("userId", "==", "owner-a"),
+          ),
+        ),
+      );
+      // The browser never writes feedback; the command does.
+      await assertFails(setDoc(doc(ownerDb, "feedback/fb_forged"), { tenantId: "tenant-a", userId: "owner-a", status: "shipped" }));
+      await assertFails(updateDoc(doc(ownerDb, "feedback/fb_owner"), { status: "shipped" }));
+      await assertFails(getDoc(doc(ownerDb, "feedbackRateLimits/owner-a")));
+
+      // A colleague in the same studio doesn't read someone else's feedback.
+      const coordinatorDb = environment.authenticatedContext("coordinator-a").firestore();
+      await assertFails(getDoc(doc(coordinatorDb, "feedback/fb_owner")));
+      await assertFails(getDocs(query(collection(coordinatorDb, "feedback"), where("tenantId", "==", "tenant-a"))));
+
+      const platformDb = environment.authenticatedContext("platform-a", { platformAdmin: true }).firestore();
+      await assertSucceeds(getDoc(doc(platformDb, "feedback/fb_owner")));
+      await assertSucceeds(getDocs(collection(platformDb, "feedback")));
+      await assertFails(updateDoc(doc(platformDb, "feedback/fb_owner"), { status: "shipped" }));
+    } finally {
+      await environment.cleanup();
+    }
+  },
+);

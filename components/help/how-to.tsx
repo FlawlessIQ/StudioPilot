@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight, CirclePlay, CircleHelp } from "lucide-react";
+import { ArrowRight, CirclePlay, CircleHelp, MessageSquareHeart } from "lucide-react";
 import { explainer } from "@/features/help/explainers";
 import { audienceForPath, helpForRoute } from "@/features/help/routes";
 import { helpVideo, formatDuration } from "@/features/help/videos";
@@ -13,6 +13,7 @@ import { KitRoot } from "@/components/kit/kit";
 import { ExplainerView } from "@/components/help/explainer-view";
 import { HelpVideoPlayer } from "@/components/help/video-player";
 import { listenForHowTo } from "@/components/help/how-to-events";
+import { openFeedback } from "@/components/feedback/feedback-events";
 
 /**
  * The "How to" button every studio, couple and crew screen carries, and the
@@ -70,7 +71,16 @@ export function HowToButton({ variant }: { variant: "topbar" | "kit" }) {
       {guide ? (
         <SheetDialog label={guide.title} onClose={close} open width="wide">
           {audience === "studio" ? (
-            <HowToPanel guide={guide} onPick={setOpenId} related={related} />
+            <HowToPanel
+              guide={guide}
+              onFeedback={() => {
+                // The guide closes first, so the screenshot is of the screen.
+                close();
+                window.setTimeout(() => openFeedback(), 250);
+              }}
+              onPick={setOpenId}
+              related={related}
+            />
           ) : (
             <KitRoot className="kit-embed kit-sheet">
               <HowToPanel guide={guide} onPick={setOpenId} related={related} />
@@ -86,10 +96,13 @@ function HowToPanel({
   guide,
   related,
   onPick,
+  onFeedback,
 }: {
   guide: Explainer;
   related: Explainer[];
   onPick: (id: string) => void;
+  /** Studio only: couples and crew don't send the team feedback. */
+  onFeedback?: () => void;
 }) {
   const allGuides = guide.audience === "studio" ? "/studio/help#guides" : "/how-to";
   return (
@@ -116,6 +129,11 @@ function HowToPanel({
         </section>
       ) : null}
       <footer className="how-to-foot">
+        {onFeedback ? (
+          <button className="how-to-feedback" onClick={onFeedback} type="button">
+            <MessageSquareHeart aria-hidden="true" size={14} /> Still unclear? Tell the team
+          </button>
+        ) : null}
         <Link
           href={allGuides}
           {...(guide.audience === "studio" ? {} : { target: "_blank", rel: "noopener noreferrer" })}

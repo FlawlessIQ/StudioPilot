@@ -351,7 +351,8 @@ test("send worker disables tracking and platform-brands auth mail (source guard)
   assert.match(src, /isAuthEmailType\(type\)/, "tracking gate keyed on auth type");
   assert.match(src, /click_tracking:\s*\{\s*enable:\s*false/, "click tracking off");
   assert.match(src, /open_tracking:\s*\{\s*enable:\s*false/, "open tracking off");
-  assert.match(src, /isAuthEmailType\(templateKey\)/, "brand override keyed on auth type");
+  // isPlatformEmailType is auth mail plus feedback mail (both StudioCue's own).
+  assert.match(src, /isPlatformEmailType\(templateKey\)/, "brand override keyed on platform (auth + feedback) type");
 });
 
 /**

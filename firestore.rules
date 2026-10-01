@@ -897,6 +897,22 @@ service cloud.firestore {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }
+    // Feedback a studio sent the StudioCue team (functions/src/feedback).
+    // The person who sent it reads their own, in the studio they sent it
+    // from, so "Your feedback" can show where each one stands; the team reads
+    // all of it. Only the feedback command writes.
+    match /feedback/{feedbackId} {
+      allow read: if isPlatformAdmin()
+        || (
+          signedIn()
+          && resource.data.userId == request.auth.uid
+          && isActiveMember(resource.data.tenantId)
+        );
+      allow write: if false;
+    }
+    match /feedbackRateLimits/{userId} {
+      allow read, write: if false;
+    }
     match /systemHealth/{healthId} {
       allow read: if isPlatformAdmin()
         || (

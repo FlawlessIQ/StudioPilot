@@ -21,6 +21,22 @@ export const AUTH_EMAIL_TYPES = [
 export const isAuthEmailType = (type: string): boolean =>
   (AUTH_EMAIL_TYPES as readonly string[]).includes(type);
 
+/**
+ * Feedback mail (functions/src/feedback): between a studio and the StudioCue
+ * team. Platform mail like auth — StudioCue's letterhead, never the studio's —
+ * but it keeps ordinary tracking: there is no security link in it to protect.
+ */
+export const FEEDBACK_EMAIL_TYPES = [
+  "feedback_received",
+  "feedback_thanks",
+  "feedback_planned",
+  "feedback_shipped",
+] as const;
+
+/** Sent by StudioCue itself rather than by a studio. */
+export const isPlatformEmailType = (type: string): boolean =>
+  isAuthEmailType(type) || (FEEDBACK_EMAIL_TYPES as readonly string[]).includes(type);
+
 export const emailTemplateKeys = [
   "staff_invitation",
   "client_invitation",
@@ -94,6 +110,11 @@ export const emailTemplateKeys = [
   // Studio-facing: the owner's own morning brief. Not a client note — it gets
   // its own framing rather than the "note from your studio" shell.
   "daily_digest",
+  // Studio ⇄ StudioCue team (functions/src/feedback). Platform mail.
+  "feedback_received",
+  "feedback_thanks",
+  "feedback_planned",
+  "feedback_shipped",
 ] as const;
 
 export type EmailTemplateKey = (typeof emailTemplateKeys)[number];
@@ -1307,6 +1328,106 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     // The owner's own morning brief — a personal internal note, so it skips the
     // client-facing "note from your studio" shell. The heading greets by name;
     // the body carries the items, so it must NOT repeat the greeting.
+    case "feedback_received": {
+      // To the team inbox. Everything needed to answer without opening
+      // anything else; the screenshot rides as an attachment.
+      const kindLabel = feedbackKindLabel(stringValue(values, "feedbackKind"));
+      const studio = stringValue(values, "studioName") || "A studio";
+      const senderName = stringValue(values, "senderName");
+      const senderEmail = stringValue(values, "senderEmail");
+      const role = stringValue(values, "senderRole").replace(/_/g, " ");
+      const route = stringValue(values, "route");
+      const device = [stringValue(values, "viewport"), stringValue(values, "userAgent")].filter(Boolean).join(" · ");
+      const lastError = stringValue(values, "lastError");
+      const message = stringValue(values, "feedbackMessage");
+      return {
+        subject: stringValue(values, "feedbackSubject") || `[Feedback · ${kindLabel}] ${studio}`,
+        preheader: message.slice(0, 120) || `${kindLabel} from ${studio}.`,
+        eyebrow: `Feedback · ${kindLabel}`,
+        heading: `${kindLabel} from ${studio}`,
+        paragraphs: [
+          ...message.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+          `From: ${[senderName, senderEmail ? `<${senderEmail}>` : "", role ? `(${role})` : ""].filter(Boolean).join(" ") || "unknown"}`,
+          route ? `Screen: ${route}` : "",
+          device ? `Device: ${device}` : "",
+          lastError ? `Last error on screen: ${lastError}` : "",
+          stringValue(values, "feedbackScreenshotPath") ? "Screenshot attached." : "No screenshot.",
+        ].filter(Boolean),
+        action: actionUrl ? { label: "Open in triage", url: actionUrl } : undefined,
+        note:
+          values.followUpOk === true
+            ? "They're happy to hear back. Reply to this email to answer them directly."
+            : "They asked not to be contacted about this one.",
+      };
+    }
+    case "feedback_thanks": {
+      const kind = stringValue(values, "feedbackKind");
+      const message = stringValue(values, "feedbackMessage");
+      const followUp = values.followUpOk === true;
+      const whatNext =
+        kind === "broken"
+          ? followUp
+            ? "We're looking into what went wrong. If we need more detail, we'll reply to this email."
+            : "We're looking into what went wrong."
+          : kind === "confusing"
+            ? "If it confused you, it's confusing someone else too. Thank you for flagging it."
+            : kind === "praise"
+              ? "It means a lot to hear what's working. Thank you."
+              : followUp
+                ? "We'll let you know if it makes it onto the plan."
+                : "Ideas like this are how we decide what to build next.";
+      return {
+        subject: "Thanks, we've got your feedback",
+        preheader: "Every piece of feedback is read by the StudioCue team.",
+        eyebrow: "Feedback received",
+        heading: "Thank you for telling us",
+        paragraphs: [
+          greeting,
+          "Every piece of feedback is read by the StudioCue team, and it shapes what we build next.",
+          whatNext,
+          ...(message ? [`What you sent: \u201c${clip(message, 600)}\u201d`] : []),
+          "The StudioCue team",
+        ],
+        action: actionUrl ? { label: "See your feedback", url: actionUrl } : undefined,
+        note: "You can reply to this email to add anything you forgot.",
+      };
+    }
+    case "feedback_planned":
+    case "feedback_shipped": {
+      const shipped = input.key === "feedback_shipped";
+      const broken = stringValue(values, "feedbackKind") === "broken";
+      const message = stringValue(values, "feedbackMessage");
+      const statusNote = stringValue(values, "statusNote");
+      return {
+        subject: shipped
+          ? broken
+            ? "Fixed: the problem you reported"
+            : "You asked, and it's live in StudioCue"
+          : broken
+            ? "We're fixing the problem you reported"
+            : "Your idea is on the StudioCue plan",
+        preheader: shipped ? "Thank you for helping make StudioCue better." : "We'll write again when it's live.",
+        eyebrow: shipped ? "Your feedback, shipped" : "Your feedback, planned",
+        heading: shipped ? (broken ? "It's fixed" : "It's live") : "It's on the plan",
+        paragraphs: [
+          greeting,
+          ...(message ? [`You told us: \u201c${clip(message, 400)}\u201d`] : []),
+          shipped
+            ? broken
+              ? "That's now fixed in StudioCue."
+              : "That's now live in StudioCue."
+            : broken
+              ? "We've found it and a fix is on the way."
+              : "We've put it on the plan for StudioCue.",
+          ...(statusNote ? [statusNote] : []),
+          shipped
+            ? "Thank you for taking the time to tell us. It made StudioCue better for every studio."
+            : "We'll write again when it's live.",
+          "The StudioCue team",
+        ],
+        action: actionUrl ? { label: "See your feedback", url: actionUrl } : undefined,
+      };
+    }
     case "daily_digest": {
       const subject =
         stringValue(values, "customSubject") || `Your ${brand.studioName} brief`;
@@ -1499,6 +1620,22 @@ const normalizeColor = (value: string): string =>
  * and take the name after it.
  */
 const honorific = /^(?:mr|mrs|ms|miss|mx|dr|prof|rev|sir|dame)\.?$/i;
+
+const FEEDBACK_KIND_LABELS: Record<string, string> = {
+  idea: "Idea",
+  broken: "Something's broken",
+  confusing: "Confusing",
+  praise: "Love this",
+};
+
+function feedbackKindLabel(kind: string): string {
+  return FEEDBACK_KIND_LABELS[kind] ?? "Feedback";
+}
+
+function clip(value: string, length: number): string {
+  const flat = value.replace(/\s+/g, " ").trim();
+  return flat.length > length ? `${flat.slice(0, length - 1).trimEnd()}\u2026` : flat;
+}
 
 export function firstNameOf(value: string): string {
   const parts = value.trim().split(/\s+/).filter(Boolean);
