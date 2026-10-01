@@ -14854,6 +14854,23 @@ form:has(> .address-field) > .address-field,
 .schedule-item-crew label{display:inline-flex;align-items:center;gap:6px;min-height:30px;border:1px solid var(--line);border-radius:999px;padding:0 10px;font-size:12px;cursor:pointer}
 .schedule-item-crew label:has(input:checked){border-color:color-mix(in srgb,var(--violet) 55%,var(--line));background:color-mix(in srgb,var(--violet) 14%,var(--surface))}
 .schedule-draft-items .schedule-item-crew input[type="checkbox"]{width:14px;height:14px;margin:0;padding:0;border-radius:4px}
+/* Move up / Move down / Remove on a run-of-show row. Moving moves the time —
+   see features/schedules/run-of-show-order.ts. */
+.schedule-draft-items article .schedule-item-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.schedule-draft-items article .schedule-item-actions .button{min-height:30px;padding:0 10px;font-size:11.5px}
+.schedule-draft-items article .schedule-item-move:disabled{opacity:.4;cursor:default}
+/* One-tap standard wedding moments. See features/schedules/standard-moments.ts. */
+.schedule-moments{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:13px;padding-top:13px;border-top:1px solid var(--line)}
+.schedule-moments>span{margin-right:4px;color:var(--muted);font-size:11.5px;font-weight:650}
+.schedule-moment-chip{display:inline-flex;align-items:center;gap:5px;min-height:30px;border:1px solid var(--line);border-radius:999px;padding:0 11px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;cursor:pointer}
+.schedule-moment-chip:hover{border-color:color-mix(in srgb,var(--violet) 55%,var(--line));background:color-mix(in srgb,var(--violet) 10%,var(--surface))}
+.schedule-revise-button{justify-self:start;margin-top:6px}
+.schedule-draft-items>.panel-heading>div{min-width:0}
+/* Four columns need ~970px of panel; below that the two time pickers pushed
+   every row past the panel's right edge (a 1024px laptop showed half of
+   each end time). Two columns until there is room. */
+@media(min-width:561px) and (max-width:1320px){.schedule-draft-items article{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.schedule-ask-result{margin-top:12px}
 
 /* Said instead of the portal button when there is no Stripe customer to open a
    portal for. See components/saas/live-subscription.tsx. */
@@ -18800,6 +18817,14 @@ label {
     grid-column: 2;
     grid-row: 5;
     justify-self: end;
+  }
+  /* The row's buttons get a line of their own; sources sit below them. */
+  .ds-root .schedule-draft-items article > .schedule-item-actions {
+    grid-column: 1 / -1;
+  }
+  .ds-root .schedule-draft-items article > .schedule-item-sources {
+    grid-column: 1 / -1;
+    grid-row: auto;
   }
   .ds-root .timing-rule-actions {
     display: flex;

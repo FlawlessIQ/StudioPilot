@@ -19,6 +19,11 @@ import {
   scheduleCrewFacts,
   scheduleCrewInstruction,
 } from "./schedule-crew.js";
+import {
+  isWeddingEventType,
+  standardMomentsInstruction,
+} from "./schedule-moments.js";
+import { sortScheduleItems } from "../planning/item-order.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -194,7 +199,11 @@ async function fetchVertexWithRetry(url: string, init: RequestInit) {
   throw new Error("AI_SCHEDULE_TEMPORARILY_UNAVAILABLE");
 }
 
-async function generate(input: z.infer<typeof inputSchema>, context: Json) {
+async function generate(
+  input: z.infer<typeof inputSchema>,
+  context: Json,
+  momentsInstruction = "",
+) {
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const model = process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_SCHEDULE_NOT_CONFIGURED");
@@ -216,6 +225,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
               text:
                 "Draft a photography and video run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (card backups, gear staging, travel buffers, meal breaks). Default any client-relevant moment to \"shared\". Packages: packageFact can list several packages for the same day (a photo package and a video package, say); plan for every role in its coverage across the whole coverage window, and never shorten the day to one package's minutes. " +
                 scheduleCrewInstruction +
+                momentsInstruction +
                 " This is an unapproved draft requiring human review.",
             },
           ],
@@ -528,10 +538,13 @@ export const aiScheduleCommand = onRequest(
         packageFact,
         videoCoverage,
         crewFacts,
-      });
+      }, standardMomentsInstruction(
+        isWeddingEventType(project.get("eventTypeId") ?? project.get("eventType")),
+      ));
       const start = Date.parse(input.coverageStartsAt);
       const end = Date.parse(input.coverageEndsAt);
-      const normalized = result.items
+      // In start order, by the same rule the editor and publish keep.
+      const normalized = sortScheduleItems(result.items
         .map((item, index) => ({
           ...normaliseDraftCrew(item, crewAliases),
           id: `draft_${index + 1}`,
@@ -544,8 +557,7 @@ export const aiScheduleCommand = onRequest(
                   label: "AI draft assumption requiring human review",
                 },
               ],
-        }))
-        .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+        })));
       const deterministicConflicts = normalized.flatMap((item, index) => {
         const issues: string[] = [];
         const itemStart = Date.parse(item.startAt);

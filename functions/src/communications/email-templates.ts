@@ -116,6 +116,9 @@ export const emailTemplateKeys = [
   // Studio-facing: a new inquiry arrived. Speed to the first reply wins
   // couples, and Today only helps a studio that happens to open it.
   "studio_new_inquiry",
+  // Studio-facing: the couple asked for changes to the day plan (run of show)
+  // in their portal. Queued by approveSchedule (functions/src/planning).
+  "studio_schedule_changes_requested",
   // Studio-facing: the owner's own morning brief. Not a client note — it gets
   // its own framing rather than the "note from your studio" shell.
   "daily_digest",
@@ -1580,6 +1583,23 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "Couples often write to several photographers at once; the first thoughtful reply tends to win.",
         ],
         action: actionUrl ? { label: "Open the inquiry", url: actionUrl } : undefined,
+      };
+    }
+    case "studio_schedule_changes_requested": {
+      const couple = stringValue(values, "coupleName") || "Your couple";
+      const version = Number(values.scheduleVersion) || null;
+      const note = stringValue(values, "changeNote");
+      return {
+        subject: `${couple} asked for changes to the day plan`,
+        preheader: note ? clip(note, 90) : "They looked through the timeline and want something changed.",
+        eyebrow: "Day plan",
+        heading: `${couple} asked for changes`,
+        paragraphs: [
+          `${couple} looked through ${version ? `version ${version} of ` : ""}the day plan in their portal and asked for a change.`,
+          ...(note ? [`They wrote: “${note}”`] : []),
+          "Open the plan, make the change, and publish it again. They'll be asked to check the new version, and your crew will see it too.",
+        ],
+        action: actionUrl ? { label: "Open the day plan", url: actionUrl } : undefined,
       };
     }
     case "client_message_received": {

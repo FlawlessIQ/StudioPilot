@@ -214,6 +214,8 @@ export function useProjectJourney({
     questionnaireSource:
       text(currentQuestionnaire(forProject(questionnaires.records))?.source) || null,
     scheduleStatus: text(latestSchedule?.status) || null,
+    // The couple's answer to it: approved, or asked for changes.
+    scheduleApprovalState: text(latestSchedule?.approvalState) || null,
     // And ticked Run of show on an approved schedule whose items no reader
     // could parse, while the couple's brief showed "Invalid Date" six times.
     scheduleHasUsableItems:

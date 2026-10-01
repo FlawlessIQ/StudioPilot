@@ -302,6 +302,11 @@ export type TodayInput = {
   conversations?: TodayRecord[] | null;
   /** Couples asking to add a package (portal "Add to your booking"). */
   packageRequests?: TodayRecord[] | null;
+  /**
+   * Run-of-show versions, so the couple's answer to the day plan reaches
+   * Today: a card when they ask for changes, a line when they approve it.
+   */
+  schedules?: TodayRecord[] | null;
   tasks?: TodayRecord[] | null;
   aiActions?: TodayRecord[] | null;
   automationApprovals?: TodayRecord[] | null;
@@ -484,6 +489,59 @@ const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+
+/** "Beth & Tom", from "Beth & Tom wedding"; a name for a title. */
+const coupleName = (jobName: string | null | undefined): string =>
+  text(jobName).replace(/\s+wedding$/i, "").trim() || "The couple";
+
+/** Each job's newest run-of-show version. */
+function newestScheduleByProject(schedules: TodayRecord[]): Map<string, TodayRecord> {
+  const newest = new Map<string, TodayRecord>();
+  for (const schedule of schedules) {
+    const projectId = text(schedule.projectId);
+    if (!projectId || schedule.archivedAt) continue;
+    const current = newest.get(projectId);
+    if (!current || Number(schedule.version ?? 0) > Number(current.version ?? 0)) {
+      newest.set(projectId, schedule);
+    }
+  }
+  return newest;
+}
+
+/**
+ * The couple's answer to a run-of-show version, or null while they have not
+ * given one.
+ *
+ * A published version keeps `status: "published"`; the answer is in
+ * `approvalState` (functions/src/planning/commands.ts, approveSchedule). The
+ * older review flow wrote it to `status`, and both are read. `byStudio` is an
+ * answer the studio wrote down for them (given on the phone, say) — they
+ * already know about it.
+ */
+export function scheduleAnswer(schedule: Record<string, unknown>): {
+  decision: "approved" | "changes_requested";
+  note: string;
+  at: string | null;
+  byStudio: boolean;
+} | null {
+  const status = text(schedule.status);
+  const approval = text(schedule.approvalState);
+  const decision =
+    approval === "changes_requested" || status === "changes_requested"
+      ? "changes_requested"
+      : approval === "client_approved" || status === "approved"
+        ? "approved"
+        : null;
+  if (!decision) return null;
+  const recorded = asRecord(schedule.approvalRecordedByStudio);
+  const byStudio = Boolean(text(recorded.recordedBy));
+  const at =
+    text(recorded.recordedAt) ||
+    (decision === "approved" ? text(schedule.approvedAt) : "") ||
+    text(schedule.updatedAt) ||
+    null;
+  return { decision, note: text(schedule.approvalNotes).trim(), at, byStudio };
+}
 
 /** The lead an inquiry reply draft answers, from its source references. */
 function draftLeadId(sourceReferences: unknown): string | null {
@@ -1088,11 +1146,95 @@ export function todayInbox(input: TodayInput): TodayInbox {
     return text(projectById.get(id)?.eventDate) || eventFor(id);
   };
 
+  // ── Act · the couple answered the day plan ─────────────────────────
+  // GR Productions (2026-10-01): a couple's review of the run of show did
+  // nothing anyone could see. Approving changed nothing on Today; asking for
+  // changes made a task due today, and tasks reach Today only once overdue —
+  // so the studio heard about it the next day, if at all.
+  const scheduleChangeProjectIds = new Set<string>();
+  for (const schedule of newestScheduleByProject(rows(input.schedules)).values()) {
+    const projectId = text(schedule.projectId);
+    if (!jobStillOpen(projectId)) continue;
+    const status = text(schedule.status);
+    if (["superseded", "draft", "internal_review"].includes(status)) continue;
+    const answer = scheduleAnswer(schedule);
+    if (!answer) continue;
+    const job = projectById.get(projectId);
+    const couple = coupleName(text(job?.name) || nameFor(projectId));
+    const version = Number(schedule.version ?? 0) || null;
+    const eventDate = text(job?.eventDate) || eventFor(projectId);
+    if (answer.decision === "changes_requested") {
+      // A day that has happened has no plan left to change.
+      if (eventDate && eventDate < today) continue;
+      scheduleChangeProjectIds.add(projectId);
+      const note = answer.note.length > 160 ? `${answer.note.slice(0, 159)}…` : answer.note;
+      act.push({
+        id: `schedule-changes-${schedule.id}`,
+        lane: "act",
+        kind: "schedule",
+        title: `${couple} asked for changes to the day plan`,
+        detail: [
+          note ? `“${note}”` : null,
+          version
+            ? `Your crew still have version ${version} until you publish the change.`
+            : "Your crew still have the current version until you publish the change.",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        evidence: answer.byStudio ? "You recorded their answer" : "Asked in their portal",
+        projectId,
+        projectName: text(job?.name) || nameFor(projectId),
+        action: {
+          kind: "link",
+          label: "Open the day plan",
+          href: `/studio/schedules/new?project=${encodeURIComponent(projectId)}`,
+        },
+        jobHref: `/studio/projects/${projectId}`,
+        facts: [eventFact(eventDate, now), waitingFact(answer.at, now)].filter(
+          (fact): fact is string => Boolean(fact),
+        ),
+        band: "soon",
+        eventDate: eventDate || null,
+        // A couple is waiting on the studio, ahead of ordinary job steps.
+        score: score({ lane: "act", severity: "exception", eventDate, updatedAt: answer.at, now }),
+      });
+    } else if (!answer.byStudio && answer.at) {
+      // A receipt for a week: the studio wrote it down themselves otherwise.
+      const age = now.valueOf() - Date.parse(answer.at);
+      if (!Number.isFinite(age) || age > 7 * 86_400_000) continue;
+      fyi.push({
+        id: `schedule-approved-${schedule.id}`,
+        lane: "fyi",
+        kind: "schedule",
+        title: `${couple} approved the day plan`,
+        detail: version
+          ? `Version ${version} — you, your crew and the couple are working from the same times.`
+          : "You, your crew and the couple are working from the same times.",
+        evidence: "Approved in their portal",
+        projectId,
+        projectName: text(job?.name) || nameFor(projectId),
+        action: { kind: "none", label: "Nothing to do" },
+        jobHref: `/studio/projects/${projectId}`,
+        facts: [],
+        band: "later",
+        eventDate: eventDate || null,
+        score: score({ lane: "fyi", updatedAt: answer.at, now }),
+      });
+    }
+  }
+
   for (const task of rows(input.tasks)) {
     const due = text(task.dueAt ?? task.dueDate).slice(0, 10);
     const done = taskIsSettled(task.status);
     if (!due || due >= today || done) continue;
     if (!jobStillOpen(task.projectId)) continue;
+    // The change request already has its card above, with the couple's words.
+    if (
+      text(task.source) === "client_schedule_review" &&
+      scheduleChangeProjectIds.has(text(task.projectId))
+    ) {
+      continue;
+    }
     /**
      * A task for an event that has since been recorded as shot.
      *
@@ -1477,6 +1619,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // The balance has its own card below (finalBalanceProjectIds): the same
     // debt once, with the buttons that settle it.
     if (position.stepKey === "final_balance" && finalBalanceProjectIds.has(position.projectId)) continue;
+    // The couple's change request has its own card, with their words.
+    if (position.stepKey === "run_of_show" && scheduleChangeProjectIds.has(position.projectId)) continue;
     act.push({
       id: `journey-${position.projectId}`,
       lane: "act",

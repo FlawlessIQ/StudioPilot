@@ -106,16 +106,31 @@ export function ClientSchedule() {
     setBusy(true);
     setError(null);
     try {
-      if (dataIsLive)
-        await sendPlanningCommand("approveSchedule", {
-          projectId: schedule.projectId,
-          scheduleId: schedule.id,
-          decision,
-          notes:
-            decision === "approved"
-              ? "Approved by client in the StudioCue portal."
-              : `${about ? `Schedule item: ${text(about.title)} (${clock?.start ?? "time to be confirmed"}). ` : ""}${note.trim()}`,
-        });
+      /**
+       * Only an answer the studio actually received is shown as sent.
+       *
+       * This skipped the call outside live data and fell through to the
+       * success state, and the command client answers "not persisted" rather
+       * than failing when its endpoint is missing — either way the couple was
+       * told their answer had gone when nothing had reached the studio.
+       */
+      if (!dataIsLive) {
+        setError("This is a preview, so nothing was sent to your studio.");
+        return;
+      }
+      const response = await sendPlanningCommand("approveSchedule", {
+        projectId: schedule.projectId,
+        scheduleId: schedule.id,
+        decision,
+        notes:
+          decision === "approved"
+            ? "Approved by client in the StudioCue portal."
+            : `${about ? `Schedule item: ${text(about.title)} (${clock?.start ?? "time to be confirmed"}). ` : ""}${note.trim()}`,
+      });
+      if (!response.persisted) {
+        setError("Your answer couldn’t reach your studio just now. Please try again in a moment.");
+        return;
+      }
       setLocalStatus(decision);
       setSheet(null);
       window.scrollTo({ top: 0 });
