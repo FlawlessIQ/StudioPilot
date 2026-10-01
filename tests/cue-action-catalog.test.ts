@@ -142,6 +142,8 @@ const REACHED: Record<string, string> = {
   sendTemplateTest: "/studio/settings/email-templates",
   getInquiryForwardingAddress: "InquiryForwardingAddress", getLeadCaptureSetup: "InquiryForwardingSettings",
   startCaptureTest: "InquiryForwardingSettings", saveFormMapping: "InquiryForwardingSettings",
+  // The studio's own inquiry form, edited in the same settings panel (InquiryFormEditor).
+  setInquiryForm: "InquiryForwardingSettings",
   // Crew
   createCrewProfile: "CreateCrewProfileForm", updateCrewDirectoryEntry: "CrewRecordActions",
   inviteCrewProfile: "\"inviteCrewProfile\"", archiveCrewProfile: "\"archiveCrewProfile\"",

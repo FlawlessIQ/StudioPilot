@@ -314,6 +314,16 @@ function ThreadEntryCard({ entry }: { entry: ThreadEntry }) {
         <em>{ACTOR_LABEL[entry.actor]}</em>
       </div>
       {entry.detail ? <p>{entry.detail}</p> : null}
+      {entry.answers?.length ? (
+        <dl className="thread-entry-answers">
+          {entry.answers.map((row) => (
+            <div key={row.question}>
+              <dt>{row.question}</dt>
+              <dd>{row.answer}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
       {entry.artifact ? (
         <div className="thread-entry-artifact">
           <div className="thread-entry-chips">

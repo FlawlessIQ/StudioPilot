@@ -33,15 +33,21 @@ export function KitRoot({
   studio,
   children,
   className,
+  theme,
 }: {
   studio?: Pick<Studio, "color"> | null;
   children: ReactNode;
   className?: string;
+  /**
+   * Kit variables to set over the studio's theme — the inquiry form's own
+   * button colour and background (features/leads/inquiry-form-theme.ts).
+   */
+  theme?: Record<string, string>;
 }) {
   return (
     <div
       className={["kit", className].filter(Boolean).join(" ")}
-      style={studioThemeStyle(studio?.color) as CSSProperties}
+      style={{ ...studioThemeStyle(studio?.color), ...theme } as CSSProperties}
     >
       {children}
     </div>

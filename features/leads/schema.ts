@@ -2,6 +2,12 @@ import { z } from "zod";
 import { capturedPlaceSchema } from "@/features/places/schema";
 import { auditFieldsSchema } from "@/features/tenants/schema";
 import { normalizeEmail, normalizePhone } from "@/features/contacts/schema";
+import {
+  defaultInquiryFormConfig,
+  inquiryRequirementIssues,
+  prepareInquiryInput,
+  type InquiryFormConfig,
+} from "@/features/leads/inquiry-form-config";
 
 /**
  * Where an inquiry's record stands. "converted" means it is a job (every
@@ -32,7 +38,7 @@ export const eventServiceSchema = z.enum([
  * characters" against City — Zod's own words, on the most public page in the
  * product. A couple reads that and emails somebody else.
  */
-export const publicLeadIntakeSchema = z.object({
+export const publicLeadIntakeFields = z.object({
   tenantSlug: z.string().trim().min(2).max(80).regex(/^[a-z0-9-]+$/),
   firstName: z.string().trim().min(1, "Tell us your first name.").max(80),
   lastName: z.string().trim().min(1, "Tell us your last name.").max(80),
@@ -46,8 +52,15 @@ export const publicLeadIntakeSchema = z.object({
     .trim()
     .min(7, "Add a phone number the studio can reach you on.")
     .max(30),
-  eventDate: z.string().date("Pick the date of your event."),
-  eventType: z.string().trim().min(2).max(80),
+  /**
+   * Required or not by the studio's form (inquiry-form-config.ts): a blank
+   * date arrives here as null, and `inquiryRequirementIssues` asks for it
+   * only when the chosen type requires it.
+   */
+  eventDate: z.string().date("Pick the date of your event.").nullable().default(null),
+  eventType: z.string().trim().min(2, "Choose what you’re getting in touch about.").max(80),
+  /** The studio's type the couple chose (its id). Absent from pages older than types. */
+  eventTypeKey: z.string().trim().max(40).nullable().default(null),
   venue: z.string().trim().max(160).nullable().default(null),
   /**
    * The place the address lookup found. The label was all that was kept, so
@@ -66,11 +79,18 @@ export const publicLeadIntakeSchema = z.object({
     .string()
     .trim()
     .min(2, "Which city or town is the event in?")
-    .max(120),
+    .max(120)
+    .nullable()
+    .default(null),
   estimatedGuestCount: z.number().int().min(1).max(100000).nullable().default(null),
   servicesRequested: z.array(eventServiceSchema).min(1),
   budgetRange: z.string().trim().max(80).nullable().default(null),
   referralSource: z.string().trim().max(120).nullable().default(null),
+  /** Answers to the studio's own questions, by question id. */
+  customAnswers: z
+    .record(z.string().max(60), z.string().trim().max(2000))
+    .refine((answers) => Object.keys(answers).length <= 30, { message: "Check your answers." })
+    .default({}),
   message: z
     .string()
     .trim()
@@ -87,7 +107,28 @@ export const publicLeadIntakeSchema = z.object({
   honeypot: z.string().max(0).default(""),
 });
 
-export type PublicLeadIntake = z.infer<typeof publicLeadIntakeSchema>;
+/**
+ * The public inquiry, checked against one studio's form.
+ *
+ * Everything the chosen type hides is dropped first (`prepareInquiryInput`),
+ * then the fields are checked, then what the type requires is asked for. The
+ * browser's Zod-free check (public-intake-validate.ts) and the server
+ * (functions/src/crm/public-lead.ts) run the same three steps.
+ */
+export function publicLeadIntakeSchemaFor(config: InquiryFormConfig) {
+  return z
+    .preprocess((raw) => prepareInquiryInput(raw, config), publicLeadIntakeFields)
+    .superRefine((values, context) => {
+      for (const issue of inquiryRequirementIssues(values, config))
+        context.addIssue({ code: "custom", path: issue.path, message: issue.message });
+    });
+}
+
+/** The form every studio had before it could change it: the default types, budget and referral asked. */
+export const publicLeadIntakeSchema = publicLeadIntakeSchemaFor(defaultInquiryFormConfig());
+
+export type PublicLeadIntake = z.infer<typeof publicLeadIntakeFields>;
+export type PublicLeadIntakeInput = z.input<typeof publicLeadIntakeFields>;
 
 /** Where a captured value came from — shown on the review card so a studio can tell stated from inferred. */
 export const leadFieldSourceSchema = z.enum(["form", "header", "message", "studio"]);
@@ -149,6 +190,14 @@ export const leadSchema = auditFieldsSchema.extend({
   inquiryCount: z.number().int().min(1).optional(),
   lastInquiryAt: z.string().datetime().optional(),
   conversationId: z.string().nullable().optional(),
+  /** The kind of the studio type chosen on the form ("wedding", "sports"…). */
+  eventKind: z.string().max(40).nullable().optional(),
+  /** The studio type's id, as chosen on the form. */
+  eventTypeKey: z.string().max(40).nullable().optional(),
+  /** Answers to the studio's own questions, each with its wording at the time. */
+  customAnswers: z
+    .array(z.object({ questionId: z.string(), question: z.string().max(200), answer: z.string().max(2000) }))
+    .optional(),
 });
 
 export type Lead = z.infer<typeof leadSchema>;

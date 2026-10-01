@@ -6,6 +6,7 @@ import { Check, ChevronRight, Copy, Forward } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { LeadCaptureSetup } from "@/components/intake/lead-capture-setup";
+import { InquiryFormEditor } from "@/components/intake/inquiry-form-editor";
 import { InfoHint } from "@/components/ui/info-hint";
 
 /**
@@ -120,6 +121,8 @@ export function InquiryForwardingSettings() {
   return (
     <>
       <LeadCaptureSetup />
+      {/* What the form itself asks, and how it looks (GR Productions, 2026-10-01). */}
+      <InquiryFormEditor />
       {/* The event form couples fill in before the call is chosen where the
           forms live (components/planning/inquiry-event-form-setting.tsx). */}
       <p className="form-notice">

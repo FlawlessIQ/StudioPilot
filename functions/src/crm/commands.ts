@@ -98,6 +98,7 @@ type InquiryLifecycleCommand = Extract<
 /** Commands after which an inquiry may have become ready to be a job. */
 const commandsThatCanConvert: ReadonlySet<string> = new Set(["updateLead"]);
 import { invalidCommandResponse } from "../security/invalid-command.js";
+import { validateInquiryFormConfig } from "../intake/inquiry-form-config.js";
 import {
   archiveBlockedBy,
   dispositionFor,
@@ -476,6 +477,19 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ sender: z.string().trim().toLowerCase().min(3).max(320) }),
+  }),
+  z.object({
+    /**
+     * The studio's own inquiry form: its event types and which "your day"
+     * fields each asks, the budget and referral questions, its own
+     * questions, and the colours (GR Productions, 2026-10-01). Checked in
+     * full by `validateInquiryFormConfig` (intake/inquiry-form-config.ts),
+     * which says what is wrong in the studio's words.
+     */
+    type: z.literal("setInquiryForm"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ config: z.unknown() }),
   }),
   z.object({
     /**
@@ -3871,6 +3885,58 @@ export const crmCommand = onRequest(
             });
           }
           const output = { sender: command.input.sender, removed };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setInquiryForm") {
+          // The studio's front door: what every couple is asked. Owners and
+          // admins only, like the rest of the inquiry settings.
+          if (!["studio_owner", "studio_admin"].includes(membershipData.role)) {
+            throw new Error("FORBIDDEN");
+          }
+          const checked = validateInquiryFormConfig(command.input.config);
+          if (!checked.ok) {
+            // Refused whole, with the reasons, so nothing half-saved reaches
+            // the public page. Thrown as one code; the reasons ride on it.
+            throw new Error(`INQUIRY_FORM_INVALID: ${checked.errors.slice(0, 5).join(" ")}`);
+          }
+          const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
+          const settings = await transaction.get(settingsReference);
+          transaction.set(
+            settingsReference,
+            {
+              tenantId: command.tenantId,
+              inquiryForm: { ...checked.config, updatedAt: timestamp, updatedBy: identity.uid },
+              updatedAt: timestamp,
+            },
+            { merge: true },
+          );
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "lead_capture.inquiry_form_saved",
+            entityType: "leadCaptureSettings",
+            entityId: command.tenantId,
+            timestamp,
+            before: { inquiryForm: settings.get("inquiryForm") ?? null },
+            after: { inquiryForm: checked.config },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { saved: true, config: checked.config };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

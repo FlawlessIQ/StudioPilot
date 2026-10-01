@@ -1,12 +1,21 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ArrowLeft, CheckCircle2, LoaderCircle, Mail, Phone, Send, Users } from "lucide-react";
-import { useForm, useWatch } from "react-hook-form";
-import type { z } from "zod";
-import type { publicLeadIntakeSchema, PublicLeadIntake } from "@/features/leads/schema";
+import { useForm, useWatch, type UseFormRegisterReturn } from "react-hook-form";
+import type { PublicLeadIntake, PublicLeadIntakeInput } from "@/features/leads/schema";
 // The browser check without Zod (H5): features/leads/public-intake-validate.ts.
 import { publicLeadIntakeResolver } from "@/features/leads/public-intake-validate";
+import {
+  dayFieldsFor,
+  defaultInquiryFormConfig,
+  inquirySkipsDetails,
+  questionsForType,
+  type InquiryEventType,
+  type InquiryFormConfig,
+  type InquiryQuestion,
+} from "@/features/leads/inquiry-form-config";
+import { inquiryFormThemeStyle } from "@/features/leads/inquiry-form-theme";
 import { AddressField } from "@/components/forms/address-field";
 import {
   Actions,
@@ -30,7 +39,6 @@ import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useEmbedFrame } from "@/components/crm/use-embed-frame";
 
-type PublicLeadIntakeInput = z.input<typeof publicLeadIntakeSchema>;
 
 type SubmissionResult = {
   leadId: string;
@@ -73,48 +81,47 @@ function prewarmAppCheck() {
 }
 
 /**
- * Three short steps, one field per row, the next step in the thumb zone
- * (M2 of docs/mobile-first-client-crew-plan-2026-09-28.md). It was one long
+ * Short steps, one field per row, the next step in the thumb zone (M2 of
+ * docs/mobile-first-client-crew-plan-2026-09-28.md). It was one long
  * fourteen-field page that ran off an iPhone. Each step is checked before the
  * next opens, so a refusal is always on the screen being looked at.
+ *
+ * The steps follow the studio's own form (features/leads/inquiry-form-
+ * config.ts, GR Productions 2026-10-01): what the inquiry is about is chosen
+ * at the end of the first step, so "your day" asks only what that type asks —
+ * a date and a city for a cheer shoot, not a venue and a guest count — and a
+ * general question skips it and goes straight to the message.
  */
-const STEPS = [
-  {
-    eyebrow: "Step 1 of 3",
-    title: "Let’s start with you",
-    lede: "A few details so we can reply to you personally.",
-    fields: ["firstName", "lastName", "partnerName", "email", "phone"],
-  },
-  {
-    eyebrow: "Step 2 of 3",
-    title: "Tell us about your day",
-    lede: "Dates are checked before availability is confirmed.",
-    fields: ["eventDate", "eventType", "venue", "city", "estimatedGuestCount", "coiRequired", "venueContactName", "venueContactEmail"],
-  },
-  {
-    eyebrow: "Step 3 of 3",
-    title: "What matters most?",
-    lede: "Anything you’d like us to know. A few lines is plenty.",
-    fields: ["message", "budgetRange", "referralSource", "consent", "honeypot"],
-  },
-] as const satisfies ReadonlyArray<{
-  eyebrow: string;
-  title: string;
-  lede: string;
-  fields: ReadonlyArray<keyof PublicLeadIntakeInput>;
-}>;
+type StepKey = "you" | "day" | "more";
 
-const EVENT_TYPES = [
-  { value: "wedding", label: "Wedding" },
-  { value: "corporate", label: "Corporate" },
-  { value: "sports", label: "Sports" },
-  { value: "other", label: "Other" },
-] as const;
+const STEP_FIELDS: Record<StepKey, ReadonlyArray<keyof PublicLeadIntakeInput>> = {
+  you: ["firstName", "lastName", "email", "phone", "eventTypeKey", "eventType", "partnerName"],
+  day: ["eventDate", "venue", "city", "estimatedGuestCount", "coiRequired", "venueContactName", "venueContactEmail"],
+  more: ["message", "customAnswers", "budgetRange", "referralSource", "consent", "honeypot"],
+};
+
+function stepCopy(key: StepKey, type: InquiryEventType | null, dated: boolean): { title: string; lede: string } {
+  const wedding = !type || type.kind === "wedding";
+  if (key === "you") return { title: "Let’s start with you", lede: "A few details so we can reply to you personally." };
+  if (key === "day")
+    return {
+      title: wedding ? "Tell us about your day" : "When and where?",
+      lede: dated ? "Dates are checked before availability is confirmed." : "A few details help us plan.",
+    };
+  if (type?.kind === "general")
+    return { title: "How can we help?", lede: "Ask us anything. A few lines is plenty." };
+  return { title: "What matters most?", lede: "Anything you’d like us to know. A few lines is plenty." };
+}
 
 const COI_ANSWERS = [
   { value: "yes", label: "Yes" },
   { value: "no", label: "No" },
   { value: "not_sure", label: "Not sure" },
+] as const;
+
+const YES_NO = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
 ] as const;
 
 const BUDGETS = [
@@ -127,10 +134,78 @@ const BUDGETS = [
 
 const REFERRALS = ["Instagram", "Google", "A friend", "Our planner", "Other"] as const;
 
+const DEFAULT_FORM = defaultInquiryFormConfig();
+
+/** "Label Required", or the label alone with "Optional" as its hint. */
+function marked(label: string, required: boolean): ReactNode {
+  return required ? (
+    <>
+      {label} <span className="required-mark">Required</span>
+    </>
+  ) : (
+    label
+  );
+}
+
+/**
+ * Bring a field into view and focus it: by name, or by a chip group's
+ * wrapper (`data-field`), since a hidden input can't be scrolled to.
+ */
+function reveal(name: string) {
+  // A timer, not requestAnimationFrame: rAF does not run in a hidden tab,
+  // and the step may need to render before the field exists.
+  window.setTimeout(() => {
+    const field =
+      document.querySelector<HTMLElement>(`[data-field="${name}"]`) ??
+      document.querySelector<HTMLElement>(`[name="${name}"]`);
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    (field?.querySelector<HTMLElement>("button, input, textarea") ?? field)?.focus({ preventScroll: true });
+  }, 60);
+}
+
+/**
+ * One of the studio's own questions. Typed answers are the input's own
+ * (registered, so typing never re-renders the form); a choice is a chip group
+ * over a hidden input, like the other chip questions here.
+ */
+function CustomQuestion({
+  question,
+  registration,
+  error,
+  value,
+  onChoose,
+}: {
+  question: InquiryQuestion;
+  registration: UseFormRegisterReturn;
+  error?: string;
+  value: string | null;
+  onChoose: (next: string) => void;
+}) {
+  const label = marked(question.label, question.required);
+  const hint = question.required ? undefined : "Optional";
+  if (question.type === "short_text")
+    return <Field error={error} hint={hint} label={label} maxLength={200} {...registration} />;
+  if (question.type === "long_text") return <TextArea error={error} hint={hint} label={label} rows={3} {...registration} />;
+  const options =
+    question.type === "yes_no" ? YES_NO : question.options.map((option) => ({ value: option, label: option }));
+  return (
+    <div data-field={registration.name}>
+      <input type="hidden" {...registration} />
+      <Choices legend={label} onChange={(next) => onChoose(next as string)} options={options} value={value} />
+      {error ? (
+        <p className="kit-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function LeadIntakeForm({
   tenantSlug,
   brandName,
   studio,
+  config = DEFAULT_FORM,
   preview = false,
   embedded = false,
 }: {
@@ -138,6 +213,8 @@ export function LeadIntakeForm({
   brandName: string;
   /** The studio's brand: couples are writing to the studio, not StudioCue. */
   studio?: Studio;
+  /** The studio's own form, read server-side from its inquiry settings. */
+  config?: InquiryFormConfig;
   /**
    * The studio looking at its own form (`?preview=studio`). A submit shows
    * what a couple sees and saves nothing. It used to create a real lead, and
@@ -160,7 +237,7 @@ export function LeadIntakeForm({
     () => false,
   );
   const [step, setStep] = useState(0);
-  const [result, setResult] = useState<SubmissionResult | null>(null);
+  const [result, setResult] = useState<(SubmissionResult & { dated: boolean }) | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   /**
    * Whether a refused send is being explained. The count is read live from
@@ -186,15 +263,28 @@ export function LeadIntakeForm({
     formState: { errors, isSubmitting },
   } = useForm<PublicLeadIntakeInput, unknown, PublicLeadIntake>({
     defaultValues: { ...inquiryFormDefaults, tenantSlug },
-    resolver: publicLeadIntakeResolver<PublicLeadIntakeInput>(),
+    resolver: publicLeadIntakeResolver<PublicLeadIntakeInput>(config),
   });
   const brand: Studio = studio ?? { name: brandName };
+  // The studio's button colour and background, readable whatever was picked.
+  const theme = useMemo(() => inquiryFormThemeStyle(studio?.color, config), [studio?.color, config]);
   useEmbedFrame(embedded, frameRef, result ? "done" : String(step));
   const kitClass = embedded ? "is-embedded" : undefined;
-  // Only the two chip groups follow these; the rest of the form stays put.
-  const eventType = useWatch({ control, name: "eventType" }) ?? "wedding";
+
+  // A studio with one kind of inquiry asks nothing: it is that one.
+  const types = config.eventTypes;
+  const onlyType = types.length === 1 ? types[0]! : null;
+  // Only the chip groups follow these; the rest of the form stays put.
+  const typeKey = useWatch({ control, name: "eventTypeKey" }) ?? onlyType?.id ?? null;
   const budget = useWatch({ control, name: "budgetRange" });
   const coiRequired = useWatch({ control, name: "coiRequired" });
+  const answers = (useWatch({ control, name: "customAnswers" }) ?? {}) as Record<string, string | undefined>;
+  const chosenType = types.find((type) => type.id === typeKey) ?? null;
+  const day = dayFieldsFor(chosenType);
+  const steps: StepKey[] = inquirySkipsDetails(chosenType) ? ["you", "more"] : ["you", "day", "more"];
+  const stepIndex = Math.min(step, steps.length - 1);
+  const stepKey = steps[stepIndex]!;
+  const questions = questionsForType(config, chosenType);
 
   const [venue, setVenue] = useState<CapturedPlace | null>(null);
   const [referral, setReferral] = useState<string | null>(null);
@@ -223,7 +313,15 @@ export function LeadIntakeForm({
     setValue("venuePlace", place?.verified ? place : null);
     if (!place?.verified || (getValues("city") ?? "").trim()) return;
     const city = placeCity(place);
-    if (city) setValue("city", city.slice(0, 120), { shouldValidate: true });
+    if (city && day.city !== "hidden") setValue("city", city.slice(0, 120), { shouldValidate: true });
+  }
+
+  function chooseType(type: InquiryEventType) {
+    setValue("eventTypeKey", type.id, { shouldDirty: true, shouldValidate: true });
+    // The studio's label is what the inquiry is stored as (eventTypeLabel).
+    setValue("eventType", type.label, { shouldDirty: true, shouldValidate: Boolean(errors.eventType) });
+    // Asked only for a wedding; not sent for anything else.
+    if (type.kind !== "wedding") setValue("partnerName", null);
   }
 
   function goTo(next: number) {
@@ -237,10 +335,11 @@ export function LeadIntakeForm({
   }
 
   async function continueFrom(current: number) {
-    const fields = STEPS[current]!.fields;
+    const fields = STEP_FIELDS[steps[current]!];
     if (await trigger([...fields])) return goTo(current + 1);
     // Read the result now: `errors` here is from the render before trigger.
-    const first = fields.find((name) => getFieldState(name).invalid) ?? fields[0];
+    const first = fields.find((name) => getFieldState(name).invalid) ?? fields[0]!;
+    if (first === "eventTypeKey" || first === "eventType") return reveal("eventType");
     setFocus(first);
   }
 
@@ -260,33 +359,39 @@ export function LeadIntakeForm({
     setMissingShown(true);
     const first = names[0];
     if (!first) return;
-    const owner = STEPS.findIndex((candidate) =>
-      (candidate.fields as readonly string[]).includes(first),
+    const ownerKey = (Object.keys(STEP_FIELDS) as StepKey[]).find((key) =>
+      (STEP_FIELDS[key] as readonly string[]).includes(first),
     );
-    if (owner >= 0 && owner !== step) setStep(owner);
-    // A timer, not requestAnimationFrame: rAF does not run in a hidden tab,
-    // and the step may need to render before the field exists.
-    window.setTimeout(() => {
-      const field = document.querySelector<HTMLElement>(`[name="${first}"]`);
-      field?.scrollIntoView({ behavior: "smooth", block: "center" });
-      field?.focus({ preventScroll: true });
-    }, 60);
+    const owner = ownerKey ? steps.indexOf(ownerKey) : -1;
+    if (owner >= 0 && owner !== stepIndex) setStep(owner);
+    // One of the studio's own questions: its error sits under its id.
+    const nested = fieldErrors[first] as Record<string, unknown> | undefined;
+    const target =
+      first === "customAnswers" && nested && !("message" in nested)
+        ? `customAnswers.${Object.keys(nested)[0] ?? ""}`
+        : first === "eventTypeKey"
+          ? "eventType"
+          : first;
+    reveal(target);
   };
 
   const submit = handleSubmit(async (values) => {
     setServerError(null);
     setMissingShown(false);
     const endpoint = process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL;
+    const dated = Boolean(values.eventDate);
 
     if (!endpoint || preview) {
       setResult({
         leadId: `DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
         duplicate: false,
         availabilityStatus: "unknown",
+        // Only what this form asked: no "budget" for a studio that doesn't ask it.
         missingInformation: [
-          ...(values.venue ? [] : ["venue"]),
-          ...(values.budgetRange ? [] : ["budget range"]),
+          ...(day.venue && !values.venue ? ["venue"] : []),
+          ...(config.askBudget && !values.budgetRange ? ["budget range"] : []),
         ],
+        dated,
       });
       return;
     }
@@ -308,7 +413,7 @@ export function LeadIntakeForm({
       if (!response.ok || !("leadId" in payload)) {
         throw new Error("message" in payload ? payload.message : "Inquiry could not be submitted.");
       }
-      setResult(payload);
+      setResult({ ...payload, dated });
     } catch (error: unknown) {
       const message = friendlyError(error, "");
       setServerError(
@@ -324,7 +429,7 @@ export function LeadIntakeForm({
   if (result) {
     return (
       <div ref={frameRef}>
-      <KitRoot className={kitClass} studio={brand}>
+      <KitRoot className={kitClass} studio={brand} theme={theme}>
         <Screen>
           {embedded ? null : <AppBar studio={brand} />}
           <Main label="Inquiry sent">
@@ -335,7 +440,9 @@ export function LeadIntakeForm({
               </Note>
               <h1 className="kit-title">Thank you. We’ll be in touch shortly.</h1>
               <p className="kit-body">
-                {`${brand.name} will look at your date and details and reply personally, before any talk of packages.`}
+                {result.dated
+                  ? `${brand.name} will look at your date and details and reply personally, before any talk of packages.`
+                  : `${brand.name} will read your message and reply personally.`}
               </p>
               {result.missingInformation.length > 0 ? (
                 <p className="kit-caption">
@@ -362,12 +469,13 @@ export function LeadIntakeForm({
     );
   }
 
-  const current = STEPS[step]!;
+  const copy = stepCopy(stepKey, chosenType, day.eventDate !== "hidden");
   const missingCount = Object.keys(errors).length;
+  const answerError = (id: string) => (errors.customAnswers as Record<string, { message?: string } | undefined> | undefined)?.[id]?.message;
 
   return (
     <div ref={frameRef}>
-    <KitRoot className={kitClass} studio={brand}>
+    <KitRoot className={kitClass} studio={brand} theme={theme}>
       <Screen>
         {embedded ? null : (
           <AppBar
@@ -392,15 +500,15 @@ export function LeadIntakeForm({
               {preview ? (
                 <Note>You’re previewing your form. Try it — submitting won’t create an inquiry.</Note>
               ) : null}
-              <Steps step={step + 1} total={STEPS.length} />
+              <Steps step={stepIndex + 1} total={steps.length} />
               <div className="kit-stack-tight">
-                <p className="kit-eyebrow">{current.eyebrow}</p>
-                <h1 className="kit-title">{current.title}</h1>
-                <p className="kit-body">{current.lede}</p>
+                <p className="kit-eyebrow">{`Step ${stepIndex + 1} of ${steps.length}`}</p>
+                <h1 className="kit-title">{copy.title}</h1>
+                <p className="kit-body">{copy.lede}</p>
               </div>
             </div>
 
-            {step === 0 ? (
+            {stepKey === "you" ? (
               <div className="kit-stack">
                 <Field
                   autoComplete="given-name"
@@ -413,11 +521,6 @@ export function LeadIntakeForm({
                   error={errors.lastName?.message}
                   label={<>Last name <span className="required-mark">Required</span></>}
                   {...register("lastName")}
-                />
-                <Field
-                  hint="Optional"
-                  label="Partner’s name"
-                  {...register("partnerName", { setValueAs: (value) => value || null })}
                 />
                 <Field
                   autoComplete="email"
@@ -437,51 +540,84 @@ export function LeadIntakeForm({
                   type="tel"
                   {...register("phone")}
                 />
+                {/* The chips and the value are one thing: nothing is lit
+                    until a type is chosen, and Continue says so rather than
+                    silently refusing (the local UAT run, 2026-09-29, found a
+                    lit chip over an empty value). A studio with one type
+                    starts with it chosen and shows no chips. */}
+                <input defaultValue={onlyType?.id ?? ""} type="hidden" {...register("eventTypeKey")} />
+                <input defaultValue={onlyType?.label ?? ""} type="hidden" {...register("eventType")} />
+                {onlyType ? null : (
+                  <div data-field="eventType">
+                    <Choices
+                      legend={<>What are you getting in touch about? <span className="required-mark">Required</span></>}
+                      onChange={(next) => {
+                        const type = types.find((candidate) => candidate.id === next);
+                        if (type) chooseType(type);
+                      }}
+                      options={types.map((type) => ({ value: type.id, label: type.label }))}
+                      value={chosenType?.id ?? null}
+                    />
+                    {errors.eventType || errors.eventTypeKey ? (
+                      <p className="kit-error" role="alert">
+                        Choose what you&rsquo;re getting in touch about.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+                {chosenType?.kind === "wedding" ? (
+                  <Field
+                    hint="Optional"
+                    label="Partner’s name"
+                    {...register("partnerName", { setValueAs: (value) => value || null })}
+                  />
+                ) : null}
               </div>
             ) : null}
 
-            {step === 1 ? (
+            {stepKey === "day" ? (
               <div className="kit-stack">
-                <Field
-                  error={errors.eventDate?.message}
-                  hint="Tap to pick the date."
-                  label={<>Event date <span className="required-mark">Required</span></>}
-                  type="date"
-                  {...register("eventDate")}
-                />
-                {/* The chips show Wedding chosen, so the value has to be
-                    Wedding too. With no form default (see
-                    inquiryFormDefaults) the value is read from this input, and
-                    an empty one left the chip lit and Continue silently
-                    refused: a couple who kept Wedding could not get past
-                    step 2 (found by the local UAT run, 2026-09-29). */}
-                <input defaultValue="wedding" type="hidden" {...register("eventType")} />
-                <Choices
-                  legend="Type of event"
-                  onChange={(next) => setValue("eventType", next as string, { shouldDirty: true, shouldValidate: true })}
-                  options={EVENT_TYPES}
-                  value={eventType as (typeof EVENT_TYPES)[number]["value"]}
-                />
-                {errors.eventType ? (
-                  <p className="kit-error" role="alert">
-                    Choose what you&rsquo;re planning.
-                  </p>
+                {day.eventDate !== "hidden" ? (
+                  <Field
+                    error={errors.eventDate?.message}
+                    hint={day.eventDate === "required" ? "Tap to pick the date." : "Optional — leave it empty if you’re not sure yet."}
+                    label={
+                      day.eventDate === "required" ? (
+                        <>Event date <span className="required-mark">Required</span></>
+                      ) : (
+                        "Event date"
+                      )
+                    }
+                    type="date"
+                    {...register("eventDate")}
+                  />
                 ) : null}
-                <AddressField
-                  hint="If you have chosen one. Start typing and pick from the list."
-                  label="Venue"
-                  onChange={applyVenue}
-                  placeholder="Venue name or address"
-                  source={{ kind: "public", tenantSlug }}
-                  value={venue}
-                />
-                <Field
-                  autoComplete="address-level2"
-                  error={errors.city?.message}
-                  label={<>City <span className="required-mark">Required</span></>}
-                  {...register("city")}
-                />
-                {venue ? (
+                {day.venue ? (
+                  <AddressField
+                    hint="If you have chosen one. Start typing and pick from the list."
+                    label="Venue"
+                    onChange={applyVenue}
+                    placeholder="Venue name or address"
+                    source={{ kind: "public", tenantSlug }}
+                    value={venue}
+                  />
+                ) : null}
+                {day.city !== "hidden" ? (
+                  <Field
+                    autoComplete="address-level2"
+                    error={errors.city?.message}
+                    hint={day.city === "required" ? undefined : "Optional"}
+                    label={
+                      day.city === "required" ? (
+                        <>City <span className="required-mark">Required</span></>
+                      ) : (
+                        "City"
+                      )
+                    }
+                    {...register("city")}
+                  />
+                ) : null}
+                {day.coi && venue ? (
                   <>
                     <input type="hidden" {...register("coiRequired", { setValueAs: (value) => value || null })} />
                     <Choices
@@ -518,57 +654,90 @@ export function LeadIntakeForm({
                     ) : null}
                   </>
                 ) : null}
-                <Field
-                  hint="Optional — a rough number is fine."
-                  icon={Users}
-                  inputMode="numeric"
-                  label="Estimated guests"
-                  min="1"
-                  type="number"
-                  {...register("estimatedGuestCount", {
-                    setValueAs: (value) => (value ? Number(value) : null),
-                  })}
-                />
+                {day.guests ? (
+                  <Field
+                    hint="Optional — a rough number is fine."
+                    icon={Users}
+                    inputMode="numeric"
+                    label="Estimated guests"
+                    min="1"
+                    type="number"
+                    {...register("estimatedGuestCount", {
+                      setValueAs: (value) => (value ? Number(value) : null),
+                    })}
+                  />
+                ) : null}
               </div>
             ) : null}
 
-            {step === 2 ? (
+            {stepKey === "more" ? (
               <div className="kit-stack">
                 <TextArea
                   error={errors.message?.message}
-                  label={<>What are you planning? <span className="required-mark">Required</span></>}
-                  placeholder="Tell us what matters most, the atmosphere, and anything we should know."
+                  label={
+                    chosenType?.kind === "general" ? (
+                      <>Your message <span className="required-mark">Required</span></>
+                    ) : (
+                      <>What are you planning? <span className="required-mark">Required</span></>
+                    )
+                  }
+                  placeholder={
+                    chosenType?.kind === "general"
+                      ? "Tell us what you’d like to know."
+                      : "Tell us what matters most, the atmosphere, and anything we should know."
+                  }
                   rows={5}
                   {...register("message")}
                 />
-                <input type="hidden" {...register("budgetRange", { setValueAs: (value) => value || null })} />
-                <Choices
-                  legend="Photography budget"
-                  onChange={(next) =>
-                    setValue("budgetRange", next === "none" ? null : (next as string), { shouldDirty: true })
-                  }
-                  options={BUDGETS}
-                  value={(budget ?? "none") as (typeof BUDGETS)[number]["value"]}
-                />
-                <input type="hidden" {...register("referralSource", { setValueAs: (value) => value || null })} />
-                <Choices
-                  legend="How did you hear about us?"
-                  onChange={(next) => {
-                    setReferral(next as string);
-                    setValue("referralSource", next === "Other" ? null : (next as string), {
-                      shouldDirty: true,
-                    });
-                  }}
-                  options={REFERRALS.map((label) => ({ value: label, label }))}
-                  value={referral}
-                />
-                {referral === "Other" ? (
-                  <Field
-                    label="Where did you find us?"
-                    onChange={(event) =>
-                      setValue("referralSource", event.target.value.trim() || null, { shouldDirty: true })
+                {/* The studio's own questions (Settings → Inquiry capture). */}
+                {questions.map((question) => (
+                  <CustomQuestion
+                    error={answerError(question.id)}
+                    key={question.id}
+                    onChoose={(next) =>
+                      setValue(`customAnswers.${question.id}`, next, { shouldDirty: true, shouldValidate: missingShown })
                     }
+                    question={question}
+                    registration={register(`customAnswers.${question.id}`)}
+                    value={answers[question.id] || null}
                   />
+                ))}
+                {config.askBudget ? (
+                  <>
+                    <input type="hidden" {...register("budgetRange", { setValueAs: (value) => value || null })} />
+                    <Choices
+                      legend="Photography budget"
+                      onChange={(next) =>
+                        setValue("budgetRange", next === "none" ? null : (next as string), { shouldDirty: true })
+                      }
+                      options={BUDGETS}
+                      value={(budget ?? "none") as (typeof BUDGETS)[number]["value"]}
+                    />
+                  </>
+                ) : null}
+                {config.askReferral ? (
+                  <>
+                    <input type="hidden" {...register("referralSource", { setValueAs: (value) => value || null })} />
+                    <Choices
+                      legend="How did you hear about us?"
+                      onChange={(next) => {
+                        setReferral(next as string);
+                        setValue("referralSource", next === "Other" ? null : (next as string), {
+                          shouldDirty: true,
+                        });
+                      }}
+                      options={REFERRALS.map((label) => ({ value: label, label }))}
+                      value={referral}
+                    />
+                    {referral === "Other" ? (
+                      <Field
+                        label="Where did you find us?"
+                        onChange={(event) =>
+                          setValue("referralSource", event.target.value.trim() || null, { shouldDirty: true })
+                        }
+                      />
+                    ) : null}
+                  </>
                 ) : null}
                 <label className="honeypot" aria-hidden="true">
                   Website
@@ -602,10 +771,10 @@ export function LeadIntakeForm({
             <PoweredBy />
           </Main>
 
-          <Actions note={step === 0 ? `Your details stay with ${brand.name}.` : undefined}>
-            {step === STEPS.length - 1 ? (
+          <Actions note={stepIndex === 0 ? `Your details stay with ${brand.name}.` : undefined}>
+            {stepIndex === steps.length - 1 ? (
               <ButtonRow>
-                <Button icon={ArrowLeft} onClick={() => goTo(step - 1)} size="compact" variant="secondary">
+                <Button icon={ArrowLeft} onClick={() => goTo(stepIndex - 1)} size="compact" variant="secondary">
                   Back
                 </Button>
                 <Button disabled={!hydrated || isSubmitting} type="submit">
@@ -613,15 +782,15 @@ export function LeadIntakeForm({
                   Send inquiry
                 </Button>
               </ButtonRow>
-            ) : step > 0 ? (
+            ) : stepIndex > 0 ? (
               <ButtonRow>
-                <Button icon={ArrowLeft} onClick={() => goTo(step - 1)} size="compact" variant="secondary">
+                <Button icon={ArrowLeft} onClick={() => goTo(stepIndex - 1)} size="compact" variant="secondary">
                   Back
                 </Button>
-                <Button onClick={() => void continueFrom(step)}>Continue</Button>
+                <Button onClick={() => void continueFrom(stepIndex)}>Continue</Button>
               </ButtonRow>
             ) : (
-              <Button onClick={() => void continueFrom(step)}>Continue</Button>
+              <Button onClick={() => void continueFrom(stepIndex)}>Continue</Button>
             )}
           </Actions>
         </form>

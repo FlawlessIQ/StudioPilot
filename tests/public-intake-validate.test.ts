@@ -93,11 +93,15 @@ test("the browser check and the schema accept and refuse the same fields", () =>
 
 test("the form uses the Zod-free check, and nothing it imports at runtime brings Zod back", () => {
   const form = readFileSync("components/crm/lead-intake-form.tsx", "utf8");
-  assert.match(form, /resolver: publicLeadIntakeResolver<PublicLeadIntakeInput>\(\)/);
+  // Checked against the studio's own form, the one the page was rendered with.
+  assert.match(form, /resolver: publicLeadIntakeResolver<PublicLeadIntakeInput>\(config\)/);
   assert.doesNotMatch(form, /zodResolver/);
-  assert.match(form, /^import type \{ z \} from "zod";$/m);
-  assert.match(form, /^import type \{ publicLeadIntakeSchema, PublicLeadIntake \} from "@\/features\/leads\/schema";$/m);
-  assert.doesNotMatch(readFileSync("features/leads/public-intake-validate.ts", "utf8"), /^import (?!type)[^;]*from "zod"/m);
+  assert.doesNotMatch(form, /^import (?!type)[^;]*from "zod"/m);
+  assert.match(form, /^import type \{ PublicLeadIntake, PublicLeadIntakeInput \} from "@\/features\/leads\/schema";$/m);
+  for (const file of ["features/leads/public-intake-validate.ts", "features/leads/inquiry-form-config.ts", "features/leads/inquiry-form-theme.ts"])
+    assert.doesNotMatch(readFileSync(file, "utf8"), /^import (?!type)[^;]*from "zod"/m, file);
+  // The schema module is Zod at runtime; the form may only take its types.
+  assert.doesNotMatch(form, /^import (?!type)[^;]*from "@\/features\/leads\/schema"/m);
   assert.match(readFileSync("components/forms/address-field.tsx", "utf8"), /from "@\/features\/places\/place-text"/);
   assert.doesNotMatch(readFileSync("features/places/place-text.ts", "utf8"), /^import (?!type)/m);
 });

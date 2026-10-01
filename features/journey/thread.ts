@@ -17,6 +17,7 @@
 
 import { formatDueDate } from "@/lib/format/event-date";
 import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
+import { leadAnswers, type LeadAnswer } from "@/features/leads/lead-answers";
 
 export type ThreadActor = "client" | "studio" | "studiocue" | "provider";
 
@@ -57,6 +58,8 @@ export type ThreadEntry = {
    * signed PDF — opened in place (docs/document-access-plan-2026-09-28.md).
    */
   files?: FileRef[];
+  /** The couple's answers to the studio's own inquiry-form questions, on the first entry. */
+  answers?: LeadAnswer[];
 };
 
 export type ThreadRecord = Record<string, unknown> & { id: string };
@@ -123,6 +126,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             title: `${client} got in touch`,
             detail: text(lead.message) || null,
             artifact: null,
+            ...(leadAnswers(lead).length ? { answers: leadAnswers(lead) } : {}),
           }
         : null,
     );

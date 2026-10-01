@@ -172,6 +172,30 @@
   line-height: 1.5;
 }
 
+/* The couple's answers to the studio's own inquiry-form questions. */
+.thread-entry-answers {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 0;
+}
+
+.thread-entry-answers > div {
+  display: grid;
+  gap: 1px;
+}
+
+.thread-entry-answers dt {
+  color: var(--muted, #5b655e);
+  font-size: 12px;
+}
+
+.thread-entry-answers dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .thread-entry-artifact {
   display: flex;
   flex-wrap: wrap;

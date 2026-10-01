@@ -77,6 +77,7 @@ import {
   leadSourceLabel,
 } from "@/components/leads/lead-capture-review";
 import { ignorableSenderOf } from "@/features/intake/not-inquiry";
+import { leadAnswers } from "@/features/leads/lead-answers";
 import { InquiryRestore, ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
 
 // Re-exported so existing importers of this module keep working.
@@ -1364,6 +1365,17 @@ export function LiveLeadDetail({ id }: { id: string }) {
         <section className="panel lead-message-card">
           <div className="panel-heading"><div><h2>Client message</h2><p>{inquiryCount > 1 ? `They've written ${inquiryCount} times; this is the first` : captured ? "Read from the email" : "Submitted with the inquiry"}</p></div></div>
           <p>{lead.message}</p>
+        </section>
+      ) : null}
+      {/* The studio's own questions on its inquiry form, as asked then. */}
+      {leadAnswers(lead).length ? (
+        <section className="panel lead-detail-card">
+          <div className="panel-heading"><div><h2>Their answers</h2><p>Your questions on the inquiry form</p></div></div>
+          <dl>
+            {leadAnswers(lead).map((row) => (
+              <div key={row.question}><dt>{row.question}</dt><dd>{row.answer}</dd></div>
+            ))}
+          </dl>
         </section>
       ) : null}
       {typeof lead.aiSummary === "string" && lead.aiSummary ? (

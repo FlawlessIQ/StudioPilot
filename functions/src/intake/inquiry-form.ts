@@ -50,8 +50,21 @@ export const INQUIRY_FORM_SOURCE = "inquiry_page";
  * ("Engagement", "Corporate" — form-email.ts, eventTypeFrom). So the label
  * decides when there is one, and the id when there is not.
  */
-export function inquiryEventKind(input: { eventTypeId?: unknown; eventTypeLabel?: unknown }): string {
+export function inquiryEventKind(input: {
+  eventTypeId?: unknown;
+  eventTypeLabel?: unknown;
+  /**
+   * The kind of the studio's own type, from its inquiry form
+   * (inquiry-form-config.ts). It decides when present: a studio can call its
+   * wedding type "Big Day", and it is still a wedding; a type it says is not
+   * a wedding is not one, whatever its name.
+   */
+  eventKind?: unknown;
+}): string {
   const label = text(input.eventTypeLabel).toLowerCase();
+  const kind = text(input.eventKind).toLowerCase();
+  if (kind === "wedding") return "wedding";
+  if (kind) return label.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || kind;
   if (label) {
     if (/wedding|elopement|marriage|ceremony/.test(label)) return "wedding";
     return label.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -61,7 +74,7 @@ export function inquiryEventKind(input: { eventTypeId?: unknown; eventTypeLabel?
 
 /** The one rule for which inquiries are asked to fill in the form. */
 export function inquiryGetsEventForm(
-  inquiry: { eventTypeId?: unknown; eventTypeLabel?: unknown },
+  inquiry: { eventTypeId?: unknown; eventTypeLabel?: unknown; eventKind?: unknown },
   appliesTo: readonly string[] = INQUIRY_FORM_EVENT_TYPES,
 ): boolean {
   return appliesTo.includes(inquiryEventKind(inquiry));
@@ -331,9 +344,20 @@ export async function inquiryFormState(
   const appliesTo = Array.isArray(setting.eventTypes) && setting.eventTypes.length
     ? setting.eventTypes.map(String)
     : INQUIRY_FORM_EVENT_TYPES;
+  // The kind the couple chose on the form stands for the job too, until the
+  // studio changes the job's event type.
   const kind = context.project
-    ? { eventTypeId: context.project.get("eventTypeId"), eventTypeLabel: context.project.get("eventType") }
-    : { eventTypeId: context.lead.get("eventTypeId"), eventTypeLabel: context.lead.get("eventTypeLabel") };
+    ? {
+        eventTypeId: context.project.get("eventTypeId"),
+        eventTypeLabel: context.project.get("eventType"),
+        eventKind:
+          context.project.get("eventType") === context.lead.get("eventTypeLabel") ? context.lead.get("eventKind") : null,
+      }
+    : {
+        eventTypeId: context.lead.get("eventTypeId"),
+        eventTypeLabel: context.lead.get("eventTypeLabel"),
+        eventKind: context.lead.get("eventKind"),
+      };
   if (!inquiryGetsEventForm(kind, appliesTo)) return null;
   const templates = await db
     .collection("questionnaireTemplates")
