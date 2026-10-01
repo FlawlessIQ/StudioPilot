@@ -46,6 +46,8 @@ import {
   submittedAtAfterSave,
 } from "./questionnaire-lifecycle.js";
 import { sameItemCrew, withCrewIds } from "./item-crew.js";
+import { questionnaireDueDate } from "./questionnaire-due.js";
+import { questionnaireLinkFor } from "./questionnaire-link.js";
 import {
   assertStudioMayRecordAnswer,
   revisedTimelineEmail,
@@ -842,12 +844,30 @@ export const planningCommand = onRequest(
           // One reminder per press. The id names the press, so a retried
           // request is the same email, not a second one.
           const jobId = stable("questionnaire_resend", parsed.tenantId, parsed.idempotencyKey);
+          // Still not in the portal (sent to an inquiry, say)? The reminder
+          // carries the invitation too (questionnaire-link.ts).
+          const project = await db.doc(`projects/${parsed.input.projectId}`).get();
+          const link = await questionnaireLinkFor(db, {
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            clientContactIds:
+              project.get("tenantId") === parsed.tenantId
+                ? project.get("clientContactIds")
+                : null,
+            emailJobId: jobId,
+            actorId: identity.uid,
+            now,
+          });
+          if (link.invitationWrite)
+            batch.set(link.invitationWrite.reference, link.invitationWrite.data, {
+              merge: true,
+            });
           batch.create(db.doc(`emailJobs/${jobId}`), {
             id: jobId,
             tenantId: parsed.tenantId,
             projectId: parsed.input.projectId,
             type: "questionnaire_reminder",
-            actionUrl: `${appUrl}/client/questionnaire`,
+            actionUrl: link.actionUrl,
             questionnaireResponseId: parsed.input.responseId,
             status: "queued",
             attempts: 0,
@@ -1032,35 +1052,53 @@ export const planningCommand = onRequest(
         );
         if (existing) {
           assertResendable(existing.status);
-          const appUrl =
-            process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
           const jobId = stable("questionnaire_resend", parsed.tenantId, parsed.idempotencyKey);
-          await db.doc(`emailJobs/${jobId}`).create({
+          // A couple without portal access gets an invitation in the email,
+          // not a sign-in page (questionnaire-link.ts).
+          const link = await questionnaireLinkFor(db, {
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            clientContactIds: project.get("clientContactIds"),
+            emailJobId: jobId,
+            actorId: identity.uid,
+            now,
+          });
+          const batch = db.batch();
+          batch.create(db.doc(`emailJobs/${jobId}`), {
             id: jobId,
             tenantId: parsed.tenantId,
             projectId: parsed.input.projectId,
             type: "questionnaire_reminder",
-            actionUrl: `${appUrl}/client/questionnaire`,
+            actionUrl: link.actionUrl,
             questionnaireResponseId: existing.id,
             status: "queued",
             attempts: 0,
             createdAt: now,
             updatedAt: now,
           });
-          await db
-            .doc(`questionnaireResponses/${existing.id}`)
-            .update({ lastReminderAt: now });
+          batch.update(db.doc(`questionnaireResponses/${existing.id}`), {
+            lastReminderAt: now,
+          });
+          if (link.invitationWrite)
+            batch.set(link.invitationWrite.reference, link.invitationWrite.data, {
+              merge: true,
+            });
+          await batch.commit();
           result = {
             responseId: existing.id,
             status: String(existing.status),
             resent: true,
             prefilledFieldCount: 0,
+            invited: Boolean(link.invitationWrite),
           };
         } else {
-        const due = new Date(`${String(project.get("eventDate"))}T12:00:00.000Z`);
-        due.setUTCDate(
-          due.getUTCDate() - Number(template.get("dueDaysBeforeEvent") ?? 0),
-        );
+        // An inquiry may have no date yet; that used to throw "Invalid time
+        // value" here (questionnaire-due.ts).
+        const due = questionnaireDueDate({
+          eventDate: project.get("eventDate"),
+          dueDaysBeforeEvent: template.get("dueDaysBeforeEvent"),
+          today: now,
+        });
         const id = stable(
           "questionnaire_response",
           parsed.tenantId,
@@ -1088,7 +1126,17 @@ export const planningCommand = onRequest(
         const completionPercent = requiredFieldIds.length
           ? Math.round((completedRequired / requiredFieldIds.length) * 100)
           : 0;
-        await db.doc(`questionnaireResponses/${id}`).create({
+        const emailJobId = `questionnaire_request_${id}`;
+        const link = await questionnaireLinkFor(db, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          clientContactIds: project.get("clientContactIds"),
+          emailJobId,
+          actorId: identity.uid,
+          now,
+        });
+        const batch = db.batch();
+        batch.create(db.doc(`questionnaireResponses/${id}`), {
           id,
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
@@ -1105,7 +1153,7 @@ export const planningCommand = onRequest(
           changeHistory: [],
           hasPlanningChanges: false,
           completionPercent,
-          dueDate: due.toISOString().slice(0, 10),
+          dueDate: due.dueDate,
           // Snapshotted like the sections, so editing the template later
           // doesn't change when this client is reminded.
           reminderDaysBeforeDue: Array.isArray(template.get("reminderDaysBeforeDue"))
@@ -1123,24 +1171,35 @@ export const planningCommand = onRequest(
         // previously created the response record but queued no email, so the
         // couple was never told a form was waiting ("Send the form" sent
         // nothing). The worker resolves the client recipient from the project;
-        // actionUrl drives the "Complete questionnaire" button.
-        await db.doc(`emailJobs/questionnaire_request_${id}`).create({
-          id: `questionnaire_request_${id}`,
+        // actionUrl drives the "Complete questionnaire" button: the portal
+        // for a couple who has it, otherwise a portal invitation that lands
+        // on the form (questionnaire-link.ts) — an inquiry has not been
+        // invited yet, and the bare portal link sent them to a sign-in page.
+        batch.create(db.doc(`emailJobs/questionnaire_request_${id}`), {
+          id: emailJobId,
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
           type: "questionnaire_request",
-          actionUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/client/questionnaire`,
+          actionUrl: link.actionUrl,
           status: "queued",
           attempts: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: now,
+          updatedAt: now,
         });
+        if (link.invitationWrite)
+          batch.set(link.invitationWrite.reference, link.invitationWrite.data, {
+            merge: true,
+          });
+        await batch.commit();
 
         result = {
           responseId: id,
           status: "not_started",
           resent: false,
           prefilledFieldCount: Object.keys(prefill.answers).length,
+          dueDate: due.dueDate,
+          dueCountedFrom: due.countedFrom,
+          invited: Boolean(link.invitationWrite),
         };
         }
       } else if (parsed.type === "saveTimingRule") {

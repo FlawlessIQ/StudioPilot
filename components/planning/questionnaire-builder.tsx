@@ -16,6 +16,10 @@ import {
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  questionnaireAssignNotice,
+  type AssignResult,
+} from "@/features/questionnaires/assign-notice";
 import { QuestionnaireTemplateEditor } from "@/components/planning/questionnaire-template-editor";
 import { fieldReachesCrew } from "@/features/questionnaires/crew-brief";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -197,12 +201,9 @@ export function QuestionnaireBuilder({
         templateId: String(form.get("templateId")),
       });
       // Sending a form the job already has re-sends it (a reminder) instead
-      // of making the couple a second copy.
-      setNotice(
-        (response.result as { resent?: unknown }).resent === true
-          ? "They already have this questionnaire, so they were emailed a reminder about it instead of a second copy."
-          : "Questionnaire assigned. Its due date was calculated from the project date.",
-      );
+      // of making the couple a second copy. An inquiry may have no date and
+      // no portal yet; the result says so (features/questionnaires/assign-notice.ts).
+      setNotice(questionnaireAssignNotice(response.result as AssignResult));
       element.reset();
       // The panel above this form lists what is assigned, and without this it
       // kept reading "No questionnaires assigned" directly under a notice

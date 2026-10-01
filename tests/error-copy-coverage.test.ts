@@ -244,7 +244,6 @@ const KNOWN_GAPS: Record<string, string> = {
   PROPOSAL_NOT_FOUND: "booking",
   PROPOSAL_SUPERSEDED: "client",
   PROVIDER_DOES_NOT_SERVE_CAPABILITY: "integrations",
-  QUESTIONNAIRE_ASSIGNMENT_INVALID: "planning",
   QUESTIONNAIRE_TEMPLATE_NOT_FOUND: "planning",
   QUICKBOOKS_REALM_HOST_UNRESOLVED: "integrations",
   RATE_LIMITED: "crm",
