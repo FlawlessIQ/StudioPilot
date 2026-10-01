@@ -111,8 +111,8 @@ completed.
 
 - confirm the Stripe account legal entity, bank payout, support contact,
   statement descriptor, tax posture, and customer emails
-- verify the $69 Solo, $199 Studio, and $399 Multi-Brand monthly products and
-  annual price IDs in the production environment
+- verify the $150 Studio and $299 Multi-Brand monthly prices and their annual
+  ($1,500 / $2,990) price IDs in the production environment (Solo is retired)
 - configure the Customer Portal cancellation, upgrade, downgrade, proration,
   and invoice-history policy
 - perform one real low-value end-to-end subscription with a controlled account,

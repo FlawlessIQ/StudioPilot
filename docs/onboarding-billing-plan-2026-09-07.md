@@ -157,6 +157,13 @@ Code already reads `STRIPE_PRICE_STUDIO_MONTHLY` etc.; the deployed value resolv
 active $250 monthly price, so **no price-config change is needed** — onboarding just calls
 `createCheckout(plan=studio, cadence=monthly)`.
 
+> **Superseded 2026-10-01.** Prices are now Studio $150 / $1,500
+> (`price_1UEr0OLGQiWq4P2MtAHZZBtP`, `price_1UEr0PLGQiWq4P2M5FTwiTbe`) and
+> Multi-Brand $299 / $2,990 (`price_1UEr0PLGQiWq4P2M9s0TAPdS`,
+> `price_1UEr0PLGQiWq4P2M6NWXErGW`). Those are the products' default prices and
+> the only ones the Customer Portal (`bpc_1TxzKQ…`) offers; the $250, $2,500,
+> $399 and $3,990 prices above are archived. See `docs/saas-operations.md`.
+
 **Item 2 (statement descriptor) — DECIDED 2026-09-07: accept as-is.** No code change.
 Stripe subscription-mode Checkout takes no per-session statement descriptor, and the
 account descriptor (`FLAWLESSIQ`) is shared. The checkout line item already reads

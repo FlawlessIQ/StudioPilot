@@ -87,6 +87,8 @@ export const HEALTH_WEIGHT_LABELS: Record<HealthWeightKey, string> = {
  * `unitAmountCents` from Stripe — studios on an older price keep the amount
  * Stripe actually charges them.
  */
+// The published prices in config/saas-plans.ts, which functions/ can't
+// import. tests/console-engines.test.ts holds this copy to them.
 export const PLAN_LIST_PRICE_CENTS: Record<string, { monthly: number; yearly: number }> = {
   studio: { monthly: 15_000, yearly: 150_000 },
   multi_brand: { monthly: 29_900, yearly: 299_000 },

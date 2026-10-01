@@ -219,8 +219,8 @@ acceptance with each provider account remains pending.
 Studios paying StudioCue. Distinct from per-studio client payments, which is
 future scope — see "Stripe Connect: studio-managed client payments" below.
 
-- verify the $69 Solo, $199 Studio, and $399 Multi-Brand monthly products and
-  their annual equivalents
+- verify the $150 Studio and $299 Multi-Brand monthly prices and their annual
+  equivalents (Solo is retired)
 - configure the Customer Portal and approved proration, cancellation, tax, and
   refund policies
 - complete one controlled live subscription, entitlement update, cancellation,

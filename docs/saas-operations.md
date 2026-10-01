@@ -32,9 +32,30 @@ Multi-Brand (Solo was retired 2026-08-25; Studio is the entry plan). Annual
 prices represent ten months of the monthly price. Stripe price IDs are
 immutable references: a pricing change creates new Stripe Price objects while
 existing subscriptions retain their historical price until deliberately
-migrated. A studio that subscribed before 2026-10 may still be on the earlier
-$250 Studio price; the Console shows what Stripe actually charges
+migrated. The Console shows what Stripe actually charges a studio
 (`unitAmountCents`), falling back to the list price only when it hasn't heard.
+
+### Changing a price
+
+The $250 → $150 change (2026-10) reached the pricing page and Checkout but
+not the rest for a month. A price lives in all of these, and each is checked:
+
+1. `config/saas-plans.ts`: the pricing page, the landing page, billing
+   settings and the Console's browser side all read it.
+2. `functions/src/console/model.ts` `PLAN_LIST_PRICE_CENTS`: a copy,
+   because `functions/` can't import `config/`. `tests/console-engines.test.ts`
+   fails if it differs.
+3. The `STRIPE_PRICE_*` values in `functions/.env.studiohub-prod`, which
+   Checkout and the Console's change-plan use. Redeploy `billingCommand` and
+   `saasAdminCommand` after changing them.
+4. In Stripe, on the two StudioCue products: create the new prices, make them
+   each product's **default price**, and set the StudioCue Customer Portal
+   configuration (`bpc_1TxzKQ…`, `STRIPE_PORTAL_CONFIGURATION_ID`) to offer
+   only them. A portal left on old prices lets a studio switch onto a price
+   that is no longer sold.
+5. Move existing subscriptions deliberately (`proration_behavior=none` takes
+   effect at renewal), then archive the old prices.
+6. Sweep `docs/` for the old figures.
 
 All production secrets belong in Secret Manager. Public function URLs are
 configuration, not credentials.

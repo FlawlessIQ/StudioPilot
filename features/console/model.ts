@@ -7,6 +7,8 @@
  * lifecycle, MRR) is made on the server and read here as data.
  */
 
+import { planCards } from "@/config/saas-plans";
+
 export const SETUP_KEYS = ["inquiries", "availability", "packages", "agreement", "questionnaire", "insurance"] as const;
 export type SetupKey = (typeof SETUP_KEYS)[number];
 
@@ -47,10 +49,14 @@ export const PLAN_LABELS: Record<string, string> = {
   multi_brand: "Multi-Brand",
 };
 
-export const PLAN_LIST_PRICE_CENTS: Record<string, { monthly: number; yearly: number }> = {
-  studio: { monthly: 15_000, yearly: 150_000 },
-  multi_brand: { monthly: 29_900, yearly: 299_000 },
-};
+/**
+ * The published prices (config/saas-plans.ts), which the pricing page,
+ * billing settings and Stripe's prices all agree with. Read from there rather
+ * than copied: a copy here said $250 for a month after the price changed.
+ */
+export const PLAN_LIST_PRICE_CENTS: Record<string, { monthly: number; yearly: number }> = Object.fromEntries(
+  planCards.map((plan) => [plan.key, { monthly: plan.monthlyCents, yearly: plan.yearlyCents }]),
+);
 
 export type HealthWeightKey =
   | "paymentFailed"
