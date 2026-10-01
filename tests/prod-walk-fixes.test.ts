@@ -48,3 +48,9 @@ test("a held final bill's card shows the same balance as its send button", () =>
   assert.match(card, /inReview && reviewDue !== null\s*\? reviewDue\s*: calculation\.expectedBalanceCents \?\? invoice\.amountCents,/);
   assert.match(card, /when it was raised; payments since are taken off\./);
 });
+
+test("undoing a send refreshes every record so the card comes back without a reload", () => {
+  const undo = source("components/communications/undo-send.tsx");
+  assert.match(undo, /refreshTenantRecords\(\);\s*onUndone\(\);/);
+  assert.doesNotMatch(undo, /refreshTenantRecords\("aiActions", "communicationDrafts", "emailJobs"\);/);
+});

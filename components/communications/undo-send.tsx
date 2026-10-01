@@ -75,7 +75,11 @@ export function UndoSend({
         idempotencyKey: crypto.randomUUID(),
         input: { emailJobId: held.emailJobId },
       });
-      refreshTenantRecords("aiActions", "communicationDrafts", "emailJobs");
+      // Everything, not just the draft: Today decides whether a couple is
+      // waiting on the studio from the inquiry, job and message records too,
+      // which were read just after the send — so the card only came back on a
+      // full reload (prod walk, 2026-10-01). An undo is rare; the reads are cheap.
+      refreshTenantRecords();
       onUndone();
     } catch (caught: unknown) {
       setState("too_late");
