@@ -305,13 +305,13 @@ await company.post("payment?operation=delete", { Id: payment.Id, SyncToken: paym
 const deletedHook = await webhook("Payment", payment.Id, "Delete");
 const deletedJobs = await drain();
 const reopened = await invoiceDoc(retainerId);
-const reopenTasks = (await db.collection("tasks").where("tenantId", "==", tenantId).where("projectId", "==", P).get()).docs.map((d) => d.data());
+const reopenTasks = (await db.collection("tasks").where("tenantId", "==", tenantId).where("projectId", "==", P).get()).docs.map((d: { data(): Record<string, unknown> }) => d.data());
 record(
   "8 Payment deleted → retainer owing again",
   reopened.status !== "paid" && Number(reopened.balanceCents) === 200000,
   `webhook ${deletedHook.statusCode}; ${deletedJobs.join(", ")} → ${reopened.status}, balance ${reopened.balanceCents}`,
 );
-record("8 the studio gets a task", reopenTasks.length > 0, reopenTasks.map((task) => `"${task.title}"`).join("; ") || "no task");
+record("8 the studio gets a task", reopenTasks.length > 0, reopenTasks.map((task: Record<string, unknown>) => `"${task.title}"`).join("; ") || "no task");
 
 // --- 9. a credit memo: StudioCue's balance follows QuickBooks' ----------------------
 const memo = (await company.post(
@@ -349,7 +349,7 @@ await webhook("Payment", payment2.Id, "Create");
 await drain();
 const finalId = `walk-final-${runKey}`;
 const projectSnapshot = await db.doc(`projects/${P}`).get();
-const raised = await db.runTransaction((transaction) => raiseFinalInvoice(db, transaction, projectSnapshot, { invoiceId: finalId, actor: "quickbooks-sandbox-walk", now: now() }));
+const raised = await db.runTransaction((transaction: unknown) => raiseFinalInvoice(db, transaction, projectSnapshot, { invoiceId: finalId, actor: "quickbooks-sandbox-walk", now: now() }));
 const finalJobs = await drain();
 const held = await invoiceDoc(finalId);
 const review = (held.sendReview ?? {}) as Record<string, unknown>;
@@ -360,13 +360,13 @@ record(
   `${JSON.stringify(raised)}; ${finalJobs.join(", ")} → ${held.status}/${review.state}, ${review.strategy}: pre-tax ${review.subtotalCents}, tax ${review.taxCents}, total ${review.totalCents}; QuickBooks ${heldQb.TotalAmt}, EmailStatus ${heldQb.EmailStatus}, BillEmail ${(heldQb.BillEmail as { Address?: string } | undefined)?.Address ?? "none"}`,
 );
 const confirm = heldInvoiceConfirmFigure(held, "send_without_tax");
-await db.runTransaction((transaction) =>
+await db.runTransaction((transaction: unknown) =>
   sendHeldInvoiceIn(db, transaction, { tenantId, role: "studio_owner", actorId: "walk-owner", now: now(), idempotencyKey: `${runKey}-send`, ipAddress: null, userAgent: null }, { projectId: P, invoiceId: finalId, action: "send_without_tax", confirmAmountCents: confirm }),
 );
 const sendJobs = await drain();
 const sent = await invoiceDoc(finalId);
 const sentQb = held.providerInvoiceId ? await qbInvoice(String(held.providerInvoiceId)) : {};
-const finalEmails = (await db.collection("emailJobs").where("tenantId", "==", tenantId).where("projectId", "==", P).get()).docs.map((d) => String(d.get("type") ?? d.get("template") ?? ""));
+const finalEmails = (await db.collection("emailJobs").where("tenantId", "==", tenantId).where("projectId", "==", P).get()).docs.map((d: { get(field: string): unknown }) => String(d.get("type") ?? d.get("template") ?? ""));
 record(
   "11 Send without tax → sent at the pre-tax total",
   outToTheCouple(sent.status) && Number(sentQb.TotalAmt) * 100 === Number(review.subtotalCents) && Math.round(Number((sentQb.TxnTaxDetail as { TotalTax?: number } | undefined)?.TotalTax ?? 0) * 100) === 0,
