@@ -1,17 +1,10 @@
-import { AdminShell } from "@/components/platform/admin-shell";
-import { LiveAdminCollection } from "@/components/platform/live-admin-data";
+import { Suspense } from "react";
+import { SubscriptionsPage } from "@/components/console/pages/subscriptions-page";
 
-export default function SubscriptionsPage() {
+export default function Page() {
   return (
-    <AdminShell active="Subscriptions">
-      <header>
-        <div>
-          <p className="eyebrow">Stripe references</p>
-          <h1>Subscriptions</h1>
-          <p>Normalized subscription state and entitlements; payment instruments remain in Stripe.</p>
-        </div>
-      </header>
-      <LiveAdminCollection domain="subscriptions" />
-    </AdminShell>
+    <Suspense fallback={null}>
+      <SubscriptionsPage />
+    </Suspense>
   );
 }

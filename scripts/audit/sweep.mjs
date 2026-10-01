@@ -178,11 +178,12 @@ const CLIENT_ROUTES = [
  * measures a redirect and reports clean. Ten routes, never swept.
  */
 const PLATFORM_ROUTES = [
-  "/platform-admin", "/platform-admin/tenants", "/platform-admin/users",
-  "/platform-admin/subscriptions", "/platform-admin/integrations",
-  "/platform-admin/system-health", "/platform-admin/failed-jobs",
-  "/platform-admin/feature-flags", "/platform-admin/audit-logs",
-  "/platform-admin/support",
+  "/platform-admin", "/platform-admin/studios", "/platform-admin/people",
+  "/platform-admin/inbox", "/platform-admin/issues", "/platform-admin/tasks",
+  "/platform-admin/subscriptions", "/platform-admin/codes", "/platform-admin/revenue",
+  "/platform-admin/jobs", "/platform-admin/integrations", "/platform-admin/health",
+  "/platform-admin/data-requests", "/platform-admin/features", "/platform-admin/audit",
+  "/platform-admin/support", "/platform-admin/settings",
 ];
 
 /**

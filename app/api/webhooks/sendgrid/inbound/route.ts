@@ -44,6 +44,9 @@ export async function POST(request: Request): Promise<Response> {
       functionName = "sendgridInboundGallery";
     } else if (
       /reply\+[A-Za-z0-9_.-]{16,400}@/i.test(recipients) ||
+      // A studio replying to the StudioCue team about its feedback (Console
+      // inbox); the message function verifies the signature.
+      /feedback\+[A-Za-z0-9_-]{19}\.[A-Za-z0-9_-]{11}@/i.test(recipients) ||
       // A studio forwarding an inquiry to its private address. The message
       // function reads `inquiries+<slug>.<signature>` and verifies it.
       /inquiries\+[a-z0-9-]{2,80}\.[A-Za-z0-9_-]{11}@/i.test(recipients)

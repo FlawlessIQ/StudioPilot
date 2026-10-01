@@ -30,6 +30,8 @@ type Item = {
   createdAt: string;
 };
 
+type Reply = { id: string; fromTeam: boolean; body: string; createdAt: string };
+
 /** "Closed" is the team's triage word; to the person who sent it, it was reviewed. */
 const STUDIO_STATUS_LABELS: Record<FeedbackStatus, string> = {
   received: "Received",
@@ -42,6 +44,8 @@ export function YourFeedback() {
   const workspace = useWorkspace();
   const [items, setItems] = useState<Item[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // The team's replies and yours, by feedback id (Console inbox).
+  const [thread, setThread] = useState<Record<string, Reply[]>>({});
   const tenantId = workspace.tenantId;
   const userId = workspace.userId;
   const allowed = Boolean(tenantId && userId) && (FEEDBACK_ROLES as readonly string[]).includes(workspace.role ?? "");
@@ -63,6 +67,29 @@ export function YourFeedback() {
           ),
         );
         if (!live) return;
+        // Both filters, or the rules refuse the whole query: only replies sent
+        // to this person, never the team's internal notes.
+        getDocs(
+          query(collection(firestore, "feedbackMessages"), where("senderUserId", "==", userId), where("visibleToSender", "==", true), limit(200)),
+        )
+          .then((messages) => {
+            if (!live) return;
+            const grouped: Record<string, Reply[]> = {};
+            for (const message of messages.docs) {
+              const data = message.data();
+              const feedbackId = String(data.feedbackId ?? "");
+              if (!feedbackId || typeof data.body !== "string") continue;
+              (grouped[feedbackId] ??= []).push({
+                id: message.id,
+                fromTeam: data.direction === "outbound",
+                body: data.body,
+                createdAt: typeof data.createdAt === "string" ? data.createdAt : "",
+              });
+            }
+            for (const list of Object.values(grouped)) list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+            setThread(grouped);
+          })
+          .catch(() => undefined);
         setItems(
           snapshot.docs.map((document) => {
             const data = document.data();
@@ -119,6 +146,11 @@ export function YourFeedback() {
               </div>
               <p>{item.message.length > 280 ? `${item.message.slice(0, 279).trimEnd()}…` : item.message}</p>
               {item.statusNote ? <p className="your-feedback-note">From the team: {item.statusNote}</p> : null}
+              {(thread[item.id] ?? []).map((reply) => (
+                <p className="your-feedback-note" key={reply.id}>
+                  {reply.fromTeam ? "From the team" : "You replied"}: {reply.body.length > 400 ? `${reply.body.slice(0, 399).trimEnd()}…` : reply.body}
+                </p>
+              ))}
             </li>
           ))}
         </ul>

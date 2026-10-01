@@ -252,8 +252,8 @@ test("retry is a studio command that starts afresh and re-checks the job", () =>
   assert.match(retry, /clientOutreachGuard: true,/);
   // A second press while it is on its way does not queue it twice.
   assert.match(retry, /\["queued", "running", "retry_scheduled"\]\.includes\(status\)/);
-  // The platform rerun also resets attempts and re-checks the job.
-  const admin = source("functions/src/saas/admin.ts");
+  // The platform rerun (Console → Jobs) also resets attempts and re-checks the job.
+  const admin = source("functions/src/console/handlers/operations.ts");
   assert.match(admin, /attempts: 0,/);
   assert.match(admin, /clientOutreachGuard: true/);
   // Today's card calls it rather than linking to Messages.

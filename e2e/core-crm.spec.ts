@@ -103,11 +103,14 @@ test("role portals state their security and evidence boundaries", async ({ page 
 
 test("platform operations avoid invented health and failure counts", async ({ page }) => {
   await page.goto("/platform-admin");
-  await expect(page.getByText(/Production tenant and service state/i)).toBeVisible();
-  await page.goto("/platform-admin/failed-jobs");
-  await expect(page.getByRole("heading", { name: "Failed jobs" })).toBeVisible();
-  await page.goto("/platform-admin/system-health");
+  await expect(page.getByText(/Needs you/i)).toBeVisible();
+  await page.goto("/platform-admin/jobs");
+  await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
+  await page.goto("/platform-admin/health");
   await expect(page.getByRole("heading", { name: "System health" })).toBeVisible();
   await page.goto("/platform-admin/support");
-  await expect(page.getByRole("heading", { name: "Grant temporary access" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Support sessions" })).toBeVisible();
+  // Old addresses still land.
+  await page.goto("/platform-admin/failed-jobs");
+  await expect(page).toHaveURL(/\/platform-admin\/jobs$/);
 });

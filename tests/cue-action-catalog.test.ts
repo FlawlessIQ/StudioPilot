@@ -208,9 +208,10 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   inquiry_book: "public inquiry", inquiry_cancel: "public inquiry",
   inquiry_form: "public inquiry", inquiry_form_save: "public inquiry",
   passwordReset: "sign-in", emailVerification: "sign-in", signInLink: "sign-in", previewInvitation: "invitee", acceptInvitation: "invitee",
-  // StudioCue's own staff (platform admin), not a studio.
-  setFeatureFlag: "platform", suspendTenant: "platform", repairOwnerMembership: "platform", grantSupportAccess: "platform",
-  rerunJob: "platform", revokeSupportAccess: "platform", approveDeletion: "platform",
+  // StudioCue's own staff (platform admin), not a studio. The Console's
+  // commands live in functions/src/console/handlers and are dispatched by
+  // saasAdminCommand from a registry, so this scan doesn't see them; they are
+  // never a studio's (tests/console-wiring.test.ts).
   setFeedbackStatus: "platform",
   // Feedback to the StudioCue team, from the Feedback button: what the studio
   // writes, in their own words, with a picture of the screen they were on.

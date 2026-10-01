@@ -1,20 +1,10 @@
-import { AdminShell } from "@/components/platform/admin-shell";
-import { FeedbackTriage } from "@/components/platform/feedback-triage";
+import { redirect } from "next/navigation";
 
-export default function FeedbackPage() {
-  return (
-    <AdminShell active="Feedback">
-      <header>
-        <div>
-          <p className="eyebrow">Studio feedback</p>
-          <h1>Feedback</h1>
-          <p>
-            Everything studios send from the Feedback button. Moving one to
-            Planned or Shipped emails the studio that sent it, with your note.
-          </p>
-        </div>
-      </header>
-      <FeedbackTriage />
-    </AdminShell>
-  );
+/**
+ * Feedback triage moved into the Console inbox (docs/console.md). Team emails
+ * already sent link here with `?id=`, so the id is carried across.
+ */
+export default async function Page({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+  const { id } = await searchParams;
+  redirect(id ? `/platform-admin/inbox?id=${encodeURIComponent(id)}` : "/platform-admin/inbox");
 }

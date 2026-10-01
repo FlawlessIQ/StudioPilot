@@ -57,6 +57,12 @@ export async function requireActiveSubscription(
   tenantId: string,
 ): Promise<void> {
   const subscription = await db.doc(`subscriptions/${tenantId}`).get();
+  // A suspended studio (Console → Suspend) is recorded here as well as on the
+  // tenant, so this one read refuses it. Before, suspension wrote only
+  // tenants.status, which nothing read: a "suspended" studio kept full access.
+  if (subscription.exists && subscription.get("suspendedAt")) {
+    throw new Error("STUDIO_SUSPENDED");
+  }
   if (
     !subscription.exists ||
     !subscriptionGrantsAccess(String(subscription.get("status")))
@@ -71,6 +77,9 @@ export async function requireEntitlement(
   capability: GuardedCapability,
 ): Promise<void> {
   const subscription = await db.doc(`subscriptions/${tenantId}`).get();
+  if (subscription.exists && subscription.get("suspendedAt")) {
+    throw new Error("STUDIO_SUSPENDED");
+  }
   if (
     !subscription.exists ||
     !subscriptionGrantsAccess(String(subscription.get("status")))

@@ -77,17 +77,25 @@ const crewRoutes = [
   "/crew/availability",
 ] as const;
 
+// The StudioCue Console (docs/console.md).
 const platformRoutes = [
   "/platform-admin",
-  "/platform-admin/tenants",
-  "/platform-admin/users",
+  "/platform-admin/studios",
+  "/platform-admin/people",
+  "/platform-admin/inbox",
+  "/platform-admin/issues",
+  "/platform-admin/tasks",
   "/platform-admin/subscriptions",
+  "/platform-admin/codes",
+  "/platform-admin/revenue",
+  "/platform-admin/jobs",
   "/platform-admin/integrations",
-  "/platform-admin/failed-jobs",
-  "/platform-admin/feature-flags",
+  "/platform-admin/health",
+  "/platform-admin/data-requests",
+  "/platform-admin/features",
+  "/platform-admin/audit",
   "/platform-admin/support",
-  "/platform-admin/audit-logs",
-  "/platform-admin/system-health",
+  "/platform-admin/settings",
 ] as const;
 
 async function expectHealthyAuthenticatedShell(page: Page, route: string) {
