@@ -50,6 +50,8 @@ const CRM_PROJECT_COMMANDS = [
   "transitionProject",
   "selectPackage",
   "associateClientProject",
+  // A package written for one couple, locked onto their job (2026-10-01).
+  "createOneOffPackage",
 ];
 
 test("each project-scoped crmCommand branch checks assignment", () => {

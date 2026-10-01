@@ -21,6 +21,7 @@ import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { proposalTermsFor } from "../proposals/default-terms.js";
 import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
+import { isCataloguePackage } from "../packages/one-off.js";
 import { proposalPdfAdjustments } from "../proposals/pdf-adjustments.js";
 
 /**
@@ -204,7 +205,9 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
     db.collection("packages").where("tenantId","==",job.get("tenantId")).where("active","==",true).limit(50).get(),
   ]);
   if(!project.exists||project.get("tenantId")!==job.get("tenantId"))throw new Error("PROJECT_NOT_FOUND");
-  const packageFacts=packages.docs.map(document=>({
+  // The studio's catalogue, plus a one-off written for this job; never
+  // another couple's one-off (features/packages/one-off.ts).
+  const packageFacts=packages.docs.filter(document=>isCataloguePackage(document.data(),{projectId})).map(document=>({
     id:document.id,
     name:document.get("name"),
     description:document.get("description"),

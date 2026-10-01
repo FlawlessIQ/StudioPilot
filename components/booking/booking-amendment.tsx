@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AMENDABLE_STATES, shiftInZone } from "@/features/booking/amendable";
 import { CalendarClock, LoaderCircle, PackagePlus } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
+import { isCataloguePackage } from "@/features/packages/one-off";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
 import { contractDocumentSchema } from "@/features/contracts/document";
@@ -139,7 +140,11 @@ export function BookingAmendmentPanel({
 
   const keptIds = keep ?? onJobIds;
   const addable = ((packages as Rec[] | null) ?? []).filter(
-    (item) => item.active === true && !onJob.some((snapshot) => str(snapshot.packageId) === item.id && keptIds.includes(snapshot.id)),
+    (item) =>
+      item.active === true &&
+      // Never another couple's one-off (features/packages/one-off.ts).
+      isCataloguePackage(item, { projectId }) &&
+      !onJob.some((snapshot) => str(snapshot.packageId) === item.id && keptIds.includes(snapshot.id)),
   );
   const newDate = date ?? str(project.eventDate);
   const shiftDays = daysFrom(str(project.eventDate), newDate);

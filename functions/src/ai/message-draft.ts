@@ -26,6 +26,7 @@ import {
   resolveCoverage,
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
+import { isCataloguePackage } from "../packages/one-off.js";
 import { separateGreeting } from "./reply-format.js";
 
 type Json = Record<string, unknown>;
@@ -582,6 +583,8 @@ export const aiMessageDraftCommand = onRequest(
           .get();
         context.packages = packages.docs
           .filter((item) => item.get("publicVisible") !== false)
+          // A price written for one couple is never quoted to another.
+          .filter((item) => isCataloguePackage(item.data()))
           .slice(0, 8)
           .map((item) => ({
             name: item.get("name"),

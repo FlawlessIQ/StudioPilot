@@ -56,6 +56,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { getStudioRecords } from "@/lib/studio/records-client";
+import { isCataloguePackage } from "@/features/packages/one-off";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { ReadinessRing } from "@/components/ds/readiness-ring";
 import { readinessSummary } from "@/features/projects/readiness-summary";
@@ -947,7 +948,11 @@ export function LiveDomainView({
    * See features/projects/job-moment.ts.
    */
   const liveRecords =
-    config.collection === "tasks"
+    // Library → Packages is the studio's catalogue: a package written for one
+    // couple lives on that job, not here (features/packages/one-off.ts).
+    config.collection === "packages"
+      ? records.filter((record) => isCataloguePackage(record))
+      : config.collection === "tasks"
       ? records.filter((record) => {
           const state = String(record.projectState ?? "");
           if (!state) return true;

@@ -10,6 +10,12 @@ type CrmCommandResult = Record<string, unknown>;
 export async function runCrmCommand(
   type: string,
   input: Record<string, unknown>,
+  /**
+   * A key the caller holds across retries of one act, so a retry after the
+   * command landed returns its first result rather than doing it twice. A
+   * fresh key per call when omitted, as before.
+   */
+  options: { idempotencyKey?: string } = {},
 ): Promise<{ persisted: boolean; result: CrmCommandResult }> {
   const endpoint = process.env.NEXT_PUBLIC_CRM_FUNCTIONS_URL;
   if (!endpoint) {
@@ -35,7 +41,7 @@ export async function runCrmCommand(
     body: JSON.stringify({
       type,
       tenantId: membership.data().tenantId as string,
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: options.idempotencyKey ?? crypto.randomUUID(),
       input,
     }),
   });

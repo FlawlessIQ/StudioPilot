@@ -21421,6 +21421,100 @@ label {
     grid-column: 3;
   }
 }
+/* A package written for one couple (one-off-package-form.tsx), opened from
+   the proposal's Packages panel and the composer's package picker. */
+.one-off-package {
+  align-items: end;
+  background: var(--soft);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  padding: 14px;
+}
+.one-off-package-head {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 2px;
+}
+.one-off-package-head small,
+.one-off-package small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.one-off-package-field {
+  display: grid;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 6px;
+  min-width: 7rem;
+}
+.one-off-package-field > span {
+  display: block;
+}
+.one-off-package-field textarea {
+  resize: vertical;
+  width: 100%;
+}
+.one-off-package-grow {
+  flex: 1 1 14rem;
+}
+.one-off-package-narrow {
+  min-width: 0;
+  width: 7rem;
+}
+.one-off-package-wide,
+.one-off-package-coverage,
+.one-off-package-mode,
+.one-off-package-actions {
+  flex: 1 1 100%;
+}
+.one-off-package-coverage,
+.one-off-package-mode {
+  align-items: end;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 0;
+}
+.one-off-package-coverage legend,
+.one-off-package-mode legend {
+  font-size: 13px;
+  font-weight: 620;
+  margin-bottom: 6px;
+  padding: 0;
+}
+.one-off-package-coverage > small {
+  flex: 1 1 100%;
+}
+.one-off-package .form-checkbox > span {
+  display: inline;
+}
+.one-off-package-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.one-off-tag {
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-left: 6px;
+  padding: 1px 7px;
+  vertical-align: middle;
+}
+.one-off-package-open {
+  justify-self: start;
+}
 /* Agreement editor: upload your own contract, and lines that state a price (H2). */
 .agreement-upload {
   align-items: center;

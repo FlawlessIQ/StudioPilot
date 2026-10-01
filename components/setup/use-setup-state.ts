@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { isCataloguePackage } from "@/features/packages/one-off";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   setupComplete,
@@ -113,8 +114,9 @@ export function useSetupState(): {
   );
 
   const state: SetupState = {
+    // A one-off for one couple is not a price list (features/packages/one-off.ts).
     hasActivePackage: (packages.records ?? []).some(
-      (item) => item.active === true,
+      (item) => item.active === true && isCataloguePackage(item),
     ),
     // A configured default template or a connected signing provider both
     // mean the studio can send an agreement without pasting an id.

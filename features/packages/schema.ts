@@ -88,6 +88,13 @@ export const packageSchema = auditFieldsSchema.extend({
   publicVisible: z.boolean(),
   displayOrder: z.number().int().nonnegative(),
   internalNotes: z.string().max(3000).nullable(),
+  /**
+   * Written for one job, not kept in the library (createOneOffPackage). Every
+   * list of the studio's catalogue leaves it out through
+   * `isCataloguePackage` (features/packages/one-off.ts). Absent on a library
+   * package.
+   */
+  oneOff: z.object({ projectId: z.string().min(1), createdAt: z.string().optional() }).optional(),
   version: z.number().int().positive(),
   archivedAt: z.string().datetime().nullable(),
 });

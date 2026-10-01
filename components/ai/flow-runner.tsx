@@ -23,6 +23,7 @@ import {
   ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { resolveCoverage } from "@/features/packages/coverage";
+import { isCataloguePackage } from "@/features/packages/one-off";
 import {
   crewRequirementsFor,
   requireInsuranceOf,
@@ -122,6 +123,9 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
   // never one the job already has.
   const options = (packages ?? [])
     .filter((p) => p.active === true)
+    // The library, plus a one-off written for this job; never another
+    // couple's (features/packages/one-off.ts).
+    .filter((p) => isCataloguePackage(p, { projectId }))
     .filter((p) => !onJobPackageIds.has(str(p.id)))
     .filter((p) => !eventTypeId || str(p.eventTypeId) === eventTypeId || !str(p.eventTypeId))
     .sort((a, b) => num(a.displayOrder) - num(b.displayOrder));

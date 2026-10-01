@@ -6,6 +6,7 @@ import {
 import { pendingAmendmentFor, signAmendment } from "@/server/contracts/amendment-signing";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
+import { isCataloguePackage } from "@/features/packages/one-off";
 import { pricePackage } from "@/features/pricing/package-price";
 import { z } from "zod";
 import { todayInZone } from "@/lib/format/event-date";
@@ -947,6 +948,9 @@ async function availablePackages(tenantId: string, projectId: string) {
     .limit(50)
     .get();
   return snapshot.docs
+    // A package written for one couple is never on a couple's list, theirs
+    // included: it is already on their booking.
+    .filter((document) => isCataloguePackage(document.data()))
     .sort(
       (left, right) =>
         Number(left.get("displayOrder") ?? 0) -
@@ -1312,6 +1316,7 @@ async function selectPackageForClient(input: {
       studioPackage.get("tenantId") !== input.tenantId ||
       studioPackage.get("active") !== true ||
       studioPackage.get("publicVisible") !== true ||
+      !isCataloguePackage(studioPackage.data()) ||
       studioPackage.get("eventTypeId") !== project.get("eventTypeId")
     ) {
       throw new Error("PACKAGE_NOT_FOUND");

@@ -165,3 +165,15 @@ export function startOverConfirmText(
     ? `Start over with just ${chosen.name}? ${off} ${chosen.name} is set up again at today's price.`
     : `Start over with ${chosen.name}? ${off}`;
 }
+
+/**
+ * The confirm for a one-off package that takes the place of what's on the
+ * job. As startOverConfirmText: it names only what comes off — every package
+ * there now, since the one-off is new — and says nothing when nothing does.
+ */
+export function oneOffReplaceConfirmText(name: string, current: ReadonlyArray<{ name: string }>): string | null {
+  const losing = current.map((item) => item.name).filter(Boolean);
+  if (!losing.length) return null;
+  const many = losing.length > 1;
+  return `This takes ${losing.join(" and ")} off the job, with any extras and discount on ${many ? "them" : "it"}, and puts ${name} in ${many ? "their" : "its"} place.`;
+}

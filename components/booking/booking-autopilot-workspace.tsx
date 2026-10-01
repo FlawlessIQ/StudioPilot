@@ -57,6 +57,7 @@ import {
   proposalAccepted,
 } from "@/features/projects/stage-progress";
 import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
+import { isCataloguePackage } from "@/features/packages/one-off";
 import { ConsultationCorrections } from "@/components/booking/consultation-corrections";
 
 type Value = Record<string, unknown> & { id: string };
@@ -219,10 +220,14 @@ export function BookingAutopilotWorkspace({
       setProject({ id: projectSnapshot.id, ...projectSnapshot.data() });
       setConsultation(consultationValue);
       setPackages(
-        packageSnapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        })),
+        packageSnapshot.docs
+          // The library, plus a one-off written for this job; never another
+          // couple's (features/packages/one-off.ts).
+          .filter((item) => isCataloguePackage(item.data(), { projectId }))
+          .map((item) => ({
+            id: item.id,
+            ...item.data(),
+          })),
       );
       setActions(actionValues);
       // A proposal on file — created here OR in the standalone builder — means

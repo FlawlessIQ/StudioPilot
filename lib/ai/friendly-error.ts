@@ -160,6 +160,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PACKAGE_ALREADY_SELECTED:
     "This job already has a package. Open its proposal and use Packages to add another or swap it.",
   PACKAGE_ALREADY_ON_JOB: "That package is already on this job.",
+  // createOneOffPackage: a package written for one couple (2026-10-01).
+  ONE_OFF_PACKAGE_NEEDS_OWNER:
+    "Only the studio owner or an admin can write a one-off package, because it sets a price. Ask one of them to add it.",
+  ONE_OFF_PACKAGE_NEEDS_DETAIL:
+    "Say what's included — one item per line, a little more than a word or two. Each line becomes a bullet on the proposal.",
   PACKAGE_CHANGE_NEEDS_APPROVER:
     "This job has a proposal priced from its packages, so an owner or admin changes them — the proposal is re-priced at the same time.",
   AGREEMENT_CHANGED_SINCE_PREPARED:

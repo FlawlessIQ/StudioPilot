@@ -1,5 +1,6 @@
 "use client";
 
+import { isCataloguePackage } from "@/features/packages/one-off";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { BadgeCheck, Camera, CheckSquare, ClipboardCheck, Film, Link2, ListChecks, Mail, PackagePlus, Plug, Settings2, Star, UserCog, UserMinus, Users } from "lucide-react";
@@ -932,7 +933,9 @@ export function TeamCard({ action }: ActionCardProps) {
 // ─── Studio settings ────────────────────────────────────────────────────────
 
 export function PackageCatalogueCard({ action }: ActionCardProps) {
-  const packages = useRecords("packages");
+  // The price list: a one-off written for one couple is not on it
+  // (features/packages/one-off.ts).
+  const packages = useRecords("packages")?.filter((item) => isCataloguePackage(item)) ?? null;
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const runner = useRunner();
   const kind = action.action;

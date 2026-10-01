@@ -83,9 +83,13 @@ import {
   draftFormDirty,
   proposalHasLapsed,
   proposalWithCouple,
+  oneOffReplaceConfirmText,
   startOverConfirmText,
 } from "@/features/proposals/workspace-guards";
 import { InfoHint } from "@/components/ui/info-hint";
+import { isCataloguePackage } from "@/features/packages/one-off";
+import type { OneOffPackageInput } from "@/features/packages/one-off-form";
+import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -892,6 +896,8 @@ export function StudioProposalComposer() {
     useState<ProjectNeedingPackage | null>(null);
   const [activePackages, setActivePackages] = useState<Value[] | null>(null);
   const [lockingPackageId, setLockingPackageId] = useState<string | null>(null);
+  /** "Write a one-off package" is open in the picker (GR, 2026-10-01). */
+  const [writingOneOff, setWritingOneOff] = useState(false);
   /**
    * A discount the studio decides, per proposal.
    *
@@ -1117,23 +1123,7 @@ export function StudioProposalComposer() {
         setError("Preview mode: the package would be locked to this project.");
         return;
       }
-      const value = await loadProjectOptions(workspace.tenantId);
-      setProjects(value.ready);
-      const readyProject = value.ready.find(
-        (project) => project.id === packagePickerFor.id,
-      );
-      setPackagePickerFor(null);
-      if (readyProject) {
-        setProjectId(readyProject.id);
-        // Not the package description: that now shows under each package, as
-          // bullets, and pasting one package's here left the other out (GR).
-          setNotes("");
-        setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(readyProject)));
-        const event = new Date(`${readyProject.eventDate}T12:00:00`);
-        if (!Number.isNaN(event.valueOf())) {
-          setBalanceDueDate(dateInput(addDays(event, -14).toISOString()));
-        }
-      }
+      await continueAfterLock(packagePickerFor.id);
     } catch (caught: unknown) {
       setError(
         friendlyAiError(caught, "The package could not be locked. Try again."),
@@ -1142,6 +1132,108 @@ export function StudioProposalComposer() {
       setLockingPackageId(null);
     }
   }
+
+  /**
+   * A package written for this couple, made and locked in one command
+   * (createOneOffPackage); the composer then carries on exactly as after
+   * locking a library package. The form's key makes a retry return the
+   * package already made rather than a second one.
+   */
+  async function writeOneOffPackage(input: OneOffPackageInput, idempotencyKey: string) {
+    if (!packagePickerFor || !workspace.tenantId) return;
+    const current = selectedFor(packagePickerFor.id);
+    const replacing = Boolean(current) && input.mode === "replace";
+    if (replacing && current) {
+      const losing = oneOffReplaceConfirmText(
+        input.name,
+        [current.packageSnapshot, ...current.extraSnapshots].map((item) => ({
+          name: text(objectValue(item).packageName, "a package"),
+        })),
+      );
+      if (losing && !window.confirm(`${losing} Go ahead?`)) return;
+    }
+    setLockingPackageId("one-off");
+    setError("");
+    try {
+      const command = await runCrmCommand(
+        "createOneOffPackage",
+        {
+          projectId: packagePickerFor.id,
+          ...input,
+          mode: current ? input.mode : "replace",
+          confirmReplace: replacing,
+        },
+        { idempotencyKey },
+      );
+      if (!command.persisted) {
+        setError("Preview mode: the one-off package would be written and locked to this project.");
+        return;
+      }
+      setWritingOneOff(false);
+      await continueAfterLock(packagePickerFor.id);
+    } catch (caught: unknown) {
+      setError(friendlyAiError(caught, "The package couldn't be written. Try again."));
+    } finally {
+      setLockingPackageId(null);
+    }
+  }
+
+  /** After a package is locked, by either path: reload the job and carry on with it. */
+  async function continueAfterLock(lockedProjectId: string) {
+    if (!workspace.tenantId) return;
+    const value = await loadProjectOptions(workspace.tenantId);
+    setProjects(value.ready);
+    const readyProject = value.ready.find(
+      (project) => project.id === lockedProjectId,
+    );
+    setPackagePickerFor(null);
+    if (readyProject) {
+      setProjectId(readyProject.id);
+      // Not the package description: that now shows under each package, as
+      // bullets, and pasting one package's here left the other out (GR).
+      setNotes("");
+      setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(readyProject)));
+      const event = new Date(`${readyProject.eventDate}T12:00:00`);
+      if (!Number.isNaN(event.valueOf())) {
+        setBalanceDueDate(dateInput(addDays(event, -14).toISOString()));
+      }
+    }
+  }
+
+  // The studio's library for the picker, plus a one-off written for this job;
+  // never another couple's one-off (features/packages/one-off.ts).
+  const pickerPackages =
+    activePackages === null
+      ? null
+      : activePackages.filter((item) => isCataloguePackage(item, { projectId: packagePickerFor?.id ?? null }));
+  const canWriteOneOff = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  const oneOffForm = (job: ProjectNeedingPackage) => {
+    const current = selectedFor(job.id);
+    const mainMinutes = number(objectValue(current?.packageSnapshot).includedCoverageMinutes);
+    return (
+      <OneOffPackageForm
+        busy={lockingPackageId === "one-off"}
+        currency={text(objectValue(current?.packageSnapshot).currency, text(pickerPackages?.[0]?.currency, "USD"))}
+        defaultHours={mainMinutes > 0 ? Math.round((mainMinutes / 60) * 10) / 10 : null}
+        hasPackage={Boolean(current)}
+        initialMode="add"
+        // A different job starts a fresh form, never another couple's draft.
+        key={job.id}
+        onCancel={() => setWritingOneOff(false)}
+        onSubmit={(input, key) => void writeOneOffPackage(input, key)}
+      />
+    );
+  };
+  const oneOffOpener = (
+    <button
+      className="button button-light one-off-package-open"
+      disabled={lockingPackageId !== null}
+      onClick={() => setWritingOneOff(true)}
+      type="button"
+    >
+      <Plus size={14} /> Write a one-off package
+    </button>
+  );
 
   const pricing = objectValue(selected?.packageSnapshot);
   const currency = text(pricing.currency, "USD");
@@ -1304,37 +1396,44 @@ export function StudioProposalComposer() {
                       {"and the proposal continues right here."}
                     </p>
                   )}
-                  {activePackages === null ? (
+                  {pickerPackages === null ? (
                     <small>Loading your packages…</small>
-                  ) : activePackages.length === 0 ? (
-                    <div className="proposal-inline-empty">
-                      <Inbox />
-                      <span>
-                        <strong>No active packages yet</strong>
-                        <small>
-                          A proposal needs a package to price it. Import your
-                          price list and StudioCue drafts your packages, or
-                          create one by hand — either way you land right back
-                          here and the proposal picks up where you left off.
-                        </small>
-                      </span>
-                      <span className="proposal-inline-actions">
-                        <Link href="/studio/import">Import your price list</Link>
-                        <Link
-                          href={`/studio/packages/new?return=${encodeURIComponent(
-                            `/studio/proposals/new?project=${packagePickerFor.id}`,
-                          )}`}
-                        >
-                          Create a package
-                        </Link>
-                      </span>
-                    </div>
+                  ) : pickerPackages.length === 0 ? (
+                    <>
+                      <div className="proposal-inline-empty">
+                        <Inbox />
+                        <span>
+                          <strong>No active packages yet</strong>
+                          <small>
+                            A proposal needs a package to price it. Import your
+                            price list and StudioCue drafts your packages, or
+                            create one by hand — either way you land right back
+                            here and the proposal picks up where you left off.
+                          </small>
+                        </span>
+                        <span className="proposal-inline-actions">
+                          <Link href="/studio/import">Import your price list</Link>
+                          <Link
+                            href={`/studio/packages/new?return=${encodeURIComponent(
+                              `/studio/proposals/new?project=${packagePickerFor.id}`,
+                            )}`}
+                          >
+                            Create a package
+                          </Link>
+                        </span>
+                      </div>
+                      {/* Or price this couple without a library at all. */}
+                      {canWriteOneOff ? (writingOneOff ? oneOffForm(packagePickerFor) : oneOffOpener) : null}
+                    </>
                   ) : (
                     <div className="proposal-package-options">
-                      {activePackages.map((studioPackage) => (
+                      {pickerPackages.map((studioPackage) => (
                         <article key={studioPackage.id}>
                           <span>
-                            <strong>{text(studioPackage.name, "Package")}</strong>
+                            <strong>
+                              {text(studioPackage.name, "Package")}
+                              {isCataloguePackage(studioPackage) ? null : <span className="one-off-tag">One-off</span>}
+                            </strong>
                             <small>
                               {money(
                                 number(studioPackage.basePriceCents),
@@ -1379,6 +1478,9 @@ export function StudioProposalComposer() {
                           </button>
                         </article>
                       ))}
+                      {/* A package written for this couple only, when nothing
+                          in the library fits (GR, 2026-10-01). */}
+                      {canWriteOneOff ? (writingOneOff ? oneOffForm(packagePickerFor) : oneOffOpener) : null}
                       <label className="proposal-field proposal-discount-field">
                         Discount (optional)
                         <input
@@ -1443,6 +1545,7 @@ export function StudioProposalComposer() {
                     <small>{selected.extraSnapshots.length ? "Packages" : "Package"}</small>
                     <strong>
                       {text(pricing.packageName, "Selected package")}
+                      {pricing.oneOff === true ? <span className="one-off-tag">One-off</span> : null}
                     </strong>
                   </span>
                   {/* Every package on the job, and the way to change them:
@@ -1456,7 +1559,10 @@ export function StudioProposalComposer() {
                     ) : null}
                     {selected.extraSnapshots.map((extra) => (
                       <span key={String(extra.id)}>
-                        <strong>{text(extra.packageName, "Package")}</strong>
+                        <strong>
+                          {text(extra.packageName, "Package")}
+                          {extra.oneOff === true ? <span className="one-off-tag">One-off</span> : null}
+                        </strong>
                         <small>{money(number(extra.totalCents), text(extra.currency, currency))}</small>
                         {selected.openProposalId || selected.withCoupleProposalId ? null : (
                           <button

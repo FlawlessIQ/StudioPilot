@@ -1,4 +1,5 @@
 import { packageDetails } from "../packages/inclusions.js";
+import { isCataloguePackage } from "../packages/one-off.js";
 import { randomUUID } from "node:crypto";
 import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
@@ -427,7 +428,13 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     db.collection("contracts").where("tenantId", "==", context.tenantId).where("projectId", "==", input.projectId).limit(25).get(),
   ]);
   for (const studioPackage of addPackages)
-    if (!studioPackage.exists || studioPackage.get("tenantId") !== context.tenantId || studioPackage.get("active") !== true)
+    if (
+      !studioPackage.exists ||
+      studioPackage.get("tenantId") !== context.tenantId ||
+      studioPackage.get("active") !== true ||
+      // Another couple's one-off is not this booking's to take.
+      !isCataloguePackage(studioPackage.data(), { projectId: input.projectId })
+    )
       throw new Error("PACKAGE_NOT_FOUND");
   const onJobPackageIds = new Set(currentSnapshots.filter((snapshot) => keep.includes(snapshot.id)).map((snapshot) => text(snapshot.get("packageId"))));
   if (addPackages.some((studioPackage) => onJobPackageIds.has(studioPackage.id))) throw new Error("PACKAGE_ALREADY_ON_JOB");

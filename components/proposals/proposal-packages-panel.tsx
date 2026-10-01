@@ -10,8 +10,12 @@ import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   REVISABLE_PROPOSAL_STATUSES,
+  oneOffReplaceConfirmText,
   packageChangeAlreadyApplied,
 } from "@/features/proposals/workspace-guards";
+import { isCataloguePackage } from "@/features/packages/one-off";
+import type { OneOffPackageInput } from "@/features/packages/one-off-form";
+import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
 import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
 import { discountFromForm, discountLabel, discountRuleOf } from "@/features/proposals/package-discount";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -62,6 +66,8 @@ export function ProposalPackagesPanel({
   const packages = useTenantDocuments("packages");
   const contracts = useTenantDocuments("contracts");
   const [picking, setPicking] = useState<"add" | "replace" | null>(null);
+  // "Write a one-off package", inside the picker (GR, 2026-10-01).
+  const [writing, setWriting] = useState(false);
   const [extrasFor, setExtrasFor] = useState<string | null>(null);
   // The discount editor, one package at a time. The composer set a discount
   // only when a package was first locked; after that it could not change.
@@ -85,7 +91,11 @@ export function ProposalPackagesPanel({
     : [];
   const snapshotById = new Map((snapshots.records ?? []).map((record) => [record.id, record as Row]));
   const onJob = [primaryId, ...extraIds].filter(Boolean).map((id) => ({ id, snapshot: snapshotById.get(id) }));
-  const active = (packages.records ?? []).filter((record) => record.active === true) as Row[];
+  // The studio's library, plus a one-off written for this job; never another
+  // couple's one-off (features/packages/one-off.ts).
+  const active = (packages.records ?? []).filter(
+    (record) => record.active === true && isCataloguePackage(record, { projectId }),
+  ) as Row[];
   const sentToCouple = ["sent", "viewed", "accepted"].includes(status);
   // Once the agreement has gone out, its packages are what the couple is
   // signing: say so rather than offer buttons the server will refuse.
@@ -130,6 +140,7 @@ export function ProposalPackagesPanel({
       const revised = await runProposalCommand("revise_packages", { proposalId });
       refreshTenantRecords("projects", "packageSnapshots", "proposals", "tasks");
       setPicking(null);
+      setWriting(false);
       const nextId = text(revised.result.proposalId, proposalId);
       if (revised.result.superseded === true && nextId !== proposalId) {
         router.push(`/studio/proposals/${nextId}`);
@@ -167,6 +178,32 @@ export function ProposalPackagesPanel({
       },
       mode === "replace" && lostExtras.length
         ? `Swapping ${text(replaced?.packageName, "the package")} for ${newName} takes its extras off: ${lostExtras.join(", ")}. Add them again to ${newName} if they still want them.`
+        : null,
+    );
+  };
+  /**
+   * A package written for this couple: made and put on the job in one
+   * command, then the proposal is priced again exactly as for a library
+   * package added here. The form's key makes a retry after a failed re-price
+   * return the package already made instead of writing a second one.
+   */
+  const writeOneOff = (input: OneOffPackageInput, idempotencyKey: string) => {
+    const replacing = input.mode === "replace";
+    return change(
+      "one-off",
+      async () => {
+        await runCrmCommand(
+          "createOneOffPackage",
+          { projectId, ...input, confirmReplace: replacing },
+          { idempotencyKey },
+        );
+        refreshTenantRecords("packages");
+      },
+      replacing
+        ? oneOffReplaceConfirmText(
+            input.name,
+            onJob.map(({ snapshot }) => ({ name: text(snapshot?.packageName, "a package") })),
+          )
         : null,
     );
   };
@@ -268,7 +305,10 @@ export function ProposalPackagesPanel({
         {onJob.map(({ id, snapshot }, index) => (
           <li key={id}>
             <span>
-              <strong>{text(snapshot?.packageName, "Package")}</strong>
+              <strong>
+                {text(snapshot?.packageName, "Package")}
+                {snapshot?.oneOff === true ? <span className="one-off-tag">One-off</span> : null}
+              </strong>
               <small>
                 {money(cents(snapshot?.totalCents), text(snapshot?.currency, "USD"))}
                 {index === 0 && onJob.length > 1 ? " · main package" : ""}
@@ -393,11 +433,16 @@ export function ProposalPackagesPanel({
                 ? `Choose the package to use instead. Their discount (${discountLabel(discountRuleOf(onJob[0]?.snapshot), text(onJob[0]?.snapshot?.currency, "USD"))}) carries over.`
                 : "Choose the package to use instead."}
           </small>
-          {active.length === 0 ? <small>No active packages. Add one in Library → Packages.</small> : null}
+          {active.length === 0 ? (
+            <small>Nothing in your Library yet. Write one just for this couple below, or add one in Library → Packages.</small>
+          ) : null}
           {active.map((option) => (
             <article key={option.id}>
               <span>
-                <strong>{text(option.name, "Package")}</strong>
+                <strong>
+                  {text(option.name, "Package")}
+                  {isCataloguePackage(option) ? null : <span className="one-off-tag">One-off</span>}
+                </strong>
                 <small>{money(cents(option.basePriceCents), text(option.currency, "USD"))}</small>
               </span>
               <button
@@ -411,6 +456,31 @@ export function ProposalPackagesPanel({
               </button>
             </article>
           ))}
+          {writing ? (
+            <OneOffPackageForm
+              busy={busy === "one-off"}
+              currency={text(onJob[0]?.snapshot?.currency, "USD")}
+              defaultHours={
+                cents(onJob[0]?.snapshot?.includedCoverageMinutes) > 0
+                  ? Math.round((cents(onJob[0]?.snapshot?.includedCoverageMinutes) / 60) * 10) / 10
+                  : null
+              }
+              hasPackage={onJob.length > 0}
+              initialMode={picking}
+              key={picking}
+              onCancel={() => setWriting(false)}
+              onSubmit={(input, key) => void writeOneOff(input, key)}
+            />
+          ) : (
+            <button
+              className="button button-light one-off-package-open"
+              disabled={busy !== null}
+              onClick={() => setWriting(true)}
+              type="button"
+            >
+              <Plus size={14} /> Write a one-off package
+            </button>
+          )}
         </div>
       ) : null}
       {agreementOut ? (

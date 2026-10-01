@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { isCataloguePackage } from "@/features/packages/one-off";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import type { LibraryKind } from "@/features/library/kinds";
 
@@ -34,6 +35,8 @@ type Shelf = {
   emptyLabel: string;
   /** Singular and plural nouns for the count line. */
   noun: [string, string];
+  /** Which records the shelf counts, when not every one in the collection. */
+  counts?: (record: Record<string, unknown>) => boolean;
 };
 
 const SETUP: Shelf[] = [
@@ -45,6 +48,8 @@ const SETUP: Shelf[] = [
     collection: "packages",
     emptyLabel: "Nothing to offer clients yet",
     noun: ["package", "packages"],
+    // A one-off written for one couple is not on the studio's shelf.
+    counts: (record) => isCataloguePackage(record),
   },
   {
     title: "Add-ons",
@@ -98,7 +103,7 @@ const ARCHIVE: Shelf[] = [
 
 function ShelfCard({ shelf }: { shelf: Shelf }) {
   const { records } = useTenantDocuments(shelf.collection);
-  const count = records?.length ?? null;
+  const count = records ? (shelf.counts ? records.filter(shelf.counts).length : records.length) : null;
   const [one, many] = shelf.noun;
   return (
     <Link
