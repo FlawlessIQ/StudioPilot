@@ -337,7 +337,9 @@ test("removing a package or extras, and starting over, say what goes", () => {
   assert.match(panel, /takes its extras off/);
   assert.match(panel, /and the price comes down with it/);
   const composer = read("components/proposals/studio-proposal-workspace.tsx");
-  assert.match(composer, /Start over with \$\{chosen\}\? This takes \$\{losing\.join\(" and "\)\} off the job/);
+  // The wording itself, naming only what comes off, is pinned in
+  // tests/uat-gabe-findings.test.ts (UAT F2).
+  assert.match(composer, /window\.confirm\(startOverConfirmText\(\{ packageId, name: chosen \}, onJob\)\)/);
   assert.match(composer, /Take \$\{text\(extra\?\.packageName, "this package"\)\} off the job\?/);
 });
 
