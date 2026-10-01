@@ -98,3 +98,27 @@ test("the functions copy has not drifted", () => {
     ),
   );
 });
+
+test("the wedding starter asks for the moments the run of show places", async () => {
+  // ai-schedule-generator.tsx reads these ids to place the "Add a moment"
+  // chips; until 2026-10-01 no starter question asked for them, so every
+  // moment fell back to a guess.
+  const { visibleQuestionnaireSections } = await import("@/features/questionnaires/client-form");
+  const wedding = starterQuestionnaires().find((q) => q.eventTypeId === "wedding")!;
+  const timeline = wedding.sections.find((s) => s.id === "timeline")!;
+  const ids = timeline.fields.map((f) => f.id);
+  for (const id of ["first-look-time", "cocktail-hour-time", "dinner-time", "cake-cutting-time"]) {
+    assert.ok(ids.includes(id), `${id} missing`);
+    assert.equal(timeline.fields.find((f) => f.id === id)!.type, "time");
+    assert.equal(timeline.fields.find((f) => f.id === id)!.required, false);
+  }
+  const generator = readFileSync("components/planning/ai-schedule-generator.tsx", "utf8");
+  for (const id of ["first-look-time", "cocktail-hour-time", "dinner-time", "cake-cutting-time"])
+    assert.match(generator, new RegExp(`"${id}"`), `the generator no longer reads ${id}`);
+  // The first-look time only after "Yes" to a first look.
+  const shown = (answers: Record<string, unknown>) =>
+    visibleQuestionnaireSections(wedding.sections as never, answers)
+      .flatMap((s) => s.fields.map((f) => f.id));
+  assert.ok(!shown({ "first-look": "No" }).includes("first-look-time"));
+  assert.ok(shown({ "first-look": "Yes" }).includes("first-look-time"));
+});

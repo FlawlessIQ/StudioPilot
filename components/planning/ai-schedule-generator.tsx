@@ -248,7 +248,7 @@ export function AiScheduleGenerator({
   >(null);
   /**
    * Moment times the couple gave on their form, when the studio's own
-   * questionnaire asks (the starter one asks only for the ceremony). The
+   * questionnaire asks (the wedding starter asks for each, 2026-10-01). The
    * "Add a moment" chips place from them first.
    */
   const [momentTimes, setMomentTimes] = useState<{
@@ -398,9 +398,9 @@ export function AiScheduleGenerator({
     /**
      * A moment's time, when the studio's form asks for one.
      *
-     * The starter questionnaire asks only for the ceremony; a studio that adds
-     * a cocktail-hour or cake-cutting question gets it here. Only an actual
-     * clock time counts — "Yes" to "Cocktail hour?" is not 5:30.
+     * The wedding starter asks for each (first look only after "Yes" to a
+     * first look); the older aliases cover studios whose own forms differ.
+     * Only an actual clock time counts — "Yes" to "Cocktail hour?" is not 5:30.
      */
     const momentTime = (keys: readonly string[]) =>
       eventDateTime(

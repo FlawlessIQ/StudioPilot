@@ -31,7 +31,8 @@ export type StarterField = {
   locked: boolean;
   internalOnly: boolean;
   options: string[];
-  conditionalOn: null;
+  /** Shown only when another field holds this answer (client-form.ts). */
+  conditionalOn: { fieldId: string; equals: unknown } | null;
 };
 
 export type StarterSection = {
@@ -65,11 +66,21 @@ const field = (definition: Def): StarterField => {
   };
 };
 
+/** A field shown only when `fieldId` was answered `equals`. */
+const shownWhen = (definition: Def, fieldId: string, equals: unknown): StarterField => ({
+  ...field(definition),
+  conditionalOn: { fieldId, equals },
+});
+
 const section = (
   id: string,
   title: string,
-  definitions: readonly Def[],
-): StarterSection => ({ id, title, fields: definitions.map(field) });
+  definitions: readonly (Def | StarterField)[],
+): StarterSection => ({
+  id,
+  title,
+  fields: definitions.map((entry) => ("id" in entry ? entry : field(entry))),
+});
 
 const WEDDING: readonly StarterSection[] = [
   section("couple", "Couple details", [
@@ -102,6 +113,13 @@ const WEDDING: readonly StarterSection[] = [
   ]),
   section("timeline", "Timeline", [
     ["ceremony-time", "Ceremony start time", "time", true],
+    // The moments the run of show places (ai-schedule-generator.tsx reads
+    // these ids). Optional: plenty of couples don't know yet at six weeks,
+    // and a blank leaves the studio's own default rather than a guess.
+    shownWhen(["first-look-time", "First look time", "time", false], "first-look", "Yes"),
+    ["cocktail-hour-time", "Cocktail hour start time", "time", false],
+    ["dinner-time", "Dinner start time", "time", false],
+    ["cake-cutting-time", "Cake cutting time", "time", false],
     ["sunset-priority", "How important are sunset portraits?", "dropdown", true, "Essential", "Nice to have", "Not a priority"],
     ["end-time", "When does coverage end?", "time", true],
   ]),
