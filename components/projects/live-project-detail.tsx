@@ -101,6 +101,9 @@ import {
   resumeTargetFor,
   type Interruption,
 } from "@/features/projects/interruptions";
+
+/** Shown when a stage change is submitted without a usable reason. */
+const REASON_NEEDED = `Add a short reason first — at least ${MINIMUM_INTERRUPTION_REASON} characters, for the job's history.`;
 import type { HoldRecord } from "@/features/projects/hold-resume";
 import { isLiveAssignment } from "@/features/crew/job-stopped";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
@@ -502,7 +505,12 @@ function ProjectInterruptionControl({
                   const reason = String(
                     new FormData(event.currentTarget).get("reason") ?? "",
                   );
-                  if (!interruptionReasonIsUsable(reason)) return;
+                  // Say why nothing happened: an empty or short reason used
+                  // to make the button do nothing at all (prod walk, 2026-09-30).
+                  if (!interruptionReasonIsUsable(reason)) {
+                    setNotice(REASON_NEEDED);
+                    return;
+                  }
                   void submit(option, reason);
                 }}
               >
@@ -707,7 +715,10 @@ function ProjectMoveBackControl({
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (move.needsReason && !interruptionReasonIsUsable(reason)) return;
+                  if (move.needsReason && !interruptionReasonIsUsable(reason)) {
+                    setNotice(REASON_NEEDED);
+                    return;
+                  }
                   void run(move);
                 }}
               >

@@ -121,12 +121,33 @@ const emptyCopy: Partial<Record<Domain, { title: string; detail: string }>> = {
   messages: { title: "No messages yet", detail: "Client, crew, and vendor communication history will appear here." },
 };
 
+/**
+ * "Retainer · QuickBooks #1043", not "qbo invoice 9450cc05-7c45-…".
+ *
+ * Invoice rows were labelled with the provider id, which before an invoice
+ * reaches QuickBooks or Stripe is StudioCue's own placeholder — so the list
+ * read as raw ids (prod walk, 2026-09-30). The provider's number is shown
+ * only when it is a real one.
+ */
+function invoiceRowLabel(record: Record<string, unknown>): string {
+  const kind = String(record.kind ?? "");
+  const what =
+    kind === "retainer" ? "Retainer" : kind === "final" ? "Final bill" : kind ? kind.replaceAll("_", " ") : "Invoice";
+  const id = typeof record.providerInvoiceId === "string" ? record.providerInvoiceId : "";
+  const placeholder = !id || /^(qbo_invoice_|stripe_invoice_|pending_|invoice_)/.test(id);
+  const provider = String(record.provider ?? "");
+  const app = provider === "quickbooks" ? "QuickBooks" : provider === "stripe" ? "Stripe" : "";
+  return !placeholder && app ? `${what} · ${app} #${id}` : what;
+}
+
 type DomainConfig = {
   collection: string;
   projectScoped?: boolean;
   vendorScoped?: boolean;
   primary: string[];
   secondary: string[];
+  /** The secondary line worked out from the whole record, when one field won't do. */
+  secondaryText?: (record: Record<string, unknown>) => string | null;
   /** How to render `secondary`; raw text when omitted, as it was throughout. */
   secondaryKind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority";
   status: string[];
@@ -207,7 +228,8 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "invoiceReferences",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["providerInvoiceId", "kind"],
+    secondary: ["kind"],
+    secondaryText: invoiceRowLabel,
     status: ["status"],
     facts: [
       { label: "Amount", fields: ["amountCents"], kind: "money" },
@@ -971,11 +993,13 @@ export function LiveDomainView({
           undefined,
           record.currency,
         );
-        const secondary = display(
-          nested(record, config.secondary),
-          config.secondaryKind,
-          record.currency,
-        );
+        const secondary =
+          config.secondaryText?.(record) ??
+          display(
+            nested(record, config.secondary),
+            config.secondaryKind,
+            record.currency,
+          );
         const rawStatus = nested(record, config.status);
         const status =
           typeof rawStatus === "boolean" && config.statusLabels

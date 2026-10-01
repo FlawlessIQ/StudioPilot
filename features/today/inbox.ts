@@ -46,6 +46,7 @@ import type { OutsideStepReminder } from "@/features/outside-steps/registry";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
+import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
 import { BOOKING_BRIEF_CAPABILITIES, blockingIssues } from "@/features/ai/blocking-issues";
 import { emailProblemOf } from "@/features/today/email-problems";
 import { dispatchesOnApproval } from "@/features/ai/approval-consequence";
@@ -1249,7 +1250,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const plan of rows(input.bookingOrchestrations)) {
     if (text(plan.status) !== "needs_attention") continue;
     const blockers = Array.isArray(plan.blockers)
-      ? plan.blockers.map((value) => readable(value)).join(", ")
+      ? [...new Set(plan.blockers.map((value) => bookingBlockerLabel(value)))].join(", ")
       : "";
     exception({
       id: `booking-${plan.id}`,

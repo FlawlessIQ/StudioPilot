@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, LoaderCircle, PencilLine, RotateCcw, X } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
-import { AssigneeSelect } from "@/components/tasks/task-assignee";
-import { assigneeFields, assigneeValue } from "@/features/tasks/assignee";
+import { AssigneeSelect, useTaskAssignees } from "@/components/tasks/task-assignee";
+import { assigneeFields, assigneeLabel, assigneeValue } from "@/features/tasks/assignee";
 import { taskIsSettled } from "@/features/tasks/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
@@ -42,6 +42,10 @@ export function TaskRecordActions({ task }: { task: TaskRow }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
   const settled = taskIsSettled(task.status);
+  // Who it's for, on the row itself: the picker set it, but nothing showed it
+  // (prod walk, 2026-09-30).
+  const forLabel = assigneeLabel(assigneeValue(task), useTaskAssignees());
+  const forEl = forLabel ? <small className="task-row-assignee">For {forLabel}</small> : null;
 
   useEffect(() => {
     if (!justCompleted) return;
@@ -71,6 +75,7 @@ export function TaskRecordActions({ task }: { task: TaskRow }) {
   if (settled) {
     return (
       <span className="task-row-actions">
+        {forEl}
         <button
           className="button button-quiet"
           disabled={busy !== null}
@@ -94,6 +99,7 @@ export function TaskRecordActions({ task }: { task: TaskRow }) {
 
   return (
     <span className="task-row-actions">
+      {forEl}
       <button
         className="button button-quiet"
         disabled={busy !== null}

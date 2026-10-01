@@ -21697,3 +21697,10 @@ label {
   font-size: 13px;
   margin: 0;
 }
+
+/* Who a task is for, on its row (prod walk, 2026-09-30). */
+.task-row-assignee {
+  color: var(--muted);
+  font-size: 12px;
+  margin-right: 6px;
+}

@@ -48,3 +48,33 @@ export function bookingGateRequirements(
     requiredContactsComplete: evidence.requiredContactsComplete,
   };
 }
+
+/**
+ * What a booking-check blocker means, in the studio's words.
+ *
+ * Today printed the stored code through a provider-name formatter, so a job
+ * read "Booking stopped for a reason · ContractAttestedManually" (prod walk,
+ * 2026-09-30). Older plans stored the raw evidence flags rather than the
+ * folded requirements, so both sets are named here; anything else is spelled
+ * out from its camelCase rather than shown as a code.
+ */
+const BLOCKER_LABELS: Record<string, string> = {
+  contractCompleted: "the agreement isn't signed",
+  contractAttestedManually: "the agreement isn't signed",
+  retainerInvoiceCreated: "no retainer invoice yet",
+  retainerAttestedManually: "the retainer isn't recorded",
+  retainerSatisfied: "the retainer isn't paid",
+  retainerExceptionApproved: "the retainer isn't paid or waived",
+  eventDateAvailable: "the date clashes with another booking",
+  requiredContactsComplete: "the couple's contact details are incomplete",
+};
+
+export function bookingBlockerLabel(code: unknown): string {
+  const text = typeof code === "string" ? code.trim() : "";
+  if (!text) return "something needs checking";
+  if (BLOCKER_LABELS[text]) return BLOCKER_LABELS[text];
+  return text
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+}
