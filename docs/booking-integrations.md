@@ -207,10 +207,27 @@ an error while calculating tax") because NON lines can't sit under the invoice's
 the settings test invoice failed every manual-tax company, though their finals are taxed
 with the default code — it now uses the same strategy and names the rate.
 
-**Still not verified:** Automated Sales Tax by address (needs an AST sandbox company —
-the default sandbox is manual), what AST does with no BillAddr, and the pay-online link
-(sandbox companies have no QuickBooks Payments). The first real test invoice on an AST
-company covers the first two.
+**Automated Sales Tax and the pay link, on GR Productions' real company (2026-10-01):** the
+settings test invoice passed all five checks — QuickBooks added 7% at the studio's address
+and gave a connect.intuit.com pay link. It also found that **no StudioCue invoice had ever
+had a pay link**: QuickBooks returns `InvoiceLink` only for an invoice with `BillEmail`, and
+the customer's email isn't copied across. `quickBooksBillEmail` now puts the couple's email
+on every invoice, with `EmailStatus: "NotSet"` so QuickBooks sends nothing.
+
+**The whole chain, against the sandbox (2026-10-01).** `scripts/uat/quickbooks-sandbox-walk.mts`
+steps 5–11 run StudioCue's own code in-process against the emulator — nothing between the
+steps is written by hand: the contract trigger raises the retainer; the provider worker
+makes it in QuickBooks with the couple's billing address and email; a signed Payment
+webhook marks it paid; a Payment Delete reopens it and raises "QuickBooks no longer shows
+the retainer paid"; a CreditMemo leaves StudioCue's balance equal to QuickBooks'; a
+RefundReceipt raises "Refund of $100.00 recorded in QuickBooks"; and the final is held
+with QuickBooks' tax, then goes out through "Send without tax" at the pre-tax total. The
+workers read the sandbox credential from a local file (`localCredentialPath`: emulator +
+`STUDIOCUE_LOCAL_CREDENTIALS_DIR` + a `local:` reference), since Secret Manager needs
+Google's metadata server. Intuit's delivery itself is proven on prod: GR's events arrive
+in the classic shape and are recorded in `webhookEvents`.
+
+**Still not verified:** what Automated Sales Tax does with no BillAddr.
 
 ## QuickBooks from inside StudioCue: settings, items, test invoice, money moving back (2026-10-01)
 

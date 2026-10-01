@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { prepareCrewStaffing } from "../crew/prepare-staffing.js";
@@ -75,7 +76,26 @@ const text=(value:unknown)=>typeof value==="string"?value:"";
 const number=(value:unknown)=>typeof value==="number"?value:Number(value);
 
 async function googleAccessToken():Promise<string>{const response=await fetch("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",{headers:{"Metadata-Flavor":"Google"}});if(!response.ok)throw new Error("SECRET_MANAGER_IDENTITY_UNAVAILABLE");const body=asRecord(await response.json());const token=text(body.access_token);if(!token)throw new Error("SECRET_MANAGER_IDENTITY_UNAVAILABLE");return token}
+/**
+ * Emulator only: a credential kept in a local file, so the real workers can
+ * run against a provider's sandbox (scripts/uat/quickbooks-sandbox-walk.mts).
+ * Secret Manager is reached through the metadata server, which exists only
+ * on Google Cloud. Three guards, each of which production fails: a `local:`
+ * reference (production references are `projects/…`), the Firestore
+ * emulator, and STUDIOCUE_LOCAL_CREDENTIALS_DIR.
+ */
+export function localCredentialPath(reference:string,env:NodeJS.ProcessEnv=process.env):string|null{
+  const dir=env.STUDIOCUE_LOCAL_CREDENTIALS_DIR;
+  if(!reference.startsWith("local:")||!env.FIRESTORE_EMULATOR_HOST||!dir)return null;
+  const name=reference.slice("local:".length);
+  if(!/^[A-Za-z0-9_-]+$/.test(name))throw new Error("INVALID_SECRET_REFERENCE");
+  return `${dir}/${name}.json`;
+}
 async function readSecret(reference:string):Promise<Credential>{
+  const local=localCredentialPath(reference);
+  let parsed:Record<string,unknown>;
+  if(local)parsed=asRecord(JSON.parse(readFileSync(local,"utf8")));
+  else{
   if(!/^projects\/[^/]+\/secrets\/[^/]+\/versions\/[^/]+$/.test(reference))throw new Error("INVALID_SECRET_REFERENCE");
   const token=await googleAccessToken();
   const response=await fetch(`https://secretmanager.googleapis.com/v1/${reference}:access`,{headers:{authorization:`Bearer ${token}`}});
@@ -83,7 +103,8 @@ async function readSecret(reference:string):Promise<Credential>{
   const payload=asRecord(asRecord(await response.json()).payload);
   const encoded=text(payload.data);
   if(!encoded)throw new Error("CREDENTIAL_UNAVAILABLE");
-  const parsed=asRecord(JSON.parse(Buffer.from(encoded,"base64").toString("utf8")));
+  parsed=asRecord(JSON.parse(Buffer.from(encoded,"base64").toString("utf8")));
+  }
   const accessToken=text(parsed.accessToken);
   if(!accessToken)throw new Error("CREDENTIAL_UNAVAILABLE");
   return{
@@ -140,6 +161,8 @@ async function refreshCredential(reference:string,provider:Provider,current:Cred
     refreshToken:text(body.refresh_token)||current.refreshToken,
     expiresAt:new Date(Date.now()+number(body.expires_in||3600)*1000).toISOString(),
   };
+  const local=localCredentialPath(reference);
+  if(local){writeFileSync(local,JSON.stringify(next),{mode:0o600});return next}
   const runtimeToken=await googleAccessToken();
   const secretName=reference.replace(/\/versions\/[^/]+$/,"");
   const save=await fetch(`https://secretmanager.googleapis.com/v1/${secretName}:addVersion`,{

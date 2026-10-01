@@ -615,3 +615,16 @@ test("the test invoice run: customer, invoice, tax, pay link and void, nothing e
   assert.deepEqual(posts[0]!.body!.BillAddr, { Line1: "1 Main St", City: "Austin" });
   assert.ok(!calls.some((call) => call.target.includes("/send")), "nothing is emailed");
 });
+
+test("a local credential file is reachable only from the emulator, and only by a local: reference", async () => {
+  // The sandbox walk runs the real workers against Intuit's sandbox; Secret
+  // Manager needs Google's metadata server, so the workers read a file there.
+  // Production fails all three guards.
+  const { localCredentialPath } = await import("../functions/src/operations/provider-runtime.ts");
+  const emulator = { FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080", STUDIOCUE_LOCAL_CREDENTIALS_DIR: "/tmp/creds" };
+  assert.equal(localCredentialPath("local:qbo-sandbox", emulator), "/tmp/creds/qbo-sandbox.json");
+  assert.equal(localCredentialPath("projects/p/secrets/s/versions/latest", emulator), null, "a real reference stays in Secret Manager");
+  assert.equal(localCredentialPath("local:qbo-sandbox", { STUDIOCUE_LOCAL_CREDENTIALS_DIR: "/tmp/creds" }), null, "never outside the emulator");
+  assert.equal(localCredentialPath("local:qbo-sandbox", { FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080" }), null, "never without the directory");
+  assert.throws(() => localCredentialPath("local:../../etc/passwd", emulator), /INVALID_SECRET_REFERENCE/);
+});
