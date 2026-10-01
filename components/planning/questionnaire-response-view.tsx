@@ -120,6 +120,8 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
   const facts: Array<[string, string]> = [];
   const submitted = when(response.submittedAt);
   if (submitted) facts.push(["Sent back", submitted]);
+  // Filled in from the inquiry link, before the call (functions/src/intake/inquiry-form.ts).
+  if (response.source === "inquiry_page") facts.push(["Filled in", "On their inquiry page, before the consultation"]);
   const due = when(response.dueDate);
   if (due && !submitted) facts.push(["Due", due]);
   const updated = when(response.updatedAt);

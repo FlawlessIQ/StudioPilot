@@ -817,6 +817,17 @@ async function clientProject(tenantId: string, projectId: string) {
   const questionnaireIndex = Object.keys(availabilityCollections).indexOf("questionnaire");
   const questionnaireStatus =
     safeString(availabilitySnapshots[questionnaireIndex].docs[0]?.get("status")) ?? null;
+  // The event form they filled in on their inquiry page, if this job has one:
+  // it is a step of its own on their journey, before the consultation.
+  const inquiryFormDoc = availabilitySnapshots[questionnaireIndex].docs.find(
+    (document) =>
+      document.get("source") === "inquiry_page" &&
+      !document.get("archivedAt") &&
+      document.get("status") !== "withdrawn",
+  );
+  const inquiryForm = inquiryFormDoc
+    ? { returned: ["submitted", "locked"].includes(String(inquiryFormDoc.get("status"))) }
+    : null;
   const proposalIndex = Object.keys(availabilityCollections).indexOf("proposal");
   // Only a version the couple has been given. A draft, one in review or
   // approved-but-unsent after a reissue or revise was taken as "current", and
@@ -885,6 +896,7 @@ async function clientProject(tenantId: string, projectId: string) {
     today: todayIso,
     currentSchedule,
     questionnaireStatus,
+    inquiryForm,
   });
   return {
     id: projectId,

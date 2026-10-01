@@ -55,8 +55,10 @@ test("the loading screen doesn't tell a couple they're opening a studio", () => 
 });
 
 test("a multi-select question is chips, not a text box", () => {
-  const form = read("components/client/kit/client-questionnaire.tsx");
+  // The question renderer moved out so the inquiry page's event form shares it.
+  const form = read("components/client/kit/questionnaire-question.tsx");
   assert.match(form, /field\.type === "multi_select" && field\.options\.length/);
+  assert.match(read("components/client/kit/client-questionnaire.tsx"), /<Question\b/);
 });
 
 test("a proposal refusal is named, not 'could not be saved'", () => {

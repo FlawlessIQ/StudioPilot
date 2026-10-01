@@ -122,6 +122,8 @@ const REACHED: Record<string, string> = {
   withdrawQuestionnaire: "QuestionnaireResponseActions", resendQuestionnaire: "QuestionnaireResponseActions",
   approveSchedule: "RecordTimelineAnswer", refreshRunOfShowShares: "VendorReshareBanner",
   createQuestionnaireTemplate: "/studio/questionnaires", updateQuestionnaireTemplate: "/studio/questionnaires",
+  // The inquiry event form is chosen on the same page (InquiryEventFormSetting).
+  setInquiryEventForm: "/studio/questionnaires",
   saveTimingRule: "TimingRuleEditor", createVendor: "\"createVendor\"", updateVendor: "VendorRecordActions",
   archiveVendor: "\"archiveVendor\"", publishSchedule: "AiScheduleGenerator", setTimelineAuthority: "TimelineAuthorityPanel",
   setInsuranceRequirement: "\"setInsuranceRequirement\"", shareRunOfShow: "\"shareRunOfShow\"",
@@ -201,6 +203,7 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   create_link: "public scheduling", availability: "public scheduling", book: "public scheduling",
   inquiry_preview: "public inquiry", inquiry_details: "public inquiry", inquiry_availability: "public inquiry",
   inquiry_book: "public inquiry", inquiry_cancel: "public inquiry",
+  inquiry_form: "public inquiry", inquiry_form_save: "public inquiry",
   passwordReset: "sign-in", emailVerification: "sign-in", signInLink: "sign-in", previewInvitation: "invitee", acceptInvitation: "invitee",
   // StudioCue's own staff (platform admin), not a studio.
   setFeatureFlag: "platform", suspendTenant: "platform", repairOwnerMembership: "platform", grantSupportAccess: "platform",

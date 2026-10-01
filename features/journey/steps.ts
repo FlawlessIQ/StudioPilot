@@ -236,6 +236,13 @@ export type JourneyInput = {
    * forgetting a field. Compute with `questionnaireIsAnswered`.
    */
   questionnaireHasAnswers: boolean;
+  /**
+   * Where the standing questionnaire was filled in: "inquiry_page" when the
+   * couple sent the studio's event form from their inquiry link, before the
+   * consultation (functions/src/intake/inquiry-form.ts). It counts the same;
+   * only the wording changes. Optional so existing callers are unchanged.
+   */
+  questionnaireSource?: string | null;
   scheduleStatus: string | null;
   /**
    * Whether the settled schedule holds at least one item a person could read.
@@ -645,7 +652,9 @@ export function projectJourney(input: JourneyInput): {
     key: "schedule_form",
     title: "Wedding details form",
     detail: formDone
-      ? "Client completed it"
+      ? input.questionnaireSource === "inquiry_page"
+        ? "The couple filled it in before the consultation"
+        : "Client completed it"
       : formEmptyButSubmitted
         ? "Marked submitted, but no answers came through"
         : formWaiting

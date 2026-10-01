@@ -14,6 +14,18 @@ import {
   type InquiryLinkContext,
 } from "../intake/inquiry-link.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
+import {
+  INQUIRY_FORM_SOURCE,
+  applyCoupleAnswers,
+  coupleCompletionPercent,
+  coupleFormSections,
+  coupleVisibleAnswers,
+  inquiryFormOwed,
+  inquiryFormResponseId,
+  inquiryFormState,
+} from "../intake/inquiry-form.js";
+import { verifiedPrefill } from "../planning/questionnaire-prefill.js";
+import { isReturned, statusAfterSave, submittedAtAfterSave } from "../planning/questionnaire-lifecycle.js";
 
 const inquiryToken = z.string().min(32).max(200);
 
@@ -74,6 +86,25 @@ const commandSchema = z.discriminatedUnion("type", [
       token: inquiryToken,
       startsAt: z.string().datetime(),
       format: z.enum(["zoom", "in_person", "phone"]),
+    }),
+  }),
+  // The studio's event form, before the times (intake/inquiry-form.ts).
+  z.object({
+    type: z.literal("inquiry_form"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ token: inquiryToken }),
+  }),
+  z.object({
+    type: z.literal("inquiry_form_save"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      token: inquiryToken,
+      // Keyed by field id; each value is checked against its question on the
+      // server (applyCoupleAnswers), never stored as the browser sent it.
+      answers: z
+        .record(z.string().max(200), z.unknown())
+        .refine((value) => Object.keys(value).length <= 300, "Too many answers"),
+      submit: z.boolean(),
     }),
   }),
   z.object({
@@ -285,7 +316,9 @@ export const publicConsultationScheduling = onRequest(
         command.type === "inquiry_details" ||
         command.type === "inquiry_availability" ||
         command.type === "inquiry_book" ||
-        command.type === "inquiry_cancel"
+        command.type === "inquiry_cancel" ||
+        command.type === "inquiry_form" ||
+        command.type === "inquiry_form_save"
       ) {
         const context = await resolveInquiryLink(db, command.input.token);
         const result = await handleInquiryCommand(db, context, command, now);
@@ -405,14 +438,25 @@ export const publicConsultationScheduling = onRequest(
     } catch (caught: unknown) {
       const message =
         caught instanceof Error ? caught.message : "SCHEDULING_FAILED";
-      response.status(message === "FORBIDDEN" ? 403 : 400).json({ error: message });
+      response
+        .status(message === "FORBIDDEN" ? 403 : message === "RATE_LIMITED" ? 429 : 400)
+        .json({ error: message });
     }
   },
 );
 
 type InquiryCommand = Extract<
   z.infer<typeof commandSchema>,
-  { type: "inquiry_preview" | "inquiry_details" | "inquiry_availability" | "inquiry_book" | "inquiry_cancel" }
+  {
+    type:
+      | "inquiry_preview"
+      | "inquiry_details"
+      | "inquiry_availability"
+      | "inquiry_book"
+      | "inquiry_cancel"
+      | "inquiry_form"
+      | "inquiry_form_save";
+  }
 >;
 
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
@@ -520,10 +564,11 @@ async function handleInquiryCommand(
   const timezone = text(tenant.get("timezone")) || "America/New_York";
 
   if (command.type === "inquiry_preview") {
-    const [options, upcoming, settings] = await Promise.all([
+    const [options, upcoming, settings, form] = await Promise.all([
       meetingOptions(db, context.tenantId),
       upcomingConsultation(db, context),
       db.doc(`consultationSettings/${context.tenantId}`).get(),
+      inquiryFormState(db, context),
     ]);
     const { known, missing } = detailsOf(context.lead);
     const inquiryBrand = resolveTenantBrand(tenant.data(), "Your photography studio");
@@ -546,6 +591,16 @@ async function handleInquiryCommand(
       // Where the job is, so the page names the next thing in their email.
       jobStage: pastConsultation ? jobStageOf(text(context.project?.get("state"))) : null,
       timezone,
+      // The studio's event form, asked for before a time is picked. Null when
+      // the studio has none, or it isn't for this kind of inquiry.
+      eventForm: form
+        ? {
+            name: text(form.response?.get("templateName")) || text(form.template.get("name")) || "Event form",
+            status: form.status,
+            // No job yet: the date comes first (the details step), then the form.
+            requiresDate: form.requiresDate,
+          }
+        : null,
       booked: upcoming
         ? {
             startsAt: upcoming.get("startsAt"),
@@ -574,6 +629,10 @@ async function handleInquiryCommand(
 
   if (command.type === "inquiry_availability") {
     return slotsForTenant(context.tenantId);
+  }
+
+  if (command.type === "inquiry_form" || command.type === "inquiry_form_save") {
+    return handleInquiryForm(db, context, command, now);
   }
 
   if (command.type === "inquiry_cancel") {
@@ -625,6 +684,11 @@ async function handleInquiryCommand(
   if (!selected) throw new Error("TIME_NO_LONGER_AVAILABLE");
   const contactId = text(context.lead.get("primaryContactId")) || (project.get("clientContactIds") as string[] | undefined)?.[0] || null;
   const previous = await upcomingConsultation(db, context);
+  // The studio's event form comes before the call: they need the answers for
+  // it. Moving a call already booked is never held up by the form.
+  if (!previous && inquiryFormOwed(await inquiryFormState(db, context))) {
+    throw new Error("INQUIRY_FORM_REQUIRED");
+  }
   const consultationId = `consultation_${createHash("sha256")
     .update(`inquiry:${context.lead.id}:${selected.startsAt}:${command.input.format}`)
     .digest("hex")
@@ -749,4 +813,203 @@ async function handleInquiryCommand(
     rescheduled: Boolean(previous),
     status: "scheduled",
   };
+}
+
+const plain = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+/** Saves per inquiry per hour: generous for autosave, a ceiling for a script. */
+const INQUIRY_FORM_SAVES_PER_HOUR = 240;
+
+/** A counter per inquiry, like the public inquiry form's (crm/public-lead.ts). */
+async function limitInquiryFormSaves(db: FirebaseFirestore.Firestore, leadId: string) {
+  const reference = db.doc(`publicRateLimits/inquiry_form_${leadId}`);
+  const nowMillis = Date.now();
+  const hour = 60 * 60 * 1000;
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    const data = snapshot.data() as { windowStartedAt?: number; count?: number } | undefined;
+    const within = Boolean(data?.windowStartedAt) && nowMillis - Number(data?.windowStartedAt) < hour;
+    const count = within ? Number(data?.count ?? 0) + 1 : 1;
+    if (count > INQUIRY_FORM_SAVES_PER_HOUR) throw new Error("RATE_LIMITED");
+    transaction.set(reference, {
+      windowStartedAt: within ? Number(data?.windowStartedAt) : nowMillis,
+      count,
+      expiresAt: new Date(nowMillis + hour * 2).toISOString(),
+    });
+  });
+}
+
+/**
+ * The studio's event form on the couple's inquiry page: read it, save it,
+ * send it (intake/inquiry-form.ts).
+ *
+ * Everything that says which studio and which job comes from the token's
+ * inquiry (resolveInquiryLink), never from the request. The answers land in
+ * an ordinary questionnaireResponses record on the job, so the studio's
+ * views, the crew brief and the contract's {{form.answers}} read them as they
+ * read a form sent from the job page. No questionnaire_request email goes:
+ * the couple is already on the page.
+ */
+async function handleInquiryForm(
+  db: FirebaseFirestore.Firestore,
+  context: InquiryLinkContext,
+  command: Extract<InquiryCommand, { type: "inquiry_form" | "inquiry_form_save" }>,
+  now: string,
+): Promise<Record<string, unknown>> {
+  const form = await inquiryFormState(db, context);
+  if (!form) throw new Error("INQUIRY_FORM_NOT_AVAILABLE");
+  // A response belongs to a job, and a dateless inquiry has none yet: the
+  // page asks for the date first, which makes one.
+  if (form.requiresDate || !context.project) throw new Error("EVENT_DATE_REQUIRED");
+  const project = context.project;
+  const template = form.template;
+  const templateSections = template.get("sections");
+  // A copy the studio already sent was answered against its own snapshot.
+  const sections = coupleFormSections(
+    form.response ? plain(form.response.get("templateSnapshot")).sections : templateSections,
+  );
+  const name = text(form.response?.get("templateName")) || text(template.get("name")) || "Event form";
+
+  if (command.type === "inquiry_form") {
+    const answers = form.response
+      ? plain(form.response.get("answers"))
+      : verifiedPrefill(project.id, project, templateSections).answers;
+    return {
+      name,
+      sections,
+      answers: coupleVisibleAnswers(sections, answers),
+      status: form.status,
+      submittedAt: form.response?.get("submittedAt") ?? null,
+    };
+  }
+
+  await limitInquiryFormSaves(db, context.lead.id);
+  const responseId = form.response?.id ?? inquiryFormResponseId(context.tenantId, project.id, template.id);
+  const reference = db.doc(`questionnaireResponses/${responseId}`);
+  const submit = command.input.submit;
+  const outcome = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    if (
+      snapshot.exists &&
+      (snapshot.get("tenantId") !== context.tenantId || snapshot.get("projectId") !== project.id)
+    ) {
+      throw new Error("INQUIRY_FORM_NOT_AVAILABLE");
+    }
+    const prefill = verifiedPrefill(project.id, project, templateSections);
+    const priorStatus = snapshot.exists ? text(snapshot.get("status")) || "not_started" : "not_started";
+    // Theirs to change until they send it; after that the studio has it.
+    if (isReturned(priorStatus)) throw new Error("QUESTIONNAIRE_ALREADY_SUBMITTED");
+    const prior = snapshot.exists ? plain(snapshot.get("answers")) : prefill.answers;
+    const save = applyCoupleAnswers({ sections, prior, incoming: command.input.answers });
+    if (submit && save.missing.length) throw new Error("INQUIRY_FORM_INCOMPLETE");
+    const status = statusAfterSave({ prior: priorStatus, submit, byClient: true });
+    const submittedAt = submittedAtAfterSave({
+      nextStatus: status,
+      priorSubmittedAt: snapshot.exists ? snapshot.get("submittedAt") : null,
+      byClient: true,
+      now,
+    });
+    const priorProvenance = snapshot.exists ? plain(snapshot.get("answerProvenance")) : prefill.answerProvenance;
+    const answerProvenance = { ...priorProvenance };
+    const changes = save.changed.map((fieldId) => {
+      answerProvenance[fieldId] = {
+        sourceType: "client_answer",
+        sourceId: fieldId,
+        label: "Client answer",
+        verified: false,
+        changedAt: now,
+        changedFrom: prior[fieldId] ?? null,
+      };
+      return {
+        fieldId,
+        before: prior[fieldId] ?? null,
+        after: save.answers[fieldId],
+        affectsPlanning: true,
+        changedAt: now,
+        changedBy: "couple",
+      };
+    });
+    const completionPercent = isReturned(status) ? 100 : coupleCompletionPercent(sections, save.answers);
+    if (!snapshot.exists) {
+      // The shape assignQuestionnaire makes (planning/commands.ts), so every
+      // reader of questionnaireResponses takes it as it is.
+      transaction.create(reference, {
+        id: responseId,
+        tenantId: context.tenantId,
+        projectId: project.id,
+        templateId: template.id,
+        templateVersion: Number(template.get("version") ?? 1),
+        templateName: name,
+        templateSnapshot: { name, sections: templateSections },
+        status,
+        answers: save.answers,
+        answerProvenance,
+        changeHistory: changes,
+        hasPlanningChanges: changes.length > 0,
+        completionPercent,
+        // No due date and no reminders: the inquiry's own follow-ups carry this
+        // page's link, and a portal reminder would invite them somewhere else.
+        dueDate: null,
+        reminderDaysBeforeDue: [],
+        remindersSent: [],
+        submittedAt,
+        source: INQUIRY_FORM_SOURCE,
+        leadId: context.lead.id,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: "couple",
+        updatedBy: "couple",
+        archivedAt: null,
+      });
+    } else {
+      const history = Array.isArray(snapshot.get("changeHistory")) ? (snapshot.get("changeHistory") as unknown[]) : [];
+      transaction.update(reference, {
+        answers: save.answers,
+        answerProvenance,
+        changeHistory: [...history, ...changes].slice(-200),
+        hasPlanningChanges: changes.length > 0,
+        status,
+        completionPercent,
+        submittedAt,
+        ...(isReturned(status) ? { reopenedAt: null } : {}),
+        updatedAt: now,
+        updatedBy: "couple",
+      });
+    }
+    // The same analysis a portal submit queues (saveQuestionnaire).
+    if (submit) {
+      transaction.set(
+        db.doc(`aiJobs/questionnaire_${responseId}`),
+        {
+          id: `questionnaire_${responseId}`,
+          tenantId: context.tenantId,
+          projectId: project.id,
+          responseId,
+          type: "questionnaire_analysis",
+          status: "queued",
+          attempts: 0,
+          humanReviewRequired: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+    }
+    return { status, submittedAt, missing: save.missing, changed: save.changed.length };
+  });
+
+  if (submit) {
+    const who = text(context.lead.get("firstName")) || "The couple";
+    await recordCoupleAction(db, context, {
+      id: `couple_form_${responseId}_${createHash("sha256").update(now).digest("hex").slice(0, 8)}`,
+      title: `${who} filled in your ${name}`,
+      action: "questionnaire.submitted_from_inquiry",
+      after: { responseId, templateId: template.id },
+      now,
+    });
+  }
+  return { responseId, ...outcome };
 }

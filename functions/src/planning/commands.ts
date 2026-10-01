@@ -48,6 +48,11 @@ import {
 import { sameItemCrew, withCrewIds } from "./item-crew.js";
 import { questionnaireDueDate } from "./questionnaire-due.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
+import { verifiedPrefill } from "./questionnaire-prefill.js";
+import {
+  INQUIRY_FORM_EVENT_TYPES,
+  INQUIRY_FORM_SETTINGS_PATH,
+} from "../intake/inquiry-form.js";
 import {
   assertStudioMayRecordAnswer,
   revisedTimelineEmail,
@@ -186,6 +191,21 @@ const command = z.discriminatedUnion("type", [
         .min(1),
       dueDaysBeforeEvent: z.number().int().nonnegative().max(365),
       reminderDaysBeforeDue: z.array(z.number().int().nonnegative().max(365)),
+    }),
+  }),
+  z.object({
+    /**
+     * The studio's event form for new wedding inquiries, or none.
+     *
+     * Couples are asked to fill it in on their inquiry page before they pick a
+     * consultation time (intake/inquiry-form.ts). Stored on the studio's
+     * inquiry settings, leadCaptureSettings/{tenantId}.inquiryEventForm.
+     */
+    type: z.literal("setInquiryEventForm"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      templateId: z.string().min(1).max(200).nullable(),
     }),
   }),
   z.object({
@@ -513,80 +533,6 @@ const plainRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-const normalizedLabel = (value: unknown) =>
-  String(value ?? "")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/g, " ");
-const projectFactAliases = [
-  {
-    labels: ["event date", "wedding date", "date"],
-    field: "eventDate",
-    label: "Project event date",
-  },
-  {
-    labels: ["venue", "venue name", "ceremony venue"],
-    field: "venueName",
-    label: "Project venue",
-  },
-  {
-    labels: ["venue address", "event address", "ceremony address"],
-    field: "venueAddress",
-    label: "Project venue address",
-  },
-  {
-    labels: ["client", "couple", "client name", "couple names"],
-    field: "clientName",
-    label: "Project client",
-  },
-  {
-    labels: ["timezone", "time zone"],
-    field: "timezone",
-    label: "Project timezone",
-  },
-] as const;
-
-function verifiedPrefill(
-  projectId: string,
-  project: DocumentData,
-  sections: unknown,
-) {
-  const answers: Record<string, unknown> = {};
-  const answerProvenance: Record<string, unknown> = {};
-  const sectionValues = Array.isArray(sections) ? sections : [];
-  for (const section of sectionValues) {
-    const sectionRecord = plainRecord(section);
-    const fields = Array.isArray(sectionRecord.fields)
-      ? sectionRecord.fields
-      : [];
-    for (const candidate of fields) {
-      const field = plainRecord(candidate);
-      const fieldId = String(field.id ?? "");
-      const label = normalizedLabel(field.label ?? field.id);
-      const alias = projectFactAliases.find((item) =>
-        item.labels.some((candidateLabel) => candidateLabel === label),
-      );
-      if (!fieldId || !alias) continue;
-      const value = project.get(alias.field);
-      if (
-        value === null ||
-        value === undefined ||
-        (typeof value === "string" && !value.trim())
-      )
-        continue;
-      answers[fieldId] = value;
-      answerProvenance[fieldId] = {
-        sourceType: "project_fact",
-        sourceId: projectId,
-        sourceField: alias.field,
-        label: alias.label,
-        verified: true,
-      };
-    }
-  }
-  return { answers, answerProvenance };
-}
-
 function stable(scope: string, tenantId: string, key: string) {
   return `${scope}_${createHash("sha256").update(`${tenantId}:${key}`).digest("hex").slice(0, 32)}`;
 }
@@ -1202,6 +1148,66 @@ export const planningCommand = onRequest(
           invited: Boolean(link.invitationWrite),
         };
         }
+      } else if (parsed.type === "setInquiryEventForm") {
+        // A setting that reaches every couple who writes in: the owner's call.
+        if (!["studio_owner", "studio_admin"].includes(role))
+          throw new Error("FORBIDDEN");
+        let templateName: string | null = null;
+        if (parsed.input.templateId) {
+          const template = await db
+            .doc(`questionnaireTemplates/${parsed.input.templateId}`)
+            .get();
+          if (
+            !template.exists ||
+            template.get("tenantId") !== parsed.tenantId ||
+            template.get("status") !== "active"
+          )
+            throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
+          templateName = String(template.get("name") ?? "");
+        }
+        const settingsReference = db.doc(INQUIRY_FORM_SETTINGS_PATH(parsed.tenantId));
+        const before = await settingsReference.get();
+        const batch = db.batch();
+        batch.set(
+          settingsReference,
+          {
+            tenantId: parsed.tenantId,
+            inquiryEventForm: parsed.input.templateId
+              ? {
+                  templateId: parsed.input.templateId,
+                  templateName,
+                  eventTypes: [...INQUIRY_FORM_EVENT_TYPES],
+                  updatedAt: now,
+                  updatedBy: identity.uid,
+                }
+              : null,
+            updatedAt: now,
+          },
+          { merge: true },
+        );
+        const auditReference = db.doc(
+          `auditEvents/${stable("inquiry_form_setting", parsed.tenantId, parsed.idempotencyKey)}`,
+        );
+        batch.create(auditReference, {
+          id: auditReference.id,
+          tenantId: parsed.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "lead_capture.inquiry_event_form_set",
+          entityType: "leadCaptureSettings",
+          entityId: parsed.tenantId,
+          timestamp: now,
+          before: { inquiryEventForm: before.get("inquiryEventForm") ?? null },
+          after: { templateId: parsed.input.templateId, templateName },
+          ipAddress: null,
+          userAgent: request.header("user-agent") ?? null,
+          correlationId: parsed.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { templateId: parsed.input.templateId, templateName };
       } else if (parsed.type === "saveTimingRule") {
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
