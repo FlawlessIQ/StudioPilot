@@ -13,8 +13,8 @@ import {
   oneOffReplaceConfirmText,
   packageChangeAlreadyApplied,
 } from "@/features/proposals/workspace-guards";
-import { isCataloguePackage } from "@/features/packages/one-off";
-import type { OneOffPackageInput } from "@/features/packages/one-off-form";
+import { isCataloguePackage, oneOffProjectId } from "@/features/packages/one-off";
+import { oneOffFormValuesFrom, type OneOffPackageInput } from "@/features/packages/one-off-form";
 import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
 import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
 import { discountFromForm, discountLabel, discountRuleOf } from "@/features/proposals/package-discount";
@@ -69,6 +69,8 @@ export function ProposalPackagesPanel({
   // "Write a one-off package", inside the picker (GR, 2026-10-01).
   const [writing, setWriting] = useState(false);
   const [extrasFor, setExtrasFor] = useState<string | null>(null);
+  // "Edit" on a one-off line: the same form, filled in (updateOneOffPackage).
+  const [editingFor, setEditingFor] = useState<string | null>(null);
   // The discount editor, one package at a time. The composer set a discount
   // only when a package was first locked; after that it could not change.
   const [discountFor, setDiscountFor] = useState<string | null>(null);
@@ -207,6 +209,62 @@ export function ProposalPackagesPanel({
         : null,
     );
   };
+  /**
+   * The package document behind a line on the job, when it is this job's own
+   * one-off. A one-off saved to the Library is an ordinary package again, so
+   * this reads the package, not the snapshot's copied `oneOff` flag.
+   */
+  const oneOffBehind = (snapshot: Row | undefined): Row | null => {
+    const record = (packages.records ?? []).find((item) => item.id === text(snapshot?.packageId)) as Row | undefined;
+    return record && oneOffProjectId(record) === projectId ? record : null;
+  };
+  /**
+   * Correct a one-off on this job — name, price, what's included, coverage.
+   * The package and the job's copy of it change together, then the proposal
+   * is priced again like any other package change here.
+   */
+  const editOneOff = (packageId: string, input: OneOffPackageInput, idempotencyKey: string) =>
+    change(`edit-${packageId}`, async () => {
+      await runCrmCommand(
+        "updateOneOffPackage",
+        {
+          projectId,
+          packageId,
+          name: input.name,
+          basePriceCents: input.basePriceCents,
+          included: input.included,
+          ...(input.includedCoverage ? { includedCoverage: input.includedCoverage } : {}),
+          ...(input.includedCoverageMinutes ? { includedCoverageMinutes: input.includedCoverageMinutes } : {}),
+        },
+        { idempotencyKey },
+      );
+      setEditingFor(null);
+      refreshTenantRecords("packages");
+    });
+  /**
+   * Keep a one-off for other couples. It joins the Library as an ordinary
+   * package, hidden from client pages until published. Nothing on this job's
+   * price changes, so the proposal is not revised.
+   */
+  async function saveToLibrary(packageId: string, name: string) {
+    if (
+      !window.confirm(
+        `Save ${name} to your Library? You'll be able to offer it to other couples. Clients won't see it on your client pages unless you publish it.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(`library-${packageId}`);
+    setError(null);
+    try {
+      await runCrmCommand("saveOneOffToLibrary", { packageId });
+      refreshTenantRecords("packages");
+    } catch (caught: unknown) {
+      setError(friendlyError(caught, "The package couldn't be saved to your Library. Try again."));
+    } finally {
+      setBusy(null);
+    }
+  }
   const setExtras = (packageSnapshotId: string, lines: JobAddOnLine[]) => {
     const snapshot = snapshotById.get(packageSnapshotId);
     const kept = new Set(lines.map((line) => line.name));
@@ -302,12 +360,17 @@ export function ProposalPackagesPanel({
         </p>
       ) : null}
       <ul className="proposal-packages-list">
-        {onJob.map(({ id, snapshot }, index) => (
+        {onJob.map(({ id, snapshot }, index) => {
+          const oneOffPackage = oneOffBehind(snapshot);
+          // The package decides once it has loaded: saved to the Library, the
+          // line is no longer a one-off, whatever its snapshot copied.
+          const isOneOff = oneOffPackage !== null || (packages.records == null && snapshot?.oneOff === true);
+          return (
           <li key={id}>
             <span>
               <strong>
                 {text(snapshot?.packageName, "Package")}
-                {snapshot?.oneOff === true ? <span className="one-off-tag">One-off</span> : null}
+                {isOneOff ? <span className="one-off-tag">One-off</span> : null}
               </strong>
               <small>
                 {money(cents(snapshot?.totalCents), text(snapshot?.currency, "USD"))}
@@ -317,6 +380,28 @@ export function ProposalPackagesPanel({
                   : ""}
               </small>
             </span>
+            {oneOffPackage && !agreementOut ? (
+              <button
+                aria-label={`Edit ${text(snapshot?.packageName, "this one-off package")}`}
+                className="button button-light"
+                disabled={busy !== null}
+                onClick={() => setEditingFor(editingFor === id ? null : id)}
+                type="button"
+              >
+                Edit
+              </button>
+            ) : null}
+            {oneOffPackage ? (
+              <button
+                className="button button-light"
+                disabled={busy !== null}
+                onClick={() => void saveToLibrary(oneOffPackage.id, text(snapshot?.packageName, "this package"))}
+                type="button"
+              >
+                {busy === `library-${oneOffPackage.id}` ? <LoaderCircle className="spin" size={14} /> : null}
+                Save to my Library
+              </button>
+            ) : null}
             {agreementOut ? null : (
               <button
                 className="button button-light"
@@ -421,8 +506,26 @@ export function ProposalPackagesPanel({
                 }
               />
             ) : null}
+            {editingFor === id && oneOffPackage && !agreementOut ? (
+              <OneOffPackageForm
+                busy={busy === `edit-${oneOffPackage.id}`}
+                currency={text(snapshot?.currency, "USD")}
+                defaultHours={
+                  cents(snapshot?.includedCoverageMinutes) > 0
+                    ? Math.round((cents(snapshot?.includedCoverageMinutes) / 60) * 10) / 10
+                    : null
+                }
+                hasPackage
+                initial={oneOffFormValuesFrom(oneOffPackage)}
+                initialMode="add"
+                key={`edit-${id}`}
+                onCancel={() => setEditingFor(null)}
+                onSubmit={(input, key) => void editOneOff(oneOffPackage.id, input, key)}
+              />
+            ) : null}
           </li>
-        ))}
+          );
+        })}
       </ul>
       {picking ? (
         <div className="proposal-packages-picker">

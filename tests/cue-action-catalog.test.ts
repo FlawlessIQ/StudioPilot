@@ -133,6 +133,7 @@ const REACHED: Record<string, string> = {
   approveAndSendCoi: "CoiWorkflowPanel", saveCoiSettings: "CoiSettings",
   saveAddOn: "AddOnLibrary", setJobAddOns: "ProposalPackagesPanel",
   createOneOffPackage: "ProposalPackagesPanel",
+  updateOneOffPackage: "ProposalPackagesPanel", saveOneOffToLibrary: "ProposalPackagesPanel",
   // Messages
   sendMessage: "\"sendMessage\"", replyToConversation: "\"replyToConversation\"",
   markConversationRead: "\"markConversationRead\"", approveMessage: "MessageApprovals", declineMessage: "MessageApprovals",

@@ -15,7 +15,12 @@ import {
   oneOffTaxRate,
   oneOffTerms,
 } from "@/features/packages/one-off";
-import { dollarsToCents, parseOneOffForm, type OneOffFormValues } from "@/features/packages/one-off-form";
+import {
+  dollarsToCents,
+  oneOffFormValuesFrom,
+  parseOneOffForm,
+  type OneOffFormValues,
+} from "@/features/packages/one-off-form";
 import { packageInclusionItems } from "@/features/packages/inclusions";
 import { DEFAULT_PROPOSAL_TERMS } from "@/features/booking/autopilot";
 import { oneOffReplaceConfirmText } from "@/features/proposals/workspace-guards";
@@ -313,8 +318,142 @@ test("the panel and the composer offer it, and the job's list tags it", () => {
 });
 
 test("its refusals read as sentences", () => {
-  for (const code of ["ONE_OFF_PACKAGE_NEEDS_OWNER", "ONE_OFF_PACKAGE_NEEDS_DETAIL"]) {
+  for (const code of ["ONE_OFF_PACKAGE_NEEDS_OWNER", "ONE_OFF_PACKAGE_NEEDS_DETAIL", "NOT_THIS_JOBS_ONE_OFF"]) {
     assert.match(crm, new RegExp(`throw new Error\\("${code}"\\)`));
     assert.notEqual(friendlyError(new Error(code), "fallback"), "fallback", code);
   }
+});
+
+/**
+ * GR Productions, 2026-10-01, the day after: a one-off could be written but
+ * not corrected — its edit page was reachable only by URL, and a Library edit
+ * would never have moved the job's price anyway — and a one-off worth selling
+ * again could not be kept. "Edit" and "Save to my Library" on the job's line.
+ */
+const branch = (type: string) => {
+  const start = crm.indexOf(`if (command.type === "${type}")`);
+  assert.notEqual(start, -1, `${type} handler not found`);
+  return crm.slice(start, crm.indexOf('command.type === "', start + 20));
+};
+
+test("editing fills the form back in from the package, and reads back the same", () => {
+  const values = oneOffFormValuesFrom({
+    name: "Elopement — 4 hours",
+    basePriceCents: 250050,
+    includedDeliverables: ["4 hours of coverage", "Online gallery", "150 edited photos"],
+    description: "ignored when there are lines",
+    includedCoverage: [
+      { role: "photographer", count: 2 },
+      { role: "videographer", count: 1 },
+    ],
+    includedCoverageMinutes: 450,
+  });
+  assert.deepEqual(values, {
+    name: "Elopement — 4 hours",
+    price: "2500.50",
+    included: "4 hours of coverage\nOnline gallery\n150 edited photos",
+    photographers: "2",
+    videographers: "1",
+    hours: "7.5",
+    mode: "add",
+    saveToLibrary: false,
+  });
+  const parsed = parseOneOffForm(values);
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.input.basePriceCents, 250050);
+  assert.deepEqual(parsed.input.included, ["4 hours of coverage", "Online gallery", "150 edited photos"]);
+  assert.equal(parsed.input.includedCoverageMinutes, 450);
+  assert.deepEqual(parsed.input.includedCoverage, [
+    { role: "photographer", count: 2 },
+    { role: "videographer", count: 1 },
+  ]);
+  // Whole dollars stay whole; a snapshot (packageName) and a legacy
+  // photographer count fill in too; nothing at all is an empty form.
+  const legacy = oneOffFormValuesFrom({ packageName: "Two-day", basePriceCents: 400000, includedPhotographers: 1, description: "Both days\nGallery" });
+  assert.equal(legacy.name, "Two-day");
+  assert.equal(legacy.price, "4000");
+  assert.equal(legacy.included, "Both days\nGallery");
+  assert.equal(legacy.photographers, "1");
+  assert.equal(legacy.hours, "");
+  assert.equal(oneOffFormValuesFrom(null).price, "");
+});
+
+test("editing a one-off updates it and re-prices the job's copy, with every package-change guard", () => {
+  assert.match(crm, /type: z\.literal\("updateOneOffPackage"\)/);
+  const edit = branch("updateOneOffPackage");
+  const firstWrite = edit.search(/transaction\.(create|update)\(/);
+  assert.ok(firstWrite > 0, "updateOneOffPackage writes nothing");
+  for (const guard of [
+    /managerRoles\.includes\(membershipData\.role\)[\s\S]*ONE_OFF_PACKAGE_NEEDS_OWNER/,
+    /projectDocument\.get\("tenantId"\) !== command\.tenantId/,
+    /hasProjectAccess\(membershipData, command\.input\.projectId\)/,
+    /packageDocument\.get\("tenantId"\) !== command\.tenantId/,
+    // Only this job's own one-off: a Library edit never moves a quoted price.
+    /oneOffProjectId\(packageDocument\.data\(\)\) !== command\.input\.projectId[\s\S]*NOT_THIS_JOBS_ONE_OFF/,
+    // "Editable until the agreement goes out", as every package change.
+    /assertPackagesEditable\(transaction/,
+    /ONE_OFF_PACKAGE_NEEDS_DETAIL/,
+    /PACKAGE_NOT_ON_JOB/,
+  ]) {
+    const match = guard.exec(edit);
+    assert.ok(match, `missing ${guard}`);
+    assert.ok(match.index < firstWrite, `${guard} comes after a write`);
+  }
+  // Priced by the same path as extras and discounts, from the new price,
+  // keeping the snapshot's extras and discount.
+  assert.match(edit, /snapshotDiscountRule\(previous\.data\(\)\)/);
+  assert.match(edit, /repriceSnapshot\(previous, packageDocument, lines, discountRule, command\.input\.basePriceCents\)/);
+  // The snapshot is immutable: a new one supersedes it and the job points at it.
+  assert.match(edit, /transaction\.create\(db\.doc\(`packageSnapshots\/\$\{snapshotId\}`\)/);
+  assert.match(edit, /supersedesSnapshotId: target/);
+  assert.match(edit, /packageVersion: nextVersion/);
+  assert.match(edit, /target === primary\s+\? \{ packageSnapshotId: snapshotId \}/);
+  // The package itself changes too, versioned, audited, with a receipt.
+  assert.match(edit, /transaction\.update\(packageReference, \{\s+\.\.\.content,\s+version: nextVersion/);
+  assert.match(edit, /action: "package\.one_off_updated"/);
+  assert.match(edit, /transaction\.create\(commandReference/);
+  // repriceSnapshot takes the corrected price only when given one.
+  assert.match(crm, /basePriceCents: number = Number\(previous\.get\("basePriceCents"\) \?\? 0\)/);
+});
+
+test("saving a one-off to the Library clears its flag, keeps it from couples, and is audited", () => {
+  assert.match(crm, /type: z\.literal\("saveOneOffToLibrary"\)/);
+  const save = branch("saveOneOffToLibrary");
+  const firstWrite = save.search(/transaction\.update\(/);
+  for (const guard of [
+    /managerRoles\.includes\(membershipData\.role\)[\s\S]*ONE_OFF_PACKAGE_NEEDS_OWNER/,
+    /packageDocument\.get\("tenantId"\) !== command\.tenantId/,
+    /hasProjectAccess\(membershipData, projectId\)/,
+  ]) {
+    const match = guard.exec(save);
+    assert.ok(match, `missing ${guard}`);
+    assert.ok(match.index < firstWrite, `${guard} comes after a write`);
+  }
+  assert.match(save, /oneOff: FieldValue\.delete\(\)/);
+  assert.match(save, /publicVisible: false/);
+  assert.match(save, /action: "package\.saved_to_library"/);
+  assert.match(save, /transaction\.create\(commandReference/);
+  // Once cleared, the ordinary catalogue filter lists it everywhere.
+  const saved = { id: "p1", tenantId: "t", active: true, name: "Elopement" };
+  assert.equal(isCataloguePackage(saved), true);
+  assert.equal(isOneOffPackage(saved), false);
+});
+
+test("the job's line offers Edit and Save to my Library on its own one-off", () => {
+  const panel = source("components/proposals/proposal-packages-panel.tsx");
+  const form = source("components/proposals/one-off-package-form.tsx");
+  // The one-off is read from the package, so one saved to the Library stops
+  // being tagged and offered as a one-off.
+  assert.match(panel, /oneOffProjectId\(record\) === projectId/);
+  assert.match(panel, /Save to my Library/);
+  assert.match(panel, /runCrmCommand\("saveOneOffToLibrary", \{ packageId \}\)/);
+  // Edit is the same form, filled in, and goes through change() — so the
+  // proposal is revised exactly as for every other package change.
+  assert.match(panel, /initial=\{oneOffFormValuesFrom\(oneOffPackage\)\}/);
+  assert.match(panel, /const editOneOff = [\s\S]*?change\(`edit-\$\{packageId\}`[\s\S]*?"updateOneOffPackage"/);
+  assert.match(panel, /oneOffPackage && !agreementOut \? \(/);
+  assert.match(form, /editing\s+\? "Save changes"/);
+  // Editing never moves it or saves it elsewhere.
+  assert.match(form, /hasPackage && !editing \?/);
 });

@@ -165,6 +165,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Only the studio owner or an admin can write a one-off package, because it sets a price. Ask one of them to add it.",
   ONE_OFF_PACKAGE_NEEDS_DETAIL:
     "Say what's included — one item per line, a little more than a word or two. Each line becomes a bullet on the proposal.",
+  // updateOneOffPackage on a package that is (now) in the Library.
+  NOT_THIS_JOBS_ONE_OFF:
+    "That package is in your Library now, so it's edited there — and a Library edit doesn't change a price a couple was already quoted. Refresh to see it.",
   PACKAGE_CHANGE_NEEDS_APPROVER:
     "This job has a proposal priced from its packages, so an owner or admin changes them — the proposal is re-priced at the same time.",
   AGREEMENT_CHANGED_SINCE_PREPARED:

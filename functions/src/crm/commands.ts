@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "./security.js";
@@ -16,6 +16,8 @@ import { selectionDiscount, snapshotDiscountRule } from "../pricing/discount-rul
 import { packageChangeNeedsApprover } from "../booking/proposal-domain.js";
 import {
   isCataloguePackage,
+  isOneOffPackage,
+  oneOffProjectId,
   oneOffCoverage,
   oneOffCoverageMinutes,
   oneOffDescription,
@@ -751,6 +753,43 @@ const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
+     * Correct a one-off package on its own job: the name, price, what's
+     * included, coverage. Unlike a Library edit (updatePackage), which never
+     * moves a price a couple was already quoted, a one-off exists only for
+     * this job, so the edit is the job's: the package is updated and the
+     * job's snapshot of it priced again into a new one (repriceSnapshot, as
+     * setJobAddOns and setPackageDiscount do, keeping its extras and
+     * discount). The proposal is then revised from the job's packages. Same
+     * guards as any package change: until the agreement goes out.
+     */
+    type: z.literal("updateOneOffPackage"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      packageId: z.string().min(1),
+      name: z.string().trim().min(2).max(120),
+      basePriceCents: z.number().int().nonnegative().safe(),
+      included: z.array(z.string().trim().min(1).max(300)).min(1).max(40),
+      includedCoverage: includedCoverageSchema.optional(),
+      includedCoverageMinutes: z.number().int().positive().max(1440).optional(),
+    }),
+  }),
+  z.object({
+    /**
+     * Keep a one-off for other couples: clear its `oneOff` flag so it becomes
+     * an ordinary Library package. Hidden from couples (publicVisible false)
+     * until the studio publishes it. Prices nothing, so nothing is re-priced.
+     */
+    type: z.literal("saveOneOffToLibrary"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      packageId: z.string().min(1),
+    }),
+  }),
+  z.object({
+    /**
      * The discount on one package on a job, changed after it was chosen: 10%
      * off, $250 off, or none. The snapshot is immutable, so the package is
      * priced again into a new one, as setJobAddOns does, and the proposal is
@@ -918,10 +957,12 @@ function repriceSnapshot(
   packageDocument: FirebaseFirestore.DocumentSnapshot,
   addOns: ReadonlyArray<{ unitPriceCents: number; quantity: number; taxable: boolean }>,
   discount: PackageDiscount,
+  /** updateOneOffPackage only: the one-off's corrected price. */
+  basePriceCents: number = Number(previous.get("basePriceCents") ?? 0),
 ) {
   const rule = packageDocument.get("retainerRule") as { type?: string; basisPoints?: number } | undefined;
   return pricePackage({
-    basePriceCents: Number(previous.get("basePriceCents") ?? 0),
+    basePriceCents,
     addOns,
     discount,
     // Untaxed as quoted stays untaxed — unless it was untaxed only because a
@@ -3024,6 +3065,223 @@ export const crmCommand = onRequest(
             createdAt: timestamp,
           });
           return output;
+        }
+
+        if (command.type === "updateOneOffPackage") {
+          // A price change, so an owner's or admin's — as writing one was.
+          if (!managerRoles.includes(membershipData.role)) {
+            throw new Error("ONE_OFF_PACKAGE_NEEDS_OWNER");
+          }
+          const projectReference = db.doc(`projects/${command.input.projectId}`);
+          const projectDocument = await transaction.get(projectReference);
+          if (!projectDocument.exists || projectDocument.get("tenantId") !== command.tenantId) {
+            throw new Error("PROJECT_NOT_FOUND");
+          }
+          if (!hasProjectAccess(membershipData, command.input.projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
+          }
+          const packageReference = db.doc(`packages/${command.input.packageId}`);
+          const packageDocument = await transaction.get(packageReference);
+          if (!packageDocument.exists || packageDocument.get("tenantId") !== command.tenantId) {
+            throw new Error("PACKAGE_NOT_FOUND");
+          }
+          // Only this job's own one-off. A Library package (including a
+          // one-off since saved to it) is edited in the Library, where an edit
+          // never moves a price any couple was already quoted.
+          if (oneOffProjectId(packageDocument.data()) !== command.input.projectId) {
+            throw new Error("NOT_THIS_JOBS_ONE_OFF");
+          }
+          await assertPackagesEditable(transaction, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            state: String(projectDocument.get("state")),
+            role: String(membershipData.role),
+          });
+          const included = oneOffInclusionLines(command.input.included);
+          if (!included.length || oneOffDescription(included).length < 10) {
+            throw new Error("ONE_OFF_PACKAGE_NEEDS_DETAIL");
+          }
+          const primary = String(projectDocument.get("packageSnapshotId") ?? "");
+          const additional = Array.isArray(projectDocument.get("additionalPackageSnapshotIds"))
+            ? (projectDocument.get("additionalPackageSnapshotIds") as unknown[]).map(String)
+            : [];
+          const onJob = await Promise.all(
+            [primary, ...additional]
+              .filter(Boolean)
+              .map((id) => transaction.get(db.doc(`packageSnapshots/${id}`))),
+          );
+          const previous = onJob.find(
+            (snapshot) =>
+              snapshot.exists &&
+              snapshot.get("tenantId") === command.tenantId &&
+              snapshot.get("packageId") === command.input.packageId,
+          );
+          // Swapped off the job, it has no price here to correct.
+          if (!previous) throw new Error("PACKAGE_NOT_ON_JOB");
+          const target = previous.id;
+
+          const description = oneOffDescription(included);
+          const coverage = oneOffCoverage(command.input.includedCoverage);
+          const includedCoverageMinutes = oneOffCoverageMinutes(
+            command.input.includedCoverageMinutes,
+            previous.get("includedCoverageMinutes") ?? packageDocument.get("includedCoverageMinutes"),
+          );
+          const nextVersion = Number(packageDocument.get("version") ?? 1) + 1;
+          const content = {
+            name: command.input.name,
+            description,
+            includedDeliverables: included,
+            basePriceCents: command.input.basePriceCents,
+            includedCoverageMinutes,
+            ...coverageFields(coverage),
+          };
+          // The job's copy, priced again exactly as an extras or discount
+          // change prices it: its extras and discount kept, a percentage
+          // retainer following the new total, a fixed or per-crew one staying
+          // the amount it was (repriceSnapshot).
+          const lines = (Array.isArray(previous.get("addOns")) ? (previous.get("addOns") as Array<Record<string, unknown>>) : []).map(
+            (line) => ({
+              unitPriceCents: Number(line.unitPriceCents ?? 0),
+              quantity: Number(line.quantity ?? 1),
+              taxable: line.taxable !== false,
+            }),
+          );
+          const discountRule = snapshotDiscountRule(previous.data());
+          const priced = repriceSnapshot(previous, packageDocument, lines, discountRule, command.input.basePriceCents);
+
+          transaction.update(packageReference, {
+            ...content,
+            version: nextVersion,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const snapshotId = randomUUID();
+          transaction.create(db.doc(`packageSnapshots/${snapshotId}`), {
+            ...previous.data(),
+            id: snapshotId,
+            packageVersion: nextVersion,
+            packageName: command.input.name,
+            description,
+            includedDeliverables: included,
+            basePriceCents: command.input.basePriceCents,
+            includedCoverageMinutes,
+            ...coverageFields(coverage),
+            discountRule,
+            discountCents: priced.discountCents,
+            subtotalCents: priced.subtotalCents,
+            taxCents: priced.taxCents,
+            retainerCents: priced.retainerCents,
+            totalCents: priced.totalCents,
+            supersedesSnapshotId: target,
+            selectionDate: timestamp,
+            selectedBy: identity.uid,
+            createdAt: timestamp,
+            createdBy: identity.uid,
+          });
+          const next =
+            target === primary
+              ? { packageSnapshotId: snapshotId }
+              : { additionalPackageSnapshotIds: additional.map((id) => (id === target ? snapshotId : id)) };
+          transaction.update(projectReference, { ...next, updatedAt: timestamp, updatedBy: identity.uid });
+          const editAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${editAuditId}`), {
+            id: editAuditId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "package.one_off_updated",
+            entityType: "package",
+            entityId: command.input.packageId,
+            timestamp,
+            before: {
+              ...Object.fromEntries(Object.keys(content).map((key) => [key, packageDocument.get(key) ?? null])),
+              version: packageDocument.get("version") ?? 1,
+              packageSnapshotId: target,
+              totalCents: previous.get("totalCents") ?? null,
+            },
+            after: { ...content, version: nextVersion, packageSnapshotId: snapshotId, totalCents: priced.totalCents },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = {
+            packageId: command.input.packageId,
+            version: nextVersion,
+            packageSnapshotId: snapshotId,
+            replaced: target,
+            totalCents: priced.totalCents,
+          };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "saveOneOffToLibrary") {
+          // The Library is the studio's price list: an owner's or admin's.
+          if (!managerRoles.includes(membershipData.role)) {
+            throw new Error("ONE_OFF_PACKAGE_NEEDS_OWNER");
+          }
+          const packageReference = db.doc(`packages/${command.input.packageId}`);
+          const packageDocument = await transaction.get(packageReference);
+          if (!packageDocument.exists || packageDocument.get("tenantId") !== command.tenantId) {
+            throw new Error("PACKAGE_NOT_FOUND");
+          }
+          const projectId = oneOffProjectId(packageDocument.data());
+          if (!isOneOffPackage(packageDocument.data())) {
+            // Already a Library package: nothing to do, and nothing to refuse.
+            const settled = { packageId: packageDocument.id, alreadyInLibrary: true };
+            transaction.create(commandReference, {
+              tenantId: command.tenantId,
+              idempotencyKey: command.idempotencyKey,
+              result: settled,
+              createdAt: timestamp,
+            });
+            return settled;
+          }
+          if (projectId && !hasProjectAccess(membershipData, projectId)) {
+            throw new Error("PROJECT_NOT_PERMITTED");
+          }
+          transaction.update(packageReference, {
+            oneOff: FieldValue.delete(),
+            // In the Library, never on the couple's portal until published.
+            publicVisible: false,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          const libraryAuditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${libraryAuditId}`), {
+            id: libraryAuditId,
+            tenantId: command.tenantId,
+            projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "package.saved_to_library",
+            entityType: "package",
+            entityId: packageDocument.id,
+            timestamp,
+            before: { oneOff: packageDocument.get("oneOff") ?? null, publicVisible: packageDocument.get("publicVisible") ?? null },
+            after: { oneOff: null, publicVisible: false },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const saved = { packageId: packageDocument.id, alreadyInLibrary: false };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: saved,
+            createdAt: timestamp,
+          });
+          return saved;
         }
 
         if (command.type === "updateContact") {

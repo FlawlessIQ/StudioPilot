@@ -52,6 +52,9 @@ const CRM_PROJECT_COMMANDS = [
   "associateClientProject",
   // A package written for one couple, locked onto their job (2026-10-01).
   "createOneOffPackage",
+  // Correcting that one-off, and keeping it for other couples.
+  "updateOneOffPackage",
+  "saveOneOffToLibrary",
 ];
 
 test("each project-scoped crmCommand branch checks assignment", () => {
