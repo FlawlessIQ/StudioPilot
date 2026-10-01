@@ -7,7 +7,7 @@ import { FinalBalanceActions } from "@/components/booking/final-balance-actions"
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ApproveFinalInvoice, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { ApproveFinalInvoice, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
 import { statusLabel } from "@/features/format/status-label";
 import { InfoHint } from "@/components/ui/info-hint";
 
@@ -149,6 +149,11 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                       {`Was ${money(calculation.expectedBalanceCents ?? invoice.amountCents, invoice.currency)} when it was raised; payments since are taken off.`}
                     </small>
                   ) : null}
+                  {/* Part paid: the figure above is the bill, this is what is
+                      still owed on it (and what autopay would charge). */}
+                  {invoice.status === "partially_paid" ? (
+                    <small>{`${money(invoice.balanceCents, invoice.currency)} left to pay.`}</small>
+                  ) : null}
                 </span>
                 <StatusBadge
                   tone={inReview ? "warning" : invoice.status === "paid" ? "success" : "neutral"}
@@ -207,6 +212,7 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
               {inReview ? (
                 <ApproveFinalInvoice amountCents={reviewDue} invoice={invoice} onDone={setSettled} />
               ) : null}
+              <RecordInvoicePayment invoice={invoice} onDone={setSettled} />
               <VoidInvoice invoice={invoice} onDone={setSettled} />
             </article>
           );

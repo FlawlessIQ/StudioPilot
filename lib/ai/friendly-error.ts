@@ -136,7 +136,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PAYMENT_AMOUNT_INVALID: "Enter the amount that actually arrived, in dollars and cents.",
   PAYMENT_EXCEEDS_INVOICE: "That's more than this invoice was for. Enter what was paid against it.",
   PARTIAL_PAYMENT_AT_PROVIDER:
-    "This invoice lives in your invoicing app, which never saw this payment. Record a part payment there so the balance it charges is right, or correct this to the full amount or to nothing paid.",
+    "This invoice lives in your invoicing app, which never saw this payment, so correct it to the full amount or to nothing paid. If only part arrived, correct it to nothing, then use Record a payment for what did — that records it in your invoicing app too.",
+  // Recording a payment against a bill (bookingCommand recordInvoicePayment).
+  PAYMENT_RECORD_PERMISSION_REQUIRED: "Only the studio's owners and admins can record a payment.",
+  INVOICE_NOT_PAYABLE:
+    "That invoice is already paid, voided or replaced, so there's nothing to record a payment against. Refresh to see where it is.",
+  INVOICE_NOT_BILLED_YET:
+    "That invoice hasn't reached the couple yet — it's still being created or held for review. Record the payment once it's out.",
+  INVOICE_NOTHING_OWED: "Nothing is left to pay on that invoice.",
+  PAYMENT_EXCEEDS_BALANCE: "That's more than is left to pay on this invoice. Enter what arrived, up to the balance.",
   FINAL_INVOICE_NOT_IN_REVIEW: "That final bill isn't waiting for review any more. Refresh to see where it is.",
   FINAL_AMOUNT_CHANGED:
     "The balance changed since this page loaded — a payment was recorded or a bill changed. Refresh and check the new amount before sending.",

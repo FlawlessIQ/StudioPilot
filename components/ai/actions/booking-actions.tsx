@@ -28,7 +28,8 @@ import { NativeContractStep } from "@/components/contracts/native-contract-step"
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { invoiceVoidRefusal, paymentCorrectable } from "@/features/booking/invoice-corrections";
-import { ApproveFinalInvoice, CorrectPayment, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { ApproveFinalInvoice, CorrectPayment, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import { statusLabel } from "@/features/format/status-label";
 import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
@@ -1412,6 +1413,51 @@ export function VoidInvoiceCard({ action }: ActionCardProps) {
           <div key={invoice.id}>
             <p className="cue-action-note">{invoiceLine(invoice)}</p>
             <VoidInvoice defaultReason={action.text ?? ""} invoice={invoice} onDone={setMessage} />
+          </div>
+        ))}
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+/**
+ * Money towards a bill already out with the couple — part of it or the rest:
+ * the booking page's own control. The operator types the amount; the server
+ * holds it to the balance and records it in QuickBooks or Stripe too.
+ */
+export function RecordPartialPaymentCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const invoices = useRecords("invoiceReferences");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const [message, setMessage] = useState<string | null>(null);
+  const title = `Record a payment · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
+  const kind = namedInvoiceKind(action.subject);
+  const payable = onJob(invoices, job.id).filter(
+    (item) => invoicePaymentRefusal(item) === null && (!kind || str(item.kind) === kind),
+  );
+  if (!payable.length)
+    return (
+      <ActionShell title={title}>
+        <Blocked>
+          {`${jobName(job)} has no ${kind ?? ""} invoice out with the couple with anything left to pay. If they paid before a bill went out, record it from the retainer or final balance step instead.`.replace(/\s+/g, " ")}
+        </Blocked>
+      </ActionShell>
+    );
+  return (
+    <ActionShell
+      detail="You enter what arrived, up to what's left. It's recorded against your name, and in QuickBooks or Stripe too so the couple's link asks only for the rest."
+      icon={<HandCoins size={15} />}
+      title={title}
+    >
+      <Embedded>
+        {payable.map((invoice) => (
+          <div key={invoice.id}>
+            <p className="cue-action-note">{`${invoiceLine(invoice)} · ${dollars(invoice.balanceCents)} left`}</p>
+            <RecordInvoicePayment invoice={invoice} onDone={setMessage} />
           </div>
         ))}
       </Embedded>

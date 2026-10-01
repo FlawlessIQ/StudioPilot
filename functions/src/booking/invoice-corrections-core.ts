@@ -121,8 +121,9 @@ export type PaymentCorrectionPlan =
  * Partial amounts are accepted only for a record StudioCue keeps alone (a
  * payment recorded by hand, or imported). On an invoice the provider holds,
  * its balance is the one autopay charges and the one every sync reports, and
- * the provider never saw this payment — so a part payment there has to be
- * recorded in QuickBooks or Stripe, where StudioCue will follow it.
+ * the provider never saw this payment. A part payment there is withdrawn to
+ * nothing here and recorded with recordInvoicePayment (invoice-payments),
+ * which records it at the provider too.
  */
 export function planPaymentCorrection(
   invoice: CorrectableInvoice,

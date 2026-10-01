@@ -55,7 +55,12 @@ const STUDIO_VOUCHED = new Set(["manual_attested", "imported"]);
  * exactly as it was, and says why.
  */
 export function providerReportedInvoice(input: {
-  current: { status: unknown; completionAuthority?: unknown; balanceCents?: unknown };
+  current: {
+    status: unknown;
+    completionAuthority?: unknown;
+    balanceCents?: unknown;
+    studioPayments?: unknown;
+  };
   reported: { status: string; balanceCents: number };
 }): { status: string; balanceCents: number; keptReason: string | null } {
   const { current, reported } = input;
@@ -73,5 +78,29 @@ export function providerReportedInvoice(input: {
       balanceCents: Number(current.balanceCents ?? 0),
       keptReason: "closed_in_studiocue",
     };
+  // A payment the studio recorded here that QuickBooks or Stripe has not taken
+  // yet (its job is queued, or failed and the studio was asked to record it
+  // there). Until the provider has it, the provider's higher balance is the
+  // one that is out of date: re-reading it would put the money back on the
+  // couple's bill, and autopay would charge it.
+  const currentBalance = Number(current.balanceCents ?? 0);
+  if (unconfirmedStudioPaymentCents(current.studioPayments) > 0 && reported.balanceCents > currentBalance)
+    return { status, balanceCents: currentBalance, keptReason: "studio_payment_not_at_provider" };
   return { ...reported, keptReason: null };
+}
+
+/**
+ * Paid here, by a payment a person recorded (booking/invoice-payments), and
+ * not yet taken by the provider: its push is queued, or failed.
+ */
+export function unconfirmedStudioPaymentCents(studioPayments: unknown): number {
+  if (!Array.isArray(studioPayments)) return 0;
+  return studioPayments.reduce<number>((sum, payment) => {
+    const entry = (payment ?? {}) as { amountCents?: unknown; provider?: { state?: unknown } | null };
+    const state = String(entry.provider?.state ?? "");
+    const amount = Number(entry.amountCents);
+    return (state === "queued" || state === "failed") && Number.isSafeInteger(amount) && amount > 0
+      ? sum + amount
+      : sum;
+  }, 0);
 }

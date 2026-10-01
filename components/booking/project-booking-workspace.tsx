@@ -45,7 +45,8 @@ import {
 } from "@/features/booking/orchestration";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
-import { CorrectPayment, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { CorrectPayment, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import {
   friendlyError as friendlySharedError,
   isVersionConflict,
@@ -1565,7 +1566,28 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   webhook for money that never went through QuickBooks. It
                   settles the standing invoice rather than raising a second one.
                 */}
-                {packageSnapshot && Number(invoice.balanceCents ?? 0) > 0 ? (
+                {/*
+                  An invoice out with the couple takes a payment of any size
+                  up to its balance, and QuickBooks or Stripe is told too.
+                  The whole-retainer form stays for an invoice not yet out
+                  (still being created), which has no provider balance to
+                  update.
+                */}
+                {invoicePaymentRefusal(invoice) === null ? (
+                  <RecordInvoicePayment
+                    invoice={invoice}
+                    onDone={(message) => {
+                      setNotice(message);
+                      refreshTenantRecords(
+                        "projects",
+                        "invoiceReferences",
+                        "checkpoints",
+                        "readinessAssessments",
+                      );
+                      void load();
+                    }}
+                  />
+                ) : packageSnapshot && Number(invoice.balanceCents ?? 0) > 0 ? (
                   <RecordRetainerPayment
                     onRecorded={(message) => {
                       // The branch this control lives in unmounts as soon as

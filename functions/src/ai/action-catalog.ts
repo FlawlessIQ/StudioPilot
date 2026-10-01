@@ -107,6 +107,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "record_final_payment", scope: "project", when: "the couple paid the balance/final payment outside StudioCue — the operator types the amount" },
   { id: "approve_retainer_exception", scope: "project", when: "let a job book before the retainer is paid (an agreed exception)" },
   { id: "void_invoice", scope: "project", when: "void / cancel / take back an unpaid retainer or final invoice that's wrong or no longer owed (it's voided in QuickBooks or Stripe too) — 'retainer' or 'final' in `subject`, why in `text`" },
+  { id: "record_partial_payment", scope: "project", when: "the couple paid part of (or the rest of) a retainer or final invoice already out with them — a part payment, an instalment, money towards the bill; it's recorded in QuickBooks or Stripe too — 'retainer' or 'final' in `subject`; the operator types the amount" },
   { id: "correct_payment", scope: "project", when: "fix a payment the studio recorded by mistake (wrong date, wrong amount, recorded on the wrong job, or it never arrived) — 'retainer' or 'final' in `subject`" },
   { id: "find_quickbooks_payments", scope: "project", when: "look up the couple's payments in QuickBooks" },
   // Booking

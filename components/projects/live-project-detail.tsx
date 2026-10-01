@@ -674,7 +674,9 @@ function ProjectMoveBackControl({
       setReason("");
       setNotice(
         move.route === "uncancelProject"
-          ? `The job is back at ${stateLabel(move.target)}. Re-offer the crew and re-send any invoice or agreement it needs — nothing came back on its own.`
+          ? ["BOOKED", "PLANNING", "READY"].includes(move.target)
+            ? `The job is back at ${stateLabel(move.target)}, and back on your Google Calendar if it's connected. Re-offer the crew (their invites were withdrawn) and re-send any invoice or agreement it needs.`
+            : `The job is back at ${stateLabel(move.target)}. Re-offer the crew and re-send any invoice or agreement it needs — nothing came back on its own.`
           : move.route === "reopenJob"
             ? `The job is back at ${stateLabel(move.target)}. Review and album asks are paused until you deliver again.`
             : `The job is back at ${stateLabel(move.target)}.`,

@@ -280,6 +280,26 @@ export async function correctPaymentRecord(input: {
 }
 
 /**
+ * Record a payment — the whole balance or part of it — against a retainer or
+ * final bill. The server checks it against the balance and records it in
+ * QuickBooks or Stripe too (functions/src/booking/invoice-payments.ts).
+ */
+export async function recordInvoicePayment(input: {
+  projectId: string;
+  invoiceId: string;
+  amountCents: number;
+  paidAt: string;
+  method: string;
+  reference: string | null;
+}) {
+  return sendBookingCommand({
+    type: "recordInvoicePayment",
+    idempotencyKey: `payment_${input.invoiceId}_${crypto.randomUUID()}`,
+    input: { ...input, attestation: true },
+  });
+}
+
+/**
  * Send a final bill held for review. `confirmAmountCents` is the figure the
  * studio was shown; the server works the balance out again and refuses if it
  * has changed, so it never takes the amount from here.

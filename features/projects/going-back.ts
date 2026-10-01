@@ -184,8 +184,12 @@ export function backwardMovesFor(
         target: from,
         route: "uncancelProject",
         label: "Undo the cancel",
-        detail:
-          "The job goes back to where it was. Crew, invoices and the agreement stay released and voided — re-offer the crew and re-send what the couple needs.",
+        // The studio's calendar event comes back with a booked job
+        // (uncancelProject queues it); the crew's invites do not, because
+        // the crew were released and get theirs again when they accept.
+        detail: ["BOOKED", "PLANNING", "READY"].includes(from)
+          ? "The job goes back to where it was, and the wedding goes back on your Google Calendar if it's connected. Crew, invoices and the agreement stay released and voided — the crew's calendar invites were withdrawn, so re-offer the crew and re-send what the couple needs."
+          : "The job goes back to where it was. Crew, invoices and the agreement stay released and voided — re-offer the crew and re-send what the couple needs.",
         ownerOnly: true,
         needsReason: true,
         blocked: null,

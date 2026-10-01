@@ -57,6 +57,18 @@ const FAILURES: Record<string, ProviderFailure> = {
     title: "The invoice wasn't voided — void it yourself",
     provider: "Stripe",
   },
+  record_quickbooks_payment: {
+    title: "A payment you recorded isn't in QuickBooks — record it there yourself",
+    provider: "QuickBooks",
+  },
+  record_stripe_payment: {
+    title: "A payment you recorded isn't in Stripe — record it there yourself",
+    provider: "Stripe",
+  },
+  restore_booking_calendar_event: {
+    title: "The wedding wasn't put back on your calendar",
+    provider: "your calendar",
+  },
   create_consultation_resources: {
     title: "The consultation call wasn't booked",
     provider: "your calendar",

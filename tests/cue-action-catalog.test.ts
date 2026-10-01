@@ -111,7 +111,7 @@ const REACHED: Record<string, string> = {
   setSignedCopyShared: "SignedCopySharing", recordSignedAgreement: "RecordSignedAgreement",
   createRetainerInvoice: "\"createRetainerInvoice\"", recordRetainerPayment: "RecordRetainerPayment",
   recordFinalPayment: "RecordFinalPayment", sendFinalBalance: "FinalBalanceActions", approveRetainerException: "BookWithoutRetainer",
-  voidInvoice: "<VoidInvoice", correctPaymentRecord: "<CorrectPayment", approveFinalInvoice: "<ApproveFinalInvoice",
+  voidInvoice: "<VoidInvoice", correctPaymentRecord: "<CorrectPayment", recordInvoicePayment: "<RecordInvoicePayment", approveFinalInvoice: "<ApproveFinalInvoice",
   lookupQuickBooksPayments: "lookupQuickBooksPayments", runBookingGate: "\"runBookingGate\"",
   previewExistingBookings: "ExistingBookingForm", importExistingBooking: "ExistingBookingForm",
   attachImportedSignedCopy: "ExistingBookingForm", bringImportedBookingLive: "ImportedBookingBanner",

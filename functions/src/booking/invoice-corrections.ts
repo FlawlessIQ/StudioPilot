@@ -35,7 +35,7 @@ import { voidInvoiceTask } from "./stopped-billing.js";
 
 const OWNER_ADMIN = ["studio_owner", "studio_admin"];
 
-function stableId(scope: string, ...parts: string[]): string {
+export function stableId(scope: string, ...parts: string[]): string {
   return `${scope}_${createHash("sha256").update(parts.join(":")).digest("hex").slice(0, 32)}`;
 }
 
@@ -81,7 +81,7 @@ function invoiceFields(invoice: DocumentSnapshot): CorrectableInvoice {
   return (invoice.data() ?? {}) as CorrectableInvoice;
 }
 
-function auditEvent(
+export function auditEvent(
   context: CorrectionContext,
   input: { scope: string; projectId: string; action: string; entityId: string; before: unknown; after: unknown },
 ) {
@@ -109,7 +109,7 @@ function auditEvent(
   };
 }
 
-async function readJobInvoice(
+export async function readJobInvoice(
   db: Firestore,
   transaction: Transaction,
   context: CorrectionContext,
