@@ -156,6 +156,14 @@ const LABELS: Record<string, { one: string; many: string }> = {
   auditEvents: { one: "audit entry", many: "audit entries" },
   notifications: { one: "notification", many: "notifications" },
   domainEvents: { one: "system event", many: "system events" },
+  // Named on the live preview of a real job (2026-10-01), where they showed
+  // as raw collection names.
+  productEvents: { one: "activity log entry", many: "activity log entries" },
+  providerJobs: { one: "connected-app sync", many: "connected-app syncs" },
+  pdfJobs: { one: "PDF build", many: "PDF builds" },
+  copilotThreads: { one: "Cue conversation", many: "Cue conversations" },
+  replyApprovals: { one: "reply approval", many: "reply approvals" },
+  vendors: { one: "vendor", many: "vendors" },
 };
 
 export function purgeLineLabel(collection: string, count: number): string {

@@ -130,7 +130,7 @@ export function DeleteJobPermanently({
             <div className="project-danger-columns">
               <section>
                 <h4>
-                  {`Deleted — ${total} ${total === 1 ? "record" : "records"}${
+                  {`Will be deleted — ${total} ${total === 1 ? "record" : "records"}${
                     preview.fileCount
                       ? ` and ${preview.fileCount} ${preview.fileCount === 1 ? "file" : "files"}`
                       : ""
@@ -150,7 +150,7 @@ export function DeleteJobPermanently({
                 ) : null}
               </section>
               <section>
-                <h4>Kept</h4>
+                <h4>Stays</h4>
                 <ul>
                   {PURGE_KEEPS.map((kept) => (
                     <li key={kept}>{kept}</li>
