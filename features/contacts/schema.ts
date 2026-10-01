@@ -13,6 +13,28 @@ export const contactTypeSchema = z.enum([
   "other",
 ]);
 
+/**
+ * Where the client is billed.
+ *
+ * QuickBooks works out US sales tax from the customer's address, and GR
+ * Productions creates every customer with one for exactly that reason
+ * (2026-10-01). Optional: a studio that bills no tax never needs it.
+ * Mirrored in functions/src/crm/commands.ts (updateContact) and compared by
+ * tests/quickbooks-invoice-lines.test.ts.
+ */
+export const billingAddressSchema = z.object({
+  line1: z.string().trim().min(1).max(200),
+  line2: z.string().trim().max(200).nullable().default(null),
+  city: z.string().trim().min(1).max(120),
+  /** State or province: "NJ". */
+  region: z.string().trim().max(80).nullable().default(null),
+  postalCode: z.string().trim().max(20).nullable().default(null),
+  /** ISO 3166-1 alpha-2. */
+  country: z.string().trim().length(2).toUpperCase().default("US"),
+});
+
+export type BillingAddress = z.infer<typeof billingAddressSchema>;
+
 export const contactSchema = auditFieldsSchema.extend({
   id: z.string().min(1),
   tenantId: z.string().min(1),
@@ -29,6 +51,7 @@ export const contactSchema = auditFieldsSchema.extend({
   portalUserId: z.string().nullable(),
   marketingConsent: z.boolean(),
   notes: z.string().max(5000).nullable(),
+  billingAddress: billingAddressSchema.nullable().optional(),
   archivedAt: z.string().datetime().nullable(),
 });
 

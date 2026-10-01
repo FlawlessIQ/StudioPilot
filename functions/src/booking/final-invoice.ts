@@ -167,6 +167,9 @@ export async function raiseFinalInvoice(
         : []),
     ],
     packageTotalCents: totalCents,
+    // The tax inside packageTotalCents, so the QuickBooks invoice can show the
+    // packages at full price and the tax on top (quickbooks-invoice-lines.ts).
+    taxCents,
     retainerExpectedCents,
     retainerPaidCents,
     expectedBalanceCents: amountCents,

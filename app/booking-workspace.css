@@ -219,6 +219,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* The lines sent to QuickBooks take the full width under Amount / Balance. */
+.booking-evidence > .invoice-calculation-lines {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .booking-evidence a {
   grid-column: 1 / -1;
   display: inline-flex;

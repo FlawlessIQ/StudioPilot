@@ -46,6 +46,7 @@ import {
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { CorrectPayment, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { ProviderInvoiceLines } from "@/components/booking/provider-invoice-lines";
 import { invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import {
   QUICKBOOKS_NO_PAY_LINK_NOTE,
@@ -1537,6 +1538,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   studio directly. The studio needs to know why, and that
                   "Record a payment" below is how the money gets in.
                 */}
+                {/* The lines QuickBooks received — crew × the per-crew
+                    retainer, then the packages at $0 — and a warning when
+                    QuickBooks billed something else. */}
+                <ProviderInvoiceLines invoice={invoice} />
                 {quickBooksInvoiceWithoutPayLink(invoice) && invoicePaymentRefusal(invoice) === null ? (
                   <p className="booking-delivery-warning" role="status">
                     <CircleAlert aria-hidden="true" size={14} />

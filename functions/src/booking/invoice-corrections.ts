@@ -408,6 +408,7 @@ export async function approveFinalInvoiceIn(
         { label: "Payments received", amountCents: -paidCents, source: "invoiceReferences" },
       ],
       packageTotalCents: totalCents,
+      taxCents,
       expectedBalanceCents: amountCents,
       // What was flagged stays on the record, with who looked and said go.
       reviewedDiscrepancies: Array.isArray(calculation.discrepancies) ? calculation.discrepancies : [],

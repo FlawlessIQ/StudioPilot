@@ -26,7 +26,7 @@ import { IgnoredSenders } from "@/components/intake/ignored-senders";
 import { useLeadCaptureSetup } from "@/components/intake/lead-capture-setup";
 import { ProjectEdit } from "@/components/projects/project-edit";
 import { ProjectAddClient } from "@/components/projects/project-add-client";
-import { ClientRecordActions } from "@/components/clients/client-record-actions";
+import { billingAddressOf, ClientRecordActions } from "@/components/clients/client-record-actions";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
 import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import {
@@ -575,7 +575,10 @@ export function EditContactCard({ action }: ActionCardProps) {
         </>
       ) : client ? (
         <Embedded>
-          <ClientRecordActions archived={Boolean(contact?.archivedAt)} client={client} />
+          <ClientRecordActions
+            archived={Boolean(contact?.archivedAt)}
+            client={{ ...client, billingAddress: billingAddressOf(contact?.billingAddress) }}
+          />
         </Embedded>
       ) : null}
       <Notice text={runner.notice} />

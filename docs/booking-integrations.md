@@ -99,3 +99,72 @@ there. A refused password marks the connection `error / APPLE_CALENDAR_AUTH_FAIL
 the card asks for a reconnect. Disconnect destroys the secret's versions like any other
 provider. Nothing to configure on StudioCue's side; the card is live wherever the
 integration Functions are.
+
+## QuickBooks invoices, line by line (GR Productions, 2026-10-01)
+
+QuickBooks invoices used to be one line — the word "retainer" or "final", quantity 1,
+the whole amount. They now follow how GR Productions builds them by hand. The rules are
+pure functions in `functions/src/operations/quickbooks-invoice-lines.ts` (pinned by
+`tests/quickbooks-invoice-lines.test.ts`); `quickbooks-invoice-plan.ts` gathers the job's
+accepted proposal, package snapshots and the studio package's retainer rule for them.
+
+**Customer.** Created with `GivenName`, `FamilyName` (the contact's first/last name, else
+the display name split), `PrimaryEmailAddr`, `PrimaryPhone` and `BillAddr` from the
+contact's optional `billingAddress` (studio Clients → Edit; `updateContact`). An existing
+customer — matched by email, by name, stored on the contact, or carried by the invoice —
+is only ever **filled where blank**, by a sparse update: whatever the studio typed in
+QuickBooks stays. A refused fill is logged (`quickbooks.customer_fill_skipped`) and never
+stops the invoice. The address matters because QuickBooks' Automated Sales Tax
+attributes tax by the customer's address.
+
+**Retainer invoice.** Line 1 is the retainer: `Qty = billed crew`, `UnitPrice = amount per
+crew member` when the package bills per crew member (packages sharing a rate are one line,
+crew added up), else `1 × the retainer`. Then every package (and extra) from the accepted
+proposal at **$0**, described as the proposal reads — "Gold Photo Package — 2
+photographers, 8 hours" and its bullets. When the retainer StudioCue bills is not the sum
+of the parts (set by hand, percentage, capped), it is one line of the whole amount. The
+lines always total the retainer. Retainer lines are never taxable.
+
+**Final invoice.** Every package and extra at full price (taxable as agreed: the package
+always, an extra per its own flag), the discount as a negative line, **"Retainer received"
+as a negative non-taxable line**, any later payments as another, then sales tax on the
+full package amount. Lines + tax = the balance StudioCue computed
+(`final-invoice.ts`: total − retainer − earlier payments). Lines that don't add up to the
+agreed price (an amendment) collapse to one "Packages" line of the right amount.
+
+### Sales tax: StudioCue's agreed tax, recorded as QuickBooks sales tax
+
+StudioCue's totals already **include** tax at the package's `taxRateBasisPoints`, and that
+total is what the couple signed. Letting QuickBooks compute its own tax on top risks two
+things: charging tax twice (if the tax were also in a line), or billing a different figure
+from the agreement (if QuickBooks' rate for the address differs from the package's). So
+StudioCue sends the **pre-tax** package lines and its own tax figure, and QuickBooks
+records it. Per company (`quickBooksTaxMode`, from the Preferences read already made for
+DocNumbers):
+
+| Company | Lines | Tax |
+|---|---|---|
+| US, Automated Sales Tax (`TaxPrefs.UsingSalesTax` + `PartnerTaxEnabled`) | `TaxCodeRef` TAX on taxable lines, NON on retainer/payment lines | `TxnTaxDetail.TotalTax` = StudioCue's tax (override). No tax agreed → every line NON, so QuickBooks adds none |
+| US, older manual sales tax | every line NON | a "Sales tax" line |
+| No sales tax in QuickBooks, non-US, or Preferences unreadable | no tax codes (as before) | a "Sales tax" line |
+
+In every mode the invoice totals exactly what StudioCue expects, and with no tax the
+amounts are what they always were. If QuickBooks refuses the body with a 400, the create
+is retried without the online-payment flags, then without tax codes (the pre-2026-10
+shape); a 400 created nothing, so retries cannot duplicate.
+
+**Read-back.** The created (or adopted) invoice's `TotalAmt` and `TxnTaxDetail.TotalTax`
+are stored as `providerTotals`. If `TotalAmt` differs from StudioCue's amount, the invoice
+takes QuickBooks' figure as `amountCents` (the couple pays that one, and every "paid so
+far" sum is `amount − balance`), and `providerAmountMismatch` records both figures — the
+booking page and the final-invoice card say so in words, and a later final bill flags the
+retainer for review. The lines sent are kept as `providerLines` and shown on the booking
+page (retainer) and Invoices (final). Mock mode builds the same lines deterministically.
+
+**Not yet verified against a real company** (FlawlessIQ's QuickBooks has lapsed): that an
+AST company honours the `TotalTax` override without recomputing; that negative
+"Retainer received" lines are accepted; that `TAX`/`NON` are accepted on a US company with
+sales tax off; and how QuickBooks' tax liability report attributes an overridden figure.
+Check these on a sandbox (US company, Automated Sales Tax on, QuickBooks Payments) before
+relying on them: a $2,000 per-crew retainer, then a final with tax, comparing the stored
+`providerTotals` to what QuickBooks shows.

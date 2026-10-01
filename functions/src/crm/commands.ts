@@ -29,6 +29,7 @@ import {
 } from "../packages/one-off.js";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
 import { holdResumeStates } from "./hold-resume.js";
+import { billingAddressInputSchema } from "../contacts/billing-address.js";
 import {
   evidenceControlledTransitions,
   projectStates,
@@ -315,6 +316,13 @@ const commandSchema = z.discriminatedUnion("type", [
       phone: z.string().max(30).nullable(),
       company: z.string().max(160).nullable(),
       notes: z.string().max(2000).nullable().default(null),
+      /**
+       * Where they are billed; QuickBooks taxes from it. Mirrors
+       * billingAddressSchema in features/contacts/schema.ts. Absent leaves
+       * the stored address alone (Cue's one-field edits send none); null
+       * clears it.
+       */
+      billingAddress: billingAddressInputSchema.nullable().optional(),
     }),
   }),
   z.object({
@@ -3297,6 +3305,7 @@ export const crmCommand = onRequest(
             email: contact.get("email") ?? null,
             phone: contact.get("phone") ?? null,
             company: contact.get("company") ?? null,
+            billingAddress: contact.get("billingAddress") ?? null,
           };
           const email = command.input.email?.trim() ?? null;
           transaction.update(contactReference, {
@@ -3314,6 +3323,9 @@ export const crmCommand = onRequest(
             normalizedPhone: command.input.phone?.replace(/\D/g, "") ?? null,
             company: command.input.company,
             notes: command.input.notes,
+            ...(command.input.billingAddress !== undefined
+              ? { billingAddress: command.input.billingAddress }
+              : {}),
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
@@ -3335,6 +3347,10 @@ export const crmCommand = onRequest(
               email,
               phone: command.input.phone,
               company: command.input.company,
+              billingAddress:
+                command.input.billingAddress === undefined
+                  ? before.billingAddress
+                  : command.input.billingAddress,
             },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
