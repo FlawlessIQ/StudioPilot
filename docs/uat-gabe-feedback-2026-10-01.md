@@ -165,8 +165,8 @@ Smith, Rivera and **Undo Walktest wedding**.
 
 ### Findings
 
-- **F1 — PDF proposal drops the discount line** (T09). Its lines add up to $6,500 and its total says $6,200, so a couple reading the PDF sees numbers that don't add up. *Fix:* render the discount row in the Cloud Run PDF, as the studio page and agreement do.
-- **F2 — "Start over" confirm names the kept package as removed** (T03). *Fix:* list only the packages that are actually dropped.
+- **F1 — PDF proposal drops the discount line** (T09). Its lines add up to $6,500 and its total says $6,200, so a couple reading the PDF sees numbers that don't add up. **Fixed `8b0ec80`, live 2026-10-01:** a Discount row (and Tax, when there is any) under the package lines. Re-checked on prod by regenerating this proposal's PDF: $3,000 + $500 + $2,000 + $1,000, Discount −$300.00, Total $6,200.00. A PDF made before the fix keeps its old layout until it is made again.
+- **F2 — "Start over" confirm names the kept package as removed** (T03). **Fixed `8b0ec80`, live 2026-10-01:** the confirm now names only the packages that come off. Starting over with the one already on the job says its extras and discount are cleared.
 - Minor: the T36 "nothing was sent again" wording is used even when the action was a task, not an email. Harmless.
 
 ### Test data left on FlawlessIQ
