@@ -3,10 +3,14 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   CalendarClock,
   CheckCircle2,
   ListPlus,
   LoaderCircle,
+  PencilLine,
+  Plus,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -27,6 +31,17 @@ import {
 } from "@/features/planning/manual-run-of-show";
 import { liveProjects } from "@/features/projects/put-away";
 import { itemCrewIds, withCrewIds } from "@/features/schedules/item-crew";
+import {
+  moveScheduleItem,
+  scheduleItemMoves,
+  sortScheduleItems,
+} from "@/features/schedules/run-of-show-order";
+import {
+  WEDDING_STANDARD_MOMENTS,
+  isWeddingJob,
+  placeStandardMoment,
+  type StandardMomentKey,
+} from "@/features/schedules/standard-moments";
 import { scheduleCrewOptions } from "@/features/schedules/crew-options";
 import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -141,6 +156,13 @@ const toLocalInput = (iso: string) => {
   return new Date(parsed.valueOf() - offset).toISOString().slice(0, 16);
 };
 
+/** The inverse of toLocalInput, or null for a cleared or half-typed field. */
+const fromLocalInput = (value: string): string | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.valueOf()) ? parsed.toISOString() : null;
+};
+
 const shiftLocalMinutes = (value: string, minutes: number) => {
   if (!value) return "";
   const parsed = new Date(value);
@@ -210,6 +232,31 @@ export function AiScheduleGenerator({
    */
   const [askDraft, setAskDraft] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  /**
+   * What happened to the questions, said where they were sent from.
+   *
+   * The result used to go to the page notice at the very top, a long scroll
+   * above the Send button — so a send looked like nothing had happened
+   * (GR Productions, 2026-10-01).
+   */
+  const [askResult, setAskResult] = useState<
+    { tone: "sent" | "error" | "preview"; message: string } | null
+  >(null);
+  /** The publish result, beside the Publish button for the same reason. */
+  const [publishNotice, setPublishNotice] = useState<
+    { failed: boolean; message: string } | null
+  >(null);
+  /**
+   * Moment times the couple gave on their form, when the studio's own
+   * questionnaire asks (the starter one asks only for the ceremony). The
+   * "Add a moment" chips place from them first.
+   */
+  const [momentTimes, setMomentTimes] = useState<{
+    firstLookAt: string;
+    cocktailAt: string;
+    dinnerAt: string;
+    cakeAt: string;
+  }>({ firstLookAt: "", cocktailAt: "", dinnerAt: "", cakeAt: "" });
 
   const selectedProject = useMemo(
     () => projects?.find((project) => project.id === projectId),
@@ -262,17 +309,36 @@ export function AiScheduleGenerator({
       ),
     [packageSnapshots, selectedProject],
   );
+  // The newest version. By version number first: publishing stamps the old
+  // version superseded at the same instant the new one is created, so their
+  // updatedAt tie and the old one could be picked.
   const selectedSchedule = useMemo(
     () =>
       schedules
         ?.filter((schedule) => schedule.projectId === projectId)
-        .sort((left, right) =>
-          String(right.updatedAt ?? right.createdAt ?? "").localeCompare(
-            String(left.updatedAt ?? left.createdAt ?? ""),
-          ),
+        .sort(
+          (left, right) =>
+            Number(right.version ?? 0) - Number(left.version ?? 0) ||
+            String(right.updatedAt ?? right.createdAt ?? "").localeCompare(
+              String(left.updatedAt ?? left.createdAt ?? ""),
+            ),
         )[0],
     [projectId, schedules],
   );
+  const publishedVersion = Number(selectedSchedule?.version ?? 0) || null;
+  const publishedHasItems =
+    Array.isArray(selectedSchedule?.items) && selectedSchedule.items.length > 0;
+  /**
+   * The couple asked for changes to the published version (their portal, or
+   * the studio writing down what they said). Today and the email both link
+   * here, so their words are the first thing on the page.
+   */
+  const coupleChangeRequest =
+    selectedSchedule &&
+    (selectedSchedule.approvalState === "changes_requested" ||
+      selectedSchedule.status === "changes_requested")
+      ? String(selectedSchedule.approvalNotes ?? "").trim()
+      : null;
   const planningInputsChanged = Boolean(
     selectedSchedule &&
       selectedQuestionnaire &&
@@ -329,6 +395,26 @@ export function AiScheduleGenerator({
       "reception-time",
       "reception_time",
     ]);
+    /**
+     * A moment's time, when the studio's form asks for one.
+     *
+     * The starter questionnaire asks only for the ceremony; a studio that adds
+     * a cocktail-hour or cake-cutting question gets it here. Only an actual
+     * clock time counts — "Yes" to "Cocktail hour?" is not 5:30.
+     */
+    const momentTime = (keys: readonly string[]) =>
+      eventDateTime(
+        eventDate,
+        keys
+          .map((key) => answer(answers, [key]))
+          .find((value) => /^\d{2}:\d{2}$/.test(value)) ?? "",
+      );
+    const nextMomentTimes = {
+      firstLookAt: momentTime(["first-look-time", "firstLookTime", "first_look_time"]),
+      cocktailAt: momentTime(["cocktail-hour", "cocktail-hour-time", "cocktail-time", "cocktailHour", "cocktailTime"]),
+      dinnerAt: momentTime(["dinner-time", "dinnerTime", "dinner"]),
+      cakeAt: momentTime(["cake-cutting", "cake-cutting-time", "cakeCutting", "cakeCuttingTime"]),
+    };
     const minutes = packageMinutes ?? 480;
     const safeMinutes =
       Number.isFinite(minutes) && minutes >= 30 && minutes <= 1440
@@ -400,6 +486,7 @@ export function AiScheduleGenerator({
       setCoverageEndsAt(end);
       setCeremonyTime(ceremonyLocal);
       setReceptionTime(eventDateTime(eventDate, reception));
+      setMomentTimes(nextMomentTimes);
       setLocations(nextLocations.join("\n"));
       setPreferences(nextPreferences.join("\n"));
       setPrefillSummary(
@@ -463,7 +550,10 @@ export function AiScheduleGenerator({
       );
       const result = (await response.json()) as Draft & { error?: string };
       if (!response.ok) throw new Error(result.error ?? "Generation failed.");
-      setDraft(result);
+      // Server-sorted already; kept in start order from here on.
+      setDraft({ ...result, items: sortScheduleItems(result.items) });
+      setAskResult(null);
+      setPublishNotice(null);
       setFailed(false);
       setNotice("Draft generated. Review every item and conflict before publishing.");
     } catch (caught: unknown) {
@@ -549,8 +639,7 @@ export function AiScheduleGenerator({
   async function askTheCouple() {
     if (!askDraft || !clientContactId || !selectedProject) return;
     setAsking(true);
-    setNotice(null);
-    setFailed(false);
+    setAskResult(null);
     try {
       const result = await sendCommunicationsCommand({
         type: "sendMessage",
@@ -570,14 +659,19 @@ export function AiScheduleGenerator({
         },
       });
       if (result.mode === "preview") {
-        setNotice("Preview mode — nothing was sent.");
+        setAskResult({ tone: "preview", message: "This is a preview, so nothing was sent." });
         return;
       }
       setAskDraft(null);
-      setNotice(`Sent to ${clientName}. Their answers will ground the next draft.`);
+      setAskResult({
+        tone: "sent",
+        message: `Sent to ${clientName} — their answers will ground the next draft.`,
+      });
     } catch (caught: unknown) {
-      setFailed(true);
-      setNotice(friendlyError(caught, "The questions could not be sent."));
+      setAskResult({
+        tone: "error",
+        message: friendlyError(caught, "The questions couldn't be sent. Try again in a moment."),
+      });
     } finally {
       setAsking(false);
     }
@@ -586,25 +680,27 @@ export function AiScheduleGenerator({
   async function publish() {
     if (!draft) return;
     setPublishing(true);
-    setNotice(null);
+    setPublishNotice(null);
     try {
       const response = await sendPlanningCommand("publishSchedule", {
         projectId,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         coverageMinutes: derivedCoverageMinutes,
         // Both fields, so a function still reading photographerIds sees the crew.
-        items: draft.items.map((item) => withCrewIds(item)),
+        // In start order: the server sorts too, but what is sent is what was seen.
+        items: sortScheduleItems(draft.items).map((item) => withCrewIds(item)),
       });
       const stale = Number(
         (response.result as { staleVendorShareCount?: unknown }).staleVendorShareCount ?? 0,
       );
-      setNotice(
-        !response.persisted
+      setPublishNotice({
+        failed: false,
+        message: !response.persisted
           ? "Development preview validated the schedule without publishing."
           : stale > 0
             ? "Published. Your crew can see it now. Your vendors still have the old version — send them this one below."
             : "Published. Your crew can see it now — taking you back to the job.",
-      );
+      });
       // Say it, then show it. The job page lists this step as complete and
       // names the next move, which is the confirmation the notice alone
       // could not give from the bottom of a long page. Unless vendors hold
@@ -612,7 +708,7 @@ export function AiScheduleGenerator({
       if (response.persisted && stale > 0) setStaleVendors(stale);
       else if (response.persisted) returnToJob();
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "Publish failed."));
+      setPublishNotice({ failed: true, message: friendlyError(caught, "Publish failed.") });
     } finally {
       setPublishing(false);
     }
@@ -637,6 +733,8 @@ export function AiScheduleGenerator({
       locations: locations || null,
     });
     setFailed(false);
+    setAskResult(null);
+    setPublishNotice(null);
     setNotice(
       seeded.length > 1
         ? `Run of show started from what you entered — ${seeded.length} items. Add the rest, then publish it as a version.`
@@ -665,16 +763,132 @@ export function AiScheduleGenerator({
       current
         ? {
             ...current,
-            items: [
+            items: sortScheduleItems([
               ...current.items,
               manualScheduleItem(
                 crypto.randomUUID(),
                 nextItemStart(current.items, coverageStartsAt || null),
               ) as ScheduleItem,
-            ],
+            ]),
           }
         : current,
     );
+  }
+
+  /**
+   * One of the standard wedding moments, placed from what is known.
+   *
+   * See features/schedules/standard-moments.ts for where each one lands. The
+   * list re-sorts, so it appears in its place in the day, not at the bottom.
+   */
+  function addMoment(key: StandardMomentKey) {
+    setDraft((current) => {
+      if (!current) return current;
+      const placed = placeStandardMoment(key, current.items, {
+        coverageStartsAt: coverageStartsAt || null,
+        coverageEndsAt: coverageEndsAt || null,
+        ceremonyAt: ceremonyTime || null,
+        receptionAt: receptionTime || null,
+        firstLookAt: momentTimes.firstLookAt || null,
+        cocktailAt: momentTimes.cocktailAt || null,
+        dinnerAt: momentTimes.dinnerAt || null,
+        cakeAt: momentTimes.cakeAt || null,
+      });
+      const item = {
+        ...manualScheduleItem(crypto.randomUUID(), placed.startAt, placed.title),
+        endAt: placed.endAt,
+        location:
+          locations
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)[0] ?? null,
+      } as ScheduleItem;
+      return { ...current, items: sortScheduleItems([...current.items, item]) };
+    });
+  }
+
+  /**
+   * Back into time order once a time has been changed.
+   *
+   * On leaving the field rather than on every change: a row that jumped while
+   * its clock was being typed would take the cursor with it.
+   */
+  function resortItems() {
+    setDraft((current) => {
+      if (!current) return current;
+      const sorted = sortScheduleItems(current.items);
+      return sorted.every((item, index) => item === current.items[index])
+        ? current
+        : { ...current, items: sorted };
+    });
+  }
+
+  /**
+   * Move a row up or down the day.
+   *
+   * The list is always in time order, so moving a row moves its time: it
+   * trades slots with its neighbour, each keeping its own length. Two items at
+   * the same time just swap places. See features/schedules/run-of-show-order.ts.
+   */
+  function moveItem(index: number, direction: "up" | "down") {
+    setDraft((current) =>
+      current
+        ? { ...current, items: moveScheduleItem(current.items, index, direction) }
+        : current,
+    );
+  }
+
+  /**
+   * Start a draft from the version already published.
+   *
+   * There was no way to edit a published run of show: the only paths were a
+   * new AI draft or "Build it myself" from the form, so changing one time the
+   * couple asked about meant rebuilding the day. Publishing it again makes a
+   * new version, as before.
+   */
+  function editPublishedVersion() {
+    if (!selectedSchedule) return;
+    const items = Array.isArray(selectedSchedule.items)
+      ? (selectedSchedule.items as ScheduleItem[])
+      : [];
+    if (!items.length) return;
+    setFailed(false);
+    setAskResult(null);
+    setPublishNotice(null);
+    setNotice(
+      `Version ${Number(selectedSchedule.version ?? 1)} is open below. Change what you need, then publish it as a new version.`,
+    );
+    setDraft({
+      items: sortScheduleItems(
+        items.map((item) => ({
+          ...item,
+          description: item.description ?? "",
+          location: item.location ?? null,
+          address: item.address ?? null,
+          travelMinutes: item.travelMinutes ?? 0,
+          participants: item.participants ?? [],
+          vendorContactIds: item.vendorContactIds ?? [],
+          equipment: item.equipment ?? [],
+          notes: item.notes ?? null,
+          visibility: item.visibility ?? "shared",
+          blockingIssues: item.blockingIssues ?? [],
+          sourceReferences: item.sourceReferences ?? [],
+        })),
+      ),
+      assumptions: [],
+      missingInformation: [],
+      conflicts: [],
+      risks: [],
+      suggestedQuestions: [],
+      interactionId: `manual_${crypto.randomUUID()}`,
+      humanReviewRequired: true,
+      sourceTrace: {
+        questionnaireCount: 0,
+        timingRuleCount: 0,
+        crewFactCount: 0,
+        assumptionItemCount: 0,
+      },
+    });
   }
 
   function removeItem(index: number) {
@@ -714,6 +928,31 @@ export function AiScheduleGenerator({
 
   return (
     <div className="schedule-generator">
+      {coupleChangeRequest !== null ? (
+        <div className="schedule-replanning-notice" role="status">
+          <PencilLine aria-hidden="true" />
+          <span>
+            <strong>
+              {`${clientName === "the couple" ? "The couple" : clientName} asked for changes${
+                publishedVersion ? ` to version ${publishedVersion}` : ""
+              }`}
+            </strong>
+            {coupleChangeRequest ? <small>“{coupleChangeRequest}”</small> : null}
+            <small>
+              {`Your crew still have this version. Make the change and publish it — ${clientName} will be asked to check the new one.`}
+            </small>
+            {!draft && publishedHasItems ? (
+              <button
+                className="button button-dark schedule-revise-button"
+                onClick={editPublishedVersion}
+                type="button"
+              >
+                <PencilLine size={15} /> {`Open version ${publishedVersion} to change it`}
+              </button>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -869,6 +1108,17 @@ export function AiScheduleGenerator({
                 <ListPlus /> Build it myself
               </button>
             )}
+            {/* Change one time without rebuilding the day. */}
+            {!draft && publishedHasItems ? (
+              <button
+                className="button button-light"
+                disabled={busy}
+                onClick={editPublishedVersion}
+                type="button"
+              >
+                <PencilLine /> {`Edit version ${publishedVersion}`}
+              </button>
+            ) : null}
           </div>
         </form>
       </section>
@@ -881,7 +1131,6 @@ export function AiScheduleGenerator({
           {notice}
         </p>
       ) : null}
-      {staleVendors > 0 && projectId ? <VendorReshareBanner projectId={projectId} /> : null}
       {draft ? (
         <>
           <section className="panel schedule-draft-items">
@@ -894,15 +1143,16 @@ export function AiScheduleGenerator({
                     assumption. Check the assumptions before you publish.
                   </InfoHint>
                 </h2>
-                <p>Change anything. Your crew sees this once you publish it.</p>
+                <p>Change anything — it stays in time order. Your crew sees it once you publish.</p>
               </div>
               <AlertTriangle />
             </div>
             {draft.items.map((item, index) => (
               <article key={item.id}>
                 <input aria-label="Item title" value={item.title} onChange={(event) => updateItem(index, { title: event.target.value })} />
-                <input aria-label="Start time" type="datetime-local" value={toLocalInput(item.startAt)} onChange={(event) => updateItem(index, { startAt: new Date(event.target.value).toISOString() })} />
-                <input aria-label="End time" type="datetime-local" value={toLocalInput(item.endAt)} onChange={(event) => updateItem(index, { endAt: new Date(event.target.value).toISOString() })} />
+                {/* Re-sorted on leaving the field — see resortItems. */}
+                <input aria-label="Start time" type="datetime-local" value={toLocalInput(item.startAt)} onBlur={resortItems} onChange={(event) => { const startAt = fromLocalInput(event.target.value); if (startAt) updateItem(index, { startAt }); }} />
+                <input aria-label="End time" type="datetime-local" value={toLocalInput(item.endAt)} onBlur={resortItems} onChange={(event) => { const endAt = fromLocalInput(event.target.value); if (endAt) updateItem(index, { endAt }); }} />
                 <input aria-label="Location" value={item.location ?? ""} onChange={(event) => updateItem(index, { location: event.target.value || null })} />
                 {/*
                   * Only when there is something to say.
@@ -941,14 +1191,38 @@ export function AiScheduleGenerator({
                     ))}
                   </fieldset>
                 ) : null}
-                <button
-                  aria-label={`Remove item ${index + 1}`}
-                  className="button button-quiet schedule-item-remove"
-                  onClick={() => removeItem(index)}
-                  type="button"
-                >
-                  <Trash2 size={14} /> Remove
-                </button>
+                {/*
+                  * Move moves the time: the list is always in time order, so
+                  * a manual order the sort would undo is not on offer.
+                  */}
+                <div className="schedule-item-actions">
+                  <button
+                    aria-label={`Move ${item.title || `item ${index + 1}`} earlier`}
+                    className="button button-quiet schedule-item-move"
+                    disabled={!scheduleItemMoves(draft.items.length, index).up}
+                    onClick={() => moveItem(index, "up")}
+                    type="button"
+                  >
+                    <ArrowUp size={14} /> Move up
+                  </button>
+                  <button
+                    aria-label={`Move ${item.title || `item ${index + 1}`} later`}
+                    className="button button-quiet schedule-item-move"
+                    disabled={!scheduleItemMoves(draft.items.length, index).down}
+                    onClick={() => moveItem(index, "down")}
+                    type="button"
+                  >
+                    <ArrowDown size={14} /> Move down
+                  </button>
+                  <button
+                    aria-label={`Remove item ${index + 1}`}
+                    className="button button-quiet schedule-item-remove"
+                    onClick={() => removeItem(index)}
+                    type="button"
+                  >
+                    <Trash2 size={14} /> Remove
+                  </button>
+                </div>
                 <div className="schedule-item-sources">
                   {item.sourceReferences.map((source) => (
                     <span
@@ -963,6 +1237,26 @@ export function AiScheduleGenerator({
                 </div>
               </article>
             ))}
+            {/*
+              * The moments every wedding has, one tap each, placed from the
+              * ceremony, reception and coverage times above. See
+              * features/schedules/standard-moments.ts.
+              */}
+            {isWeddingJob(selectedProject) ? (
+              <div className="schedule-moments" role="group" aria-label="Add a moment">
+                <span>Add a moment</span>
+                {WEDDING_STANDARD_MOMENTS.map((moment) => (
+                  <button
+                    className="schedule-moment-chip"
+                    key={moment.key}
+                    onClick={() => addMoment(moment.key)}
+                    type="button"
+                  >
+                    <Plus aria-hidden size={13} /> {moment.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <button
               className="button button-light schedule-add-item"
               onClick={addItem}
@@ -1050,7 +1344,8 @@ export function AiScheduleGenerator({
                 <button
                   className="button button-dark"
                   disabled={!clientContactId}
-                  onClick={() =>
+                  onClick={() => {
+                    setAskResult(null);
                     setAskDraft(
                       [
                         // No greeting here: the branded renderer writes
@@ -1065,11 +1360,12 @@ export function AiScheduleGenerator({
                         "",
                         "No rush — whatever you know so far helps.",
                       ].join("\n"),
-                    )
-                  }
+                    );
+                  }}
                   type="button"
                 >
-                  <Sparkles size={16} /> Put these in a message
+                  <Sparkles size={16} />{" "}
+                  {askResult?.tone === "sent" ? "Write another message" : "Put these in a message"}
                 </button>
               ) : (
                 <div className="schedule-ask-editor">
@@ -1101,6 +1397,24 @@ export function AiScheduleGenerator({
                   </div>
                 </div>
               )}
+              {/* The answer to "did it go?", right under the button that sent it. */}
+              {askResult ? (
+                <p
+                  className={
+                    askResult.tone === "error"
+                      ? "form-notice form-notice-error schedule-ask-result"
+                      : "form-notice schedule-ask-result"
+                  }
+                  role={askResult.tone === "error" ? "alert" : "status"}
+                >
+                  {askResult.tone === "error" ? (
+                    <AlertTriangle aria-hidden size={16} />
+                  ) : askResult.tone === "sent" ? (
+                    <CheckCircle2 aria-hidden size={16} />
+                  ) : null}
+                  {askResult.message}
+                </p>
+              ) : null}
               {!clientContactId ? (
                 <small>
                   No client is linked to this job yet, so there is nobody to
@@ -1135,6 +1449,20 @@ export function AiScheduleGenerator({
               {publishing ? "Publishing…" : "Publish reviewed schedule"}
             </button>
           </div>
+          {publishNotice ? (
+            <p
+              className={publishNotice.failed ? "form-notice form-notice-error" : "form-notice"}
+              role={publishNotice.failed ? "alert" : "status"}
+            >
+              {publishNotice.failed ? (
+                <AlertTriangle aria-hidden size={16} />
+              ) : (
+                <CheckCircle2 aria-hidden size={16} />
+              )}
+              {publishNotice.message}
+            </p>
+          ) : null}
+          {staleVendors > 0 && projectId ? <VendorReshareBanner projectId={projectId} /> : null}
         </>
       ) : null}
     </div>

@@ -151,7 +151,8 @@ test("the editor offers every booked crew member on the job, with their role", (
   const editor = read("components/planning/ai-schedule-generator.tsx");
   assert.match(editor, /scheduleCrewOptions\(/);
   assert.match(editor, /className="schedule-item-crew"/);
-  assert.match(editor, /items: draft\.items\.map\(\(item\) => withCrewIds\(item\)\)/);
+  // In start order since 2026-10-01 (tests/run-of-show-order.test.ts).
+  assert.match(editor, /items: sortScheduleItems\(draft\.items\)\.map\(\(item\) => withCrewIds\(item\)\)/);
 });
 
 // --- the AI draft ---------------------------------------------------------------

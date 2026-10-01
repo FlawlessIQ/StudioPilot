@@ -14,6 +14,8 @@
  * Pure, no I/O.
  */
 
+import { compareScheduleItemsByStart } from "./run-of-show-order";
+
 export type ScheduleItemClock = {
   /** Formatted start, e.g. "1:00 PM". */
   start: string;
@@ -60,16 +62,19 @@ export function scheduleItemClock(
   return { start: formatTime(start, zone), end: end ? formatTime(end, zone) : null };
 }
 
-/** The items a client can actually be shown, in start order. */
+/**
+ * The items a client can actually be shown, in start order.
+ *
+ * The same order the studio's editor keeps (features/schedules/run-of-show-order.ts):
+ * stable, so items at the same time read in the order the studio put them.
+ */
 export function displayableScheduleItems<T extends Record<string, unknown>>(
   items: readonly T[],
 ): T[] {
   return items
     .filter((item) => scheduleItemClock(item) !== null)
     .slice()
-    .sort((left, right) =>
-      String(left.startAt).localeCompare(String(right.startAt)),
-    );
+    .sort(compareScheduleItemsByStart);
 }
 
 /**

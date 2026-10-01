@@ -245,6 +245,18 @@ export type JourneyInput = {
   questionnaireSource?: string | null;
   scheduleStatus: string | null;
   /**
+   * The couple's answer to the current version: "client_pending",
+   * "client_approved" or "changes_requested".
+   *
+   * A published version keeps `status: "published"` whatever the couple says;
+   * their answer is here. Reading status alone, the step said "Shared with
+   * your crew and the couple" after the couple had approved it, and after they
+   * had asked for changes — so a request for changes looked like nothing had
+   * happened (GR Productions, 2026-10-01). Optional so callers that do not
+   * know about it are unchanged.
+   */
+  scheduleApprovalState?: string | null;
+  /**
    * Whether the settled schedule holds at least one item a person could read.
    * Same reasoning: "approved" with unreadable items ticked Run of show while
    * the couple's brief showed "Invalid Date" six times. Compute with
@@ -691,27 +703,44 @@ export function projectJourney(input: JourneyInput): {
   // Approved with nothing readable in it. Must not report complete — this is the
   // state that let a wedding reach 100% readiness with no run of show.
   const scheduleEmptyButSettled = scheduleSettled && !input.scheduleHasUsableItems;
-  const scheduleDone = scheduleSettled && input.scheduleHasUsableItems;
-  const scheduleWaiting = ["client_review", "changes_requested"].includes(
-    input.scheduleStatus ?? "",
-  );
+  /**
+   * The couple asked for changes to the published version: the studio's move.
+   *
+   * It was read as complete ("Shared with your crew and the couple"), so the
+   * request sat in a task nobody saw until the next day. The crew still work
+   * from the published version meanwhile; the step reopens until a revision
+   * goes out (publishing starts the couple's answer over).
+   */
+  const scheduleChangesAsked =
+    input.scheduleStatus === "changes_requested" ||
+    (input.scheduleStatus === "published" &&
+      input.scheduleApprovalState === "changes_requested");
+  const scheduleApprovedByCouple =
+    input.scheduleStatus === "approved" ||
+    (input.scheduleStatus === "published" &&
+      input.scheduleApprovalState === "client_approved");
+  const scheduleDone =
+    scheduleSettled && input.scheduleHasUsableItems && !scheduleChangesAsked;
+  const scheduleWaiting = input.scheduleStatus === "client_review";
   push({
     key: "run_of_show",
     title: "Run of show",
     // "Published" is shared, not approved: publishing asks the couple to
     // approve (approvalState client_pending), and this said "Approved and
     // shared" from the moment it went out.
-    detail: scheduleDone
-      ? input.scheduleStatus === "approved"
-        ? "Approved and shared"
-        : "Shared with your crew and the couple"
-      : scheduleEmptyButSettled
-        ? "Approved, but it has no times in it yet"
-        : scheduleWaiting
-          ? "With the client to approve"
-          : formDone
-            ? "Drafted from the form using your timing rules"
-            : "Starts once the couple return their details form",
+    detail: scheduleChangesAsked && !scheduleEmptyButSettled
+      ? "Couple asked for changes"
+      : scheduleDone
+        ? scheduleApprovedByCouple
+          ? "Approved by the couple"
+          : "Shared with your crew and the couple"
+        : scheduleEmptyButSettled
+          ? "Approved, but it has no times in it yet"
+          : scheduleWaiting
+            ? "With the client to approve"
+            : formDone
+              ? "Drafted from the form using your timing rules"
+              : "Starts once the couple return their details form",
     // Deliberately *not* gated on the form, unlike the contract and the
     // retainer. Their destinations refuse without their input; this one does
     // not — the generator asks for coverage and ceremony times directly and
@@ -732,9 +761,11 @@ export function projectJourney(input: JourneyInput): {
           kind: "link" as const,
           label: scheduleEmptyButSettled
             ? "Add the times"
-            : scheduleWaiting
-              ? "Open schedule"
-              : "Draft the schedule",
+            : scheduleChangesAsked
+              ? "See what they asked"
+              : scheduleWaiting
+                ? "Open schedule"
+                : "Draft the schedule",
           href: scheduleWaiting
             ? project("/studio/schedules")
             : `/studio/schedules/new?project=${input.projectId}`,

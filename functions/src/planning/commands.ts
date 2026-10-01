@@ -46,6 +46,8 @@ import {
   submittedAtAfterSave,
 } from "./questionnaire-lifecycle.js";
 import { sameItemCrew, withCrewIds } from "./item-crew.js";
+import { sortScheduleItems } from "./item-order.js";
+import { studioNotificationAddress } from "../communications/notify-address.js";
 import { questionnaireDueDate } from "./questionnaire-due.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
 import { queuePartnerSends } from "../client/partner-invitations.js";
@@ -2044,7 +2046,10 @@ export const planningCommand = onRequest(
                 : {},
             )
           : [];
-        const currentItems = parsed.input.items.map((scheduleItem) => ({
+        // Stored in start order, so every reader — crew day sheet, vendor
+        // link, PDF, the couple's portal — sees the day the studio saw. The
+        // editor keeps this order too; this is the guarantee, not the habit.
+        const currentItems = sortScheduleItems(parsed.input.items).map((scheduleItem) => ({
           ...withCrewIds(scheduleItem),
           sourceReferences:
             scheduleItem.sourceReferences?.length
@@ -2101,7 +2106,30 @@ export const planningCommand = onRequest(
               changedItems.length > 0),
           calculatedAt: now,
         };
+        /**
+         * The couple's change request, answered by this version.
+         *
+         * Asking for changes opens a task on the job (approveSchedule below).
+         * Publishing the revision is the answer, so the task closes with it
+         * rather than turning up on Today as overdue the next morning.
+         */
+        const answeredRequest =
+          priorSchedule?.get("approvalState") === "changes_requested"
+            ? await db.doc(`tasks/schedule_changes_${priorSchedule.id}`).get()
+            : null;
         const batch = db.batch();
+        if (
+          answeredRequest?.exists &&
+          answeredRequest.get("tenantId") === parsed.tenantId &&
+          !["complete", "completed", "cancelled"].includes(String(answeredRequest.get("status")))
+        )
+          batch.update(answeredRequest.ref, {
+            status: "complete",
+            completedAt: now,
+            completedBy: identity.uid,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          });
         if (priorSchedule)
           batch.update(priorSchedule.ref, {
             status: "superseded",
@@ -2435,6 +2463,44 @@ export const planningCommand = onRequest(
             updatedBy: identity.uid,
             archivedAt: null,
           });
+          /**
+           * And by email, because the task alone was invisible.
+           *
+           * It is due today, and Today lists a task only once it is overdue —
+           * so a couple who asked for changes heard nothing back and the
+           * studio found out the next day, if they opened Tasks. Today now
+           * carries a card for it too; this reaches a studio that is not
+           * looking at StudioCue. One per version, keyed on it.
+           */
+          const [studioAddress, projectRecord] = await Promise.all([
+            studioNotificationAddress(db, parsed.tenantId).catch(() => null),
+            db.doc(`projects/${parsed.input.projectId}`).get(),
+          ]);
+          if (studioAddress) {
+            const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
+            const jobName = String(projectRecord.get("name") ?? "").trim();
+            const emailId = `schedule_changes_${parsed.input.scheduleId}`;
+            approvalBatch.set(db.doc(`emailJobs/${emailId}`), {
+              id: emailId,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              type: "studio_schedule_changes_requested",
+              recipient: studioAddress,
+              coupleName: jobName.replace(/\s+wedding$/i, "").trim() || "Your couple",
+              scheduleVersion: Number(current.get("version") ?? 1),
+              changeNote: parsed.input.notes.slice(0, 2000),
+              actionUrl: `${appUrl}/studio/schedules/new?project=${encodeURIComponent(parsed.input.projectId)}`,
+              status: "queued",
+              attempts: 0,
+              createdAt: now,
+              updatedAt: now,
+            });
+          } else {
+            console.warn("schedule_changes_studio_address_missing", {
+              tenantId: parsed.tenantId,
+              scheduleId: parsed.input.scheduleId,
+            });
+          }
         }
         await approvalBatch.commit();
         result = {

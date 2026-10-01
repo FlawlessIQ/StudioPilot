@@ -249,6 +249,8 @@ export function useTodayInbox(): {
         questionnaireSource:
           text(currentQuestionnaire(forProject(questionnaires.records, projectId))?.source) || null,
         scheduleStatus: text(latestSchedule?.status) || null,
+        // The couple's answer to it: approved, or asked for changes.
+        scheduleApprovalState: text(latestSchedule?.approvalState) || null,
         // Whether a form for this job type exists at all. Today used to offer
         // "Send the form" on a barn session for which no form existed, while
         // the job page — same engine, second caller — said "Build a form".
@@ -322,6 +324,7 @@ export function useTodayInbox(): {
     leads: leads.records,
     conversations: conversations.records,
     packageRequests: packageRequests.records,
+    schedules: schedules.records,
     tasks: tasks.records,
     aiActions: aiActions.records,
     actionReceipts: actionReceipts.records,
