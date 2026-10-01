@@ -21,6 +21,7 @@ import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { proposalTermsFor } from "../proposals/default-terms.js";
 import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
+import { proposalPdfAdjustments } from "../proposals/pdf-adjustments.js";
 
 /**
  * Fit a field to the PDF service's limit (cloud-run/pdf/main.py). The service
@@ -825,7 +826,12 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         package_description:`${coverageWord} coverage and deliverables as selected.`,
         introduction:clipForPdf(string(proposal.get("notes")),3000),
         terms_summary:clipForPdf(string(proposal.get("termsSummary")),3000),
-        line_items:normalizedLines.slice(0,50).map(value=>{const line=record(value);return{description:clipForPdf(string(line.description)||packageName,240),amount:money(line.totalCents,currency),details:detailsForLine(details,string(line.description)).slice(0,30).map(item=>clipForPdf(item,300))}}),
+        // The package lines, then the discount and tax that take their sum to
+        // the total printed under them (UAT F1).
+        line_items:[
+          ...normalizedLines.slice(0,48).map(value=>{const line=record(value);return{description:clipForPdf(string(line.description)||packageName,240),amount:money(line.totalCents,currency),details:detailsForLine(details,string(line.description)).slice(0,30).map(item=>clipForPdf(item,300))}}),
+          ...proposalPdfAdjustments(pricing).map(item=>({description:item.description,amount:item.cents<0?`−${money(-item.cents,currency)}`:money(item.cents,currency),details:[]})),
+        ],
         payment_schedule:paymentSchedule.slice(0,20).map(value=>{const item=record(value);return{label:clipForPdf(string(item.label)||"Payment",120),amount:money(item.amountCents,currency),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}}),
         total:money(pricing.totalCents,currency),
         // The retainer the schedule on the same page asks for: an override

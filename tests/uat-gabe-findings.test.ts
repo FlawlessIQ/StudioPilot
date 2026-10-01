@@ -1,0 +1,45 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import { startOverConfirmText } from "@/features/proposals/workspace-guards";
+import { proposalPdfAdjustments } from "../functions/src/proposals/pdf-adjustments";
+
+// UAT run 2026-10-01 (docs/uat-gabe-feedback-2026-10-01.md), findings F1 + F2.
+
+test("F1: the PDF adds the discount and tax rows that take its lines to its total", () => {
+  assert.deepEqual(proposalPdfAdjustments({ discountCents: 30_000, taxCents: 0 }), [
+    { description: "Discount", cents: -30_000 },
+  ]);
+  assert.deepEqual(proposalPdfAdjustments({ discountCents: 0, taxCents: 1_250 }), [
+    { description: "Tax", cents: 1_250 },
+  ]);
+  assert.deepEqual(proposalPdfAdjustments({}), []);
+  assert.deepEqual(proposalPdfAdjustments({ discountCents: "nonsense" }), []);
+  // Lines $3,000 + $2,000 + $1,500 = $6,500, less $300 = the $6,200 total.
+  const lines = [300_000, 200_000, 150_000];
+  const rows = proposalPdfAdjustments({ discountCents: 30_000 });
+  assert.equal(lines.reduce((a, b) => a + b, 0) + rows.reduce((a, r) => a + r.cents, 0), 620_000);
+});
+
+test("F1: the proposal PDF worker renders those rows", () => {
+  const worker = readFileSync("functions/src/operations/ai-pdf.ts", "utf8");
+  assert.match(worker, /proposalPdfAdjustments\(pricing\)/);
+});
+
+test("F2: starting over names only the packages that come off", () => {
+  const onJob = [
+    { packageId: "sign", name: "Signing test package" },
+    { packageId: "video", name: "Test video package" },
+  ];
+  const kept = startOverConfirmText({ packageId: "sign", name: "Signing test package" }, onJob);
+  assert.match(kept, /takes Test video package off the job/);
+  assert.doesNotMatch(kept, /takes Signing test package/);
+
+  const swapped = startOverConfirmText({ packageId: "gold", name: "Gold" }, onJob);
+  assert.match(swapped, /takes Signing test package and Test video package off the job, with any extras and discount on them/);
+
+  const same = startOverConfirmText({ packageId: "sign", name: "Signing test package" }, [onJob[0]!]);
+  assert.doesNotMatch(same, /off the job/);
+  assert.match(same, /extras and discount are cleared/);
+});

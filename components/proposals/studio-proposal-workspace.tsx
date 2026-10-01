@@ -83,6 +83,7 @@ import {
   draftFormDirty,
   proposalHasLapsed,
   proposalWithCouple,
+  startOverConfirmText,
 } from "@/features/proposals/workspace-guards";
 import { InfoHint } from "@/components/ui/info-hint";
 
@@ -1084,14 +1085,12 @@ export function StudioProposalComposer() {
     // and all. It used to drop the ones added alongside without a word.
     const current = selectedFor(packagePickerFor.id);
     if (mode === "replace" && current) {
-      const losing = [current.packageSnapshot, ...current.extraSnapshots].map((item) => text(objectValue(item).packageName, "a package"));
+      const onJob = [current.packageSnapshot, ...current.extraSnapshots].map((item) => ({
+        packageId: text(objectValue(item).packageId, ""),
+        name: text(objectValue(item).packageName, "a package"),
+      }));
       const chosen = text((activePackages ?? []).find((item) => item.id === packageId)?.name, "this package");
-      if (
-        !window.confirm(
-          `Start over with ${chosen}? This takes ${losing.join(" and ")} off the job, with any extras and discount on ${losing.length > 1 ? "them" : "it"}.`,
-        )
-      )
-        return;
+      if (!window.confirm(startOverConfirmText({ packageId, name: chosen }, onJob))) return;
     }
     // A blank field is no discount, not a zero-value one, and anything that is
     // not a number is treated the same way rather than sent as NaN.

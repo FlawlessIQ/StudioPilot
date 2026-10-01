@@ -143,3 +143,25 @@ export const ACCEPTANCE_AGREEMENT_OUT: readonly string[] = [
   "completed",
   "signed",
 ];
+
+/**
+ * The confirm for "Start over with this one", naming only what comes off.
+ *
+ * It used to list every package on the job, the chosen one included, so
+ * "Start over with Signing test package?" went on to say it "takes Signing
+ * test package and Test video package off the job" (UAT F2, 2026-10-01).
+ */
+export function startOverConfirmText(
+  chosen: { packageId: string; name: string },
+  current: ReadonlyArray<{ packageId: string; name: string }>,
+): string {
+  const losing = current.filter((item) => item.packageId !== chosen.packageId).map((item) => item.name);
+  const keeping = current.some((item) => item.packageId === chosen.packageId);
+  if (!losing.length) {
+    return `Start over with ${chosen.name}? Its extras and discount are cleared and it's set up again at today's price.`;
+  }
+  const off = `This takes ${losing.join(" and ")} off the job, with any extras and discount on ${losing.length > 1 ? "them" : "it"}.`;
+  return keeping
+    ? `Start over with just ${chosen.name}? ${off} ${chosen.name} is set up again at today's price.`
+    : `Start over with ${chosen.name}? ${off}`;
+}
