@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildStripeCheckoutParams,
+  normalizePromotionCode,
+  promotionCouponReference,
+  resolvePromotion,
   resolveSubscriptionPeriod,
   STRIPE_TRIAL_PERIOD_DAYS,
 } from "../functions/src/saas/stripe-checkout.ts";
+import { normalizePromotionCode as normalizeBrowserPromotionCode } from "../features/subscriptions/promotion-code.ts";
 
 test("Subscription period resolves from the item and trial when the object lacks top-level periods", () => {
   const trialStart = 1_757_000_000;
@@ -144,4 +148,99 @@ test("Checkout prefills the owner's email when there is no customer yet (P11)", 
   });
   assert.equal(params.get("customer_email"), "owner@studio.test");
   assert.equal(params.has("customer"), false);
+});
+
+test("Checkout offers its own promotion-code field when no code was carried in", () => {
+  const params = buildStripeCheckoutParams({
+    appUrl: "https://studio-cue.com",
+    priceId: "price_live",
+    tenantId: "tenant_a",
+    firstCheckout: true,
+  });
+  assert.equal(params.get("allow_promotion_codes"), "true");
+  assert.equal(params.has("discounts[0][promotion_code]"), false);
+  // A normal studio still gives a card and gets the trial.
+  assert.equal(params.get("payment_method_collection"), "always");
+  assert.equal(params.get("subscription_data[trial_period_days]"), "14");
+});
+
+test("A partial-discount code is applied up front; card and trial unchanged", () => {
+  const params = buildStripeCheckoutParams({
+    appUrl: "https://studio-cue.com",
+    priceId: "price_live",
+    tenantId: "tenant_a",
+    firstCheckout: true,
+    promotion: { promotionCodeId: "promo_half", freeForever: false },
+  });
+  assert.equal(params.get("discounts[0][promotion_code]"), "promo_half");
+  // Stripe rejects allow_promotion_codes together with discounts.
+  assert.equal(params.has("allow_promotion_codes"), false);
+  assert.equal(params.get("payment_method_collection"), "always");
+  assert.equal(params.get("subscription_data[trial_period_days]"), "14");
+});
+
+test("A 100%-off-forever code skips the card and the trial", () => {
+  const params = buildStripeCheckoutParams({
+    appUrl: "https://studio-cue.com",
+    priceId: "price_live",
+    tenantId: "tenant_a",
+    firstCheckout: true,
+    trialEndIso: new Date(Date.now() + 9 * 86400000).toISOString(),
+    promotion: { promotionCodeId: "promo_beta", freeForever: true },
+  });
+  assert.equal(params.get("discounts[0][promotion_code]"), "promo_beta");
+  assert.equal(params.has("allow_promotion_codes"), false);
+  assert.equal(params.get("payment_method_collection"), "if_required");
+  assert.equal(params.has("subscription_data[trial_period_days]"), false);
+  assert.equal(params.has("subscription_data[trial_end]"), false);
+  // Still a card-only subscription tied to the tenant.
+  assert.equal(params.get("payment_method_types[0]"), "card");
+  assert.equal(params.get("subscription_data[metadata][tenantId]"), "tenant_a");
+});
+
+test("Promotion codes from a signup link are normalised or dropped", () => {
+  assert.equal(normalizePromotionCode(" beta-2026 "), "BETA-2026");
+  assert.equal(normalizePromotionCode("BETA"), "BETA");
+  assert.equal(normalizePromotionCode("x"), null);
+  assert.equal(normalizePromotionCode("bad code"), null);
+  assert.equal(normalizePromotionCode("<script>"), null);
+  assert.equal(normalizePromotionCode(undefined), null);
+  assert.equal(normalizePromotionCode("A".repeat(65)), null);
+});
+
+test("Only a live, valid, unexpired, unexhausted code resolves", () => {
+  const now = Date.parse("2026-10-01T00:00:00Z");
+  const code = { id: "promo_beta", active: true, expires_at: null, max_redemptions: 5, times_redeemed: 1 };
+  const free = { id: "BETA", valid: true, percent_off: 100, duration: "forever" };
+  assert.deepEqual(resolvePromotion(code, free, now), { promotionCodeId: "promo_beta", freeForever: true });
+  // 100% for three months is a discount, not free forever: card still needed.
+  assert.deepEqual(
+    resolvePromotion(code, { ...free, duration: "repeating", duration_in_months: 3 }, now),
+    { promotionCodeId: "promo_beta", freeForever: false },
+  );
+  assert.deepEqual(
+    resolvePromotion(code, { ...free, percent_off: 50 }, now),
+    { promotionCodeId: "promo_beta", freeForever: false },
+  );
+  // Revoked (inactive) code, invalid coupon, expired, used up → null.
+  assert.equal(resolvePromotion({ ...code, active: false }, free, now), null);
+  assert.equal(resolvePromotion(code, { ...free, valid: false }, now), null);
+  assert.equal(resolvePromotion({ ...code, expires_at: now / 1000 - 60 }, free, now), null);
+  assert.equal(resolvePromotion({ ...code, times_redeemed: 5 }, free, now), null);
+  assert.equal(resolvePromotion({ ...code, id: "co_wrong" }, free, now), null);
+  assert.equal(resolvePromotion(null, free, now), null);
+});
+
+test("The coupon is read from either Stripe API shape", () => {
+  const coupon = { id: "BETA", valid: true };
+  assert.deepEqual(promotionCouponReference({ coupon }), coupon);
+  assert.equal(promotionCouponReference({ promotion: { type: "coupon", coupon: "BETA" } }), "BETA");
+  assert.deepEqual(promotionCouponReference({ promotion: { type: "coupon", coupon } }), coupon);
+  assert.equal(promotionCouponReference({}), null);
+});
+
+test("The browser keeps the same code shape the server accepts", () => {
+  for (const value of [" beta-2026 ", "BETA", "x", "bad code", "<script>", undefined, "A".repeat(65)]) {
+    assert.equal(normalizeBrowserPromotionCode(value), normalizePromotionCode(value));
+  }
 });
