@@ -33,3 +33,12 @@ test("invoice rows say Retainer or Final bill, not a provider id", () => {
   assert.match(view, /secondaryText: invoiceRowLabel,/);
   assert.doesNotMatch(view, /secondary: \["providerInvoiceId", "kind"\]/);
 });
+
+test("a final bill held for review has Check and send on its Invoices row", () => {
+  const actions = source("components/booking/invoice-corrections.tsx");
+  assert.match(actions, /href=\{`#final-invoice-\$\{invoice\.id\}`\}/);
+  assert.match(actions, /invoice\.status === "review_required" &&\s*OWNER_ADMIN\.includes/);
+  const card = source("components/planning/final-invoice-reconciliation.tsx");
+  assert.match(card, /id=\{`final-invoice-\$\{invoice\.id\}`\}/);
+  assert.doesNotMatch(card, /<small>Project \{String\(invoice\.projectId\)\}<\/small>/);
+});

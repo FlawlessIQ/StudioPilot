@@ -353,8 +353,21 @@ export function ApproveFinalInvoice({
 
 /** Both corrections, for an invoice row on Invoices. */
 export function InvoiceRecordActions({ invoice }: { invoice: InvoiceRow }) {
+  const workspace = useWorkspace();
+  // A final bill held for review is sent from its card further down this
+  // page (FinalInvoiceReconciliation), which works out the amount again. The
+  // row only offered Void, so the send was easy to miss (prod walk, 2026-09-30).
+  const checkAndSend =
+    invoice.kind === "final" &&
+    invoice.status === "review_required" &&
+    OWNER_ADMIN.includes(String(workspace.role));
   return (
     <>
+      {checkAndSend ? (
+        <a className="button button-dark" href={`#final-invoice-${invoice.id}`}>
+          <Send aria-hidden="true" size={14} /> Check and send
+        </a>
+      ) : null}
       <VoidInvoice invoice={invoice} />
       <CorrectPayment invoice={invoice} />
     </>

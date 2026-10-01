@@ -117,10 +117,17 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
               }).cents
             : null;
           return (
-            <article className="panel final-invoice-card" key={invoice.id}>
+            // The row on Invoices links here ("Check and send"), and names the
+            // job rather than its id (prod walk, 2026-09-30).
+            <article className="panel final-invoice-card" id={`final-invoice-${invoice.id}`} key={invoice.id}>
               <header>
                 <span>
-                  <small>Project {String(invoice.projectId)}</small>
+                  <small>
+                    {String(
+                      projects?.find((candidate) => candidate.id === String(invoice.projectId))?.name ??
+                        "Final bill",
+                    )}
+                  </small>
                   <strong>
                     Final balance{" "}
                     {money(
