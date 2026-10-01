@@ -6,6 +6,7 @@ import { getStorage } from "firebase-admin/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
+import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
@@ -1492,9 +1493,29 @@ export const proposalCommand = onRequest(
                     next: proposalPath,
                   })
                 : null;
+            // The partner copied on this email gets their own copy with their
+            // own link when anyone's is an invitation (partner-invitations.ts).
+            const partnerSends = await preparePartnerSends(
+              db,
+              (reference) => transaction.get(reference),
+              {
+                tenantId: command.tenantId,
+                projectId,
+                clientContactIds: projectForSend.get("clientContactIds"),
+                primaryContactId: clientContactId ?? "",
+                primaryEmail: clientEmail,
+                primaryNeedsInvite: invitation !== null,
+                primaryEmailJobId: emailJobId,
+                appUrl,
+                path: proposalPath,
+                actorId: identity.uid,
+                now: timestamp,
+              },
+            );
 
             const emailJob = {
               id: emailJobId,
+              soleRecipient: partnerSends.length > 0,
               tenantId: command.tenantId,
               projectId,
               proposalId: proposal.id,
@@ -1522,6 +1543,7 @@ export const proposalCommand = onRequest(
              * because the client is holding a newer email that works.
              */
             const writeInvitation = () => {
+              queuePartnerSends(db, transaction, emailJob, partnerSends);
               if (!invitation || !clientContactId) return;
               transaction.set(
                 db.doc(`clientInvitations/${invitation.invitationId}`),

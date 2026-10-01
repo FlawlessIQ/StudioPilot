@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
+import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { pricePackage } from "../pricing/package-price.js";
 import {
@@ -805,9 +806,23 @@ export async function sendAmendment(context: CommandContext, input: z.infer<type
     updatedBy: context.actorId,
   });
   const emailJobId = `amendment_ready_${amendment.id}`;
-  batch.set(
-    db.doc(`emailJobs/${emailJobId}`),
-    amendmentReadyEmail({
+  // The partner gets their own copy, with their own link
+  // (client/partner-invitations.ts).
+  const partnerSends = await preparePartnerSends(db, (reference) => reference.get(), {
+    tenantId: context.tenantId,
+    projectId,
+    clientContactIds: project.get("clientContactIds"),
+    primaryContactId: clientContactId,
+    primaryEmail: clientEmail,
+    primaryNeedsInvite: invitation !== null,
+    primaryEmailJobId: emailJobId,
+    appUrl,
+    path,
+    actorId: context.actorId,
+    now: context.timestamp,
+  });
+  const readyEmail = {
+    ...amendmentReadyEmail({
       id: emailJobId,
       tenantId: context.tenantId,
       projectId,
@@ -821,7 +836,10 @@ export async function sendAmendment(context: CommandContext, input: z.infer<type
       timestamp: context.timestamp,
       again: false,
     }),
-  );
+    soleRecipient: partnerSends.length > 0,
+  };
+  batch.set(db.doc(`emailJobs/${emailJobId}`), readyEmail);
+  queuePartnerSends(db, batch, readyEmail, partnerSends);
   if (invitation && clientContactId) {
     batch.set(
       db.doc(`clientInvitations/${invitation.invitationId}`),
@@ -1040,9 +1058,21 @@ export async function resendAmendment(context: CommandContext, input: z.infer<ty
         ? mintClientInvitation({ tenantId: context.tenantId, projectId: project.id, email: clientEmail, appUrl, next: path })
         : null;
     const emailJobId = `amendment_ready_${amendment.id}_again_${count}`;
-    transaction.create(
-      db.doc(`emailJobs/${emailJobId}`),
-      amendmentReadyEmail({
+    const partnerSends = await preparePartnerSends(db, (reference) => transaction.get(reference), {
+      tenantId: context.tenantId,
+      projectId: project.id,
+      clientContactIds: project.get("clientContactIds"),
+      primaryContactId: clientContactId,
+      primaryEmail: clientEmail,
+      primaryNeedsInvite: invitation !== null,
+      primaryEmailJobId: emailJobId,
+      appUrl,
+      path,
+      actorId: context.actorId,
+      now: context.timestamp,
+    });
+    const readyEmail = {
+      ...amendmentReadyEmail({
         id: emailJobId,
         tenantId: context.tenantId,
         projectId: project.id,
@@ -1056,7 +1086,10 @@ export async function resendAmendment(context: CommandContext, input: z.infer<ty
         timestamp: context.timestamp,
         again: true,
       }),
-    );
+      soleRecipient: partnerSends.length > 0,
+    };
+    transaction.create(db.doc(`emailJobs/${emailJobId}`), readyEmail);
+    queuePartnerSends(db, transaction, readyEmail, partnerSends);
     if (invitation)
       transaction.set(
         db.doc(`clientInvitations/${invitation.invitationId}`),

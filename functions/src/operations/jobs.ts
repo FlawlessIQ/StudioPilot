@@ -916,7 +916,12 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
    * Capped, because a `to` line is visible to everyone on it and a project with
    * a long contact list should not publish it.
    */
-  const partnerRecipients = context.recipientIsClient
+  //
+  // Not onto a `soleRecipient` job: a send carrying a portal invitation goes as
+  // one email per client, each with their own link (client/partner-
+  // invitations.ts). Copying the others on would hand them a second email
+  // with someone else's invitation, which refuses them.
+  const partnerRecipients = context.recipientIsClient && document.get("soleRecipient") !== true
     ? [...context.clientContactEmails]
         .filter((email) => email !== recipient.trim().toLowerCase())
         .slice(0, 3)

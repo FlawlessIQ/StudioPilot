@@ -3,6 +3,7 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { expiryOnSend } from "../booking/proposal-expiry.js";
 import { mintClientInvitation } from "../client/invitation-mint.js";
+import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { requireProviderForTenant } from "../integrations/capability-resolution.js";
 import {
   DEAD_CONTRACT_STATUSES,
@@ -211,6 +212,22 @@ export async function sendCombinedAgreement(
             next: contractPath,
           })
         : null;
+    const emailJobId = `contract_ready_${contractId}`;
+    // Each partner on the job gets their own copy and link when anyone's is
+    // an invitation (client/partner-invitations.ts).
+    const partnerSends = await preparePartnerSends(db, (reference) => transaction.get(reference), {
+      tenantId: context.tenantId,
+      projectId: input.projectId,
+      clientContactIds: project.get("clientContactIds"),
+      primaryContactId: clientContactId,
+      primaryEmail: clientEmail,
+      primaryNeedsInvite: invitation !== null,
+      primaryEmailJobId: emailJobId,
+      appUrl,
+      path: contractPath,
+      actorId: context.actorId,
+      now: context.timestamp,
+    });
 
     // --- writes ---
     const studioSignatures = resolved.sections.map((section) => {
@@ -352,13 +369,13 @@ export async function sendCombinedAgreement(
         updatedAt: context.timestamp,
       });
     }
-    const emailJobId = `contract_ready_${contractId}`;
-    transaction.create(db.doc(`emailJobs/${emailJobId}`), {
+    const readyEmail = {
       id: emailJobId,
       tenantId: context.tenantId,
       projectId: input.projectId,
       contractId,
-      // The email worker marks the proposal sent (or failed) from this.
+      // The email worker marks the proposal sent (or failed) from this —
+      // this one only; the partners' copies leave it off.
       proposalId: input.proposalId,
       type: "contract_ready",
       combined: true,
@@ -366,11 +383,14 @@ export async function sendCombinedAgreement(
       recipientName: resolved.draft.clientName,
       actionUrl: invitation ? invitation.inviteUrl : `${appUrl}${contractPath}`,
       signerName: input.studioSignerName,
+      soleRecipient: partnerSends.length > 0,
       status: "queued",
       attempts: 0,
       createdAt: context.timestamp,
       updatedAt: context.timestamp,
-    });
+    };
+    transaction.create(db.doc(`emailJobs/${emailJobId}`), readyEmail);
+    queuePartnerSends(db, transaction, readyEmail, partnerSends);
     if (invitation && clientContactId) {
       transaction.set(
         db.doc(`clientInvitations/${invitation.invitationId}`),
