@@ -397,7 +397,12 @@ export function quickBooksLinePayload(input: {
   lines: readonly InvoiceLine[];
   taxCents: number;
   mode: QuickBooksTaxMode;
-  itemRef: { value: string; name?: string };
+  /**
+   * The item each line is sold as: one item for every line, or a choice per
+   * line (the StudioCue Retainer / Photography package items,
+   * integrations/quickbooks-items.ts).
+   */
+  itemRef: { value: string; name?: string } | ((line: InvoiceLine) => { value: string; name?: string });
 }): QuickBooksLinePayload {
   const tax = Math.max(0, cents(input.taxCents));
   const taxLine =
@@ -415,7 +420,7 @@ export function quickBooksLinePayload(input: {
       DetailType: "SalesItemLineDetail",
       Description: entry.description,
       SalesItemLineDetail: {
-        ItemRef: input.itemRef,
+        ItemRef: typeof input.itemRef === "function" ? input.itemRef(entry) : input.itemRef,
         Qty: entry.quantity,
         UnitPrice: qbDollars(entry.unitPriceCents),
         ...code(entry.taxable),

@@ -13147,6 +13147,7 @@ form:has(> .address-field) > .address-field,
   display: flex;
   gap: 4px;
   margin-bottom: 18px;
+  overflow-x: auto;
 }
 
 .integrations-tabs button {
@@ -13586,6 +13587,155 @@ form:has(> .address-field) > .address-field,
 
 .autopay-step-local .autopay-toggle {
   font-size: 13px;
+}
+
+/* QuickBooks, its own tab (components/integrations/quickbooks-settings.tsx). */
+.qb-settings-status {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.qb-settings-status > div {
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 12px;
+  display: grid;
+  gap: 3px;
+  padding: 11px 13px;
+}
+
+.qb-settings-status dt {
+  color: var(--ds-muted, var(--muted));
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.qb-settings-status dd {
+  font-size: 13.5px;
+  margin: 0;
+}
+
+.qb-settings-section {
+  border: 0;
+  border-top: 1px solid var(--ds-line, var(--line));
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  margin: 0;
+  min-width: 0;
+  padding: 16px 0 0;
+}
+
+.qb-settings-section legend {
+  float: left;
+  font-size: 15px;
+  font-weight: 650;
+  margin-bottom: 2px;
+  padding: 0;
+  width: 100%;
+}
+
+.qb-settings-hint {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 62ch;
+}
+
+.qb-settings-hint.is-attention {
+  color: #9a5b00;
+}
+
+.qb-settings-rate {
+  display: grid;
+  font-size: 13.5px;
+  gap: 5px;
+}
+
+.qb-settings-rate-input {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.qb-settings-rate input {
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 9px;
+  font: inherit;
+  padding: 8px 10px;
+  width: 96px;
+}
+
+.qb-settings-rate input[aria-invalid="true"] {
+  border-color: #c2410c;
+}
+
+.qb-settings-rate small {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 12.5px;
+  max-width: 62ch;
+}
+
+.qb-test-result {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.qb-test-checks {
+  display: grid;
+  gap: 7px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qb-test-checks li {
+  align-items: flex-start;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  line-height: 1.45;
+}
+
+.qb-check-icon {
+  color: var(--ds-muted, var(--muted));
+  flex: none;
+  margin-top: 1px;
+}
+
+.qb-check-icon.is-ok {
+  color: #0a7a55;
+}
+
+.qb-check-icon.is-failed {
+  color: #c2410c;
+}
+
+/* "Don't charge sales tax on this job" on the booking page. */
+.job-sales-tax {
+  align-items: flex-start;
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 12px;
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.job-sales-tax small {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .qb-settings-status {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 860px) {

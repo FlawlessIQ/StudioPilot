@@ -98,6 +98,7 @@ import {
   retrySignedCopyInput,
 } from "../contracts/follow-ups.js";
 import { keptMeetingSettings } from "./consultation-settings-merge.js";
+import { setJobSalesTaxExempt, setJobSalesTaxExemptInput } from "./job-sales-tax.js";
 import {
   SUPERSEDABLE_BRIEF_STATUSES,
   bookingBriefRerunRefusal,
@@ -200,6 +201,13 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: setContractAutoSendInput,
+  }),
+  z.object({
+    // "Don't charge sales tax on this job" (owner/admin) — ./job-sales-tax.ts.
+    type: z.literal("setJobSalesTaxExempt"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: setJobSalesTaxExemptInput,
   }),
   z.object({
     type: z.literal("setSignedCopyShared"),
@@ -3161,6 +3169,19 @@ export const bookingCommand = onRequest(
         else if (command.type === "retrySignedCopy")
           result = await retrySignedCopy(contractContext, command.input);
         else result = await voidContract(contractContext, command.input);
+      } else if (command.type === "setJobSalesTaxExempt") {
+        result = await setJobSalesTaxExempt(
+          {
+            tenantId: command.tenantId,
+            membership,
+            actorId: identity.uid,
+            timestamp,
+            idempotencyKey: command.idempotencyKey,
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+          },
+          command.input,
+        );
       } else if (command.type === "previewExistingBookings") {
         result = await previewExistingBookings({
           tenantId: command.tenantId,

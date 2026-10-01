@@ -126,6 +126,8 @@ app_services=(
   proposalcommand
   publicconsultationscheduling
   publicleadintake
+  # Settings → Integrations → QuickBooks: status, item setup, test invoice.
+  quickbookssetupcommand
   quickbookswebhook
   saasadmincommand
   sendgrideventwebhook

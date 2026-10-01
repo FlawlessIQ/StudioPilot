@@ -21,7 +21,9 @@ export default async function IntegrationsPage({
             </p>
           </div>
         </header>
-        <IntegrationsTabs initialTab={tab === "autopay" ? "autopay" : "connections"} />
+        <IntegrationsTabs
+          initialTab={tab === "autopay" ? "autopay" : tab === "quickbooks" ? "quickbooks" : "connections"}
+        />
       </div>
     </AppShell>
   );

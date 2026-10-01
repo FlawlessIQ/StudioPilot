@@ -72,6 +72,7 @@ import {
 import { statusLabel } from "@/features/format/status-label";
 import { canCreateProposalForProject } from "@/features/proposals/eligibility";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { JobSalesTax } from "@/components/booking/job-sales-tax";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -1890,6 +1891,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </article>
         ) : null}
       </div>
+      {project ? (
+        <JobSalesTax
+          exempt={project.salesTaxExempt === true}
+          onChanged={(message) => {
+            setNotice(message);
+            refreshTenantRecords("projects");
+            void load();
+          }}
+          projectId={projectId}
+        />
+      ) : null}
       {notice ? (
         <p className="booking-workspace-notice" role="status">
           {notice}

@@ -37,6 +37,7 @@ const functionNames = [
   "proposalCommand",
   "publicLeadIntake",
   "publicConsultationScheduling",
+  "quickbooksSetupCommand",
   "saasAdminCommand",
   "studioImportCommand",
   "supportTenantSummary",

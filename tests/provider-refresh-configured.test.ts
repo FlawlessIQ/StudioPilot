@@ -75,7 +75,11 @@ test("only modules reachable from a credentialed Function open a connection", ()
    */
   const KNOWN = [
     "functions/src/billing/autopay.ts",
+    // The job workers' reconcile_quickbooks_money_event (operations/jobs.ts).
+    "functions/src/booking/quickbooks-money-events.ts",
     "functions/src/integrations/signing-templates.ts",
+    // quickbooksSetupCommand, which declares the QuickBooks credentials (below).
+    "functions/src/integrations/quickbooks-setup.ts",
     "functions/src/operations/provider-runtime.ts",
   ];
   assert.deepEqual(
@@ -96,9 +100,10 @@ test("the signing templates query declares the Dropbox Sign secret", () => {
 });
 
 test("the job workers and the OAuth handler declare the QuickBooks credentials", () => {
-  // These are the three Functions every QuickBooks refresh actually runs in.
+  // These are the Functions every QuickBooks refresh actually runs in.
   for (const path of [
     "functions/src/integrations/oauth.ts",
+    "functions/src/integrations/quickbooks-setup.ts",
     "functions/src/operations/jobs.ts",
     "functions/src/operations/task-queue.ts",
   ]) {

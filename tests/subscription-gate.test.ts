@@ -45,6 +45,7 @@ const GATED = [
   "functions/src/booking/proposals.ts",
   "functions/src/ai/schedule.ts",
   "functions/src/integrations/commands.ts",
+  "functions/src/integrations/quickbooks-setup.ts",
   "functions/src/ai/communications.ts",
   "functions/src/ai/message-draft.ts",
   "functions/src/ai/timing-rules.ts",

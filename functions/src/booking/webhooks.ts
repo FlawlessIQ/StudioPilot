@@ -6,6 +6,7 @@ import { z } from "zod";
 import { signatureValid } from "../saas/stripe.js";
 import { providerReportedInvoice } from "./invoice-standing.js";
 import { stripePaymentFailureFields } from "./payment-failure.js";
+import { QUICKBOOKS_MONEY_ENTITIES, RECONCILE_MONEY_EVENT_JOB } from "./quickbooks-money-events-core.js";
 import {
   normalizeDocusignWebhook,
   normalizeDropboxSignWebhook,
@@ -362,11 +363,17 @@ export const quickbooksWebhook = onRequest(
       const jobReference = invoice
         ? firestore.doc(`providerJobs/quickbooks_reconcile_${createHash("sha256").update(event.providerEventId).digest("hex")}`)
         : null;
+      // Money moving back: a payment deleted or voided, a credit memo, a
+      // refund. These were "ignored / UNSUPPORTED_ENTITY" until 2026-10-01
+      // (quickbooks-money-events-core.ts); the worker finds the invoices.
+      const moneyJobReference = QUICKBOOKS_MONEY_ENTITIES.has(event.entityName)
+        ? firestore.doc(`providerJobs/quickbooks_money_${createHash("sha256").update(event.providerEventId).digest("hex")}`)
+        : null;
 
       await firestore.runTransaction(async (transaction) => {
         if ((await transaction.get(eventReference)).exists) return;
         const now = new Date().toISOString();
-        const status = invoice && jobReference ? "queued" : "ignored";
+        const status = (invoice && jobReference) || moneyJobReference ? "queued" : "ignored";
         transaction.create(eventReference, {
           tenantId,
           provider: "quickbooks",
@@ -397,6 +404,25 @@ export const quickbooksWebhook = onRequest(
             occurredAt: event.occurredAt,
             webhookEventId: eventId,
             type: "reconcile_quickbooks_invoice",
+            idempotencyKey: event.providerEventId,
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (moneyJobReference) {
+          transaction.create(moneyJobReference, {
+            id: moneyJobReference.id,
+            tenantId,
+            projectId: null,
+            entityName: event.entityName,
+            entityId: event.entityId,
+            realmId: event.realmId,
+            operation: event.operation,
+            occurredAt: event.occurredAt,
+            webhookEventId: eventId,
+            type: RECONCILE_MONEY_EVENT_JOB,
             idempotencyKey: event.providerEventId,
             status: "queued",
             attempts: 0,

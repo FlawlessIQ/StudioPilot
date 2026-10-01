@@ -78,6 +78,13 @@ export const projectSchema = auditFieldsSchema.extend({
    * certificate of insurance that has to carry a real postal address.
    */
   venue: capturedPlaceSchema.nullable().default(null),
+  /**
+   * "Don't charge sales tax on this job." Only meaningful when the studio's
+   * sales tax is on QuickBooks (features/billing/sales-tax-settings.ts,
+   * salesTaxApplies). Set by bookingCommand setJobSalesTaxExempt; the
+   * browser may not write it (firestore.rules).
+   */
+  salesTaxExempt: z.boolean().optional(),
   readinessScore: z.number().int().min(0).max(100).default(0),
   nextAction: z.string().max(500).nullable().default(null),
   archivedAt: z.string().datetime().nullable(),

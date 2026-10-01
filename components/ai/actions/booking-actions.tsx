@@ -18,6 +18,7 @@ import { RecordSignedAgreement } from "@/components/booking/record-signed-agreem
 import { RecordRetainerPayment } from "@/components/booking/record-retainer-payment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
+import { JobSalesTax } from "@/components/booking/job-sales-tax";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { proposalTermsForPackages } from "@/features/booking/autopilot";
 import { briefRerunBlocked } from "@/features/booking/brief-run";
@@ -1433,6 +1434,8 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
         packageSnapshotId={str(job.packageSnapshotId) || null}
         projectId={job.id}
       />
+      {/* Sales tax matters on the final bill: the job's exemption, here too. */}
+      <JobSalesTax exempt={job.salesTaxExempt === true} onChanged={() => refreshTenantRecords("projects")} projectId={job.id} />
     </ActionShell>
   );
 }

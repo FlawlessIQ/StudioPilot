@@ -204,6 +204,12 @@ test(
           tenantId: "tenant-a",
           selections: { signing: "docusign" },
         });
+        await setDoc(doc(adminDb, "billingSettings/tenant-a"), {
+          tenantId: "tenant-a",
+          salesTax: { mode: "quickbooks", estimateRateBasisPoints: 825 },
+          holdRetainerForReview: false,
+          quickbooksItems: { retainerItemId: "1", packageItemId: "2" },
+        });
         await setDoc(doc(adminDb, "consultationSettings/tenant-a"), {
           tenantId: "tenant-a",
           durationMinutes: 45,
@@ -360,6 +366,7 @@ test(
       await assertFails(getDoc(doc(clientDb, "integrationConnections/connection-a")));
       await assertFails(getDoc(doc(clientDb, "integrationRouting/tenant-a")));
       await assertFails(getDoc(doc(clientDb, "consultationSettings/tenant-a")));
+      await assertFails(getDoc(doc(clientDb, "billingSettings/tenant-a")));
       await assertSucceeds(getDoc(doc(clientDb, "consultations/consultation-a")));
       await assertSucceeds(getDoc(doc(clientDb, "questionnaireResponses/questionnaire-a")));
       await assertSucceeds(getDoc(doc(clientDb, "schedules/schedule-a")));
@@ -449,6 +456,18 @@ test(
           selections: { signing: "dropbox_sign" },
         }),
       );
+      // Billing settings: studio staff read; only the server writes.
+      await assertSucceeds(getDoc(doc(ownerDb, "billingSettings/tenant-a")));
+      await assertFails(
+        setDoc(doc(ownerDb, "billingSettings/tenant-a"), {
+          tenantId: "tenant-a",
+          salesTax: { mode: "none", estimateRateBasisPoints: null },
+        }),
+      );
+      // A job's sales tax exemption goes through bookingCommand only.
+      await assertFails(
+        updateDoc(doc(ownerDb, "projects/project-a"), { salesTaxExempt: true }),
+      );
       await assertSucceeds(getDoc(doc(ownerDb, "consultationSettings/tenant-a")));
       await assertFails(
         setDoc(doc(ownerDb, "consultationSettings/tenant-a"), {
@@ -516,6 +535,10 @@ test(
       await assertSucceeds(getDoc(doc(coordinatorDb, "bookingOrchestrations/project-a")));
       await assertSucceeds(
         updateDoc(doc(coordinatorDb, "projects/project-a"), { updatedAt: "after" }),
+      );
+      await assertSucceeds(getDoc(doc(coordinatorDb, "billingSettings/tenant-a")));
+      await assertFails(
+        updateDoc(doc(coordinatorDb, "projects/project-a"), { salesTaxExempt: true }),
       );
       await assertFails(
         updateDoc(doc(coordinatorDb, "projects/project-unassigned"), {

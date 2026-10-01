@@ -168,3 +168,35 @@ sales tax off; and how QuickBooks' tax liability report attributes an overridden
 Check these on a sandbox (US company, Automated Sales Tax on, QuickBooks Payments) before
 relying on them: a $2,000 per-crew retainer, then a final with tax, comparing the stored
 `providerTotals` to what QuickBooks shows.
+
+## QuickBooks from inside StudioCue: settings, items, test invoice, money moving back (2026-10-01)
+
+QuickBooks is the sales-tax authority. The foundation the invoice tax flow builds on:
+
+- **`billingSettings/{tenantId}`** — `{ tenantId, salesTax: { mode: "quickbooks" | "none",
+  estimateRateBasisPoints: number | null }, holdRetainerForReview, quickbooksItems:
+  { retainerItemId, packageItemId }, updatedAt, updatedBy }`. Pure rules in
+  `features/billing/sales-tax-settings.ts` (copied to `functions/src/billing/`, parity-tested):
+  `normaliseBillingSettings`, `defaultBillingSettings` (no tax, unless the connected company has
+  sales tax on → "quickbooks" suggested), `salesTaxApplies(settings, project)`,
+  `estimatedSalesTaxCents(subtotal, settings)`. Saved by integrationsCommand `setBillingSettings`
+  (owner/admin, audited); the item ids only by the item setup. Rules: studio staff read, no writes.
+- **`projects.salesTaxExempt`** — bookingCommand `setJobSalesTaxExempt` (owner/admin, audited);
+  the browser may not write the field. Toggle on the job's booking page and the Cue final-bill card.
+- **Settings → Integrations → QuickBooks** (`?tab=quickbooks`) — `quickbooksSetupCommand`
+  (`status` / `setUpItems` / `sendTestInvoice`; holds the QuickBooks client credentials). Items:
+  "Retainer" (non-taxable) and "Photography package" (taxable), found by name else made; the
+  invoice worker uses them per line (`itemKeyForLine`) and sets them up on the first invoice,
+  falling back to the old single service item if it can't. The test invoice is $1.00 to
+  "StudioCue test (you)" at the studio's own address, read back for its pay link, then voided;
+  nothing is emailed. Mock mode passes deterministically.
+- **Money moving back.** Payment, CreditMemo and RefundReceipt webhooks were stored as
+  `ignored / UNSUPPORTED_ENTITY`. They now queue `reconcile_quickbooks_money_event`, which
+  re-runs the ordinary invoice reconcile for the invoices touched (a deleted payment: every
+  paid / part-paid QuickBooks invoice). An invoice QuickBooks no longer shows paid reopens and
+  raises "QuickBooks no longer shows the … paid" on Today; a refund raises "Refund of $X recorded
+  in QuickBooks" and does not reopen anything (QuickBooks keeps the invoice paid).
+  **The Intuit app's webhook subscription must include Payment, CreditMemo and RefundReceipt**
+  (Intuit Developer → Webhooks), or none of these events arrive.
+- **Sandbox walk** — `scripts/uat/quickbooks-sandbox-walk.mts` (env only; refuses prod and any
+  non-sandbox base URL).

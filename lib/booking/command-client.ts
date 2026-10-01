@@ -247,6 +247,19 @@ export async function sendFinalBalance(projectId: string) {
 }
 
 /**
+ * "Don't charge sales tax on this job" (owner/admin). See
+ * functions/src/booking/job-sales-tax.ts; firestore.rules refuses the field
+ * from a browser write.
+ */
+export async function setJobSalesTaxExempt(input: { projectId: string; exempt: boolean }) {
+  return sendBookingCommand({
+    type: "setJobSalesTaxExempt",
+    idempotencyKey: `sales_tax_${input.projectId}_${crypto.randomUUID()}`,
+    input,
+  });
+}
+
+/**
  * Void a bill in StudioCue and at the provider (owner/admin). The server
  * refuses a bill with money on it; see functions/src/booking/invoice-corrections.ts.
  */

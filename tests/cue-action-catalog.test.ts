@@ -113,6 +113,8 @@ const REACHED: Record<string, string> = {
   recordFinalPayment: "RecordFinalPayment", sendFinalBalance: "FinalBalanceActions", approveRetainerException: "BookWithoutRetainer",
   voidInvoice: "<VoidInvoice", correctPaymentRecord: "<CorrectPayment", recordInvoicePayment: "<RecordInvoicePayment", approveFinalInvoice: "<ApproveFinalInvoice",
   lookupQuickBooksPayments: "lookupQuickBooksPayments", runBookingGate: "\"runBookingGate\"",
+  // "Don't charge sales tax on this job", on the final-bill card as on the booking page.
+  setJobSalesTaxExempt: "JobSalesTax",
   previewExistingBookings: "ExistingBookingForm", importExistingBooking: "ExistingBookingForm",
   attachImportedSignedCopy: "ExistingBookingForm", bringImportedBookingLive: "ImportedBookingBanner",
   // Planning
@@ -179,6 +181,8 @@ const REACHED: Record<string, string> = {
   setAutopay: "AutopaySettings", setOutsideStep: "OutsideStepCard",
   setCapabilityProvider: "/studio/integrations", setContractTemplate: "/studio/integrations",
   setProviderTestMode: "/studio/integrations", setSignatureMode: "/studio/integrations",
+  // Settings → Integrations → QuickBooks (components/integrations/quickbooks-settings.tsx).
+  setBillingSettings: "/studio/integrations", setUpItems: "/studio/integrations", sendTestInvoice: "/studio/integrations",
   requestExport: "DataControls", requestDeletion: "DataControls", cancelDeletion: "DataControls",
   createCheckout: "/studio/subscription", createPortal: "/studio/subscription", confirmCheckout: "/studio/subscription",
   createSession: "/studio/import", createSourceSession: "/studio/import", getSession: "/studio/import",

@@ -59,6 +59,7 @@ import {
 } from "./provider-runtime.js";
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
+import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
 import {
   chargeSavedCard,
   removeQuickBooksCard,
@@ -484,6 +485,8 @@ async function providerJob(document: DocumentSnapshot) {
     return createStripeInvoice(document);
   if (type === "reconcile_quickbooks_invoice")
     return reconcileQuickBooksInvoice(document);
+  if (type === "reconcile_quickbooks_money_event")
+    return reconcileQuickBooksMoneyEvent(document);
   if (type === "void_quickbooks_invoice")
     return voidQuickBooksInvoice(document);
   if (type === "void_stripe_invoice") return voidStripeInvoice(document);

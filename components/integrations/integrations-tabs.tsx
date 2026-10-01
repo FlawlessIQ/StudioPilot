@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Plug } from "lucide-react";
+import { CreditCard, Plug, ReceiptText } from "lucide-react";
 import { IntegrationManager } from "@/components/integrations/integration-manager";
 import { AgreementTemplate } from "@/components/integrations/agreement-template";
 import { AutopaySettings } from "@/components/integrations/autopay-settings";
+import { QuickBooksSettings } from "@/components/integrations/quickbooks-settings";
 import { useWorkspace } from "@/features/auth/workspace-context";
 
-type Tab = "connections" | "autopay";
+type Tab = "connections" | "quickbooks" | "autopay";
 
 /**
- * Integrations as two tabs: the tools a studio connects, and Autopay.
+ * Integrations as tabs: the tools a studio connects, QuickBooks (sales tax,
+ * items and a test invoice — components/integrations/quickbooks-settings.tsx),
+ * and Autopay.
  *
  * They were one page stacked — every provider as a wide row, a routing table
  * repeating the same facts, then Autopay at the bottom — so reaching Autopay
@@ -52,6 +55,14 @@ export function IntegrationsTabs({ initialTab }: { initialTab: Tab }) {
             <Plug aria-hidden="true" size={15} /> Connections
           </button>
           <button
+            aria-selected={showing === "quickbooks"}
+            onClick={() => choose("quickbooks")}
+            role="tab"
+            type="button"
+          >
+            <ReceiptText aria-hidden="true" size={15} /> QuickBooks
+          </button>
+          <button
             aria-selected={showing === "autopay"}
             onClick={() => choose("autopay")}
             role="tab"
@@ -67,6 +78,8 @@ export function IntegrationsTabs({ initialTab }: { initialTab: Tab }) {
             <IntegrationManager />
             <AgreementTemplate />
           </>
+        ) : showing === "quickbooks" ? (
+          <QuickBooksSettings />
         ) : (
           <AutopaySettings />
         )}

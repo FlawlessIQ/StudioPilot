@@ -105,6 +105,7 @@ const USER_FACING_HANDLERS = [
   "integrations/commands.ts",
   "integrations/oauth.ts",
   "integrations/signing-templates.ts",
+  "integrations/quickbooks-setup.ts",
   "planning/commands.ts",
   "post-event/commands.ts",
   "saas/admin.ts",

@@ -336,6 +336,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "A retainer can only be waived once the contract is signed and the booking is waiting on the retainer.",
   QUICKBOOKS_NOT_CONNECTED:
     "QuickBooks isn't connected. Connect it in Integrations to fill payments from it, or enter them yourself.",
+  QUICKBOOKS_REALM_MISSING:
+    "StudioCue doesn't know which QuickBooks company to use. Disconnect QuickBooks in Integrations and connect it again.",
+  SALES_TAX_PERMISSION_REQUIRED: "Only a studio owner or admin can change whether a job is charged sales tax.",
   BOOKING_IMPORT_PERMISSION_REQUIRED:
     "Only a studio owner or admin can import bookings, because importing one records that its contract was signed and its payments made.",
   NOT_AN_IMPORTED_BOOKING:

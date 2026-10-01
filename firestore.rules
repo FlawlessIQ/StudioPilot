@@ -162,9 +162,13 @@ service cloud.firestore {
             "subcontractor"
           ])
         );
+      // salesTaxExempt is set only by bookingCommand setJobSalesTaxExempt
+      // (owner/admin, audited): never written straight from a browser.
       allow create: if canManageProjects(request.resource.data.tenantId)
-        && request.resource.data.projectId == projectId;
-      allow update: if canManageProject(resource.data.tenantId, projectId) && tenantUnchanged();
+        && request.resource.data.projectId == projectId
+        && !("salesTaxExempt" in request.resource.data);
+      allow update: if canManageProject(resource.data.tenantId, projectId) && tenantUnchanged()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["salesTaxExempt"]);
       allow delete: if false;
     }
 
@@ -489,6 +493,17 @@ service cloud.firestore {
     match /integrationRouting/{tenantId} {
       allow read: if isPlatformAdmin()
         || hasRole(tenantId, ["studio_owner", "studio_admin"]);
+      allow write: if false;
+    }
+
+    // Sales tax mode, the proposal estimate rate, retainer review and the
+    // StudioCue QuickBooks item ids (features/billing/sales-tax-settings.ts).
+    // Studio staff who build proposals read it; couples and crew never do.
+    // Written only by integrationsCommand setBillingSettings and the
+    // QuickBooks item setup.
+    match /billingSettings/{tenantId} {
+      allow read: if isPlatformAdmin()
+        || canManageProjects(resource.data.tenantId);
       allow write: if false;
     }
 

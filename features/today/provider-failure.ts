@@ -45,6 +45,10 @@ const FAILURES: Record<string, ProviderFailure> = {
     title: "The payment status didn't update",
     provider: "QuickBooks",
   },
+  reconcile_quickbooks_money_event: {
+    title: "A payment or refund in QuickBooks wasn't checked against your invoices",
+    provider: "QuickBooks",
+  },
   create_stripe_invoice: {
     title: "The invoice wasn't created",
     provider: "Stripe",

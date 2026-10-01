@@ -11,6 +11,10 @@ import { studioHubCors } from "../security/cors.js";
 import { capabilitySchema, providerSchema, providerCapabilities, type Provider } from "./capability-resolution.js";
 import { invalidCommandResponse } from "../security/invalid-command.js";
 import { hasPaymentsScope } from "../billing/autopay-core.js";
+import {
+  MAX_ESTIMATE_RATE_BASIS_POINTS,
+  normaliseBillingSettings,
+} from "../billing/sales-tax-settings.js";
 
 const allowedRoles = ["studio_owner", "studio_admin"];
 
@@ -121,6 +125,25 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ enabled: z.boolean() }),
+  }),
+  z.object({
+    /**
+     * The studio's billing settings (`billingSettings/{tenantId}`, shape in
+     * features/billing/sales-tax-settings.ts): whether QuickBooks adds sales
+     * tax, the rate proposals estimate with, and whether retainer invoices
+     * wait for review. The QuickBooks item ids on the same document are
+     * StudioCue's to keep (integrations/quickbooks-items.ts), never set here.
+     */
+    type: z.literal("setBillingSettings"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      salesTax: z.object({
+        mode: z.enum(["quickbooks", "none"]),
+        estimateRateBasisPoints: z.number().int().min(0).max(MAX_ESTIMATE_RATE_BASIS_POINTS).nullable(),
+      }),
+      holdRetainerForReview: z.boolean(),
+    }),
   }),
 ]);
 
@@ -452,6 +475,60 @@ export const integrationsCommand = onRequest(
             providerEventId: null,
           });
           const output = { enabled };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setBillingSettings") {
+          const { salesTax, holdRetainerForReview } = command.input;
+          const settingsReference = db.doc(`billingSettings/${command.tenantId}`);
+          const existing = await transaction.get(settingsReference);
+          const before = normaliseBillingSettings(
+            existing.exists ? existing.data() : null,
+            command.tenantId,
+          );
+          transaction.set(
+            settingsReference,
+            {
+              tenantId: command.tenantId,
+              salesTax: {
+                mode: salesTax.mode,
+                estimateRateBasisPoints: salesTax.estimateRateBasisPoints,
+              },
+              holdRetainerForReview,
+              quickbooksItems: before.quickbooksItems,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            },
+            { merge: true },
+          );
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "billing.settings_set",
+            entityType: "billingSettings",
+            entityId: command.tenantId,
+            timestamp,
+            before: existing.exists
+              ? { salesTax: before.salesTax, holdRetainerForReview: before.holdRetainerForReview }
+              : null,
+            after: { salesTax, holdRetainerForReview },
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          const output = { salesTax, holdRetainerForReview };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,
