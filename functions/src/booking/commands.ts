@@ -40,6 +40,7 @@ import {
   writeInvoiceVoid,
 } from "./invoice-corrections.js";
 import { recordInvoicePayment, recordInvoicePaymentInput } from "./invoice-payments.js";
+import { sendHeldInvoice, sendHeldInvoiceInput } from "./held-invoice-send.js";
 import { invoiceVoidRefusal } from "./invoice-corrections-core.js";
 import { planRetainerAttestation } from "./retainer-attestation.js";
 import {
@@ -480,6 +481,14 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: approveFinalInvoiceInput,
+  }),
+  // A bill held in QuickBooks for the studio to check: send with tax, send
+  // without tax, or work the tax out again — see ./held-invoice-send.ts.
+  z.object({
+    type: z.literal("sendHeldInvoice"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: sendHeldInvoiceInput,
   }),
   // A payment — the whole balance or part of it — against a retainer or
   // final bill out with the couple, pushed to QuickBooks or Stripe so their
@@ -2151,7 +2160,8 @@ export const bookingCommand = onRequest(
         command.type === "voidInvoice" ||
         command.type === "correctPaymentRecord" ||
         command.type === "approveFinalInvoice" ||
-        command.type === "recordInvoicePayment"
+        command.type === "recordInvoicePayment" ||
+        command.type === "sendHeldInvoice"
       ) {
         const correctionContext = {
           tenantId: command.tenantId,
@@ -2168,6 +2178,8 @@ export const bookingCommand = onRequest(
           result = await correctPaymentRecord(firestore, correctionContext, command.input);
         else if (command.type === "recordInvoicePayment")
           result = await recordInvoicePayment(firestore, correctionContext, command.input);
+        else if (command.type === "sendHeldInvoice")
+          result = await sendHeldInvoice(firestore, correctionContext, command.input);
         else result = await approveFinalInvoice(firestore, correctionContext, command.input);
       } else if (command.type === "recordFinalPayment") {
         /**

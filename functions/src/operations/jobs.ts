@@ -53,10 +53,15 @@ import {
   reconcileQuickBooksInvoice,
   recordQuickBooksPayment,
   recordStripePayment,
+  releaseQuickBooksHeldInvoice,
   uploadDropboxDocument,
   voidQuickBooksInvoice,
   voidStripeInvoice,
 } from "./provider-runtime.js";
+import {
+  HELD_INVOICE_JOB_TYPE,
+  recordHeldInvoiceActionFailed,
+} from "./quickbooks-held-invoice.js";
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
 import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
@@ -366,6 +371,20 @@ async function finish(
         // The job's own error record is the authority, and Today shows it.
       });
     }
+    // "Send with tax" / "Send without tax" that QuickBooks wouldn't carry out:
+    // the bill goes back to the studio, unsent, with what went wrong.
+    if (
+      document.ref.parent.id === "providerJobs" &&
+      String(document.get("type")) === HELD_INVOICE_JOB_TYPE &&
+      !retryable
+    ) {
+      await recordHeldInvoiceActionFailed(getFirestore(), document, {
+        code,
+        message,
+      }).catch(() => {
+        // The job's own error record is the authority.
+      });
+    }
     // A payment the provider wouldn't take. It stays recorded in StudioCue —
     // the money arrived — and the studio is asked to record it there by
     // hand, so the couple's bill stops asking for it.
@@ -485,6 +504,8 @@ async function providerJob(document: DocumentSnapshot) {
     return createStripeInvoice(document);
   if (type === "reconcile_quickbooks_invoice")
     return reconcileQuickBooksInvoice(document);
+  if (type === HELD_INVOICE_JOB_TYPE)
+    return releaseQuickBooksHeldInvoice(document);
   if (type === "reconcile_quickbooks_money_event")
     return reconcileQuickBooksMoneyEvent(document);
   if (type === "void_quickbooks_invoice")
@@ -798,8 +819,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       .doc(`invoiceReferences/${String(document.get("invoiceId"))}`)
       .get();
     if (invoice.exists && invoiceClosedToProviderWork(invoice.get("status")))
-      return { held: "invoice_closed", type };
-  }
+      return { held: "invoice_closed", type };  }
   // A contract email is about one contract. Asking a couple to sign an
   // agreement they signed an hour ago, or one the studio withdrew, is worse
   // than silence — so the contract is read again as the email goes.

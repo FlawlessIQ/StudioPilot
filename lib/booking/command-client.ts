@@ -329,6 +329,25 @@ export async function approveFinalInvoice(input: {
   });
 }
 
+/**
+ * A bill held in QuickBooks for the studio to check: send it with
+ * QuickBooks' tax, without tax, or have QuickBooks work the tax out again
+ * once the couple's billing address is on record. The server checks the
+ * figure the studio confirmed (functions/src/booking/held-invoice-send.ts).
+ */
+export async function sendHeldInvoice(input: {
+  projectId: string;
+  invoiceId: string;
+  action: "send_with_tax" | "send_without_tax" | "recalculate";
+  confirmAmountCents: number | null;
+}) {
+  return sendBookingCommand({
+    type: "sendHeldInvoice",
+    idempotencyKey: `held_${input.action}_${input.invoiceId}_${crypto.randomUUID()}`.slice(0, 160),
+    input,
+  });
+}
+
 /* ---------------------------------------------------------------------------
  * Importing bookings a studio already has.
  *

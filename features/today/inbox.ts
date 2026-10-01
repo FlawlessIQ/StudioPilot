@@ -38,6 +38,7 @@ import {
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { isAmendable } from "@/features/booking/amendable";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { heldInvoiceView } from "@/features/billing/held-invoice-review";
 import { jobValueCents } from "@/features/packages/job-packages";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { providerName as readable } from "@/lib/format/provider-name";
@@ -1522,20 +1523,34 @@ export function todayInbox(input: TodayInput): TodayInbox {
     });
     // A final bill held for review is standing, so the "send" card below
     // stays away — but it was never sent, and nothing else said so.
-    if (due.heldForReviewId && due.cents) {
+    // In QuickBooks already, waiting on the tax check: QuickBooks' figure, and
+    // why it waits (features/billing/held-invoice-review.ts).
+    const heldInQuickBooks = due.heldForReviewId
+      ? heldInvoiceView(
+          (rows(input.invoiceReferences).find((invoice) => invoice.id === due.heldForReviewId) ?? { id: "" }) as Record<
+            string,
+            unknown
+          > & { id: string },
+        )
+      : null;
+    if (due.heldForReviewId && (due.cents || heldInQuickBooks)) {
       finalBalanceProjectIds.add(job.id);
+      const heldCents = heldInQuickBooks ? heldInQuickBooks.totalCents : (due.cents ?? 0);
       const held = new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
-        minimumFractionDigits: due.cents % 100 ? 2 : 0,
-      }).format(due.cents / 100);
+        minimumFractionDigits: heldCents % 100 ? 2 : 0,
+      }).format(heldCents / 100);
       act.push({
         id: `final-balance-review-${job.id}`,
         lane: "act",
         kind: "invoice",
         title: `Check and send ${text(job.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s final bill · ${held}`,
-        detail:
-          "It's held for you to check: the payments on record don't match what was agreed. Nothing has gone to the couple yet.",
+        detail: heldInQuickBooks
+          ? heldInQuickBooks.billingAddressMissing
+            ? "Add the couple's billing address so QuickBooks can work out the tax. Nothing has gone to the couple yet."
+            : "It's in QuickBooks with the sales tax worked out. Check it, then send it with or without tax. Nothing has gone to the couple yet."
+          : "It's held for you to check: the payments on record don't match what was agreed. Nothing has gone to the couple yet.",
         evidence: null,
         projectId: job.id,
         projectName: text(job.name) || null,
@@ -1584,6 +1599,38 @@ export function todayInbox(input: TodayInput): TodayInbox {
       band: bandFor({ eventDate: text(job.eventDate) || null, dueDate: due.dueDate, now }),
       eventDate: text(job.eventDate) || null,
       score: score({ lane: "act", severity: "step", eventDate: text(job.eventDate) || null, updatedAt: changedAt(job), now }),
+    });
+  }
+  // ── Act · a retainer held in QuickBooks for the studio ──────────────
+  // The studio asked to check retainers before they go
+  // (billingSettings.holdRetainerForReview): made in QuickBooks, unsent.
+  for (const invoice of rows(input.invoiceReferences)) {
+    if (text(invoice.kind) !== "retainer") continue;
+    const heldRetainer = heldInvoiceView(invoice);
+    if (!heldRetainer) continue;
+    const projectId = text(invoice.projectId);
+    if (!projectId || !jobStillOpen(projectId)) continue;
+    const job = rows(input.projects).find((candidate) => candidate.id === projectId);
+    const amount = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: heldRetainer.totalCents % 100 ? 2 : 0,
+    }).format(heldRetainer.totalCents / 100);
+    act.push({
+      id: `retainer-review-${invoice.id}`,
+      lane: "act",
+      kind: "invoice",
+      title: `Check and send ${text(job?.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s retainer · ${amount}`,
+      detail: "It's in QuickBooks, held for you to check. Nothing has gone to the couple yet.",
+      evidence: null,
+      projectId,
+      projectName: text(job?.name) || null,
+      action: { kind: "link", label: "Check it", href: `/studio/booking?project=${projectId}` },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [eventFact(text(job?.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),
+      band: bandFor({ eventDate: text(job?.eventDate) || null, dueDate: text(invoice.dueDate) || null, now }),
+      eventDate: text(job?.eventDate) || null,
+      score: score({ lane: "act", severity: "step", eventDate: text(job?.eventDate) || null, updatedAt: changedAt(invoice), now }),
     });
   }
   let inMotion = 0;

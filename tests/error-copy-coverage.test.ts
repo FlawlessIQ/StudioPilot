@@ -89,6 +89,8 @@ const USER_FACING_HANDLERS = [
   "ai/timing-rules.ts",
   "auth/emails.ts",
   "booking/commands.ts",
+  // Dispatched from bookingCommand: "Send with tax" / "Send without tax".
+  "booking/held-invoice-send.ts",
   "booking/consultation-availability-query.ts",
   "booking/proposals.ts",
   "booking/public-scheduling.ts",

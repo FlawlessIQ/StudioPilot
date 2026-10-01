@@ -1,6 +1,7 @@
 import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
 import { retainerFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
 
 /**
  * Raising the final-balance invoice.
@@ -123,10 +124,16 @@ export async function raiseFinalInvoice(
   const agreedTotal = Number(agreedPricing?.totalCents);
   const fromProposal = Boolean(accepted && Number.isSafeInteger(agreedTotal) && agreedTotal > 0);
   const source = fromProposal ? `proposals/${accepted!.id}` : `packageSnapshots/${snapshotId}`;
-  const totalCents = fromProposal ? agreedTotal : Number(packageSnapshot.get("totalCents") ?? 0);
-  const taxCents = fromProposal
+  const agreedTotalCents = fromProposal ? agreedTotal : Number(packageSnapshot.get("totalCents") ?? 0);
+  const agreedTaxCents = fromProposal
     ? Number(agreedPricing?.taxCents ?? 0)
     : Number(packageSnapshot.get("taxCents") ?? 0);
+  // QuickBooks as the sales-tax authority (switched-on studios): the balance
+  // is raised pre-tax and QuickBooks adds the tax — final-tax-authority.ts.
+  const quickBooksTax = await quickBooksIsTaxAuthority(db, transaction, tenantId, provider);
+  const basis = finalBillBasis({ totalCents: agreedTotalCents, agreedTaxCents, quickBooksTax });
+  const totalCents = basis.billedTotalCents;
+  const taxCents = basis.taxCents;
   // Waived: nothing was expected, so nothing paid is not a discrepancy.
   const retainerExpectedCents = retainer
     ? retainerFromSchedule(
@@ -150,7 +157,9 @@ export async function raiseFinalInvoice(
   const calculation = {
     lines: [
       { label: "Approved package and add-ons", amountCents: totalCents - taxCents, source },
-      { label: "Approved tax", amountCents: taxCents, source },
+      quickBooksTax
+        ? { label: "Sales tax — calculated by QuickBooks when the invoice is made", amountCents: 0, source: "quickbooks" }
+        : { label: "Approved tax", amountCents: taxCents, source },
       retainer
         ? {
             label: "Retainer payment received",
@@ -169,7 +178,11 @@ export async function raiseFinalInvoice(
     packageTotalCents: totalCents,
     // The tax inside packageTotalCents, so the QuickBooks invoice can show the
     // packages at full price and the tax on top (quickbooks-invoice-lines.ts).
+    // 0 when QuickBooks is the tax authority: it adds the tax itself.
     taxCents,
+    ...(quickBooksTax
+      ? { taxAuthority: "quickbooks", agreedTaxExcludedCents: basis.agreedTaxExcludedCents }
+      : {}),
     retainerExpectedCents,
     retainerPaidCents,
     expectedBalanceCents: amountCents,

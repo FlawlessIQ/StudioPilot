@@ -432,4 +432,11 @@ test("itemised invoices are off unless the studio is switched on; off is today's
   const runtime = readFileSync("functions/src/operations/provider-runtime.ts", "utf8");
   // No tax codes either while off: exactly the invoice StudioCue always sent.
   assert.match(runtime, /taxMode=plan\.itemised\?quickBooksTaxMode\(preferences\):"none";/);
+  // Switched on, QuickBooks is the sales-tax authority (2026-10-01): every
+  // invoice takes the gated path, which never sends StudioCue's tax as an
+  // override — tests/quickbooks-final-tax.test.ts pins that path.
+  assert.match(plan, /return \{ \.\.\.result, gated \};/);
+  assert.match(runtime, /if\(plan\.gated\)return createGatedQuickBooksInvoice\(\{job,invoice,plan,provider,deps:heldInvoiceDeps\(\)\}\);/);
+  const gated = readFileSync("functions/src/operations/quickbooks-held-invoice.ts", "utf8");
+  assert.doesNotMatch(gated, /TotalTax/);
 });

@@ -11,6 +11,8 @@ import { ApproveFinalInvoice, RecordInvoicePayment, VoidInvoice } from "@/compon
 import { statusLabel } from "@/features/format/status-label";
 import { InfoHint } from "@/components/ui/info-hint";
 import { ProviderInvoiceLines } from "@/components/booking/provider-invoice-lines";
+import { HeldInvoiceReview } from "@/components/booking/held-invoice-review";
+import { heldInvoiceView } from "@/features/billing/held-invoice-review";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -108,15 +110,21 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
           const discrepancies = list(calculation.discrepancies).map(String);
           const inReview = invoice.status === "review_required";
           const provider = invoice.provider === "stripe" ? "Stripe" : "QuickBooks";
+          // In QuickBooks already, waiting on the tax check: its own figures
+          // (QuickBooks' total) and its own buttons.
+          const held = heldInvoiceView(invoice);
           // The balance as it stands now, for a bill held for review: what
           // the studio confirms is what the server sends (it re-checks).
-          const reviewDue = inReview
-            ? outstandingFinalBalance({
-                projectId: String(invoice.projectId),
-                proposals,
-                invoices: records,
-              }).cents
-            : null;
+          // Pre-tax where QuickBooks adds the tax (final-tax-authority.ts).
+          const reviewDue =
+            inReview && !held
+              ? outstandingFinalBalance({
+                  projectId: String(invoice.projectId),
+                  proposals,
+                  invoices: records,
+                  excludeAgreedTax: calculation.taxAuthority === "quickbooks",
+                }).cents
+              : null;
           return (
             // The row on Invoices links here ("Check and send"), and names the
             // job rather than its id (prod walk, 2026-09-30).
@@ -137,9 +145,11 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                       // amount from when the bill was raised, so the card
                       // read $1,899 above a "Send · $1,898" button after a
                       // payment came in (prod walk, 2026-09-30).
-                      inReview && reviewDue !== null
-                        ? reviewDue
-                        : calculation.expectedBalanceCents ?? invoice.amountCents,
+                      held
+                        ? held.totalCents
+                        : inReview && reviewDue !== null
+                          ? reviewDue
+                          : calculation.expectedBalanceCents ?? invoice.amountCents,
                       invoice.currency,
                     )}
                   </strong>
@@ -177,7 +187,11 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   full price, the retainer taken off, tax on the full
                   package), and a warning when it billed a different total. */}
               <ProviderInvoiceLines invoice={invoice} />
-              {inReview ? (
+              {held ? (
+                /* In QuickBooks, unsent: QuickBooks' tax, and the studio's
+                   choice — with tax, without, or Edit. */
+                <HeldInvoiceReview invoice={invoice} onDone={setSettled} />
+              ) : inReview ? (
                 /* Held, not sent: nothing went to the provider. This was a
                    badge and nothing else, so a held bill sat here for good
                    while Today stopped offering to send one. */
@@ -206,7 +220,9 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                       {invoice.status === "paid"
                         ? "Paid."
                         : ["draft", "queued"].includes(String(invoice.status))
-                          ? `On its way to ${provider}, which creates it and emails it to the couple.`
+                          ? calculation.taxAuthority === "quickbooks"
+                            ? `On its way to ${provider}, which works out the sales tax. You'll check it before anything goes to the couple.`
+                            : `On its way to ${provider}, which creates it and emails it to the couple.`
                           : ["voided", "superseded", "failed"].includes(String(invoice.status))
                             ? "No longer billed."
                             : `With the couple through ${provider}.`}
@@ -214,11 +230,12 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   </span>
                 </div>
               )}
-              {inReview ? (
+              {inReview && !held ? (
                 <ApproveFinalInvoice amountCents={reviewDue} invoice={invoice} onDone={setSettled} />
               ) : null}
               <RecordInvoicePayment invoice={invoice} onDone={setSettled} />
-              <VoidInvoice invoice={invoice} onDone={setSettled} />
+              {/* A held bill's Edit is its void. */}
+              {held ? null : <VoidInvoice invoice={invoice} onDone={setSettled} />}
             </article>
           );
         })}

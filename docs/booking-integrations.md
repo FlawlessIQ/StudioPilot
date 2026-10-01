@@ -125,49 +125,83 @@ photographers, 8 hours" and its bullets. When the retainer StudioCue bills is no
 of the parts (set by hand, percentage, capped), it is one line of the whole amount. The
 lines always total the retainer. Retainer lines are never taxable.
 
-**Final invoice.** Every package and extra at full price (taxable as agreed: the package
-always, an extra per its own flag), the discount as a negative line, **"Retainer received"
-as a negative non-taxable line**, any later payments as another, then sales tax on the
-full package amount. Lines + tax = the balance StudioCue computed
-(`final-invoice.ts`: total − retainer − earlier payments). Lines that don't add up to the
-agreed price (an amendment) collapse to one "Packages" line of the right amount.
+**Final invoice.** Every package and extra at its **pre-tax** price (taxable when the job
+is taxed: the package always, an extra per its own flag), the discount as a negative
+taxable line, **"Retainer received" as a negative non-taxable line**, any later payments as
+another — and the sales tax QuickBooks works out. Lines that don't add up to the agreed
+pre-tax price (an amendment) collapse to one taxable "Packages" line of the right amount.
 
-### Sales tax: StudioCue's agreed tax, recorded as QuickBooks sales tax
+### Sales tax: QuickBooks is the authority (2026-10-01, replaces StudioCue's own tax)
 
-StudioCue's totals already **include** tax at the package's `taxRateBasisPoints`, and that
-total is what the couple signed. Letting QuickBooks compute its own tax on top risks two
-things: charging tax twice (if the tax were also in a line), or billing a different figure
-from the agreement (if QuickBooks' rate for the address differs from the package's). So
-StudioCue sends the **pre-tax** package lines and its own tax figure, and QuickBooks
-records it. Per company (`quickBooksTaxMode`, from the Preferences read already made for
-DocNumbers):
+Owner decision: QuickBooks' Automated Sales Tax computes the tax from the couple's billing
+address, and the studio confirms it on every final invoice before it goes. Everything
+below applies only to a studio switched on (`tenantFeatures/{tenantId}
+.quickbooksItemisedInvoices`, `QUICKBOOKS_ITEMISED_FLAG`); **off, the invoice is exactly the
+single line it always was.** (The earlier design — StudioCue's agreed tax sent as a
+`TxnTaxDetail.TotalTax` override — was only ever reachable with the switch on, and is
+gone: the plan now carries `gated` and `createQuickBooksInvoice` hands every switched-on
+invoice to `createGatedQuickBooksInvoice`, `functions/src/operations/quickbooks-held-invoice.ts`.)
 
-| Company | Lines | Tax |
+**The balance is pre-tax** (`functions/src/booking/final-tax-authority.ts`): pre-tax package
+total − retainer paid − earlier payments, and QuickBooks adds its tax. The pre-tax total is
+the agreed total less the agreed tax. For bookings signed while StudioCue added its own tax,
+that tax is inside the signed total; taking it out is what stops it being charged twice
+(recorded as `calculation.agreedTaxExcludedCents`). Bookings signed pre-tax have tax 0 and
+read the same. `calculation.taxAuthority: "quickbooks"` marks such a bill; the screens'
+figure for it is `outstandingFinalBalance({ …, excludeAgreedTax: true })`.
+
+How the tax is worked out (`chooseQuickBooksTaxStrategy`, pure in
+`quickbooks-final-tax.ts`, pinned by `tests/quickbooks-final-tax.test.ts`):
+
+| Situation | Lines | Tax |
 |---|---|---|
-| US, Automated Sales Tax (`TaxPrefs.UsingSalesTax` + `PartnerTaxEnabled`) | `TaxCodeRef` TAX on taxable lines, NON on retainer/payment lines | `TxnTaxDetail.TotalTax` = StudioCue's tax (override). No tax agreed → every line NON, so QuickBooks adds none |
-| US, older manual sales tax | every line NON | a "Sales tax" line |
-| No sales tax in QuickBooks, non-US, or Preferences unreadable | no tax codes (as before) | a "Sales tax" line |
+| Not taxed: a retainer (never), job exempt (`projects.salesTaxExempt`), or `billingSettings.salesTax.mode` "none" | every line NON (no codes if the company has no sales tax) | none |
+| US, Automated Sales Tax | TAX on taxable lines, NON on retainer/payment lines | **QuickBooks computes it from BillAddr — no override, ever** |
+| US, older manual sales tax with a default code (`TaxPrefs.TaxGroupCodeRef`) or exactly one active rate code | TAX / NON | `TxnTaxDetail.TxnTaxCodeRef` = that code; QuickBooks computes |
+| Manual with several codes, sales tax off in QuickBooks, or tax codes refused (400) | every line NON | the studio's `estimateRateBasisPoints` as a "Sales tax (estimated at 8.25%)" line, said so on the review; no rate → no tax, said so |
 
-In every mode the invoice totals exactly what StudioCue expects, and with no tax the
-amounts are what they always were. If QuickBooks refuses the body with a 400, the create
-is retried without the online-payment flags, then without tax codes (the pre-2026-10
-shape); a 400 created nothing, so retries cannot duplicate.
+400 retries are kept: without the online-payment flags, then without tax codes (falling to
+the estimate line). `EmailStatus: "NotSet"` and no `/send` call: QuickBooks creating the
+invoice never reaches the couple — StudioCue emails it.
 
-**Read-back.** The created (or adopted) invoice's `TotalAmt` and `TxnTaxDetail.TotalTax`
-are stored as `providerTotals`. If `TotalAmt` differs from StudioCue's amount, the invoice
-takes QuickBooks' figure as `amountCents` (the couple pays that one, and every "paid so
-far" sum is `amount − balance`), and `providerAmountMismatch` records both figures — the
-booking page and the final-invoice card say so in words, and a later final bill flags the
-retainer for review. The lines sent are kept as `providerLines` and shown on the booking
-page (retainer) and Invoices (final). Mock mode builds the same lines deterministically.
+**Read-back** (`quickBooksTaxReadBack`). `TotalAmt` and `TxnTaxDetail.TotalTax` (plus an
+estimate line) become the bill: `amountCents`/`balanceCents` are QuickBooks', and
+`taxCents`, `providerTotals { totalCents, taxCents, subtotalCents }`, `providerLines
+{ taxAuthority: "quickbooks", taxStrategy, taxLocation }` are stored. Tax is QuickBooks'
+figure, not a mismatch; `providerAmountMismatch` (`basis: "pre_tax"`) is raised only when
+QuickBooks' pre-tax subtotal differs from StudioCue's. An invoice whose BillAddr has no
+street, city or postal code is held with "Add the couple's billing address so QuickBooks can
+work out the tax." and "Send with tax" refused until it's fixed.
 
-**Not yet verified against a real company** (FlawlessIQ's QuickBooks has lapsed): that an
-AST company honours the `TotalTax` override without recomputing; that negative
-"Retainer received" lines are accepted; that `TAX`/`NON` are accepted on a US company with
-sales tax off; and how QuickBooks' tax liability report attributes an overridden figure.
-Check these on a sandbox (US company, Automated Sales Tax on, QuickBooks Payments) before
-relying on them: a $2,000 per-crew retainer, then a final with tax, comparing the stored
-`providerTotals` to what QuickBooks shows.
+**Held for the studio.** Every final (and a retainer when `billingSettings
+.holdRetainerForReview`) lands in `review_required` with `sendReview { state:
+"awaiting_studio", subtotalCents, taxCents, totalCents, taxLocation, billingAddressMissing,
+sendWithTaxBlocked, note }`, no pay link stored and no email. A QuickBooks webhook cannot
+turn it into "sent" (`providerReportedInvoice` keeps `review_required`; paid/voided still
+win), and the couple's portal shows it as being prepared (`atProvider` false). "Check and
+send" (`components/booking/held-invoice-review.tsx` — Invoices card, booking page for a
+retainer, Cue's final-bill card; Today links to it) reads:
+
+> Packages $X · Discount · Retainer received −$Y · Sales tax $Z (calculated by QuickBooks
+> for Austin, TX) · Balance due $T — [Send with tax] [Send without tax] [Edit]
+
+bookingCommand `sendHeldInvoice` (`functions/src/booking/held-invoice-send.ts`,
+owner/admin, audited `invoice.sent_with_tax` / `invoice.sent_without_tax` /
+`invoice.retainer_released` / `invoice.tax_recalculation_requested`, idempotent) checks the
+confirmed figure and queues `release_quickbooks_invoice`. The job re-reads QuickBooks; for
+"without tax" it sparse-updates every line to NON (dropping an estimate line), reads back
+and refuses if tax remains; for "work the tax out again" it re-sends the contact's billing
+address and re-reads. Then the pay link, the record (`awaiting_delivery`), and StudioCue's
+email. If QuickBooks' total changed underneath, the bill goes back to the studio instead of
+out. A job that gives up returns the bill to `awaiting_studio` with the error. Edit = void
+(`voidInvoice`) and send a corrected bill.
+
+**Not yet verified against a real company.** On a sandbox (US, Automated Sales Tax on,
+QuickBooks Payments): that AST computes tax on create from the customer's BillAddr with
+TAX/NON lines and no TxnTaxDetail; what it does with no BillAddr (0, or the company
+address); that the sparse update to NON lines drops the tax to 0 and the pay link still
+works; that a negative "Retainer received" line is accepted; that `EmailStatus: "NotSet"`
+sends nothing; and on a manual-tax company, that `TxnTaxCodeRef` is honoured.
 
 ## QuickBooks from inside StudioCue: settings, items, test invoice, money moving back (2026-10-01)
 

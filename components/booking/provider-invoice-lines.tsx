@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert } from "lucide-react";
+import { taxPlace } from "@/features/billing/held-invoice-review";
 
 /**
  * The invoice as QuickBooks received it, line by line.
@@ -45,12 +46,24 @@ export function ProviderInvoiceLines({ invoice }: { invoice: Record<string, unkn
   const totals = record(invoice.providerTotals);
   const mismatch = record(invoice.providerAmountMismatch);
   const expected = Number(sent.expectedTotalCents ?? invoice.amountCents ?? 0);
+  // QuickBooks as the sales-tax authority: it worked the tax out from the
+  // couple's billing address (functions/src/operations/quickbooks-held-invoice.ts).
+  const quickBooksTax = sent.taxAuthority === "quickbooks";
+  const place = taxPlace(sent.taxLocation);
+  // The studio's estimate went as its own line; it is not shown twice.
+  const taxIsALine = lines.some((line) => line.kind === "sales_tax");
   return (
     <div className="invoice-calculation-lines">
       <span>
         <small>
           {`Sent to ${provider} as`}
-          <em>{invoice.kind === "final" ? "Packages − retainer + tax" : "Retainer, then the packages at $0"}</em>
+          <em>
+            {invoice.kind === "final"
+              ? quickBooksTax
+                ? "Packages − retainer; QuickBooks adds the sales tax"
+                : "Packages − retainer + tax"
+              : "Retainer, then the packages at $0"}
+          </em>
         </small>
       </span>
       {lines.map((line, index) => {
@@ -69,12 +82,18 @@ export function ProviderInvoiceLines({ invoice }: { invoice: Record<string, unkn
           </span>
         );
       })}
-      {taxCents > 0 ? (
+      {taxCents > 0 && !taxIsALine ? (
         <span>
           {/* The small is a grid: the label and its note sit on two rows. */}
           <small>
             {"Sales tax"}
-            <em>On the full package amount</em>
+            <em>
+              {quickBooksTax
+                ? place
+                  ? `Calculated by QuickBooks for ${place}`
+                  : "Calculated by QuickBooks"
+                : "On the full package amount"}
+            </em>
           </small>
           <strong>{money(taxCents, currency)}</strong>
         </span>
@@ -83,7 +102,17 @@ export function ProviderInvoiceLines({ invoice }: { invoice: Record<string, unkn
         <small>{`Total ${provider} billed`}</small>
         <strong>{money(typeof totals.totalCents === "number" ? totals.totalCents : expected, currency)}</strong>
       </span>
-      {typeof mismatch.providerTotalCents === "number" ? (
+      {typeof mismatch.providerTotalCents === "number" && mismatch.basis === "pre_tax" ? (
+        <p className="booking-delivery-warning" role="alert">
+          <CircleAlert aria-hidden="true" size={14} />
+          <span>
+            {`Before tax, ${provider}'s invoice comes to ${money(mismatch.providerSubtotalCents, currency)}, but StudioCue expected ${money(
+              mismatch.expectedCents,
+              currency,
+            )}. Check the lines in ${provider}; if they're wrong, void it here and send it again.`}
+          </span>
+        </p>
+      ) : typeof mismatch.providerTotalCents === "number" ? (
         <p className="booking-delivery-warning" role="alert">
           <CircleAlert aria-hidden="true" size={14} />
           <span>
