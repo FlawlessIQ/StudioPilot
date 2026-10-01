@@ -20,6 +20,23 @@ const JOINABLE_STATES = [
 ];
 import { studioHubCors } from "../security/cors.js";
 import { findTenantBySlug } from "./tenant-by-slug.js";
+import {
+  dayFieldsFor,
+  inquiryAnswersForLead,
+  inquiryRequirementIssues,
+  normaliseInquiryFormConfig,
+  prepareInquiryInput,
+  resolveInquiryEventType,
+  type InquiryDayFields,
+  type InquiryFormConfig,
+} from "../intake/inquiry-form-config.js";
+
+const slugSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(80)
+  .regex(/^[a-z0-9-]+$/);
 
 const serviceSchema = z.enum([
   "photography",
@@ -34,19 +51,17 @@ const serviceSchema = z.enum([
 ]);
 
 const intakeSchema = z.object({
-  tenantSlug: z
-    .string()
-    .trim()
-    .min(2)
-    .max(80)
-    .regex(/^[a-z0-9-]+$/),
+  tenantSlug: slugSchema,
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
   partnerName: z.string().trim().max(120).nullable().default(null),
   email: z.string().trim().email(),
   phone: z.string().trim().min(7).max(30),
-  eventDate: z.string().date(),
+  // Whether a date or a city is required is the studio's form's to say
+  // (inquiry-form-config.ts); hidden fields are null by the time this runs.
+  eventDate: z.string().date().nullable().default(null),
   eventType: z.string().trim().min(2).max(80),
+  eventTypeKey: z.string().trim().max(40).nullable().default(null),
   venue: z.string().trim().max(160).nullable().default(null),
   // H3: the place the lookup found, and the COI answer (mirrors
   // features/leads/schema.ts).
@@ -72,7 +87,7 @@ const intakeSchema = z.object({
     (value) => (typeof value === "string" && !value.trim() ? null : value),
     z.string().trim().email().nullable().default(null),
   ),
-  city: z.string().trim().min(2).max(120),
+  city: z.string().trim().min(2).max(120).nullable().default(null),
   estimatedGuestCount: z
     .number()
     .int()
@@ -83,19 +98,28 @@ const intakeSchema = z.object({
   servicesRequested: z.array(serviceSchema).min(1),
   budgetRange: z.string().trim().max(80).nullable().default(null),
   referralSource: z.string().trim().max(120).nullable().default(null),
+  customAnswers: z
+    .record(z.string().max(60), z.string().trim().max(2000))
+    .refine((answers) => Object.keys(answers).length <= 30)
+    .default({}),
   message: z.string().trim().min(10).max(5000),
   consent: z.literal(true),
   source: z.string().trim().max(120).default("public_inquiry"),
   honeypot: z.string().max(0).default(""),
 });
 
-const missingFields = (input: z.infer<typeof intakeSchema>): string[] => {
-  const fields: string[] = [];
-  if (!input.venue) fields.push("venue");
-  if (!input.budgetRange) fields.push("budget range");
-  if (!input.referralSource) fields.push("referral source");
-  if (!input.estimatedGuestCount) fields.push("estimated guest count");
-  return fields;
+/** What the studio may want to follow up on — only among what the form asked. */
+const missingFields = (
+  input: z.infer<typeof intakeSchema>,
+  fields: InquiryDayFields,
+  config: InquiryFormConfig,
+): string[] => {
+  const missing: string[] = [];
+  if (fields.venue && !input.venue) missing.push("venue");
+  if (config.askBudget && !input.budgetRange) missing.push("budget range");
+  if (config.askReferral && !input.referralSource) missing.push("referral source");
+  if (fields.guests && !input.estimatedGuestCount) missing.push("estimated guest count");
+  return missing;
 };
 
 export const publicLeadIntake = onRequest(
@@ -116,25 +140,51 @@ export const publicLeadIntake = onRequest(
       return;
     }
 
-    const parsed = intakeSchema.safeParse(request.body);
-    if (!parsed.success) {
-      response.status(400).json({
-        error: "INVALID_INQUIRY",
-        fields: parsed.error.issues.map((issue) => issue.path.join(".")),
-      });
+    const body: unknown = request.body;
+    const slug = slugSchema.safeParse(
+      typeof body === "object" && body !== null ? (body as { tenantSlug?: unknown }).tenantSlug : undefined,
+    );
+    if (!slug.success) {
+      response.status(400).json({ error: "INVALID_INQUIRY", fields: ["tenantSlug"] });
       return;
     }
 
-    const input = parsed.data;
     const db = getFirestore();
     // Old addresses still resolve — see ./tenant-by-slug.ts.
-    const tenantDocument = await findTenantBySlug(db, input.tenantSlug);
+    const tenantDocument = await findTenantBySlug(db, slug.data);
     if (!tenantDocument) {
       response.status(404).json({ error: "INQUIRY_FORM_UNAVAILABLE" });
       return;
     }
 
     const tenantId = tenantDocument.id;
+    /**
+     * The studio's own form (features/leads/inquiry-form-config.ts): what it
+     * hides is dropped before anything is checked, and only what the chosen
+     * type requires is required — the same three steps the page ran.
+     */
+    const formConfig = normaliseInquiryFormConfig(
+      (await db.doc(`leadCaptureSettings/${tenantId}`).get().catch(() => null))?.get("inquiryForm"),
+    );
+    const prepared = prepareInquiryInput(body, formConfig);
+    const parsed = intakeSchema.safeParse(prepared);
+    const requirementIssues = inquiryRequirementIssues(parsed.success ? parsed.data : prepared, formConfig);
+    if (!parsed.success || requirementIssues.length) {
+      response.status(400).json({
+        error: "INVALID_INQUIRY",
+        fields: [
+          ...(parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join("."))),
+          ...requirementIssues.map((issue) => issue.path.join(".")),
+        ],
+      });
+      return;
+    }
+
+    const input = parsed.data;
+    const { type: chosenType } = resolveInquiryEventType(formConfig, input);
+    const dayFields = dayFieldsFor(chosenType);
+    const customAnswers = inquiryAnswersForLead(formConfig, chosenType, input.customAnswers);
+    const eventTypeLabel = chosenType?.label ?? input.eventType;
     const rateLimitId = requestFingerprint(request, `lead:${tenantId}`);
     const rateLimitReference = db.doc(`publicRateLimits/${rateLimitId}`);
     const nowMillis = Date.now();
@@ -163,7 +213,8 @@ export const publicLeadIntake = onRequest(
 
     const normalizedEmail = input.email.toLowerCase();
     const normalizedPhone = input.phone.replace(/\D/g, "");
-    const duplicateKey = `${normalizedEmail}|${normalizedPhone}|${input.eventDate}`;
+    // A type with no date ("General question") keys on the person alone.
+    const duplicateKey = `${normalizedEmail}|${normalizedPhone}|${input.eventDate ?? ""}`;
     const [contactResult, duplicateResult, dateConflicts] = await Promise.all([
       db
         .collection("contacts")
@@ -179,21 +230,23 @@ export const publicLeadIntake = onRequest(
         .where("archivedAt", "==", null)
         .limit(1)
         .get(),
-      db
-        .collection("projects")
-        .where("tenantId", "==", tenantId)
-        .where("eventDate", "==", input.eventDate)
-        .where("state", "in", [
-          "CONSULTATION",
-          "PROPOSAL",
-          "CONTRACT_PENDING",
-          "RETAINER_PENDING",
-          "BOOKED",
-          "PLANNING",
-          "READY",
-        ])
-        .limit(20)
-        .get(),
+      input.eventDate
+        ? db
+            .collection("projects")
+            .where("tenantId", "==", tenantId)
+            .where("eventDate", "==", input.eventDate)
+            .where("state", "in", [
+              "CONSULTATION",
+              "PROPOSAL",
+              "CONTRACT_PENDING",
+              "RETAINER_PENDING",
+              "BOOKED",
+              "PLANNING",
+              "READY",
+            ])
+            .limit(20)
+            .get()
+        : null,
     ]);
     const existingContact = contactResult.docs[0];
     const duplicateLead = duplicateResult.docs[0];
@@ -233,11 +286,14 @@ export const publicLeadIntake = onRequest(
       defaultLeadAssigneeId?: string;
       defaultEventTypeId?: string;
     };
-    const missingInformation = missingFields(input);
-    // An archived job holds no date: put away is put away.
-    const availabilityStatus = dateConflicts.docs.some((project) => !project.get("archivedAt"))
-      ? "conflict"
-      : "available";
+    const missingInformation = missingFields(input, dayFields, formConfig);
+    // An archived job holds no date: put away is put away. No date, nothing
+    // to check yet.
+    const availabilityStatus = !dateConflicts
+      ? "unknown"
+      : dateConflicts.docs.some((project) => !project.get("archivedAt"))
+        ? "conflict"
+        : "available";
     const displayName = `${input.firstName} ${input.lastName}`.trim();
     const suggestedConsultationQuestions = [
       ...(missingInformation.includes("venue")
@@ -252,19 +308,40 @@ export const publicLeadIntake = onRequest(
       "Which moments or outcomes matter most to you?",
       "Who else should participate in planning and approvals?",
     ].slice(0, 6);
-    const aiSummary = `${displayName} requested ${input.servicesRequested
-      .map((service) => service.replaceAll("_", " "))
-      .join(", ")} for a ${input.eventType.toLowerCase()} on ${input.eventDate} in ${input.city}. ${
-      input.venue ? `Venue: ${input.venue}.` : "Venue is not confirmed."
-    } ${availabilityStatus === "conflict" ? "The studio already has an active project on this date." : "No active StudioCue project currently conflicts with this date."}`;
+    const aiSummary = [
+      `${displayName} requested ${input.servicesRequested
+        .map((service) => service.replaceAll("_", " "))
+        .join(", ")} (${eventTypeLabel})${input.eventDate ? ` on ${input.eventDate}` : ""}${
+        input.city ? ` in ${input.city}` : ""
+      }.`,
+      dayFields.venue ? (input.venue ? `Venue: ${input.venue}.` : "Venue is not confirmed.") : null,
+      !input.eventDate
+        ? "No date given yet."
+        : availabilityStatus === "conflict"
+          ? "The studio already has an active project on this date."
+          : "No active StudioCue project currently conflicts with this date.",
+    ]
+      .filter(Boolean)
+      .join(" ");
     const lead = {
       id: leadId,
       tenantId,
       projectId: null,
       primaryContactId: contactId,
       status: "new",
-      eventTypeId: tenantData.defaultEventTypeId ?? "wedding",
-      eventTypeLabel: input.eventType,
+      // A wedding type keeps the studio's default (every wedding-only
+      // behaviour keys on it); any other type is its own kind, so a sports
+      // inquiry's job is not filed as a wedding.
+      eventTypeId:
+        !chosenType || chosenType.kind === "wedding"
+          ? (tenantData.defaultEventTypeId ?? "wedding")
+          : chosenType.kind === "general"
+            ? "other"
+            : chosenType.kind,
+      eventTypeLabel,
+      eventKind: chosenType?.kind ?? null,
+      eventTypeKey: chosenType?.id ?? null,
+      customAnswers,
       eventDate: input.eventDate,
       venue: input.venue,
       venuePlace: input.venuePlace,
@@ -359,7 +436,7 @@ export const publicLeadIntake = onRequest(
       leadId,
       projectId: null,
       participant: { email: normalizedEmail, phone: input.phone, name: displayName },
-      subject: `${input.eventType} inquiry`,
+      subject: `${eventTypeLabel} inquiry`,
       body: input.message,
       provider: "inquiry_form",
       providerMessageId: leadId,

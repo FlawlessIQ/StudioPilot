@@ -1,5 +1,12 @@
 import type { FieldErrors, Resolver } from "react-hook-form";
 import type { PublicLeadIntake } from "./schema";
+import {
+  defaultInquiryFormConfig,
+  INQUIRY_CONFIG_MESSAGES,
+  inquiryRequirementIssues,
+  prepareInquiryInput,
+  type InquiryFormConfig,
+} from "./inquiry-form-config";
 
 /**
  * The public inquiry form's browser-side check, without Zod.
@@ -13,7 +20,9 @@ import type { PublicLeadIntake } from "./schema";
  * It must agree with the schema: same fields accepted and refused, the same
  * words for the fields the schema words, and the same trimmed, defaulted
  * values out. tests/public-intake-validate.test.ts runs both over the same
- * inputs and fails on any difference.
+ * inputs and fails on any difference — for the default form and for studios'
+ * own (inquiry-form-config.ts), whose hidden fields are dropped before
+ * anything is checked, exactly as the schema does.
  */
 
 // Zod's own patterns (zod v4 `z.regexes.email` and `z.regexes.date`), so an
@@ -42,16 +51,25 @@ export const PUBLIC_INTAKE_MESSAGES = {
   lastName: "Tell us your last name.",
   email: "Check the email address — this is where the studio will reply.",
   phone: "Add a phone number the studio can reach you on.",
-  eventDate: "Pick the date of your event.",
+  eventDate: INQUIRY_CONFIG_MESSAGES.eventDate,
+  eventType: INQUIRY_CONFIG_MESSAGES.eventType,
   venueContactEmail: "Check the venue coordinator's email.",
-  city: "Which city or town is the event in?",
+  city: INQUIRY_CONFIG_MESSAGES.city,
   message: "Tell the studio a little about the day — a sentence is plenty.",
   consent: "Please tick the box so we know we may reply to you.",
+  customAnswers: "Check your answers.",
 } as const;
 
 type Outcome = { values: PublicLeadIntake; errors: null } | { values: null; errors: Record<string, string> };
 
-export function validatePublicLeadIntake(input: Record<string, unknown>): Outcome {
+const DEFAULT_CONFIG = defaultInquiryFormConfig();
+
+export function validatePublicLeadIntake(
+  raw: Record<string, unknown>,
+  config: InquiryFormConfig = DEFAULT_CONFIG,
+): Outcome {
+  // What this inquiry's type does not ask is gone before anything is checked.
+  const input = prepareInquiryInput(raw, config) as Record<string, unknown>;
   const errors: Record<string, string> = {};
   const fail = (field: string, message: string) => {
     if (!(field in errors)) errors[field] = message;
@@ -84,10 +102,14 @@ export function validatePublicLeadIntake(input: Record<string, unknown>): Outcom
   const partnerName = optional("partnerName", 120);
   const email = required("email", 0, Infinity, PUBLIC_INTAKE_MESSAGES.email, EMAIL);
   const phone = required("phone", 7, 30, PUBLIC_INTAKE_MESSAGES.phone);
-  // `z.string().date()` checks the raw value, before any trimming.
+  // `z.string().date()` checks the raw value, before any trimming. Blank is
+  // null by now; whether null is allowed is the requirement check's.
   const eventDateRaw = input.eventDate;
-  if (typeof eventDateRaw !== "string" || !DATE.test(eventDateRaw)) fail("eventDate", PUBLIC_INTAKE_MESSAGES.eventDate);
-  const eventType = required("eventType", 2, 80, "Choose the kind of event.");
+  const eventDate = eventDateRaw === undefined || eventDateRaw === null ? null : eventDateRaw;
+  if (eventDate !== null && (typeof eventDate !== "string" || !DATE.test(eventDate)))
+    fail("eventDate", PUBLIC_INTAKE_MESSAGES.eventDate);
+  const eventType = required("eventType", 2, 80, PUBLIC_INTAKE_MESSAGES.eventType);
+  const eventTypeKey = optional("eventTypeKey", 40);
   const venue = optional("venue", 160);
   const venuePlace = input.venuePlace === undefined ? null : (input.venuePlace as PublicLeadIntake["venuePlace"]);
   const coiRaw = input.coiRequired;
@@ -101,7 +123,14 @@ export function validatePublicLeadIntake(input: Record<string, unknown>): Outcom
     if (!EMAIL.test(value)) fail("venueContactEmail", PUBLIC_INTAKE_MESSAGES.venueContactEmail);
     venueContactEmail = value;
   }
-  const city = required("city", 2, 120, PUBLIC_INTAKE_MESSAGES.city);
+  // Present, it must read as a place; absent is the requirement check's.
+  let city: string | null = null;
+  if (input.city !== undefined && input.city !== null) {
+    const value = typeof input.city === "string" ? input.city.trim() : null;
+    if (value === null || value.length < 2) fail("city", PUBLIC_INTAKE_MESSAGES.city);
+    else if (value.length > 120) fail("city", "Keep this under 120 characters.");
+    city = value;
+  }
   const guests = input.estimatedGuestCount;
   let estimatedGuestCount: number | null = null;
   if (guests !== undefined && guests !== null) {
@@ -114,6 +143,17 @@ export function validatePublicLeadIntake(input: Record<string, unknown>): Outcom
     fail("servicesRequested", "Choose what you'd like.");
   const budgetRange = optional("budgetRange", 80);
   const referralSource = optional("referralSource", 120);
+  const answersRaw = input.customAnswers;
+  const customAnswers: Record<string, string> = {};
+  if (typeof answersRaw !== "object" || answersRaw === null || Array.isArray(answersRaw)) fail("customAnswers", PUBLIC_INTAKE_MESSAGES.customAnswers);
+  else {
+    const entries = Object.entries(answersRaw);
+    if (entries.length > 30) fail("customAnswers", PUBLIC_INTAKE_MESSAGES.customAnswers);
+    for (const [id, answer] of entries) {
+      if (id.length > 60 || typeof answer !== "string" || answer.trim().length > 2000) fail("customAnswers", PUBLIC_INTAKE_MESSAGES.customAnswers);
+      else customAnswers[id] = answer.trim();
+    }
+  }
   const message = required("message", 10, 5000, PUBLIC_INTAKE_MESSAGES.message);
   if (input.consent !== true) fail("consent", PUBLIC_INTAKE_MESSAGES.consent);
   let source = "public_inquiry";
@@ -126,6 +166,9 @@ export function validatePublicLeadIntake(input: Record<string, unknown>): Outcom
     if (typeof input.honeypot !== "string" || input.honeypot.length > 0) fail("honeypot", "Leave this field empty.");
     else honeypot = input.honeypot;
   }
+  // What the studio's form requires of this type: a date, a city, its own
+  // questions. Keyed by path, so a question's refusal sits on its own field.
+  for (const issue of inquiryRequirementIssues(input, config)) fail(issue.path.join("."), issue.message);
 
   if (Object.keys(errors).length) return { values: null, errors };
   return {
@@ -137,8 +180,9 @@ export function validatePublicLeadIntake(input: Record<string, unknown>): Outcom
       partnerName,
       email,
       phone,
-      eventDate: eventDateRaw as string,
+      eventDate: eventDate as string | null,
       eventType,
+      eventTypeKey,
       venue,
       venuePlace,
       coiRequired: (coiRaw ?? null) as PublicLeadIntake["coiRequired"],
@@ -149,6 +193,7 @@ export function validatePublicLeadIntake(input: Record<string, unknown>): Outcom
       servicesRequested: services as PublicLeadIntake["servicesRequested"],
       budgetRange,
       referralSource,
+      customAnswers,
       message,
       consent: true,
       source,
@@ -157,14 +202,26 @@ export function validatePublicLeadIntake(input: Record<string, unknown>): Outcom
   };
 }
 
-/** The same check, in the shape react-hook-form asks a resolver for. */
-export function publicLeadIntakeResolver<Input extends Record<string, unknown>>(): Resolver<Input, unknown, PublicLeadIntake> {
+/**
+ * The same check, in the shape react-hook-form asks a resolver for. A
+ * question's refusal ("customAnswers.<id>") is nested, as react-hook-form
+ * reads errors by path.
+ */
+export function publicLeadIntakeResolver<Input extends Record<string, unknown>>(
+  config: InquiryFormConfig = DEFAULT_CONFIG,
+): Resolver<Input, unknown, PublicLeadIntake> {
   return async (values) => {
-    const outcome = validatePublicLeadIntake(values);
+    const outcome = validatePublicLeadIntake(values, config);
     if (outcome.errors === null) return { values: outcome.values, errors: {} };
     const errors: FieldErrors<Input> = {};
-    for (const [field, message] of Object.entries(outcome.errors))
-      (errors as Record<string, unknown>)[field] = { type: "validate", message };
+    for (const [field, message] of Object.entries(outcome.errors)) {
+      const [head, ...rest] = field.split(".");
+      const error = { type: "validate", message };
+      const tree = errors as Record<string, Record<string, unknown> | undefined>;
+      if (!rest.length) tree[head!] = error;
+      // The whole group already refused: that says it.
+      else if (!tree[head!]?.type) (tree[head!] ??= {})[rest.join(".")] = error;
+    }
     return { values: {}, errors };
   };
 }

@@ -10,12 +10,15 @@ import test from "node:test";
  */
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("the inquiry's event type starts as the Wedding the chips show", () => {
+test("the inquiry's event type is what the chips show", () => {
   // The chip showed Wedding chosen while the value was empty, so Continue on
-  // step 2 silently refused anyone who didn't tap a type.
+  // step 2 silently refused anyone who didn't tap a type. Since the studio's
+  // own types (2026-10-01) nothing is lit until one is chosen, the lit chip
+  // is read from the value itself, and a missing choice is said out loud.
   const form = read("components/crm/lead-intake-form.tsx");
-  assert.match(form, /<input defaultValue="wedding" type="hidden" \{\.\.\.register\("eventType"\)\} \/>/);
-  assert.match(form, /errors\.eventType \?/);
+  assert.match(form, /<input defaultValue=\{onlyType\?\.id \?\? ""\} type="hidden" \{\.\.\.register\("eventTypeKey"\)\} \/>/);
+  assert.match(form, /value=\{chosenType\?\.id \?\? null\}/);
+  assert.match(form, /errors\.eventType \|\| errors\.eventTypeKey \?/);
 });
 
 test("live mode never starts with the demo records", () => {

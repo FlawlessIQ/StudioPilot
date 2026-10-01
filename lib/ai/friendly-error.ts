@@ -729,6 +729,12 @@ const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
  * These say what to change instead.
  */
 const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
+  // The studio's inquiry form, refused whole with its reasons
+  // (intake/inquiry-form-config.ts, validateInquiryFormConfig).
+  INQUIRY_FORM_INVALID: (detail) =>
+    detail
+      ? `Your form wasn't saved. ${detail}`
+      : "Your form wasn't saved. Check the types and questions, then save again.",
   /**
    * A stage move the job can't make, with where it can go.
    *

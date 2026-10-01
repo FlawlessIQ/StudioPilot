@@ -83,6 +83,8 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       servicesRequested:lead.get("servicesRequested"),
       budgetRange:lead.get("budgetRange"),
       referralSource:lead.get("referralSource"),
+      // The studio's own questions on its inquiry form, with what was answered.
+      customAnswers:Array.isArray(lead.get("customAnswers"))?lead.get("customAnswers"):[],
       message:lead.get("message"),
       availabilityStatus:lead.get("availabilityStatus"),
       knownMissingInformation:missing,

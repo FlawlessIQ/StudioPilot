@@ -460,6 +460,8 @@ export const aiMessageDraftCommand = onRequest(
           estimatedGuestCount: lead.get("estimatedGuestCount"),
           budgetRange: lead.get("budgetRange"),
           notes: lead.get("notes") ?? lead.get("message") ?? null,
+          // Their answers to the studio's own inquiry-form questions.
+          answers: Array.isArray(lead.get("customAnswers")) ? lead.get("customAnswers") : [],
         };
         sourceReferences.push({
           entityType: "lead",

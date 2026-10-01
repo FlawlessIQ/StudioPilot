@@ -95,7 +95,7 @@ async function inquiryLinkCarriesForm(
     ? setting.eventTypes.map(String)
     : INQUIRY_FORM_EVENT_TYPES;
   return inquiryGetsEventForm(
-    { eventTypeId: lead.get("eventTypeId"), eventTypeLabel: lead.get("eventTypeLabel") },
+    { eventTypeId: lead.get("eventTypeId"), eventTypeLabel: lead.get("eventTypeLabel"), eventKind: lead.get("eventKind") },
     appliesTo,
   );
 }

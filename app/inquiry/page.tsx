@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { LeadIntakeForm } from "@/components/crm/lead-intake-form";
 import { resolveTenantBrand, type TenantBrand } from "@/features/branding/tenant-brand";
+import { normaliseInquiryFormConfig, type InquiryFormConfig } from "@/features/leads/inquiry-form-config";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { adminFirestore } from "@/server/firebase/admin";
 
@@ -12,6 +13,8 @@ type InquiryStudio = {
   name: string;
   slug: string;
   brand: TenantBrand;
+  /** The studio's own form: its types, questions and colours (Settings → Inquiry capture). */
+  form: InquiryFormConfig;
 };
 
 /**
@@ -25,7 +28,7 @@ async function lookupStudio(slug: string): Promise<InquiryStudio | null> {
   if (!/^[a-z0-9-]{2,80}$/.test(slug)) return null;
   if (!dataIsLive && slug === "demo-studio") {
     const name = "Aperture & Light Studio";
-    return { name, slug, brand: resolveTenantBrand({ brandName: name }) };
+    return { name, slug, brand: resolveTenantBrand({ brandName: name }), form: normaliseInquiryFormConfig(null) };
   }
   /**
    * Every address the studio has ever had, not just its current one.
@@ -70,7 +73,17 @@ async function lookupStudio(slug: string): Promise<InquiryStudio | null> {
   });
   if (!studio) return null;
   const brand = resolveTenantBrand(studio.data(), "Photography studio");
-  return { name: brand.brandName, slug, brand };
+  /**
+   * The studio's own form, read here so the first paint already asks the
+   * right questions. Unreadable settings are the default form, never an
+   * unavailable page: the server checks against the same settings either way.
+   */
+  const settings = await adminFirestore
+    .doc(`leadCaptureSettings/${studio.id}`)
+    .get()
+    .catch(() => null);
+  const form = normaliseInquiryFormConfig(settings?.get("inquiryForm"));
+  return { name: brand.brandName, slug, brand, form };
 }
 
 export async function generateMetadata({
@@ -136,6 +149,7 @@ export default async function InquiryPage({
     // intro column it replaced pushed the form below the fold on a phone.
     <LeadIntakeForm
       brandName={tenant.name}
+      config={tenant.form}
       embedded={embed === "1"}
       preview={preview === "studio"}
       studio={{

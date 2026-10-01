@@ -21915,3 +21915,187 @@ label {
   font-size: 12px;
   margin-right: 6px;
 }
+
+/* ── Settings → Inquiry capture → "Your inquiry form" ─────────────────────
+   components/intake/inquiry-form-editor.tsx: the studio's kinds of inquiry,
+   what each asks, its own questions and its colours. */
+.inquiry-form-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.inquiry-form-editor-group {
+  border: 0;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.inquiry-form-editor-group > legend {
+  font-size: 15px;
+  font-weight: 650;
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.inquiry-form-editor-group > .button {
+  justify-self: start;
+}
+
+.inquiry-form-editor-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.inquiry-form-editor-row {
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.inquiry-form-editor-row-head {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+}
+
+.inquiry-form-editor-row-head label,
+.inquiry-form-editor-fields > label:not(.inquiry-form-editor-check),
+.inquiry-form-editor-options {
+  display: grid;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 5px;
+  min-width: 0;
+}
+
+.inquiry-form-editor-row-head :is(input, select),
+.inquiry-form-editor-fields :is(input:not([type="checkbox"]):not([type="color"]), select),
+.inquiry-form-editor-options textarea {
+  background-color: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  min-width: 0;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.inquiry-form-editor-options textarea {
+  resize: vertical;
+}
+
+.inquiry-form-editor-fields input[type="color"] {
+  background-color: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  height: 38px;
+  padding: 3px;
+  width: 56px;
+}
+
+.inquiry-form-editor-actions {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.inquiry-form-editor-fields {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.inquiry-form-editor-fields > label:not(.inquiry-form-editor-check) {
+  flex: 0 1 150px;
+}
+
+.inquiry-form-editor-check {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.inquiry-form-editor-check input {
+  accent-color: var(--ink);
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.inquiry-form-editor-check input:disabled + span {
+  color: var(--muted);
+}
+
+.inquiry-form-editor-asked {
+  display: grid;
+  gap: 6px;
+}
+
+.inquiry-form-editor-asked > span {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inquiry-form-editor-sample {
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 14px;
+}
+
+.inquiry-form-editor-sample > span {
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 650;
+  padding: 10px 22px;
+}
+
+.inquiry-form-editor-sample > small {
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.inquiry-form-editor-problems {
+  background: color-mix(in srgb, var(--danger) 9%, var(--paper));
+  border-radius: 10px;
+  color: var(--danger);
+  display: grid;
+  font-size: 13.5px;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px 10px 30px;
+}
+
+.inquiry-form-editor-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .inquiry-form-editor-row-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .inquiry-form-editor-row-head > label:first-child {
+    grid-column: 1 / -1;
+  }
+}
