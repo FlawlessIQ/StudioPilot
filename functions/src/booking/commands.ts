@@ -604,6 +604,10 @@ export const bookingCommand = onRequest(
   {
     cors: studioHubCors,
     invoker: "private",
+    // Looking up and recording QuickBooks payments refreshes the studio's
+    // QuickBooks token, which needs the app's keys; without them a stale token
+    // failed with QUICKBOOKS_REFRESH_NOT_CONFIGURED.
+    secrets: ["QUICKBOOKS_CLIENT_ID", "QUICKBOOKS_CLIENT_SECRET"],
   },
   async (request, response) => {
     if (request.method !== "POST") {
