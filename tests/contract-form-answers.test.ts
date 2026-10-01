@@ -80,9 +80,11 @@ const source = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8"
  * A half-filled draft would put answers the couple has not stood behind into a
  * document they are about to sign.
  */
-test("only a submitted response reaches the contract", () => {
+test("only a sent-back response reaches the contract", () => {
   const sources = source("functions/src/contracts/sources.ts");
-  assert.match(sources, /text\(document\.get\("status"\)\) === "submitted"/);
+  // `submitted`, or `locked` once the studio locks it; never a draft.
+  assert.match(sources, /\.filter\(\(document\) => isReturned\(document\.get\("status"\)\)\)/);
+  assert.match(sources, /contractFormAnswers\(\{\s*sections: record\(submitted\.get\("templateSnapshot"\)\)\.sections,\s*answers: submitted\.get\("answers"\),/);
   assert.match(sources, /where\("tenantId", "==", project\.get\("tenantId"\)\)/);
   assert.match(sources, /formAnswers,/);
 });

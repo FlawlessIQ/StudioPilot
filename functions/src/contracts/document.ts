@@ -195,6 +195,11 @@ export type ContractSources = {
     currency: string;
     totalCents: number;
     retainerCents: number;
+    /**
+     * The discount already taken off `totalCents`, said beside the total so
+     * the fee reconciles with the packages and extras listed above it.
+     */
+    discountCents?: number;
   };
   paymentSchedule: Array<{
     label: string;
@@ -347,8 +352,13 @@ function recordValue(key: string, sources: ContractSources): string | null {
         .filter((row) => row.length > 2);
       return rows.length ? rows.join("; ") : null;
     }
-    case "price.total":
-      return formatMoney(sources.pricing.totalCents, sources.pricing.currency);
+    case "price.total": {
+      const total = formatMoney(sources.pricing.totalCents, sources.pricing.currency);
+      const discount = Math.max(0, Math.round(sources.pricing.discountCents ?? 0));
+      return discount > 0
+        ? `${total} (after a ${formatMoney(discount, sources.pricing.currency)} discount)`
+        : total;
+    }
     case "price.retainer":
       return formatMoney(sources.pricing.retainerCents, sources.pricing.currency);
     case "price.balance":

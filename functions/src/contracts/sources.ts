@@ -2,12 +2,15 @@ import type { Firestore } from "firebase-admin/firestore";
 import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
 import { packageInclusionItems } from "../packages/inclusions.js";
 import {
+  formatMoney,
   importedAgreementText,
   type ContractCustomField,
   type ContractSources,
   type ContractTemplateInput,
 } from "./document.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
+import { isReturned } from "../planning/questionnaire-lifecycle.js";
+import { contractFormAnswers } from "./form-answers.js";
 
 /**
  * Everything a StudioCue contract is resolved from, read from records.
@@ -147,21 +150,18 @@ export async function loadContractSources(
     .where("tenantId", "==", project.get("tenantId"))
     .where("projectId", "==", project.id)
     .get();
+  // Sent back counts: `submitted`, and `locked` once the studio has locked it.
   const submitted = questionnaires.docs
-    .filter((document) => text(document.get("status")) === "submitted")
+    .filter((document) => isReturned(document.get("status")))
     .sort((left, right) =>
       text(left.get("submittedAt")).localeCompare(text(right.get("submittedAt"))),
     )
     .at(-1);
-  const formAnswers = Array.isArray(submitted?.get("answers"))
-    ? (submitted!.get("answers") as unknown[])
-        .map(record)
-        .map((row) => ({
-          question: text(row.question ?? row.label ?? row.prompt),
-          answer: text(row.answer ?? row.value ?? row.response),
-        }))
-        .filter((row) => row.question && row.answer)
-        .slice(0, 40)
+  const formAnswers = submitted
+    ? contractFormAnswers({
+        sections: record(submitted.get("templateSnapshot")).sections,
+        answers: submitted.get("answers"),
+      })
     : [];
   const client = record(proposal.get("clientSnapshot"));
   const event = record(proposal.get("eventSnapshot"));
@@ -192,13 +192,24 @@ export async function loadContractSources(
   // "What's included", the words the studio edits and the proposal shows, so
   // the agreement and the proposal list the same things. The older
   // deliverables list only when there's no description.
-  const includedFor = (data: Record<string, unknown>) => {
+  const included = (data: Record<string, unknown>) => {
     const written = packageInclusionItems(data.description);
     if (written.length) return written;
     return Array.isArray(data.includedDeliverables)
       ? (data.includedDeliverables as unknown[]).map(text).filter(Boolean)
       : [];
   };
+  /**
+   * The extras the couple is paying for, under the package they were added
+   * to. GR's agreement totalled $9,098 — a $500 engagement shoot included —
+   * while its Services named only the two packages (2026-10-01): the couple
+   * signed for a price the document didn't account for.
+   */
+  const currency = text(pricing.currency) || text(tenant.get("currency")) || "USD";
+  const includedFor = (data: Record<string, unknown>) => [
+    ...included(data),
+    ...contractExtras(data.addOns, currency),
+  ];
   // One package reads as its list; several each start with their name.
   const deliverables =
     allSnapshots.length > 1
@@ -229,8 +240,11 @@ export async function loadContractSources(
         })),
       },
       pricing: {
-        currency: text(pricing.currency) || text(tenant.get("currency")) || "USD",
+        currency,
         totalCents: cents(pricing.totalCents),
+        // Said beside the total, so the fee reconciles with the packages and
+        // extras listed above it.
+        discountCents: cents(pricing.discountCents),
         // The schedule's retainer, as the invoice bills it. A fixed retainer
         // lives only in the schedule, so the snapshot's percentage put
         // "Retainer: $1,079.70" above a table saying $1,000.00 in the same
@@ -265,6 +279,22 @@ export async function loadContractSources(
       contractDate: input.today,
     },
   };
+}
+
+/** "Engagement shoot (extra, $500.00)"; "Album spreads ×2 (extra, $300.00)". */
+export function contractExtras(addOns: unknown, currency: string): string[] {
+  if (!Array.isArray(addOns)) return [];
+  return addOns
+    .map(record)
+    .map((item) => {
+      const name = text(item.name);
+      if (!name) return "";
+      const quantity = Math.max(1, Math.round(Number(item.quantity) || 1));
+      const lineCents = cents(item.lineTotalCents ?? cents(item.unitPriceCents) * quantity);
+      return `${name}${quantity > 1 ? ` ×${quantity}` : ""} (extra, ${formatMoney(lineCents, currency)})`;
+    })
+    .filter(Boolean)
+    .slice(0, 20);
 }
 
 export type LoadedTemplate = {
