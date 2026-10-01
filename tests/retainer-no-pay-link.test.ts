@@ -122,5 +122,9 @@ test("QuickBooks invoices are created with online card and bank payment allowed"
   assert.match(runtime, /AllowOnlineACHPayment:\s*true/);
   const create = runtime.slice(runtime.indexOf("export async function createQuickBooksInvoice"));
   const body = create.slice(create.indexOf('"QUICKBOOKS_CREATE_FAILED"') - 2000, create.indexOf('"QUICKBOOKS_CREATE_FAILED"'));
-  assert.match(body, /\.\.\.QUICKBOOKS_ONLINE_PAYMENT_FLAGS/);
+  assert.match(body, /\.\.\.\(online\?QUICKBOOKS_ONLINE_PAYMENT_FLAGS:\{\}\)/);
+  // A company that refused the flags still gets its invoice: a 400 created
+  // nothing, so it is asked once more without them, under its own request id.
+  assert.match(create, /createInvoice\(true\)\.catch\(\(error:unknown\)=>\{if\(String\(\(error as Error\)\?\.message\?\?""\)\.startsWith\("QUICKBOOKS_CREATE_FAILED:400:"\)\)return createInvoice\(false\);throw error;\}\)/);
+  assert.match(create, /"request-id":online\?requestId:`\$\{requestId\}:offline`/);
 });
