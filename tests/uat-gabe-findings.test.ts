@@ -56,3 +56,21 @@ test("T36: a second approval says 'nothing was sent again' only when the work wa
   const queue = readFileSync("components/ai/ai-approval-queue.tsx", "utf8");
   assert.match(queue, /decisionError\(caught, \{ sends: output\.outward === true \|\| approvingSends \}/);
 });
+
+test("T37: a stopped booking says why once, without repeating the job's name", async () => {
+  const { todayInbox } = await import("@/features/today/inbox");
+  const inbox = todayInbox({
+    now: "2026-10-01T12:00:00.000Z",
+    projects: [{ id: "p1", tenantId: "t", name: "Native signing test wedding", eventDate: "2027-06-12", state: "RETAINER_PENDING" }],
+    bookingOrchestrations: [{ id: "p1", projectId: "p1", status: "needs_attention", blockers: ["eventDateAvailable"] }],
+  } as never);
+  const card = JSON.parse(JSON.stringify(inbox)).act.find((item: { id: string }) => item.id === "booking-p1");
+  assert.equal(card.title, "Booking stopped for a reason");
+  assert.equal(card.detail, "Stopped because the date clashes with another booking");
+});
+
+test("T14: the brief shows no confidence figure when it suggested no package", () => {
+  const brief = readFileSync("components/booking/booking-autopilot-workspace.tsx", "utf8");
+  assert.match(brief, /\{text\(recommendation\.packageId\) \? \(\s*<StatusBadge/);
+  assert.match(brief, /No package suggested/);
+});

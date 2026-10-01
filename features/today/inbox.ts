@@ -1256,7 +1256,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       id: `booking-${plan.id}`,
       kind: "calendar",
       title: "Booking stopped for a reason",
-      detail: `${nameFor(plan.projectId) ?? "Project"}${blockers ? ` · ${blockers}` : ""}`,
+      // The job's name is already the card's subtitle; it was printed twice
+      // ("Native signing test wedding · the date clashes…", UAT T37).
+      detail: blockers ? `Stopped because ${blockers}` : "Open the booking to see what it's waiting on",
       href: `/studio/booking?project=${text(plan.projectId)}`,
       projectId: text(plan.projectId) || null,
       projectName: nameFor(plan.projectId),

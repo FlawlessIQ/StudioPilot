@@ -985,9 +985,16 @@ export function BookingAutopilotWorkspace({
                 <p className="eyebrow">A suggestion — your call</p>
                 <h2>Choose the package that actually fits</h2>
               </div>
-              <StatusBadge tone={Number(object(packageAction.confidence).overall) >= .8 ? "success" : "warning"}>
-                {Math.round(Number(object(packageAction.confidence).overall ?? 0) * 100)}% confidence
-              </StatusBadge>
+              {/* A confidence is in a package. With none suggested it was the
+                  AI's certainty that nothing fits, shown as "100% confidence"
+                  beside "Choose the package that actually fits" (UAT T14). */}
+              {text(recommendation.packageId) ? (
+                <StatusBadge tone={Number(object(packageAction.confidence).overall) >= .8 ? "success" : "warning"}>
+                  {Math.round(Number(object(packageAction.confidence).overall ?? 0) * 100)}% confidence
+                </StatusBadge>
+              ) : (
+                <StatusBadge tone="warning">No package suggested</StatusBadge>
+              )}
             </header>
             <div className="booking-package-options">
               {packages.map((studioPackage) => {
