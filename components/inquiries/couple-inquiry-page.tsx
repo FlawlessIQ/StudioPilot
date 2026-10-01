@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import { CalendarDays, CheckCircle2, LoaderCircle, Video } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { CalendarDays, CheckCircle2, ClipboardList, LoaderCircle, Send, Video } from "lucide-react";
 import {
   Actions,
   AppBar,
@@ -11,15 +11,23 @@ import {
   Choices,
   Field,
   KitRoot,
+  List,
   Main,
   Note,
   PoweredBy,
+  Row,
   Screen,
   Steps,
   TextArea,
   type Studio,
 } from "@/components/kit/kit";
 import { SlotPicker, slotLabel } from "@/components/kit/slot-picker";
+import { Question, spoken } from "@/components/client/kit/questionnaire-question";
+import {
+  parseQuestionnaireSections,
+  visibleQuestionnaireSections,
+} from "@/features/questionnaires/client-form";
+import { outstandingRequired } from "@/features/questionnaires/outstanding";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 
 /**
@@ -29,6 +37,12 @@ import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
  * call is booked). One page instead of two emails: the details the studio
  * still needs — only those — then a time and a way to meet. Coming back later
  * shows the booked call, with a way to move or cancel it.
+ *
+ * When the studio sends an event form with its wedding inquiries
+ * (functions/src/intake/inquiry-form.ts), the form is a step before the
+ * times: the studio wants the answers for the call. Its details step then
+ * asks only for the date, which the form needs (the date makes the job the
+ * answers belong to); everything else is the studio's own form's to ask.
  */
 
 type Field = "eventDate" | "partnerName" | "venue" | "city" | "ceremonyTime" | "estimatedGuestCount" | "phone";
@@ -52,9 +66,19 @@ type Preview = {
   /** Where the job is once past the call; names what is in their email. */
   jobStage?: "proposal" | "agreement" | "retainer" | "booked" | null;
   timezone: string;
+  /** The studio's event form, before the times. Absent from an older build. */
+  eventForm?: { name: string; status: string; requiresDate: boolean } | null;
   booked: { startsAt: string; endsAt: string; format: Format; joinUrl: string | null; location: string | null } | null;
 };
 type Slot = { startsAt: string; endsAt: string };
+type EventForm = {
+  name: string;
+  sections: ReturnType<typeof parseQuestionnaireSections>;
+  status: string;
+  submittedAt: string | null;
+};
+
+const returned = (status: string | undefined | null) => status === "submitted" || status === "locked";
 
 const fieldCopy: Record<Field, { label: string; type: string; placeholder?: string }> = {
   eventDate: { label: "Your wedding date", type: "date" },
@@ -79,6 +103,11 @@ const friendly: Record<string, string> = {
   TIME_NO_LONGER_AVAILABLE: "That time was just taken. Please choose another.",
   EVENT_DATE_REQUIRED: "Add your wedding date first, so the studio can check it’s free.",
   FORMAT_NOT_OFFERED: "Please choose one of the ways the studio meets.",
+  INQUIRY_FORM_REQUIRED: "Please fill in the studio’s form first — they’d like your answers before the call.",
+  INQUIRY_FORM_INCOMPLETE: "A few questions marked Required still need an answer.",
+  INQUIRY_FORM_NOT_AVAILABLE: "This form isn’t available any more. You can go ahead and pick a time.",
+  QUESTIONNAIRE_ALREADY_SUBMITTED: "You’ve already sent this to the studio. Reply to their email to change an answer.",
+  RATE_LIMITED: "That’s a lot of saving in a short time. Please wait a few minutes and try again.",
 };
 
 function message(caught: unknown, fallback: string): string {
@@ -100,9 +129,18 @@ function when(startsAt: string, timezone: string): string {
 const call = (type: string, input: Record<string, unknown>) =>
   runPublicScheduling({ type, idempotencyKey: crypto.randomUUID(), input });
 
+/**
+ * The details step's questions. With the studio's own event form coming
+ * next, only the date: the form asks the rest in the studio's words, and
+ * asking the venue twice in two minutes reads as a page that isn't listening.
+ */
+function detailFieldsFor(preview: Pick<Preview, "eventForm" | "missing">): Field[] {
+  return preview.eventForm ? preview.missing.filter((field) => field === "eventDate") : preview.missing;
+}
+
 export function CoupleInquiryPage({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [step, setStep] = useState<"loading" | "details" | "time" | "booked" | "moved_on" | "error">("loading");
+  const [step, setStep] = useState<"loading" | "details" | "form" | "time" | "booked" | "moved_on" | "error">("loading");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [values, setValues] = useState<Partial<Record<Field | "notes", string>>>({});
@@ -112,6 +150,20 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   // Bumped after each change so the page re-reads where the couple stands.
   const [reloadKey, setReloadKey] = useState(0);
   const load = () => setReloadKey((key) => key + 1);
+
+  // The studio's event form: its questions, the couple's answers, and an
+  // autosave that never takes the keyboard away (as the portal's does).
+  const [form, setForm] = useState<EventForm | null>(null);
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const answersRef = useRef(answers);
+  const changeVersion = useRef(0);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   useEffect(() => {
     let active = true;
@@ -124,14 +176,18 @@ export function CoupleInquiryPage({ token }: { token: string }) {
         const result = raw as unknown as Preview;
         setPreview(result);
         setFormat((current) => current || result.formats[0] || "zoom");
+        const form = result.eventForm ?? null;
+        const fields = detailFieldsFor(result);
         setStep(
           result.booked
             ? "booked"
             : result.pastConsultation
               ? "moved_on"
-              : result.missing.length && !result.detailsSubmitted
-              ? "details"
-              : "time",
+              : fields.includes("eventDate") || (fields.length && !result.detailsSubmitted)
+                ? "details"
+                : form && !returned(form.status)
+                  ? "form"
+                  : "time",
         );
       })
       .catch((caught: unknown) => {
@@ -166,6 +222,121 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       active = false;
     };
   }, [step, preview?.takesBookings, token]);
+
+  // The form's questions and anything already saved, read when the step opens.
+  const formWanted = step === "form" && Boolean(preview?.eventForm);
+  useEffect(() => {
+    if (!formWanted) return;
+    let active = true;
+    void call("inquiry_form", { token })
+      .then((result) => {
+        if (!active) return;
+        setForm({
+          name: String(result.name ?? "Event form"),
+          // The server sends only what a couple sees: no internal or file questions.
+          sections: parseQuestionnaireSections(result.sections),
+          status: String(result.status ?? "not_started"),
+          submittedAt: typeof result.submittedAt === "string" ? result.submittedAt : null,
+        });
+        setAnswers(
+          typeof result.answers === "object" && result.answers !== null
+            ? (result.answers as Record<string, unknown>)
+            : {},
+        );
+        setDirty(false);
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        const code = caught instanceof Error ? caught.message : "";
+        // The studio took it back or turned it off: nothing stands before the times.
+        if (code === "INQUIRY_FORM_NOT_AVAILABLE") {
+          setStep(preview?.booked ? "booked" : "time");
+          return;
+        }
+        setNotice(message(caught, "The form couldn’t load. Please try again in a moment."));
+      });
+    return () => {
+      active = false;
+    };
+  }, [formWanted, token, preview?.booked]);
+
+  const visible = useMemo(
+    () => (form ? visibleQuestionnaireSections(form.sections, answers) : []),
+    [form, answers],
+  );
+  const outstanding = outstandingRequired(
+    visible.flatMap((section) => section.fields.filter((field) => field.type !== "information")),
+    answers,
+  );
+  const formSent = returned(form?.status);
+
+  const persist = useCallback(
+    async (submit: boolean) => {
+      const version = changeVersion.current;
+      if (submit) setSending(true);
+      else setSaving(true);
+      try {
+        const result = await call("inquiry_form_save", {
+          token,
+          // Every answer, not just the visible ones: the server merges, and a
+          // condition flipped back must not have lost what was typed.
+          answers: { ...answersRef.current },
+          submit,
+        });
+        if (version === changeVersion.current) setDirty(false);
+        setSavedAt(new Date());
+        if (submit) {
+          setForm((current) =>
+            current ? { ...current, status: String(result.status ?? "submitted") } : current,
+          );
+          window.scrollTo({ top: 0 });
+          // Straight on to the times (or back to the booked call).
+          setReloadKey((key) => key + 1);
+        }
+        return true;
+      } catch (caught: unknown) {
+        setNotice(
+          message(caught, submit ? "Your answers couldn’t be sent. Please try again." : "Your answers couldn’t be saved. Check your connection."),
+        );
+        if (caught instanceof Error && caught.message === "QUESTIONNAIRE_ALREADY_SUBMITTED")
+          setReloadKey((key) => key + 1);
+        return false;
+      } finally {
+        if (submit) setSending(false);
+        else setSaving(false);
+      }
+    },
+    [token],
+  );
+
+  // Autosave a moment after the couple stops typing.
+  useEffect(() => {
+    if (step !== "form" || !dirty || formSent || saving || sending) return;
+    const timer = window.setTimeout(() => void persist(false), 1_500);
+    return () => window.clearTimeout(timer);
+  }, [step, dirty, formSent, persist, saving, sending]);
+
+  function answer(fieldId: string, value: unknown) {
+    if (formSent) return;
+    changeVersion.current += 1;
+    setAnswers((current) => ({ ...current, [fieldId]: value }));
+    setDirty(true);
+  }
+
+  function sendForm() {
+    if (outstanding.length) {
+      const names = outstanding.map((field) => field.label);
+      setNotice(
+        names.length > 3
+          ? `${names.length} questions marked Required still need an answer.`
+          : // A label is often a question already: no "?." at the end.
+            `Still needed: ${names.join(", ")}${/[.?!]$/.test(names.at(-1) ?? "") ? "" : "."}`,
+      );
+      return;
+    }
+    setNotice("");
+    void persist(true);
+  }
 
   async function saveDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -240,9 +411,29 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       lede: `${studio} has your date. Everything from here is in your client portal — the link is in your email.`,
     },
   }[preview?.jobStage ?? "proposal"];
+  const eventForm = preview?.eventForm ?? null;
+  const detailFields = preview ? detailFieldsFor(preview) : [];
+  // The steps this couple walks. Without an event form it is the page as it
+  // was: details, then a time. With one, the date (only if missing), the
+  // form, then a time.
+  const flow: Array<"details" | "form" | "time"> = [
+    ...(!eventForm || detailFields.length || preview?.detailsSubmitted ? (["details"] as const) : []),
+    ...(eventForm ? (["form"] as const) : []),
+    "time",
+  ];
+  const stepNumber = flow.indexOf(step as "details" | "form" | "time") + 1;
+  // Opened from a booked call ("Fill it in now"), the form isn't a step.
+  const showSteps = stepNumber > 0 && !(step === "form" && preview?.booked);
+  const formName = form?.name ?? eventForm?.name ?? "event form";
   const phrase =
     step === "details"
-      ? "tell us about your day"
+      ? eventForm
+        ? "when’s the wedding?"
+        : "tell us about your day"
+      : step === "form"
+        ? formSent
+          ? `your ${formName} is with ${studio}`
+          : "tell us about your day"
       : step === "booked"
         ? "you’re booked in"
         : step === "moved_on"
@@ -260,11 +451,22 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     color: preview?.brandAccentColor ?? null,
     logoUrl: preview?.brandLogoUrl ?? null,
   };
-  const eyebrow =
-    step === "details" ? "Step 1 of 2" : step === "time" ? "Step 2 of 2" : step === "moved_on" ? "Your inquiry" : "Your consultation";
+  const eyebrow = showSteps
+    ? `Step ${stepNumber} of ${flow.length}`
+    : step === "form"
+      ? formName
+      : step === "moved_on"
+        ? "Your inquiry"
+        : "Your consultation";
   const lede =
     step === "details"
-      ? "Just what the studio doesn’t know yet. Skip anything you haven’t decided."
+      ? eventForm
+        ? `So ${studio} can check they’re free. Then a few questions about your day.`
+        : "Just what the studio doesn’t know yet. Skip anything you haven’t decided."
+      : step === "form"
+        ? formSent
+          ? `${form?.submittedAt ? `Sent ${new Date(form.submittedAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })}. ` : ""}Here’s what they have. To change an answer, reply to their email.`
+          : `${studio} would love to know about your day before you talk. Your answers save as you go — come back to this link any time to finish.`
       : step === "booked"
         ? "Need a different time? You can move it or cancel it here."
         : step === "moved_on"
@@ -278,9 +480,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             and its "Y" flashed before every couple's page. */}
         <AppBar studio={preview ? brand : undefined} />
         <Main label="Your inquiry">
-          {step === "details" || step === "time" ? (
-            <Steps step={step === "details" ? 1 : 2} total={2} />
-          ) : null}
+          {showSteps ? <Steps step={stepNumber} total={flow.length} /> : null}
           {step !== "loading" && step !== "error" ? (
             <div className="kit-stack-tight">
               <p className="kit-eyebrow">{eyebrow}</p>
@@ -306,7 +506,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
 
           {step === "details" && preview ? (
             <form className="kit-stack" id="couple-details" onSubmit={(event) => void saveDetails(event)}>
-              {preview.missing.map((field) => (
+              {detailFields.map((field) => (
                 <Field
                   inputMode={field === "estimatedGuestCount" ? "numeric" : field === "phone" ? "tel" : undefined}
                   key={field}
@@ -320,13 +520,65 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                   value={values[field] ?? ""}
                 />
               ))}
-              <TextArea
-                label={`Anything else you’d like ${studio} to know?`}
-                onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))}
-                rows={3}
-                value={values.notes ?? ""}
-              />
+              {/* With an event form next, the form is where they tell the studio more. */}
+              {eventForm ? null : (
+                <TextArea
+                  label={`Anything else you’d like ${studio} to know?`}
+                  onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))}
+                  rows={3}
+                  value={values.notes ?? ""}
+                />
+              )}
             </form>
+          ) : null}
+
+          {step === "form" && !form ? (
+            <Card>
+              <p className="kit-body" role="status">
+                <LoaderCircle aria-hidden="true" className="spin" size={18} /> Opening the form…
+              </p>
+            </Card>
+          ) : null}
+
+          {/* Sent: what the studio has, read-only. */}
+          {step === "form" && form && formSent
+            ? visible.map((section) => (
+                <section aria-label={section.title} className="kit-stack-tight" key={section.id}>
+                  <h2 className="kit-subsection">{section.title}</h2>
+                  <List>
+                    {section.fields
+                      .filter((field) => field.type !== "information")
+                      .map((field) => (
+                        <Row
+                          key={field.id}
+                          subtitle={spoken(answers[field.id], field.type) || "Not answered"}
+                          title={field.label}
+                        />
+                      ))}
+                  </List>
+                </section>
+              ))
+            : null}
+
+          {step === "form" && form && !formSent ? (
+            <div className="kit-stack">
+              {visible.map((section) => (
+                <section aria-label={section.title} className="kit-stack" key={section.id}>
+                  <h2 className="kit-subsection">{section.title}</h2>
+                  {section.fields.map((field) => (
+                    <Question
+                      answer={answers[field.id]}
+                      field={field}
+                      key={field.id}
+                      onChange={(value) => answer(field.id, value)}
+                      onFile={() => undefined}
+                      source=""
+                      uploading={false}
+                    />
+                  ))}
+                </section>
+              ))}
+            </div>
           ) : null}
 
           {step === "booked" && preview?.booked ? (
@@ -348,6 +600,29 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                 </a>
               ) : null}
             </Card>
+          ) : null}
+
+          {/* Booked before the studio's form reached them (or booked, then
+              the studio turned the form on): still worth having before the call. */}
+          {step === "booked" && preview?.booked && eventForm ? (
+            returned(eventForm.status) ? (
+              <button className="kit-link-button" onClick={() => setStep("form")} type="button">
+                See your {eventForm.name}
+              </button>
+            ) : (
+              <Card>
+                <p className="kit-eyebrow">
+                  <ClipboardList aria-hidden="true" size={14} /> Before your call
+                </p>
+                <h2 className="kit-section">Your {eventForm.name}</h2>
+                <p className="kit-body">
+                  {`${studio} would love your answers before you talk, so they can plan the call around your day.`}
+                </p>
+                <Button onClick={() => setStep("form")} variant="secondary">
+                  Fill it in now
+                </Button>
+              </Card>
+            )
           ) : null}
 
           {step === "time" && preview && !preview.takesBookings ? (
@@ -401,6 +676,36 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             ) : (
               <Button disabled={busy} form="couple-details" type="submit">
                 {busy ? "Saving…" : "Continue"}
+              </Button>
+            )}
+          </Actions>
+        ) : null}
+
+        {step === "form" && form ? (
+          <Actions
+            note={
+              formSent
+                ? undefined
+                : saving
+                  ? "Saving…"
+                  : dirty
+                    ? "Saving shortly…"
+                    : savedAt
+                      ? `Saved ${savedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                      : "Your answers save as you type."
+            }
+          >
+            {formSent ? (
+              <Button onClick={() => setStep(preview?.booked ? "booked" : "time")}>
+                {preview?.booked ? "Back to your consultation" : "Pick a time to talk"}
+              </Button>
+            ) : (
+              <Button disabled={sending} icon={Send} onClick={sendForm}>
+                {sending
+                  ? "Sending…"
+                  : preview?.booked || !preview?.takesBookings
+                    ? `Send to ${studio}`
+                    : "Send, then pick a time"}
               </Button>
             )}
           </Actions>

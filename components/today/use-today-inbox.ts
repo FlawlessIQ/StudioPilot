@@ -246,6 +246,8 @@ export function useTodayInbox(): {
         questionnaireHasAnswers: questionnaireHasAnswers(
           currentQuestionnaire(forProject(questionnaires.records, projectId))?.answers,
         ),
+        questionnaireSource:
+          text(currentQuestionnaire(forProject(questionnaires.records, projectId))?.source) || null,
         scheduleStatus: text(latestSchedule?.status) || null,
         // Whether a form for this job type exists at all. Today used to offer
         // "Send the form" on a barn session for which no form existed, while

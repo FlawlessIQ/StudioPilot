@@ -117,5 +117,15 @@ export function InquiryForwardingAddress() {
  * ways to get inquiries to it, are one panel: see LeadCaptureSetup.
  */
 export function InquiryForwardingSettings() {
-  return <LeadCaptureSetup />;
+  return (
+    <>
+      <LeadCaptureSetup />
+      {/* The event form couples fill in before the call is chosen where the
+          forms live (components/planning/inquiry-event-form-setting.tsx). */}
+      <p className="form-notice">
+        Want couples to fill in your wedding event form before they book a call?{" "}
+        <Link href="/studio/questionnaires">Choose it under Questionnaires</Link>.
+      </p>
+    </>
+  );
 }

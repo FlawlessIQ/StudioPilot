@@ -274,8 +274,35 @@ function defaultNextAction(state: string): ClientNextAction {
   };
 }
 
-export function buildClientMilestones(state: string): ClientMilestone[] {
+/**
+ * The studio's event form, filled in on the couple's inquiry page before the
+ * consultation (functions/src/intake/inquiry-form.ts). Present only when the
+ * job has one; `returned` once they sent it.
+ */
+export type InquiryFormMilestone = { returned: boolean } | null;
+
+/**
+ * Whether the journey shows an "Event form" step, and where.
+ *
+ * Between "Inquiry received" and "Consultation", because that is when it
+ * happens: the couple fills it in on their inquiry page, then picks a time.
+ * Shown while it is still ahead (before the call) or once it is in; a job
+ * that moved past the call without it doesn't grow a step the couple can no
+ * longer take.
+ */
+export function showsInquiryFormMilestone(state: string, inquiryForm: InquiryFormMilestone): boolean {
+  if (!inquiryForm) return false;
+  return inquiryForm.returned || stateIndex(state) <= 1;
+}
+
+export function buildClientMilestones(
+  state: string,
+  options: { inquiryForm?: InquiryFormMilestone } = {},
+): ClientMilestone[] {
   const index = stateIndex(state);
+  const inquiryForm = options.inquiryForm ?? null;
+  const withForm = showsInquiryFormMilestone(state, inquiryForm);
+  const formOwed = withForm && !inquiryForm?.returned;
   const definitions = [
     {
       id: "inquiry",
@@ -284,11 +311,23 @@ export function buildClientMilestones(state: string): ClientMilestone[] {
       current: () => false,
       complete: () => true,
     },
+    ...(withForm
+      ? [
+          {
+            id: "event_form",
+            label: "Event form",
+            description: "Tell your studio about your day, ahead of your consultation.",
+            current: () => formOwed,
+            complete: () => !formOwed,
+          },
+        ]
+      : []),
     {
       id: "consultation",
       label: "Consultation",
       description: "Align on your plans, priorities, and coverage.",
-      current: () => index <= 1,
+      // One step is current at a time: the form comes first.
+      current: () => index <= 1 && !formOwed,
       complete: () => index > 1,
     },
     {
@@ -352,6 +391,7 @@ export function buildClientPortalExperience({
   today = null,
   currentSchedule = null,
   questionnaireStatus = null,
+  inquiryForm = null,
 }: {
   state: string;
   availability: Availability;
@@ -394,6 +434,8 @@ export function buildClientPortalExperience({
   currentSchedule?: { status: string; version: number } | null;
   /** So the fallback never sends them back to a form they have finished. */
   questionnaireStatus?: string | null;
+  /** The event form from their inquiry page, when the job has one. */
+  inquiryForm?: InquiryFormMilestone;
   /**
    * What the client still owes, if anything. Optional so existing callers keep
    * working, but supplying it changes the priority: money that is past its date
@@ -594,7 +636,7 @@ export function buildClientPortalExperience({
           actionLabel: "View payments",
         }
       : null;
-  const milestones = buildClientMilestones(state);
+  const milestones = buildClientMilestones(state, { inquiryForm });
   const completedMilestones = milestones.filter(
     (milestone) => milestone.status === "complete",
   ).length;

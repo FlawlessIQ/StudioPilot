@@ -211,6 +211,8 @@ export function useProjectJourney({
     questionnaireHasAnswers: questionnaireHasAnswers(
       currentQuestionnaire(forProject(questionnaires.records))?.answers,
     ),
+    questionnaireSource:
+      text(currentQuestionnaire(forProject(questionnaires.records))?.source) || null,
     scheduleStatus: text(latestSchedule?.status) || null,
     // And ticked Run of show on an approved schedule whose items no reader
     // could parse, while the couple's brief showed "Invalid Date" six times.

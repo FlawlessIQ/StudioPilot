@@ -3,6 +3,7 @@ import Link from "next/link";
 import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builder";
 import { QuestionnaireQuickSend } from "@/components/planning/questionnaire-quick-send";
 import { QuestionnaireReviewInsights } from "@/components/planning/questionnaire-review-insights";
+import { InquiryEventFormSetting } from "@/components/planning/inquiry-event-form-setting";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 import { PendingImportNotice } from "@/components/ai/pending-import-notice";
 
@@ -48,7 +49,11 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
             </section>
           </>
         ) : (
-          <QuestionnaireBuilder />
+          <>
+            {/* Which form new wedding inquiries fill in before the call. */}
+            <InquiryEventFormSetting />
+            <QuestionnaireBuilder />
+          </>
         )}
       </div>
     </AppShell>
