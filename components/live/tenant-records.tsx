@@ -1348,7 +1348,11 @@ export function LiveLeadDetail({ id }: { id: string }) {
             {guests ? (
               <div><dt>Guests</dt><dd>{guests} <InferredTag lead={lead} field="estimatedGuestCount" /></dd></div>
             ) : null}
-            <div><dt>Budget</dt><dd>{String(lead.budgetRange ?? "Not provided")} <InferredTag lead={lead} field="budgetRange" /></dd></div>
+            {/* Shown only when there is one: a studio can stop asking, and
+                "Not provided" then read as the couple holding it back. */}
+            {typeof lead.budgetRange === "string" && lead.budgetRange ? (
+              <div><dt>Budget</dt><dd>{lead.budgetRange} <InferredTag lead={lead} field="budgetRange" /></dd></div>
+            ) : null}
             <div>
               <dt>Source</dt>
               <dd>
