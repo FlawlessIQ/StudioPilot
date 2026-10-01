@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { prepareCrewStaffing } from "../crew/prepare-staffing.js";
+import { crewCalendarEventName } from "../crew/calendar-ics.js";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 import {
   alreadyClientOnly,
@@ -1566,7 +1567,11 @@ export async function addCrewCalendarInvite(job: DocumentSnapshot) {
   const tenantId = String(job.get("tenantId"));
   const projectId = String(assignment.get("projectId") ?? "");
   const project = await db.doc(`projects/${projectId}`).get();
-  const projectName = text(project.get("name")) || "Photography event";
+  const projectName = crewCalendarEventName({
+    name: project.get("name"),
+    eventTypeLabel: project.get("eventTypeLabel"),
+    eventType: project.get("eventType"),
+  });
   const profileId = String(assignment.get("crewProfileId") ?? "");
   const profile = profileId
     ? await db.doc(`crewProfiles/${profileId}`).get()

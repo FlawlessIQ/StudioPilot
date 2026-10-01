@@ -64,3 +64,23 @@ export function assignmentPlace(locations: unknown): string {
   const first = Array.isArray(locations) ? (locations[0] as Record<string, unknown> | undefined) : undefined;
   return [first?.name, first?.address].filter((part) => typeof part === "string" && part).join(", ");
 }
+
+/**
+ * What a crew member's calendar calls the job when it has no name.
+ *
+ * The Google Calendar invite fell back to "Photography event", which is wrong
+ * for every videographer a photo + video studio books. The event's own type
+ * says what the day is; a job with neither is a wedding, the default the
+ * run-of-show draft also assumes (functions/src/ai/schedule.ts).
+ */
+export function crewCalendarEventName(project: {
+  name?: unknown;
+  eventTypeLabel?: unknown;
+  eventType?: unknown;
+}): string {
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const name = text(project.name);
+  if (name) return name;
+  const type = (text(project.eventTypeLabel) || text(project.eventType)).replace(/[_-]+/g, " ");
+  return type ? type.replace(/^./, (first) => first.toUpperCase()) : "Wedding";
+}

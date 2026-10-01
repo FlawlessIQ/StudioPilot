@@ -45,6 +45,7 @@ import {
   statusAfterSave,
   submittedAtAfterSave,
 } from "./questionnaire-lifecycle.js";
+import { sameItemCrew, withCrewIds } from "./item-crew.js";
 import {
   assertStudioMayRecordAnswer,
   revisedTimelineEmail,
@@ -60,7 +61,11 @@ const item = z.object({
   location: z.string().nullable(),
   address: z.string().nullable(),
   travelMinutes: z.number().int().nonnegative(),
-  photographerIds: z.array(z.string()),
+  // Anyone on the segment, any trade (item-crew.ts). Optional both ways: a
+  // browser still on the old bundle sends only photographerIds, a new one
+  // sends both, and publishing writes both from whichever arrived.
+  crewIds: z.array(z.string()).optional(),
+  photographerIds: z.array(z.string()).default([]),
   participants: z.array(z.string()),
   vendorContactIds: z.array(z.string()),
   equipment: z.array(z.string()),
@@ -1963,7 +1968,7 @@ export const planningCommand = onRequest(
             )
           : [];
         const currentItems = parsed.input.items.map((scheduleItem) => ({
-          ...scheduleItem,
+          ...withCrewIds(scheduleItem),
           sourceReferences:
             scheduleItem.sourceReferences?.length
               ? scheduleItem.sourceReferences
@@ -1994,10 +1999,14 @@ export const planningCommand = onRequest(
             ["time", `${String(priorItem.startAt)}:${String(priorItem.endAt)}`, `${scheduleItem.startAt}:${scheduleItem.endAt}`],
             ["location", `${String(priorItem.location)}:${String(priorItem.address)}`, `${String(scheduleItem.location)}:${String(scheduleItem.address)}`],
             ["title", String(priorItem.title), scheduleItem.title],
-            ["photographers", JSON.stringify(priorItem.photographerIds ?? []), JSON.stringify(scheduleItem.photographerIds)],
           ]
             .filter(([, before, after]) => before !== after)
             .map(([field]) => field);
+          // Compared as sets through itemCrewIds, so a version published
+          // before crewIds existed does not read as a crew change against its
+          // own republish — which would tell every accepted crew member their
+          // day changed when it had not.
+          if (!sameItemCrew(priorItem, scheduleItem)) changedFields.push("crew");
           return changedFields.length
             ? [{ itemId: scheduleItem.id, title: scheduleItem.title, changedFields }]
             : [];

@@ -9,6 +9,8 @@ import { crewPublicError } from "@/lib/crew/public-error";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { crewRequirementsFor, type CrewRequirementSettings } from "@/features/crew/requirements";
+import { directOfferDefaults, offerResponsibilities } from "@/features/crew/direct-offer";
+import { jobCoverage, jobPackageSnapshotIds, ownerShootsJob } from "@/features/crew/staffing-plan";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const localDateTime = (value: Date) => {
@@ -61,6 +63,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
     | CrewRequirementSettings
     | undefined;
   const { records: schedules } = useTenantDocuments("schedules");
+  const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
 
   const project = projects?.find((item) => item.id === projectId);
   const eventDate =
@@ -86,8 +89,23 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
     .filter((item) => item.projectId === projectId)
     .sort((a, b) => Number(b.version ?? 0) - Number(a.version ?? 0))[0];
 
+  // The role the job is still short of, not a photography constant
+  // (features/crew/direct-offer.ts). Derived like the times below: the job
+  // and its packages load after the first render.
+  const defaults = useMemo(() => {
+    const snapshotIds = jobPackageSnapshotIds(project);
+    return directOfferDefaults({
+      coverage: jobCoverage(
+        (packageSnapshots ?? []).filter((snapshot) => snapshotIds.includes(snapshot.id)),
+      ),
+      assignments: (assignments ?? []).filter((item) => item.projectId === projectId),
+      ownerCovers: ownerShootsJob(project),
+    });
+  }, [assignments, packageSnapshots, project, projectId]);
+
   const [crewProfileId, setCrewProfileId] = useState("");
-  const [role, setRole] = useState("Second photographer");
+  const [roleEdit, setRoleEdit] = useState<string | null>(null);
+  const role = roleEdit ?? defaults.role;
   // Derived, not stored. State initialises on the first render, when the
   // job is still loading and `eventDate` has fallen back to today — a
   // stored default would strand the offer on today's date for a wedding
@@ -97,9 +115,9 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
   const startsAt =
     startsAtEdit ?? localDateTime(new Date(`${eventDate}T12:00:00`));
   const endsAt = endsAtEdit ?? localDateTime(new Date(`${eventDate}T20:00:00`));
-  const [responsibilities, setResponsibilities] = useState(
-    "Ceremony reactions\nCocktail-hour candids",
-  );
+  // Follows the role until someone types their own.
+  const [responsibilitiesEdit, setResponsibilitiesEdit] = useState<string | null>(null);
+  const responsibilities = responsibilitiesEdit ?? offerResponsibilities(role);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -154,6 +172,8 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
         setRateOverride(null);
         setStartsAtEdit(null);
         setEndsAtEdit(null);
+        setRoleEdit(null);
+        setResponsibilitiesEdit(null);
         element.reset();
       } else {
         setNotice(
@@ -229,7 +249,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
           <label>
             Role
             <input
-              onChange={(event) => setRole(event.target.value)}
+              onChange={(event) => setRoleEdit(event.target.value)}
               required
               value={role}
             />
@@ -266,7 +286,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
           <label className="form-span">
             What they are covering, one per line
             <textarea
-              onChange={(event) => setResponsibilities(event.target.value)}
+              onChange={(event) => setResponsibilitiesEdit(event.target.value)}
               value={responsibilities}
             />
           </label>

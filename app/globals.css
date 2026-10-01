@@ -14700,6 +14700,13 @@ form:has(> .address-field) > .address-field,
 .schedule-generator-form .schedule-generate-actions{grid-column:1/-1;justify-self:start}
 .schedule-add-item{justify-self:start;margin-top:13px}
 .schedule-draft-items article .schedule-item-remove{grid-column:1/-1;justify-self:start;min-height:30px;padding:0 10px;font-size:11.5px}
+/* Who is on a segment: every booked crew member, any trade, as toggles. See
+   features/schedules/crew-options.ts. */
+.schedule-draft-items article .schedule-item-crew{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0;padding:0;border:0;min-width:0}
+.schedule-item-crew legend{float:left;margin-right:4px;padding:0;color:var(--muted);font-size:11.5px;font-weight:650}
+.schedule-item-crew label{display:inline-flex;align-items:center;gap:6px;min-height:30px;border:1px solid var(--line);border-radius:999px;padding:0 10px;font-size:12px;cursor:pointer}
+.schedule-item-crew label:has(input:checked){border-color:color-mix(in srgb,var(--violet) 55%,var(--line));background:color-mix(in srgb,var(--violet) 14%,var(--surface))}
+.schedule-draft-items .schedule-item-crew input[type="checkbox"]{width:14px;height:14px;margin:0;padding:0;border-radius:4px}
 
 /* Said instead of the portal button when there is no Stripe customer to open a
    portal for. See components/saas/live-subscription.tsx. */
@@ -18633,6 +18640,9 @@ label {
   }
   .ds-root .schedule-draft-items article > input:first-child {
     font-weight: 650;
+  }
+  .ds-root .schedule-draft-items article > .schedule-item-crew {
+    grid-column: 1 / -1;
   }
   .ds-root .schedule-draft-items article > .schedule-item-sources {
     grid-column: 1;

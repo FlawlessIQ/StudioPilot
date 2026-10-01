@@ -1098,6 +1098,17 @@ textarea.kit-input {
   color: var(--kit-caption);
   font-size: 13px;
 }
+/* A segment the person looking is on (features/schedules/item-crew.ts). */
+.kit-timeline-mine {
+  align-self: flex-start;
+  margin: 2px 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--kit-accent) 14%, var(--kit-paper));
+  color: var(--kit-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
 .kit .kit-timeline-ask {
   align-self: flex-start;
   min-height: 40px;

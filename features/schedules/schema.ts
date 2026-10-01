@@ -5,7 +5,11 @@ export const scheduleItemSchema = z.object({
   id: z.string(), startAt: z.string().datetime(), endAt: z.string().datetime(),
   title: z.string().min(1), description: z.string(), location: z.string().nullable(),
   address: z.string().nullable(), travelMinutes: z.number().int().nonnegative(),
-  photographerIds: z.array(z.string()), participants: z.array(z.string()),
+  // Everyone on the segment, any trade (features/schedules/item-crew.ts).
+  // `photographerIds` is the legacy name, kept in step during the transition;
+  // read either through itemCrewIds, never directly.
+  crewIds: z.array(z.string()).optional(),
+  photographerIds: z.array(z.string()).default([]), participants: z.array(z.string()),
   vendorContactIds: z.array(z.string()), equipment: z.array(z.string()), notes: z.string().nullable(),
   visibility: z.enum(["studio","client","crew","shared"]), blockingIssues: z.array(z.string()),
   sourceReferences: z.array(z.object({

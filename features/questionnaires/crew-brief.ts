@@ -110,14 +110,35 @@ export const criticalCrewQuestions: ReadonlyArray<{
   label: string;
   type: string;
 }> = [
-  { id: "no-photo-list", label: "Anyone who must not be photographed", type: "long_text" },
+  // Worded for photo and video alike: a studio that films asks the same
+  // questions, and "must not be photographed" said nothing about the camera
+  // the videographer holds.
+  { id: "no-photo-list", label: "Anyone who must not be photographed or filmed", type: "long_text" },
   { id: "sensitivities", label: "Anything we should handle carefully", type: "long_text" },
-  { id: "restrictions", label: "Any photography restrictions at the venue?", type: "long_text" },
+  { id: "restrictions", label: "Any photography or filming restrictions at the venue?", type: "long_text" },
   { id: "accessibility", label: "Accessibility needs for our team to know about", type: "long_text" },
-  { id: "minors-present", label: "Will under-18s be photographed?", type: "dropdown" },
-  { id: "consent-on-file", label: "Is photo consent on file for everyone?", type: "dropdown" },
-  { id: "social-consent", label: "May we share images on social media?", type: "checkbox" },
+  { id: "minors-present", label: "Will under-18s be photographed or filmed?", type: "dropdown" },
+  { id: "consent-on-file", label: "Is photo and video consent on file for everyone?", type: "dropdown" },
+  { id: "social-consent", label: "May we share images and clips on social media?", type: "checkbox" },
 ];
+
+/**
+ * A photo-worded question, as the crew of a job with video should read it.
+ *
+ * The label is the one the couple answered, kept in the questionnaire's
+ * snapshot — so a form written before the wording above was neutral still
+ * says "must not be photographed", and the videographer reading it would
+ * fairly conclude filming them is fine. Whoever must not be photographed must
+ * not be filmed either, so on a job with video the brief says both. A label
+ * that already names filming or video is left as the studio wrote it.
+ */
+export function videoAwareLabel(label: string): string {
+  if (/\b(film|filmed|filming|video|videos|footage|clips?)\b/i.test(label)) return label;
+  return label
+    .replace(/\bphotographed\b/gi, "photographed or filmed")
+    .replace(/\bphotography\b/gi, (word) => `${word} or filming`)
+    .replace(/\bphoto consent\b/gi, "photo and video consent");
+}
 
 export function fieldReachesCrew(field: BriefField): boolean {
   if (field.crewVisible === true) return true;
@@ -171,6 +192,8 @@ export function answerText(type: string, value: unknown): string {
 export function buildCrewBrief(input: {
   sections: unknown;
   answers: Record<string, unknown>;
+  /** The job's packages send a videographer (videoAwareLabel). */
+  video?: boolean;
 }): CrewBrief {
   const brief: CrewBrief = { beforeYouShoot: [], onTheDay: [] };
   const sections = Array.isArray(input.sections) ? input.sections : [];
@@ -188,12 +211,13 @@ export function buildCrewBrief(input: {
       const text = answerText(field.type, value);
       if (!text) continue;
       const critical = beforeYouShootIds.has(field.id);
+      const label =
+        field.id === "minors-present" && text === "Yes"
+          ? "Under-18s will be photographed"
+          : String(field.label ?? field.id);
       const item: CrewBriefItem = {
         fieldId: field.id,
-        label:
-          field.id === "minors-present" && text === "Yes"
-            ? "Under-18s will be photographed"
-            : String(field.label ?? field.id),
+        label: input.video ? videoAwareLabel(label) : label,
         text,
       };
       (critical ? brief.beforeYouShoot : brief.onTheDay).push(item);

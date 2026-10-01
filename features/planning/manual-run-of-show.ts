@@ -22,6 +22,8 @@ export type ManualScheduleItemSeed = {
   location: string | null;
   address: string | null;
   travelMinutes: number;
+  /** Anyone on it, any trade; `photographerIds` mirrors it (features/schedules/item-crew.ts). */
+  crewIds: string[];
   photographerIds: string[];
   participants: string[];
   vendorContactIds: string[];
@@ -62,6 +64,7 @@ export function manualScheduleItem(
     location: null,
     address: null,
     travelMinutes: 0,
+    crewIds: [],
     photographerIds: [],
     participants: [],
     vendorContactIds: [],

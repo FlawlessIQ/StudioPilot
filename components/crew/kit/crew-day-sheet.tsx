@@ -9,6 +9,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { normalizePhone } from "@/features/contacts/schema";
 import { mockCrewSchedule } from "@/features/crew/mock-crew";
 import { scheduleZoneLabel } from "@/features/schedules/item-clock";
+import { itemIncludesCrew } from "@/features/schedules/item-crew";
 import { downloadAssignmentCalendar } from "@/lib/crew/calendar-file";
 import { crewPublicError } from "@/lib/crew/public-error";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -49,8 +50,20 @@ type CachedCrewBrief = {
   scheduleVersion: number;
   timezone: string;
   items: Array<Record<string, unknown>>;
+  /** Every id this person is known by, to mark their segments offline. Absent on older copies. */
+  crewIdentities?: string[];
   cachedAt: string;
 };
+
+/**
+ * Every id a run of show may have used for this person.
+ *
+ * Segments name their crew by profile id (features/schedules/item-crew.ts),
+ * but older ones used whatever the writer had — an assignment, a user id.
+ */
+function crewIdentities(assignment: Value, userId: string | null | undefined): string[] {
+  return [assignment.id, text(assignment.crewProfileId), text(assignment.userId), userId ?? ""].filter(Boolean);
+}
 
 const directions = (address: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
@@ -174,6 +187,7 @@ export function CrewDaySheet() {
           scheduleVersion: number(scheduleValue.version),
           timezone: text(scheduleValue.timezone),
           items: scopedItems,
+          crewIdentities: crewIdentities(assignment, workspace.userId),
           cachedAt: new Date().toISOString(),
         };
         try {
@@ -399,7 +413,7 @@ function LiveDaySheet({
 
         <section aria-label="Running order" className="kit-stack-tight">
           <h2 className="kit-subsection">Running order</h2>
-          <Timeline items={items} now={now} zone={zone} />
+          <Timeline identities={crewIdentities(assignment, workspace.userId)} items={items} now={now} zone={zone} />
         </section>
 
         <StudioMessage
@@ -486,10 +500,24 @@ function NowNext({ items, now, zone }: { items: Array<Record<string, unknown>>; 
   );
 }
 
-function Timeline({ items, now, zone }: { items: Array<Record<string, unknown>>; now: number; zone?: string }) {
+function Timeline({
+  identities,
+  items,
+  now,
+  zone,
+}: {
+  /** Who is looking, so the segments they are on can say so. */
+  identities: readonly string[];
+  items: Array<Record<string, unknown>>;
+  now: number;
+  zone?: string;
+}) {
   if (!items.length)
     return <p className="kit-caption">No parts of this run of show are assigned to you. Ask the studio before the day.</p>;
   const nextId = items.find((item) => Date.parse(text(item.endAt)) >= now)?.id;
+  // The whole day stays visible — crew work around each other — but a
+  // videographer on the speeches and not the formals should see which is which.
+  const mine = (item: Record<string, unknown>) => itemIncludesCrew(item, identities);
   return (
     <ol aria-label="Running order" className="kit-timeline">
       {items.map((item) => (
@@ -500,6 +528,7 @@ function Timeline({ items, now, zone }: { items: Array<Record<string, unknown>>;
           </span>
           <span className="kit-timeline-body">
             <span className="kit-timeline-title">{text(item.title, "Detail to be confirmed")}</span>
+            {mine(item) ? <span className="kit-timeline-mine">You&rsquo;re on this</span> : null}
             {text(item.location) ? (
               <span className="kit-timeline-place">
                 <MapPin aria-hidden size={13} /> {text(item.location)}
@@ -534,7 +563,7 @@ function OfflineCrewBrief({ brief, now }: { brief: CachedCrewBrief; now: number 
         </p>
       ))}
       {brief.projectId ? <CrewClientBrief projectId={brief.projectId} offline/> : null}
-      <Timeline items={brief.items} now={now} zone={zone} />
+      <Timeline identities={brief.crewIdentities ?? []} items={brief.items} now={now} zone={zone} />
       <PoweredBy />
     </Main>
   );

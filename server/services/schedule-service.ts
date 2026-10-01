@@ -1,3 +1,4 @@
+import { itemCrewIds, withCrewIds } from "@/features/schedules/item-crew";
 import { scheduleSchema, type Schedule, type ScheduleItem } from "@/features/schedules/schema";
 
 export function detectScheduleIssues(items: readonly ScheduleItem[], coverageMinutes: number) {
@@ -6,7 +7,8 @@ export function detectScheduleIssues(items: readonly ScheduleItem[], coverageMin
   sorted.forEach((item, index) => {
     if (new Date(item.endAt) <= new Date(item.startAt)) issues.push(`${item.title}: end must follow start`);
     if (!item.location) issues.push(`${item.title}: location missing`);
-    if (item.photographerIds.length === 0) issues.push(`${item.title}: photographer unassigned`);
+    // Anyone on it counts — a videographer-only segment is staffed.
+    if (itemCrewIds(item).length === 0) issues.push(`${item.title}: crew unassigned`);
     const next = sorted[index + 1];
     if (next && new Date(next.startAt) < new Date(item.endAt)) issues.push(`${item.title}: overlaps ${next.title}`);
     const gapMinutes = next ? (new Date(next.startAt).valueOf() - new Date(item.endAt).valueOf()) / 60000 : null;
@@ -36,7 +38,7 @@ export class ScheduleService {
     const schedule = scheduleSchema.parse({
       id: this.createId(), tenantId: input.tenantId, projectId: input.projectId,
       version: (prior?.version ?? 0) + 1, status: "published", timezone: input.timezone,
-      items: input.items, approvalState: "client_pending", publishedAt: timestamp,
+      items: input.items.map((item) => withCrewIds(item)), approvalState: "client_pending", publishedAt: timestamp,
       approvedBy: null, pdfDocumentId: null, dropboxDocumentId: null,
       supersedesId: prior?.id ?? null, immutable: true,
       createdAt: timestamp, updatedAt: timestamp, createdBy: input.actorId, updatedBy: input.actorId, archivedAt: null,

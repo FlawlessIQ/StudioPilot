@@ -66,8 +66,9 @@ export function ScheduleImpactSummary({ scheduleId }: { scheduleId: string }) {
         <div className="schedule-change-list">
           {impact.changedItems.map((item) => (
             <article key={item.itemId}>
+              {/* "photographers" is what versions published before crewIds recorded. */}
               <span>
-                {item.changedFields.includes("location") ? <MapPin size={15} /> : item.changedFields.includes("photographers") ? <Users size={15} /> : <ArrowRight size={15} />}
+                {item.changedFields.includes("location") ? <MapPin size={15} /> : item.changedFields.some((field) => field === "crew" || field === "photographers") ? <Users size={15} /> : <ArrowRight size={15} />}
               </span>
               <strong>{item.title}</strong>
               <small>{item.changedFields.join(" · ")}</small>

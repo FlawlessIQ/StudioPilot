@@ -83,7 +83,10 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const eventDate = text(project?.eventDate) || todayLocalIso();
   const initialStart = new Date(`${eventDate}T12:00:00`);
   const initialEnd = new Date(`${eventDate}T20:00:00`);
-  const [rolesText, setRolesText] = useState("Second photographer");
+  // Replaced by the job's open roles once its packages load. Until then, and
+  // when nothing is open, a word naming no trade — "Second photographer" here
+  // sent a videographer's offer under a photography title.
+  const [rolesText, setRolesText] = useState("Crew");
   const [specialty, setSpecialty] = useState("weddings");
   /**
    * Arrival and departure, derived rather than seeded.

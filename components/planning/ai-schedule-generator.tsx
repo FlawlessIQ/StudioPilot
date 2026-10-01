@@ -26,6 +26,8 @@ import {
   seededManualSchedule,
 } from "@/features/planning/manual-run-of-show";
 import { liveProjects } from "@/features/projects/put-away";
+import { itemCrewIds, withCrewIds } from "@/features/schedules/item-crew";
+import { scheduleCrewOptions } from "@/features/schedules/crew-options";
 import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
 import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
@@ -39,7 +41,9 @@ type ScheduleItem = {
   location: string | null;
   address: string | null;
   travelMinutes: number;
-  photographerIds: string[];
+  /** Anyone on the segment, any trade. Read through itemCrewIds: older drafts carry only photographerIds. */
+  crewIds?: string[];
+  photographerIds?: string[];
   participants: string[];
   vendorContactIds: string[];
   equipment: string[];
@@ -159,6 +163,9 @@ export function AiScheduleGenerator({
   const { records: packageSnapshots } =
     useTenantDocuments("packageSnapshots");
   const { records: schedules } = useTenantDocuments("schedules");
+  // Who can be put on a segment: everyone booked on the job, any trade.
+  const { records: crewAssignments } = useTenantDocuments("crewAssignments");
+  const { records: crewProfiles } = useTenantDocuments("crewProfiles");
   // For naming the recipient of the suggested questions.
   const { records: contacts } = useTenantDocuments("contacts");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -207,6 +214,15 @@ export function AiScheduleGenerator({
   const selectedProject = useMemo(
     () => projects?.find((project) => project.id === projectId),
     [projectId, projects],
+  );
+  const crewOptions = useMemo(
+    () =>
+      scheduleCrewOptions({
+        projectId,
+        assignments: crewAssignments ?? [],
+        profiles: crewProfiles ?? [],
+      }),
+    [crewAssignments, crewProfiles, projectId],
   );
   /** Who the questions would go to, and whether there is anyone to send to. */
   const clientContactId = useMemo(() => {
@@ -435,7 +451,7 @@ export function AiScheduleGenerator({
             tenantId: workspace.tenantId,
             projectId,
             coverageMinutes: derivedCoverageMinutes,
-            photographerIds: [],
+            crewIds: [],
             coverageStartsAt: startsAt,
             coverageEndsAt: endsAt,
             ceremonyTime: isoOrNull(form.get("ceremonyTime")),
@@ -576,7 +592,8 @@ export function AiScheduleGenerator({
         projectId,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         coverageMinutes: derivedCoverageMinutes,
-        items: draft.items,
+        // Both fields, so a function still reading photographerIds sees the crew.
+        items: draft.items.map((item) => withCrewIds(item)),
       });
       const stale = Number(
         (response.result as { staleVendorShareCount?: unknown }).staleVendorShareCount ?? 0,
@@ -669,6 +686,17 @@ export function AiScheduleGenerator({
           }
         : current,
     );
+  }
+
+  /** Put someone on a segment, or take them off it. */
+  function toggleCrew(index: number, crewId: string) {
+    const item = draft?.items[index];
+    if (!item) return;
+    const current = itemCrewIds(item);
+    const next = current.includes(crewId)
+      ? current.filter((id) => id !== crewId)
+      : [...current, crewId];
+    updateItem(index, withCrewIds(item, next));
   }
 
   function updateItem(index: number, patch: Partial<ScheduleItem>) {
@@ -890,6 +918,28 @@ export function AiScheduleGenerator({
                     {item.blockingIssues.join(" · ") ||
                       "Yours, not the model's"}
                   </small>
+                ) : null}
+                {/*
+                  * Who is on it — photographers and videographers alike.
+                  *
+                  * Items carried a crew list nobody could edit, so the
+                  * videographer on a photo + video wedding could not be put on
+                  * the speeches, and their day sheet could not say so.
+                  */}
+                {crewOptions.length ? (
+                  <fieldset className="schedule-item-crew">
+                    <legend>Crew on this</legend>
+                    {crewOptions.map((member) => (
+                      <label key={member.id}>
+                        <input
+                          checked={itemCrewIds(item).includes(member.id)}
+                          onChange={() => toggleCrew(index, member.id)}
+                          type="checkbox"
+                        />
+                        {member.name} · {member.role}
+                      </label>
+                    ))}
+                  </fieldset>
                 ) : null}
                 <button
                   aria-label={`Remove item ${index + 1}`}

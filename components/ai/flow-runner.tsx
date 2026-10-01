@@ -548,12 +548,13 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     if (said) return said;
     // Nothing said. Ask the job, not a constant: the package already states
     // which roles this wedding sends, so the first one still to book is a
-    // fact rather than a guess. Falling back to a photography label when even
-    // that is unknown is the last resort, not the first move.
+    // fact rather than a guess.
     const fromReason = `${str(flow.reason)} ${str(flow.title)}`;
     if (/video/i.test(fromReason)) return "Videographer";
     const stillToBook = rolesToBook(coverageForProject, ownerShootsJob(project)).roles;
-    return stillToBook[0]?.role ?? "Second photographer";
+    // Nothing to read a trade from: a word naming none. This was "Second
+    // photographer", which titled a videographer's offer as photography.
+    return stillToBook[0]?.role ?? "Crew";
   });
   const ranked = rankCrewCandidates({
     roleSpecialty,

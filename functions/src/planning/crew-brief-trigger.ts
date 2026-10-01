@@ -1,6 +1,30 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { buildCrewBrief } from "./crew-brief.js";
+import { jobPackageSnapshotIds } from "../ai/schedule-package-facts.js";
+import { packagesIncludeVideo } from "../ai/schedule-crew.js";
+
+/**
+ * Whether the job's packages send a videographer, so the brief can say
+ * "photographed or filmed" to the people holding both cameras. A missing
+ * project or package reads as photo-only — the wording the couple saw.
+ */
+async function jobHasVideo(tenantId: string, projectId: string): Promise<boolean> {
+  const db = getFirestore();
+  const project = await db.doc(`projects/${projectId}`).get();
+  if (!project.exists || project.get("tenantId") !== tenantId) return false;
+  const snapshots = await Promise.all(
+    jobPackageSnapshotIds({
+      packageSnapshotId: project.get("packageSnapshotId"),
+      additionalPackageSnapshotIds: project.get("additionalPackageSnapshotIds"),
+    }).map((id) => db.doc(`packageSnapshots/${id}`).get()),
+  );
+  return packagesIncludeVideo(
+    snapshots
+      .filter((snapshot) => snapshot.exists && snapshot.get("tenantId") === tenantId)
+      .map((snapshot) => snapshot.data() ?? {}),
+  );
+}
 
 /**
  * Keep each submitted questionnaire's crew brief current.
@@ -39,6 +63,7 @@ export const crewBriefOnQuestionnaireWrite = onDocumentWritten(
         after.answers && typeof after.answers === "object"
           ? (after.answers as Record<string, unknown>)
           : {},
+      video: await jobHasVideo(String(after.tenantId), String(after.projectId)),
     });
     await reference.set({
       id: responseId,

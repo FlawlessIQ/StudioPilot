@@ -12,6 +12,13 @@ import {
   jobPackageSnapshotIds,
   schedulePackageFact,
 } from "./schedule-package-facts.js";
+import {
+  crewIdAliases,
+  normaliseDraftCrew,
+  packagesIncludeVideo,
+  scheduleCrewFacts,
+  scheduleCrewInstruction,
+} from "./schedule-crew.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -23,7 +30,10 @@ const inputSchema = z.object({
   tenantId: z.string().min(1),
   projectId: z.string().min(1),
   coverageMinutes: z.number().int().positive().max(1440),
-  photographerIds: z.array(z.string().min(1)).max(20),
+  // Crew the studio pinned before drafting. `photographerIds` is what a
+  // browser on the old bundle sends; either is accepted.
+  crewIds: z.array(z.string().min(1)).max(20).optional(),
+  photographerIds: z.array(z.string().min(1)).max(20).optional(),
   coverageStartsAt: z.string().datetime(),
   coverageEndsAt: z.string().datetime(),
   ceremonyTime: z.string().datetime().nullable(),
@@ -69,7 +79,10 @@ const draftItemSchema = z.object({
   location: z.string().max(160).nullable(),
   address: z.string().max(300).nullable(),
   travelMinutes: z.number().int().nonnegative().max(600),
-  photographerIds: z.array(z.string()),
+  // Asked for as crewIds; a reply in the old shape is still read
+  // (normaliseDraftCrew writes both).
+  crewIds: z.array(z.string()).optional(),
+  photographerIds: z.array(z.string()).optional(),
   participants: z.array(z.string()),
   vendorContactIds: z.array(z.string()),
   equipment: z.array(z.string()),
@@ -201,7 +214,9 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
           parts: [
             {
               text:
-                "Draft a photography run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (card backups, gear staging, travel buffers, meal breaks). Default any client-relevant moment to \"shared\". Packages: packageFact can list several packages for the same day (a photo package and a video package, say); plan for every role in its coverage across the whole coverage window, and never shorten the day to one package's minutes. photographerIds names every studio crew member working an item, whatever their role — photographers and videographers alike. This is an unapproved draft requiring human review.",
+                "Draft a photography and video run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (card backups, gear staging, travel buffers, meal breaks). Default any client-relevant moment to \"shared\". Packages: packageFact can list several packages for the same day (a photo package and a video package, say); plan for every role in its coverage across the whole coverage window, and never shorten the day to one package's minutes. " +
+                scheduleCrewInstruction +
+                " This is an unapproved draft requiring human review.",
             },
           ],
         },
@@ -224,7 +239,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
                     location: { type: "STRING", nullable: true },
                     address: { type: "STRING", nullable: true },
                     travelMinutes: { type: "INTEGER" },
-                    photographerIds: { type: "ARRAY", items: { type: "STRING" } },
+                    crewIds: { type: "ARRAY", items: { type: "STRING" } },
                     participants: { type: "ARRAY", items: { type: "STRING" } },
                     vendorContactIds: { type: "ARRAY", items: { type: "STRING" } },
                     equipment: { type: "ARRAY", items: { type: "STRING" } },
@@ -262,7 +277,7 @@ async function generate(input: z.infer<typeof inputSchema>, context: Json) {
                     "location",
                     "address",
                     "travelMinutes",
-                    "photographerIds",
+                    "crewIds",
                     "participants",
                     "vendorContactIds",
                     "equipment",
@@ -450,14 +465,23 @@ export const aiScheduleCommand = onRequest(
             }).map((id) => db.doc(`packageSnapshots/${id}`).get()),
           ),
         ]);
-      const packageFact = schedulePackageFact(
-        packageSnapshots
-          .filter(
-            (snapshot) =>
-              snapshot.exists && snapshot.get("tenantId") === input.tenantId,
-          )
-          .map((snapshot) => ({ id: snapshot.id, data: record(snapshot.data()) })),
+      const jobSnapshots = packageSnapshots
+        .filter(
+          (snapshot) =>
+            snapshot.exists && snapshot.get("tenantId") === input.tenantId,
+        )
+        .map((snapshot) => ({ id: snapshot.id, data: record(snapshot.data()) }));
+      const packageFact = schedulePackageFact(jobSnapshots);
+      const videoCoverage = packagesIncludeVideo(
+        jobSnapshots.map((snapshot) => snapshot.data),
       );
+      const crewFacts = scheduleCrewFacts(
+        crewAssignments.docs.map((item) => ({
+          id: item.id,
+          data: record(item.data()),
+        })),
+      );
+      const crewAliases = crewIdAliases(crewFacts);
       const questionnaireFacts = questionnaires.docs
         .filter((item) =>
           ["submitted", "locked"].includes(String(item.get("status"))),
@@ -502,19 +526,14 @@ export const aiScheduleCommand = onRequest(
         questionnaireFacts,
         approvedTimingRules,
         packageFact,
-        crewFacts: crewAssignments.docs
-          .filter((item) => item.get("status") === "accepted")
-          .map((item) => ({
-            sourceId: item.id,
-            role: item.get("role"),
-            crewProfileId: item.get("crewProfileId"),
-          })),
+        videoCoverage,
+        crewFacts,
       });
       const start = Date.parse(input.coverageStartsAt);
       const end = Date.parse(input.coverageEndsAt);
       const normalized = result.items
         .map((item, index) => ({
-          ...item,
+          ...normaliseDraftCrew(item, crewAliases),
           id: `draft_${index + 1}`,
           sourceReferences: item.sourceReferences.length
             ? item.sourceReferences
@@ -569,7 +588,8 @@ export const aiScheduleCommand = onRequest(
         coverageEndsAt: input.coverageEndsAt,
         hasCeremonyTime: Boolean(input.ceremonyTime),
         hasReceptionTime: Boolean(input.receptionTime),
-        photographerCount: input.photographerIds.length,
+        crewCount: (input.crewIds ?? input.photographerIds ?? []).length,
+        videoCoverage,
         locationCount: input.locations.length,
         hasPreferences: input.preferences.trim().length > 0,
         preferencesSha256: input.preferences.trim()

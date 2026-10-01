@@ -95,7 +95,8 @@ const WEDDING: readonly StarterSection[] = [
     // so a couple asking that a cousin not appear in any photograph had to bury
     // it in the middle of a paragraph about divorced parents and a grandmother
     // who tires easily. Crew briefs sort this to the top; prose does not sort.
-    ["no-photo-list", "Anyone who must not be photographed", "long_text", false],
+    // "or filmed": the same couple is answering for the videographer too.
+    ["no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false],
     ["sensitivities", "Anything we should handle carefully", "long_text", false],
   ]),
   section("timeline", "Timeline", [
@@ -105,7 +106,7 @@ const WEDDING: readonly StarterSection[] = [
   ]),
   section("access", "Access and consent", [
     ["accessibility", "Accessibility needs for our team to know about", "long_text", false],
-    ["restrictions", "Any photography restrictions at the venue?", "long_text", false],
+    ["restrictions", "Any photography or filming restrictions at the venue?", "long_text", false],
     ["social-consent", "May we share images on social media?", "acknowledgement", true],
     ["guest-count", "Expected guest count", "text", true],
   ]),

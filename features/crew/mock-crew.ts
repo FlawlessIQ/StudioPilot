@@ -131,7 +131,12 @@ export function mockCrewData(now: Date): {
   };
 }
 
-/** The run of show for the upcoming job, as `crewScheduleViews` holds it. */
+/**
+ * The run of show for the upcoming job, as `crewScheduleViews` holds it.
+ *
+ * `crewIds` names the demo assignment on the segments it works, so mock mode
+ * shows the "You're on this" marks (features/schedules/item-crew.ts).
+ */
 export function mockCrewSchedule(now: Date): Value {
   return {
     id: "demo-schedule_demo-upcoming",
@@ -140,9 +145,9 @@ export function mockCrewSchedule(now: Date): Value {
     timezone: TIMEZONE,
     items: [
       { id: "arrive", startAt: at(now, 6, 13), endAt: at(now, 6, 13, 30), title: "Arrive, meet the lead", location: "Staff entrance", visibility: "crew" },
-      { id: "prep", startAt: at(now, 6, 13, 30), endAt: at(now, 6, 15), title: "Groom getting ready", location: "Carriage house", visibility: "shared" },
-      { id: "ceremony", startAt: at(now, 6, 17), endAt: at(now, 6, 17, 30), title: "Ceremony", location: "Garden ceremony space", visibility: "shared", description: "Wide angle from the back row. No flash." },
-      { id: "formals", startAt: at(now, 6, 17, 35), endAt: at(now, 6, 18, 5), title: "Family formals", location: "Conservatory steps", visibility: "shared" },
+      { id: "prep", startAt: at(now, 6, 13, 30), endAt: at(now, 6, 15), title: "Groom getting ready", location: "Carriage house", visibility: "shared", crewIds: ["demo-upcoming"] },
+      { id: "ceremony", startAt: at(now, 6, 17), endAt: at(now, 6, 17, 30), title: "Ceremony", location: "Garden ceremony space", visibility: "shared", description: "Wide angle from the back row. No flash.", crewIds: ["demo-upcoming"] },
+      { id: "formals", startAt: at(now, 6, 17, 35), endAt: at(now, 6, 18, 5), title: "Family formals", location: "Conservatory steps", visibility: "shared", crewIds: ["demo-upcoming"] },
       { id: "reception", startAt: at(now, 6, 19), endAt: at(now, 6, 23), title: "Reception", location: "Glass hall", visibility: "shared" },
     ],
   };
