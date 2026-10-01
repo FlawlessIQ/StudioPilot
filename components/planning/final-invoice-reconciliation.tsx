@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ApproveFinalInvoice, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
 import { statusLabel } from "@/features/format/status-label";
 import { InfoHint } from "@/components/ui/info-hint";
+import { ProviderInvoiceLines } from "@/components/booking/provider-invoice-lines";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -172,6 +173,10 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   </span>
                 ))}
               </div>
+              {/* Once created: the lines QuickBooks received (packages at
+                  full price, the retainer taken off, tax on the full
+                  package), and a warning when it billed a different total. */}
+              <ProviderInvoiceLines invoice={invoice} />
               {inReview ? (
                 /* Held, not sent: nothing went to the provider. This was a
                    badge and nothing else, so a held bill sat here for good

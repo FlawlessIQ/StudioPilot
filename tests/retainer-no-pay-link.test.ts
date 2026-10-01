@@ -124,7 +124,9 @@ test("QuickBooks invoices are created with online card and bank payment allowed"
   const body = create.slice(create.indexOf('"QUICKBOOKS_CREATE_FAILED"') - 2000, create.indexOf('"QUICKBOOKS_CREATE_FAILED"'));
   assert.match(body, /\.\.\.\(online\?QUICKBOOKS_ONLINE_PAYMENT_FLAGS:\{\}\)/);
   // A company that refused the flags still gets its invoice: a 400 created
-  // nothing, so it is asked once more without them, under its own request id.
-  assert.match(create, /createInvoice\(true\)\.catch\(\(error:unknown\)=>\{if\(String\(\(error as Error\)\?\.message\?\?""\)\.startsWith\("QUICKBOOKS_CREATE_FAILED:400:"\)\)return createInvoice\(false\);throw error;\}\)/);
-  assert.match(create, /"request-id":online\?requestId:`\$\{requestId\}:offline`/);
+  // nothing, so it is asked once more without them, under its own request id
+  // (and, after that, without tax codes — quickbooks-invoice-lines.test.ts).
+  assert.match(create, /const refused=\(error:unknown\)=>String\(\(error as Error\)\?\.message\?\?""\)\.startsWith\("QUICKBOOKS_CREATE_FAILED:400:"\)/);
+  assert.match(create, /createInvoice\(true,taxMode,""\)\.catch\(\(error:unknown\)=>\{if\(refused\(error\)\)return createInvoice\(false,taxMode,":offline"\);throw error;\}\)/);
+  assert.match(create, /"request-id":`\$\{requestId\}\$\{suffix\}`/);
 });

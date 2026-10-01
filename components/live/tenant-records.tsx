@@ -68,7 +68,7 @@ import {
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { leadIntakeGaps } from "@/features/crm/lead-intake";
-import { ClientRecordActions } from "@/components/clients/client-record-actions";
+import { billingAddressOf, ClientRecordActions } from "@/components/clients/client-record-actions";
 import { cacheEntryPredatesWrite } from "@/lib/live/record-writes";
 import {
   InferredTag,
@@ -701,6 +701,7 @@ export function LiveClientCards({
                   company:
                     typeof client.company === "string" ? client.company : null,
                   notes: typeof client.notes === "string" ? client.notes : null,
+                  billingAddress: billingAddressOf(client.billingAddress),
                 }}
               />
               {!client.portalUserId && email ? (
