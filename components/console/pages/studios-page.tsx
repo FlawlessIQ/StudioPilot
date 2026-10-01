@@ -183,9 +183,11 @@ export function StudiosPage() {
         accessorFn: (studio) => `${studio.plan ?? ""}${studio.cadence ?? ""}`,
         meta: { width: 132 },
         cell: ({ row }) => (
-          <span className="cx-inline">
-            {planLabel(row.original.plan, row.original.cadence)}
-            {row.original.discount?.code ? <span className="cx-tag" data-tone="code">{row.original.discount.code}</span> : null}
+          // The code goes under the plan: beside it, "Multi-Brand · mo" and a
+          // code chip don't fit the column and the chip gets cut off.
+          <span className="cx-name-text">
+            <span>{planLabel(row.original.plan, row.original.cadence)}</span>
+            {row.original.discount?.code ? <small>{row.original.discount.code}</small> : null}
           </span>
         ),
       },
