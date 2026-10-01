@@ -17,6 +17,7 @@ import {
 import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
+import { inquiryReplySystemInstruction } from "../ai/studio-voice.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { proposalTermsFor } from "../proposals/default-terms.js";
 import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
@@ -58,6 +59,9 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   }
   const lead=await db.doc(`leads/${leadId}`).get();
   const missing=Array.isArray(lead.get("missingInformation"))?lead.get("missingInformation") as unknown[]:[];
+  // Read before drafting: the studio's voice and its "how your first reply
+  // should go" shape the reply (ai/studio-voice.ts), and its name signs it.
+  const tenant=await db.doc(`tenants/${string(lead.get("tenantId"))}`).get();
   let analysis:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){
     analysis={
@@ -93,7 +97,9 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
       body:JSON.stringify({
-        systemInstruction:{parts:[{text:"You summarize photography inquiries and draft a warm studio reply using only supplied facts. Address the client by clientFirstName when it is provided (for example \"Dear Maya,\" on its own line, followed by a blank line); never write \"Dear Client\". Never invent pricing, availability, dates, venues, or client preferences. Never claim the date is available unless availabilityStatus says available. End the reply warmly, but do NOT add a sign-off name or signature and never output a bracketed placeholder such as \"[Studio Name]\" — the studio's name and branding are added automatically when the email is sent. Missing information and questions are suggestions for a human consultation. The reply is an unsent draft requiring studio approval."}]},
+        // The rules as they have always been, then the studio's own
+        // preferences, quoted — style guidance that cannot override them.
+        systemInstruction:{parts:[{text:inquiryReplySystemInstruction({voice:tenant.get("copilotVoice"),firstReply:tenant.get("firstReplyInstructions")})}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{
           temperature:0,
@@ -133,7 +139,6 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   // invent a link (intake/inquiry-link.ts). No hours set: no link, and the
   // draft says why so Today can.
   // "Warmly," then nothing: the prompt leaves the name to us (reply-format.ts).
-  const tenant=await db.doc(`tenants/${string(lead.get("tenantId"))}`).get();
   const signed=signWithStudio(separateGreeting(string(analysis.replyBody)),resolveTenantBrand(tenant.data(),"").brandName);
   const linked=await withInquiryLink(db,{tenantId:string(lead.get("tenantId")),leadId,body:signed,now:new Date().toISOString()});
   const replyBody=linked.body;

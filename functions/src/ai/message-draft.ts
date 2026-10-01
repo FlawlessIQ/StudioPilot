@@ -28,6 +28,7 @@ import {
 import { vertexEndpoint } from "./vertex-endpoint.js";
 import { isCataloguePackage } from "../packages/one-off.js";
 import { separateGreeting } from "./reply-format.js";
+import { studioPreferencesSection } from "./studio-voice.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -268,10 +269,40 @@ function fallbackDraft(input: {
   };
 }
 
+/**
+ * The drafting rules every message has always had. The studio's voice, and on
+ * a first reply to an inquiry its "how your first reply should go", follow
+ * them as quoted preferences (studio-voice.ts) — never in place of them.
+ */
+export const MESSAGE_DRAFT_RULES =
+  "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. `facts.jobPackages`, when present, is every package the client has on this job (photography and video are often booked together): when the message refers to what they booked, name every package in `jobPackages.packages`, never just the first, and describe each only from its own `coverage`, `inclusions` and `terms`; `jobPackages.totalCents` is the combined total. `facts.packages`, when present, is the studio's catalogue, not what this client booked. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs.";
+
+/** Triggers that are the studio's first personal reply to an inquiry. */
+export const FIRST_REPLY_TRIGGERS: readonly string[] = ["inquiry_reply"];
+
+export function messageDraftSystemInstruction(input: {
+  trigger: string;
+  voice?: unknown;
+  firstReply?: unknown;
+}): string {
+  return (
+    MESSAGE_DRAFT_RULES +
+    studioPreferencesSection({
+      voice: input.voice,
+      firstReply: FIRST_REPLY_TRIGGERS.includes(input.trigger)
+        ? input.firstReply
+        : undefined,
+    })
+  );
+}
+
 async function generateDraft(input: {
   trigger: string;
   instructions: string;
   context: Json;
+  /** The studio's saved voice and first-reply instructions, from the tenant. */
+  voice?: unknown;
+  firstReply?: unknown;
 }): Promise<z.infer<typeof modelOutputSchema>> {
   if (process.env.PROVIDER_MOCK_MODE === "true")
     return fallbackDraft({ trigger: input.trigger, context: input.context });
@@ -293,8 +324,11 @@ async function generateDraft(input: {
         systemInstruction: {
           parts: [
             {
-              text:
-                "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. `facts.jobPackages`, when present, is every package the client has on this job (photography and video are often booked together): when the message refers to what they booked, name every package in `jobPackages.packages`, never just the first, and describe each only from its own `coverage`, `inclusions` and `terms`; `jobPackages.totalCents` is the combined total. `facts.packages`, when present, is the studio's catalogue, not what this client booked. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs.",
+              text: messageDraftSystemInstruction({
+                trigger: input.trigger,
+                voice: input.voice,
+                firstReply: input.firstReply,
+              }),
             },
           ],
         },
@@ -744,6 +778,8 @@ export const aiMessageDraftCommand = onRequest(
             trigger: input.trigger,
             instructions: input.instructions,
             context,
+            voice: tenant.get("copilotVoice"),
+            firstReply: tenant.get("firstReplyInstructions"),
           });
           modelUsed =
             process.env.VERTEX_AI_MESSAGE_MODEL ??

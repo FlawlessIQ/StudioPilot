@@ -48,6 +48,12 @@ import {
 } from "../packages/coverage.js";
 import { vertexEndpoint } from "./vertex-endpoint.js";
 import { separateGreeting } from "./reply-format.js";
+import {
+  cleanStudioPreference,
+  FIRST_REPLY_INSTRUCTIONS_MAX,
+  mayEditStudioVoice,
+  STUDIO_VOICE_MAX,
+} from "./studio-voice.js";
 import { DEFAULT_PROPOSAL_TERMS, proposalTermsForPackages } from "../proposals/default-terms.js";
 import {
   MAX_PREPARED_ACTIONS,
@@ -108,9 +114,19 @@ const loadThreadSchema = z.object({
 });
 
 const copilotVoiceSchema = z.object({
-  kind: z.enum(["get_copilot_voice", "set_copilot_voice"]),
+  kind: z.enum([
+    "get_copilot_voice",
+    "set_copilot_voice",
+    // "How your first reply should go" (Settings → Communications): what the
+    // personal reply to a new inquiry always does. ai/studio-voice.ts.
+    "set_first_reply_instructions",
+  ]),
   tenantId: z.string().min(1),
-  voice: z.string().max(600).optional(),
+  voice: z.string().max(STUDIO_VOICE_MAX).optional(),
+  firstReplyInstructions: z
+    .string()
+    .max(FIRST_REPLY_INSTRUCTIONS_MAX)
+    .optional(),
 });
 
 const intakeRequestSchema = z.object({
@@ -2487,27 +2503,32 @@ export const aiCopilotCommand = onRequest(
         return;
       }
 
-      // The studio's saved copilot voice (tone / sign-off for email drafts).
-      // Owner/admin only, since it is a tenant-wide setting.
+      // The studio's saved copilot voice (tone / sign-off for email drafts),
+      // and its "how your first reply should go". Owner/admin only, since
+      // both are tenant-wide settings that shape every client email — and
+      // both are read by the reply drafters as quoted style guidance, never
+      // as instructions (ai/studio-voice.ts).
       if (
         asRecord(request.body).kind === "get_copilot_voice" ||
-        asRecord(request.body).kind === "set_copilot_voice"
+        asRecord(request.body).kind === "set_copilot_voice" ||
+        asRecord(request.body).kind === "set_first_reply_instructions"
       ) {
         const parsed = copilotVoiceSchema.parse(request.body);
         const db = getFirestore();
         const voiceMembership = await db
           .doc(`memberships/${parsed.tenantId}_${identity.uid}`)
           .get();
-        const voiceRole = String(voiceMembership.get("role"));
         if (
-          !voiceMembership.exists ||
-          voiceMembership.get("status") !== "active" ||
-          !["studio_owner", "studio_admin"].includes(voiceRole)
+          !mayEditStudioVoice({
+            exists: voiceMembership.exists,
+            status: voiceMembership.get("status"),
+            role: voiceMembership.get("role"),
+          })
         )
           throw new Error("FORBIDDEN");
         const tenantRef = db.doc(`tenants/${parsed.tenantId}`);
         if (parsed.kind === "set_copilot_voice") {
-          const value = (parsed.voice ?? "").trim().slice(0, 600);
+          const value = cleanStudioPreference(parsed.voice, STUDIO_VOICE_MAX);
           await tenantRef.set(
             {
               copilotVoice: value || null,
@@ -2519,11 +2540,31 @@ export const aiCopilotCommand = onRequest(
           response.status(200).json({ voice: value || null });
           return;
         }
+        if (parsed.kind === "set_first_reply_instructions") {
+          const value = cleanStudioPreference(
+            parsed.firstReplyInstructions,
+            FIRST_REPLY_INSTRUCTIONS_MAX,
+          );
+          await tenantRef.set(
+            {
+              firstReplyInstructions: value || null,
+              updatedAt: new Date().toISOString(),
+              updatedBy: identity.uid,
+            },
+            { merge: true },
+          );
+          response.status(200).json({ firstReplyInstructions: value || null });
+          return;
+        }
         const current = await tenantRef.get();
         response.status(200).json({
           voice:
             typeof current.get("copilotVoice") === "string"
               ? current.get("copilotVoice")
+              : null,
+          firstReplyInstructions:
+            typeof current.get("firstReplyInstructions") === "string"
+              ? current.get("firstReplyInstructions")
               : null,
         });
         return;

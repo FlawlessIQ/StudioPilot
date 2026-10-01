@@ -209,6 +209,37 @@ export async function setCopilotVoice(
 }
 
 /**
+ * The studio's "how your first reply should go" (Settings → Communications),
+ * or null. Read and written through the same owner/admin command as the voice.
+ */
+export async function getFirstReplyInstructions(
+  tenantId: string,
+): Promise<string | null> {
+  const { firstReplyInstructions } = await postCopilot<{
+    firstReplyInstructions?: string | null;
+  }>({ kind: "get_copilot_voice", tenantId });
+  return firstReplyInstructions ?? null;
+}
+
+/** Save it (owner/admin only). Returns the stored value. */
+export async function setFirstReplyInstructions(
+  tenantId: string,
+  instructions: string,
+): Promise<string | null> {
+  const { firstReplyInstructions } = await postCopilot<{
+    firstReplyInstructions: string | null;
+  }>(
+    {
+      kind: "set_first_reply_instructions",
+      tenantId,
+      firstReplyInstructions: instructions,
+    },
+    "Couldn't save your first-reply instructions. Try again.",
+  );
+  return firstReplyInstructions ?? null;
+}
+
+/**
  * Tell StudioCue a turn was wrong.
  *
  * Joins the operator's verdict to that turn's diagnostics — what the model

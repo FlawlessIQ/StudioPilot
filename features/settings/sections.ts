@@ -13,6 +13,7 @@ export type SettingsSectionKey =
   | "branding"
   | "availability"
   | "templates"
+  | "firstReply"
   | "drafts"
   | "forwarding"
   | "crewOffers"
@@ -29,6 +30,7 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{
   { key: "branding", slug: "email-branding", title: "Email branding", subtitle: "Logo, colours and sender name on client emails" },
   { key: "availability", slug: "consultation-availability", title: "Consultation availability", subtitle: "When clients can book a call" },
   { key: "templates", slug: "email-templates", title: "Email templates", subtitle: "Design the branded template" },
+  { key: "firstReply", slug: "first-reply", title: "How your first reply should go", subtitle: "What Cue's personal reply to a new inquiry always does" },
   { key: "drafts", slug: "automatic-drafts", title: "Automatic drafts", subtitle: "Which lifecycle emails are drafted for you" },
   { key: "forwarding", slug: "inquiry-capture", title: "Inquiry capture", subtitle: "Your form on your website, or forwarding" },
   { key: "crewOffers", slug: "crew-offers", title: "Crew offers", subtitle: "Whether booking sends the prepared offers, or you do" },

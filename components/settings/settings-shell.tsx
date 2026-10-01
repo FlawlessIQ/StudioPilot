@@ -14,6 +14,7 @@ import {
   Database,
   Forward,
   LayoutTemplate,
+  MessageSquareReply,
   Palette,
   Plug,
   Sparkles,
@@ -31,6 +32,7 @@ import { ConsultationAvailability } from "@/components/settings/consultation-ava
 import { InquiryForwardingSettings } from "@/components/crm/inquiry-forwarding-address";
 import { DataControls } from "@/components/settings/data-controls";
 import { EmailBranding } from "@/components/settings/email-branding";
+import { FirstReplySettings } from "@/components/settings/first-reply-settings";
 import { StudioIdentitySettings } from "@/components/settings/studio-identity";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { OutsideStepsInFlight } from "@/components/outside-steps/outside-steps-in-flight";
@@ -72,6 +74,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   branding: EmailBranding,
   availability: ConsultationAvailability,
   templates: EmailTemplateDesigner,
+  firstReply: FirstReplySettings,
   drafts: LifecyclePackPanel,
   forwarding: InquiryForwardingSettings,
   crewOffers: CrewOfferSettings,
@@ -89,7 +92,7 @@ type HubItem =
       subtitle: string;
     };
 
-const GROUPS: Array<{ label: string; items: HubItem[] }> = [
+const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
   {
     label: "Your studio",
     items: [
@@ -100,9 +103,13 @@ const GROUPS: Array<{ label: string; items: HubItem[] }> = [
   },
   {
     label: "Communications",
+    // A new inquiry gets two emails and studios couldn't tell which setting
+    // changed which (GR Productions, 2026-10-01).
+    note: "A new inquiry gets two emails. The automatic \u201cwe got your inquiry\u201d one goes straight away \u2014 change its words under Email templates (Inquiry Acknowledgement). Your personal first reply is drafted for you to approve, and follows what you write under How your first reply should go.",
     items: [
       { kind: "section", key: "forwarding", icon: Forward },
       { kind: "section", key: "templates", icon: LayoutTemplate },
+      { kind: "section", key: "firstReply", icon: MessageSquareReply },
       { kind: "section", key: "drafts", icon: Sparkles },
     ],
   },
@@ -211,6 +218,7 @@ export function SettingsShell() {
                 face, which made these small caps labels read as headings. The
                 section's aria-label already names the group. */}
             <p className="settings-group-label">{group.label}</p>
+            {group.note ? <p className="settings-group-note">{group.note}</p> : null}
             <div className="settings-destinations">
               {group.items.map((item) => {
                 const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete);
@@ -244,6 +252,7 @@ export function SettingsShell() {
       {GROUPS.map((group) => (
         <section className="settings-group" key={group.label}>
           <p className="settings-group-label">{group.label}</p>
+          {group.note ? <p className="settings-group-note">{group.note}</p> : null}
           <div className="settings-group-card">
             {group.items.map((item) => {
               const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete);
