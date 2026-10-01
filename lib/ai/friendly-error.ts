@@ -57,6 +57,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   QUESTIONNAIRE_ALREADY_SUBMITTED:
     "You've already sent this to your studio. Message them if you'd like to change an answer.",
   RESPONSE_NOT_FOUND: "This questionnaire couldn't be found. Refresh and try again.",
+  // Sending a questionnaire (planningCommand assignQuestionnaire): the job
+  // or the form is gone, or the form is a draft or archived.
+  QUESTIONNAIRE_ASSIGNMENT_INVALID:
+    "That form can't be sent: it isn't active, or the job or form isn't there any more. Activate the form in the questionnaire library, then refresh and try again.",
   // The studio's side of a questionnaire after it went out (planningCommand
   // reopen/withdraw/resendQuestionnaire). QUESTIONNAIRE_WITHDRAWN can reach
   // the couple too, so it is worded for either.

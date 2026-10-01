@@ -2,6 +2,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { questionnaireReminderDue } from "./questionnaire-reminders.js";
+import { questionnaireLinkFor } from "./questionnaire-link.js";
 
 /**
  * Send the questionnaire reminders templates have always promised.
@@ -21,7 +22,6 @@ export const questionnaireReminderScheduler = onSchedule(
   async () => {
     const db = getFirestore();
     const today = new Date().toISOString().slice(0, 10);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
     const responses = await db
       .collection("questionnaireResponses")
       .where("status", "in", ["not_started", "in_progress"])
@@ -66,15 +66,30 @@ export const questionnaireReminderScheduler = onSchedule(
       const now = new Date().toISOString();
       const jobReference = db.doc(`emailJobs/questionnaire_reminder_${response.id}_${offset}`);
       try {
+        // A form sent before the couple was in the portal (to an inquiry)
+        // reminds them with an invitation, not a sign-in page
+        // (questionnaire-link.ts). Written only if this reminder is.
+        const link = await questionnaireLinkFor(db, {
+          tenantId,
+          projectId,
+          clientContactIds: project.get("clientContactIds"),
+          emailJobId: jobReference.id,
+          actorId: "questionnaire-reminder-scheduler",
+          now,
+        });
         await db.runTransaction(async (transaction) => {
           const existing = await transaction.get(jobReference);
           if (existing.exists) return;
+          if (link.invitationWrite)
+            transaction.set(link.invitationWrite.reference, link.invitationWrite.data, {
+              merge: true,
+            });
           transaction.create(jobReference, {
             id: jobReference.id,
             tenantId,
             projectId,
             type: "questionnaire_reminder",
-            actionUrl: `${appUrl}/client/questionnaire`,
+            actionUrl: link.actionUrl,
             questionnaireResponseId: response.id,
             reminderDaysBeforeDue: offset,
             status: "queued",

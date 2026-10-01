@@ -7,6 +7,10 @@ import {
   useTenantDocuments,
 } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  questionnaireAssignNotice,
+  type AssignResult,
+} from "@/features/questionnaires/assign-notice";
 import { useReturnToJob } from "@/lib/projects/return-to-job";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 
@@ -46,6 +50,7 @@ export function QuestionnaireQuickSend({ projectId }: { projectId: string }) {
       String(template.eventTypeId ?? "") === eventTypeId,
   );
   const template = candidates.length === 1 ? candidates[0] : null;
+  const hasEventDate = /^\d{4}-\d{2}-\d{2}/.test(String(project?.eventDate ?? ""));
 
   // Nothing to offer: already sent, still loading, or the choice is genuinely
   // the studio's to make.
@@ -56,13 +61,13 @@ export function QuestionnaireQuickSend({ projectId }: { projectId: string }) {
     setBusy(true);
     setNotice(null);
     try {
-      await sendPlanningCommand("assignQuestionnaire", {
+      const response = await sendPlanningCommand("assignQuestionnaire", {
         projectId,
         templateId: template.id,
       });
       refreshTenantRecords("questionnaireResponses", "checkpoints");
       setNotice(
-        "Sent. The couple can fill it in from their portal — taking you back to the job.",
+        `${questionnaireAssignNotice(response.result as AssignResult)} Taking you back to the job.`,
       );
       returnToJob();
     } catch (caught: unknown) {
@@ -79,9 +84,13 @@ export function QuestionnaireQuickSend({ projectId }: { projectId: string }) {
         <h2>Send {String(project.name ?? "this client")} their details form</h2>
         <p>
           <strong>{String(template.name)}</strong> — the active form for a{" "}
-          {eventTypeId || "this"} job. It is due{" "}
-          {Number(template.dueDaysBeforeEvent ?? 0)}{" "} days before the date, and
-          StudioCue works out that date from the job.
+          {eventTypeId || "this"} job.{" "}
+          {/* An inquiry may not have a date yet; the form is then due a week
+              after it goes out (functions/src/planning/questionnaire-due.ts). */}
+          {hasEventDate
+            ? `It is due ${Number(template.dueDaysBeforeEvent ?? 0)} days before the date, and StudioCue works out that date from the job.`
+            : "There's no date on the job yet, so it will be due a week after it goes out."}{" "}
+          If they aren&rsquo;t in their portal yet, the email invites them.
         </p>
       </div>
       <div className="questionnaire-quick-send-actions">

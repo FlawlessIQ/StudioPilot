@@ -337,6 +337,8 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
+  // An inquiry isn't in the portal yet; the email then carries an invitation.
+  const [invited, setInvited] = useState(false);
 
   async function send(templateId: string, name: string) {
     setBusy(true);
@@ -348,6 +350,7 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
       });
       // The same form already on the job is re-sent, not duplicated.
       setResent((response.result as { resent?: unknown }).resent === true);
+      setInvited((response.result as { invited?: unknown }).invited === true);
       if (response.persisted) setDone(name);
       else setNotice("Preview: the questionnaire would be sent from here.");
     } catch (caught: unknown) {
@@ -367,7 +370,11 @@ function QuestionnaireSelectFlow({ flow }: { flow: CopilotFlow }) {
         <p role="status">
           {resent
             ? `${str(project?.name) || "The client"} already had ${done}, so they were emailed a reminder about it — no second copy.`
-            : `Sent ${done} to ${str(project?.name) || "the client"}. They can fill it in from their portal.`}
+            : `Sent ${done} to ${str(project?.name) || "the client"}. ${
+                invited
+                  ? "The email invites them to their portal, where they fill it in."
+                  : "They can fill it in from their portal."
+              }`}
         </p>
       </div>
     );
