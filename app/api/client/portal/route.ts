@@ -676,7 +676,10 @@ async function clientRecords(
       // never the provider's own state or id. Without it an invoice that
       // QuickBooks made with no pay link (no online payments on the company)
       // read as "still syncing" forever, and the couple had no way to pay.
-      sanitized.atProvider = invoiceRaisedAtProvider(value);
+      // Held for the studio to check (QuickBooks as the sales-tax authority):
+      // it exists in QuickBooks but has not been sent, so the couple is told
+      // it is being prepared — never "pay the studio directly".
+      sanitized.atProvider = invoiceRaisedAtProvider(value) && value.status !== "review_required";
     }
     if (collectionName === "deliveryRecords" && typeof value.viewToken === "string" && value.viewToken) {
       // The couple opens their delivery through StudioCue's redirect, which

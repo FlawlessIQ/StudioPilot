@@ -47,6 +47,7 @@ import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { CorrectPayment, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
 import { ProviderInvoiceLines } from "@/components/booking/provider-invoice-lines";
+import { HeldInvoiceReview } from "@/components/booking/held-invoice-review";
 import { invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import {
   QUICKBOOKS_NO_PAY_LINK_NOTE,
@@ -1546,7 +1547,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     retainer, then the packages at $0 — and a warning when
                     QuickBooks billed something else. */}
                 <ProviderInvoiceLines invoice={invoice} />
-                {quickBooksInvoiceWithoutPayLink(invoice) && invoicePaymentRefusal(invoice) === null ? (
+                {/* Held in QuickBooks for the studio (billingSettings
+                    .holdRetainerForReview): "Check and send the retainer". */}
+                <HeldInvoiceReview invoice={invoice} onDone={() => void load()} />
+                {/* Held: its pay link is fetched when it is sent, not missing. */}
+                {quickBooksInvoiceWithoutPayLink(invoice) &&
+                invoice.status !== "review_required" &&
+                invoicePaymentRefusal(invoice) === null ? (
                   <p className="booking-delivery-warning" role="status">
                     <CircleAlert aria-hidden="true" size={14} />
                     <span>{QUICKBOOKS_NO_PAY_LINK_NOTE}</span>

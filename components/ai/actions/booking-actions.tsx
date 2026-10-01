@@ -31,6 +31,7 @@ import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { invoiceVoidRefusal, paymentCorrectable } from "@/features/booking/invoice-corrections";
 import { ApproveFinalInvoice, CorrectPayment, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
+import { HeldInvoiceReview } from "@/components/booking/held-invoice-review";
 import { invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import { statusLabel } from "@/features/format/status-label";
 import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
@@ -1409,6 +1410,17 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   const due = outstandingFinalBalance({ projectId: job.id, proposals, invoices });
   // Held for the studio to check: never sent, so "already out" was untrue.
   const held = due.heldForReviewId ? (invoices.find((item) => item.id === due.heldForReviewId) ?? null) : null;
+  // In QuickBooks already, waiting on the tax check: send with or without tax.
+  if (held && held.sendReview)
+    return (
+      <ActionShell
+        detail="It's in QuickBooks with the sales tax worked out, and nothing has gone to the couple yet. Check it, then send it."
+        icon={<HandCoins size={15} />}
+        title={title}
+      >
+        <HeldInvoiceReview invoice={held} onDone={setMessage} />
+      </ActionShell>
+    );
   if (held)
     return (
       <ActionShell

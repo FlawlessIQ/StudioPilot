@@ -45,6 +45,7 @@ import {
   type QuickBooksTaxMode,
 } from "./quickbooks-invoice-lines.js";
 import { planQuickBooksInvoiceLines } from "./quickbooks-invoice-plan.js";
+import { actOnHeldQuickBooksInvoice, createGatedQuickBooksInvoice, type HeldInvoiceDeps } from "./quickbooks-held-invoice.js";
 import { quickBooksCompany, studioCueInvoiceItemRefs } from "../integrations/quickbooks-items.js";
 import { reopenedByProvider, reopenedInvoiceTask } from "../booking/quickbooks-money-events-core.js";
 import { providerVoidJobType } from "../booking/invoice-corrections.js";
@@ -1682,6 +1683,14 @@ async function adoptQuickBooksInvoice(
   }
 }
 
+/** This runtime's own helpers, lent to the gated QuickBooks workers (quickbooks-held-invoice.ts). */
+function heldInvoiceDeps():HeldInvoiceDeps{
+  return{connection:(tenantId)=>connection(tenantId,"quickbooks"),request:providerJson,mockId,docNumber:studioCueDocNumber,onlinePaymentFlags:QUICKBOOKS_ONLINE_PAYMENT_FLAGS,customerId:(tenantId,projectId,invoice,credential,realmId,key)=>quickBooksCustomerId(tenantId,projectId,invoice,credential,realmId,key),fallbackItemRef:(base,realmId,credential,key)=>quickBooksItemRef(base,realmId,credential,key),invoiceLink:(base,realmId,credential,id)=>quickBooksInvoiceLink(base,realmId,credential,id),enqueueInvoiceEmail:enqueueRetainerEmail,clientEmailFor,landProviderInvoice,skipClosedInvoice};
+}
+
+/** Job `release_quickbooks_invoice`: the studio's "Send with tax" / "Send without tax" / "Work the tax out again". */
+export async function releaseQuickBooksHeldInvoice(job:DocumentSnapshot){return actOnHeldQuickBooksInvoice(job,heldInvoiceDeps())}
+
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
   if(invoiceClosedToProviderWork(invoice.get("status")))return skipClosedInvoice(reference,invoice,job);
@@ -1692,6 +1701,9 @@ export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=get
   // (quickbooks-invoice-lines.ts). Worked out in mock mode too, so the
   // booking page shows the same breakdown either way.
   const plan=await planQuickBooksInvoiceLines(db,invoice);
+  // A studio switched on to itemised invoices: QuickBooks is the sales-tax
+  // authority and finals are held for the studio (quickbooks-held-invoice.ts).
+  if(plan.gated)return createGatedQuickBooksInvoice({job,invoice,plan,provider,deps:heldInvoiceDeps()});
   let taxMode:QuickBooksTaxMode="none";
   let providerTotalCents:number|null=null;let providerTaxCents:number|null=null;
   if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId;providerTotalCents=expectedCents;providerTaxCents=plan.taxCents}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const preferences=await quickBooksPreferences(base,realmId,credential);const supplyNumber=asRecord(preferences?.SalesFormsPrefs).CustomTxnNumbers===true;taxMode=plan.itemised?quickBooksTaxMode(preferences):"none";const ourNumber=supplyNumber?studioCueDocNumber(invoiceId):null;const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")))??(ourNumber?await findQuickBooksInvoiceByDocNumber(base,realmId,credential,ourNumber):null);if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;docNumber=already.docNumber;providerTotalCents=already.totalCents;providerTaxCents=already.taxCents}else{const itemKey=String(job.get("idempotencyKey")??job.id);

@@ -23,6 +23,13 @@ export function outstandingFinalBalance(input: {
   projectId: string;
   proposals: readonly Row[] | null | undefined;
   invoices: readonly Row[] | null | undefined;
+  /**
+   * QuickBooks is the sales-tax authority for this bill (its calculation says
+   * `taxAuthority: "quickbooks"`): the balance is pre-tax, so the tax inside
+   * the agreed total is left out — QuickBooks adds its own. The same
+   * arithmetic as functions/src/booking/final-tax-authority.ts.
+   */
+  excludeAgreedTax?: boolean;
 }): {
   cents: number | null;
   dueDate: string | null;
@@ -40,7 +47,10 @@ export function outstandingFinalBalance(input: {
     .filter((proposal) => proposal.projectId === input.projectId && proposal.status === "accepted")
     .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
   const pricing = (accepted?.pricingSnapshot ?? null) as Record<string, unknown> | null;
-  const total = Number(pricing?.totalCents);
+  const agreedTax = Number(pricing?.taxCents);
+  const total =
+    Number(pricing?.totalCents) -
+    (input.excludeAgreedTax === true && Number.isSafeInteger(agreedTax) && agreedTax > 0 ? agreedTax : 0);
   const standing = (input.invoices ?? []).filter(
     (invoice) => invoice.projectId === input.projectId && !NOT_STANDING.includes(text(invoice.status)),
   );

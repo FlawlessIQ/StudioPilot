@@ -416,6 +416,8 @@ export function ApproveFinalInvoice({
   const [notice, setNotice] = useState<string | null>(null);
   if (!OWNER_ADMIN.includes(String(workspace.role))) return null;
   if (invoice.kind !== "final" || invoice.status !== "review_required") return null;
+  // Already in QuickBooks, waiting on the tax check: HeldInvoiceReview sends it.
+  if (invoice.sendReview) return null;
   const provider = providerLabel(invoice.provider);
 
   async function send() {
@@ -480,11 +482,23 @@ export function InvoiceRecordActions({ invoice }: { invoice: InvoiceRow }) {
     invoice.kind === "final" &&
     invoice.status === "review_required" &&
     OWNER_ADMIN.includes(String(workspace.role));
+  // A retainer held in QuickBooks for the studio (billingSettings
+  // .holdRetainerForReview) is checked and sent on the job's booking page.
+  const checkRetainer =
+    invoice.kind === "retainer" &&
+    invoice.status === "review_required" &&
+    Boolean(invoice.sendReview) &&
+    OWNER_ADMIN.includes(String(workspace.role));
   return (
     <>
       {checkAndSend ? (
         <a className="button button-dark" href={`#final-invoice-${invoice.id}`}>
           <Send aria-hidden="true" size={14} /> Check and send
+        </a>
+      ) : null}
+      {checkRetainer ? (
+        <a className="button button-dark" href={`/studio/booking?project=${String(invoice.projectId ?? "")}`}>
+          <Send aria-hidden="true" size={14} /> Check and send the retainer
         </a>
       ) : null}
       <RecordInvoicePayment invoice={invoice} />

@@ -2,10 +2,11 @@ import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { loadAcceptedProposal, loadJobPackageSnapshots } from "../packages/job-package-facts.js";
 import { describeCoverage, resolveCoverage } from "../packages/coverage.js";
 import { packageInclusionItems } from "../packages/inclusions.js";
+import { normaliseBillingSettings, salesTaxApplies } from "../billing/sales-tax-settings.js";
+import { gatedFinalLines, quickBooksHoldReason, type HoldReason } from "./quickbooks-final-tax.js";
 import {
   billedCrewCount,
   coverageHours,
-  quickBooksFinalLines,
   quickBooksRetainerLines,
   type InvoiceLine,
   type JobPackageItem,
@@ -31,6 +32,22 @@ export type QuickBooksInvoicePlan = {
   taxCents: number;
   /** False when a single stand-in line carries the amount. */
   itemised: boolean;
+  /**
+   * Set for a studio switched on to itemised invoices: QuickBooks is the
+   * sales-tax authority (quickbooks-final-tax.ts), the lines are pre-tax and
+   * `taxCents` is 0 — QuickBooks works the tax out, and the worker takes the
+   * gated path (quickbooks-held-invoice.ts). Absent: today's invoice.
+   */
+  gated?: GatedTaxContext;
+};
+
+export type GatedTaxContext = {
+  /** Sales tax is charged on this invoice (never on a retainer). */
+  taxApplies: boolean;
+  /** Held for the studio before it goes, and why; null sends as before. */
+  holdReason: HoldReason | null;
+  /** The studio's estimate, used only when QuickBooks cannot work the tax out. */
+  estimateRateBasisPoints: number | null;
 };
 
 const record = (value: unknown): Row =>
@@ -183,6 +200,10 @@ export async function planQuickBooksInvoiceLines(db: Firestore, invoice: Documen
     itemised: false,
   };
   if (kind !== "retainer" && kind !== "final") return single;
+  // Once the switch reads as on, a failure further down still takes the gated
+  // path — and a final is still held for the studio. Falling back to today's
+  // path would send a bill whose tax nobody had checked.
+  let gated: GatedTaxContext | undefined;
   try {
     const tenantId = text(invoice.get("tenantId"));
     // Itemised invoices are switched on per studio until they've been proven
@@ -190,40 +211,57 @@ export async function planQuickBooksInvoiceLines(db: Firestore, invoice: Documen
     // pay link). Off, the invoice is the single line StudioCue always sent.
     const features = await db.doc(`tenantFeatures/${tenantId}`).get();
     if (features.get(QUICKBOOKS_ITEMISED_FLAG) !== true) return single;
+    gated = {
+      taxApplies: false,
+      holdReason: quickBooksHoldReason({ kind, gated: true, holdRetainerForReview: false }),
+      estimateRateBasisPoints: null,
+    };
     const projectId = text(invoice.get("projectId"));
-    const project = await db.doc(`projects/${projectId}`).get();
-    if (!project.exists || project.get("tenantId") !== tenantId) return single;
+    const [project, billing] = await Promise.all([
+      db.doc(`projects/${projectId}`).get(),
+      db.doc(`billingSettings/${tenantId}`).get(),
+    ]);
+    if (!project.exists || project.get("tenantId") !== tenantId) return { ...single, gated };
+    const settings = normaliseBillingSettings(billing.exists ? billing.data() : null, tenantId);
+    gated = {
+      // Retainers never carry tax (owner decision, 2026-10-01).
+      taxApplies: kind === "final" && salesTaxApplies(settings, project.data() ?? {}),
+      holdReason: quickBooksHoldReason({ kind, gated: true, holdRetainerForReview: settings.holdRetainerForReview }),
+      estimateRateBasisPoints: settings.salesTax.estimateRateBasisPoints,
+    };
     const [snapshots, accepted] = await Promise.all([
       loadJobPackageSnapshots(db, tenantId, project.data() ?? {}),
       loadAcceptedProposal(db, tenantId, projectId),
     ]);
     const { items, discountCents } = jobPackageItems(snapshots, accepted);
     if (kind === "retainer") {
-      const pricing = record(accepted?.pricingSnapshot);
-      const jobTax = accepted
-        ? cents(pricing.taxCents)
-        : snapshots.reduce((sum, snapshot) => sum + cents(snapshot.data.taxCents), 0);
+      // Never taxed: the $0 package lines are non-taxable too.
       const lines = quickBooksRetainerLines({
         amountCents,
         items,
         parts: await retainerParts(db, tenantId, snapshots),
-        taxApplies: jobTax > 0,
+        taxApplies: false,
       });
-      return { lines, taxCents: 0, itemised: lines.length > 1 || lines[0]?.quantity !== 1 };
+      return { lines, taxCents: 0, itemised: lines.length > 1 || lines[0]?.quantity !== 1, gated };
     }
     const calculation = record(invoice.get("calculation"));
     const packageTotalCents = cents(calculation.packageTotalCents);
-    if (packageTotalCents <= 0) return single;
+    if (packageTotalCents <= 0) return { ...single, gated };
     const retainerPaid = calculation.retainerPaidCents;
-    const result = quickBooksFinalLines({
-      amountCents,
-      packageTotalCents,
-      taxCents: calculationTax(calculation),
+    // Pre-tax lines; QuickBooks adds the tax. A final raised before the switch
+    // (its total and amount include StudioCue's own tax) has that tax taken
+    // out of both, so it is never counted twice. One raised since has
+    // calculation.taxCents 0 (final-invoice.ts, quickBooksTaxAuthority).
+    const agreedTax = calculationTax(calculation);
+    const result = gatedFinalLines({
+      amountCents: amountCents - agreedTax,
+      preTaxTotalCents: packageTotalCents - agreedTax,
       discountCents,
       items,
       retainerPaidCents: typeof retainerPaid === "number" ? retainerPaid : null,
+      taxApplies: gated.taxApplies,
     });
-    return result;
+    return { ...result, gated };
   } catch (caught) {
     console.warn(
       JSON.stringify({
@@ -233,6 +271,6 @@ export async function planQuickBooksInvoiceLines(db: Firestore, invoice: Documen
         reason: caught instanceof Error ? caught.message : String(caught),
       }),
     );
-    return single;
+    return gated ? { ...single, gated } : single;
   }
 }

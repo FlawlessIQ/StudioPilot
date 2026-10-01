@@ -10,6 +10,7 @@ import {
   type CorrectableInvoice,
 } from "./invoice-corrections-core.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
 import { voidInvoiceTask } from "./stopped-billing.js";
 
 /**
@@ -347,6 +348,9 @@ export async function approveFinalInvoiceIn(
   const invoice = await readJobInvoice(db, transaction, context, input);
   if (invoice.get("kind") !== "final" || invoice.get("status") !== "review_required")
     throw new Error("FINAL_INVOICE_NOT_IN_REVIEW");
+  // Already made in QuickBooks and waiting on the tax check: that bill is
+  // sent with "Send with tax" / "Send without tax" (held-invoice-send.ts).
+  if (invoice.get("sendReview")) throw new Error("INVOICE_HELD_FOR_TAX_CHECK");
   const project = await transaction.get(db.doc(`projects/${input.projectId}`));
   if (!project.exists || project.get("tenantId") !== context.tenantId) throw new Error("PROJECT_NOT_FOUND");
   if (project.get("archivedAt")) throw new Error("PROJECT_ARCHIVED");
@@ -382,8 +386,16 @@ export async function approveFinalInvoiceIn(
   const pricing = (accepted?.get("pricingSnapshot") ?? null) as Record<string, unknown> | null;
   const agreed = Number(pricing?.totalCents);
   const fromProposal = Boolean(accepted && Number.isSafeInteger(agreed) && agreed > 0);
-  const totalCents = fromProposal ? agreed : Number(packageSnapshot?.get("totalCents") ?? 0);
-  const taxCents = fromProposal ? Number(pricing?.taxCents ?? 0) : Number(packageSnapshot?.get("taxCents") ?? 0);
+  const provider = invoice.get("provider") === "stripe" ? "stripe" : "quickbooks";
+  // Pre-tax when QuickBooks is the sales-tax authority — final-tax-authority.ts.
+  const quickBooksTax = await quickBooksIsTaxAuthority(db, transaction, context.tenantId, provider);
+  const basis = finalBillBasis({
+    totalCents: fromProposal ? agreed : Number(packageSnapshot?.get("totalCents") ?? 0),
+    agreedTaxCents: fromProposal ? Number(pricing?.taxCents ?? 0) : Number(packageSnapshot?.get("taxCents") ?? 0),
+    quickBooksTax,
+  });
+  const totalCents = basis.billedTotalCents;
+  const taxCents = basis.taxCents;
   const source = fromProposal ? `proposals/${accepted!.id}` : `packageSnapshots/${snapshotId}`;
   const paidCents = others.reduce(
     (sum, candidate) => sum + paidOnInvoice((candidate.data() ?? {}) as CorrectableInvoice),
@@ -393,7 +405,6 @@ export async function approveFinalInvoiceIn(
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0) throw new Error("NOTHING_OWED");
   if (amountCents !== input.confirmAmountCents) throw new Error("FINAL_AMOUNT_CHANGED");
   const calculation = (invoice.get("calculation") ?? {}) as Record<string, unknown>;
-  const provider = invoice.get("provider") === "stripe" ? "stripe" : "quickbooks";
   transaction.update(invoice.ref, {
     status: "draft",
     providerState: "queued",
@@ -404,11 +415,14 @@ export async function approveFinalInvoiceIn(
       ...calculation,
       lines: [
         { label: "Approved package and add-ons", amountCents: totalCents - taxCents, source },
-        { label: "Approved tax", amountCents: taxCents, source },
+        quickBooksTax
+          ? { label: "Sales tax — calculated by QuickBooks when the invoice is made", amountCents: 0, source: "quickbooks" }
+          : { label: "Approved tax", amountCents: taxCents, source },
         { label: "Payments received", amountCents: -paidCents, source: "invoiceReferences" },
       ],
       packageTotalCents: totalCents,
       taxCents,
+      ...(quickBooksTax ? { taxAuthority: "quickbooks", agreedTaxExcludedCents: basis.agreedTaxExcludedCents } : {}),
       expectedBalanceCents: amountCents,
       // What was flagged stays on the record, with who looked and said go.
       reviewedDiscrepancies: Array.isArray(calculation.discrepancies) ? calculation.discrepancies : [],

@@ -163,6 +163,17 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   FINAL_INVOICE_NOT_IN_REVIEW: "That final bill isn't waiting for review any more. Refresh to see where it is.",
   FINAL_AMOUNT_CHANGED:
     "The balance changed since this page loaded — a payment was recorded or a bill changed. Refresh and check the new amount before sending.",
+  // A bill held in QuickBooks for the studio to check (bookingCommand sendHeldInvoice).
+  INVOICE_HELD_FOR_TAX_CHECK:
+    "This bill is already in QuickBooks, waiting for you to check the tax. Use Send with tax or Send without tax on it.",
+  INVOICE_SEND_PERMISSION_REQUIRED: "Only the studio's owners and admins can send a bill held for review.",
+  INVOICE_NOT_HELD: "That bill isn't waiting for you any more — it's been sent, voided or replaced. Refresh to see where it is.",
+  INVOICE_ACTION_IN_PROGRESS: "QuickBooks is still working on your last choice for this bill. Give it a moment, then refresh.",
+  RETAINER_HAS_NO_TAX: "A retainer never carries sales tax, so it's only ever sent as it stands.",
+  BILLING_ADDRESS_NEEDED_FOR_TAX:
+    "QuickBooks had no billing address to work the tax out from. Add the couple's billing address on their client record, then use Work the tax out again — or send it without tax.",
+  HELD_INVOICE_AMOUNT_CHANGED:
+    "The bill changed since this page loaded. Refresh and check the new figures before sending.",
   // Editing a job's date (crmCommand updateProject).
   EVENT_DATE_LOCKED_AFTER_SIGNING:
     "The couple has signed, so the date is part of their agreement. Change it with \"Change the booking\" on the job, so the contract, crew invites and bills move with it.",

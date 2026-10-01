@@ -78,6 +78,11 @@ export function providerReportedInvoice(input: {
       balanceCents: Number(current.balanceCents ?? 0),
       keptReason: "closed_in_studiocue",
     };
+  // Held for the studio to check before it goes (QuickBooks as the sales-tax
+  // authority): QuickBooks' own create webhook reads it as "sent", and it was
+  // never sent. Only paid or voided, above, moves it.
+  if (status === "review_required")
+    return { status, balanceCents: Number(current.balanceCents ?? 0), keptReason: "held_for_studio_review" };
   // A payment the studio recorded here that QuickBooks or Stripe has not taken
   // yet (its job is queued, or failed and the studio was asked to record it
   // there). Until the provider has it, the provider's higher balance is the
