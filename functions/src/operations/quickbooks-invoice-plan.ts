@@ -161,6 +161,9 @@ function calculationTax(calculation: Row): number {
   return line ? cents(line.amountCents) : 0;
 }
 
+/** `tenantFeatures/{tenantId}.quickbooksItemisedInvoices` — set by a platform admin. */
+export const QUICKBOOKS_ITEMISED_FLAG = "quickbooksItemisedInvoices";
+
 export async function planQuickBooksInvoiceLines(db: Firestore, invoice: DocumentSnapshot): Promise<QuickBooksInvoicePlan> {
   const amountCents = cents(invoice.get("amountCents"));
   const kind = text(invoice.get("kind"));
@@ -182,6 +185,11 @@ export async function planQuickBooksInvoiceLines(db: Firestore, invoice: Documen
   if (kind !== "retainer" && kind !== "final") return single;
   try {
     const tenantId = text(invoice.get("tenantId"));
+    // Itemised invoices are switched on per studio until they've been proven
+    // against a real QuickBooks company (tax override, negative lines, the
+    // pay link). Off, the invoice is the single line StudioCue always sent.
+    const features = await db.doc(`tenantFeatures/${tenantId}`).get();
+    if (features.get(QUICKBOOKS_ITEMISED_FLAG) !== true) return single;
     const projectId = text(invoice.get("projectId"));
     const project = await db.doc(`projects/${projectId}`).get();
     if (!project.exists || project.get("tenantId") !== tenantId) return single;

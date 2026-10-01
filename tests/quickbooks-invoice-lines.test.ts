@@ -424,3 +424,12 @@ test("the worker sends the lines, keeps the online-payment retry, and reads the 
   // The customer is created with the full record, not a display name alone.
   assert.match(source, /quickBooksCustomerCreateBody\(details,name\)/);
 });
+
+test("itemised invoices are off unless the studio is switched on; off is today's single line", () => {
+  const plan = readFileSync("functions/src/operations/quickbooks-invoice-plan.ts", "utf8");
+  assert.match(plan, /export const QUICKBOOKS_ITEMISED_FLAG = "quickbooksItemisedInvoices";/);
+  assert.match(plan, /if \(features\.get\(QUICKBOOKS_ITEMISED_FLAG\) !== true\) return single;/);
+  const runtime = readFileSync("functions/src/operations/provider-runtime.ts", "utf8");
+  // No tax codes either while off: exactly the invoice StudioCue always sent.
+  assert.match(runtime, /taxMode=plan\.itemised\?quickBooksTaxMode\(preferences\):"none";/);
+});
