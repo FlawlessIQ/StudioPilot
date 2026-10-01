@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AMENDABLE_STATES, shiftInZone } from "@/features/booking/amendable";
 import { CalendarClock, LoaderCircle, PackagePlus } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
@@ -12,6 +12,9 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
+import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
+import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
+import { oneOffFormValuesFrom, type OneOffPackageInput } from "@/features/packages/one-off-form";
 
 /**
  * "Change the booking": new packages and/or a new date on a job the couple
@@ -61,6 +64,29 @@ function callWhen(iso: string, timezone: string) {
 }
 /** Calls this close to the wedding usually belong to it; earlier ones don't. */
 const CLOSE_TO_WEDDING_DAYS = 56;
+
+/** The extras a package carries, as the editor and the command both take them. */
+function linesOf(value: unknown): JobAddOnLine[] {
+  return (Array.isArray(value) ? (value as Array<Record<string, unknown>>) : []).map((line) => ({
+    // A one-off kept on an earlier snapshot is carried as a one-off again.
+    addOnId: str(line.addOnId) && !str(line.addOnId).startsWith("custom_") ? str(line.addOnId) : null,
+    name: str(line.name) || "Extra",
+    unitPriceCents: num(line.unitPriceCents),
+    taxable: line.taxable !== false,
+    quantity: Math.max(1, num(line.quantity) || 1),
+  }));
+}
+
+/** "Engagement shoot, Parent albums ×2 · $1,100". */
+function extrasSummary(lines: JobAddOnLine[], currency: string) {
+  if (!lines.length) return "No extras";
+  const names = lines.map((line) => `${line.name}${line.quantity > 1 ? ` ×${line.quantity}` : ""}`).join(", ");
+  return `${names} · ${money(lines.reduce((sum, line) => sum + line.unitPriceCents * line.quantity, 0), currency)}`;
+}
+
+/** The package's own suggested extras, offered first. */
+const suggestionsOf = (record: Rec | undefined): Rec[] =>
+  (Array.isArray(record?.addOns) ? (record.addOns as Rec[]) : []).filter((item) => item && item.active !== false && str(item.id));
 
 function run(type: string, input: Record<string, unknown>) {
   return sendBookingCommand({ type, idempotencyKey: `${type}_${crypto.randomUUID()}`, input });
@@ -129,6 +155,13 @@ export function BookingAmendmentPanel({
   const [moveCalls, setMoveCalls] = useState<string[] | null>(null);
   // "Upcoming" as of opening the form, not re-read on every render.
   const [openedAt] = useState(() => Date.now());
+  // Extras the studio set on a package, by `s:<snapshot>` (on the job) or
+  // `p:<package>` (being added). A package not here keeps what it has.
+  const [extras, setExtras] = useState<Record<string, JobAddOnLine[]>>({});
+  const [extrasOpen, setExtrasOpen] = useState<string | null>(null);
+  // A one-off package written for this couple, added by the change.
+  const [oneOff, setOneOff] = useState<OneOffPackageInput | null>(null);
+  const [writingOneOff, setWritingOneOff] = useState(false);
 
   if (!project) return <p className="cue-action-note">Loading the job…</p>;
   if (!AMENDABLE_STATES.includes(str(project.state)))
@@ -172,9 +205,31 @@ export function BookingAmendmentPanel({
         addPackageIds: add,
         allowDateClash: allowClash,
         moveConsultationIds: shiftDays ? movingCalls.filter((id) => upcomingCalls.some((call) => call.id === id)) : [],
+        // Only for packages the booking will have; the server prices them.
+        extras: Object.entries(extras)
+          .filter(([key]) => (key.startsWith("s:") ? keptIds.includes(key.slice(2)) : add.includes(key.slice(2))))
+          .map(([key, lines]) => ({
+            ...(key.startsWith("s:") ? { packageSnapshotId: key.slice(2) } : { packageId: key.slice(2) }),
+            addOns: lines.map((line) => ({
+              addOnId: line.addOnId,
+              name: line.name,
+              unitPriceCents: line.unitPriceCents,
+              taxable: line.taxable,
+              quantity: line.quantity,
+            })),
+          })),
+        oneOffPackage: oneOff
+          ? {
+              name: oneOff.name,
+              basePriceCents: oneOff.basePriceCents,
+              included: oneOff.included,
+              ...(oneOff.includedCoverage ? { includedCoverage: oneOff.includedCoverage } : {}),
+              ...(oneOff.includedCoverageMinutes ? { includedCoverageMinutes: oneOff.includedCoverageMinutes } : {}),
+            }
+          : null,
         note: note.trim() || null,
       });
-      refreshTenantRecords("bookingAmendments", "projects", "proposals", "packageSnapshots");
+      refreshTenantRecords("bookingAmendments", "projects", "proposals", "packageSnapshots", "packages");
       setEditing(false);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "";
@@ -484,28 +539,134 @@ export function BookingAmendmentPanel({
         </label>
         <fieldset className="is-wide amendment-packages">
           <legend>Packages</legend>
-          {onJob.map((snapshot) => (
-            <label className="amendment-check" key={snapshot.id}>
-              <input
-                checked={keptIds.includes(snapshot.id)}
-                onChange={(event) =>
-                  setKeep(event.target.checked ? [...keptIds, snapshot.id] : keptIds.filter((id) => id !== snapshot.id))
-                }
-                type="checkbox"
-              />
-              {`${str(snapshot.packageName) || "Package"} · ${money(snapshot.totalCents, str(snapshot.currency) || "USD")} (as agreed)`}
-            </label>
-          ))}
-          {addable.map((item) => (
-            <label className="amendment-check" key={item.id}>
-              <input
-                checked={add.includes(item.id)}
-                onChange={(event) => setAdd(event.target.checked ? [...add, item.id] : add.filter((id) => id !== item.id))}
-                type="checkbox"
-              />
-              <PackagePlus aria-hidden size={13} /> {`Add ${str(item.name)} · ${money(item.basePriceCents, str(item.currency) || "USD")}`}
-            </label>
-          ))}
+          {onJob.map((snapshot) => {
+            const key = `s:${snapshot.id}`;
+            const currency = str(snapshot.currency) || "USD";
+            const lines = extras[key] ?? linesOf(snapshot.addOns);
+            const behind = ((packages as Rec[] | null) ?? []).find((item) => item.id === str(snapshot.packageId));
+            return (
+              <div className="amendment-package" key={snapshot.id}>
+                <label className="amendment-check">
+                  <input
+                    checked={keptIds.includes(snapshot.id)}
+                    onChange={(event) =>
+                      setKeep(event.target.checked ? [...keptIds, snapshot.id] : keptIds.filter((id) => id !== snapshot.id))
+                    }
+                    type="checkbox"
+                  />
+                  {`${str(snapshot.packageName) || "Package"} · ${money(snapshot.totalCents, currency)} (as agreed)`}
+                </label>
+                {keptIds.includes(snapshot.id) ? (
+                  <ExtrasRow
+                    changed={key in extras}
+                    currency={currency}
+                    lines={lines}
+                    onEdit={() => setExtrasOpen(extrasOpen === key ? null : key)}
+                    open={extrasOpen === key}
+                  >
+                    <JobAddOnsEditor
+                      allowLibrarySave={false}
+                      busy={false}
+                      currency={currency}
+                      onCancel={() => setExtrasOpen(null)}
+                      onSave={(next) => {
+                        setExtras({ ...extras, [key]: next });
+                        setExtrasOpen(null);
+                      }}
+                      saveLabel="Use these extras"
+                      snapshot={{ ...snapshot, addOns: lines }}
+                      suggested={suggestionsOf(behind)}
+                    />
+                  </ExtrasRow>
+                ) : null}
+              </div>
+            );
+          })}
+          {addable.map((item) => {
+            const key = `p:${item.id}`;
+            const currency = str(item.currency) || "USD";
+            const lines = extras[key] ?? [];
+            return (
+              <div className="amendment-package" key={item.id}>
+                <label className="amendment-check">
+                  <input
+                    checked={add.includes(item.id)}
+                    onChange={(event) => setAdd(event.target.checked ? [...add, item.id] : add.filter((id) => id !== item.id))}
+                    type="checkbox"
+                  />
+                  <PackagePlus aria-hidden size={13} /> {`Add ${str(item.name)} · ${money(item.basePriceCents, currency)}`}
+                </label>
+                {add.includes(item.id) ? (
+                  <ExtrasRow
+                    changed={lines.length > 0}
+                    currency={currency}
+                    lines={lines}
+                    onEdit={() => setExtrasOpen(extrasOpen === key ? null : key)}
+                    open={extrasOpen === key}
+                  >
+                    <JobAddOnsEditor
+                      allowLibrarySave={false}
+                      busy={false}
+                      currency={currency}
+                      onCancel={() => setExtrasOpen(null)}
+                      onSave={(next) => {
+                        setExtras({ ...extras, [key]: next });
+                        setExtrasOpen(null);
+                      }}
+                      saveLabel="Use these extras"
+                      snapshot={{ id: item.id, packageName: str(item.name), addOns: lines }}
+                      suggested={suggestionsOf(item)}
+                    />
+                  </ExtrasRow>
+                ) : null}
+              </div>
+            );
+          })}
+          {oneOff && !writingOneOff ? (
+            <div className="amendment-package">
+              <label className="amendment-check">
+                <input checked onChange={() => setOneOff(null)} type="checkbox" />
+                <PackagePlus aria-hidden size={13} />{" "}
+                {`Add ${oneOff.name} (one-off) · ${money(oneOff.basePriceCents, str(onJob[0]?.currency) || "USD")}`}
+              </label>
+              <p className="amendment-hint">
+                <button className="button button-quiet button-sm" onClick={() => setWritingOneOff(true)} type="button">
+                  Edit it
+                </button>
+              </p>
+            </div>
+          ) : null}
+          {writingOneOff ? (
+            <OneOffPackageForm
+              busy={false}
+              currency={str(onJob[0]?.currency) || "USD"}
+              defaultHours={num(onJob[0]?.includedCoverageMinutes) ? num(onJob[0]?.includedCoverageMinutes) / 60 : null}
+              forBookingChange
+              hasPackage={false}
+              initial={
+                oneOff
+                  ? oneOffFormValuesFrom({
+                      name: oneOff.name,
+                      basePriceCents: oneOff.basePriceCents,
+                      includedDeliverables: oneOff.included,
+                      includedCoverage: oneOff.includedCoverage,
+                      includedCoverageMinutes: oneOff.includedCoverageMinutes,
+                    })
+                  : undefined
+              }
+              initialMode="add"
+              onCancel={() => setWritingOneOff(false)}
+              onSubmit={(input) => {
+                setOneOff(input);
+                setWritingOneOff(false);
+              }}
+            />
+          ) : !oneOff && ownerOrAdmin ? (
+            // Writing a price is an owner's or admin's call (the server says so too).
+            <button className="button button-light button-sm amendment-one-off" onClick={() => setWritingOneOff(true)} type="button">
+              <PackagePlus aria-hidden size={13} /> Write a one-off package
+            </button>
+          ) : null}
         </fieldset>
         {shiftDays && upcomingCalls.length ? (
           <fieldset className="is-wide amendment-packages">
@@ -553,7 +714,7 @@ export function BookingAmendmentPanel({
       <footer className="amendment-actions">
         <button
           className="button button-dark"
-          disabled={busy || (!keptIds.length && !add.length) || (Boolean(clash) && !allowClash)}
+          disabled={busy || (!keptIds.length && !add.length && !oneOff) || (Boolean(clash) && !allowClash) || writingOneOff || extrasOpen !== null}
           onClick={() => void draft()}
           type="button"
         >
@@ -565,6 +726,41 @@ export function BookingAmendmentPanel({
         Nothing changes yet. You&apos;ll see the new total and the amended agreement, then sign and send it. The couple&apos;s
         current agreement stands until they sign.
       </p>
+    </div>
+  );
+}
+
+/**
+ * A package's extras in the change sheet: what it will carry, and the editor
+ * (JobAddOnsEditor, as on the proposal) when the studio opens it.
+ */
+function ExtrasRow({
+  lines,
+  currency,
+  changed,
+  open,
+  onEdit,
+  children,
+}: {
+  lines: JobAddOnLine[];
+  currency: string;
+  /** The studio set these in this change, rather than the ones agreed. */
+  changed: boolean;
+  open: boolean;
+  onEdit: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="amendment-extras">
+      <p className="amendment-hint">
+        {`Extras: ${extrasSummary(lines, currency)}${changed ? " (in this change)" : ""} `}
+        {open ? null : (
+          <button className="button button-quiet button-sm" onClick={onEdit} type="button">
+            {lines.length ? "Change extras" : "Add extras"}
+          </button>
+        )}
+      </p>
+      {open ? children : null}
     </div>
   );
 }
@@ -608,7 +804,10 @@ export function BookingAmendment({
             <h3>
               Change the booking <InfoHint term="booking-change" />
             </h3>
-            <p>A new date, a package added or removed. The couple signs the change; the job keeps its stage.</p>
+            <p>
+              A new date, a package added or removed, extras, or a one-off package for this couple. The couple signs the
+              change; the job keeps its stage.
+            </p>
           </header>
           <BookingAmendmentPanel
             onDone={(message) => {

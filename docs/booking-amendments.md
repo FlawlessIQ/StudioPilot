@@ -63,6 +63,43 @@ as it was.
   other way since is left alone.
 - The couple reads each move as a line in the change.
 
+**Extras and one-off packages (added 2026-10-01):**
+
+GR Productions asked for it: "No option to add on custom stuff. Incase people
+want to add on later." After signing, the Packages panel refuses extras and
+one-offs (`PACKAGES_LOCKED_AFTER_SIGNING`), so the change sheet takes them.
+
+- **Extras per package.** Each package the booking keeps or adds has *Add
+  extras* / *Change extras*. It opens the proposal's editor
+  (`JobAddOnsEditor`): library extras, the package's suggestions, or one
+  written for this couple. Nothing goes to the Library from here.
+- **A one-off package.** *Write a one-off package* opens the proposal's form
+  (`OneOffPackageForm`, `forBookingChange`). Owner or admin only, as
+  `createOneOffPackage` is.
+- **Pricing** (`functions/src/booking/amendment-packages.ts`):
+  - A kept package whose extras change is priced again into a **new**
+    snapshot (`supersedesSnapshotId`, `amendmentId`), using `repriceSnapshot`
+    (`functions/src/pricing/reprice-snapshot.ts`), shared with `setJobAddOns`.
+    The signed snapshot is never written.
+  - A fixed or per-crew retainer keeps its agreed amount. The schedule's
+    retainer is the signed one anyway.
+  - An extra already agreed keeps its agreed price, even if the Library
+    entry has changed since (`functions/src/packages/add-on-lines.ts`).
+  - A one-off takes its retainer, tax and terms from `packages/one-off.ts`.
+- **The one-off's lifecycle.** The `packages` doc is written at draft time
+  with `oneOff: { projectId, amendmentId }` and `active: false`, so no list
+  offers it. Signing turns it on (`signedOneOff`). Withdrawing the change, or
+  writing it up again, archives it (`discardedOneOff`). It is never deleted.
+- **What the couple reads.** For example: "Engagement shoot is added to Gold
+  Photo Package ($500).", "Parent albums on Gold Photo Package changes from 1
+  to 2 ($600).", "Elopement add-on (one-off, $750) is added." The amended
+  agreement lists each package's extras (`contractExtras`).
+- The bookingAmendment records `repricedPackageSnapshots` (`{from, to}`) and
+  `oneOffPackageId`.
+- Not in Cue's `change_booking` yet.
+
+Tests: `tests/amendment-extras.test.ts`.
+
 **Crew calendars StudioCue didn't create (added 2026-09-30):**
 - Every assignment carries `calendarSequence`, which rises on each date move.
 - The "your date moved" email to crew who had accepted attaches the next

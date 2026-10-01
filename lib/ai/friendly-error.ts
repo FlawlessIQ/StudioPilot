@@ -102,7 +102,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "A change is already with the couple. Wait for them to sign it, or withdraw it before writing another.",
   AMENDMENT_NEEDS_ACCEPTED_PROPOSAL:
     "This job has no accepted proposal to change. Send and sign the booking first.",
-  NOTHING_TO_CHANGE: "Nothing would change. Pick a new date or different packages.",
+  NOTHING_TO_CHANGE:
+    "Nothing would change. Pick a new date, add or remove a package or extras, or write a one-off package.",
   AMENDMENT_NOT_FOUND: "That change isn't there any more. Refresh to see the booking as it stands.",
   // sendAmendment on a change that is already out; a withdrawn or signed one
   // has its own code below.

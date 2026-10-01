@@ -6,8 +6,8 @@
  * could only be prepared before booking — so a couple who wanted video added,
  * or their date moved, left the studio with no way forward inside StudioCue.
  *
- * An amendment is the way forward. The studio changes the packages and/or the
- * date; the couple signs one document that says what changes and restates the
+ * An amendment is the way forward. The studio changes the packages, their
+ * extras (or writes a one-off package) and/or the date; the couple signs one document that says what changes and restates the
  * whole agreement; the job never leaves its stage, and the original agreement
  * stands until the change is signed. The records side is
  * functions/src/contracts/amendments.ts (studio commands) and
@@ -179,6 +179,55 @@ export function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd
 
 export type MovedCall = { label: string; from: string; to: string };
 
+/** One extra, as a change line names it. */
+export type ExtraLine = { addOnId: string; name: string; quantity: number; lineTotalCents: number };
+
+/** What changed among the extras on one package. */
+export type ExtrasChange = {
+  packageName: string;
+  added: ExtraLine[];
+  removed: ExtraLine[];
+  /** The same extra, a different number of it. */
+  changed: Array<{ name: string; fromQuantity: number; toQuantity: number; lineTotalCents: number }>;
+};
+
+/**
+ * The extras on a package before and after a change, compared by extra (the
+ * same extra listed twice counts as one, with the quantities summed).
+ */
+export function extrasChange(packageName: string, before: readonly ExtraLine[], after: readonly ExtraLine[]): ExtrasChange {
+  const tally = (lines: readonly ExtraLine[]) => {
+    const map = new Map<string, ExtraLine>();
+    for (const line of lines) {
+      const key = line.addOnId || `name:${line.name}`;
+      const seen = map.get(key);
+      map.set(
+        key,
+        seen
+          ? { ...seen, quantity: seen.quantity + line.quantity, lineTotalCents: seen.lineTotalCents + line.lineTotalCents }
+          : { ...line },
+      );
+    }
+    return map;
+  };
+  const was = tally(before);
+  const now = tally(after);
+  const change: ExtrasChange = { packageName, added: [], removed: [], changed: [] };
+  for (const [key, line] of now) {
+    const previous = was.get(key);
+    if (!previous) change.added.push(line);
+    else if (previous.quantity !== line.quantity)
+      change.changed.push({
+        name: line.name,
+        fromQuantity: previous.quantity,
+        toQuantity: line.quantity,
+        lineTotalCents: line.lineTotalCents,
+      });
+  }
+  for (const [key, line] of was) if (!now.has(key)) change.removed.push(line);
+  return change;
+}
+
 /** What changes, in the words the couple and the studio both read. */
 export function amendmentChangeLines(input: {
   previousDate: string;
@@ -190,6 +239,10 @@ export function amendmentChangeLines(input: {
   currency?: string;
   /** Consultations the studio is moving with the date. */
   movedCalls?: MovedCall[];
+  /** Packages written for this couple only, added by the change (price before tax). */
+  addedOneOffs?: Array<{ name: string; priceCents: number }>;
+  /** Extras added to, removed from or changed on a package. */
+  extras?: ExtrasChange[];
 }): string[] {
   const lines: string[] = [];
   const currency = input.currency ?? "USD";
@@ -197,7 +250,20 @@ export function amendmentChangeLines(input: {
     lines.push(`The wedding date moves from ${longDate(input.previousDate)} to ${longDate(input.newDate)}.`);
   for (const call of input.movedCalls ?? []) lines.push(`Your ${call.label} on ${call.from} moves to ${call.to}.`);
   for (const name of input.addedPackages) lines.push(`${name} is added.`);
+  for (const oneOff of input.addedOneOffs ?? [])
+    lines.push(`${oneOff.name} (one-off, ${dollars(oneOff.priceCents, currency)}) is added.`);
   for (const name of input.removedPackages) lines.push(`${name} is removed.`);
+  for (const change of input.extras ?? []) {
+    for (const extra of change.added)
+      lines.push(
+        `${extra.name}${extra.quantity > 1 ? ` ×${extra.quantity}` : ""} is added to ${change.packageName} (${dollars(extra.lineTotalCents, currency)}).`,
+      );
+    for (const extra of change.changed)
+      lines.push(
+        `${extra.name} on ${change.packageName} changes from ${extra.fromQuantity} to ${extra.toQuantity} (${dollars(extra.lineTotalCents, currency)}).`,
+      );
+    for (const extra of change.removed) lines.push(`${extra.name} is removed from ${change.packageName}.`);
+  }
   if (input.money.newTotalCents !== input.money.previousTotalCents)
     lines.push(
       `The total changes from ${dollars(input.money.previousTotalCents, currency)} to ${dollars(input.money.newTotalCents, currency)}.`,

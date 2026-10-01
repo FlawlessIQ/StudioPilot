@@ -77,6 +77,30 @@ test("the couple reads what changes in plain words", () => {
     "$1,500 already paid is kept and counts toward the new total.",
     "$7,000 remains to be paid.",
   ]);
+  // A change with no extras and no one-off reads exactly as it did before
+  // they could be part of one (tests/amendment-extras.test.ts).
+  assert.deepEqual(
+    amendmentChangeLines({
+      previousDate: "2027-06-12",
+      newDate: "2027-09-18",
+      keptPackages: ["Full Day"],
+      addedPackages: ["Highlight Film"],
+      removedPackages: [],
+      addedOneOffs: [],
+      extras: [],
+      money,
+    }),
+    lines,
+  );
+});
+
+test("however the packages are priced again, the change's schedule keeps the retainer agreed", () => {
+  const draft = read("functions/src/contracts/amendments.ts");
+  // Extras re-price a package's snapshot (and a percentage snapshot retainer
+  // with it); the booking's retainer is the signed schedule's, never re-derived.
+  assert.match(draft, /const agreedRetainerCents = num\(baseSchedule\[0\]\?\.amountCents\) \|\| num\(obj\(base\.get\("pricingSnapshot"\)\)\.retainerCents\)/);
+  assert.match(draft, /\{ label: "Retainer", amountCents: money\.retainerCents, dueDate: baseSchedule\[0\]\?\.dueDate \?\? null \}/);
+  assert.match(draft, /retainerOverrideCents: money\.retainerCents/);
 });
 
 test("signing a change never moves the job's stage, and both signatures run through one trigger", () => {

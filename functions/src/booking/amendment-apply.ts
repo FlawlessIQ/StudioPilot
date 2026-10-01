@@ -4,6 +4,7 @@ import { logger } from "firebase-functions";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { raiseFinalInvoice } from "./final-invoice.js";
 import { amendmentMoney, longDate, shiftDate, shiftInZone } from "./amendment-core.js";
+import { signedOneOff } from "./amendment-packages.js";
 import { assignmentIcs, assignmentPlace } from "../crew/calendar-ics.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
@@ -18,7 +19,10 @@ import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
  *
  * 1. The records: the change's proposal becomes the accepted one and the old
  *    one superseded; the amended agreement is filed as a completed contract
- *    beside the original; the job takes the new packages and date.
+ *    beside the original; the job takes the new packages and date. A package
+ *    whose extras changed comes as a new snapshot, so taking it is the same
+ *    swap of ids as any package change; a one-off written inside the change
+ *    becomes active (./amendment-packages.ts).
  * 2. The money: an unpaid bill written for the old total or date is
  *    superseded and raised again; a refund owed becomes a task. Payments
  *    already made are kept (see amendment-core.ts).
@@ -92,7 +96,8 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
     const pendingReference = db.doc(`proposals/${text(amendment.get("proposalId"))}`);
     const baseProposalReference = db.doc(`proposals/${text(base.proposalId)}`);
     const baseContractId = text(base.contractId);
-    const [project, pendingProposal, baseProposal, baseContract, invoices, schedules] = await Promise.all([
+    const oneOffPackageId = text(amendment.get("oneOffPackageId"));
+    const [project, pendingProposal, baseProposal, baseContract, invoices, schedules, oneOffPackage] = await Promise.all([
       transaction.get(projectReference),
       transaction.get(heldReference),
       transaction.get(baseProposalReference),
@@ -103,6 +108,7 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
       transaction.get(
         db.collection("schedules").where("tenantId", "==", tenantId).where("projectId", "==", projectId).where("status", "==", "published").limit(5),
       ),
+      oneOffPackageId ? transaction.get(db.doc(`packages/${oneOffPackageId}`)) : Promise.resolve(null),
     ]);
     if (!project.exists || project.get("tenantId") !== tenantId) return null;
     const previousDate = text(project.get("eventDate"));
@@ -190,6 +196,10 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
     });
     if (baseContract?.exists)
       transaction.update(baseContract.ref, { amendedByContractId: contractId, amendedAt: now, updatedAt: now });
+    // A one-off written inside the change is the job's now, like any package
+    // on it (it waited inactive so no list offered it before the signature).
+    if (oneOffPackage?.exists && oneOffPackage.get("tenantId") === tenantId)
+      transaction.update(oneOffPackage.ref, signedOneOff(now, ACTOR));
     transaction.update(projectReference, {
       packageSnapshotId: nextIds[0] ?? project.get("packageSnapshotId"),
       additionalPackageSnapshotIds: nextIds.slice(1),

@@ -1,5 +1,12 @@
 import { packageDetails } from "../packages/inclusions.js";
 import { isCataloguePackage } from "../packages/one-off.js";
+import { resolveAddOnLines, sameAddOnLines, snapshotAddOnLines, type AddOnLine } from "../packages/add-on-lines.js";
+import {
+  amendmentOneOffRecords,
+  billedCrewCount,
+  discardedOneOff,
+  repriceKeptSnapshot,
+} from "../booking/amendment-packages.js";
 import { randomUUID } from "node:crypto";
 import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
@@ -9,15 +16,17 @@ import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { pricePackage } from "../pricing/package-price.js";
 import {
   coverageFromPhotographerCount,
+  includedCoverageSchema,
   legacyPhotographerCount,
   resolveCoverage,
-  type CoverageItem,
   type CoverageRole,
 } from "../packages/coverage.js";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
 import {
   amendmentChangeLines,
   amendmentMoney,
+  extrasChange,
+  type ExtrasChange,
   consultationLabel,
   consultationWhen,
   daysBetween,
@@ -46,8 +55,9 @@ import { resendBlockedUntil } from "./resend.js";
 /**
  * Changing a signed booking: the studio's commands.
  *
- * draftAmendment         the new packages and/or date, priced, with the
- *                        amended agreement written out for the studio to read
+ * draftAmendment         the new packages, their extras, a one-off package
+ *                        and/or the date, priced, with the amended agreement
+ *                        written out for the studio to read
  * sendAmendment          the owner signs it for the studio; the couple is asked
  *                        to sign in their portal
  * recordAmendmentSigned  the couple signed outside StudioCue (paper, the
@@ -63,6 +73,44 @@ import { resendBlockedUntil } from "./resend.js";
  * attestation) applies it the same way. See ../booking/amendment-core.ts.
  */
 
+/** One extra on a package, in the setJobAddOns line shape (../crm/commands.ts). */
+const amendmentAddOnInput = z.object({
+  /** A library or package add-on, or one already on the package; null for a one-off. */
+  addOnId: z.string().min(1).nullable().default(null),
+  name: z.string().trim().min(2).max(120).optional(),
+  unitPriceCents: z.number().int().nonnegative().safe().optional(),
+  taxable: z.boolean().optional(),
+  quantity: z.number().int().positive().max(100).default(1),
+});
+
+/**
+ * The whole list of extras one package will carry after the change: a package
+ * already on the job (by its snapshot) or one the change adds (by package).
+ * A package not listed keeps the extras it has.
+ */
+const amendmentExtrasInput = z
+  .object({
+    packageSnapshotId: z.string().min(1).optional(),
+    packageId: z.string().min(1).optional(),
+    addOns: z.array(amendmentAddOnInput).max(20),
+  })
+  .refine((entry) => Boolean(entry.packageSnapshotId) !== Boolean(entry.packageId), {
+    message: "Name the package the extras are for: one on the job, or one being added.",
+  });
+
+/**
+ * A package written for this couple only, added by the change — the fields
+ * createOneOffPackage takes. Retainer, tax, terms and currency come from the
+ * studio's own records (../packages/one-off.ts), as they do there.
+ */
+const amendmentOneOffInput = z.object({
+  name: z.string().trim().min(2).max(120),
+  basePriceCents: z.number().int().nonnegative().safe(),
+  included: z.array(z.string().trim().min(1).max(300)).min(1).max(40),
+  includedCoverage: includedCoverageSchema.optional(),
+  includedCoverageMinutes: z.number().int().positive().max(1440).optional(),
+});
+
 export const draftAmendmentInput = z.object({
   projectId: z.string().min(1),
   /** The new wedding date; null or the current one leaves it as it is. */
@@ -75,6 +123,13 @@ export const draftAmendmentInput = z.object({
   allowDateClash: z.boolean().default(false),
   /** Upcoming consultations to move by the same number of days as the date. */
   moveConsultationIds: z.array(z.string().min(1)).max(10).default([]),
+  /**
+   * Extras added to or taken off a package (GR Productions, 2026-10-01: "No
+   * option to add on custom stuff. Incase people want to add on later").
+   */
+  extras: z.array(amendmentExtrasInput).max(4).default([]),
+  /** A one-off package written for this couple, added by the change. */
+  oneOffPackage: amendmentOneOffInput.nullable().default(null),
   note: z.string().trim().max(1000).nullable().default(null),
 });
 
@@ -271,15 +326,14 @@ function lineItems(data: Record<string, unknown>) {
   ];
 }
 
-function billedCrewCount(coverage: readonly CoverageItem[], billedRoles: readonly CoverageRole[] | undefined) {
-  const roles = billedRoles?.length ? billedRoles : (["photographer"] as const);
-  return Math.max(1, roles.reduce((sum, role) => sum + (coverage.find((item) => item.role === role)?.count ?? 0), 0));
-}
-
-/** A package from the catalogue, frozen at today's price — the same record selectPackage writes. */
+/**
+ * A package from the catalogue, frozen at today's price — the same record
+ * selectPackage writes — with any extras the change gives it.
+ */
 function snapshotFromPackage(
   studioPackage: DocumentSnapshot,
   input: { tenantId: string; projectId: string; actorId: string; timestamp: string; amendmentId: string },
+  addOns: AddOnLine[] = [],
 ) {
   const data = studioPackage.data() as Record<string, unknown>;
   const retainerRule = obj(data.retainerRule) as
@@ -289,7 +343,7 @@ function snapshotFromPackage(
   const coverage = resolveCoverage(data as Parameters<typeof resolveCoverage>[0]);
   const priced = pricePackage({
     basePriceCents: num(data.basePriceCents),
-    addOns: [],
+    addOns,
     discount: { type: "none" },
     taxRateBasisPoints: num(data.taxRateBasisPoints),
     retainerRule,
@@ -309,7 +363,8 @@ function snapshotFromPackage(
       description: text(data.description),
       currency: text(data.currency, "USD"),
       basePriceCents: num(data.basePriceCents),
-      addOns: [],
+      addOns,
+      discountRule: { type: "none" },
       discountCents: priced.discountCents,
       subtotalCents: priced.subtotalCents,
       taxCents: priced.taxCents,
@@ -419,15 +474,48 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
   );
   const keep = input.keepPackageSnapshotIds.filter((id, index, all) => all.indexOf(id) === index);
   if (keep.some((id) => !currentIds.includes(id))) throw new Error("PACKAGE_NOT_ON_JOB");
-  if (!keep.length && !input.addPackageIds.length) throw new Error("LAST_PACKAGE_ON_JOB");
-  if (keep.length + input.addPackageIds.length > 4) throw new Error("PACKAGE_LIMIT_REACHED");
+  const oneOffInput = input.oneOffPackage;
+  // Writing a price is an owner's or admin's call, as createOneOffPackage's is.
+  if (oneOffInput && !["studio_owner", "studio_admin"].includes(String(context.membership.role)))
+    throw new Error("ONE_OFF_PACKAGE_NEEDS_OWNER");
+  if (!keep.length && !input.addPackageIds.length && !oneOffInput) throw new Error("LAST_PACKAGE_ON_JOB");
+  if (keep.length + input.addPackageIds.length + (oneOffInput ? 1 : 0) > 4) throw new Error("PACKAGE_LIMIT_REACHED");
+  // Extras are for a package the booking will have: one it keeps, or one the
+  // change adds. The last list for a package is the one that counts.
+  const keptExtras = new Map<string, z.infer<typeof amendmentAddOnInput>[]>();
+  const addedExtras = new Map<string, z.infer<typeof amendmentAddOnInput>[]>();
+  for (const entry of input.extras) {
+    if (entry.packageSnapshotId) {
+      if (!keep.includes(entry.packageSnapshotId)) throw new Error("PACKAGE_NOT_ON_JOB");
+      keptExtras.set(entry.packageSnapshotId, entry.addOns);
+    } else if (entry.packageId) {
+      if (!input.addPackageIds.includes(entry.packageId)) throw new Error("PACKAGE_NOT_FOUND");
+      addedExtras.set(entry.packageId, entry.addOns);
+    }
+  }
+  const libraryIds = [
+    ...new Set(
+      [...keptExtras.values(), ...addedExtras.values()]
+        .flat()
+        .map((line) => line.addOnId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ].slice(0, 80);
 
-  const [currentSnapshots, addPackages, invoices, contracts] = await Promise.all([
+  const [currentSnapshots, addPackages, invoices, contracts, libraryDocuments] = await Promise.all([
     Promise.all(currentIds.map((id) => db.doc(`packageSnapshots/${id}`).get())),
     Promise.all(input.addPackageIds.map((id) => db.doc(`packages/${id}`).get())),
     db.collection("invoiceReferences").where("tenantId", "==", context.tenantId).where("projectId", "==", input.projectId).limit(40).get(),
     db.collection("contracts").where("tenantId", "==", context.tenantId).where("projectId", "==", input.projectId).limit(25).get(),
+    Promise.all(libraryIds.map((id) => db.doc(`addOns/${id}`).get())),
   ]);
+  // The studio's own live library entries; anything else resolves only if it
+  // is already agreed on the package or one of the package's suggestions.
+  const library = new Map(
+    libraryDocuments
+      .filter((document) => document.exists && document.get("tenantId") === context.tenantId && !document.get("archivedAt"))
+      .map((document) => [document.id, document.data() as Record<string, unknown>] as const),
+  );
   for (const studioPackage of addPackages)
     if (
       !studioPackage.exists ||
@@ -454,22 +542,142 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
   }
 
   const removed = currentSnapshots.filter((snapshot) => !keep.includes(snapshot.id));
-  if (!dateChanged && !removed.length && !input.addPackageIds.length) throw new Error("NOTHING_TO_CHANGE");
+  const keptSnapshots = keep.map((id) => currentSnapshots.find((snapshot) => snapshot.id === id)!);
 
-  // New snapshots for added packages; kept ones keep the price agreed.
-  const created = addPackages.map((studioPackage) =>
-    snapshotFromPackage(studioPackage, {
+  // The package documents behind kept packages whose extras may change: their
+  // suggestions, retainer rule and tax rate, as setJobAddOns reads them. The
+  // snapshot stays the record of what was agreed; a package that isn't there
+  // (an imported booking's "imported" sentinel, a deleted one) is read as
+  // none, and pricingSourceFor keeps the tax the snapshot was quoted at
+  // (../booking/amendment-packages.ts).
+  const catalogueIdOf = (snapshot: DocumentSnapshot) => {
+    const id = text(snapshot.get("packageId"));
+    return id && id !== "imported" ? id : "";
+  };
+  const keptPackageDocuments = new Map(
+    await Promise.all(
+      keptSnapshots
+        .filter((snapshot) => keptExtras.has(snapshot.id) && catalogueIdOf(snapshot))
+        .map(async (snapshot) => {
+          const catalogueId = catalogueIdOf(snapshot);
+          const packageDocument = await db.doc(`packages/${catalogueId}`).get();
+          return [
+            snapshot.id,
+            packageDocument.exists && packageDocument.get("tenantId") === context.tenantId
+              ? (packageDocument.data() as Record<string, unknown>)
+              : null,
+          ] as const;
+        }),
+    ),
+  );
+  const suggestionsOf = (packageData: Record<string, unknown> | null | undefined) =>
+    (Array.isArray(packageData?.addOns) ? (packageData.addOns as unknown[]) : [])
+      .map(obj)
+      .filter((item) => item.active !== false);
+  const newCustomId = () => `custom_${randomUUID()}`;
+
+  // Kept packages keep the price agreed, unless their extras change: then the
+  // package is priced again into a new snapshot. The signed one is untouched.
+  const extrasChanges: ExtrasChange[] = [];
+  const repriced = new Map<string, { id: string; record: Record<string, unknown> }>();
+  for (const snapshot of keptSnapshots) {
+    const requested = keptExtras.get(snapshot.id);
+    if (!requested) continue;
+    const data = snapshot.data() as Record<string, unknown>;
+    const agreed = snapshotAddOnLines(data);
+    const packageData = keptPackageDocuments.get(snapshot.id);
+    const lines = resolveAddOnLines(requested, { agreed, suggested: suggestionsOf(packageData), library, newCustomId });
+    if (sameAddOnLines(agreed, lines)) continue;
+    const id = randomUUID();
+    repriced.set(snapshot.id, {
+      id,
+      record: repriceKeptSnapshot({
+        previousId: snapshot.id,
+        snapshot: data,
+        packageData,
+        addOns: lines,
+        id,
+        amendmentId,
+        actorId: context.actorId,
+        timestamp: context.timestamp,
+      }),
+    });
+    extrasChanges.push(extrasChange(text(data.packageName, "Package"), agreed, lines));
+  }
+
+  // New snapshots for added packages, with any extras they come with.
+  const created = addPackages.map((studioPackage) => {
+    const requested = addedExtras.get(studioPackage.id) ?? [];
+    const lines = resolveAddOnLines(requested, {
+      agreed: [],
+      suggested: suggestionsOf(studioPackage.data()),
+      library,
+      newCustomId,
+    });
+    if (lines.length) extrasChanges.push(extrasChange(text(studioPackage.get("name"), "Package"), [], lines));
+    return snapshotFromPackage(
+      studioPackage,
+      {
+        tenantId: context.tenantId,
+        projectId: input.projectId,
+        actorId: context.actorId,
+        timestamp: context.timestamp,
+        amendmentId,
+      },
+      lines,
+    );
+  });
+
+  // A one-off written for this couple inside the change: a real package
+  // document, inactive until they sign, and the snapshot of it the change adds.
+  let oneOff: { packageId: string; snapshotId: string; packageRecord: Record<string, unknown>; snapshotRecord: Record<string, unknown> } | null =
+    null;
+  if (oneOffInput) {
+    const mainSnapshotDocument = keptSnapshots[0] ?? currentSnapshots[0] ?? null;
+    const mainSnapshot = mainSnapshotDocument ? (mainSnapshotDocument.data() as Record<string, unknown>) : null;
+    const mainPackageId = mainSnapshotDocument ? catalogueIdOf(mainSnapshotDocument) : "";
+    const [mainPackageDocument, tenant, catalogue] = await Promise.all([
+      mainPackageId ? db.doc(`packages/${mainPackageId}`).get() : Promise.resolve(null),
+      db.doc(`tenants/${context.tenantId}`).get(),
+      db.collection("packages").where("tenantId", "==", context.tenantId).limit(200).get(),
+    ]);
+    const packageId = randomUUID();
+    const snapshotId = randomUUID();
+    const label = text(project.get("eventType")).trim();
+    const records = amendmentOneOffRecords({
+      given: oneOffInput,
+      packageId,
+      snapshotId,
       tenantId: context.tenantId,
       projectId: input.projectId,
+      amendmentId,
       actorId: context.actorId,
       timestamp: context.timestamp,
-      amendmentId,
-    }),
-  );
-  const keptSnapshots = keep.map((id) => currentSnapshots.find((snapshot) => snapshot.id === id)!);
+      mode: keep.length ? "add" : "replace",
+      mainSnapshot,
+      mainPackage:
+        mainPackageDocument?.exists && mainPackageDocument.get("tenantId") === context.tenantId
+          ? (mainPackageDocument.data() as Record<string, unknown>)
+          : null,
+      catalogue: catalogue.docs.map((document) => document.data() as Record<string, unknown>),
+      tenantCurrency: text(tenant.get("currency")),
+      eventTypeId: text(project.get("eventTypeId")) || "wedding",
+      eventTypeLabel: label.length >= 2 ? label.slice(0, 80) : "Wedding",
+    });
+    oneOff = { packageId, snapshotId, ...records };
+  }
+
+  if (!dateChanged && !removed.length && !input.addPackageIds.length && !repriced.size && !oneOff)
+    throw new Error("NOTHING_TO_CHANGE");
+
   const nextSnapshots: Array<{ id: string; data: Record<string, unknown> }> = [
-    ...keptSnapshots.map((snapshot) => ({ id: snapshot.id, data: snapshot.data() as Record<string, unknown> })),
+    // A kept package stays where it was, as its re-priced copy when its extras change.
+    ...keptSnapshots.map((snapshot) => {
+      const next = repriced.get(snapshot.id);
+      return next ? { id: next.id, data: next.record } : { id: snapshot.id, data: snapshot.data() as Record<string, unknown> };
+    }),
     ...created.map((entry) => ({ id: entry.id, data: entry.record as Record<string, unknown> })),
+    ...(oneOff ? [{ id: oneOff.snapshotId, data: oneOff.snapshotRecord }] : []),
   ];
   const pricing = combineSnapshotPricing(
     nextSnapshots.map(({ data }) => ({
@@ -525,6 +733,8 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     keptPackages: keptSnapshots.map((snapshot) => text(snapshot.get("packageName"), "Package")),
     addedPackages: created.map((entry) => entry.record.packageName),
     removedPackages: removed.map((snapshot) => text(snapshot.get("packageName"), "Package")),
+    addedOneOffs: oneOff ? [{ name: text(oneOff.snapshotRecord.packageName, "Package"), priceCents: num(oneOff.snapshotRecord.basePriceCents) }] : [],
+    extras: extrasChanges,
     money,
     currency: pricing.currency,
   });
@@ -574,8 +784,20 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     updatedBy: context.actorId,
   };
 
+  // Writing the change up again replaces the draft: a one-off the last draft
+  // wrote goes with it (archived, never deleted), unless this one is it.
+  const previousOneOffId = pending?.exists && pending.get("status") === "draft" ? text(pending.get("oneOffPackageId")) : "";
+  const previousOneOff = previousOneOffId ? await db.doc(`packages/${previousOneOffId}`).get() : null;
+
   const batch = db.batch();
   for (const entry of created) batch.create(db.doc(`packageSnapshots/${entry.id}`), entry.record);
+  for (const entry of repriced.values()) batch.create(db.doc(`packageSnapshots/${entry.id}`), entry.record);
+  if (oneOff) {
+    batch.create(db.doc(`packages/${oneOff.packageId}`), oneOff.packageRecord);
+    batch.create(db.doc(`packageSnapshots/${oneOff.snapshotId}`), oneOff.snapshotRecord);
+  }
+  if (previousOneOff?.exists && previousOneOff.get("tenantId") === context.tenantId && previousOneOff.get("active") !== true)
+    batch.update(previousOneOff.ref, discardedOneOff(context.timestamp, context.actorId, "The change was written up again."));
   batch.set(db.doc(`amendmentProposals/${proposalId}`), proposalRecord);
   await batch.commit();
 
@@ -647,8 +869,12 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     dateShiftDays: shift,
     dateClashes: clashes,
     consultationMoves,
-    addedPackageSnapshotIds: created.map((entry) => entry.id),
+    addedPackageSnapshotIds: [...created.map((entry) => entry.id), ...(oneOff ? [oneOff.snapshotId] : [])],
     removedPackageSnapshotIds: removed.map((snapshot) => snapshot.id),
+    /** Kept packages priced again for new extras: the signed snapshot and its replacement. */
+    repricedPackageSnapshots: [...repriced.entries()].map(([from, entry]) => ({ from, to: entry.id })),
+    /** The one-off package this change writes; active once signed, archived if withdrawn. */
+    oneOffPackageId: oneOff?.packageId ?? null,
     money,
     currency: pricing.currency,
     changes,
@@ -689,7 +915,13 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     entityId: amendmentId,
     timestamp: context.timestamp,
     before: { eventDate: previousDate, packageSnapshotIds: currentIds, totalCents: previousTotalCents },
-    after: { eventDate: newDate, packageSnapshotIds: amendment.next.packageSnapshotIds, totalCents: pricing.totalCents },
+    after: {
+      eventDate: newDate,
+      packageSnapshotIds: amendment.next.packageSnapshotIds,
+      totalCents: pricing.totalCents,
+      repricedPackageSnapshots: amendment.repricedPackageSnapshots,
+      oneOffPackageId: amendment.oneOffPackageId,
+    },
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
     correlationId: context.idempotencyKey,
@@ -950,8 +1182,17 @@ export async function cancelAmendment(context: CommandContext, input: z.infer<ty
   const projectReference = db.doc(`projects/${text(amendment.get("projectId"))}`);
   let coupleTold = false;
   await db.runTransaction(async (transaction) => {
-    const [current, project] = await Promise.all([transaction.get(amendment.ref), transaction.get(projectReference)]);
+    const oneOffPackageId = text(amendment.get("oneOffPackageId"));
+    const [current, project, oneOffPackage] = await Promise.all([
+      transaction.get(amendment.ref),
+      transaction.get(projectReference),
+      oneOffPackageId ? transaction.get(db.doc(`packages/${oneOffPackageId}`)) : Promise.resolve(null),
+    ]);
     if (!LIVE_AMENDMENT.has(text(current.get("status")))) throw new Error("AMENDMENT_ALREADY_SIGNED");
+    // The one-off written for this change goes with it; the extras drafted
+    // live only on the change's own snapshots, which nothing else points at.
+    if (oneOffPackage?.exists && oneOffPackage.get("tenantId") === context.tenantId && oneOffPackage.get("active") !== true)
+      transaction.update(oneOffPackage.ref, discardedOneOff(context.timestamp, context.actorId, "The change was withdrawn."));
     // A change the couple was sent sat in their inbox and portal asking for a
     // signature; withdrawing it used to make it vanish with no word, so they
     // were left wondering whether their booking had changed. It has not: say

@@ -46,7 +46,16 @@ export function JobAddOnsEditor({
   busy,
   onSave,
   onCancel,
+  saveLabel = "Save extras",
+  allowLibrarySave = true,
 }: {
+  /** What the save button says: "Use these extras" inside a booking change. */
+  saveLabel?: string;
+  /**
+   * Whether a one-off extra can be kept in the library. Not inside a booking
+   * change: nothing is written until the change is, and it may be withdrawn.
+   */
+  allowLibrarySave?: boolean;
   snapshot: Row | undefined;
   /** The package's own suggestions, shown first. */
   suggested: readonly Row[];
@@ -258,14 +267,16 @@ export function JobAddOnsEditor({
               />
               <span>Charge tax on it</span>
             </label>
-            <label className="form-checkbox">
-              <input
-                checked={custom.saveToLibrary}
-                onChange={(event) => setCustom({ ...custom, saveToLibrary: event.target.checked })}
-                type="checkbox"
-              />
-              <span>Keep it in my library for next time</span>
-            </label>
+            {allowLibrarySave ? (
+              <label className="form-checkbox">
+                <input
+                  checked={custom.saveToLibrary}
+                  onChange={(event) => setCustom({ ...custom, saveToLibrary: event.target.checked })}
+                  type="checkbox"
+                />
+                <span>Keep it in my library for next time</span>
+              </label>
+            ) : null}
           </div>
           {customError ? (
             <p className="form-error" role="alert">
@@ -292,7 +303,7 @@ export function JobAddOnsEditor({
       <div className="job-add-ons-actions job-add-ons-footer">
         <button className="button button-dark" disabled={busy} onClick={() => onSave(lines)} type="button">
           {busy ? <LoaderCircle className="spin" size={14} /> : null}
-          Save extras
+          {saveLabel}
         </button>
         <button className="button button-quiet" disabled={busy} onClick={onCancel} type="button">
           Cancel

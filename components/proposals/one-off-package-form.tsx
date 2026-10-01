@@ -27,7 +27,14 @@ export function OneOffPackageForm({
   onSubmit,
   onCancel,
   initial,
+  forBookingChange = false,
 }: {
+  /**
+   * Written inside "Change the booking" (components/booking/booking-amendment.tsx):
+   * it is added by the change the couple signs, so there is nothing to ask
+   * about where it goes, and it isn't offered to the Library.
+   */
+  forBookingChange?: boolean;
   /**
    * Editing a one-off already on the job (updateOneOffPackage): the form
    * opens filled in, and asks nothing about where it goes — it stays where
@@ -87,9 +94,11 @@ export function OneOffPackageForm({
       <div className="one-off-package-head">
         <strong>{editing ? "Edit this one-off package" : "Write a one-off package"}</strong>
         <small>
-          {editing
-            ? "The proposal is priced again from these. Its extras and discount stay; a percentage deposit follows the new price."
-            : "Just for this job. It won't appear in your Library, on your client pages, or on anyone else's proposal. The deposit and tax follow your usual packages."}
+          {forBookingChange
+            ? "Just for this couple, added by this change. They sign it with the rest of the change; the retainer they agreed stays as it is. Tax follows your usual packages."
+            : editing
+              ? "The proposal is priced again from these. Its extras and discount stay; a percentage deposit follows the new price."
+              : "Just for this job. It won't appear in your Library, on your client pages, or on anyone else's proposal. The deposit and tax follow your usual packages."}
         </small>
       </div>
       <label className="one-off-package-field one-off-package-grow">
@@ -152,7 +161,7 @@ export function OneOffPackageForm({
         </label>
         <small>Left blank: one photographer for {hours} hours.</small>
       </fieldset>
-      {hasPackage && !editing ? (
+      {hasPackage && !editing && !forBookingChange ? (
         <fieldset className="one-off-package-mode">
           <legend>On this job</legend>
           <label className="form-checkbox">
@@ -170,7 +179,7 @@ export function OneOffPackageForm({
           </label>
         </fieldset>
       ) : null}
-      {editing ? null : (
+      {editing || forBookingChange ? null : (
         <label className="form-checkbox one-off-package-wide">
           <input
             checked={values.saveToLibrary}
@@ -190,7 +199,9 @@ export function OneOffPackageForm({
           {busy ? <LoaderCircle className="spin" size={14} /> : <Plus aria-hidden="true" size={14} />}
           {editing
             ? "Save changes"
-            : !hasPackage
+            : forBookingChange
+              ? "Add it to the change"
+              : !hasPackage
               ? "Lock this package"
               : values.mode === "add"
                 ? "Add this package"

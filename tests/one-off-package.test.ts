@@ -414,7 +414,7 @@ test("editing a one-off updates it and re-prices the job's copy, with every pack
   assert.match(edit, /action: "package\.one_off_updated"/);
   assert.match(edit, /transaction\.create\(commandReference/);
   // repriceSnapshot takes the corrected price only when given one.
-  assert.match(crm, /basePriceCents: number = Number\(previous\.get\("basePriceCents"\) \?\? 0\)/);
+  assert.match(source("functions/src/pricing/reprice-snapshot.ts"), /basePriceCents: number = Number\(previous\.get\("basePriceCents"\) \?\? 0\)/);
 });
 
 test("saving a one-off to the Library clears its flag, keeps it from couples, and is audited", () => {
@@ -455,5 +455,5 @@ test("the job's line offers Edit and Save to my Library on its own one-off", () 
   assert.match(panel, /oneOffPackage && !agreementOut \? \(/);
   assert.match(form, /editing\s+\? "Save changes"/);
   // Editing never moves it or saves it elsewhere.
-  assert.match(form, /hasPackage && !editing \?/);
+  assert.match(form, /hasPackage && !editing && !forBookingChange \?/);
 });

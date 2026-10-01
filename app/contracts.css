@@ -512,6 +512,11 @@
 .amendment-check{display:flex!important;gap:8px;align-items:center;font-size:13px;font-weight:500}
 .amendment-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .amendment-hint{margin:0;font-size:12px;color:var(--muted,#6b7570)}
+/* A package in the change with its extras under it (JobAddOnsEditor opens inline). */
+.amendment-package{display:grid;gap:4px;min-width:0}
+.amendment-extras{display:grid;gap:8px;padding-left:24px;min-width:0}
+.amendment-extras .amendment-hint{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.amendment-one-off{justify-self:start}
 /* "Withdraw" and "Record their signature" ask once more, saying what follows. */
 .amendment-confirm{display:grid;gap:10px;padding:12px;border:1px solid var(--line,#dfe3df);border-radius:10px}
 .amendment-confirm label{display:grid;gap:4px;font-size:13px;font-weight:600}

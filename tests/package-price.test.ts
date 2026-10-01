@@ -195,7 +195,10 @@ test("a job's extras re-price its package into a new snapshot, and never re-deri
   // Priced from what the couple was quoted, through the one function — now
   // shared with setPackageDiscount as repriceSnapshot.
   assert.match(handler, /const priced = repriceSnapshot\(previous, packageDocument, lines, discountRule\)/);
-  const reprice = commands.slice(commands.indexOf("function repriceSnapshot("));
+  // One function, shared with a booking change's extras (contracts/amendments.ts).
+  assert.match(commands, /import \{ repriceSnapshot \} from "\.\.\/pricing\/reprice-snapshot\.js"/);
+  const shared = readFileSync("functions/src/pricing/reprice-snapshot.ts", "utf8");
+  const reprice = shared.slice(shared.indexOf("export function repriceSnapshot("));
   // The quoted base price, unless a one-off's own price was corrected
   // (updateOneOffPackage passes it).
   assert.match(reprice, /basePriceCents: number = Number\(previous\.get\("basePriceCents"\)/);
