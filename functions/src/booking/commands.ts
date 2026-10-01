@@ -96,6 +96,13 @@ import {
   retrySignedCopyInput,
 } from "../contracts/follow-ups.js";
 import { keptMeetingSettings } from "./consultation-settings-merge.js";
+import {
+  SUPERSEDABLE_BRIEF_STATUSES,
+  bookingBriefRerunRefusal,
+  briefActionIds,
+  briefJobId,
+  briefRunOf,
+} from "./brief-rerun.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   // StudioCue's own contracts — see ../contracts/commands.ts.
@@ -271,6 +278,21 @@ const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("completeConsultation"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      consultationId: z.string().min(1),
+      notes: z.string().trim().min(20).max(20_000),
+    }),
+  }),
+  z.object({
+    /**
+     * "Prepare the brief again from these notes" (./brief-rerun.ts). The
+     * notes are saved and a fresh analysis is queued — charged like the first
+     * — and the open actions of the brief before it are superseded.
+     */
+    type: z.literal("rerunBookingBrief"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({
@@ -711,6 +733,130 @@ export const bookingCommand = onRequest(
             consultationId: command.input.consultationId,
             status: "completed",
             analysisStatus: existingJob.exists ? "already_queued" : "queued",
+          };
+        });
+      } else if (command.type === "rerunBookingBrief") {
+        const { consultationId, projectId, notes } = command.input;
+        const consultationReference = firestore.doc(`consultations/${consultationId}`);
+        const projectReference = firestore.doc(`projects/${projectId}`);
+        result = await firestore.runTransaction(async (transaction) => {
+          const [consultation, project, proposals] = await Promise.all([
+            transaction.get(consultationReference),
+            transaction.get(projectReference),
+            transaction.get(
+              firestore
+                .collection("proposals")
+                .where("tenantId", "==", command.tenantId)
+                .where("projectId", "==", projectId),
+            ),
+          ]);
+          if (
+            !consultation.exists ||
+            consultation.get("tenantId") !== command.tenantId ||
+            consultation.get("projectId") !== projectId
+          )
+            throw new Error("CONSULTATION_NOT_FOUND");
+          if (!project.exists || project.get("tenantId") !== command.tenantId)
+            throw new Error("PROJECT_NOT_FOUND");
+          const currentRun = briefRunOf(consultation.get("briefRun"));
+          const currentJob = await transaction.get(
+            firestore.doc(`aiJobs/${briefJobId(consultationId, currentRun)}`),
+          );
+          const refusal = bookingBriefRerunRefusal({
+            consultationStatus: String(consultation.get("status") ?? ""),
+            projectState: String(project.get("state") ?? ""),
+            proposalStatuses: proposals.docs.map((item) => String(item.get("status") ?? "")),
+            currentJobStatus: currentJob.exists ? String(currentJob.get("status") ?? "") : null,
+          });
+          if (refusal) throw new Error(refusal);
+          const previousIds = briefActionIds(consultationId, currentRun);
+          const previous = await Promise.all(
+            [previousIds.summary, previousIds.package, previousIds.proposal].map((id) =>
+              transaction.get(firestore.doc(`aiActions/${id}`)),
+            ),
+          );
+          // Charged before anything is queued, as the first run is: a rerun is
+          // a fresh model call, not a free retry.
+          await consumeAiQuota(transaction, firestore, command.tenantId, timestamp);
+          const run = currentRun + 1;
+          const jobReference = firestore.doc(`aiJobs/${briefJobId(consultationId, run)}`);
+          const superseded: string[] = [];
+          for (const action of previous) {
+            if (
+              !action.exists ||
+              action.get("tenantId") !== command.tenantId ||
+              !SUPERSEDABLE_BRIEF_STATUSES.includes(String(action.get("status") ?? ""))
+            )
+              continue;
+            superseded.push(action.id);
+            // Kept, not deleted: what was suggested, and from which notes, is
+            // still on the record. Superseded is not a state any decision
+            // accepts, so nothing can approve the old draft by mistake.
+            transaction.update(action.ref, {
+              status: "superseded",
+              supersededAt: timestamp,
+              supersededBy: identity.uid,
+              supersededByRun: run,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
+          transaction.update(consultationReference, {
+            internalNotes: notes,
+            briefRun: run,
+            // The booking page shows "preparing" until the runner writes the
+            // new brief here as ready.
+            aiReview: { status: "queued", humanReviewRequired: true, briefRun: run },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          transaction.create(jobReference, {
+            id: jobReference.id,
+            tenantId: command.tenantId,
+            projectId,
+            consultationId,
+            type: "consultation_analysis",
+            status: "queued",
+            attempts: 0,
+            humanReviewRequired: true,
+            briefRun: run,
+            source: "studio_rerun",
+            requestedBy: identity.uid,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          const receiptReference = firestore.doc(
+            `actionReceipts/consultation_${consultationId}_r${run}`,
+          );
+          transaction.set(receiptReference, {
+            id: receiptReference.id,
+            tenantId: command.tenantId,
+            projectId,
+            title: "Booking brief prepared again",
+            summary:
+              "StudioCue saved the changed notes and is preparing a new brief, package suggestion and proposal draft. The earlier ones were set aside, not deleted. Nothing was sent to the client.",
+            status: "completed",
+            source: "booking_autopilot",
+            affectedEntityType: "consultation",
+            affectedEntityId: consultationId,
+            providerEvidence: null,
+            reversible: false,
+            retryable: false,
+            canCancel: false,
+            canRetry: false,
+            attempts: 1,
+            completedAt: timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+          return {
+            consultationId,
+            briefRun: run,
+            analysisStatus: "queued",
+            supersededActionIds: superseded,
           };
         });
       } else if (command.type === "scheduleConsultation") {

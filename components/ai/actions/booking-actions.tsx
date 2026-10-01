@@ -20,6 +20,7 @@ import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { proposalTermsForPackages } from "@/features/booking/autopilot";
+import { briefRerunBlocked } from "@/features/booking/brief-run";
 import { currentJobSnapshots } from "@/features/packages/job-packages";
 import { BookWithoutRetainer } from "@/components/booking/book-without-retainer";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
@@ -327,6 +328,74 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
       {kind === "complete_consultation" && notes.trim().length > 0 && notes.trim().length < 20 ? (
         <p className="cue-action-note">A little more — at least a sentence.</p>
       ) : null}
+      <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * Prepare the booking brief again from changed notes (rerunBookingBrief).
+ *
+ * The notes are the consultation's as saved, with anything the operator just
+ * told Cue added underneath, for them to check before a new run is paid for.
+ */
+export function BookingBriefCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const consultations = useRecords("consultations");
+  const proposals = useRecords("proposals");
+  const runner = useRunner();
+  const [notes, setNotes] = useState<string | null>(null);
+  const title = `Prepare the brief again · ${jobName(job)}`;
+  if (loading || !consultations || !proposals) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (runner.done)
+    return (
+      <ActionShell title={title}>
+        <Done href={`/studio/booking?project=${job.id}`} label="Open the booking brief">{runner.done}</Done>
+      </ActionShell>
+    );
+  const consultation =
+    onJob(consultations, job.id)
+      .filter((item) => str(item.status) === "completed" && !item.archivedAt)
+      .sort((a, b) => str(b.startsAt).localeCompare(str(a.startsAt)))[0] ?? null;
+  const blocked = briefRerunBlocked({
+    consultationStatus: str(consultation?.status),
+    projectState: str(job.state),
+    proposalStatuses: onJob(proposals, job.id).map((item) => str(item.status)),
+  });
+  if (blocked || !consultation)
+    return <ActionShell title={title}><Blocked>{blocked ?? "Write up the consultation first — the brief is prepared from its notes."}</Blocked></ActionShell>;
+  const saved = str(consultation.internalNotes);
+  const added = (action.text ?? "").trim();
+  const value = notes ?? (added && !saved.includes(added) ? `${saved}\n\n${added}`.trim() : saved);
+  return (
+    <ActionShell
+      detail="A new brief, package suggestion and proposal draft from these notes — one AI action. The current ones are set aside, not deleted. Nothing is sent to the couple."
+      icon={<FileText size={15} />}
+      title={title}
+    >
+      <Form>
+        <TextAreaField label="Consultation notes" onChange={setNotes} rows={7} value={value} />
+      </Form>
+      <Actions
+        busy={runner.busy}
+        disabled={value.trim().length < 20}
+        label="Prepare it again"
+        onClick={() =>
+          void runner.run(
+            async () => {
+              const outcome = await sendBookingCommand({
+                type: "rerunBookingBrief",
+                idempotencyKey: crypto.randomUUID(),
+                input: { projectId: job.id, consultationId: consultation.id, notes: value.trim() },
+              });
+              if (outcome.mode === "preview") return "Preview mode — the brief was not prepared again.";
+              return "Notes saved. The new brief is being prepared and shows on the booking page in a minute or so.";
+            },
+            { refresh: ["consultations", "aiActions"] },
+          )
+        }
+      />
       <Notice text={runner.notice} />
     </ActionShell>
   );

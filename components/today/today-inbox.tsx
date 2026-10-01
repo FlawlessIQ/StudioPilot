@@ -53,6 +53,7 @@ import {
 import { useRouter } from "next/navigation";
 import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
 import { InfoHint } from "@/components/ui/info-hint";
+import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -128,6 +129,10 @@ export function TodayInbox() {
       ? automationApprovals.find((record) => record.id === approvalId) ?? null
       : null;
   const [cleared, setCleared] = useState<Set<string>>(new Set());
+  // Replies sent from a card, still inside their undo window. Held here, not
+  // in the card: the card is cleared the moment it sends, and Today unmounts
+  // its cards on every refresh.
+  const [held, setHeld] = useState<Array<HeldSend & { itemId: string }>>([]);
   const [showHandled, setShowHandled] = useState(false);
   const [showAllPrepared, setShowAllPrepared] = useState(false);
   // The AI action being reviewed in the sheet — the whole point of the rethink:
@@ -354,6 +359,10 @@ export function TodayInbox() {
   );
   const clear = (id: string) =>
     setCleared((current) => new Set(current).add(id));
+  const hold = (itemId: string) => (send: HeldSend) =>
+    setHeld((current) => [...current.filter((entry) => entry.emailJobId !== send.emailJobId), { ...send, itemId }]);
+  const release = (emailJobId: string) =>
+    setHeld((current) => current.filter((entry) => entry.emailJobId !== emailJobId));
   const maybes = inbox.maybeInquiries.filter(
     (item) => !cleared.has(`maybe-${item.leadId}`),
   );
@@ -405,6 +414,7 @@ export function TodayInbox() {
                 <InquiryActions
                   action={lead.action}
                   onCleared={() => clear(lead.id)}
+                  onHeld={hold(lead.id)}
                   onEdit={(actionId) => {
                     setReviewEditing(true);
                     setReviewingId(actionId);
@@ -590,6 +600,7 @@ export function TodayInbox() {
                         item={item}
                         key={item.id}
                         onCleared={() => clear(item.id)}
+                        onHeld={hold(item.id)}
                         onReview={setReviewingId}
                         onReviewApproval={setApprovalId}
                         tone="approve"
@@ -644,6 +655,7 @@ export function TodayInbox() {
                         item={item}
                         key={item.id}
                         onCleared={() => clear(item.id)}
+                        onHeld={hold(item.id)}
                         onChangeBooking={setChanging}
                         onSettleBalance={setSettling}
                         onEdit={(actionId) => {
@@ -709,6 +721,29 @@ export function TodayInbox() {
           upcoming={inbox.upcoming}
         />
       </div>
+
+      {held.length ? (
+        <div className="today-undo-stack">
+          {held.map((entry) => (
+            <UndoSend
+              buttonClassName="today-undo-button"
+              className="today-undo-send"
+              held={entry}
+              key={entry.emailJobId}
+              onGone={() => release(entry.emailJobId)}
+              onUndone={() => {
+                release(entry.emailJobId);
+                // The draft is waiting again: bring its card back.
+                setCleared((current) => {
+                  const next = new Set(current);
+                  next.delete(entry.itemId);
+                  return next;
+                });
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {/* Review the specific prepared task in context — the full "why, with
           what confidence, and exactly what happens on approval" plus the
@@ -907,6 +942,7 @@ function TodayCard({
   item,
   tone,
   onCleared,
+  onHeld,
   onReview,
   onReviewApproval,
   onEdit,
@@ -921,6 +957,8 @@ function TodayCard({
   onSettleBalance?: (action: FinalBalanceAction) => void;
   tone: "act" | "approve" | "fyi";
   onCleared?: () => void;
+  /** A reply sent from this card, held for its undo window. */
+  onHeld?: (held: HeldSend) => void;
   /** Opens the full review sheet for this prepared action, in context. */
   onReview?: (actionId: string) => void;
   /** Opens a workflow approval in its sheet. */
@@ -1010,6 +1048,7 @@ function TodayCard({
             action={item.action}
             onCleared={onCleared}
             onEdit={onEdit}
+            onHeld={onHeld}
             variant="card"
           />
         ) : item.action.kind === "approve" ? (
@@ -1104,11 +1143,14 @@ function InquiryActions({
   action,
   onCleared,
   onEdit,
+  onHeld,
   variant,
 }: {
   action: InquiryAction;
   onCleared?: () => void;
   onEdit?: (actionId: string) => void;
+  /** Told when the send is held for its undo window, so Today can offer Undo. */
+  onHeld?: (held: HeldSend) => void;
   variant: "card" | "hero";
 }) {
   const [busy, setBusy] = useState<"send" | "remove" | null>(null);
@@ -1121,10 +1163,17 @@ function InquiryActions({
     setBusy("send");
     setNotice(null);
     try {
-      await runAiQueueCommand({
+      // One tap, no confirm — it is the most frequent thing done here — so
+      // the server holds it a few seconds instead, and Today offers Undo.
+      const result = await runAiQueueCommand({
         type: "decideAiAction",
-        input: { actionId: reply.actionId, decision: "approved" },
+        input: { actionId: reply.actionId, decision: "approved", holdForUndo: true },
       });
+      const sent = heldSendFrom(
+        result,
+        `${action.followUp ? "your follow-up" : "your reply"}${reply.recipient ? ` to ${reply.recipient}` : ""}`,
+      );
+      if (sent) onHeld?.(sent);
       onCleared?.();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That reply couldn't be sent. Open it to review."));

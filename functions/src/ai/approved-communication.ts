@@ -1,3 +1,5 @@
+import { approvedEmailJobId, heldSendFields } from "../communications/undo-send.js";
+
 type ApprovedCommunicationInput = {
   actionId: string;
   tenantId: string;
@@ -12,6 +14,12 @@ type ApprovedCommunicationInput = {
   body: string;
   category: string;
   now: string;
+  /** Who approved it: they may call a held send back (communications/undo-send.ts). */
+  requestedBy?: string;
+  /** Hold the email for the undo window rather than sending at once (Today's one-tap send). */
+  holdForUndo?: boolean;
+  /** How many times an earlier approval of this draft was undone; picks a fresh job id. */
+  undoCount?: number;
 };
 
 /**
@@ -67,7 +75,7 @@ export function approvedCommunicationDispatch(
       : "Approved the draft, but kept it unsent because a valid recipient or message detail is missing.",
     emailJob: queued
       ? {
-          id: `ai_message_${input.actionId}`,
+          id: approvedEmailJobId(input.actionId, input.undoCount ?? 0),
           tenantId: input.tenantId,
           projectId: input.projectId,
           leadId: input.leadId ?? null,
@@ -90,6 +98,10 @@ export function approvedCommunicationDispatch(
           status: "queued",
           scheduledFor: null,
           attempts: 0,
+          requestedBy: input.requestedBy ?? null,
+          ...(input.holdForUndo
+            ? heldSendFields(input.now, input.requestedBy ?? "")
+            : {}),
           createdAt: input.now,
           updatedAt: input.now,
         }

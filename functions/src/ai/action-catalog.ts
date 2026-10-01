@@ -72,6 +72,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "complete_consultation", scope: "project", when: "mark a consultation as held, with notes in `text`" },
   { id: "mark_consultation_no_show", scope: "project", when: "the couple didn't turn up to / missed their consultation (a no-show) — then offer to invite them to pick another time" },
   { id: "reopen_consultation", scope: "project", when: "undo a consultation marked held or missed by mistake — reopen it" },
+  { id: "rerun_booking_brief", scope: "project", when: "prepare the booking brief (consultation brief, package suggestion and proposal draft) again from new or changed consultation notes — anything new they said in `text`" },
   // Packages and proposals
   { id: "add_package", scope: "project", flow: "select_package", when: "choose a package, or add another package to a job (they want video too) — package name in `subject`" },
   { id: "change_booking", scope: "project", when: "change a booking the couple already signed or booked: move the wedding date, add or remove a package — date in `date`, package in `subject`" },

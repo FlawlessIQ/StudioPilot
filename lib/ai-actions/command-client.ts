@@ -14,6 +14,8 @@ type AiQueueCommand =
         note?: string;
         editDelta?: Record<string, unknown>;
         consequence?: string;
+        /** Hold the approved email a few seconds so it can be undone (Today's one-tap send). */
+        holdForUndo?: boolean;
       };
     }
   | {

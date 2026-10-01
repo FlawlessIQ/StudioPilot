@@ -36,6 +36,7 @@ import {
   proposalTermsForPackages,
 } from "@/features/booking/autopilot";
 import { currentConsultation } from "@/features/consultations/live";
+import { briefRerunBlocked, currentBriefActions } from "@/features/booking/brief-run";
 import { runAiQueueCommand } from "@/lib/ai-actions/command-client";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -104,6 +105,8 @@ const COMMAND_ERRORS: Record<string, string> = {
     "Approve a package recommendation below before creating the proposal draft.",
   CLIENT_EMAIL_REQUIRED:
     "Add a valid email address for the client before creating the proposal.",
+  BOOKING_BRIEF_ALREADY_PREPARING:
+    "The brief is already being prepared. It will appear here in a moment.",
 };
 
 function commandError(caught: unknown, fallback: string): string {
@@ -136,6 +139,9 @@ export function BookingAutopilotWorkspace({
   const [notice, setNotice] = useState<string | null>(null);
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [noteSource, setNoteSource] = useState<"notes" | "transcript">("notes");
+  // "Notes changed?" under the brief: the notes, editable, and a fresh run.
+  const [rerunOpen, setRerunOpen] = useState(false);
+  const [proposalStatuses, setProposalStatuses] = useState<string[]>([]);
 
   // The project's state via the live store, so a booking mutation elsewhere on
   // this page (record signature/retainer, confirm booking) re-flows the hero
@@ -209,9 +215,7 @@ export function BookingAutopilotWorkspace({
       const actionValues = actionSnapshot.docs.map(
         (item): Value => ({ id: item.id, ...item.data() }),
       );
-      const recommendation = actionValues.find(
-        (action) => action.capability === "package_recommendation",
-      );
+      const recommendation = currentBriefActions(actionValues, consultationValue).package;
       setProject({ id: projectSnapshot.id, ...projectSnapshot.data() });
       setConsultation(consultationValue);
       setPackages(
@@ -231,6 +235,7 @@ export function BookingAutopilotWorkspace({
       const onFile =
         proposalValue.find((item) => item.status === "accepted") ??
         proposalValue[0];
+      setProposalStatuses(proposalValue.map((item) => text(item.status)));
       if (onFile) setProposalId((current) => current ?? onFile.id);
       setNotes(
         (current) =>
@@ -274,15 +279,13 @@ export function BookingAutopilotWorkspace({
     }
   }, [notes, notesDraftKey]);
 
-  const summaryAction = actions.find(
-    (action) => action.capability === "consultation_summary",
-  );
-  const packageAction = actions.find(
-    (action) => action.capability === "package_recommendation",
-  );
-  const proposalAction = actions.find(
-    (action) => action.capability === "proposal_draft",
-  );
+  // The current run's actions only: after "Prepare the brief again" the
+  // earlier brief is superseded and must not be shown or approved.
+  const {
+    summary: summaryAction,
+    package: packageAction,
+    proposal: proposalAction,
+  } = currentBriefActions(actions, consultation);
   const summary = object(summaryAction?.structuredOutput);
   const recommendation = object(packageAction?.structuredOutput);
   const proposalDraft = object(proposalAction?.structuredOutput);
@@ -338,6 +341,11 @@ export function BookingAutopilotWorkspace({
   const laterBookingState = pastProposal(liveState);
   // PROPOSAL is past preparing one, not past the couple's answer.
   const proposalSettled = proposalAccepted(liveState);
+  const rerunBlocked = briefRerunBlocked({
+    consultationStatus: text(consultation?.status),
+    projectState: liveState,
+    proposalStatuses,
+  });
   // A booking agreement is out at PROPOSAL: the couple's answer is the
   // signature, and "record their yes in the contract step" is refused.
   const bookingAgreementOut = Boolean(
@@ -399,37 +407,78 @@ export function BookingAutopilotWorkspace({
       } catch {
         // Storage unavailable — ignore.
       }
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        await new Promise((resolve) => window.setTimeout(resolve, 1500));
-        const { firestore } = getFirebaseClient();
-        const snapshot = await getDocs(
-          query(
-            collection(firestore, "aiActions"),
-            where("tenantId", "==", workspace.tenantId),
-            where("projectId", "==", projectId),
-          ),
-        );
-        const values = snapshot.docs.map(
-          (item): Value => ({ id: item.id, ...item.data() }),
-        );
-        if (
-          values.some(
-            (action) => action.capability === "package_recommendation",
-          )
-        ) {
-          setActions(values);
-          const prepared = values.find(
-            (action) => action.capability === "package_recommendation",
-          );
-          setSelectedPackageId(
-            text(object(prepared?.structuredOutput).packageId),
-          );
-          break;
-        }
-      }
+      await waitForBrief(Number(consultation.briefRun ?? 1));
       await load();
     } catch (caught: unknown) {
       setNotice(commandError(caught, "The consultation could not be completed."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Poll until the given run's package suggestion lands, or give up quietly. */
+  async function waitForBrief(briefRun: number) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      const { firestore } = getFirebaseClient();
+      const snapshot = await getDocs(
+        query(
+          collection(firestore, "aiActions"),
+          where("tenantId", "==", workspace.tenantId),
+          where("projectId", "==", projectId),
+        ),
+      );
+      const values = snapshot.docs.map(
+        (item): Value => ({ id: item.id, ...item.data() }),
+      );
+      const prepared = currentBriefActions(values, { briefRun }).package;
+      if (prepared) {
+        setActions(values);
+        setSelectedPackageId(text(object(prepared.structuredOutput).packageId));
+        setExtraPackageIds([]);
+        return;
+      }
+    }
+  }
+
+  /**
+   * "Prepare the brief again from these notes". The server saves the notes,
+   * charges one AI action, sets the open brief aside and queues a new one;
+   * the page then shows "preparing" until it lands.
+   */
+  async function rerunBrief() {
+    if (!consultation || notes.trim().length < 20) return;
+    setBusy("rerun");
+    setNotice(null);
+    try {
+      const outcome = await sendBookingCommand({
+        type: "rerunBookingBrief",
+        idempotencyKey: crypto.randomUUID(),
+        input: {
+          projectId,
+          consultationId: consultation.id,
+          notes: notes.trim(),
+        },
+      });
+      if (outcome.mode === "preview") {
+        setNotice("Preview mode — the brief was not prepared again.");
+        return;
+      }
+      setRerunOpen(false);
+      setNotice(
+        "Notes saved. StudioCue is preparing the brief again; the earlier one is set aside, not deleted.",
+      );
+      try {
+        window.localStorage.removeItem(notesDraftKey);
+      } catch {
+        // Storage unavailable — ignore.
+      }
+      // Reload first so the page shows "preparing" rather than the old brief.
+      await load();
+      await waitForBrief(Number(outcome.payload.briefRun ?? 0));
+      await load();
+    } catch (caught: unknown) {
+      setNotice(commandError(caught, "The brief could not be prepared again."));
     } finally {
       setBusy(null);
     }
@@ -862,7 +911,7 @@ export function BookingAutopilotWorkspace({
             Complete & prepare booking brief
           </button>
         </section>
-      ) : analysisQueued || (!summaryAction && busy === "analyze") ? (
+      ) : analysisQueued || (!summaryAction && (busy === "analyze" || busy === "rerun")) ? (
         <section className="booking-autopilot-loading">
           <LoaderCircle className="spin" />
           <span>
@@ -888,8 +937,47 @@ export function BookingAutopilotWorkspace({
               <strong>Consultation notes + project facts</strong>
               <span><ShieldCheck /> No inferred price, availability, or agreement</span>
               <Link href={`/studio/projects/${projectId}`}>See what Cue based this on <ArrowRight /></Link>
+              {/* The brief was made once, from the notes as they were; a
+                  follow-up call that changed the picture had no way back in. */}
+              {!rerunBlocked ? (
+                <button
+                  aria-expanded={rerunOpen}
+                  disabled={Boolean(busy)}
+                  onClick={() => setRerunOpen((open) => !open)}
+                  type="button"
+                >
+                  <BrainCircuit /> {rerunOpen ? "Keep this brief" : "Notes changed? Prepare it again"}
+                </button>
+              ) : null}
             </aside>
           </section>
+
+          {rerunOpen && !rerunBlocked ? (
+            <section className="booking-consultation-capture">
+              <div>
+                <p className="eyebrow">What they told you</p>
+                <h2>Prepare the brief again</h2>
+                <p>
+                  Add what you learned since. StudioCue prepares a new brief,
+                  package suggestion and proposal draft from these notes — one
+                  AI action. The ones below are set aside, not deleted.
+                </p>
+              </div>
+              <label>
+                <span>Consultation notes</span>
+                <textarea onChange={(event) => setNotes(event.target.value)} value={notes} />
+                <small>{notes.trim().length}/20 minimum characters</small>
+              </label>
+              <button
+                disabled={Boolean(busy) || notes.trim().length < 20}
+                onClick={() => void rerunBrief()}
+                type="button"
+              >
+                {busy === "rerun" ? <LoaderCircle className="spin" /> : <BrainCircuit />}
+                Prepare the brief again from these notes
+              </button>
+            </section>
+          ) : null}
 
           <section className="booking-package-review">
             <header>

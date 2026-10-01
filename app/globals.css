@@ -9974,6 +9974,32 @@ textarea:focus-visible {
   text-decoration: none;
 }
 
+/* "Notes changed? Prepare it again" — reads as the link above it, not as a
+   second primary button competing with "Approve inputs & create draft". */
+.booking-ai-brief aside button {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: #dce9df;
+  cursor: pointer;
+  display: flex;
+  font-size: 8px;
+  font-weight: 720;
+  gap: 5px;
+  padding: 0;
+  text-align: left;
+}
+
+.booking-ai-brief aside button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.booking-ai-brief aside button svg {
+  height: 12px;
+  width: 12px;
+}
+
 .booking-package-review {
   background: white;
   border: 1px solid var(--workspace-line);

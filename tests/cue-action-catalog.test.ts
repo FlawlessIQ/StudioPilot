@@ -133,6 +133,8 @@ const REACHED: Record<string, string> = {
   // Messages
   sendMessage: "\"sendMessage\"", replyToConversation: "\"replyToConversation\"",
   markConversationRead: "\"markConversationRead\"", approveMessage: "MessageApprovals", declineMessage: "MessageApprovals",
+  // The undo on a held send, inside the reply card (components/communications/undo-send.tsx).
+  cancelQueuedEmail: "UndoSend",
   saveTemplateVersion: "/studio/settings/email-templates", activateTemplateVersion: "/studio/settings/email-templates",
   sendTemplateTest: "/studio/settings/email-templates",
   getInquiryForwardingAddress: "InquiryForwardingAddress", getLeadCaptureSetup: "InquiryForwardingSettings",
@@ -164,6 +166,7 @@ const REACHED: Record<string, string> = {
   updateTask: "\"updateTask\"", reopenTask: "\"reopenTask\"", cancelTask: "\"cancelTask\"",
   reopenCheckpoint: "ReadinessCheckpoints",
   markConsultationNoShow: "\"markConsultationNoShow\"", reopenConsultation: "\"reopenConsultation\"",
+  rerunBookingBrief: "\"rerunBookingBrief\"",
   resendCoi: "CoiWorkflowPanel",
   // Team and studio
   inviteMember: "TeamManagement", revokeInvitation: "TeamManagement", updateMember: "TeamManagement",

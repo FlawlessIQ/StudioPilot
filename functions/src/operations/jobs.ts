@@ -32,6 +32,7 @@ import {
   conversationIdFor,
 } from "../communications/conversation.js";
 import { replyAddressFor } from "../communications/reply-address.js";
+import { emailHeldBack } from "../communications/undo-send.js";
 import { captureOperationalError } from "./observability.js";
 import { productEvent } from "./product-events.js";
 import {
@@ -167,14 +168,22 @@ async function claim(document: DocumentSnapshot) {
   return getFirestore().runTransaction(async (transaction) => {
     const current = await transaction.get(document.ref);
     const nextAttemptAt = String(current.get("nextAttemptAt") ?? "");
+    const now = new Date().toISOString();
     if (
       !current.exists ||
       !["queued", "retry_scheduled"].includes(String(current.get("status"))) ||
-      (nextAttemptAt && nextAttemptAt > new Date().toISOString())
+      (nextAttemptAt && nextAttemptAt > now) ||
+      // A send held for undo is not due until its window closes, and one
+      // called back is never due — read here, in the same transaction that
+      // would mark it running, so an undo and a send cannot both win
+      // (communications/undo-send.ts).
+      emailHeldBack(
+        { sendAfter: current.get("sendAfter"), cancelledAt: current.get("cancelledAt") },
+        now,
+      )
     ) {
       return false;
     }
-    const now = new Date().toISOString();
     transaction.update(document.ref, {
       status: "running",
       attempts: Number(current.get("attempts") ?? 0) + 1,

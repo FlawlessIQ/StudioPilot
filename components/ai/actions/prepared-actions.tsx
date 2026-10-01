@@ -23,6 +23,7 @@ import {
   PortalInviteCard,
 } from "./job-actions";
 import {
+  BookingBriefCard,
   BringBookingLiveCard,
   ChangeBookingCard,
   ChangePackagesCard,
@@ -131,6 +132,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   complete_consultation: ExistingConsultationCard,
   mark_consultation_no_show: ConsultationCorrectionCard,
   reopen_consultation: ConsultationCorrectionCard,
+  rerun_booking_brief: BookingBriefCard,
   // Packages and proposals
   change_booking: ChangeBookingCard,
   resend_booking_change: ChangeBookingCard,

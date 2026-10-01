@@ -40,11 +40,13 @@ function dispatchKey(
 }
 
 function scheduleTime(document: DocumentSnapshot): Date {
-  const value = String(document.get("nextAttemptAt") ?? "");
-  const parsed = value ? new Date(value) : new Date();
-  return Number.isNaN(parsed.valueOf()) || parsed < new Date()
-    ? new Date()
-    : parsed;
+  // The later of the retry time and an undo hold (communications/undo-send.ts):
+  // a task that fires early only finds the worker refusing to claim it, and
+  // then the email waits for the minute sweep instead of going on time.
+  const candidates = [document.get("nextAttemptAt"), document.get("sendAfter")]
+    .map((value) => (typeof value === "string" && value ? new Date(value) : null))
+    .filter((value): value is Date => value !== null && !Number.isNaN(value.valueOf()));
+  return candidates.reduce((max, value) => (value > max ? value : max), new Date());
 }
 
 async function enqueue(

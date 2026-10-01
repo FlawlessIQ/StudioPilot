@@ -1785,3 +1785,53 @@
     grid-column: 2 / -1;
   }
 }
+
+/* "Sending your reply to Emma… Undo" — the undo window on Today's one-tap
+   send (components/communications/undo-send.tsx). Pinned above the content
+   so it survives Today re-rendering the card it came from away. */
+.today-undo-stack {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  width: min(calc(100vw - 32px), 460px);
+  transform: translateX(-50%);
+}
+
+.today-undo-send {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background: var(--ink, #1d2420);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 22%);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.today-undo-button {
+  display: inline-flex;
+  flex: none;
+  gap: 5px;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 99px;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.today-undo-button:disabled {
+  cursor: progress;
+  opacity: .6;
+}
