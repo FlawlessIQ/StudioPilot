@@ -131,10 +131,26 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   <strong>
                     Final balance{" "}
                     {money(
-                      calculation.expectedBalanceCents ?? invoice.amountCents,
+                      // Held for review: the balance as it stands now, the
+                      // same figure the send button carries. It said the
+                      // amount from when the bill was raised, so the card
+                      // read $1,899 above a "Send · $1,898" button after a
+                      // payment came in (prod walk, 2026-09-30).
+                      inReview && reviewDue !== null
+                        ? reviewDue
+                        : calculation.expectedBalanceCents ?? invoice.amountCents,
                       invoice.currency,
                     )}
                   </strong>
+                  {inReview &&
+                  reviewDue !== null &&
+                  reviewDue !== Number(calculation.expectedBalanceCents ?? invoice.amountCents) ? (
+                    <small>
+                      Was{" "}
+                      {money(calculation.expectedBalanceCents ?? invoice.amountCents, invoice.currency)} when
+                      it was raised; payments since are taken off.
+                    </small>
+                  ) : null}
                 </span>
                 <StatusBadge
                   tone={inReview ? "warning" : invoice.status === "paid" ? "success" : "neutral"}
