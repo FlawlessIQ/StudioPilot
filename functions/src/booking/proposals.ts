@@ -18,6 +18,7 @@ import {
   planUndoAcceptance,
 } from "./proposal-domain.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
+import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
 
@@ -471,6 +472,8 @@ export const proposalCommand = onRequest(
                 taxCents: numberValue(data.taxCents),
                 retainerCents: numberValue(data.retainerCents),
                 totalCents: numberValue(data.totalCents),
+                // Pre-tax "plus sales tax" when QuickBooks works it out; carried to the proposal.
+                salesTax: readPricedSalesTax(data.salesTax),
                 lineItems: lineItems(data),
               })),
             );
@@ -1086,6 +1089,8 @@ export const proposalCommand = onRequest(
                   taxCents: numberValue(data.taxCents),
                   retainerCents: numberValue(data.retainerCents),
                   totalCents: numberValue(data.totalCents),
+                  // Pre-tax "plus sales tax" when QuickBooks works it out; carried to the proposal.
+                  salesTax: readPricedSalesTax(data.salesTax),
                   lineItems: lineItems(data),
                 };
               }),

@@ -137,6 +137,19 @@ export type PackageSelection = z.infer<typeof packageSelectionSchema>;
  */
 export const IMPORTED_PACKAGE_ID = "imported";
 
+/**
+ * Sales tax QuickBooks works out on the final invoice: the snapshot's price
+ * is pre-tax and this records the decision and the estimate
+ * (features/billing/sales-tax-pricing.ts). Absent on a snapshot priced the
+ * old way, whose `taxCents` is in its total.
+ */
+export const pricedSalesTaxSchema = z.object({
+  mode: z.literal("quickbooks"),
+  exempt: z.boolean(),
+  estimatedCents: centsSchema,
+  rateBasisPoints: z.number().int().min(0).max(10000).nullable(),
+});
+
 export const packageSnapshotSchema = z.object({
   id: z.string().min(1),
   tenantId: z.string().min(1),
@@ -162,6 +175,7 @@ export const packageSnapshotSchema = z.object({
   taxCents: centsSchema,
   retainerCents: centsSchema,
   totalCents: centsSchema,
+  salesTax: pricedSalesTaxSchema.optional(),
   includedCoverageMinutes: z.number().int().positive(),
   /**
    * Optional only because snapshots are immutable: every proposal signed

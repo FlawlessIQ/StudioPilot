@@ -1,4 +1,5 @@
 import { pricePackage, type PackageDiscount } from "./package-price.js";
+import { readPricedSalesTax, treatmentOf } from "../billing/sales-tax-pricing.js";
 
 /**
  * Anything that answers `get(field)`: a Firestore DocumentSnapshot, or a plain
@@ -19,6 +20,11 @@ export const fieldsOf = (record: Record<string, unknown> | null | undefined): Fi
  * package. Shared by setJobAddOns, setPackageDiscount and updateOneOffPackage
  * (../crm/commands.ts), and by a booking change's extras
  * (../contracts/amendments.ts).
+ *
+ * Sales tax is priced as the snapshot was: one priced pre-tax "plus sales
+ * tax" (its `salesTax`, ../billing/sales-tax-pricing.ts) stays so, with its
+ * estimate worked out again at the same rate; one with tax in its total keeps
+ * that, whatever the studio's settings say today.
  */
 export function repriceSnapshot(
   previous: FieldSource,
@@ -29,6 +35,7 @@ export function repriceSnapshot(
   basePriceCents: number = Number(previous.get("basePriceCents") ?? 0),
 ) {
   const rule = packageDocument.get("retainerRule") as { type?: string; basisPoints?: number } | undefined;
+  const salesTax = treatmentOf(readPricedSalesTax(previous.get("salesTax")));
   return pricePackage({
     basePriceCents,
     addOns,
@@ -36,7 +43,7 @@ export function repriceSnapshot(
     // Untaxed as quoted stays untaxed — unless it was untaxed only because a
     // full discount left nothing to tax, which says nothing about the rate.
     taxRateBasisPoints:
-      Number(previous.get("taxCents") ?? 0) === 0 && Number(previous.get("subtotalCents") ?? 0) > 0
+      salesTax || (Number(previous.get("taxCents") ?? 0) === 0 && Number(previous.get("subtotalCents") ?? 0) > 0)
         ? 0
         : Number(packageDocument.get("taxRateBasisPoints") ?? 0),
     retainerRule:
@@ -44,5 +51,6 @@ export function repriceSnapshot(
         ? { type: "percentage", basisPoints: Number(rule.basisPoints ?? 0) }
         : { type: "fixed", amountCents: Number(previous.get("retainerCents") ?? 0) },
     billedCrew: 1,
+    salesTax,
   });
 }

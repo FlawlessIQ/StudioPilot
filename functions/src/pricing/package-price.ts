@@ -22,6 +22,34 @@ export type PricedAddOn = {
   taxable: boolean;
 };
 
+/**
+ * Sales tax that QuickBooks works out on the final invoice, from the couple's
+ * billing address — a studio whose billingSettings say `salesTax.mode:
+ * "quickbooks"` and which is switched on for itemised QuickBooks invoices.
+ * The price the couple agrees to is then pre-tax: no tax is added here, and
+ * only an estimate is recorded beside it. Decided per job when it is priced
+ * (../billing/sales-tax-pricing.ts `salesTaxTreatment`).
+ */
+export type SalesTaxTreatment = {
+  /** The job is exempt (`projects.salesTaxExempt`): no tax, no estimate. */
+  exempt: boolean;
+  /** The studio's estimate rate (8.25% = 825), or null when none is set. */
+  rateBasisPoints: number | null;
+};
+
+/**
+ * The decision a snapshot records, so it keeps meaning what it said after the
+ * studio's settings change. Absent on every snapshot priced the old way, whose
+ * `taxCents` is in its total.
+ */
+export type PricedSalesTax = {
+  mode: "quickbooks";
+  exempt: boolean;
+  /** At `rateBasisPoints` on the taxable part. Never billed, never in a total. */
+  estimatedCents: number;
+  rateBasisPoints: number | null;
+};
+
 export type PackagePrice = {
   addOnTotalCents: number;
   /** Base plus add-ons, before the discount. */
@@ -34,6 +62,8 @@ export type PackagePrice = {
   taxCents: number;
   totalCents: number;
   retainerCents: number;
+  /** Only when priced with a SalesTaxTreatment: `taxCents` is then 0. */
+  salesTax?: PricedSalesTax;
 };
 
 function percentageOf(amountCents: number, basisPoints: number): number {
@@ -53,6 +83,8 @@ export function pricePackage(input: {
   retainerRule: RetainerRule;
   /** Crew a per-crew-member retainer bills for (billedCrewCount). */
   billedCrew: number;
+  /** QuickBooks works the tax out later; absent or null prices as always. */
+  salesTax?: SalesTaxTreatment | null;
 }): PackagePrice {
   const basePriceCents = cents(input.basePriceCents);
   const lines = input.addOns.map((addOn) => ({
@@ -81,7 +113,10 @@ export function pricePackage(input: {
       : taxablePreDiscountCents === preDiscountCents
         ? subtotalCents
         : Math.round((taxablePreDiscountCents * subtotalCents) / preDiscountCents);
-  const taxCents = percentageOf(taxableCents, cents(input.taxRateBasisPoints));
+  // Tax QuickBooks works out on the final invoice is no part of the price
+  // agreed: the total is pre-tax and the retainer is a share of that.
+  const treatment = input.salesTax ?? null;
+  const taxCents = treatment ? 0 : percentageOf(taxableCents, cents(input.taxRateBasisPoints));
   const totalCents = subtotalCents + taxCents;
   const rule = input.retainerRule;
   const retainerCents =
@@ -99,5 +134,21 @@ export function pricePackage(input: {
     taxCents,
     totalCents,
     retainerCents,
+    ...(treatment ? { salesTax: pricedSalesTax(treatment, taxableCents) } : {}),
+  };
+}
+
+/** The estimate, on the taxable part at the studio's rate; none when exempt. */
+function pricedSalesTax(treatment: SalesTaxTreatment, taxableCents: number): PricedSalesTax {
+  const exempt = treatment.exempt === true;
+  const rate =
+    exempt || treatment.rateBasisPoints === null || !Number.isFinite(treatment.rateBasisPoints)
+      ? null
+      : cents(treatment.rateBasisPoints);
+  return {
+    mode: "quickbooks",
+    exempt,
+    estimatedCents: rate === null ? 0 : percentageOf(taxableCents, rate),
+    rateBasisPoints: rate,
   };
 }

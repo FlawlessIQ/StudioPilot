@@ -75,10 +75,15 @@ const template = {
 };
 
 test("the functions copy of the document module is identical", () => {
+  // Relative imports name their ".js" in functions/ (node16 resolution); the
+  // rest is byte-for-byte.
+  const withoutJs = (text: string) => text.replace(/(from "\.{1,2}\/[^"]+)\.js"/g, '$1"');
   assert.equal(
-    readFileSync("functions/src/contracts/document.ts", "utf8"),
+    withoutJs(readFileSync("functions/src/contracts/document.ts", "utf8")),
     readFileSync("features/contracts/document.ts", "utf8"),
   );
+  // Only relative imports of other mirrored modules, never "@/".
+  assert.doesNotMatch(readFileSync("features/contracts/document.ts", "utf8"), /from "@\//);
 });
 
 test("the studio signing statement is the same words on both sides", () => {

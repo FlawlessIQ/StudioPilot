@@ -16,6 +16,7 @@ import {
   type CommandContext,
 } from "./commands.js";
 import { buildCombinedAgreement, sectionDocument, type CombinedSection } from "./combined.js";
+import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { contractDocumentSchema, type ContractDocument } from "./document.js";
 import { contractDocumentHash, sha256Text } from "./document-hash.js";
 
@@ -108,6 +109,7 @@ async function resolveCombined(
       amountCents: Number(row.amountCents ?? 0),
       dueDate: typeof row.dueDate === "string" && row.dueDate ? row.dueDate : null,
     })),
+    salesTax: readPricedSalesTax(pricing.salesTax),
   });
   const document: ContractDocument = contractDocumentSchema.parse(combined.document);
   const sections: SectionWithHash[] = combined.sections.map((section) => ({

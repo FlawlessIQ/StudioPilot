@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { balanceWithSalesTax, readPricedSalesTax, totalWithSalesTax } from "../billing/sales-tax-pricing";
+import type { PricedSalesTax } from "../pricing/package-price";
 
 /**
  * A contract StudioCue writes and the couple signs.
@@ -25,7 +27,8 @@ import { z } from "zod";
  *
  * Pure and deterministic, and deliberately free of any "@/" import. It is
  * duplicated at functions/src/contracts/document.ts, because functions/ is a
- * separate package; tests/contract-document.test.ts fails if the two differ.
+ * separate package; tests/contract-document.test.ts fails if the two differ
+ * (relative imports aside, which name their ".js" there).
  */
 
 export const CONTRACT_DOCUMENT_FORMAT = 1 as const;
@@ -200,6 +203,12 @@ export type ContractSources = {
      * the fee reconciles with the packages and extras listed above it.
      */
     discountCents?: number;
+    /**
+     * Sales tax QuickBooks works out on the final invoice: the total is then
+     * pre-tax and says "plus sales tax" (../billing/sales-tax-pricing.ts).
+     * Absent for a booking priced the old way, whose words are unchanged.
+     */
+    salesTax?: PricedSalesTax | null;
   };
   paymentSchedule: Array<{
     label: string;
@@ -296,6 +305,19 @@ function labelFor(key: string, customFields: readonly ContractCustomField[]): st
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+function salesTaxOf(sources: ContractSources): PricedSalesTax | null {
+  return readPricedSalesTax(sources.pricing.salesTax);
+}
+
+/**
+ * A payment's amount. The last payment is the one QuickBooks adds the sales
+ * tax to, so on a pre-tax booking it reads "$4,399.00 plus sales tax".
+ */
+function scheduleAmount(sources: ContractSources, amountCents: number, index: number): string {
+  const amount = formatMoney(amountCents, sources.pricing.currency);
+  return index === sources.paymentSchedule.length - 1 ? balanceWithSalesTax(amount, salesTaxOf(sources)) : amount;
+}
+
 function recordValue(key: string, sources: ContractSources): string | null {
   const nonEmpty = (value: string | null | undefined) =>
     value && value.trim() ? value.trim() : null;
@@ -355,23 +377,30 @@ function recordValue(key: string, sources: ContractSources): string | null {
     case "price.total": {
       const total = formatMoney(sources.pricing.totalCents, sources.pricing.currency);
       const discount = Math.max(0, Math.round(sources.pricing.discountCents ?? 0));
-      return discount > 0
-        ? `${total} (after a ${formatMoney(discount, sources.pricing.currency)} discount)`
-        : total;
+      return totalWithSalesTax(
+        discount > 0
+          ? `${total} (after a ${formatMoney(discount, sources.pricing.currency)} discount)`
+          : total,
+        salesTaxOf(sources),
+        sources.pricing.currency,
+      );
     }
     case "price.retainer":
       return formatMoney(sources.pricing.retainerCents, sources.pricing.currency);
     case "price.balance":
-      return formatMoney(
-        Math.max(0, sources.pricing.totalCents - sources.pricing.retainerCents),
-        sources.pricing.currency,
+      return balanceWithSalesTax(
+        formatMoney(
+          Math.max(0, sources.pricing.totalCents - sources.pricing.retainerCents),
+          sources.pricing.currency,
+        ),
+        salesTaxOf(sources),
       );
     case "payment.schedule":
       return sources.paymentSchedule.length
         ? sources.paymentSchedule
             .map(
-              (row) =>
-                `${row.label} ${formatMoney(row.amountCents, sources.pricing.currency)}`,
+              (row, index) =>
+                `${row.label} ${scheduleAmount(sources, row.amountCents, index)}`,
             )
             .join("; ")
         : null;
@@ -579,9 +608,9 @@ export function resolveContractDocument(input: {
         value
           ? {
               type: "payment_schedule",
-              rows: sources.paymentSchedule.map((row) => ({
+              rows: sources.paymentSchedule.map((row, index) => ({
                 label: row.label,
-                amount: formatMoney(row.amountCents, sources.pricing.currency),
+                amount: scheduleAmount(sources, row.amountCents, index),
                 due: row.dueDate ? formatContractDate(row.dueDate) : undatedPaymentDue(row.label),
               })),
             }

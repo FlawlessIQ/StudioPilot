@@ -13,6 +13,7 @@ import { senderProtection, senderProtectionReason } from "../intake/ignorable-se
 import { studioMailboxes } from "../communications/inbound.js";
 import { pricePackage, type PackageDiscount } from "../pricing/package-price.js";
 import { repriceSnapshot } from "../pricing/reprice-snapshot.js";
+import { readSalesTaxTreatment } from "../billing/sales-tax-treatment.js";
 import { selectionDiscount, snapshotDiscountRule } from "../pricing/discount-rule.js";
 import { packageChangeNeedsApprover } from "../booking/proposal-domain.js";
 import {
@@ -2376,6 +2377,8 @@ export const crmCommand = onRequest(
             taxCents: priced.taxCents,
             retainerCents: priced.retainerCents,
             totalCents: priced.totalCents,
+            // Priced as the snapshot was (repriceSnapshot): its sales-tax decision, estimate refreshed.
+            ...(priced.salesTax ? { salesTax: priced.salesTax } : {}),
             supersedesSnapshotId: target,
             selectionDate: timestamp,
             selectedBy: identity.uid,
@@ -2473,6 +2476,8 @@ export const crmCommand = onRequest(
             taxCents: priced.taxCents,
             retainerCents: priced.retainerCents,
             totalCents: priced.totalCents,
+            // Priced as the snapshot was (repriceSnapshot): its sales-tax decision, estimate refreshed.
+            ...(priced.salesTax ? { salesTax: priced.salesTax } : {}),
             supersedesSnapshotId: target,
             selectionDate: timestamp,
             selectedBy: identity.uid,
@@ -2706,8 +2711,17 @@ export const crmCommand = onRequest(
             },
           );
           const coverage = resolveCoverage(studioPackage);
+          // Pre-tax "plus sales tax" where QuickBooks works the tax out on the
+          // final invoice; decided now and kept on the snapshot. Read before
+          // the first write.
+          const salesTaxTreatment = await readSalesTaxTreatment(
+            db,
+            (reference) => transaction.get(reference),
+            command.tenantId,
+            projectDocument.data(),
+          );
           // One price, the same as the portal and the snapshot factory (H2).
-          const { discountCents, subtotalCents, taxCents, totalCents, retainerCents } = pricePackage({
+          const { discountCents, subtotalCents, taxCents, totalCents, retainerCents, salesTax } = pricePackage({
             basePriceCents: studioPackage.basePriceCents,
             addOns: selectedLines,
             discount,
@@ -2717,6 +2731,7 @@ export const crmCommand = onRequest(
               studioPackage.retainerRule.type === "per_crew_member"
                 ? billedCrewCount(coverage, studioPackage.retainerRule.billedRoles)
                 : 1,
+            salesTax: salesTaxTreatment,
           });
           const packageSnapshotId = randomUUID();
           transaction.create(db.doc(`packageSnapshots/${packageSnapshotId}`), {
@@ -2737,6 +2752,7 @@ export const crmCommand = onRequest(
             taxCents,
             retainerCents,
             totalCents,
+            ...(salesTax ? { salesTax } : {}),
             includedCoverageMinutes: studioPackage.includedCoverageMinutes,
             ...coverageFields(coverage),
             includedDeliverables: studioPackage.includedDeliverables,
@@ -2888,6 +2904,13 @@ export const crmCommand = onRequest(
             transaction.get(db.collection("packages").where("tenantId", "==", command.tenantId).limit(200)),
           ]);
           const catalogue = catalogueDocuments.docs.map((document) => document.data());
+          // As selectPackage: pre-tax "plus sales tax" where QuickBooks works it out.
+          const salesTaxTreatment = await readSalesTaxTreatment(
+            db,
+            (reference) => transaction.get(reference),
+            command.tenantId,
+            projectDocument.data(),
+          );
 
           const retainerRule = oneOffRetainerRule({ mode, mainPackage, mainSnapshot, catalogue });
           const taxRateBasisPoints = oneOffTaxRate({ mainPackage, catalogue });
@@ -2917,6 +2940,7 @@ export const crmCommand = onRequest(
             retainerRule,
             billedCrew:
               retainerRule.type === "per_crew_member" ? billedCrewCount(coverage, retainerRule.billedRoles) : 1,
+            salesTax: salesTaxTreatment,
           });
 
           const packageId = randomUUID();
@@ -2970,6 +2994,7 @@ export const crmCommand = onRequest(
             taxCents: priced.taxCents,
             retainerCents: priced.retainerCents,
             totalCents: priced.totalCents,
+            ...(priced.salesTax ? { salesTax: priced.salesTax } : {}),
             includedCoverageMinutes,
             ...coverageFields(coverage),
             includedDeliverables: included,
@@ -3168,6 +3193,8 @@ export const crmCommand = onRequest(
             taxCents: priced.taxCents,
             retainerCents: priced.retainerCents,
             totalCents: priced.totalCents,
+            // Priced as the snapshot was (repriceSnapshot): its sales-tax decision, estimate refreshed.
+            ...(priced.salesTax ? { salesTax: priced.salesTax } : {}),
             supersedesSnapshotId: target,
             selectionDate: timestamp,
             selectedBy: identity.uid,

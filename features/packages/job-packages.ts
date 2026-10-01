@@ -1,3 +1,5 @@
+import { combinePricedSalesTax, readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
+import type { PricedSalesTax } from "@/features/pricing/package-price";
 import { coverageRoleLabel, resolveCoverage } from "@/features/packages/coverage";
 
 /**
@@ -80,7 +82,12 @@ export type CouplePackageView = {
   /** True when the total and the bullets are the accepted proposal's. */
   fromAcceptedProposal: boolean;
   chosenAt: unknown;
+  /** The total is pre-tax "plus sales tax" (features/billing/sales-tax-pricing.ts); absent otherwise. */
+  salesTax?: PricedSalesTax;
 };
+
+const salesTaxField = (salesTax: PricedSalesTax | null): { salesTax?: PricedSalesTax } =>
+  salesTax ? { salesTax } : {};
 
 /**
  * What the couple's "Your package" page shows.
@@ -120,6 +127,7 @@ export function couplePackageView(input: {
       currency: String(pricing.currency ?? "USD"),
       fromAcceptedProposal: true,
       chosenAt: accepted.acceptedAt ?? null,
+      ...salesTaxField(readPricedSalesTax(pricing.salesTax)),
     };
   }
   if (!input.snapshots.length) return null;
@@ -133,6 +141,7 @@ export function couplePackageView(input: {
     currency: String(input.snapshots[0]!.currency ?? "USD"),
     fromAcceptedProposal: false,
     chosenAt: input.snapshots[0]!.selectionDate ?? input.snapshots[0]!.createdAt ?? null,
+    ...salesTaxField(combinePricedSalesTax(input.snapshots.map((snapshot) => readPricedSalesTax(snapshot.salesTax)))),
   };
 }
 

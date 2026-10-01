@@ -24,7 +24,7 @@
  * The records side is ../contracts/amendments.ts (draft, withdraw) and
  * ./amendment-apply.ts (signed).
  */
-import { pricePackage } from "../pricing/package-price.js";
+import { pricePackage, type SalesTaxTreatment } from "../pricing/package-price.js";
 import { fieldsOf, repriceSnapshot } from "../pricing/reprice-snapshot.js";
 import { snapshotDiscountRule } from "../pricing/discount-rule.js";
 import { legacyPhotographerCount, type CoverageItem, type CoverageRole } from "../packages/coverage.js";
@@ -92,6 +92,8 @@ export function repriceKeptSnapshot(input: {
     taxCents: priced.taxCents,
     retainerCents: priced.retainerCents,
     totalCents: priced.totalCents,
+    // Priced as the signed snapshot was: its sales-tax decision, estimate refreshed.
+    ...(priced.salesTax ? { salesTax: priced.salesTax } : {}),
     supersedesSnapshotId: input.previousId,
     // Written for a booking change; it becomes the job's when that is signed.
     amendmentId: input.amendmentId,
@@ -134,6 +136,8 @@ export function amendmentOneOffRecords(input: {
   tenantCurrency: string;
   eventTypeId: string;
   eventTypeLabel: string;
+  /** The signed booking's sales-tax decision (../billing/sales-tax-pricing.ts); null prices the old way. */
+  salesTax?: SalesTaxTreatment | null;
 }): { packageRecord: Row; snapshotRecord: Row } {
   const included = oneOffInclusionLines(input.given.included);
   if (!included.length || oneOffDescription(included).length < 10) throw new Error("ONE_OFF_PACKAGE_NEEDS_DETAIL");
@@ -162,6 +166,7 @@ export function amendmentOneOffRecords(input: {
     taxRateBasisPoints,
     retainerRule,
     billedCrew: retainerRule.type === "per_crew_member" ? billedCrewCount(coverage, retainerRule.billedRoles) : 1,
+    salesTax: input.salesTax ?? null,
   });
   const coverageFields = {
     includedCoverage: coverage.map((item) => ({ ...item })),
@@ -215,6 +220,7 @@ export function amendmentOneOffRecords(input: {
     taxCents: priced.taxCents,
     retainerCents: priced.retainerCents,
     totalCents: priced.totalCents,
+    ...(priced.salesTax ? { salesTax: priced.salesTax } : {}),
     includedCoverageMinutes,
     ...coverageFields,
     includedDeliverables: included,

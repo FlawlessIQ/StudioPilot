@@ -6,6 +6,7 @@ import { Actions, Button, Card, KitRoot, List, Main, Note, PoweredBy, Row } from
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { couplePackageView, snapshotInclusions } from "@/features/packages/job-packages";
+import { salesTaxSentence } from "@/features/billing/sales-tax-pricing";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { getClientAvailablePackages, selectClientPackage } from "@/lib/client/portal-client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -121,6 +122,8 @@ export function ClientPackage() {
         <Card tone="accent">
           <p className="kit-caption">{several ? "Total for everything" : "Total"}</p>
           <p className="kit-amount">{money(held.totalCents, held.currency)}</p>
+          {/* Pre-tax where QuickBooks works the sales tax out on the final invoice. */}
+          {held.salesTax ? <p className="kit-caption">{salesTaxSentence(held.salesTax, held.currency)}</p> : null}
           <Note icon={LockKeyhole}>Your price is locked. Changes to the studio’s packages won’t affect it.</Note>
         </Card>
         {held.packages.map((item) => (

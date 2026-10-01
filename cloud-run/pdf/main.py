@@ -69,6 +69,11 @@ class ProposalRequest(BaseModel):
     line_items: list[LineItem] = Field(min_length=1, max_length=50)
     payment_schedule: list[PaymentItem] = Field(default_factory=list, max_length=20)
     total: str = Field(min_length=1, max_length=40)
+    # "Total, plus sales tax" where QuickBooks works the tax out on the final
+    # invoice; defaulted so an older caller keeps working.
+    total_label: str = Field(default="Total", min_length=1, max_length=60)
+    # Printed under the Total and never added into it: the sales-tax estimate.
+    after_total: list[LineItem] = Field(default_factory=list, max_length=4)
     retainer: str = Field(min_length=1, max_length=40)
     balance: str = Field(min_length=1, max_length=40)
     expires_on: str = Field(min_length=1, max_length=80)
@@ -260,7 +265,21 @@ def build_proposal_pdf(data: ProposalRequest) -> bytes:
     # package with its own bullets (GR Productions, 2026-09-30).
     rows = [[Paragraph("PACKAGES", styles["Brand"]), Paragraph("AMOUNT", styles["RightMeta"])]]
     rows.extend([[_line_cell(item, styles), Paragraph(escape(item.amount), styles["RightMeta"])] for item in data.line_items])
-    rows.append([Paragraph("<b>Total</b>", styles["BodyStudio"]), Paragraph(f"<b>{escape(data.total)}</b>", styles["RightMeta"])])
+    rows.append([Paragraph(f"<b>{escape(data.total_label)}</b>", styles["BodyStudio"]), Paragraph(f"<b>{escape(data.total)}</b>", styles["RightMeta"])])
+    # Beneath the Total, muted: shown for information, not part of the sum.
+    rows.extend(
+        [
+            [
+                Paragraph(
+                    escape(item.description)
+                    + "".join(f"<br/>{escape(detail[:300])}" for detail in item.details[:4]),
+                    styles["Meta"],
+                ),
+                Paragraph(escape(item.amount), styles["RightMeta"]),
+            ]
+            for item in data.after_total
+        ]
+    )
     pricing = Table(rows, colWidths=[5.2 * inch, 1.3 * inch], repeatRows=1)
     pricing.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), soft),

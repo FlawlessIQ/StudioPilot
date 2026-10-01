@@ -243,9 +243,15 @@ export function amendmentChangeLines(input: {
   addedOneOffs?: Array<{ name: string; priceCents: number }>;
   /** Extras added to, removed from or changed on a package. */
   extras?: ExtrasChange[];
+  /**
+   * The totals are pre-tax: QuickBooks works the sales tax out on the final
+   * invoice (../billing/sales-tax-pricing.ts). The lines say so.
+   */
+  plusSalesTax?: boolean;
 }): string[] {
   const lines: string[] = [];
   const currency = input.currency ?? "USD";
+  const taxNote = input.plusSalesTax ? ", plus sales tax" : "";
   if (input.newDate && input.newDate !== input.previousDate)
     lines.push(`The wedding date moves from ${longDate(input.previousDate)} to ${longDate(input.newDate)}.`);
   for (const call of input.movedCalls ?? []) lines.push(`Your ${call.label} on ${call.from} moves to ${call.to}.`);
@@ -266,14 +272,14 @@ export function amendmentChangeLines(input: {
   }
   if (input.money.newTotalCents !== input.money.previousTotalCents)
     lines.push(
-      `The total changes from ${dollars(input.money.previousTotalCents, currency)} to ${dollars(input.money.newTotalCents, currency)}.`,
+      `The total changes from ${dollars(input.money.previousTotalCents, currency)} to ${dollars(input.money.newTotalCents, currency)}${taxNote}.`,
     );
   if (input.money.paidCents > 0)
     lines.push(`${dollars(input.money.paidCents, currency)} already paid is kept and counts toward the new total.`);
   if (input.money.refundCents > 0)
     lines.push(`${dollars(input.money.refundCents, currency)} paid beyond the new total will be refunded.`);
   else if (input.money.newTotalCents !== input.money.previousTotalCents || input.money.paidCents > 0)
-    lines.push(`${dollars(input.money.outstandingCents, currency)} remains to be paid.`);
+    lines.push(`${dollars(input.money.outstandingCents, currency)} remains to be paid${taxNote}.`);
   if (!lines.length) lines.push("Nothing about the booking changes.");
   return lines;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { balanceWithSalesTax, readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
 import { useMemo, useState, type ReactNode } from "react";
 import { AMENDABLE_STATES, shiftInZone } from "@/features/booking/amendable";
 import { CalendarClock, LoaderCircle, PackagePlus } from "lucide-react";
@@ -311,6 +312,8 @@ export function BookingAmendmentPanel({
   if (pending && !(editing && pending.status === "draft")) {
     const moneyInfo = (pending.money ?? {}) as Record<string, unknown>;
     const currency = str(pending.currency) || "USD";
+    // Pre-tax "plus sales tax" where QuickBooks works it out on the final invoice.
+    const pendingSalesTax = readPricedSalesTax(pending.salesTax);
     const parsed = contractDocumentSchema.safeParse(pending.document);
     const sent = pending.status === "sent";
     const recordOnly = pending.signingMode !== "studiocue";
@@ -330,10 +333,10 @@ export function BookingAmendmentPanel({
             </p>
           ))}
         <p className="amendment-money">
-          {`New total ${money(moneyInfo.newTotalCents, currency)} · paid ${money(moneyInfo.paidCents, currency)} · `}
+          {`New total ${balanceWithSalesTax(money(moneyInfo.newTotalCents, currency), pendingSalesTax)} · paid ${money(moneyInfo.paidCents, currency)} · `}
           {num(moneyInfo.refundCents) > 0
             ? `refund due ${money(moneyInfo.refundCents, currency)}`
-            : `still to pay ${money(moneyInfo.outstandingCents, currency)}`}
+            : `still to pay ${balanceWithSalesTax(money(moneyInfo.outstandingCents, currency), pendingSalesTax)}`}
         </p>
         {sent ? (
           <p className="form-notice" role="status">

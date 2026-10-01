@@ -13,7 +13,8 @@ import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
-import { pricePackage } from "../pricing/package-price.js";
+import { pricePackage, type SalesTaxTreatment } from "../pricing/package-price.js";
+import { readPricedSalesTax, treatmentOf } from "../billing/sales-tax-pricing.js";
 import {
   coverageFromPhotographerCount,
   includedCoverageSchema,
@@ -334,6 +335,8 @@ function snapshotFromPackage(
   studioPackage: DocumentSnapshot,
   input: { tenantId: string; projectId: string; actorId: string; timestamp: string; amendmentId: string },
   addOns: AddOnLine[] = [],
+  /** The signed booking's sales-tax decision: a package added to it is priced the same way. */
+  salesTax: SalesTaxTreatment | null = null,
 ) {
   const data = studioPackage.data() as Record<string, unknown>;
   const retainerRule = obj(data.retainerRule) as
@@ -349,6 +352,7 @@ function snapshotFromPackage(
     retainerRule,
     billedCrew:
       retainerRule.type === "per_crew_member" ? billedCrewCount(coverage, retainerRule.billedRoles) : 1,
+    salesTax,
   });
   const id = randomUUID();
   return {
@@ -370,6 +374,7 @@ function snapshotFromPackage(
       taxCents: priced.taxCents,
       retainerCents: priced.retainerCents,
       totalCents: priced.totalCents,
+      ...(priced.salesTax ? { salesTax: priced.salesTax } : {}),
       includedCoverageMinutes: num(data.includedCoverageMinutes),
       includedCoverage: coverage.map((item) => ({ ...item })),
       includedPhotographers: legacyPhotographerCount(coverage.length ? coverage : coverageFromPhotographerCount(1)),
@@ -468,6 +473,10 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
 
   const base = await latestAccepted(db, context.tenantId, input.projectId);
   if (!base) throw new Error("AMENDMENT_NEEDS_ACCEPTED_PROPOSAL");
+  // A package the change adds is priced as the booking was: pre-tax "plus
+  // sales tax" when that is what the couple signed for, never because the
+  // studio's settings changed since (../billing/sales-tax-pricing.ts).
+  const bookingSalesTax = treatmentOf(readPricedSalesTax(obj(base.get("pricingSnapshot")).salesTax));
 
   const currentIds = [text(project.get("packageSnapshotId")), ...strings(project.get("additionalPackageSnapshotIds"))].filter(
     Boolean,
@@ -625,6 +634,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
         amendmentId,
       },
       lines,
+      bookingSalesTax,
     );
   });
 
@@ -663,6 +673,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
       tenantCurrency: text(tenant.get("currency")),
       eventTypeId: text(project.get("eventTypeId")) || "wedding",
       eventTypeLabel: label.length >= 2 ? label.slice(0, 80) : "Wedding",
+      salesTax: bookingSalesTax,
     });
     oneOff = { packageId, snapshotId, ...records };
   }
@@ -688,6 +699,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
       taxCents: num(data.taxCents),
       retainerCents: num(data.retainerCents),
       totalCents: num(data.totalCents),
+      salesTax: readPricedSalesTax(data.salesTax),
       lineItems: lineItems(data),
     })),
   );
@@ -737,6 +749,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     extras: extrasChanges,
     money,
     currency: pricing.currency,
+    plusSalesTax: Boolean(pricing.salesTax && !pricing.salesTax.exempt),
   });
 
   // The proposal the change becomes when signed. Held in its own collection
@@ -877,6 +890,8 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     oneOffPackageId: oneOff?.packageId ?? null,
     money,
     currency: pricing.currency,
+    // Pre-tax "plus sales tax" (QuickBooks works it out): the panels say so beside the totals.
+    ...(pricing.salesTax ? { salesTax: pricing.salesTax } : {}),
     changes,
     note: input.note,
     proposalId,

@@ -12,7 +12,7 @@ import {
   type CoverageItem,
   type CoverageRole,
 } from "./coverage";
-import { pricePackage } from "@/features/pricing/package-price";
+import { pricePackage, type SalesTaxTreatment } from "@/features/pricing/package-price";
 
 /**
  * How many people a per-crew-member retainer bills for.
@@ -44,6 +44,8 @@ export function createPackageSnapshot(input: {
   selectedAt: string;
   package: StudioPackage;
   selection: PackageSelection;
+  /** Pre-tax "plus sales tax" where QuickBooks works it out (features/billing/sales-tax-pricing.ts). */
+  salesTax?: SalesTaxTreatment | null;
 }): Readonly<PackageSnapshot> {
   if (input.package.tenantId !== input.tenantId) {
     throw new Error("Package tenant does not match snapshot tenant.");
@@ -76,6 +78,7 @@ export function createPackageSnapshot(input: {
     taxCents,
     totalCents,
     retainerCents,
+    salesTax,
   } = pricePackage({
     basePriceCents: input.package.basePriceCents,
     addOns,
@@ -86,6 +89,7 @@ export function createPackageSnapshot(input: {
       input.package.retainerRule.type === "per_crew_member"
         ? billedCrewCount(coverage, input.package.retainerRule.billedRoles)
         : 1,
+    salesTax: input.salesTax ?? null,
   });
 
   const snapshot = packageSnapshotSchema.parse({
@@ -104,6 +108,7 @@ export function createPackageSnapshot(input: {
     taxCents,
     retainerCents,
     totalCents,
+    ...(salesTax ? { salesTax } : {}),
     includedCoverageMinutes: input.package.includedCoverageMinutes,
     includedCoverage: coverage,
     includedPhotographers: legacyPhotographerCount(coverage),

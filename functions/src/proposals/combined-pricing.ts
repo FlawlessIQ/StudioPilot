@@ -4,6 +4,9 @@
  * tests/combined-pricing.test.ts.
  */
 
+import { combinePricedSalesTax } from "../billing/sales-tax-pricing.js";
+import type { PricedSalesTax } from "../pricing/package-price.js";
+
 export type PackagePricing = {
   packageName: string;
   currency: string;
@@ -11,6 +14,12 @@ export type PackagePricing = {
   taxCents: number;
   retainerCents: number;
   totalCents: number;
+  /**
+   * The snapshot's sales-tax decision, when QuickBooks works the tax out on
+   * the final invoice (../billing/sales-tax-pricing.ts): `taxCents` is then 0
+   * and the total pre-tax. Absent for a package priced the old way.
+   */
+  salesTax?: PricedSalesTax | null;
   lineItems: readonly {
     description: string;
     quantity: number;
@@ -28,6 +37,8 @@ export type CombinedPricing = {
   retainerCents: number;
   totalCents: number;
   lineItems: PackagePricing["lineItems"];
+  /** The packages' decisions as one, the estimates added up; absent when none has one. */
+  salesTax?: PricedSalesTax;
 };
 
 /**
@@ -71,7 +82,14 @@ export function combinePricing(
     // The total follows the subtotal, so a discount actually reduces it.
     totalCents: Math.max(0, subtotalCents - discount + taxCents),
     lineItems: packages.flatMap((entry) => entry.lineItems),
+    ...salesTaxOf(packages),
   };
+}
+
+/** Present only when a package was priced pre-tax, so every other proposal keeps its exact shape. */
+function salesTaxOf(packages: readonly PackagePricing[]): { salesTax?: PricedSalesTax } {
+  const salesTax = combinePricedSalesTax(packages.map((entry) => entry.salesTax));
+  return salesTax ? { salesTax } : {};
 }
 
 /**

@@ -1,6 +1,13 @@
 "use client";
 
 import { detailsForLine } from "@/features/packages/inclusions";
+import {
+  balanceWithSalesTax,
+  readPricedSalesTax,
+  SALES_TAX_ESTIMATE_LABEL,
+  salesTaxEstimateText,
+  salesTaxSentence,
+} from "@/features/billing/sales-tax-pricing";
 import { useMemo, useState } from "react";
 import { ArrowLeft, BadgeCheck, MessageCircle, ShieldCheck, XCircle } from "lucide-react";
 import {
@@ -92,6 +99,9 @@ export function ClientProposal() {
     ? (proposal.paymentSchedule as Array<Record<string, unknown>>)
     : [];
   const currency = pricing.currency;
+  // Pre-tax "plus sales tax" where QuickBooks works it out on the final invoice.
+  const salesTax = readPricedSalesTax(pricing.salesTax);
+  const salesTaxCurrency = typeof currency === "string" && currency ? currency : "USD";
   const storedStatus = text(proposal.status, "sent");
   const expired =
     !["accepted", "declined", "superseded"].includes(storedStatus) &&
@@ -260,10 +270,18 @@ export function ClientProposal() {
               </div>
             ) : null}
             <div data-total="">
-              <dt>Total</dt>
+              <dt>{salesTax && !salesTax.exempt ? "Total, plus sales tax" : "Total"}</dt>
               <dd>{money(pricing.totalCents, currency)}</dd>
             </div>
+            {/* Beneath the total and not in it. */}
+            {salesTaxEstimateText(salesTax, salesTaxCurrency) ? (
+              <div>
+                <dt>{SALES_TAX_ESTIMATE_LABEL}</dt>
+                <dd>{salesTaxEstimateText(salesTax, salesTaxCurrency)}</dd>
+              </div>
+            ) : null}
           </dl>
+          {salesTax ? <p className="kit-caption">{salesTaxSentence(salesTax, salesTaxCurrency)}</p> : null}
         </Card>
 
         {payments.length ? (
@@ -281,7 +299,12 @@ export function ClientProposal() {
                   key={`${String(payment.label)}-${index}`}
                   subtitle={payment.dueDate ? `Due ${date(payment.dueDate)}` : "Due date on the invoice"}
                   title={text(payment.label, "Payment")}
-                  trailing={money(payment.amountCents, currency)}
+                  // The last payment is the one the sales tax is added to.
+                  trailing={
+                    index === payments.length - 1
+                      ? balanceWithSalesTax(money(payment.amountCents, currency), salesTax)
+                      : money(payment.amountCents, currency)
+                  }
                 />
               ))}
             </List>
@@ -331,7 +354,7 @@ export function ClientProposal() {
             <>
               <div className="kit-total-bar">
                 <span>
-                  <span className="kit-caption">Total</span>
+                  <span className="kit-caption">{salesTax && !salesTax.exempt ? "Total, plus sales tax" : "Total"}</span>
                   <strong>{money(pricing.totalCents, currency)}</strong>
                 </span>
                 {proposal.combinedContractId ? (

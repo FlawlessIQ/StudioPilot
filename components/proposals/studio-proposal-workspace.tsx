@@ -87,6 +87,13 @@ import {
   startOverConfirmText,
 } from "@/features/proposals/workspace-guards";
 import { InfoHint } from "@/components/ui/info-hint";
+import {
+  balanceWithSalesTax,
+  combinePricedSalesTax,
+  readPricedSalesTax,
+  SALES_TAX_ESTIMATE_LABEL,
+  salesTaxEstimateText,
+} from "@/features/billing/sales-tax-pricing";
 import { isCataloguePackage } from "@/features/packages/one-off";
 import type { OneOffPackageInput } from "@/features/packages/one-off-form";
 import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
@@ -792,7 +799,10 @@ export function StudioProposalCenter({
                   <span className="proposal-center-list-meta">
                     <small>Total</small>
                     <strong>
-                      {money(pricing.totalCents, text(pricing.currency, "USD"))}
+                      {balanceWithSalesTax(
+                        money(pricing.totalCents, text(pricing.currency, "USD")),
+                        readPricedSalesTax(pricing.salesTax),
+                      )}
                     </strong>
                   </span>
                   <span className="proposal-center-list-meta">
@@ -1246,6 +1256,8 @@ export function StudioProposalComposer() {
     // Summed, as the server combines them (functions/src/proposals/combined-pricing.ts).
     retainerCents: allSnapshots.reduce((sum, item) => sum + number(item.retainerCents), 0),
     names: allSnapshots.map((item) => text(item.packageName, "Package")).join(" + "),
+    // Pre-tax "plus sales tax" where QuickBooks works it out, as the server combines it.
+    salesTax: combinePricedSalesTax(allSnapshots.map((item) => readPricedSalesTax(item.salesTax))),
   };
   const addOns = Array.isArray(pricing.addOns)
     ? pricing.addOns.map(objectValue)
@@ -1746,7 +1758,11 @@ export function StudioProposalComposer() {
             {selected ? (
               <>
                 <strong>{money(combined.totalCents, currency)}</strong>
-                <span>{combined.names || "Locked package"}</span>
+                <span>
+                  {[combined.names || "Locked package", balanceWithSalesTax("", combined.salesTax).trim()]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </>
             ) : (
               <>
@@ -1781,10 +1797,18 @@ export function StudioProposalComposer() {
                 <dd>−{money(combined.discountCents, currency)}</dd>
               </div>
             ) : null}
-            <div>
-              <dt>Tax</dt>
-              <dd>{money(combined.taxCents, currency)}</dd>
-            </div>
+            {combined.salesTax && combined.taxCents === 0 ? null : (
+              <div>
+                <dt>Tax</dt>
+                <dd>{money(combined.taxCents, currency)}</dd>
+              </div>
+            )}
+            {combined.salesTax ? (
+              <div>
+                <dt>{combined.salesTax.exempt ? "Sales tax" : SALES_TAX_ESTIMATE_LABEL}</dt>
+                <dd>{salesTaxEstimateText(combined.salesTax, currency) ?? "None on this booking"}</dd>
+              </div>
+            ) : null}
           </dl>
           {/* Editable here because an imported price list rarely states a
               deposit, and a photographer setting one client's retainer
@@ -2281,6 +2305,8 @@ export function StudioProposalWorkspace({
     ? proposal.paymentSchedule.map(objectValue)
     : [];
   const currency = text(pricing.currency, "USD");
+  // Pre-tax "plus sales tax" where QuickBooks works it out on the final invoice.
+  const proposalSalesTax = readPricedSalesTax(pricing.salesTax);
   const isEditable = status === "draft";
 
   return (
@@ -2438,14 +2464,23 @@ export function StudioProposalWorkspace({
                     <dd>−{money(pricing.discountCents, currency)}</dd>
                   </div>
                 ) : null}
+                {proposalSalesTax && number(pricing.taxCents) === 0 ? null : (
+                  <div>
+                    <dt>Tax</dt>
+                    <dd>{money(pricing.taxCents, currency)}</dd>
+                  </div>
+                )}
                 <div>
-                  <dt>Tax</dt>
-                  <dd>{money(pricing.taxCents, currency)}</dd>
-                </div>
-                <div>
-                  <dt>Project total</dt>
+                  <dt>{proposalSalesTax && !proposalSalesTax.exempt ? "Project total, plus sales tax" : "Project total"}</dt>
                   <dd>{money(pricing.totalCents, currency)}</dd>
                 </div>
+                {/* Under the total, and not in it: QuickBooks works the tax out on the final invoice. */}
+                {proposalSalesTax ? (
+                  <div>
+                    <dt>{proposalSalesTax.exempt ? "Sales tax" : SALES_TAX_ESTIMATE_LABEL}</dt>
+                    <dd>{salesTaxEstimateText(proposalSalesTax, currency) ?? "None on this booking"}</dd>
+                  </div>
+                ) : null}
               </dl>
             </div>
           </section>
@@ -2531,7 +2566,11 @@ export function StudioProposalWorkspace({
                 {payments.map((payment, index) => (
                   <article key={`${text(payment.label)}-${index}`}>
                     <small>{text(payment.label, "Payment")}</small>
-                    <strong>{money(payment.amountCents, currency)}</strong>
+                    <strong>
+                      {index === payments.length - 1
+                        ? balanceWithSalesTax(money(payment.amountCents, currency), proposalSalesTax)
+                        : money(payment.amountCents, currency)}
+                    </strong>
                     {/* The retainer has no due date until the agreement is
                         ready, and this is the couple's copy. */}
                     <span>{date(payment.dueDate, false, undatedPaymentDue(text(payment.label)))}</span>

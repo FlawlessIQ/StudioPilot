@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { auditFieldsSchema } from "@/features/tenants/schema";
+import { pricedSalesTaxSchema } from "@/features/packages/schema";
 
 const cents = z.number().int().nonnegative().safe();
 
@@ -53,6 +54,8 @@ export const proposalSchema = auditFieldsSchema.extend({
     taxCents: cents,
     retainerCents: cents,
     totalCents: cents,
+    /** Pre-tax "plus sales tax" (features/billing/sales-tax-pricing.ts); absent when tax is in the total. */
+    salesTax: pricedSalesTaxSchema.optional(),
     lineItems: z.array(z.object({
       description: z.string().min(1),
       quantity: z.number().int().positive(),

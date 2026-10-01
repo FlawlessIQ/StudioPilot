@@ -1,4 +1,6 @@
 import { formatContractDate, formatMoney, undatedPaymentDue, type ContractBlock, type ContractDocument } from "./document";
+import { balanceWithSalesTax, readPricedSalesTax, salesTaxEstimateText, SALES_TAX_ESTIMATE_LABEL, totalWithSalesTax } from "../billing/sales-tax-pricing";
+import type { PricedSalesTax } from "../pricing/package-price";
 
 /**
  * One send, two signatures (H2, docs/proposal-agreement-and-addons-plan-2026-09-28.md
@@ -44,6 +46,12 @@ export type CoverageInput = {
   taxCents: number;
   totalCents: number;
   paymentSchedule: ReadonlyArray<{ label: string; amountCents: number; dueDate: string | null }>;
+  /**
+   * Pre-tax "plus sales tax": QuickBooks works the tax out on the final
+   * invoice (../billing/sales-tax-pricing.ts). Absent for a booking priced the
+   * old way, whose Part 2 reads exactly as before.
+   */
+  salesTax?: PricedSalesTax | null;
 };
 
 export const COMBINED_SECTION_TITLES: Record<CombinedSectionKey, string> = {
@@ -84,18 +92,30 @@ function coverageBlocks(coverage: CoverageInput): ContractBlock[] {
     blocks.push({ type: "heading", level: 2, content: text("Extras") });
     blocks.push({ type: "list", items: extras.map((line) => ({ content: text(lineText(line)) })) });
   }
+  const salesTax = readPricedSalesTax(coverage.salesTax);
   const totals: string[] = [];
   if (coverage.discountCents > 0) totals.push(`Discount: −${money(coverage.discountCents)}`);
   if (coverage.taxCents > 0) totals.push(`Tax: ${money(coverage.taxCents)}`);
-  totals.push(`Total: ${money(coverage.totalCents)}`);
+  totals.push(`Total: ${totalWithSalesTax(money(coverage.totalCents), salesTax, coverage.currency)}`);
   blocks.push({ type: "list", items: totals.map((line) => ({ content: [{ text: line, bold: true as const }] })) });
+  // The estimate, under the total and not in it.
+  const estimate = salesTaxEstimateText(salesTax, coverage.currency);
+  if (estimate)
+    blocks.push({
+      type: "paragraph",
+      content: text(`${SALES_TAX_ESTIMATE_LABEL}: ${estimate}. Not included in the total above.`),
+    });
   if (coverage.paymentSchedule.length) {
     blocks.push({ type: "heading", level: 2, content: text("Payment schedule") });
     blocks.push({
       type: "payment_schedule",
-      rows: coverage.paymentSchedule.map((row) => ({
+      rows: coverage.paymentSchedule.map((row, index) => ({
         label: row.label,
-        amount: money(row.amountCents),
+        // The last payment is the one the sales tax is added to.
+        amount:
+          index === coverage.paymentSchedule.length - 1
+            ? balanceWithSalesTax(money(row.amountCents), salesTax)
+            : money(row.amountCents),
         // Dated as Part 1 dates it ("July 3, 2027"), never "2027-07-03".
         due: row.dueDate ? formatContractDate(row.dueDate) : undatedPaymentDue(row.label),
       })),

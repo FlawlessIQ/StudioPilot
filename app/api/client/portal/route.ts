@@ -8,6 +8,8 @@ import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
 import { isCataloguePackage } from "@/features/packages/one-off";
 import { pricePackage } from "@/features/pricing/package-price";
+import { readSalesTaxTreatment } from "@/server/billing/sales-tax-treatment";
+import { balanceWithSalesTax, readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
 import { z } from "zod";
 import { todayInZone } from "@/lib/format/event-date";
 import {
@@ -361,6 +363,9 @@ const clientRecordFields = {
     "taxCents",
     "discountCents",
     "retainerCents",
+    // Pre-tax "plus sales tax" (QuickBooks works it out): the couple's
+    // package page says so beside the total.
+    "salesTax",
   ],
   contracts: [
     "provider",
@@ -1399,9 +1404,17 @@ async function selectPackageForClient(input: {
       includedCoverage: studioPackage.get("includedCoverage"),
       includedPhotographers: studioPackage.get("includedPhotographers"),
     });
+    // Pre-tax "plus sales tax" where QuickBooks works the tax out, decided as
+    // selectPackage decides it. Read before the first write.
+    const salesTaxTreatment = await readSalesTaxTreatment(
+      adminFirestore,
+      (reference) => transaction.get(reference),
+      input.tenantId,
+      project.data(),
+    );
     // The same price the studio's selection computes (H2). A couple can't
     // give themselves a discount, so there is none here.
-    const { subtotalCents, taxCents, totalCents, retainerCents } = pricePackage({
+    const { subtotalCents, taxCents, totalCents, retainerCents, salesTax } = pricePackage({
       basePriceCents,
       addOns: selectedLines,
       discount: { type: "none" },
@@ -1411,6 +1424,7 @@ async function selectPackageForClient(input: {
         retainerRule.type === "per_crew_member"
           ? billedCrewCount(selectedCoverage, retainerRule.billedRoles)
           : 1,
+      salesTax: salesTaxTreatment,
     });
     const snapshotId = `package_snapshot_${executionId}`;
     const now = new Date().toISOString();
@@ -1430,6 +1444,7 @@ async function selectPackageForClient(input: {
       taxCents,
       retainerCents,
       totalCents,
+      ...(salesTax ? { salesTax } : {}),
       includedCoverageMinutes: Number(
         studioPackage.get("includedCoverageMinutes") ?? 0,
       ),
@@ -1844,7 +1859,19 @@ async function autopayStatus(tenantId: string, projectId: string) {
     dueDate = due.toISOString().slice(0, 10);
   }
   const studioName = safeString(tenant.get("name")) ?? "Your studio";
-  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amountCents / 100);
+  // Before the final invoice, a balance agreed pre-tax is that "plus sales
+  // tax": QuickBooks works the tax out on the final invoice, and the card is
+  // charged what that invoice says.
+  const agreedSalesTax = final
+    ? null
+    : readPricedSalesTax(
+        (acceptedProposal?.get("pricingSnapshot") as { salesTax?: unknown } | undefined)?.salesTax ??
+          snapshot?.get("salesTax"),
+      );
+  const amount = balanceWithSalesTax(
+    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amountCents / 100),
+    agreedSalesTax,
+  );
   const dueText = dueDate
     ? new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${dueDate}T00:00:00Z`))
     : null;

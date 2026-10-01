@@ -23,7 +23,7 @@ import { proposalTermsFor } from "../proposals/default-terms.js";
 import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
 import { isCataloguePackage } from "../packages/one-off.js";
-import { proposalPdfAdjustments } from "../proposals/pdf-adjustments.js";
+import { proposalPdfAdjustments, proposalPdfPaymentAmount, proposalPdfSalesTax } from "../proposals/pdf-adjustments.js";
 
 /**
  * Fit a field to the PDF service's limit (cloud-run/pdf/main.py). The service
@@ -842,12 +842,17 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
           ...normalizedLines.slice(0,48).map(value=>{const line=record(value);return{description:clipForPdf(string(line.description)||packageName,240),amount:money(line.totalCents,currency),details:detailsForLine(details,string(line.description)).slice(0,30).map(item=>clipForPdf(item,300))}}),
           ...proposalPdfAdjustments(pricing).map(item=>({description:item.description,amount:item.cents<0?`−${money(-item.cents,currency)}`:money(item.cents,currency),details:[]})),
         ],
-        payment_schedule:paymentSchedule.slice(0,20).map(value=>{const item=record(value);return{label:clipForPdf(string(item.label)||"Payment",120),amount:money(item.amountCents,currency),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}}),
+        // The last payment reads "plus sales tax" when QuickBooks adds it on the final invoice.
+        payment_schedule:paymentSchedule.slice(0,20).map((value,index,shown)=>{const item=record(value);return{label:clipForPdf(string(item.label)||"Payment",120),amount:proposalPdfPaymentAmount(pricing,money(item.amountCents,currency),index===shown.length-1&&shown.length===paymentSchedule.length),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}}),
         total:money(pricing.totalCents,currency),
+        // Pre-tax "plus sales tax": the estimate is printed under the Total,
+        // not added in (renderers before this ignore both fields).
+        total_label:proposalPdfSalesTax(pricing,currency).totalLabel,
+        after_total:proposalPdfSalesTax(pricing,currency).afterTotal,
         // The retainer the schedule on the same page asks for: an override
         // showed two different retainers in one PDF (H2, M7).
         retainer:money(retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents)),currency),
-        balance:money(Math.max(0,Number(pricing.totalCents)-retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents))),currency),
+        balance:proposalPdfPaymentAmount(pricing,money(Math.max(0,Number(pricing.totalCents)-retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents))),currency),true),
         expires_on:String(proposal.get("expiresAt")).slice(0,10),
         generated_at:generatedAt,
       },

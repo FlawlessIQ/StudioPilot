@@ -59,6 +59,7 @@ export class ProposalService {
         taxCents: input.packageSnapshot.taxCents,
         retainerCents: input.packageSnapshot.retainerCents,
         totalCents: input.packageSnapshot.totalCents,
+        ...(input.packageSnapshot.salesTax ? { salesTax: input.packageSnapshot.salesTax } : {}),
         lineItems: [
           { description: input.packageSnapshot.packageName, quantity: 1, unitPriceCents: input.packageSnapshot.basePriceCents, totalCents: input.packageSnapshot.basePriceCents },
           ...input.packageSnapshot.addOns.map((item) => ({

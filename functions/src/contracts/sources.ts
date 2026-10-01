@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
 import { packageInclusionItems } from "../packages/inclusions.js";
 import {
@@ -250,6 +251,9 @@ export async function loadContractSources(
         // "Retainer: $1,079.70" above a table saying $1,000.00 in the same
         // agreement (walked 2026-09-30).
         retainerCents: retainerFromSchedule(proposal.get("paymentSchedule"), cents(pricing.retainerCents)),
+        // Pre-tax "plus sales tax" when QuickBooks works the tax out; a
+        // booking priced the old way has none and reads exactly as before.
+        ...(readPricedSalesTax(pricing.salesTax) ? { salesTax: readPricedSalesTax(pricing.salesTax) } : {}),
       },
       packages,
       formAnswers,

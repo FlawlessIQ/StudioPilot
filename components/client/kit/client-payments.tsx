@@ -7,6 +7,7 @@ import { Actions, Button, Card, List, Main, Pill, PoweredBy, Row, Steps } from "
 import { ClientAutopay } from "@/components/client/client-autopay";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
 import { invoicePayNote, invoicePayRoute } from "@/features/client/invoice-pay-route";
 import { statusLabel } from "@/features/format/status-label";
 import {
@@ -41,6 +42,7 @@ function invoiceName(kind: unknown): string {
 export function ClientPayments() {
   const workspace = useWorkspace();
   const invoices = useProjectRecords("invoiceReferences");
+  const proposals = useProjectRecords("proposals");
   const reserve = useReserveYourDate();
   const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -69,6 +71,16 @@ export function ClientPayments() {
     [invoices.value],
   );
   const due = standing.find((invoice) => number(invoice.balanceCents) > 0) ?? null;
+  // Agreed pre-tax "plus sales tax" (QuickBooks works it out): until the final
+  // invoice exists, say the balance to come carries the tax.
+  const agreedSalesTax = useMemo(() => {
+    const accepted = proposals.value
+      .filter((proposal) => proposal.status === "accepted")
+      .sort((left, right) => number(right.version) - number(left.version))[0];
+    const pricing = accepted?.pricingSnapshot;
+    return readPricedSalesTax(pricing && typeof pricing === "object" ? (pricing as Record<string, unknown>).salesTax : null);
+  }, [proposals.value]);
+  const finalRaised = standing.some((invoice) => invoice.kind === "final");
   const hostedUrl = due && typeof due.hostedUrl === "string" && due.hostedUrl ? due.hostedUrl : null;
   const provider = due ? (text(due.provider) === "stripe" ? "Stripe" : "QuickBooks") : null;
   // Online, paid to the studio directly (an invoice with no pay link, and
@@ -174,6 +186,12 @@ export function ClientPayments() {
               />
             ))}
           </List>
+          {agreedSalesTax && !agreedSalesTax.exempt && !finalRaised ? (
+            <p className="kit-caption">
+              Your final balance comes later, plus sales tax — worked out from your billing address on your final
+              invoice.
+            </p>
+          ) : null}
         </section>
 
         {/* Card autopay keeps its own design-system form for now: it

@@ -1,5 +1,6 @@
 "use client";
 
+import { balanceWithSalesTax, readPricedSalesTax, SALES_TAX_ESTIMATE_LABEL, salesTaxEstimateText } from "@/features/billing/sales-tax-pricing";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -90,6 +91,9 @@ export function LiveProposalPreview({ id }: { id: string }) {
   const discountCents = Number(snapshot?.discountCents ?? 0);
   const taxCents = Number(snapshot?.taxCents ?? 0);
   const currency = snapshot?.currency ?? proposal.currency;
+  // Pre-tax "plus sales tax" (QuickBooks works it out): as the PDF prints it.
+  const salesTax = readPricedSalesTax(snapshot?.salesTax);
+  const salesTaxEstimate = salesTaxEstimateText(salesTax, String(currency ?? "USD"));
   const clientName =
     nested(proposal, "clientSnapshot.displayName") ??
     nested(proposal, "clientSnapshot.primaryName") ??
@@ -127,10 +131,12 @@ export function LiveProposalPreview({ id }: { id: string }) {
           )}
           {discountCents > 0 ? <tr><td>Discount</td><td>{money(-discountCents, currency)}</td></tr> : null}
           {taxCents > 0 ? <tr><td>Tax</td><td>{money(taxCents, currency)}</td></tr> : null}
-          <tr className="total"><td>Total</td><td>{money(total, currency)}</td></tr>
+          <tr className="total"><td>{salesTax && !salesTax.exempt ? "Total, plus sales tax" : "Total"}</td><td>{money(total, currency)}</td></tr>
+          {salesTaxEstimate ? <tr><td>{SALES_TAX_ESTIMATE_LABEL} — not included above</td><td>{salesTaxEstimate}</td></tr> : null}
+          {salesTax?.exempt ? <tr><td>No sales tax on this booking</td><td>None</td></tr> : null}
         </tbody></table>
       </section>
-      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{money(Math.max(0, total - retainer), currency)}</strong></span></div><p className="pdf-terms-summary">{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
+      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{balanceWithSalesTax(money(Math.max(0, total - retainer), currency), salesTax)}</strong></span></div><p className="pdf-terms-summary">{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
       <footer><span>Generated {formatDueDate(new Date().toISOString())}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
       </main>
     </div>
