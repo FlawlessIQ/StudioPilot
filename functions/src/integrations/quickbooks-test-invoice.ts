@@ -129,6 +129,7 @@ export async function runQuickBooksTestInvoice(input: {
         companyTaxCode: companyTaxCode?.id ?? null,
         today: at.slice(0, 10),
         withOnlinePayment,
+        email: input.email,
       });
     let invoiceId = "";
     let syncToken = "0";

@@ -11,6 +11,7 @@ import {
 import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
 import {
   quickBooksBillAddr,
+  quickBooksBillEmail,
   quickBooksTaxMode,
   type BillingAddress,
   type QuickBooksTaxMode,
@@ -259,6 +260,7 @@ export async function createGatedQuickBooksInvoice(input: {
       (await readInvoice(company, text(invoice.get("providerInvoiceId")))) ??
       (ourNumber ? await findByDocNumber(company, ourNumber) : null);
     if (!created) {
+      const billEmail = quickBooksBillEmail(await deps.clientEmailFor(db, tenantId, projectId));
       const post = (online: boolean, body: GatedPayload, suffix: string) =>
         company.post(
           "invoice",
@@ -267,9 +269,9 @@ export async function createGatedQuickBooksInvoice(input: {
             CustomerRef: { value: providerCustomerId },
             DueDate: invoice.get("dueDate"),
             PrivateNote: `StudioCue ${invoiceId}`,
-            // StudioCue does the emailing; QuickBooks creating the invoice
-            // never reaches the couple.
-            EmailStatus: "NotSet",
+            // The couple's email, for the pay link; StudioCue does the
+            // emailing, so QuickBooks creating the invoice never reaches them.
+            ...billEmail,
             ...(online ? deps.onlinePaymentFlags : {}),
             Line: body.Line,
             ...(body.TxnTaxDetail ? { TxnTaxDetail: body.TxnTaxDetail } : {}),

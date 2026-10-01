@@ -468,6 +468,10 @@ test("the test invoice is $1.00, asks for online payment, and lets QuickBooks wo
   const untaxed = testInvoiceBody({ customerId: "58", itemRef: { value: "12" }, salesTax: "none", companySalesTax: "automatic", today: "2026-10-01", withOnlinePayment: false });
   assert.deepEqual(((untaxed.Line as Array<Record<string, unknown>>)[0]!.SalesItemLineDetail as Record<string, unknown>).TaxCodeRef, { value: "NON" });
   assert.equal("AllowOnlineCreditCardPayment" in untaxed, false);
+  // A pay link needs an email on the invoice itself (GR's real company, 2026-10-01).
+  const withEmail = testInvoiceBody({ customerId: "58", itemRef: { value: "12" }, salesTax: "quickbooks", companySalesTax: "automatic", today: "2026-10-01", withOnlinePayment: true, email: "studio@example.com" });
+  assert.deepEqual(withEmail.BillEmail, { Address: "studio@example.com" });
+  assert.equal(withEmail.EmailStatus, "NotSet", "QuickBooks never sends it");
   const manualBody = testInvoiceBody({ customerId: "58", itemRef: { value: "12" }, salesTax: "quickbooks", companySalesTax: "manual", companyTaxCode: "2", today: "2026-10-01", withOnlinePayment: true });
   assert.deepEqual(manualBody.TxnTaxDetail, { TxnTaxCodeRef: { value: "2" } });
   assert.deepEqual(((manualBody.Line as Array<Record<string, unknown>>)[0]!.SalesItemLineDetail as Record<string, unknown>).TaxCodeRef, { value: "TAX" });

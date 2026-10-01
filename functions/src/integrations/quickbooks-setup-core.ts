@@ -8,7 +8,7 @@
  * tests/billing-settings.test.ts pins every rule. The I/O is in
  * quickbooks-items.ts (items) and quickbooks-setup.ts (the Function).
  */
-import { quickBooksTaxMode, type InvoiceLineKind } from "../operations/quickbooks-invoice-lines.js";
+import { quickBooksBillEmail, quickBooksTaxMode, type InvoiceLineKind } from "../operations/quickbooks-invoice-lines.js";
 import type { SalesTaxMode } from "../billing/sales-tax-settings.js";
 
 type Json = Record<string, unknown>;
@@ -239,6 +239,8 @@ export function testInvoiceBody(input: {
   companyTaxCode?: string | null;
   today: string;
   withOnlinePayment: boolean;
+  /** The studio's own email: a pay link needs one on the invoice. */
+  email?: string | null;
 }): Json {
   const taxed =
     input.salesTax === "quickbooks" &&
@@ -249,6 +251,7 @@ export function testInvoiceBody(input: {
     TxnDate: input.today,
     DueDate: input.today,
     PrivateNote: "StudioCue test invoice — voided automatically",
+    ...quickBooksBillEmail(input.email),
     CustomerMemo: { value: "A test from StudioCue. Nothing to pay; it has already been voided." },
     ...(input.withOnlinePayment ? { AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: true } : {}),
     ...(taxed && input.companySalesTax === "manual" ? { TxnTaxDetail: { TxnTaxCodeRef: { value: input.companyTaxCode } } } : {}),

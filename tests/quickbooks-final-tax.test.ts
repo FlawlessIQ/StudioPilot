@@ -16,7 +16,7 @@ import {
   sendReviewRecord,
   taxStrategyFromRecord,
 } from "../functions/src/operations/quickbooks-final-tax.ts";
-import { quickBooksRetainerLines, type JobPackageItem } from "../functions/src/operations/quickbooks-invoice-lines.ts";
+import { quickBooksBillEmail, quickBooksRetainerLines, type JobPackageItem } from "../functions/src/operations/quickbooks-invoice-lines.ts";
 import { heldInvoiceActionRefusal, sendHeldInvoiceIn } from "../functions/src/booking/held-invoice-send.ts";
 import { HELD_INVOICE_JOB_TYPE } from "../functions/src/operations/quickbooks-held-invoice.ts";
 import { raiseFinalInvoice } from "../functions/src/booking/final-invoice.ts";
@@ -727,7 +727,9 @@ test("the gated worker never overrides tax, never asks QuickBooks to email, and 
   const worker = read("functions/src/operations/quickbooks-held-invoice.ts");
   assert.doesNotMatch(worker, /TotalTax/);
   assert.doesNotMatch(worker, /`[^`\n]*\/send[^`\n]*`/, "never the QuickBooks send endpoint");
-  assert.match(worker, /EmailStatus: "NotSet"/);
+  // EmailStatus "NotSet" now comes with the couple's BillEmail (quickBooksBillEmail).
+  assert.match(worker, /\.\.\.billEmail,/);
+  assert.match(worker, /quickBooksBillEmail\(await deps\.clientEmailFor/);
   // The link and the email only for an invoice not held.
   assert.match(worker, /if \(providerInvoiceId && !hold\) \{[\s\S]{0,200}deps\.invoiceLink\([\s\S]{0,400}deps\.enqueueInvoiceEmail\(/);
   assert.match(worker, /status: hold \? "review_required"/);
@@ -808,4 +810,13 @@ test("Today asks the studio to check a held final with QuickBooks' figure, and a
   const retainerCard = retainerInbox.act.find((item) => item.id === "retainer-review-r")!;
   assert.equal(retainerCard.title, "Check and send Smith's retainer · $2,000");
   assert.equal((retainerCard.action as { href?: string }).href, "/studio/booking?project=p");
+});
+
+test("every StudioCue invoice carries the couple's email, so QuickBooks gives it a pay link, and never sends it", () => {
+  // QuickBooks makes InvoiceLink only for an invoice with BillEmail; the
+  // customer's email isn't copied across (GR Productions, 2026-10-01).
+  assert.deepEqual(quickBooksBillEmail(" sam@example.com "), { BillEmail: { Address: "sam@example.com" }, EmailStatus: "NotSet" });
+  assert.deepEqual(quickBooksBillEmail(""), { EmailStatus: "NotSet" });
+  assert.deepEqual(quickBooksBillEmail("not an email"), { EmailStatus: "NotSet" });
+  assert.deepEqual(quickBooksBillEmail(null), { EmailStatus: "NotSet" });
 });

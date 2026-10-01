@@ -37,6 +37,7 @@ import {
 import { voidInvoiceTask } from "../booking/stopped-billing.js";
 import {
   quickBooksAmountCheck,
+  quickBooksBillEmail,
   quickBooksCustomerCreateBody,
   quickBooksCustomerSparseUpdate,
   quickBooksLinePayload,
@@ -1713,7 +1714,8 @@ export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=get
       // studio switched on to itemised invoices: one that isn't gets no new
       // items in its QuickBooks and exactly the invoice it always had.
       const itemRef=(plan.itemised?await studioCueInvoiceItemRefs({tenantId,company:quickBooksCompany({apiBaseUrl:base,realmId,accessToken:credential.accessToken,request:providerJson}),idempotencyKey:itemKey}):null)??await quickBooksItemRef(base,realmId,credential,itemKey);const requestId=String(job.get("idempotencyKey")??job.id);
-      const createInvoice=(online:boolean,mode:QuickBooksTaxMode,suffix:string)=>{const payload=quickBooksLinePayload({lines:plan.lines,taxCents:plan.taxCents,mode,itemRef});return providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":`${requestId}${suffix}`},body:JSON.stringify({...(ourNumber?{DocNumber:ourNumber}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,...(online?QUICKBOOKS_ONLINE_PAYMENT_FLAGS:{}),Line:payload.Line,...(payload.TxnTaxDetail?{TxnTaxDetail:payload.TxnTaxDetail}:{})})},"QUICKBOOKS_CREATE_FAILED")};
+      const billEmail=quickBooksBillEmail(await clientEmailFor(db,tenantId,String(invoice.get("projectId"))));
+      const createInvoice=(online:boolean,mode:QuickBooksTaxMode,suffix:string)=>{const payload=quickBooksLinePayload({lines:plan.lines,taxCents:plan.taxCents,mode,itemRef});return providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":`${requestId}${suffix}`},body:JSON.stringify({...(ourNumber?{DocNumber:ourNumber}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,...billEmail,...(online?QUICKBOOKS_ONLINE_PAYMENT_FLAGS:{}),Line:payload.Line,...(payload.TxnTaxDetail?{TxnTaxDetail:payload.TxnTaxDetail}:{})})},"QUICKBOOKS_CREATE_FAILED")};
       const refused=(error:unknown)=>String((error as Error)?.message??"").startsWith("QUICKBOOKS_CREATE_FAILED:400:");
       // A refused request (400) created nothing, so asking again cannot
       // duplicate the invoice. First without the online-payment flags (a

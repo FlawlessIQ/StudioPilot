@@ -474,6 +474,22 @@ export function quickBooksBillAddr(address: BillingAddress | null | undefined): 
 }
 
 /** The body for a new QuickBooks customer. */
+/**
+ * The couple's email on the invoice itself, and QuickBooks told not to send it.
+ *
+ * QuickBooks only gives an invoice its pay-online link (`InvoiceLink`) when the
+ * invoice carries a `BillEmail` — the customer's own email is not enough, and
+ * the API does not copy it across. Every invoice StudioCue made for GR
+ * Productions therefore had no link, and the couple portal had nothing to pay
+ * from (found on GR's real company, 2026-10-01; one $1 invoice with BillEmail
+ * got a connect.intuit.com link). `EmailStatus: "NotSet"` keeps QuickBooks
+ * from queueing its own email: StudioCue does the emailing.
+ */
+export function quickBooksBillEmail(email: string | null | undefined): Record<string, unknown> {
+  const address = clean(email);
+  return { ...(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) ? { BillEmail: { Address: address } } : {}), EmailStatus: "NotSet" };
+}
+
 export function quickBooksCustomerCreateBody(contact: QuickBooksContact, displayName: string): Record<string, unknown> {
   const names = quickBooksCustomerNames(contact);
   const phone = clean(contact.phone);
