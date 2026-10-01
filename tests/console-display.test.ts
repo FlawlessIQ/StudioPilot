@@ -70,6 +70,11 @@ test("a job error says whether a rerun can help", () => {
   assert.equal(explainJobError("UNSUPPORTED_PROVIDER_JOB", "").oursToFix, true);
   assert.equal(explainJobError("PROJECT_NOT_FOUND", "").rerunHelps, false);
   assert.equal(explainJobError("SOMETHING_NEW", "").rerunHelps, true);
+  // Both seen dead-lettered on production; a rerun fails the same way.
+  assert.equal(explainJobError("IMPORT_SOURCE_MISSING", "IMPORT_SOURCE_MISSING").rerunHelps, false);
+  assert.equal(explainJobError("IMPORT_SOURCE_MISSING", "").studioFixes, true);
+  assert.equal(explainJobError("DROPBOX_PROJECT_ROOT_MISSING", "").rerunHelps, false);
+  assert.match(explainJobError("DROPBOX_PROJECT_ROOT_MISSING", "").cause, /Dropbox folder/);
   assert.equal(statusFromMessage("X:429:slow"), 429);
   assert.equal(statusFromMessage("NO_STATUS"), null);
   assert.equal(providerFromCode("CALENDAR_CREATE_FAILED"), "Google Calendar");

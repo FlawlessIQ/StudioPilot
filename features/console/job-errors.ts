@@ -7,7 +7,7 @@
  * and the job fails again until they reconnect. The Console groups failures by
  * cause and says, for each cause, what fixes it and whether a rerun can.
  *
- * Pure. tests/console-job-errors.test.ts pins the rules.
+ * Pure. tests/console-display.test.ts pins the rules.
  */
 
 export type JobErrorAdvice = {
@@ -106,6 +106,22 @@ export function explainJobError(code: string | null | undefined, message: string
       rerunHelps: false,
       studioFixes: false,
       oursToFix: true,
+    };
+  if (key === "IMPORT_SOURCE_MISSING")
+    return {
+      cause: "A file the studio imported never finished uploading.",
+      advice: "The import has nothing to read. Ask the studio to upload that file again; dismiss this one.",
+      rerunHelps: false,
+      studioFixes: true,
+      oursToFix: false,
+    };
+  if (key === "DROPBOX_PROJECT_ROOT_MISSING")
+    return {
+      cause: "This job has no Dropbox folder.",
+      advice: "Folders are made when a job is booked, so Dropbox probably wasn't connected then. A rerun fails the same way; dismiss it unless the folder should exist.",
+      rerunHelps: false,
+      studioFixes: false,
+      oursToFix: false,
     };
   if (/_NOT_FOUND$/.test(key))
     return {
