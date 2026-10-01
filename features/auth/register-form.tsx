@@ -11,6 +11,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { GoogleSignIn } from "@/features/auth/google-sign-in";
 import { rememberChosenPlan } from "@/features/subscriptions/chosen-plan";
+import { rememberPromotionCode } from "@/features/subscriptions/promotion-code";
 import { authIsLive } from "@/lib/runtime-mode";
 export function RegisterForm({
   next,
@@ -34,9 +35,12 @@ export function RegisterForm({
    */
   const verifiedNext = safeNext ?? (intent === "studio" ? "/auth/onboarding" : null);
   // "Start with Multi-Brand" on the website: remembered for the plan picker.
+  // A beta link (?code=BETA): remembered and applied at Checkout.
   useEffect(() => {
-    rememberChosenPlan(new URLSearchParams(window.location.search).get("plan"));
-  }, []);
+    const search = new URLSearchParams(window.location.search);
+    rememberChosenPlan(search.get("plan"));
+    if (intent === "studio") rememberPromotionCode(search.get("code"));
+  }, [intent]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState("submitting");

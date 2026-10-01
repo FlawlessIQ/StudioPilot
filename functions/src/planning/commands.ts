@@ -48,6 +48,7 @@ import {
 import { sameItemCrew, withCrewIds } from "./item-crew.js";
 import { questionnaireDueDate } from "./questionnaire-due.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
+import { queuePartnerSends } from "../client/partner-invitations.js";
 import { verifiedPrefill } from "./questionnaire-prefill.js";
 import {
   INQUIRY_FORM_EVENT_TYPES,
@@ -808,18 +809,21 @@ export const planningCommand = onRequest(
             batch.set(link.invitationWrite.reference, link.invitationWrite.data, {
               merge: true,
             });
-          batch.create(db.doc(`emailJobs/${jobId}`), {
+          const reminderJob = {
             id: jobId,
             tenantId: parsed.tenantId,
             projectId: parsed.input.projectId,
             type: "questionnaire_reminder",
             actionUrl: link.actionUrl,
             questionnaireResponseId: parsed.input.responseId,
+            soleRecipient: link.partnerSends.length > 0,
             status: "queued",
             attempts: 0,
             createdAt: now,
             updatedAt: now,
-          });
+          };
+          batch.create(db.doc(`emailJobs/${jobId}`), reminderJob);
+          queuePartnerSends(db, batch, reminderJob, link.partnerSends);
           // Not updatedAt: a reminder isn't an edit (see the scheduler).
           batch.update(reference, { lastReminderAt: now });
         }
@@ -1010,18 +1014,21 @@ export const planningCommand = onRequest(
             now,
           });
           const batch = db.batch();
-          batch.create(db.doc(`emailJobs/${jobId}`), {
+          const reminderJob = {
             id: jobId,
             tenantId: parsed.tenantId,
             projectId: parsed.input.projectId,
             type: "questionnaire_reminder",
             actionUrl: link.actionUrl,
             questionnaireResponseId: existing.id,
+            soleRecipient: link.partnerSends.length > 0,
             status: "queued",
             attempts: 0,
             createdAt: now,
             updatedAt: now,
-          });
+          };
+          batch.create(db.doc(`emailJobs/${jobId}`), reminderJob);
+          queuePartnerSends(db, batch, reminderJob, link.partnerSends);
           batch.update(db.doc(`questionnaireResponses/${existing.id}`), {
             lastReminderAt: now,
           });
@@ -1121,17 +1128,22 @@ export const planningCommand = onRequest(
         // for a couple who has it, otherwise a portal invitation that lands
         // on the form (questionnaire-link.ts) — an inquiry has not been
         // invited yet, and the bare portal link sent them to a sign-in page.
-        batch.create(db.doc(`emailJobs/questionnaire_request_${id}`), {
+        const requestJob = {
           id: emailJobId,
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
           type: "questionnaire_request",
           actionUrl: link.actionUrl,
+          // The partner's own copy and link go beside it when anyone's link
+          // is an invitation (client/partner-invitations.ts).
+          soleRecipient: link.partnerSends.length > 0,
           status: "queued",
           attempts: 0,
           createdAt: now,
           updatedAt: now,
-        });
+        };
+        batch.create(db.doc(`emailJobs/questionnaire_request_${id}`), requestJob);
+        queuePartnerSends(db, batch, requestJob, link.partnerSends);
         if (link.invitationWrite)
           batch.set(link.invitationWrite.reference, link.invitationWrite.data, {
             merge: true,

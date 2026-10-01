@@ -1,6 +1,7 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
+import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { clientOutreachStop, mayContactClient } from "../post-event/client-outreach.js";
 import { requireOwnerOrAdmin, stableId, type CommandContext } from "./commands.js";
 import { resendBlockedUntil, signedCopyRetryPlan } from "./resend.js";
@@ -94,7 +95,22 @@ export async function resendContract(context: CommandContext, input: z.infer<typ
           })
         : null;
     const emailJobId = `contract_ready_${contract.id}_again_${count}`;
-    transaction.create(db.doc(`emailJobs/${emailJobId}`), {
+    // The partner gets their own copy and link again too, not the first
+    // client's (client/partner-invitations.ts).
+    const partnerSends = await preparePartnerSends(db, (reference) => transaction.get(reference), {
+      tenantId: context.tenantId,
+      projectId: input.projectId,
+      clientContactIds: project.get("clientContactIds"),
+      primaryContactId: clientContactId,
+      primaryEmail: clientEmail,
+      primaryNeedsInvite: invitation !== null,
+      primaryEmailJobId: emailJobId,
+      appUrl,
+      path: contractPath,
+      actorId: context.actorId,
+      now: context.timestamp,
+    });
+    const readyEmail = {
       id: emailJobId,
       tenantId: context.tenantId,
       projectId: input.projectId,
@@ -107,11 +123,14 @@ export async function resendContract(context: CommandContext, input: z.infer<typ
       recipientName: text(client?.name) || null,
       actionUrl: invitation ? invitation.inviteUrl : `${appUrl}${contractPath}`,
       signerName: text(studioSigner?.name) || null,
+      soleRecipient: partnerSends.length > 0,
       status: "queued",
       attempts: 0,
       createdAt: context.timestamp,
       updatedAt: context.timestamp,
-    });
+    };
+    transaction.create(db.doc(`emailJobs/${emailJobId}`), readyEmail);
+    queuePartnerSends(db, transaction, readyEmail, partnerSends);
     if (invitation && clientContactId) {
       transaction.set(
         db.doc(`clientInvitations/${invitation.invitationId}`),

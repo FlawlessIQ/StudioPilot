@@ -26,7 +26,14 @@ export function OneOffPackageForm({
   busy,
   onSubmit,
   onCancel,
+  initial,
 }: {
+  /**
+   * Editing a one-off already on the job (updateOneOffPackage): the form
+   * opens filled in, and asks nothing about where it goes — it stays where
+   * it is, and stays a one-off ("Save to my Library" is its own button).
+   */
+  initial?: OneOffFormValues;
   currency: string;
   /** The job already has a package: ask whether this joins it or replaces it. */
   hasPackage: boolean;
@@ -42,18 +49,21 @@ export function OneOffPackageForm({
   onSubmit: (input: OneOffPackageInput, idempotencyKey: string) => void;
   onCancel: () => void;
 }) {
-  const [values, setValues] = useState<OneOffFormValues>({
-    name: "",
-    price: "",
-    included: "",
-    photographers: "",
-    videographers: "",
-    hours: "",
-    mode: hasPackage ? initialMode : "replace",
-    saveToLibrary: false,
-  });
+  const editing = initial !== undefined;
+  const [values, setValues] = useState<OneOffFormValues>(
+    initial ?? {
+      name: "",
+      price: "",
+      included: "",
+      photographers: "",
+      videographers: "",
+      hours: "",
+      mode: hasPackage ? initialMode : "replace",
+      saveToLibrary: false,
+    },
+  );
   const [error, setError] = useState<string | null>(null);
-  const [attemptKey] = useState(() => `one-off-${crypto.randomUUID()}`);
+  const [attemptKey] = useState(() => `${editing ? "one-off-edit" : "one-off"}-${crypto.randomUUID()}`);
   const set = <K extends keyof OneOffFormValues>(key: K, value: OneOffFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
   const hours = defaultHours && defaultHours > 0 ? defaultHours : 8;
@@ -69,12 +79,17 @@ export function OneOffPackageForm({
   };
 
   return (
-    <div className="one-off-package" role="group" aria-label="Write a one-off package">
+    <div
+      className="one-off-package"
+      role="group"
+      aria-label={editing ? "Edit this one-off package" : "Write a one-off package"}
+    >
       <div className="one-off-package-head">
-        <strong>Write a one-off package</strong>
+        <strong>{editing ? "Edit this one-off package" : "Write a one-off package"}</strong>
         <small>
-          Just for this job. It won&apos;t appear in your Library, on your client pages, or on anyone else&apos;s
-          proposal. The deposit and tax follow your usual packages.
+          {editing
+            ? "The proposal is priced again from these. Its extras and discount stay; a percentage deposit follows the new price."
+            : "Just for this job. It won't appear in your Library, on your client pages, or on anyone else's proposal. The deposit and tax follow your usual packages."}
         </small>
       </div>
       <label className="one-off-package-field one-off-package-grow">
@@ -137,7 +152,7 @@ export function OneOffPackageForm({
         </label>
         <small>Left blank: one photographer for {hours} hours.</small>
       </fieldset>
-      {hasPackage ? (
+      {hasPackage && !editing ? (
         <fieldset className="one-off-package-mode">
           <legend>On this job</legend>
           <label className="form-checkbox">
@@ -155,14 +170,16 @@ export function OneOffPackageForm({
           </label>
         </fieldset>
       ) : null}
-      <label className="form-checkbox one-off-package-wide">
-        <input
-          checked={values.saveToLibrary}
-          onChange={(event) => set("saveToLibrary", event.target.checked)}
-          type="checkbox"
-        />
-        <span>Also save to my Library — for other couples later. Clients only see it if you publish it.</span>
-      </label>
+      {editing ? null : (
+        <label className="form-checkbox one-off-package-wide">
+          <input
+            checked={values.saveToLibrary}
+            onChange={(event) => set("saveToLibrary", event.target.checked)}
+            type="checkbox"
+          />
+          <span>Also save to my Library — for other couples later. Clients only see it if you publish it.</span>
+        </label>
+      )}
       {error ? (
         <p className="form-error one-off-package-wide" role="alert">
           {error}
@@ -171,7 +188,13 @@ export function OneOffPackageForm({
       <div className="one-off-package-actions">
         <button className="button button-dark" disabled={busy} onClick={submit} type="button">
           {busy ? <LoaderCircle className="spin" size={14} /> : <Plus aria-hidden="true" size={14} />}
-          {!hasPackage ? "Lock this package" : values.mode === "add" ? "Add this package" : "Use this package"}
+          {editing
+            ? "Save changes"
+            : !hasPackage
+              ? "Lock this package"
+              : values.mode === "add"
+                ? "Add this package"
+                : "Use this package"}
         </button>
         <button className="button button-quiet" disabled={busy} onClick={onCancel} type="button">
           Cancel

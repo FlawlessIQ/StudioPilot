@@ -11,7 +11,11 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import {
   buildStripeCheckoutParams,
+  normalizePromotionCode,
+  promotionCouponReference,
+  resolvePromotion,
   resolveSubscriptionPeriod,
+  type ResolvedPromotion,
 } from "./stripe-checkout.js";
 
 const billingCommandSchema = z.object({
@@ -21,7 +25,53 @@ const billingCommandSchema = z.object({
   sessionId: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(200).optional(),
   plan: z.enum(["studio", "multi_brand"]).optional(),
   cadence: z.enum(["monthly", "yearly"]).optional(),
+  /**
+   * createCheckout: a promotion code carried from the signup link
+   * (`/auth/register?code=BETA`). Optional and never trusted for anything but
+   * a lookup — Stripe decides whether it is valid and what it is worth.
+   */
+  promotionCode: z.string().max(64).optional(),
 });
+
+/**
+ * Look a customer-facing code up in Stripe and resolve it for Checkout.
+ *
+ * Any failure (unknown code, revoked, expired, network) resolves to null, and
+ * the session then falls back to Checkout's own promotion-code field — a bad
+ * link must never block a studio from starting its trial.
+ */
+async function lookupPromotion(
+  secret: string,
+  rawCode: string | undefined,
+): Promise<ResolvedPromotion | null> {
+  const code = normalizePromotionCode(rawCode);
+  if (!code) return null;
+  try {
+    const headers = { authorization: `Bearer ${secret}` };
+    const listResponse = await fetch(
+      `https://api.stripe.com/v1/promotion_codes?code=${encodeURIComponent(code)}&active=true&limit=1`,
+      { headers },
+    );
+    if (!listResponse.ok) return null;
+    const list = (await listResponse.json()) as { data?: unknown[] };
+    const promotionCode = list.data?.[0];
+    if (!promotionCode || typeof promotionCode !== "object") return null;
+    let coupon = promotionCouponReference(
+      promotionCode as Record<string, unknown>,
+    );
+    if (typeof coupon === "string") {
+      const couponResponse = await fetch(
+        `https://api.stripe.com/v1/coupons/${encodeURIComponent(coupon)}`,
+        { headers },
+      );
+      if (!couponResponse.ok) return null;
+      coupon = (await couponResponse.json()) as Record<string, unknown>;
+    }
+    return resolvePromotion(promotionCode, coupon);
+  } catch {
+    return null;
+  }
+}
 const stripeEventSchema = z.object({
   id: z.string(),
   type: z.string(),
@@ -257,6 +307,9 @@ export const billingCommand = onRequest(
           // portal above, so this only ever grants a new trial to a genuine
           // first-timer (or a cancelled tenant with no live trial to honour).
           firstCheckout: normalizeStatus(existingStatus) === "incomplete",
+          // Beta codes: a code from the signup link is applied up front; with
+          // none (or one Stripe won't honour) Checkout offers its own field.
+          promotion: await lookupPromotion(secret, parsed.promotionCode),
         });
       } else {
         params = new URLSearchParams();

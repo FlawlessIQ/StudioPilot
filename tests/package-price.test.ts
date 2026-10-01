@@ -196,7 +196,10 @@ test("a job's extras re-price its package into a new snapshot, and never re-deri
   // shared with setPackageDiscount as repriceSnapshot.
   assert.match(handler, /const priced = repriceSnapshot\(previous, packageDocument, lines, discountRule\)/);
   const reprice = commands.slice(commands.indexOf("function repriceSnapshot("));
-  assert.match(reprice, /basePriceCents: Number\(previous\.get\("basePriceCents"\)/);
+  // The quoted base price, unless a one-off's own price was corrected
+  // (updateOneOffPackage passes it).
+  assert.match(reprice, /basePriceCents: number = Number\(previous\.get\("basePriceCents"\)/);
+  assert.match(reprice, /return pricePackage\(\{\s+basePriceCents,/);
   assert.match(reprice, /: \{ type: "fixed", amountCents: Number\(previous\.get\("retainerCents"\) \?\? 0\) \}/);
   assert.match(reprice, /return pricePackage\(\{/);
   // The panel revises the proposal after, like any package change.

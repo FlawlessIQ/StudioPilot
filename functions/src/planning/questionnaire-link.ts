@@ -7,6 +7,10 @@ import {
   mintClientInvitation,
   normalizeInviteEmail,
 } from "../client/invitation-mint.js";
+import {
+  preparePartnerSends,
+  type PartnerSend,
+} from "../client/partner-invitations.js";
 
 /**
  * Where "Complete questionnaire" sends the couple.
@@ -74,6 +78,13 @@ export type QuestionnaireLink = {
     reference: DocumentReference;
     data: DocumentData;
   } | null;
+  /**
+   * The partner's own copy, with their own link, when anyone's link is an
+   * invitation (client/partner-invitations.ts). The caller marks its job
+   * `soleRecipient: partnerSends.length > 0` and writes these with
+   * `queuePartnerSends` beside it.
+   */
+  partnerSends: PartnerSend[];
 };
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -101,10 +112,10 @@ export async function questionnaireLinkFor(
   const clientContactId = Array.isArray(input.clientContactIds)
     ? text(input.clientContactIds[0])
     : "";
-  if (!clientContactId) return { actionUrl: portalUrl, invitationWrite: null };
+  if (!clientContactId) return { actionUrl: portalUrl, invitationWrite: null, partnerSends: [] };
   const contact = await db.doc(`contacts/${clientContactId}`).get();
   if (!contact.exists || contact.get("tenantId") !== input.tenantId)
-    return { actionUrl: portalUrl, invitationWrite: null };
+    return { actionUrl: portalUrl, invitationWrite: null, partnerSends: [] };
   const contactEmail = normalizeInviteEmail(text(contact.get("email")));
   const portalUserId = text(contact.get("portalUserId"));
   const membership = portalUserId
@@ -126,7 +137,20 @@ export async function questionnaireLinkFor(
       membership?.get("role") === "client",
     projectId: input.projectId,
   });
-  if (plan === "portal") return { actionUrl: portalUrl, invitationWrite: null };
+  const partnerSends = await preparePartnerSends(db, (reference) => reference.get(), {
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    clientContactIds: input.clientContactIds,
+    primaryContactId: clientContactId,
+    primaryEmail: contactEmail,
+    primaryNeedsInvite: plan === "invite",
+    primaryEmailJobId: input.emailJobId,
+    appUrl,
+    path: QUESTIONNAIRE_PATH,
+    actorId: input.actorId,
+    now: input.now,
+  });
+  if (plan === "portal") return { actionUrl: portalUrl, invitationWrite: null, partnerSends };
 
   const invitation = mintClientInvitation({
     tenantId: input.tenantId,
@@ -138,6 +162,7 @@ export async function questionnaireLinkFor(
   const reference = db.doc(`clientInvitations/${invitation.invitationId}`);
   const existing = await reference.get();
   return {
+    partnerSends,
     actionUrl: invitation.inviteUrl,
     invitationWrite: {
       reference,

@@ -3,6 +3,7 @@ import { signedCopyDocumentId } from "./signed-copy-document.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
+import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { requireProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 import {
@@ -534,6 +535,22 @@ export async function sendContract(
             next: contractPath,
           })
         : null;
+    const emailJobId = `contract_ready_${contractId}`;
+    // Each partner on the job gets their own copy and link when anyone's is
+    // an invitation (client/partner-invitations.ts).
+    const partnerSends = await preparePartnerSends(db, (reference) => transaction.get(reference), {
+      tenantId: context.tenantId,
+      projectId: input.projectId,
+      clientContactIds: project.get("clientContactIds"),
+      primaryContactId: clientContactId,
+      primaryEmail: recheck.clientEmail,
+      primaryNeedsInvite: invitation !== null,
+      primaryEmailJobId: emailJobId,
+      appUrl,
+      path: contractPath,
+      actorId: context.actorId,
+      now: context.timestamp,
+    });
 
     // --- writes ---
     transaction.create(db.doc(`contractSignatures/${studioSignatureId}`), {
@@ -673,8 +690,7 @@ export async function sendContract(
       updatedAt: context.timestamp,
       updatedBy: context.actorId,
     });
-    const emailJobId = `contract_ready_${contractId}`;
-    transaction.create(db.doc(`emailJobs/${emailJobId}`), {
+    const readyEmail = {
       id: emailJobId,
       tenantId: context.tenantId,
       projectId: input.projectId,
@@ -684,11 +700,14 @@ export async function sendContract(
       recipientName: recheck.clientName,
       actionUrl: invitation ? invitation.inviteUrl : `${appUrl}${contractPath}`,
       signerName: input.studioSignerName,
+      soleRecipient: partnerSends.length > 0,
       status: "queued",
       attempts: 0,
       createdAt: context.timestamp,
       updatedAt: context.timestamp,
-    });
+    };
+    transaction.create(db.doc(`emailJobs/${emailJobId}`), readyEmail);
+    queuePartnerSends(db, transaction, readyEmail, partnerSends);
     if (invitation && clientContactId) {
       transaction.set(
         db.doc(`clientInvitations/${invitation.invitationId}`),

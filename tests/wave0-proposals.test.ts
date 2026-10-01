@@ -148,8 +148,9 @@ test("a coordinator cannot change packages while a proposal priced from them exi
   );
   const crm = read("functions/src/crm/commands.ts");
   // selectPackage, removePackage, setJobAddOns — and setPackageDiscount (wave 1),
-  // and createOneOffPackage (a package written for one couple, 2026-10-01).
-  assert.equal((crm.match(/role: String\(membershipData\.role\),/g) ?? []).length, 5);
+  // and createOneOffPackage (a package written for one couple, 2026-10-01),
+  // and updateOneOffPackage (correcting it on its job).
+  assert.equal((crm.match(/role: String\(membershipData\.role\),/g) ?? []).length, 6);
   assert.match(crm, /throw new Error\("PACKAGE_CHANGE_NEEDS_APPROVER"\)/);
   assert.notEqual(
     friendlyError(new Error("PACKAGE_CHANGE_NEEDS_APPROVER"), "fallback"),

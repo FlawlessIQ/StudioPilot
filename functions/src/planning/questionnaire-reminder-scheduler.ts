@@ -3,6 +3,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { questionnaireReminderDue } from "./questionnaire-reminders.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
+import { queuePartnerSends } from "../client/partner-invitations.js";
 
 /**
  * Send the questionnaire reminders templates have always promised.
@@ -84,7 +85,7 @@ export const questionnaireReminderScheduler = onSchedule(
             transaction.set(link.invitationWrite.reference, link.invitationWrite.data, {
               merge: true,
             });
-          transaction.create(jobReference, {
+          const reminderJob = {
             id: jobReference.id,
             tenantId,
             projectId,
@@ -92,11 +93,16 @@ export const questionnaireReminderScheduler = onSchedule(
             actionUrl: link.actionUrl,
             questionnaireResponseId: response.id,
             reminderDaysBeforeDue: offset,
+            // The partner's own copy and link, when anyone's is an
+            // invitation (client/partner-invitations.ts).
+            soleRecipient: link.partnerSends.length > 0,
             status: "queued",
             attempts: 0,
             createdAt: now,
             updatedAt: now,
-          });
+          };
+          transaction.create(jobReference, reminderJob);
+          queuePartnerSends(db, transaction, reminderJob, link.partnerSends);
           // Not updatedAt: a reminder isn't an edit, and the client's form
           // shouldn't see the response change under it.
           transaction.update(response.ref, {

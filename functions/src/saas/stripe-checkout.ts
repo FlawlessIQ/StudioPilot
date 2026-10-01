@@ -38,6 +38,86 @@ export const resolveSubscriptionPeriod = (
     stripeSecondsToIso(object.trial_end),
 });
 
+/**
+ * A promotion code as carried in from a signup link (`/auth/register?code=BETA`).
+ * Stripe codes are case-insensitive letters, digits, hyphens and underscores;
+ * anything else is dropped rather than sent.
+ */
+export const normalizePromotionCode = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const code = value.trim().toUpperCase();
+  return /^[A-Z0-9_-]{2,64}$/.test(code) ? code : null;
+};
+
+/** What Checkout needs to know about a code resolved before the session. */
+export type ResolvedPromotion = {
+  /** Stripe's `promo_…` id — what `discounts[0][promotion_code]` takes. */
+  promotionCodeId: string;
+  /**
+   * 100% off with `duration: forever`: the studio never owes anything, so
+   * Checkout neither collects a card nor starts a trial (see below).
+   */
+  freeForever: boolean;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+/**
+ * The coupon a promotion code points at — an embedded object or a bare id.
+ * Older Stripe API versions embed it as `coupon`; 2025-09-30 and later moved it
+ * to `promotion: { type: "coupon", coupon: "…" }`. Read either.
+ */
+export const promotionCouponReference = (
+  promotionCode: Record<string, unknown>,
+): Record<string, unknown> | string | null => {
+  for (const candidate of [
+    promotionCode.coupon,
+    asRecord(promotionCode.promotion)?.coupon,
+  ]) {
+    const object = asRecord(candidate);
+    if (object) return object;
+    if (typeof candidate === "string" && candidate) return candidate;
+  }
+  return null;
+};
+
+/**
+ * Whether a promotion code (and its coupon) can be applied now, and if so how.
+ *
+ * Only a code Stripe still calls `active`, whose coupon is still `valid`, that
+ * hasn't passed its `expires_at` or used up its `max_redemptions`, resolves.
+ * Anything else returns null and Checkout falls back to its own code field
+ * (`allow_promotion_codes`), so a stale or revoked link never strands the
+ * studio on an error — they can type a working code or start a normal trial.
+ */
+export const resolvePromotion = (
+  promotionCode: unknown,
+  coupon: unknown,
+  nowMs: number = Date.now(),
+): ResolvedPromotion | null => {
+  const code = asRecord(promotionCode);
+  const couponRecord = asRecord(coupon);
+  if (!code || !couponRecord) return null;
+  if (typeof code.id !== "string" || !code.id.startsWith("promo_")) return null;
+  if (code.active !== true || couponRecord.valid !== true) return null;
+  if (typeof code.expires_at === "number" && code.expires_at * 1000 <= nowMs)
+    return null;
+  if (
+    typeof code.max_redemptions === "number" &&
+    typeof code.times_redeemed === "number" &&
+    code.times_redeemed >= code.max_redemptions
+  )
+    return null;
+  return {
+    promotionCodeId: code.id,
+    freeForever:
+      couponRecord.percent_off === 100 && couponRecord.duration === "forever",
+  };
+};
+
 export const buildStripeCheckoutParams = ({
   appUrl,
   customerId,
@@ -46,6 +126,7 @@ export const buildStripeCheckoutParams = ({
   tenantId,
   trialEndIso,
   firstCheckout,
+  promotion,
 }: {
   appUrl: string;
   customerId?: string;
@@ -66,6 +147,13 @@ export const buildStripeCheckoutParams = ({
    * end so a late card-adder can't mint themselves a new trial.
    */
   firstCheckout?: boolean;
+  /**
+   * A code resolved server-side from the signup link, applied as a discount.
+   * Without one, Checkout shows its own "Add promotion code" field instead.
+   * Stripe refuses `allow_promotion_codes` together with `discounts`, so it is
+   * always exactly one of the two.
+   */
+  promotion?: ResolvedPromotion | null;
 }) => {
   const params = new URLSearchParams();
   params.set("mode", "subscription");
@@ -75,7 +163,18 @@ export const buildStripeCheckoutParams = ({
   // first 14 days don't charge, so the trial converts (or fails to past_due)
   // on its own instead of becoming a free-forever account. Without this Stripe
   // defaults to "if_required" for trials and lets the trial start with no card.
-  params.set("payment_method_collection", "always");
+  //
+  // The one exception is a resolved code that is 100% off forever (a comped
+  // beta studio): nothing will ever be charged, so a card is friction with no
+  // purpose. "if_required" makes Checkout skip the card when the amount due is
+  // $0, which it always is under that code. A code typed into Checkout's own
+  // field can't be known here, so that path keeps "always": the card is
+  // collected and simply never charged.
+  const freeForever = promotion?.freeForever === true;
+  params.set(
+    "payment_method_collection",
+    freeForever ? "if_required" : "always",
+  );
   // A monthly B2B SaaS subscription takes a card, not Cash App Pay / Klarna
   // (audit deferred item P11-methods). Pin the method rather than inheriting the
   // account's globally-enabled set, which is shared with other FlawlessIQ products.
@@ -87,7 +186,17 @@ export const buildStripeCheckoutParams = ({
     `${appUrl}/studio/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
   );
   params.set("cancel_url", `${appUrl}/studio/subscription?checkout=cancelled`);
-  if (firstCheckout) {
+  if (promotion) {
+    params.set("discounts[0][promotion_code]", promotion.promotionCodeId);
+  } else {
+    params.set("allow_promotion_codes", "true");
+  }
+  if (freeForever) {
+    // No trial for a free-forever studio: it would read "Free trial · Trial
+    // ends …" for 14 days and then flip to `active` on a $0 invoice anyway.
+    // Starting `active` with $0 invoices passes the gate, which is status-only
+    // (subscriptionGrantsAccess: trialing | active).
+  } else if (firstCheckout) {
     // First checkout: anchor a full 14-day trial at checkout time. Gives the
     // buyer 14 whole days (not 14-minus-the-onboarding-gap) and makes Stripe's
     // Checkout page read "14 days free" rather than flooring to 13.

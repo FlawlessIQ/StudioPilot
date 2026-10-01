@@ -100,3 +100,44 @@ export function parseOneOffForm(
     },
   };
 }
+
+/**
+ * The form filled in from a one-off already written — its package document,
+ * or the job's snapshot of it — for "Edit" on the job's Packages panel
+ * (updateOneOffPackage). Reads back through `parseOneOffForm` to the same
+ * name, price, bullets and coverage.
+ */
+export function oneOffFormValuesFrom(record: unknown): OneOffFormValues {
+  const row = typeof record === "object" && record !== null ? (record as Record<string, unknown>) : {};
+  const name =
+    typeof row.name === "string" ? row.name : typeof row.packageName === "string" ? row.packageName : "";
+  const cents =
+    typeof row.basePriceCents === "number" && Number.isSafeInteger(row.basePriceCents) && row.basePriceCents >= 0
+      ? row.basePriceCents
+      : null;
+  const price = cents === null ? "" : cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
+  const lines = Array.isArray(row.includedDeliverables)
+    ? row.includedDeliverables.filter((line): line is string => typeof line === "string")
+    : [];
+  const included = lines.length ? lines.join("\n") : typeof row.description === "string" ? row.description : "";
+  const coverage = Array.isArray(row.includedCoverage) ? (row.includedCoverage as Array<Record<string, unknown>>) : [];
+  const countOf = (role: string) => {
+    const found = coverage.find((item) => item.role === role);
+    return typeof found?.count === "number" && found.count > 0 ? String(found.count) : "";
+  };
+  const legacyPhotographers =
+    typeof row.includedPhotographers === "number" && row.includedPhotographers > 0
+      ? String(row.includedPhotographers)
+      : "";
+  const minutes = typeof row.includedCoverageMinutes === "number" ? row.includedCoverageMinutes : 0;
+  return {
+    name,
+    price,
+    included,
+    photographers: coverage.length ? countOf("photographer") : legacyPhotographers,
+    videographers: coverage.length ? countOf("videographer") : "",
+    hours: minutes > 0 ? String(Math.round((minutes / 60) * 100) / 100) : "",
+    mode: "add",
+    saveToLibrary: false,
+  };
+}

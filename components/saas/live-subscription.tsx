@@ -12,6 +12,7 @@ import { planEntitlements } from "@/features/subscriptions/entitlements";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { chosenPlan } from "@/features/subscriptions/chosen-plan";
+import { rememberedPromotionCode } from "@/features/subscriptions/promotion-code";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { activeMembership } from "@/lib/firebase/active-membership";
 
@@ -44,6 +45,8 @@ export function LiveSubscription() {
   // Before a trial there is no current plan, only the one picked on the
   // website (if any); after, the subscription says.
   const picked = useSyncExternalStore(noSubscribe, chosenPlan, () => null);
+  // A beta link's code, applied at Checkout (billingCommand resolves it).
+  const promotionCode = useSyncExternalStore(noSubscribe, rememberedPromotionCode, () => null);
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
   // How the studio arrived: back from Stripe Checkout (?checkout=success — the
   // trial is being provisioned by the webhook and this live page flips to
@@ -149,6 +152,9 @@ export function LiveSubscription() {
             {preTrial
               ? "Pick the plan that fits your studio to open your workspace. Your card is collected now but nothing is charged until the trial ends — cancel any time before then."
               : "Manage your plan and billing securely through Stripe."}
+            {preTrial && promotionCode
+              ? ` Your code ${promotionCode} is applied at checkout — if it covers everything, Stripe won't ask for a card.`
+              : null}
           </p>
         </div>
         <div className="subscription-status">
