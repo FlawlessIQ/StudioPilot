@@ -14,6 +14,12 @@ import {
 } from "./quickbooks-setup-core.js";
 import { ensureStudioCueItems, verifiedStoredItemIds, type QuickBooksCompany } from "./quickbooks-items.js";
 import type { SalesTaxMode } from "../billing/sales-tax-settings.js";
+import { quickBooksTaxMode } from "../operations/quickbooks-invoice-lines.js";
+import {
+  chooseQuickBooksTaxStrategy,
+  quickBooksDefaultTaxCode,
+  quickBooksSalesTaxCodes,
+} from "../operations/quickbooks-final-tax.js";
 
 /**
  * The "Send a test invoice" run against one QuickBooks company: no Firestore,
@@ -56,6 +62,26 @@ export async function runQuickBooksTestInvoice(input: {
   const at = input.now ?? new Date().toISOString();
   const { companyInfo, preferences } = await readQuickBooksCompany(company, input.realmId);
   const companySalesTax = quickBooksCompanyStatus({ companyInfo, preferences, taxRates: null, lastTest: null }).salesTax;
+  // A manual-tax company: the code its real finals would carry, chosen the same way.
+  let companyTaxCode: { id: string; name: string | null } | null = null;
+  if (input.salesTax === "quickbooks" && companySalesTax === "manual") {
+    const codes = await optional(async () =>
+      quickBooksSalesTaxCodes(await company.query("select * from TaxCode", "QUICKBOOKS_TAXCODE_READ_FAILED")),
+    );
+    const strategy = chooseQuickBooksTaxStrategy({
+      taxApplies: true,
+      companyMode: quickBooksTaxMode(preferences),
+      defaultTaxCode: quickBooksDefaultTaxCode(preferences),
+      salesTaxCodes: codes ?? [],
+      estimateRateBasisPoints: null,
+    });
+    if (strategy.kind === "company_code")
+      companyTaxCode = {
+        id: strategy.taxCodeId,
+        // Preferences name the default code by id only; the code list has its name.
+        name: strategy.taxCodeName ?? codes?.find((code) => code.id === strategy.taxCodeId)?.name ?? null,
+      };
+  }
 
   // The package item: the line is the taxable service a real final bills.
   let items = await optional(() => verifiedStoredItemIds(company, input.storedItems));
@@ -69,6 +95,7 @@ export async function runQuickBooksTestInvoice(input: {
     void: null,
     salesTax: input.salesTax,
     companySalesTax,
+    companyTaxCode,
   };
 
   let customerId = "";
@@ -99,6 +126,7 @@ export async function runQuickBooksTestInvoice(input: {
         itemRef: packageItem,
         salesTax: input.salesTax,
         companySalesTax,
+        companyTaxCode: companyTaxCode?.id ?? null,
         today: at.slice(0, 10),
         withOnlinePayment,
       });

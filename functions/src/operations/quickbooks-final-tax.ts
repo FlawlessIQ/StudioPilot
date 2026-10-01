@@ -437,6 +437,21 @@ export function quickBooksLinesWithoutTax(lines: unknown): QuickBooksLine[] {
     });
 }
 
+/**
+ * The sparse-update changes for "Send without tax".
+ *
+ * NON lines alone are enough on Automated Sales Tax. An older manual-tax
+ * company also carries its tax code on the invoice (`TxnTaxCodeRef`), and
+ * QuickBooks refuses NON lines under it ("encountered an error while
+ * calculating tax") — found against Intuit's sandbox, 2026-10-01. An empty
+ * `TxnTaxDetail` clears the code; it is sent only when there is one.
+ */
+export function quickBooksUntaxChanges(invoice: unknown): Record<string, unknown> {
+  const value = record(invoice);
+  const companyCode = text(record(record(value.TxnTaxDetail).TxnTaxCodeRef).value);
+  return { Line: quickBooksLinesWithoutTax(value.Line), ...(companyCode ? { TxnTaxDetail: {} } : {}) };
+}
+
 /** The lines as read, less QuickBooks' generated ones — for an update that changes nothing but the address. */
 export function quickBooksLinesAsSent(lines: unknown): QuickBooksLine[] {
   if (!Array.isArray(lines)) return [];

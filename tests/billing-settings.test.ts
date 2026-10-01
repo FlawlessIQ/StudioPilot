@@ -424,7 +424,14 @@ test("each failure is named, and a later step that never ran is not blamed", () 
   assert.match(noPayments.checks.find((check) => check.key === "pay_link")!.detail, /QuickBooks Payments/);
   const manual = testInvoiceChecks({ ...passing, companySalesTax: "manual" }, "t");
   assert.equal(manual.checks.find((check) => check.key === "tax")!.ok, false);
-  assert.match(manual.checks.find((check) => check.key === "tax")!.detail, /Automated Sales Tax/);
+  assert.match(manual.checks.find((check) => check.key === "tax")!.detail, /no default rate/);
+  // A manual-tax company with a default rate is taxed the way its finals are
+  // (Intuit sandbox, 2026-10-01): a pass, naming the rate.
+  const manualCoded = testInvoiceChecks({ ...passing, companySalesTax: "manual", companyTaxCode: { id: "2", name: "California" } }, "t");
+  assert.equal(manualCoded.checks.find((check) => check.key === "tax")!.ok, true);
+  assert.match(manualCoded.checks.find((check) => check.key === "tax")!.detail, /"California" rate/);
+  const noTaxCharged = testInvoiceChecks({ ...passing, invoice: { ...passing.invoice!, taxCents: 0 } }, "t");
+  assert.equal(noTaxCharged.checks.find((check) => check.key === "tax")!.ok, false);
   const stuck = testInvoiceChecks({ ...passing, void: { ok: false, error: "stale SyncToken" } }, "t");
   assert.equal(stuck.passed, false);
   assert.match(stuck.checks.find((check) => check.key === "void")!.detail, /Void it yourself/);
@@ -461,6 +468,9 @@ test("the test invoice is $1.00, asks for online payment, and lets QuickBooks wo
   const untaxed = testInvoiceBody({ customerId: "58", itemRef: { value: "12" }, salesTax: "none", companySalesTax: "automatic", today: "2026-10-01", withOnlinePayment: false });
   assert.deepEqual(((untaxed.Line as Array<Record<string, unknown>>)[0]!.SalesItemLineDetail as Record<string, unknown>).TaxCodeRef, { value: "NON" });
   assert.equal("AllowOnlineCreditCardPayment" in untaxed, false);
+  const manualBody = testInvoiceBody({ customerId: "58", itemRef: { value: "12" }, salesTax: "quickbooks", companySalesTax: "manual", companyTaxCode: "2", today: "2026-10-01", withOnlinePayment: true });
+  assert.deepEqual(manualBody.TxnTaxDetail, { TxnTaxCodeRef: { value: "2" } });
+  assert.deepEqual(((manualBody.Line as Array<Record<string, unknown>>)[0]!.SalesItemLineDetail as Record<string, unknown>).TaxCodeRef, { value: "TAX" });
   const noTaxCompany = testInvoiceBody({ customerId: "58", itemRef: { value: "12" }, salesTax: "quickbooks", companySalesTax: "off", today: "2026-10-01", withOnlinePayment: true });
   assert.equal("TaxCodeRef" in (((noTaxCompany.Line as Array<Record<string, unknown>>)[0]!.SalesItemLineDetail) as Record<string, unknown>), false);
 });

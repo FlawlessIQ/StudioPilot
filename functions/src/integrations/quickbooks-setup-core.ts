@@ -226,20 +226,24 @@ export function testCustomerBody(email: string, address: Json | null): Json {
  * invoice, so a pay link proves QuickBooks Payments. With StudioCue's sales
  * tax on QuickBooks and an automatic company, the line is marked TAX with no
  * override, so QuickBooks works the tax out itself — the thing being tested.
- * Nothing is emailed: StudioCue never asks QuickBooks to send it.
+ * An older manual-tax company is taxed the way its real finals are: TAX on
+ * the line under the company's own code (`companyTaxCode`, chosen by
+ * chooseQuickBooksTaxStrategy). Nothing is emailed: StudioCue never asks QuickBooks to send it.
  */
 export function testInvoiceBody(input: {
   customerId: string;
   itemRef: { value: string; name?: string };
   salesTax: SalesTaxMode;
   companySalesTax: QuickBooksSalesTaxSetup;
+  /** A manual-tax company's code, when its finals would be taxed with it. */
+  companyTaxCode?: string | null;
   today: string;
   withOnlinePayment: boolean;
 }): Json {
-  const taxCode =
-    input.companySalesTax === "off"
-      ? {}
-      : { TaxCodeRef: { value: input.salesTax === "quickbooks" && input.companySalesTax === "automatic" ? "TAX" : "NON" } };
+  const taxed =
+    input.salesTax === "quickbooks" &&
+    (input.companySalesTax === "automatic" || (input.companySalesTax === "manual" && Boolean(input.companyTaxCode)));
+  const taxCode = input.companySalesTax === "off" ? {} : { TaxCodeRef: { value: taxed ? "TAX" : "NON" } };
   return {
     CustomerRef: { value: input.customerId },
     TxnDate: input.today,
@@ -247,6 +251,7 @@ export function testInvoiceBody(input: {
     PrivateNote: "StudioCue test invoice — voided automatically",
     CustomerMemo: { value: "A test from StudioCue. Nothing to pay; it has already been voided." },
     ...(input.withOnlinePayment ? { AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: true } : {}),
+    ...(taxed && input.companySalesTax === "manual" ? { TxnTaxDetail: { TxnTaxCodeRef: { value: input.companyTaxCode } } } : {}),
     Line: [
       {
         Amount: TEST_INVOICE_CENTS / 100,
@@ -284,6 +289,8 @@ export type TestInvoiceOutcome = {
   void: { ok: boolean; error?: string } | null;
   salesTax: SalesTaxMode;
   companySalesTax: QuickBooksSalesTaxSetup;
+  /** Manual-tax company: the rate its invoices use, when it has one. */
+  companyTaxCode?: { id: string; name: string | null } | null;
 };
 
 const dollars = (amountCents: number) =>
@@ -317,19 +324,25 @@ export function testInvoiceChecks(outcome: TestInvoiceOutcome, at: string, mock 
   });
   const taxApplies = outcome.salesTax === "quickbooks";
   const taxCents = invoice?.taxCents ?? null;
+  const manualCode = outcome.companySalesTax === "manual" ? (outcome.companyTaxCode ?? null) : null;
+  const taxable = outcome.companySalesTax === "automatic" || manualCode !== null;
   checks.push({
     key: "tax",
     label: "Sales tax",
-    ok: !taxApplies || !invoice?.ok ? null : outcome.companySalesTax === "automatic" && taxCents !== null,
+    ok: !taxApplies || !invoice?.ok ? null : taxable && taxCents !== null && taxCents > 0,
     detail: !taxApplies
       ? "Not checked — you've chosen not to add sales tax."
       : !invoice?.ok
         ? "Not checked — there was no invoice."
-        : outcome.companySalesTax !== "automatic"
-          ? "QuickBooks doesn't calculate sales tax automatically for your company. Turn on Automated Sales Tax in QuickBooks (Taxes → Sales tax), or choose \"Don't add sales tax\"."
-          : taxCents === null
-            ? "QuickBooks didn't return any sales tax on the invoice."
-            : `QuickBooks calculated ${dollars(taxCents)} tax on ${dollars(TEST_INVOICE_CENTS)} at your own address.`,
+        : outcome.companySalesTax === "manual" && !manualCode
+          ? "Your QuickBooks sets sales tax by hand and has no default rate to charge. Set a default sales tax rate in QuickBooks (Taxes → Sales tax), or choose \"Don't add sales tax\"."
+          : !taxable
+            ? "QuickBooks doesn't calculate sales tax automatically for your company. Turn on Automated Sales Tax in QuickBooks (Taxes → Sales tax), or choose \"Don't add sales tax\"."
+            : taxCents === null || taxCents <= 0
+              ? "QuickBooks didn't add any sales tax to the invoice."
+              : manualCode
+                ? `QuickBooks charged ${dollars(taxCents)} tax on ${dollars(TEST_INVOICE_CENTS)} at your ${manualCode.name ? `"${manualCode.name}"` : "default"} rate. Every couple pays that rate; turn on Automated Sales Tax in QuickBooks to charge by their address instead.`
+                : `QuickBooks calculated ${dollars(taxCents)} tax on ${dollars(TEST_INVOICE_CENTS)} at your own address.`,
   });
   checks.push({
     key: "pay_link",

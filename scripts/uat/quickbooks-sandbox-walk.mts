@@ -17,10 +17,15 @@
  *
  *   npx tsx scripts/uat/quickbooks-sandbox-walk.mts
  *
- * Steps 1–4 and 6–8 run today. Steps marked TODO need the invoice tax flow
- * (another agent's work) and say what is stubbed. The sandbox company should
- * be US, with Automated Sales Tax and QuickBooks Payments switched on — see
- * docs/booking-integrations.md, "Not yet verified against a real company".
+ * Steps marked TODO say what is stubbed. Step 7 runs the final invoice's real
+ * tax builders (strategy, held, "Send without tax"). A sandbox company has
+ * no QuickBooks Payments, so the pay-online check fails there by design.
+ * Intuit's default sandbox (Sandbox Company_US_1) uses older manual tax; an
+ * Automated Sales Tax company exercises the by-address path instead.
+ *
+ * Walked 2026-10-01 against Sandbox Company_US_1: 13 passed, pay link the
+ * one fail. It found "Send without tax" refused on manual-tax companies
+ * (fixed: quickBooksUntaxChanges) and the test invoice failing them.
  */
 import { createRequire } from "node:module";
 import { writeFileSync } from "node:fs";
@@ -98,9 +103,13 @@ const { companyInfo, preferences } = await readQuickBooksCompany(company, realmI
 const status = quickBooksCompanyStatus({ companyInfo, preferences, taxRates: null, lastTest: null });
 record(
   "2 company",
-  status.salesTax === "automatic" ? true : false,
+  status.salesTax !== "off",
   `${status.companyName ?? "unnamed"} (${status.country ?? "?"}) — sales tax ${status.salesTax}, payments ${status.payments.state}` +
-    (status.salesTax === "automatic" ? "" : ". Turn on Automated Sales Tax in the sandbox company for the tax steps."),
+    (status.salesTax === "automatic"
+      ? ""
+      : status.salesTax === "manual"
+        ? ". Older manual tax: finals use the company's default code (step 7); Automated Sales Tax is the by-address path."
+        : ". Turn on sales tax in the sandbox company for the tax steps."),
 );
 
 // --- 3. billing settings, in the emulator ---------------------------------------
@@ -191,43 +200,64 @@ const payment = await company.post(
 const paymentRecord = payment.Payment as { Id: string; SyncToken: string };
 record("6 retainer paid (simulated)", true, `payment ${paymentRecord.Id} applied to ${retainerInvoice.Id}`);
 
-// --- 7. final invoice with tax ----------------------------------------------------
-// TODO(agent: invoice tax flow) — the real final lets QuickBooks calculate the
-// tax for the couple's address and the studio confirms it. Here: the package
-// lines with TAX codes and no override, and the figure QuickBooks returns.
-const finalLines = lines.quickBooksFinalLines({
+// --- 7. the real final: StudioCue's tax strategy, held, then sent without tax -----
+// The same builders createGatedQuickBooksInvoice and the held-invoice worker
+// use, against this company: Automated Sales Tax works from the couple's
+// address; an older manual-tax company uses its default tax code.
+const taxFlow = await import(`${REPO}/functions/src/operations/quickbooks-final-tax.ts`);
+const companyMode = lines.quickBooksTaxMode(preferences);
+const codes = taxFlow.quickBooksSalesTaxCodes(
+  await company.query("select * from TaxCode", "QUICKBOOKS_TAXCODE_READ_FAILED"),
+);
+const strategy = taxFlow.chooseQuickBooksTaxStrategy({
+  taxApplies: true,
+  companyMode,
+  defaultTaxCode: taxFlow.quickBooksDefaultTaxCode(preferences),
+  salesTaxCodes: codes,
+  estimateRateBasisPoints: settings.salesTax.estimateRateBasisPoints ?? null,
+});
+const gated = taxFlow.gatedFinalLines({
   amountCents: 300000,
-  packageTotalCents: 500000,
-  taxCents: 0,
+  preTaxTotalCents: 500000,
   discountCents: 0,
   items: [packageItem],
   retainerPaidCents: 200000,
+  taxApplies: true,
 });
-const finalPayload = lines.quickBooksLinePayload({ lines: finalLines.lines, taxCents: 0, mode: "manual", itemRef });
-const taxedLines = finalPayload.Line.map((line: Record<string, unknown>, index: number) => ({
-  ...line,
-  SalesItemLineDetail: {
-    ...(line.SalesItemLineDetail as Record<string, unknown>),
-    TaxCodeRef: { value: finalLines.lines[index]?.taxable ? "TAX" : "NON" },
-  },
-}));
-const finalCreated = await company.post(
-  "invoice",
-  { CustomerRef: { value: coupleId }, AllowOnlineCreditCardPayment: true, AllowOnlineACHPayment: true, Line: taxedLines },
-  "QUICKBOOKS_CREATE_FAILED",
-  `${runKey}-final`,
-);
-const finalInvoice = finalCreated.Invoice as { Id: string; SyncToken: string; TotalAmt: number; TxnTaxDetail?: { TotalTax?: number } };
-const finalTax = Math.round(Number(finalInvoice.TxnTaxDetail?.TotalTax ?? 0) * 100);
+const gatedPayload = taxFlow.quickBooksGatedPayload({ lines: gated.lines, strategy, companyMode, itemRef });
+const held = (
+  await company.post(
+    "invoice",
+    {
+      CustomerRef: { value: coupleId },
+      BillAddr: { Line1: "2600 Marine Way", City: "Mountain View", CountrySubDivisionCode: "CA", PostalCode: "94043", Country: "USA" },
+      AllowOnlineCreditCardPayment: true,
+      AllowOnlineACHPayment: true,
+      Line: gatedPayload.Line,
+      ...(gatedPayload.TxnTaxDetail ? { TxnTaxDetail: gatedPayload.TxnTaxDetail } : {}),
+    },
+    "QUICKBOOKS_CREATE_FAILED",
+    `${runKey}-held`,
+  )
+).Invoice as Record<string, unknown>;
+const heldRead = taxFlow.quickBooksTaxReadBack(held, { expectedSubtotalCents: gatedPayload.expectedSubtotalCents });
 record(
-  "7 final invoice with tax",
-  finalTax > 0,
-  `invoice ${finalInvoice.Id}: lines ${finalLines.lines.map((line: { title: string }) => line.title).join(" / ")}; QuickBooks tax ${finalTax / 100}, total ${finalInvoice.TotalAmt}`,
+  `7 held final (${companyMode}, strategy ${strategy.kind})`,
+  heldRead.taxCents > 0 && heldRead.preTaxMatches,
+  `invoice ${held.Id}: pre-tax ${heldRead.subtotalCents / 100} (expected ${gatedPayload.expectedSubtotalCents / 100}), QuickBooks tax ${heldRead.taxCents / 100}, total ${heldRead.totalCents / 100}, email ${String((held as { EmailStatus?: string }).EmailStatus)}`,
 );
+// "Send without tax": the worker's sparse update, then the same check.
+const untaxBody = taxFlow.quickBooksSparseInvoiceUpdate(held, taxFlow.quickBooksUntaxChanges(held));
+const untaxed = (await company.post("invoice", untaxBody, "QUICKBOOKS_UPDATE_FAILED", `${runKey}-untax`)).Invoice as Record<string, unknown>;
+const untaxedRead = taxFlow.quickBooksTaxReadBack(untaxed, { expectedSubtotalCents: gatedPayload.expectedSubtotalCents });
+record(
+  "7 send without tax",
+  !taxFlow.quickBooksInvoiceStillTaxed(untaxed) && untaxedRead.totalCents === gatedPayload.expectedSubtotalCents,
+  `invoice ${untaxed.Id}: tax ${untaxedRead.taxCents / 100}, total ${untaxedRead.totalCents / 100}`,
+);
+await company.post("invoice?operation=void", { Id: untaxed.Id, SyncToken: untaxed.SyncToken }, "QUICKBOOKS_VOID_FAILED", `${runKey}-void-held`);
 
 // --- 8. void, and money moving back ----------------------------------------------
-await company.post("invoice?operation=void", { Id: finalInvoice.Id, SyncToken: finalInvoice.SyncToken }, "QUICKBOOKS_VOID_FAILED", `${runKey}-void-final`);
-record("8 void final", true, `voided ${finalInvoice.Id}`);
 await company.post("payment?operation=delete", { Id: paymentRecord.Id, SyncToken: paymentRecord.SyncToken }, "QUICKBOOKS_PAYMENT_DELETE_FAILED", `${runKey}-delete-payment`);
 const reread = (await company.get(`invoice/${retainerInvoice.Id}`, "QUICKBOOKS_INVOICE_READ_FAILED")).Invoice as { Balance: number; SyncToken: string };
 record("8 payment deleted → retainer owing again", Math.round(reread.Balance * 100) === 200000, `retainer balance ${reread.Balance}`);

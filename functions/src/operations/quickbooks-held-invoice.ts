@@ -23,7 +23,7 @@ import {
   quickBooksGatedPayload,
   quickBooksInvoiceStillTaxed,
   quickBooksLinesAsSent,
-  quickBooksLinesWithoutTax,
+  quickBooksUntaxChanges,
   quickBooksSalesTaxCodes,
   quickBooksSparseInvoiceUpdate,
   quickBooksTaxReadBack,
@@ -475,7 +475,7 @@ export async function actOnHeldQuickBooksInvoice(job: DocumentSnapshot, deps: He
       .then((value) => record(value.Invoice));
     const key = text(job.get("idempotencyKey")) || job.id;
     if (action === "send_without_tax" && quickBooksInvoiceStillTaxed(current)) {
-      const body = quickBooksSparseInvoiceUpdate(current, { Line: quickBooksLinesWithoutTax(current.Line) });
+      const body = quickBooksSparseInvoiceUpdate(current, quickBooksUntaxChanges(current));
       if (!body) throw new Error("QUICKBOOKS_INVOICE_SYNC_MISSING:409:QuickBooks didn't return the invoice's version");
       current = record((await company.post("invoice", body, "QUICKBOOKS_UPDATE_FAILED", requestId(key, ":untax"))).Invoice);
       if (quickBooksInvoiceStillTaxed(current))

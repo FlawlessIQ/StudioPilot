@@ -196,12 +196,21 @@ email. If QuickBooks' total changed underneath, the bill goes back to the studio
 out. A job that gives up returns the bill to `awaiting_studio` with the error. Edit = void
 (`voidInvoice`) and send a corrected bill.
 
-**Not yet verified against a real company.** On a sandbox (US, Automated Sales Tax on,
-QuickBooks Payments): that AST computes tax on create from the customer's BillAddr with
-TAX/NON lines and no TxnTaxDetail; what it does with no BillAddr (0, or the company
-address); that the sparse update to NON lines drops the tax to 0 and the pay link still
-works; that a negative "Retainer received" line is accepted; that `EmailStatus: "NotSet"`
-sends nothing; and on a manual-tax company, that `TxnTaxCodeRef` is honoured.
+**Verified against Intuit's sandbox, 2026-10-01** (`scripts/uat/quickbooks-sandbox-walk.mts`,
+Sandbox Company_US_1 — US, older manual tax, default code "California", no Payments):
+`TxnTaxCodeRef` is honoured (8% on the taxable package lines, $400 on $5,000); a negative
+"Retainer received" line is accepted; `EmailStatus` comes back `NotSet`; the pre-tax
+subtotal reads back exactly; deleting a payment reopens the retainer. Two defects found
+and fixed: "Send without tax" was refused on a manual-tax company ("QuickBooks encountered
+an error while calculating tax") because NON lines can't sit under the invoice's
+`TxnTaxCodeRef` — `quickBooksUntaxChanges` now clears it with an empty `TxnTaxDetail`; and
+the settings test invoice failed every manual-tax company, though their finals are taxed
+with the default code — it now uses the same strategy and names the rate.
+
+**Still not verified:** Automated Sales Tax by address (needs an AST sandbox company —
+the default sandbox is manual), what AST does with no BillAddr, and the pay-online link
+(sandbox companies have no QuickBooks Payments). The first real test invoice on an AST
+company covers the first two.
 
 ## QuickBooks from inside StudioCue: settings, items, test invoice, money moving back (2026-10-01)
 

@@ -12,6 +12,7 @@ import {
   quickBooksSalesTaxCodes,
   quickBooksSparseInvoiceUpdate,
   quickBooksTaxReadBack,
+  quickBooksUntaxChanges,
   sendReviewRecord,
   taxStrategyFromRecord,
 } from "../functions/src/operations/quickbooks-final-tax.ts";
@@ -424,6 +425,14 @@ test("Send without tax makes every line non-taxable, drops the estimate line, an
     Line: untaxed,
   });
   assert.equal(quickBooksSparseInvoiceUpdate({ Id: "145" }, {}), null);
+  // Automated Sales Tax: NON lines are the whole change.
+  assert.deepEqual(quickBooksUntaxChanges({ Line: lines, TxnTaxDetail: { TotalTax: 288.75 } }), { Line: untaxed });
+  // A manual-tax company's code on the invoice is cleared with it, or
+  // QuickBooks refuses the NON lines (Intuit sandbox, 2026-10-01).
+  assert.deepEqual(
+    quickBooksUntaxChanges({ Line: lines, TxnTaxDetail: { TxnTaxCodeRef: { value: "2" }, TotalTax: 400 } }),
+    { Line: untaxed, TxnTaxDetail: {} },
+  );
 });
 
 // ── 5. The studio's choice: sendHeldInvoice ────────────────────────────────
