@@ -14,6 +14,11 @@ import { productEvent } from "../operations/product-events.js";
 import { dismissAnsweredReplyDrafts } from "./answered-drafts.js";
 import { conversationIdFor } from "./conversation.js";
 import {
+  cancelQueuedEmailRefusal,
+  heldSendFields,
+  UNDO_SEND_WINDOW_MS,
+} from "./undo-send.js";
+import {
   clientOutreachStop,
   mayContactClient,
 } from "../post-event/client-outreach.js";
@@ -46,7 +51,9 @@ const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("sendMessage"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
-    input: messageInput,
+    // holdForUndo: Cue's reply card offers the same short undo as Today
+    // (./undo-send.ts). Ignored for a scheduled or held-for-approval message.
+    input: messageInput.extend({ holdForUndo: z.boolean().default(false) }),
   }),
   z.object({
     // Replying in a thread, which is what the mailbox actually does. sendMessage
@@ -59,6 +66,7 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       conversationId: z.string().min(1).max(160),
       body: z.string().trim().min(2).max(8_000),
+      holdForUndo: z.boolean().default(false),
     }),
   }),
   z.object({
@@ -101,6 +109,17 @@ const commandSchema = z.discriminatedUnion("type", [
      * never reads emailJobs, and stayed on Today for good.
      */
     type: z.literal("retryEmailJob"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ emailJobId: z.string().min(1).max(240) }),
+  }),
+  z.object({
+    /**
+     * Undo on a send held for a few seconds (./undo-send.ts): Today's one-tap
+     * "Send reply", and Cue's reply card. Only while nothing has gone; the
+     * draft comes back to be sent, edited or put away.
+     */
+    type: z.literal("cancelQueuedEmail"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ emailJobId: z.string().min(1).max(240) }),
@@ -446,11 +465,14 @@ export const communicationsCommand = onRequest(
           command.idempotencyKey,
         );
         const requiresApproval = sensitive && !canApprove(role);
+        const { holdForUndo, ...messageFields } = command.input;
+        const held = holdForUndo && !requiresApproval && !messageFields.scheduledFor;
         const batch = db.batch();
+        let answeredDraftIds: string[] = [];
         // A message that goes now answers the couple, so any reply StudioCue
         // drafted for them is moot — left pending, Today offered to send it too.
         if (!requiresApproval && !command.input.scheduledFor) {
-          await dismissAnsweredReplyDrafts(db, batch, {
+          answeredDraftIds = await dismissAnsweredReplyDrafts(db, batch, {
             tenantId: command.tenantId,
             conversationId: conversationIdFor({
               tenantId: command.tenantId,
@@ -466,7 +488,7 @@ export const communicationsCommand = onRequest(
         batch.create(db.doc(`communicationDrafts/${draftId}`), {
           id: draftId,
           tenantId: command.tenantId,
-          ...command.input,
+          ...messageFields,
           projectId: project.id,
           contactId: contact.id,
           recipient: contact.get("email"),
@@ -505,6 +527,10 @@ export const communicationsCommand = onRequest(
                 : "queued",
             scheduledFor: command.input.scheduledFor,
             attempts: 0,
+            requestedBy: identity.uid,
+            // Put back if the send is undone, so nothing is lost to it.
+            answeredDraftIds,
+            ...(held ? heldSendFields(now, identity.uid) : {}),
             createdAt: now,
             updatedAt: now,
           });
@@ -538,7 +564,11 @@ export const communicationsCommand = onRequest(
           userId: identity.uid,
           commandType: command.type,
           idempotencyKey: command.idempotencyKey,
-          result: { draftId, requiresApproval },
+          result: {
+            draftId,
+            requiresApproval,
+            ...(held ? { emailJobId: `manual_${draftId}`, undoWindowMs: UNDO_SEND_WINDOW_MS } : {}),
+          },
           createdAt: now,
         });
         const queuedEvent = productEvent({
@@ -561,7 +591,11 @@ export const communicationsCommand = onRequest(
         });
         batch.create(db.doc(`productEvents/${queuedEvent.id}`), queuedEvent);
         await batch.commit();
-        result = { draftId, requiresApproval };
+        result = {
+          draftId,
+          requiresApproval,
+          ...(held ? { emailJobId: `manual_${draftId}`, undoWindowMs: UNDO_SEND_WINDOW_MS } : {}),
+        };
       } else if (command.type === "replyToConversation") {
         const conversationReference = db.doc(
           `conversations/${command.input.conversationId}`,
@@ -605,7 +639,7 @@ export const communicationsCommand = onRequest(
         // The studio answered by hand — often with the AI draft pasted into the
         // reply box and edited. Put the draft away in the same commit, or it
         // stays on Today and one tap sends the couple the answer twice.
-        await dismissAnsweredReplyDrafts(db, batch, {
+        const answeredDraftIds = await dismissAnsweredReplyDrafts(db, batch, {
           tenantId: command.tenantId,
           conversationId: command.input.conversationId,
           leadId: (conversation.get("leadId") as string | null) ?? null,
@@ -629,6 +663,9 @@ export const communicationsCommand = onRequest(
           customBody: command.input.body,
           status: "queued",
           attempts: 0,
+          requestedBy: identity.uid,
+          answeredDraftIds,
+          ...(command.input.holdForUndo ? heldSendFields(now, identity.uid) : {}),
           createdAt: now,
           updatedAt: now,
         });
@@ -651,7 +688,11 @@ export const communicationsCommand = onRequest(
           providerEventId: null,
         });
         await batch.commit();
-        result = { conversationId: command.input.conversationId, emailJobId: jobId };
+        result = {
+          conversationId: command.input.conversationId,
+          emailJobId: jobId,
+          undoWindowMs: command.input.holdForUndo ? UNDO_SEND_WINDOW_MS : null,
+        };
       } else if (command.type === "markConversationRead") {
         // Opening a thread is a write, and conversations are server-only for a
         // reason: a client that could set the unread count could also hide a
@@ -887,6 +928,118 @@ export const communicationsCommand = onRequest(
           });
           transaction.create(db.doc(`productEvents/${sendEvent.id}`), sendEvent);
           return { draftId: draft.id, queued: true };
+        });
+      } else if (command.type === "cancelQueuedEmail") {
+        const emailJobId = command.input.emailJobId;
+        const jobReference = db.doc(`emailJobs/${emailJobId}`);
+        result = await db.runTransaction(async (transaction) => {
+          const job = await transaction.get(jobReference);
+          const refusal = cancelQueuedEmailRefusal({
+            job: job.exists ? (job.data() ?? null) : null,
+            tenantId: command.tenantId,
+            actorId: identity.uid,
+            ownerOrAdmin: canApprove(role),
+          });
+          if (refusal === "already_cancelled")
+            return { emailJobId, cancelled: true, alreadyCancelled: true };
+          if (refusal) throw new Error(refusal);
+          // Everything is read before anything is written (a transaction's rule).
+          const actionId = String(job.get("aiActionId") ?? "");
+          const draftId = String(job.get("communicationDraftId") ?? "");
+          const answeredIds = Array.isArray(job.get("answeredDraftIds"))
+            ? (job.get("answeredDraftIds") as unknown[]).map(String).filter(Boolean)
+            : [];
+          const [action, draft, ...answered] = await Promise.all([
+            actionId ? transaction.get(db.doc(`aiActions/${actionId}`)) : null,
+            draftId ? transaction.get(db.doc(`communicationDrafts/${draftId}`)) : null,
+            ...answeredIds.map((id) => transaction.get(db.doc(`aiActions/${id}`))),
+          ]);
+          transaction.update(jobReference, {
+            status: "cancelled",
+            cancelledAt: now,
+            cancelledBy: identity.uid,
+            nextAttemptAt: null,
+            completedAt: now,
+            updatedAt: now,
+          });
+          // The AI draft whose approval this was goes back to waiting on a
+          // person, as it was before the tap: Today shows it again, to send,
+          // edit or put away. Only while this job is still the one its
+          // approval queued — a later decision on it is not ours to unwind.
+          let restoredActionId: string | null = null;
+          if (
+            action?.exists &&
+            action.get("tenantId") === command.tenantId &&
+            action.get("status") === "approved" &&
+            action.get("decision.emailJobId") === emailJobId
+          ) {
+            restoredActionId = action.id;
+            transaction.update(action.ref, {
+              status: "review_required",
+              undoneDecision: action.get("decision") ?? null,
+              decision: null,
+              decisionResult: null,
+              // The next approval sends under a fresh job id; this one stays
+              // as the record of what was called back.
+              sendUndoCount: Number(action.get("sendUndoCount") ?? 0) + 1,
+              sendUndoneAt: now,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          }
+          if (draft?.exists && draft.get("tenantId") === command.tenantId) {
+            transaction.update(draft.ref, {
+              status: "cancelled",
+              cancelledAt: now,
+              cancelledBy: identity.uid,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          }
+          // Reply drafts this message made moot are moot no longer.
+          for (const document of answered) {
+            if (
+              document.exists &&
+              document.get("tenantId") === command.tenantId &&
+              document.get("status") === "dismissed" &&
+              document.get("dismissedReason") === "answered_by_studio_reply"
+            )
+              transaction.update(document.ref, {
+                status: "review_required",
+                decision: null,
+                dismissedReason: null,
+                updatedAt: now,
+                updatedBy: identity.uid,
+              });
+          }
+          const outcome = { emailJobId, cancelled: true, restoredActionId };
+          transaction.create(executionReference, {
+            tenantId: command.tenantId,
+            userId: identity.uid,
+            commandType: command.type,
+            idempotencyKey: command.idempotencyKey,
+            result: outcome,
+            createdAt: now,
+          });
+          transaction.create(db.doc(`auditEvents/email_undo_${executionId}`), {
+            id: `email_undo_${executionId}`,
+            tenantId: command.tenantId,
+            projectId: (job.get("projectId") as string | null) ?? null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "message.send_undone",
+            entityType: "emailJob",
+            entityId: emailJobId,
+            timestamp: now,
+            before: { status: job.get("status") ?? null },
+            after: outcome,
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId: command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          return outcome;
         });
       } else if (
         command.type === "retryEmailJob" ||

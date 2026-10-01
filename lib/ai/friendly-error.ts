@@ -168,6 +168,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   EMAIL_JOB_NOT_FOUND: "That email isn't there any more. Refresh and try again.",
   EMAIL_JOB_NOT_RETRYABLE:
     "That email has already gone out, or is on its way, so there's nothing to retry.",
+  // Undo on a just-sent reply (communicationsCommand cancelQueuedEmail).
+  EMAIL_ALREADY_SENT: "Too late to undo — it has already gone. It shows in the thread.",
+  EMAIL_NOT_UNDOABLE: "That email can't be called back. Only a message sent a moment ago can be undone.",
+  EMAIL_UNDO_NOT_ALLOWED: "Only the person who sent it, or an owner or admin, can call it back.",
+  // "Prepare the brief again" on the booking page (bookingCommand rerunBookingBrief).
+  BOOKING_BRIEF_MOOT:
+    "The proposal has already gone to the couple, or the job has moved on to it, so the brief no longer decides anything. Change the proposal instead.",
+  BOOKING_BRIEF_ALREADY_PREPARING: "The brief is already being prepared. It will appear in a moment.",
+  CONSULTATION_NOT_COMPLETED: "Write up the consultation first — the brief is prepared from its notes.",
   PACKAGE_REQUEST_NOT_AVAILABLE:
     "Your booking can't take another package right now — your agreement may already be on its way. Please message your studio.",
   // Sending the final bill by hand (bookingCommand sendFinalBalance).

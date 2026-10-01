@@ -19,6 +19,7 @@ import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { proposalTermsFor } from "../proposals/default-terms.js";
+import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
 
 /**
@@ -190,6 +191,12 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
   if(consultation.get("tenantId")!==job.get("tenantId"))throw new Error("FORBIDDEN");
   if(consultation.get("status")!=="completed")throw new Error("CONSULTATION_NOT_COMPLETED");
   if(job.get("humanReviewRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");
+  // A newer run was asked for since this job was queued (booking/brief-rerun.ts):
+  // its actions are the current ones, and writing this run's would bring back
+  // a brief made from notes the studio has since changed.
+  const run=briefRunOf(job.get("briefRun"));
+  if(briefRunOf(consultation.get("briefRun"))!==run)return{consultationId,skipped:"superseded_by_newer_brief",briefRun:run};
+  const actionIds=briefActionIds(consultationId,run);
   const projectId=string(consultation.get("projectId"));
   const [project,packages]=await Promise.all([
     db.doc(`projects/${projectId}`).get(),
@@ -274,6 +281,9 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
   const base={
     tenantId:job.get("tenantId"),
     projectId,
+    // Which preparation this is, so the booking page shows the current one.
+    consultationId,
+    briefRun:run,
     actorId:"vertex-ai-worker",
     modelProvider:"google_vertex_ai",
     modelVersion,
@@ -308,13 +318,14 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
       followUpQuestions:list(analysis.followUpQuestions,20),
       confidence,
       humanReviewRequired:true,
+      briefRun:run,
       generatedAt:now,
     },
     aiReviewedAt:now,
     updatedAt:now,
     updatedBy:"vertex-ai-worker",
   });
-  const summaryActionId=`ai_consultation_${consultationId}`;
+  const summaryActionId=actionIds.summary;
   batch.set(db.doc(`aiActions/${summaryActionId}`),{
     ...base,
     id:summaryActionId,
@@ -327,7 +338,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
     validation:{status:confidence>=0.8?"passed":"failed",issues:validationIssues.filter(issue=>issue.code==="LOW_CONFIDENCE")},
     downstreamCommand:null,
   },{merge:true});
-  const packageActionId=`ai_package_${consultationId}`;
+  const packageActionId=actionIds.package;
   batch.set(db.doc(`aiActions/${packageActionId}`),{
     ...base,
     id:packageActionId,
@@ -340,7 +351,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
     validation:{status:validationIssues.length?"failed":"passed",issues:validationIssues},
     downstreamCommand:{commandType:"select_package_snapshot",commandId:`select_${projectId}`,executedAt:null},
   },{merge:true});
-  const proposalActionId=`ai_proposal_${consultationId}`;
+  const proposalActionId=actionIds.proposal;
   // A package with no terms written drafts with the default wording, not a
   // failed draft (GR, 2026-09-30); the studio edits it before sending.
   const termsSummary=recommended?proposalTermsFor(recommended.get("terms")):"";

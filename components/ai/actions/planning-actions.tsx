@@ -15,6 +15,7 @@ import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
 import { TimelineAuthorityPanel } from "@/components/planning/timeline-authority-panel";
 import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
 import { MessageApprovals } from "@/components/communications/message-approvals";
+import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
 import {
   ActionShell,
   Actions,
@@ -499,9 +500,28 @@ export function ReplyCard({ action }: ActionCardProps) {
   const runner = useRunner();
   const [body, setBody] = useState(action.text ?? "");
   const [subject, setSubject] = useState("");
+  // The same short undo as Today's one-tap send: the server holds it a few
+  // seconds, and the message stays in this card if it is called back.
+  const [held, setHeld] = useState<HeldSend | null>(null);
   const title = `Write to ${jobName(job)}`;
   if (loading || !conversations || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
+  if (held)
+    return (
+      <ActionShell title={title}>
+        <UndoSend
+          buttonClassName="button button-light"
+          className="copilot-flow-actions"
+          held={held}
+          onGone={() => setHeld(null)}
+          onUndone={() => {
+            setHeld(null);
+            runner.setDone(null);
+            runner.setNotice("Called back — nothing was sent. Your message is still here.");
+          }}
+        />
+      </ActionShell>
+    );
   if (runner.done) return <ActionShell title={title}><Done href={`/studio/messages?project=${job.id}`} label="Open the thread">{runner.done}</Done></ActionShell>;
   const thread = jobConversations(conversations, job.id)[0] ?? null;
   const contact = primaryContact(job, contacts);
@@ -526,14 +546,15 @@ export function ReplyCard({ action }: ActionCardProps) {
             async () => {
               // Said as it is: queued, held for approval, or (preview) not
               // sent at all — never a flat "Sent." (lib/communications/send-outcome.ts).
+              const label = `your message to ${contactName(contact)}`;
               if (thread) {
-                return sendOutcomeCopy(
-                  await sendCommunicationsCommand({
-                    type: "replyToConversation",
-                    idempotencyKey: crypto.randomUUID(),
-                    input: { conversationId: thread.id, body: body.trim() },
-                  }),
-                );
+                const replied = await sendCommunicationsCommand({
+                  type: "replyToConversation",
+                  idempotencyKey: crypto.randomUUID(),
+                  input: { conversationId: thread.id, body: body.trim(), holdForUndo: true },
+                });
+                setHeld(heldSendFrom(replied.payload, label));
+                return sendOutcomeCopy(replied);
               }
               if (!contact) return null;
               const sent = await sendCommunicationsCommand({
@@ -548,8 +569,10 @@ export function ReplyCard({ action }: ActionCardProps) {
                   actionLabel: null,
                   actionUrl: null,
                   scheduledFor: null,
+                  holdForUndo: true,
                 },
               });
+              setHeld(heldSendFrom(sent.payload, label));
               return sendOutcomeCopy(sent);
             },
             { refresh: ["conversations", "messages", "communicationDrafts"] },

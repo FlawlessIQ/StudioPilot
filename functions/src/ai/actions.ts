@@ -11,6 +11,7 @@ import {
   sendsOnApproval,
 } from "./approved-communication.js";
 import { decisionGate } from "./decision-guard.js";
+import { UNDO_SEND_WINDOW_MS } from "../communications/undo-send.js";
 import {
   clientOutreachStop,
   mayContactClient,
@@ -255,6 +256,10 @@ export const aiActionCommand = onRequest(
           ? `ai_reply_${actionId}`
           : null;
         const communicationCategory = communicationCategoryFor(capability);
+        // Today's one-tap send asks for the undo window; everything else
+        // still goes at once (communications/undo-send.ts).
+        const holdForUndo = parsed.input.holdForUndo === true;
+        const undoCount = Number(action.get("sendUndoCount") ?? 0);
         const communicationDispatch = communicationApproval
           ? approvedCommunicationDispatch({
               actionId,
@@ -269,6 +274,9 @@ export const aiActionCommand = onRequest(
               body: text(structuredOutput.body),
               category: communicationCategory,
               now,
+              requestedBy: identity.uid,
+              holdForUndo,
+              undoCount,
             })
           : null;
         const emailJobId = communicationDispatch?.emailJob?.id ?? null;
@@ -283,12 +291,20 @@ export const aiActionCommand = onRequest(
                 ? "Rejected. No downstream record or provider action changed."
                 : "Dismissed from the active queue. No downstream action ran.");
         const receiptId = `receipt_${executionId}`;
+        const heldUntil =
+          typeof communicationDispatch?.emailJob?.sendAfter === "string"
+            ? communicationDispatch.emailJob.sendAfter
+            : null;
         const result = {
           actionId,
           status: decision,
           receiptId,
           downstreamConsequence: consequence,
           emailQueued: Boolean(emailJobId),
+          emailJobId,
+          // The browser counts the window from when this answer arrives, not
+          // from its own clock against ours.
+          undoWindowMs: heldUntil ? UNDO_SEND_WINDOW_MS : null,
         };
         const leadSource = Array.isArray(action.get("sourceReferences"))
           ? (action.get("sourceReferences") as unknown[])
@@ -327,6 +343,10 @@ export const aiActionCommand = onRequest(
           raced = await db.runTransaction(async (transaction) => {
             const fresh = await transaction.get(actionReference);
             if (decisionGate(text(fresh.get("status")), decision) !== "proceed")
+              return true;
+            // An undo landed between the read above and here: the email job
+            // id was chosen from the old count, so start again.
+            if (Number(fresh.get("sendUndoCount") ?? 0) !== undoCount)
               return true;
             transaction.update(actionReference, {
               status: decision,

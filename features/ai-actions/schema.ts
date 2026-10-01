@@ -48,6 +48,9 @@ export const aiActionStatusSchema = z.enum([
   "executed",
   "failed",
   "cancelled",
+  // Set aside, undecided, by a newer run of the same work — the booking
+  // brief prepared again from changed notes (functions/src/booking/brief-rerun.ts).
+  "superseded",
 ]);
 
 export const aiSourceReferenceSchema = z.object({
