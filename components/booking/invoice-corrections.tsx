@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Ban, LoaderCircle, PencilLine, Send } from "lucide-react";
+import { Ban, Banknote, LoaderCircle, PencilLine, Send } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   invoiceAtProvider,
@@ -9,10 +9,12 @@ import {
   paidOnInvoice,
   paymentCorrectable,
 } from "@/features/booking/invoice-corrections";
+import { dollarsToCents, invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   approveFinalInvoice,
   correctPaymentRecord,
+  recordInvoicePayment,
   voidInvoice,
 } from "@/lib/booking/command-client";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
@@ -149,10 +151,127 @@ export function VoidInvoice({
   );
 }
 
-function dollarsToCents(value: string): number | null {
-  const cleaned = value.replace(/[$,\s]/g, "");
-  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
-  return Math.round(Number(cleaned) * 100);
+/**
+ * "Record a payment", on a retainer or final bill out with the couple: all of
+ * the balance or part of it. On a QuickBooks or Stripe bill the payment is
+ * recorded there too, so the couple's link and autopay ask only for the rest
+ * (functions/src/booking/invoice-payments.ts).
+ */
+export function RecordInvoicePayment({
+  invoice,
+  onDone,
+}: {
+  invoice: InvoiceRow;
+  onDone?: (message: string) => void;
+}) {
+  const workspace = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  if (!OWNER_ADMIN.includes(String(workspace.role))) return null;
+  if (invoicePaymentRefusal(invoice) !== null) return null;
+  const atProvider = invoiceAtProvider(invoice);
+  const provider = providerLabel(invoice.provider);
+  const balance = Number(invoice.balanceCents ?? 0);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // Held before the await: React nulls currentTarget once this yields.
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const amountCents = dollarsToCents(String(data.get("amount") ?? ""));
+    if (amountCents === null || amountCents <= 0) {
+      setNotice(friendlyError(new Error("PAYMENT_AMOUNT_INVALID"), "Check the amount."));
+      return;
+    }
+    if (amountCents > balance) {
+      setNotice(friendlyError(new Error("PAYMENT_EXCEEDS_BALANCE"), "Check the amount."));
+      return;
+    }
+    const reference = String(data.get("reference") ?? "").trim();
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await recordInvoicePayment({
+        projectId: String(invoice.projectId ?? ""),
+        invoiceId: invoice.id,
+        amountCents,
+        paidAt: String(data.get("paidAt") ?? ""),
+        method: String(data.get("method") ?? "").trim(),
+        reference: reference || null,
+      });
+      if (result.mode === "preview") {
+        setNotice("Development preview: nothing was recorded.");
+        return;
+      }
+      const left = Number(result.payload.balanceCents ?? 0);
+      const there =
+        result.payload.providerSync === "queued"
+          ? ` ${provider} is being updated too — if it can't take it, you'll get a task to record it there yourself.`
+          : "";
+      const message =
+        left > 0
+          ? `Recorded ${money(amountCents, invoice.currency)}; ${money(left, invoice.currency)} is still owed.${there}`
+          : `Recorded. The ${kindLabel(invoice)} is paid.${there}`;
+      form.reset();
+      setNotice(message);
+      refreshMoney();
+      onDone?.(message);
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The payment couldn't be recorded."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <details className="record-signed-agreement">
+      <summary>
+        <Banknote aria-hidden="true" size={15} />
+        Record a payment
+      </summary>
+      <form onSubmit={(event) => void submit(event)}>
+        <p>
+          {`${money(balance, invoice.currency)} is left on this ${kindLabel(invoice)} invoice. Enter what arrived — all of it or part. It's recorded against your name${
+            atProvider ? ` and in ${provider} too, so the couple's link asks only for the rest` : ""
+          }.`}
+        </p>
+        {/* Stripe can't take a part payment made outside it; it is recorded
+            there as a credit note, and the studio should know what they'll
+            see. See features/booking/invoice-payments.ts. */}
+        {atProvider && invoice.provider === "stripe" ? (
+          <p className="record-attestation-caveat">
+            In Stripe a part payment shows as a credit note marked &ldquo;Paid outside Stripe&rdquo;; paying the
+            rest marks the invoice paid outside Stripe.
+          </p>
+        ) : null}
+        <label>
+          Amount received
+          <input defaultValue={(balance / 100).toFixed(2)} inputMode="decimal" name="amount" required />
+        </label>
+        <label>
+          Date received
+          <input name="paidAt" required type="date" />
+        </label>
+        <label>
+          How it arrived
+          <input maxLength={200} name="method" placeholder="Bank transfer" required />
+        </label>
+        <label>
+          Reference (optional)
+          <input maxLength={200} name="reference" placeholder="Payment or cheque reference" />
+        </label>
+        <button className="button" disabled={busy} type="submit">
+          {busy ? <LoaderCircle aria-hidden="true" className="spin" size={14} /> : null}
+          {busy ? "Recording…" : "Record the payment"}
+        </button>
+        {notice ? (
+          <p className="form-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+      </form>
+    </details>
+  );
 }
 
 /** "Correct this payment", on a payment the studio recorded. */
@@ -229,7 +348,7 @@ export function CorrectPayment({
         </p>
         {atProvider ? (
           <p className="form-notice">
-            {`This invoice is in ${providerLabel(invoice.provider)}, which never saw this payment, so it can be corrected to the full amount or to nothing. Record a part payment in ${providerLabel(invoice.provider)}.`}
+            {`This invoice is in ${providerLabel(invoice.provider)}, which never saw this payment, so it can be corrected to the full amount or to nothing. If only part arrived, correct it to nothing, then use Record a payment for what did — that records it in ${providerLabel(invoice.provider)} too.`}
           </p>
         ) : null}
         <label>
@@ -368,6 +487,7 @@ export function InvoiceRecordActions({ invoice }: { invoice: InvoiceRow }) {
           <Send aria-hidden="true" size={14} /> Check and send
         </a>
       ) : null}
+      <RecordInvoicePayment invoice={invoice} />
       <VoidInvoice invoice={invoice} />
       <CorrectPayment invoice={invoice} />
     </>

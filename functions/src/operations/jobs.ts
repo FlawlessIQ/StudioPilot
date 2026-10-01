@@ -49,12 +49,16 @@ import {
   rescheduleConsultationResources,
   moveBookingCalendarEvents,
   removeBookingCalendarEvents,
+  restoreBookingCalendarEvent,
   reconcileQuickBooksInvoice,
+  recordQuickBooksPayment,
+  recordStripePayment,
   uploadDropboxDocument,
   voidQuickBooksInvoice,
   voidStripeInvoice,
 } from "./provider-runtime.js";
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
+import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
 import {
   chargeSavedCard,
   removeQuickBooksCard,
@@ -158,6 +162,18 @@ async function updateInvoiceUnlessClosed(
         updatedAt: now,
         updatedBy: ignored.by,
       });
+      return;
+    }
+    // Delivery says nothing about payment: an email going out (or failing)
+    // must not turn a part-paid bill back into a plain `sent` one. Only the
+    // status label was at risk; the balance is not among these fields.
+    if (
+      current.get("status") === "partially_paid" &&
+      (fields.status === "sent" || fields.status === "awaiting_delivery")
+    ) {
+      const rest = { ...fields };
+      delete rest.status;
+      transaction.update(reference, rest);
       return;
     }
     transaction.update(reference, fields);
@@ -349,6 +365,23 @@ async function finish(
         // The job's own error record is the authority, and Today shows it.
       });
     }
+    // A payment the provider wouldn't take. It stays recorded in StudioCue —
+    // the money arrived — and the studio is asked to record it there by
+    // hand, so the couple's bill stops asking for it.
+    if (
+      document.ref.parent.id === "providerJobs" &&
+      ["record_quickbooks_payment", "record_stripe_payment"].includes(
+        String(document.get("type")),
+      ) &&
+      !retryable
+    ) {
+      await recordProviderPaymentFailed(getFirestore(), document, {
+        code,
+        message,
+      }).catch(() => {
+        // The job's own error record is the authority, and Today shows it.
+      });
+    }
     if (
       document.ref.parent.id === "pdfJobs" &&
       document.get("proposalId")
@@ -439,6 +472,8 @@ async function providerJob(document: DocumentSnapshot) {
     return moveBookingCalendarEvents(document);
   if (type === "remove_booking_calendar_events")
     return removeBookingCalendarEvents(document);
+  if (type === "restore_booking_calendar_event")
+    return restoreBookingCalendarEvent(document);
   if (type === "create_docusign_envelope")
     return createDocusignEnvelope(document);
   if (type === "create_dropbox_sign_request")
@@ -452,6 +487,9 @@ async function providerJob(document: DocumentSnapshot) {
   if (type === "void_quickbooks_invoice")
     return voidQuickBooksInvoice(document);
   if (type === "void_stripe_invoice") return voidStripeInvoice(document);
+  if (type === "record_quickbooks_payment")
+    return recordQuickBooksPayment(document);
+  if (type === "record_stripe_payment") return recordStripePayment(document);
   if (type === "complete_booking_side_effects")
     return completeBookingResources(document);
   if (type === "upload_dropbox_document")

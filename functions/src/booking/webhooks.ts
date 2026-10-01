@@ -495,11 +495,15 @@ export const stripeConnectWebhook = onRequest(
       if (!invoice) return;
       const amountRemaining = Number(object.amount_remaining ?? 0);
       const amountPaid = Number(object.amount_paid ?? 0);
+      // A payment recorded outside Stripe reaches it as a credit note
+      // (booking/invoice-payments.ts), which lowers what is left without
+      // being a payment: part paid all the same.
+      const credited = Number(object.pre_payment_credit_notes_amount ?? 0);
       const reported = event.type === "invoice.voided"
         ? "voided"
         : amountRemaining === 0
           ? "paid"
-          : amountPaid > 0
+          : amountPaid > 0 || credited > 0
             ? "partially_paid"
             : "sent";
       // A payment the studio recorded by hand, or a bill StudioCue closed, is
@@ -510,6 +514,7 @@ export const stripeConnectWebhook = onRequest(
           status: current?.get("status"),
           completionAuthority: current?.get("completionAuthority"),
           balanceCents: current?.get("balanceCents"),
+          studioPayments: current?.get("studioPayments"),
         },
         reported: { status: reported, balanceCents: Math.max(0, amountRemaining) },
       });

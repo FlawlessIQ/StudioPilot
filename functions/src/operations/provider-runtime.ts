@@ -24,6 +24,7 @@ import {
 } from "../booking/invoice-standing.js";
 import { voidInvoiceTask } from "../booking/stopped-billing.js";
 import { providerVoidJobType } from "../booking/invoice-corrections.js";
+import { landStudioPaymentAtProvider, studioPaymentFor } from "../booking/invoice-payments.js";
 
 export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
 export type Credential={
@@ -536,6 +537,106 @@ export async function removeBookingCalendarEvents(job: DocumentSnapshot) {
     removed.push(`crew:${assignmentId}`);
   }
   return { projectId, removed };
+}
+
+/**
+ * The studio's all-day event for a booked wedding, in its Google Calendar.
+ *
+ * Its id is derived from the project, so a second create answers 409 and the
+ * event already there is adopted. Google keeps an event that was deleted — by
+ * a cancel, say (removeBookingCalendarEvents) — under the same id with status
+ * `cancelled`, and a 409 used to adopt that too, leaving the project pointing
+ * at an event nobody can see. Confirming it puts it back.
+ */
+async function putStudioBookingEvent(
+  calendar: Awaited<ReturnType<typeof connection>>,
+  project: DocumentSnapshot,
+): Promise<string> {
+  const projectId = project.id;
+  if (calendar.mock) return mockId("event", projectId);
+  const date = String(project.get("eventDate"));
+  const endDate = new Date(`${date}T00:00:00Z`);
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+  const calendarId = encodeURIComponent(String(calendar.document.get("selectedResourceId") ?? "primary"));
+  const providerEventId = createHash("sha256").update(`project:${projectId}`).digest("hex").slice(0, 32);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;
+  const authorization = `Bearer ${calendar.credential?.accessToken}`;
+  const event = {
+    summary: `${String(project.get("name"))} · ${String(project.get("eventType"))}`,
+    start: { date },
+    end: { date: endDate.toISOString().slice(0, 10) },
+    transparency: "opaque",
+    extendedProperties: { private: { studioHubProjectId: projectId } },
+  };
+  const create = await fetch(url, {
+    method: "POST",
+    headers: { authorization, "content-type": "application/json" },
+    body: JSON.stringify({ id: providerEventId, ...event }),
+  });
+  if (create.status === 409) {
+    const existing = await providerJson(`${url}/${providerEventId}`, { headers: { authorization } }, "CALENDAR_READ_FAILED");
+    if (text(existing.status) !== "cancelled") return text(existing.id);
+    const restored = await providerJson(
+      `${url}/${providerEventId}`,
+      {
+        method: "PATCH",
+        headers: { authorization, "content-type": "application/json" },
+        body: JSON.stringify({ ...event, status: "confirmed" }),
+      },
+      "CALENDAR_RESTORE_FAILED",
+    );
+    return text(restored.id);
+  }
+  const value = asRecord(await create.json().catch(() => ({})));
+  if (!create.ok) throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);
+  return text(value.id);
+}
+
+/** Where a wedding has a studio calendar event: booked, and not yet over. */
+const ON_THE_CALENDAR = new Set([
+  "BOOKED",
+  "PLANNING",
+  "READY",
+  "EVENT_COMPLETE",
+  "POST_PRODUCTION",
+  "DELIVERED",
+  "REVIEW_REQUESTED",
+]);
+
+/**
+ * An undone cancel back on the studio's calendar (crm/commands.ts,
+ * uncancelProject). The cancel deleted the studio's event for the wedding;
+ * undoing it brought the job back and left the calendar empty that day.
+ *
+ * Only the studio's own event. Crew invites stay released, because the crew
+ * themselves were released and are re-offered — their invites come back with
+ * their acceptance (addCrewCalendarInvite).
+ */
+export async function restoreBookingCalendarEvent(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const tenantId = String(job.get("tenantId"));
+  const projectId = String(job.get("projectId"));
+  const project = await db.doc(`projects/${projectId}`).get();
+  if (!project.exists || project.get("tenantId") !== tenantId) throw new Error("PROJECT_NOT_FOUND");
+  const state = String(project.get("state"));
+  // Cancelled again before this ran: the removal job's turn, not ours.
+  if (!ON_THE_CALENDAR.has(state)) return { projectId, skipped: state === "CANCELLED" ? "cancelled_again" : "not_booked" };
+  // The removal never ran (the undo beat it), so the event is still there.
+  if (text(project.get("calendarEventId"))) return { projectId, skipped: "already_on_calendar" };
+  let calendar: Awaited<ReturnType<typeof connection>>;
+  try {
+    calendar = await connection(tenantId, "google_calendar");
+  } catch (caught: unknown) {
+    // Disconnected since: nothing to put back. A broken credential is not
+    // that, and fails the job so Today shows it.
+    if (caught instanceof Error && caught.message === "GOOGLE_CALENDAR_NOT_CONNECTED")
+      return { projectId, skipped: "calendar_not_connected" };
+    throw caught;
+  }
+  const eventId = await putStudioBookingEvent(calendar, project);
+  const now = new Date().toISOString();
+  await project.ref.update({ calendarEventId: eventId, calendarRestoredAt: now, updatedAt: now, updatedBy: "provider-worker" });
+  return { projectId, eventId };
 }
 
 export async function rescheduleConsultationResources(job: DocumentSnapshot) {
@@ -1455,8 +1556,212 @@ export async function reconcileQuickBooksInvoice(job:DocumentSnapshot){const db=
   // A payment the studio recorded by hand, or a bill StudioCue closed, is not
   // undone by QuickBooks re-reading a balance it never saw paid. Only its own
   // paid or voided wins (invoice-standing.ts, providerReportedInvoice).
-  const decided=providerReportedInvoice({current:{status:invoice.get("status"),completionAuthority:invoice.get("completionAuthority"),balanceCents:invoice.get("balanceCents")},reported:{status,balanceCents}});status=decided.status;balanceCents=decided.balanceCents;
+  const decided=providerReportedInvoice({current:{status:invoice.get("status"),completionAuthority:invoice.get("completionAuthority"),balanceCents:invoice.get("balanceCents"),studioPayments:invoice.get("studioPayments")},reported:{status,balanceCents}});status=decided.status;balanceCents=decided.balanceCents;
   const now=new Date().toISOString();const batch=db.batch();batch.update(reference,{status,balanceCents,...(decided.keptReason?{providerReportKept:{reason:decided.keptReason,at:now}}:{}),lastProviderEventId:String(job.get("idempotencyKey")??job.id),lastSyncedAt:String(job.get("occurredAt")??now),providerState:"completed",updatedAt:now,updatedBy:"quickbooks-reconciliation"});const webhookEventId=String(job.get("webhookEventId")??"");if(webhookEventId)batch.update(db.doc(`webhookEvents/${webhookEventId}`),{status:"processed",processedAt:now});await batch.commit();return{invoiceId,providerInvoiceId,status,balanceCents}}
+
+/**
+ * A payment the studio recorded in StudioCue (booking/invoice-payments.ts),
+ * recorded at the provider so its balance agrees: the one the couple's link
+ * asks for, and the one every sync reads back.
+ *
+ * Each worker checks the provider first: a payment already there (a retry
+ * after a lost response) is adopted, never made twice, and a payment larger
+ * than the provider's balance is refused — something else already took that
+ * money there, and the studio is asked to look (a 409 dead-letters the job;
+ * operations/jobs.ts → recordProviderPaymentFailed raises the task).
+ */
+async function studioPaymentJob(job: DocumentSnapshot) {
+  const db = getFirestore();
+  const invoice = await db.doc(`invoiceReferences/${text(job.get("invoiceId"))}`).get();
+  if (!invoice.exists || invoice.get("tenantId") !== job.get("tenantId")) throw new Error("INVOICE_NOT_FOUND");
+  const payment = studioPaymentFor(invoice, text(job.get("paymentId")));
+  const providerInvoiceId = text(job.get("providerInvoiceId")) || text(invoice.get("providerInvoiceId"));
+  if (!providerInvoiceId || providerInvoiceId.startsWith("pending_"))
+    throw new Error("PROVIDER_INVOICE_ID_MISSING:409:The invoice was never created there");
+  return { db, invoice, payment, providerInvoiceId };
+}
+
+const cents = (value: unknown) => Math.max(0, Math.round(number(value) * 100));
+
+export async function recordQuickBooksPayment(job: DocumentSnapshot) {
+  const { db, invoice, payment, providerInvoiceId } = await studioPaymentJob(job);
+  if (!payment) return { invoiceId: invoice.id, skipped: "payment_not_on_invoice" };
+  if (asRecord(payment.provider).state === "completed") return { invoiceId: invoice.id, skipped: "already_recorded" };
+  const amountCents = Number(payment.amountCents);
+  const provider = await connection(text(job.get("tenantId")), "quickbooks");
+  if (provider.mock) {
+    await landStudioPaymentAtProvider(db, job, { providerPaymentId: mockId("qbo_payment", job.id), result: "mock", reported: null });
+    return { invoiceId: invoice.id, recorded: "mock" };
+  }
+  const credential = provider.credential;
+  const realmId = credential?.realmId ?? text(provider.document.get("providerAccountId"));
+  if (!credential || !realmId) throw new Error("QUICKBOOKS_REALM_MISSING");
+  const company = `${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}`;
+  const headers = { authorization: `Bearer ${credential.accessToken}`, accept: "application/json" };
+  const readInvoice = async () =>
+    asRecord(
+      (await providerJson(`${company}/invoice/${encodeURIComponent(providerInvoiceId)}?minorversion=75`, { headers }, "QUICKBOOKS_INVOICE_READ_FAILED"))
+        .Invoice,
+    );
+  const reportedFrom = (found: Json) => {
+    const balanceCents = cents(found.Balance);
+    const totalCents = cents(found.TotalAmt);
+    return { status: balanceCents === 0 ? "paid" : balanceCents < totalCents ? "partially_paid" : "sent", balanceCents };
+  };
+  const found = await readInvoice();
+  // Already there: a payment linked to this invoice carrying this payment's
+  // id in its note. Payment by Id is a filter QuickBooks accepts (see
+  // quickBooksPaymentHistory below).
+  const linkedPaymentIds = (Array.isArray(found.LinkedTxn) ? found.LinkedTxn : [])
+    .map(asRecord)
+    .filter((linked) => text(linked.TxnType) === "Payment")
+    .map((linked) => text(linked.TxnId))
+    .filter(Boolean)
+    .slice(0, 50);
+  if (linkedPaymentIds.length) {
+    const statement = `select * from Payment where Id in (${linkedPaymentIds.map((id) => `'${id.replaceAll("'", "\\'")}'`).join(",")}) maxresults 50`;
+    const rows = asRecord(
+      (await providerJson(`${company}/query?query=${encodeURIComponent(statement)}&minorversion=75`, { headers }, "QUICKBOOKS_PAYMENT_SEARCH_FAILED"))
+        .QueryResponse,
+    ).Payment;
+    const existing = (Array.isArray(rows) ? rows.map(asRecord) : []).find((row) => text(row.PrivateNote).includes(String(payment.id)));
+    if (existing) {
+      await landStudioPaymentAtProvider(db, job, { providerPaymentId: text(existing.Id) || null, result: "already_there", reported: reportedFrom(found) });
+      return { invoiceId: invoice.id, providerPaymentId: text(existing.Id), recorded: "already_there" };
+    }
+  }
+  const balanceCents = cents(found.Balance);
+  if (amountCents > balanceCents)
+    throw new Error(
+      `QUICKBOOKS_PAYMENT_EXCEEDS_BALANCE:409:QuickBooks shows ${(balanceCents / 100).toFixed(2)} left on this invoice, less than the ${(amountCents / 100).toFixed(2)} recorded`,
+    );
+  const customerId = text(asRecord(found.CustomerRef).value) || text(invoice.get("providerCustomerId"));
+  if (!customerId) throw new Error("QUICKBOOKS_CUSTOMER_MISSING:409:The invoice has no customer in QuickBooks");
+  const reference = text(payment.reference).slice(0, 21);
+  // `requestid` is QuickBooks' idempotency key: a retried job is the same
+  // request, and QuickBooks answers it with the payment it already made.
+  const requestId = encodeURIComponent(text(job.get("idempotencyKey")) || job.id);
+  const created = asRecord(
+    (
+      await providerJson(
+        `${company}/payment?minorversion=75&requestid=${requestId}`,
+        {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({
+            CustomerRef: { value: customerId },
+            TotalAmt: amountCents / 100,
+            ...(/^\d{4}-\d{2}-\d{2}$/.test(text(payment.paidAt)) ? { TxnDate: text(payment.paidAt) } : {}),
+            ...(reference ? { PaymentRefNum: reference } : {}),
+            PrivateNote: `StudioCue ${String(payment.id)} · ${text(payment.method)}`.slice(0, 4000),
+            Line: [{ Amount: amountCents / 100, LinkedTxn: [{ TxnId: providerInvoiceId, TxnType: "Invoice" }] }],
+          }),
+        },
+        "QUICKBOOKS_PAYMENT_RECORD_FAILED",
+      )
+    ).Payment,
+  );
+  // The balance is QuickBooks' again, read after its own arithmetic.
+  await landStudioPaymentAtProvider(db, job, {
+    providerPaymentId: text(created.Id) || null,
+    result: "recorded",
+    reported: reportedFrom(await readInvoice()),
+  });
+  return { invoiceId: invoice.id, providerPaymentId: text(created.Id), recorded: "recorded" };
+}
+
+/**
+ * Stripe has no out-of-band part payment on an open invoice:
+ * `paid_out_of_band` settles the whole of it. So a part payment is a credit
+ * note for the amount — it lowers what the couple's link asks for, and its
+ * memo says the money came outside Stripe — and a payment that clears the
+ * rest marks the invoice paid out of band. See
+ * features/booking/invoice-payments.ts.
+ */
+export async function recordStripePayment(job: DocumentSnapshot) {
+  const { db, invoice, payment, providerInvoiceId } = await studioPaymentJob(job);
+  if (!payment) return { invoiceId: invoice.id, skipped: "payment_not_on_invoice" };
+  if (asRecord(payment.provider).state === "completed") return { invoiceId: invoice.id, skipped: "already_recorded" };
+  const amountCents = Number(payment.amountCents);
+  const provider = await connection(text(job.get("tenantId")), "stripe");
+  if (provider.mock) {
+    await landStudioPaymentAtProvider(db, job, { providerPaymentId: mockId("stripe_credit_note", job.id), result: "mock", reported: null });
+    return { invoiceId: invoice.id, recorded: "mock" };
+  }
+  const credential = provider.credential;
+  if (!credential) throw new Error("STRIPE_CREDENTIAL_MISSING");
+  const auth = { authorization: `Bearer ${credential.accessToken}` };
+  const url = `https://api.stripe.com/v1/invoices/${encodeURIComponent(providerInvoiceId)}`;
+  const readInvoice = () => providerJson(url, { headers: auth }, "STRIPE_INVOICE_READ_FAILED");
+  const reportedFrom = (current: Json) => {
+    const remaining = Math.max(0, number(current.amount_remaining));
+    return {
+      status:
+        text(current.status) === "void"
+          ? "voided"
+          : remaining === 0
+            ? "paid"
+            : number(current.amount_paid) > 0 || number(current.pre_payment_credit_notes_amount) > 0
+              ? "partially_paid"
+              : "sent",
+      balanceCents: remaining,
+    };
+  };
+  const current = await readInvoice();
+  const status = text(current.status);
+  if (status === "paid") {
+    await landStudioPaymentAtProvider(db, job, { providerPaymentId: null, result: "already_paid", reported: reportedFrom(current) });
+    return { invoiceId: invoice.id, recorded: "already_paid" };
+  }
+  if (status !== "open") throw new Error(`STRIPE_INVOICE_NOT_OPEN:409:Stripe shows this invoice as ${status || "unknown"}`);
+  // Already there: a credit note on this invoice carrying this payment's id.
+  const notes = await providerJson(
+    `https://api.stripe.com/v1/credit_notes?invoice=${encodeURIComponent(providerInvoiceId)}&limit=100`,
+    { headers: auth },
+    "STRIPE_CREDIT_NOTE_LIST_FAILED",
+  );
+  const existing = (Array.isArray(notes.data) ? notes.data.map(asRecord) : []).find(
+    (note) => text(asRecord(note.metadata).studiocue_payment_id) === String(payment.id) && text(note.status) !== "void",
+  );
+  if (existing) {
+    await landStudioPaymentAtProvider(db, job, { providerPaymentId: text(existing.id) || null, result: "already_there", reported: reportedFrom(await readInvoice()) });
+    return { invoiceId: invoice.id, providerPaymentId: text(existing.id), recorded: "already_there" };
+  }
+  const remaining = Math.max(0, number(current.amount_remaining));
+  if (amountCents > remaining)
+    throw new Error(
+      `STRIPE_PAYMENT_EXCEEDS_BALANCE:409:Stripe shows ${(remaining / 100).toFixed(2)} left on this invoice, less than the ${(amountCents / 100).toFixed(2)} recorded`,
+    );
+  const form = { ...auth, "content-type": "application/x-www-form-urlencoded", "idempotency-key": text(job.get("idempotencyKey")) || job.id };
+  let providerPaymentId: string | null = null;
+  let result: string;
+  if (amountCents === remaining) {
+    await providerJson(`${url}/pay`, { method: "POST", headers: form, body: new URLSearchParams({ paid_out_of_band: "true" }) }, "STRIPE_PAID_OUT_OF_BAND_FAILED");
+    result = "paid_out_of_band";
+  } else {
+    const ref = text(payment.reference);
+    const memo = `Paid outside Stripe on ${text(payment.paidAt)} by ${text(payment.method)}${ref ? ` (ref ${ref})` : ""}`.slice(0, 500);
+    const note = await providerJson(
+      "https://api.stripe.com/v1/credit_notes",
+      {
+        method: "POST",
+        headers: form,
+        body: new URLSearchParams({
+          invoice: providerInvoiceId,
+          amount: String(amountCents),
+          memo,
+          "metadata[studiocue_payment_id]": String(payment.id),
+          "metadata[studiocue_invoice_id]": invoice.id,
+        }),
+      },
+      "STRIPE_CREDIT_NOTE_FAILED",
+    );
+    providerPaymentId = text(note.id) || null;
+    result = "credit_note";
+  }
+  await landStudioPaymentAtProvider(db, job, { providerPaymentId, result, reported: reportedFrom(await readInvoice()) });
+  return { invoiceId: invoice.id, providerPaymentId, recorded: result };
+}
 
 async function dropboxFolder(accessToken:string,path:string){
   const create=await fetch("https://api.dropboxapi.com/2/files/create_folder_v2",{method:"POST",headers:{authorization:`Bearer ${accessToken}`,"content-type":"application/json"},body:JSON.stringify({path,autorename:false})});
@@ -1494,7 +1799,7 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   }
   if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow,crewPlan};
   const date=String(project.get("eventDate"));const name=String(project.get("name"));const eventType=String(project.get("eventType"));const safe=`${date}_${name}_${eventType}`.replace(/[^a-zA-Z0-9_-]+/g,"_");let folderIds:string[]=[];let projectRootPath:string|null=null;const sideEffectSkips:Record<string,string>={};try{const dropbox=await connection(tenantId,"dropbox");const configuredRoot=String(dropbox.document.get("selectedResourceId")??"/StudioCue");const root=configuredRoot.startsWith("/")?configuredRoot:`/${configuredRoot}`;const projectRoot=`${root.replace(/\/$/,"")}/${date.slice(0,4)}/${safe}`;projectRootPath=projectRoot;const paths=[projectRoot,...["01_Contracts","02_Invoices","03_Client_Details","04_Schedule","05_COI","06_Crew","07_Delivery"].map(folder=>`${projectRoot}/${folder}`)];for(const path of paths){if(dropbox.mock){folderIds.push(mockId("dropbox",path));continue}const value=await dropboxFolder(String(dropbox.credential?.accessToken),path);folderIds.push(text(value.id))}}catch(caught:unknown){folderIds=[];projectRootPath=null;sideEffectSkips.dropbox=caught instanceof Error?caught.message:"DROPBOX_UNAVAILABLE"}
-  let eventId=String(project.get("calendarEventId")??"");try{const calendar=await connection(tenantId,"google_calendar");if(!eventId&&calendar.mock)eventId=mockId("event",projectId);else if(!eventId){const calendarId=encodeURIComponent(String(calendar.document.get("selectedResourceId")??"primary"));const endDate=new Date(`${date}T00:00:00Z`);endDate.setUTCDate(endDate.getUTCDate()+1);const providerEventId=createHash("sha256").update(`project:${projectId}`).digest("hex").slice(0,32);const url=`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;const create=await fetch(url,{method:"POST",headers:{authorization:`Bearer ${calendar.credential?.accessToken}`,"content-type":"application/json"},body:JSON.stringify({id:providerEventId,summary:`${name} · ${eventType}`,start:{date},end:{date:endDate.toISOString().slice(0,10)},transparency:"opaque",extendedProperties:{private:{studioHubProjectId:projectId}}})});if(create.status===409){const value=await providerJson(`${url}/${providerEventId}`,{headers:{authorization:`Bearer ${calendar.credential?.accessToken}`}},"CALENDAR_READ_FAILED");eventId=text(value.id)}else{const value=asRecord(await create.json().catch(()=>({})));if(!create.ok)throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);eventId=text(value.id)}}}catch(caught:unknown){sideEffectSkips.calendar=caught instanceof Error?caught.message:"GOOGLE_CALENDAR_UNAVAILABLE"}
+  let eventId=String(project.get("calendarEventId")??"");try{const calendar=await connection(tenantId,"google_calendar");if(!eventId)eventId=await putStudioBookingEvent(calendar,project)}catch(caught:unknown){sideEffectSkips.calendar=caught instanceof Error?caught.message:"GOOGLE_CALENDAR_UNAVAILABLE"}
   const now=new Date().toISOString();
   // P22: promote the booked couple from prospect to client so they appear in
   // the Clients directory (where re-invite already lives). Nothing did this, so

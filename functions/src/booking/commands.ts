@@ -38,6 +38,7 @@ import {
   voidInvoiceInput,
   writeInvoiceVoid,
 } from "./invoice-corrections.js";
+import { recordInvoicePayment, recordInvoicePaymentInput } from "./invoice-payments.js";
 import { invoiceVoidRefusal } from "./invoice-corrections-core.js";
 import { planRetainerAttestation } from "./retainer-attestation.js";
 import {
@@ -470,6 +471,15 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: approveFinalInvoiceInput,
+  }),
+  // A payment — the whole balance or part of it — against a retainer or
+  // final bill out with the couple, pushed to QuickBooks or Stripe so their
+  // balance agrees. See ./invoice-payments.ts.
+  z.object({
+    type: z.literal("recordInvoicePayment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: recordInvoicePaymentInput,
   }),
   z.object({
     /**
@@ -2120,7 +2130,8 @@ export const bookingCommand = onRequest(
       } else if (
         command.type === "voidInvoice" ||
         command.type === "correctPaymentRecord" ||
-        command.type === "approveFinalInvoice"
+        command.type === "approveFinalInvoice" ||
+        command.type === "recordInvoicePayment"
       ) {
         const correctionContext = {
           tenantId: command.tenantId,
@@ -2135,6 +2146,8 @@ export const bookingCommand = onRequest(
           result = await voidInvoice(firestore, correctionContext, command.input);
         else if (command.type === "correctPaymentRecord")
           result = await correctPaymentRecord(firestore, correctionContext, command.input);
+        else if (command.type === "recordInvoicePayment")
+          result = await recordInvoicePayment(firestore, correctionContext, command.input);
         else result = await approveFinalInvoice(firestore, correctionContext, command.input);
       } else if (command.type === "recordFinalPayment") {
         /**

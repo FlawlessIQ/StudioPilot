@@ -1756,6 +1756,40 @@ export const crmCommand = onRequest(
           if (refusal) throw new Error(refusal);
           const target = String(project.get("cancelledFromState")) as ProjectStateName;
           const booked = ["BOOKED", "PLANNING", "READY"].includes(target);
+          /**
+           * The studio's calendar event, back. The cancel deleted it
+           * (remove_booking_calendar_events) and an undo left the day empty.
+           * Only for a booked job — before booking there was never an event —
+           * and only with Google Calendar connected. Crew invites are not
+           * restored: the crew were released and are re-offered, and their
+           * invites come back when they accept.
+           */
+          const calendarConnected = booked
+            ? !(
+                await transaction.get(
+                  db
+                    .collection("integrationConnections")
+                    .where("tenantId", "==", command.tenantId)
+                    .where("provider", "==", "google_calendar")
+                    .where("status", "==", "connected")
+                    .limit(1),
+                )
+              ).empty
+            : false;
+          if (calendarConnected) {
+            const jobId = `restore_calendar_${command.input.projectId}_${stateVersion + 1}`;
+            transaction.set(db.doc(`providerJobs/${jobId}`), {
+              id: jobId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type: "restore_booking_calendar_event",
+              idempotencyKey: jobId,
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          }
           transaction.update(projectReference, {
             state: target,
             stateVersion: stateVersion + 1,

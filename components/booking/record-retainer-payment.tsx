@@ -18,9 +18,11 @@ import { friendlyError } from "@/lib/ai/friendly-error";
  * No amount field. The retainer is whatever the accepted package snapshot
  * says it is, read server-side, so recording a payment cannot quietly
  * restate the price. A studio that took a different figure has taken a
- * part payment, which is not this — the approved retainer exception is the
- * path for going ahead without the full amount, and it says so in the
- * record.
+ * part payment, which is not this: once the retainer invoice is out with the
+ * couple, "Record a payment" (invoice-corrections.tsx, RecordInvoicePayment)
+ * takes any amount up to its balance and replaces this form on the booking
+ * page. Going ahead without the full amount is the approved retainer
+ * exception, and it says so in the record.
  *
  * Folded shut, because with a provider connected this is the unusual path.
  */
