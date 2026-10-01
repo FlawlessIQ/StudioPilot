@@ -158,6 +158,8 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  // Set by a Send with required answers missing: flags each one where it is.
+  const [showMissing, setShowMissing] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const answersRef = useRef(answers);
   const changeVersion = useRef(0);
@@ -269,6 +271,15 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     answers,
   );
   const formSent = returned(form?.status);
+  // Worked out from the answers, so it goes as the last one comes in.
+  const names = outstanding.map((field) => field.label);
+  const missingNotice =
+    showMissing && names.length
+      ? names.length > 3
+        ? `${names.length} questions marked Required still need an answer.`
+        : // A label is often a question already: no "?." at the end.
+          `Still needed: ${names.join(", ")}${/[.?!]$/.test(names.at(-1) ?? "") ? "" : "."}`
+      : "";
 
   const persist = useCallback(
     async (submit: boolean) => {
@@ -325,13 +336,14 @@ export function CoupleInquiryPage({ token }: { token: string }) {
 
   function sendForm() {
     if (outstanding.length) {
-      const names = outstanding.map((field) => field.label);
-      setNotice(
-        names.length > 3
-          ? `${names.length} questions marked Required still need an answer.`
-          : // A label is often a question already: no "?." at the end.
-            `Still needed: ${names.join(", ")}${/[.?!]$/.test(names.at(-1) ?? "") ? "" : "."}`,
-      );
+      // On a phone the note sat at the foot of a long form, out of sight,
+      // and Send seemed to do nothing (local walk, 2026-10-01). Mark each
+      // missing answer and take the couple to the first one.
+      setShowMissing(true);
+      const first = document.getElementById(`inquiry-question-${outstanding[0]!.id}`);
+      first?.scrollIntoView({ behavior: "smooth", block: "center" });
+      first?.querySelector<HTMLElement>("input, textarea, select")?.focus({ preventScroll: true });
+      setNotice("");
       return;
     }
     setNotice("");
@@ -565,17 +577,26 @@ export function CoupleInquiryPage({ token }: { token: string }) {
               {visible.map((section) => (
                 <section aria-label={section.title} className="kit-stack" key={section.id}>
                   <h2 className="kit-subsection">{section.title}</h2>
-                  {section.fields.map((field) => (
-                    <Question
-                      answer={answers[field.id]}
-                      field={field}
-                      key={field.id}
-                      onChange={(value) => answer(field.id, value)}
-                      onFile={() => undefined}
-                      source=""
-                      uploading={false}
-                    />
-                  ))}
+                  {section.fields.map((field) => {
+                    const missing = showMissing && outstanding.some((item) => item.id === field.id);
+                    return (
+                      <div className="kit-stack-tight" id={`inquiry-question-${field.id}`} key={field.id}>
+                        <Question
+                          answer={answers[field.id]}
+                          field={field}
+                          onChange={(value) => answer(field.id, value)}
+                          onFile={() => undefined}
+                          source=""
+                          uploading={false}
+                        />
+                        {missing ? (
+                          <p className="kit-note" data-tone="danger">
+                            Still needed
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </section>
               ))}
             </div>
@@ -654,9 +675,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             </div>
           ) : null}
 
-          {notice && step !== "error" ? (
+          {(notice || (step === "form" && missingNotice)) && step !== "error" ? (
             <p className="kit-note" data-tone="danger" role="alert">
-              {notice}
+              {notice || missingNotice}
             </p>
           ) : null}
           <PoweredBy />
@@ -686,7 +707,11 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             note={
               formSent
                 ? undefined
-                : saving
+                : showMissing && outstanding.length
+                  ? outstanding.length === 1
+                    ? "1 question still needs an answer — it's marked above."
+                    : `${outstanding.length} questions still need an answer — they're marked above.`
+                  : saving
                   ? "Saving…"
                   : dirty
                     ? "Saving shortly…"
