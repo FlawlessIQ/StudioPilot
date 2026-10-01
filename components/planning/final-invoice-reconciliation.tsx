@@ -146,9 +146,7 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   reviewDue !== null &&
                   reviewDue !== Number(calculation.expectedBalanceCents ?? invoice.amountCents) ? (
                     <small>
-                      Was{" "}
-                      {money(calculation.expectedBalanceCents ?? invoice.amountCents, invoice.currency)} when
-                      it was raised; payments since are taken off.
+                      {`Was ${money(calculation.expectedBalanceCents ?? invoice.amountCents, invoice.currency)} when it was raised; payments since are taken off.`}
                     </small>
                   ) : null}
                 </span>

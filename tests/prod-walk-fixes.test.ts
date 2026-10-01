@@ -46,5 +46,5 @@ test("a final bill held for review has Check and send on its Invoices row", () =
 test("a held final bill's card shows the same balance as its send button", () => {
   const card = source("components/planning/final-invoice-reconciliation.tsx");
   assert.match(card, /inReview && reviewDue !== null\s*\? reviewDue\s*: calculation\.expectedBalanceCents \?\? invoice\.amountCents,/);
-  assert.match(card, /when\s*it was raised; payments since are taken off\./);
+  assert.match(card, /when it was raised; payments since are taken off\./);
 });
