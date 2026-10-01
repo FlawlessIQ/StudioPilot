@@ -121,6 +121,8 @@ export function seededManualSchedule(
     ceremonyTime: string | null;
     receptionTime: string | null;
     locations: string | null;
+    /** YYYY-MM-DD: with no times entered, the draft starts at noon that day, not now. */
+    eventDate?: string | null;
   },
 ): ManualScheduleItemSeed[] {
   const instant = (value: string | null): string | null => {
@@ -146,7 +148,10 @@ export function seededManualSchedule(
 
   // Nothing usable was entered, so this is the old empty draft.
   if (!seeds.length) {
-    return [manualScheduleItem(id(), nextItemStart([], null))];
+    // Started on the job's own day. It used to start "now", so every moment
+    // added after it landed on today's date (prod walk, 2026-10-01).
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(input.eventDate ?? "") ? instant(`${input.eventDate}T12:00`) : null;
+    return [manualScheduleItem(id(), day ?? nextItemStart([], null))];
   }
 
   const ordered = seeds

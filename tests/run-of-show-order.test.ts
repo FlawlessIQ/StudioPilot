@@ -462,3 +462,17 @@ test("the couple are told their answer went only when it reached the studio", ()
   assert.match(portal, /if \(!response\.persisted\)/);
   assert.doesNotMatch(portal, /if \(dataIsLive\)\s*\n?\s*await sendPlanningCommand/);
 });
+
+test("Build it myself with no times starts on the job's day, not today", async () => {
+  const { seededManualSchedule } = await import("@/features/planning/manual-run-of-show");
+  let n = 0;
+  const [first] = seededManualSchedule(() => `i${++n}`, {
+    coverageStartsAt: null,
+    coverageEndsAt: null,
+    ceremonyTime: null,
+    receptionTime: null,
+    locations: null,
+    eventDate: "2026-10-14",
+  });
+  assert.equal(new Date(first!.startAt).toISOString(), new Date("2026-10-14T12:00").toISOString());
+});

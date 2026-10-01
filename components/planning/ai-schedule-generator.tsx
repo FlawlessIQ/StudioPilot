@@ -731,6 +731,7 @@ export function AiScheduleGenerator({
       ceremonyTime: ceremonyTime || null,
       receptionTime: receptionTime || null,
       locations: locations || null,
+      eventDate: String(selectedProject?.eventDate ?? "").slice(0, 10) || null,
     });
     setFailed(false);
     setAskResult(null);
