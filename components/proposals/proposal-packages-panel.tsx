@@ -14,6 +14,7 @@ import {
 } from "@/features/proposals/workspace-guards";
 import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
 import { discountFromForm, discountLabel, discountRuleOf } from "@/features/proposals/package-discount";
+import { InfoHint } from "@/components/ui/info-hint";
 
 /**
  * The packages on this proposal, and the way to change them.
@@ -236,7 +237,13 @@ export function ProposalPackagesPanel({
         <div>
           {/* Not "Packages": the priced list above now carries that name. */}
           <p className="eyebrow">Change packages</p>
-          <h2 id="proposal-packages-title">What they&apos;re booking</h2>
+          <h2 id="proposal-packages-title">
+            What they&apos;re booking
+            <InfoHint label="What they're booking">
+              Change packages freely until the agreement goes out. Once the proposal has been sent, a change becomes a
+              new version for the couple to accept.
+            </InfoHint>
+          </h2>
         </div>
         {onJob.length < 4 && !agreementOut ? (
           <button

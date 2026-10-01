@@ -84,6 +84,7 @@ import {
   proposalHasLapsed,
   proposalWithCouple,
 } from "@/features/proposals/workspace-guards";
+import { InfoHint } from "@/components/ui/info-hint";
 
 type Value = Record<string, unknown> & { id: string };
 
@@ -1231,7 +1232,13 @@ export function StudioProposalComposer() {
             <div className="proposal-composer-section-body">
               <div>
                 <p className="eyebrow">Project</p>
-                <h2>Choose the client and event</h2>
+                <h2>
+                  Choose the client and event
+                  <InfoHint label="Locking a package">
+                    Locking a package fixes its price for this proposal. Later changes to the package itself never
+                    touch a proposal that already has it.
+                  </InfoHint>
+                </h2>
                 <p>
                   Only projects at consultation or proposal stage with a locked
                   package are available.
@@ -1504,7 +1511,13 @@ export function StudioProposalComposer() {
             <div className="proposal-composer-section-body">
               <div>
                 <p className="eyebrow">Presentation</p>
-                <h2>Frame the offer</h2>
+                <h2>
+                  Frame the offer
+                  <InfoHint label="Frame the offer">
+                    The couple reads this in their portal and on the PDF. The signed agreement, not this summary, is
+                    what they&apos;re bound by.
+                  </InfoHint>
+                </h2>
                 <p>
                   This copy appears in the client portal and the branded PDF.
                 </p>
@@ -1550,7 +1563,13 @@ export function StudioProposalComposer() {
             <div className="proposal-composer-section-body">
               <div>
                 <p className="eyebrow">Timing</p>
-                <h2>Set the decision and payment dates</h2>
+                <h2>
+                  Set the decision and payment dates
+                  <InfoHint label="Decision and payment dates">
+                    After the expiry date the couple can&apos;t accept it; you&apos;d send a new version. The retainer
+                    and final balance dates go on the payment plan they see.
+                  </InfoHint>
+                </h2>
                 <p>Dates are explicit and preserved with this proposal version.</p>
               </div>
               <div className="proposal-field-grid">
@@ -1593,6 +1612,10 @@ export function StudioProposalComposer() {
         <aside className="proposal-composer-preview">
           <div className="proposal-composer-preview-label">
             <Sparkles /> Offer snapshot
+            <InfoHint label="Offer snapshot">
+              A running summary of what the couple will see: the total, the tax, and the retainer that holds their
+              date.
+            </InfoHint>
           </div>
           {/* The job is known from the first step and from the URL. Telling
               the photographer to "select a project" while the step above
@@ -1666,7 +1689,9 @@ export function StudioProposalComposer() {
           <div className="proposal-composer-retainer">
             <CircleDollarSign />
             <span>
-              <small>Retainer</small>
+              <small>
+                Retainer <InfoHint term="retainer" />
+              </small>
               <input
                 aria-label="Retainer amount"
                 min="0"
@@ -2331,7 +2356,13 @@ export function StudioProposalWorkspace({
           <section className="proposal-workspace-payments">
             <div>
               <p className="eyebrow">Payment schedule</p>
-              <h2>Clear milestones, before accounting.</h2>
+              <h2>
+                Clear milestones, before accounting.
+                <InfoHint label="Payment schedule">
+                  When the proposal expires, and when the retainer and the final balance are due. The couple sees
+                  these as their payment plan.
+                </InfoHint>
+              </h2>
             </div>
             {isEditable ? (
               <div className="proposal-field-grid">

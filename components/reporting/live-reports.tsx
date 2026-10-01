@@ -27,6 +27,7 @@ import { formatCents } from "@/lib/format/money";
 import { analyseFunnel } from "@/features/operations/funnel";
 import { bookedStates } from "@/features/inquiries/stages";
 import { inquiryInsights, replyTimeLabel } from "@/features/reporting/inquiry-insights";
+import { InfoHint } from "@/components/ui/info-hint";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -293,7 +294,12 @@ export function LiveReports() {
         <div className="report-filter-heading">
           <span className="report-filter-icon"><SlidersHorizontal /></span>
           <span>
-            <strong>Report range</strong>
+            <strong>
+              Report range
+              <InfoHint label="Report range">
+                Filters jobs by their event date, and inquiries by the date they arrived.
+              </InfoHint>
+            </strong>
             <small>Focus every metric below</small>
           </span>
         </div>
@@ -323,22 +329,28 @@ export function LiveReports() {
         </article>
         <article className="panel report-metric-card report-metric-readiness">
           <span className="report-metric-icon"><Gauge /></span>
-          <span className="report-metric-copy"><small>Average readiness</small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>{`Across ${readinessTracked.length} booked ${readinessTracked.length === 1 ? "job" : "jobs"}`}</span></span>
+          <span className="report-metric-copy"><small>Average readiness<InfoHint label="Average readiness">The average readiness score of jobs that are Booked, Planning or Ready. Delivered jobs and inquiries aren&apos;t counted.</InfoHint></small><strong>{loading ? "—" : `${readinessAverage}%`}</strong><span>{`Across ${readinessTracked.length} booked ${readinessTracked.length === 1 ? "job" : "jobs"}`}</span></span>
         </article>
         <article className="panel report-metric-card report-metric-booked">
           <span className="report-metric-icon"><CircleDollarSign /></span>
-          <span className="report-metric-copy"><small>Invoiced</small><strong>{loading ? "—" : formatCents(invoicedValue)}</strong><span>Across every invoice raised</span></span>
+          <span className="report-metric-copy"><small>Invoiced<InfoHint label="Invoiced">The total of every invoice raised for jobs in this range. It isn&apos;t the same as Booked on Today.</InfoHint></small><strong>{loading ? "—" : formatCents(invoicedValue)}</strong><span>Across every invoice raised</span></span>
         </article>
         <article className="panel report-metric-card report-metric-outstanding">
           <span className="report-metric-icon"><WalletCards /></span>
-          <span className="report-metric-copy"><small>Outstanding</small><strong>{loading ? "—" : formatCents(outstanding)}</strong><span>Collected {formatCents(collected)}</span></span>
+          <span className="report-metric-copy"><small>Outstanding<InfoHint label="Outstanding">What&apos;s still unpaid on those invoices. Collected, beneath it, is what&apos;s been paid.</InfoHint></small><strong>{loading ? "—" : formatCents(outstanding)}</strong><span>Collected {formatCents(collected)}</span></span>
         </article>
       </section>
       <div className="report-layout">
         <section className="panel report-chart-card">
           <div className="panel-heading">
             <div>
-              <h2>Where inquiries come from</h2>
+              <h2>
+                Where inquiries come from
+                <InfoHint label="Where inquiries come from">
+                  Each source&apos;s inquiries, and how many of them booked. Closed without booking counts the ones
+                  that didn&apos;t.
+                </InfoHint>
+              </h2>
               <p>
                 {inquiries.inquiries
                   ? `${inquiries.inquiries} ${inquiries.inquiries === 1 ? "inquiry" : "inquiries"} · ${inquiries.winRate ?? 0}% booked · first reply in ${replyTimeLabel(inquiries.medianFirstReplyHours)} (median) — ${firstReplyHint}`
@@ -412,7 +424,13 @@ export function LiveReports() {
           return (
             <article className="panel report-effort">
               <span>
-                <small>Your actions per delivered wedding</small>
+                <small>
+                  Your actions per delivered wedding
+                  <InfoHint label="Your actions per delivered wedding">
+                    How many approvals, ticks and sends a typical delivered wedding took from you. Lower means
+                    StudioCue did more.
+                  </InfoHint>
+                </small>
                 <strong>{loading ? "—" : effort.deliveredMedian ?? "Needs data"}</strong>
               </span>
               <p>
@@ -470,7 +488,13 @@ export function LiveReports() {
           <div className="report-funnel-head">
             <div>
               <p className="eyebrow">Conversion</p>
-              <h2>Where inquiries stop becoming bookings</h2>
+              <h2>
+                Where inquiries stop becoming bookings
+                <InfoHint label="The funnel">
+                  The steps after the first count what reached them in this range. The first, Inquiries, counts
+                  every inquiry, whatever the range.
+                </InfoHint>
+              </h2>
             </div>
             {funnel.biggestLeak ? (
               <p className="report-funnel-leak">
