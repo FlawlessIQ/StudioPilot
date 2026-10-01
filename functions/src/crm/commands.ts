@@ -107,6 +107,7 @@ import {
   dispositionFor,
   isLiveAssignment,
 } from "../crew/job-stopped.js";
+import { readJobCrew, withdrawJobCrew } from "../crew/withdraw-for-job.js";
 import {
   coverageFromPhotographerCount,
   coverageRoleSchema,
@@ -564,6 +565,12 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string().min(1),
       restore: z.boolean().default(false),
+      /**
+       * Withdraw everyone still waiting on the job, then archive it — the
+       * studio's answer to "this job still has someone waiting on it".
+       * Without it, live crew refuses the archive as before.
+       */
+      withdrawLiveCrew: z.boolean().default(false),
     }),
   }),
   /**
@@ -3595,9 +3602,40 @@ export const crmCommand = onRequest(
               role: assignment.get("role") as string | null,
             })),
           );
-          if (!command.input.restore && archiveBlock.blocked) {
+          if (
+            !command.input.restore &&
+            archiveBlock.blocked &&
+            !command.input.withdrawLiveCrew
+          ) {
             throw new Error("PROJECT_HAS_LIVE_CREW");
           }
+          /**
+           * "Withdraw these and archive": each person is withdrawn as the
+           * crew card's Withdraw would — quietly if they never said yes,
+           * emailed with the calendar file if they had — and the job is filed
+           * away in the same transaction. Read here, inside it, so an offer
+           * accepted a moment ago is withdrawn and told rather than missed.
+           */
+          const crewRead =
+            !command.input.restore && command.input.withdrawLiveCrew
+              ? await readJobCrew(
+                  transaction,
+                  db,
+                  command.tenantId,
+                  command.input.projectId,
+                )
+              : null;
+          const crewWithdrawal = crewRead
+            ? withdrawJobCrew(transaction, db, crewRead, {
+                tenantId: command.tenantId,
+                projectId: command.input.projectId,
+                projectName: String(project.get("name") ?? ""),
+                actorId: identity.uid,
+                now: timestamp,
+                reason: "Job archived by the studio",
+                jobDeleted: false,
+              })
+            : null;
           transaction.update(projectReference, {
             archivedAt: command.input.restore ? null : timestamp,
             updatedAt: timestamp,
@@ -3617,7 +3655,16 @@ export const crmCommand = onRequest(
             entityId: command.input.projectId,
             timestamp,
             before: { archivedAt: project.get("archivedAt") ?? null },
-            after: { archivedAt: command.input.restore ? null : timestamp },
+            after: {
+              archivedAt: command.input.restore ? null : timestamp,
+              ...(crewWithdrawal?.withdrawn.length
+                ? {
+                    crewWithdrawn: crewWithdrawal.withdrawn,
+                    crewNotified: crewWithdrawal.notified,
+                    reason: "Job archived by the studio",
+                  }
+                : {}),
+            },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
             correlationId,
@@ -3627,6 +3674,8 @@ export const crmCommand = onRequest(
           const projectArchiveOutput = {
             projectId: command.input.projectId,
             archived: !command.input.restore,
+            crewWithdrawn: crewWithdrawal?.withdrawn.length ?? 0,
+            crewNotified: crewWithdrawal?.notified.length ?? 0,
           };
           transaction.create(commandReference, {
             tenantId: command.tenantId,

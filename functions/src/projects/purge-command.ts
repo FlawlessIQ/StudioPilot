@@ -7,6 +7,11 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { isLiveAssignment } from "../crew/job-stopped.js";
 import {
+  readJobCrew,
+  waitingCrew,
+  withdrawJobCrew,
+} from "../crew/withdraw-for-job.js";
+import {
   purgeConfirmationMatches,
   purgeLineLabel,
   purgeMaySweep,
@@ -53,9 +58,17 @@ const command = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       /** The job's own name, typed out. Checked server-side, never trusted. */
       confirmation: z.string().min(1).max(200),
+      /**
+       * Withdraw everyone still waiting on the job first, in this same
+       * command. Without it a job with live crew is refused, as before.
+       */
+      withdrawLiveCrew: z.boolean().default(false),
     }),
   }),
 ]);
+
+/** Why the crew were withdrawn, on each assignment and in the trail. */
+const JOB_DELETED_REASON = "Job deleted by the studio";
 
 const PAGE = 300;
 const BATCH = 300;
@@ -67,8 +80,13 @@ type Db = FirebaseFirestore.Firestore;
  *
  * The live-crew rule is the same one archiving follows, for a stronger
  * reason: an assignment somebody has accepted is a person holding a Saturday.
- * Cancelling the job withdraws the offers and tells them why; deleting it
- * would simply make the job vanish from under them.
+ * Deleting the job would simply make it vanish from under them. So a job with
+ * live crew is deleted only when the owner also asked for those people to be
+ * withdrawn — which tells the ones who accepted, exactly as withdrawing them
+ * one by one would (crew/withdraw-for-job.ts).
+ *
+ * Counts the live crew rather than refusing here, because the preview's job
+ * is to say who they are.
  */
 async function authorise(db: Db, tenantId: string, userId: string, projectId: string) {
   const membership = await db.doc(`memberships/${tenantId}_${userId}`).get();
@@ -89,8 +107,7 @@ async function authorise(db: Db, tenantId: string, userId: string, projectId: st
     (item) =>
       item.get("tenantId") === tenantId && isLiveAssignment(item.get("status")),
   );
-  if (live.length) throw new Error("PROJECT_HAS_LIVE_CREW");
-  return project;
+  return { project, liveCrew: live.length };
 }
 
 /** One page of this job's documents in one collection, tenant-checked. */
@@ -258,7 +275,7 @@ export const projectPurgeCommand = onRequest(
       const identity = await requireIdentity(request);
       const parsed = command.parse(request.body);
       const db = getFirestore();
-      const project = await authorise(
+      const { project, liveCrew } = await authorise(
         db,
         parsed.tenantId,
         identity.uid,
@@ -268,9 +285,23 @@ export const projectPurgeCommand = onRequest(
       const contactIds = (project.get("clientContactIds") as string[] | undefined) ?? [];
 
       if (parsed.type === "previewProjectPurge") {
-        const [lines, contacts] = await Promise.all([
+        const [lines, contacts, waiting] = await Promise.all([
           manifest(db, parsed.tenantId, parsed.input.projectId),
           contactsToDelete(db, parsed.tenantId, parsed.input.projectId, contactIds),
+          // Who is still waiting on the job, by name: the panel lists them and
+          // offers to withdraw them, instead of a refusal that names nobody.
+          liveCrew
+            ? db.runTransaction(async (transaction) =>
+                waitingCrew(
+                  await readJobCrew(
+                    transaction,
+                    db,
+                    parsed.tenantId,
+                    parsed.input.projectId,
+                  ),
+                ),
+              )
+            : Promise.resolve([]),
         ]);
         const [files] = await getStorage()
           .bucket()
@@ -284,12 +315,17 @@ export const projectPurgeCommand = onRequest(
           fileCount: files.length,
           clientsDeleted: contacts.deleting.map((contact) => contact.name),
           clientsKept: contacts.keeping.map((contact) => contact.name),
+          waiting,
         });
         return;
       }
 
       if (!purgeConfirmationMatches(parsed.input.confirmation, projectName))
         throw new Error("PROJECT_PURGE_NAME_MISMATCH");
+      // The plain path is unchanged: live crew refuses unless the owner chose
+      // to withdraw them.
+      if (liveCrew && !parsed.input.withdrawLiveCrew)
+        throw new Error("PROJECT_HAS_LIVE_CREW");
 
       const purgeId = createHash("sha256")
         .update(`${parsed.tenantId}:${parsed.idempotencyKey}`)
@@ -301,6 +337,33 @@ export const projectPurgeCommand = onRequest(
         response.status(200).json({ purgeId, status: "already_done" });
         return;
       }
+      /**
+       * Everyone still waiting, withdrawn before anything is destroyed.
+       *
+       * Its own transaction, re-reading the assignments, so somebody accepting
+       * at this moment is either withdrawn (and told) or not live at all. If
+       * the sweep below then fails, they stay withdrawn — which is what the
+       * owner asked for — and a retry finds nobody left to withdraw.
+       */
+      const crew = parsed.input.withdrawLiveCrew
+        ? await db.runTransaction(async (transaction) => {
+            const read = await readJobCrew(
+              transaction,
+              db,
+              parsed.tenantId,
+              parsed.input.projectId,
+            );
+            return withdrawJobCrew(transaction, db, read, {
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              projectName,
+              actorId: identity.uid,
+              now: new Date().toISOString(),
+              reason: JOB_DELETED_REASON,
+              jobDeleted: true,
+            });
+          })
+        : { withdrawn: [], notified: [] };
       /**
        * Written before anything is destroyed, so a purge that dies half way
        * still leaves a record saying what was being done and by whom. There is
@@ -364,7 +427,15 @@ export const projectPurgeCommand = onRequest(
         entityType: "project",
         entityId: parsed.input.projectId,
         timestamp: completedAt,
-        before: { purgeId, documents: deleted, files: files.length },
+        before: {
+          purgeId,
+          documents: deleted,
+          files: files.length,
+          // Who was taken off it on the way, and why. Counts, not names.
+          crewWithdrawn: crew.withdrawn.length,
+          crewNotified: crew.notified.length,
+          ...(crew.withdrawn.length ? { reason: JOB_DELETED_REASON } : {}),
+        },
         after: null,
         ipAddress: null,
         userAgent: request.header("user-agent") ?? null,
@@ -383,6 +454,8 @@ export const projectPurgeCommand = onRequest(
         deleted,
         filesDeleted: files.length,
         contactsDeleted: contacts.deleting.length,
+        crewWithdrawn: crew.withdrawn.length,
+        crewNotified: crew.notified.length,
       });
     } catch (caught: unknown) {
       const message =

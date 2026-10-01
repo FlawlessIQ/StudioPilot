@@ -90,6 +90,11 @@ const ALLOWED_ON_BUSINESS_RECORDS = new Set([
   // owner/admin-gated set_copilot_voice path and read only when the copilot
   // drafts an email — it configures the assistant, it doesn't decide anything.
   "copilotVoice",
+  // The same kind of setting: the studio's own words for what its first reply
+  // to an inquiry should always do. Written only via the owner/admin-gated
+  // set_first_reply_instructions path; read by the reply drafters as quoted
+  // style guidance (functions/src/ai/studio-voice.ts).
+  "firstReplyInstructions",
 ]);
 
 /**

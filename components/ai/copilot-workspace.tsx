@@ -2,6 +2,7 @@
 
 import { Fragment, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { settingsSectionHref } from "@/features/settings/sections";
 import {
   BookOpenCheck,
   Check,
@@ -1199,7 +1200,7 @@ function CopilotVoiceSetting() {
       </summary>
       <p>
         How should your client emails sound — tone, and how you sign off? Cue
-        matches this when it drafts.
+        matches this in every client email it drafts for you.
       </p>
       <textarea
         value={voice}
@@ -1223,6 +1224,15 @@ function CopilotVoiceSetting() {
         </button>
         {saved ? <span role="status">Saved.</span> : null}
       </div>
+      {/* The first reply to a new inquiry follows this voice, and its own
+          instructions live in Settings (components/settings/first-reply-settings). */}
+      <p>
+        Your first reply to a new inquiry uses this voice too.{" "}
+        <Link href={settingsSectionHref("firstReply")}>
+          Tell Cue what that reply should always do
+        </Link>
+        .
+      </p>
     </details>
   );
 }

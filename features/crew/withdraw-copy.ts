@@ -58,3 +58,62 @@ export function withdrawDoneMessage(
     ? `${input.name} is off this job, and the ${input.role} role has been offered to ${outcome.replacementName ?? "the next person on your list"}.${told}`
     : `${input.name} is off this job.${told} Nobody else was on the list for ${input.role} — choose who to offer it to next.`;
 }
+
+/**
+ * Somebody still waiting on a job the studio wants to delete or archive.
+ *
+ * GR Productions, 2026-10-01: "I tried to delete [the] job to restart and
+ * won't let me … They say I have an offer out." The refusal named nobody. This
+ * is what the delete and archive panels list instead, so the studio sees who
+ * it is before choosing to withdraw them.
+ */
+export type WaitingCrewMember = {
+  assignmentId: string;
+  name: string | null;
+  role: string;
+  status: string;
+};
+
+/** Where things stand with them, in the studio's words. */
+export function waitingStatusLabel(status: string): string {
+  if (status === "accepted") return "accepted";
+  if (status === "draft") return "drafted, not sent";
+  return "offer not answered";
+}
+
+/** "Alex Rivera (Second shooter) — offer not answered". */
+export function waitingLine(
+  member: Pick<WaitingCrewMember, "name" | "role" | "status">,
+): string {
+  const who = member.name ? `${member.name} (${member.role})` : member.role;
+  return `${who} — ${waitingStatusLabel(member.status)}`;
+}
+
+/**
+ * What "Withdraw these and …" does to each of them, said before they press it.
+ *
+ * The same rule as withdrawing one person (withdrawConsequence above): only
+ * somebody who accepted is emailed, because only they are holding the date.
+ */
+export function withdrawAllConsequence(
+  waiting: readonly Pick<WaitingCrewMember, "name" | "role" | "status">[],
+): string {
+  const named = (member: Pick<WaitingCrewMember, "name" | "role">) =>
+    member.name ?? `your ${member.role.toLocaleLowerCase()}`;
+  const join = (names: string[]) =>
+    names.length <= 1
+      ? (names[0] ?? "")
+      : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  const accepted = waiting.filter((member) => member.status === "accepted");
+  const unanswered = waiting.filter((member) => member.status !== "accepted");
+  const parts: string[] = [];
+  if (accepted.length)
+    parts.push(
+      `${join(accepted.map(named))} already said yes, so ${accepted.length === 1 ? "they're" : "each of them is"} emailed that they've been released, with a calendar file that takes the day out of their diary.`,
+    );
+  if (unanswered.length)
+    parts.push(
+      `${join(unanswered.map(named))} ${unanswered.length === 1 ? "hasn't" : "haven't"} said yes, so they aren't emailed — the offer just closes.`,
+    );
+  return parts.join(" ");
+}

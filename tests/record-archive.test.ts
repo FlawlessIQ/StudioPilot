@@ -87,6 +87,7 @@ test("archiveProject exists as a command, and is reversible", () => {
     /\["studio_owner", "studio_admin"\]\.includes\(membershipData\.role\)/,
   );
   // Widened when archiving gained its live-crew refusal, which sits between
-  // the role check and the audit event.
-  assert.match(handler.slice(0, 3200), /action: command\.input\.restore\s*\n?\s*\? "project\.restored"/);
+  // the role check and the audit event; and again for "Withdraw these and
+  // archive" (tests/delete-job-live-crew.test.ts).
+  assert.match(handler.slice(0, 5200), /action: command\.input\.restore\s*\n?\s*\? "project\.restored"/);
 });
