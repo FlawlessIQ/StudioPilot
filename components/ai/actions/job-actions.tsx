@@ -27,6 +27,7 @@ import { useLeadCaptureSetup } from "@/components/intake/lead-capture-setup";
 import { ProjectEdit } from "@/components/projects/project-edit";
 import { ProjectAddClient } from "@/components/projects/project-add-client";
 import { billingAddressOf, ClientRecordActions } from "@/components/clients/client-record-actions";
+import { coupleConfirmed } from "@/features/contacts/billing-address-signing";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
 import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import {
@@ -577,7 +578,11 @@ export function EditContactCard({ action }: ActionCardProps) {
         <Embedded>
           <ClientRecordActions
             archived={Boolean(contact?.archivedAt)}
-            client={{ ...client, billingAddress: billingAddressOf(contact?.billingAddress) }}
+            client={{
+              ...client,
+              billingAddress: billingAddressOf(contact?.billingAddress),
+              billingAddressByCouple: coupleConfirmed(contact) !== null,
+            }}
           />
         </Embedded>
       ) : null}

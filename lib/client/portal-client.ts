@@ -3,6 +3,8 @@
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { withTimeout } from "@/lib/async/with-timeout";
+import type { BillingAddress } from "@/features/contacts/schema";
+import type { BillingAddressRequirement, SigningKind } from "@/features/contacts/billing-address-signing";
 
 export type ClientPortalProject = {
   id: string;
@@ -352,6 +354,8 @@ export function signClientContract(input: {
   typedName: string;
   consentVersion: string;
   idempotencyKey: string;
+  /** The billing address step's answer; null or absent when it asked nothing or was left blank. */
+  billingAddress?: BillingAddress | null;
 }) {
   return portalRequest<{
     contractId: string;
@@ -375,6 +379,8 @@ export function signClientCombinedAgreement(input: {
   typedNameCoverage: string;
   consentVersion: string;
   idempotencyKey: string;
+  /** The billing address step's answer; null or absent when it asked nothing or was left blank. */
+  billingAddress?: BillingAddress | null;
 }) {
   return portalRequest<{
     contractId: string;
@@ -401,6 +407,20 @@ export type ClientBookingChange = {
   signedAt: string | null;
 };
 
+/**
+ * What the signing sheet asks about the billing address — "required",
+ * "optional" or "hidden", from the studio's tax setting — and the signer's
+ * own address to prefill (server/contracts/signing-billing-address.ts).
+ */
+export function getSigningBillingAddressStep(tenantId: string, projectId: string, kind: SigningKind) {
+  return portalRequest<{ step: BillingAddressRequirement; onFile: BillingAddress | null }>({
+    type: "billing_address_step",
+    tenantId,
+    projectId,
+    kind,
+  });
+}
+
 /** A change to a signed booking, waiting for the couple (server/contracts/amendment-signing.ts). */
 export function getClientBookingChange(tenantId: string, projectId: string) {
   return portalRequest<{ change: ClientBookingChange | null }>({ type: "booking_change", tenantId, projectId });
@@ -414,6 +434,8 @@ export function signClientBookingChange(input: {
   typedName: string;
   consentVersion: string;
   idempotencyKey: string;
+  /** The billing address step's answer; null or absent when it asked nothing or was left blank. */
+  billingAddress?: BillingAddress | null;
 }) {
   return portalRequest<{ amendmentId: string; status: string; alreadySigned: boolean }>({
     type: "sign_amendment",

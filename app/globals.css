@@ -11795,6 +11795,50 @@ textarea:focus-visible {
   font-weight: 600;
 }
 
+/* Booking · where the couple is billed (QuickBooks taxes from it). */
+.booking-billing-address {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e1d8);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-bottom: 16px;
+  padding: 13px 18px;
+}
+
+.booking-billing-address > svg {
+  color: var(--muted);
+}
+
+.booking-billing-address span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.booking-billing-address strong {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.booking-billing-address small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+@media (max-width: 560px) {
+  .booking-billing-address {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .booking-billing-address > .button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
 /* Prepared work reads as the draft it is, not as the record holding it. */
 .structured-preview-body {
   display: grid;

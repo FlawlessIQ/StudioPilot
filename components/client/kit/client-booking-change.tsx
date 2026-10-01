@@ -18,6 +18,7 @@ import {
   type ClientBookingChange as Change,
 } from "@/lib/client/portal-client";
 import { InfoHint } from "@/components/ui/info-hint";
+import { BillingAddressStep, useBillingAddressStep } from "@/components/client/billing-address-step";
 
 /**
  * A change to a booking the couple already signed.
@@ -38,6 +39,13 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openedAt] = useState(() => Date.now());
+  // Asked only when none is on file: a change, not a first signature.
+  const billing = useBillingAddressStep({
+    tenantId: workspace.tenantId,
+    projectId: workspace.projectId,
+    kind: "amendment",
+    active: open,
+  });
 
   useEffect(() => {
     if (!dataIsLive || !workspace.tenantId || !workspace.projectId) return;
@@ -79,6 +87,8 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
 
   async function sign() {
     if (!change || !workspace.tenantId || !workspace.projectId || !change.documentHash) return;
+    const address = billing.answer();
+    if (!address.ok) return setError(address.message);
     if (!consented) return setError(signingRefusalCopy.CONSENT_REQUIRED);
     setBusy(true);
     setError(null);
@@ -91,6 +101,7 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
         typedName,
         consentVersion: currentEsignConsent.id,
         idempotencyKey: `amend_${change.id}_${Date.now()}`,
+        billingAddress: address.address,
       });
       setOpen(false);
       setReload((value) => value + 1);
@@ -156,6 +167,7 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
                 ) : null}
               </>
             ) : null}
+            <BillingAddressStep billing={billing} />
             <label className="kit-check">
               <input checked={consented} onChange={(event) => setConsented(event.target.checked)} type="checkbox" />
               <span>{currentEsignConsent.label}</span>
@@ -182,7 +194,10 @@ export function ClientBookingChange({ compact = false }: { compact?: boolean } =
                 {error}
               </p>
             ) : null}
-            <Button disabled={busy || !consented || normaliseTypedName(typedName) === null} onClick={() => void sign()}>
+            <Button
+              disabled={busy || !billing.ready || !consented || normaliseTypedName(typedName) === null}
+              onClick={() => void sign()}
+            >
               {busy ? "Signing…" : "Sign the change"}
             </Button>
           </div>

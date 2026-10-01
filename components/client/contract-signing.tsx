@@ -22,6 +22,7 @@ import {
 } from "@/lib/client/portal-client";
 import { signedCopyUrl } from "@/lib/contracts/command-client";
 import { formatSignedAt as formatDateTime } from "@/features/contracts/format";
+import { BillingAddressStep, useBillingAddressStep } from "@/components/client/billing-address-step";
 
 type ContractRecord = Record<string, unknown> & { id: string };
 
@@ -92,6 +93,14 @@ export function ClientContractSigning({
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
+  // The billing address, asked just before the signature when the studio's
+  // sales tax needs it (components/client/billing-address-step.tsx).
+  const billing = useBillingAddressStep({
+    tenantId: workspace.tenantId,
+    projectId: workspace.projectId,
+    kind: "contract",
+    active: signOpen,
+  });
   const idempotencyKey = useRef<string | null>(null);
   const viewedFor = useRef<string | null>(null);
   // As of opening the page, not re-read on every render.
@@ -130,6 +139,12 @@ export function ClientContractSigning({
 
   async function sign() {
     if (!workspace.tenantId || !workspace.projectId) return;
+    // In the order the sheet shows them: address, consent, name.
+    const address = billing.answer();
+    if (!address.ok) {
+      setError(address.message);
+      return;
+    }
     if (!consented) {
       setError(signingRefusalCopy.CONSENT_REQUIRED);
       return;
@@ -152,6 +167,7 @@ export function ClientContractSigning({
           typedNameCoverage,
           consentVersion: currentEsignConsent.id,
           idempotencyKey: idempotencyKey.current,
+          billingAddress: address.address,
         });
       } else {
         await signClientContract({
@@ -162,6 +178,7 @@ export function ClientContractSigning({
           typedName,
           consentVersion: currentEsignConsent.id,
           idempotencyKey: idempotencyKey.current,
+          billingAddress: address.address,
         });
       }
       onChanged();
@@ -334,6 +351,7 @@ export function ClientContractSigning({
                     ? `You’re signing both parts of the booking agreement with ${studioName ?? "your studio"} exactly as shown — the terms, then your coverage and price. This also accepts the proposal.`
                     : `You’re signing the agreement with ${studioName ?? "your studio"} exactly as shown.`}
                 </p>
+                <BillingAddressStep billing={billing} />
                 <label className="kit-check">
                   <input
                     checked={consented}
@@ -400,7 +418,7 @@ export function ClientContractSigning({
                     {error}
                   </p>
                 ) : null}
-                <Button disabled={busy} icon={busy ? undefined : PenLine} onClick={() => void sign()}>
+                <Button disabled={busy || !billing.ready} icon={busy ? undefined : PenLine} onClick={() => void sign()}>
                   {busy ? "Signing…" : sections ? "Sign both parts" : "Sign agreement"}
                 </Button>
               </div>

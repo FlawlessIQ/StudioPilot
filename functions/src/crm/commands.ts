@@ -29,7 +29,7 @@ import {
 } from "../packages/one-off.js";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
 import { holdResumeStates } from "./hold-resume.js";
-import { billingAddressInputSchema } from "../contacts/billing-address.js";
+import { billingAddressInputSchema, sameBillingAddress } from "../contacts/billing-address.js";
 import {
   evidenceControlledTransitions,
   projectStates,
@@ -3325,6 +3325,17 @@ export const crmCommand = onRequest(
             notes: command.input.notes,
             ...(command.input.billingAddress !== undefined
               ? { billingAddress: command.input.billingAddress }
+              : {}),
+            // An address the studio changed is the studio's, no longer "confirmed
+            // by the couple at signing". The edit form re-sends an unchanged
+            // address on every save, so only a real change moves the mark.
+            ...(command.input.billingAddress !== undefined &&
+            !sameBillingAddress(before.billingAddress, command.input.billingAddress)
+              ? {
+                  "fieldProvenance.billingAddress": command.input.billingAddress
+                    ? { source: "studio", label: null, at: timestamp }
+                    : null,
+                }
               : {}),
             updatedAt: timestamp,
             updatedBy: identity.uid,

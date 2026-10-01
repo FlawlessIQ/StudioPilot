@@ -102,6 +102,31 @@ the signatures) and the first line becomes the title.
   `agreement_template.version_saved`, `contract.auto_send_enabled|disabled`.
 - The sealed PDF and its `documents` record (see `docs/pdf-generation.md`).
 
+## Billing address at signing
+
+QuickBooks works out sales tax from the customer's address, so the signing
+sheet asks for it just before the signature — on a contract, a booking
+agreement, and (only when none is on file) a booking change. One on file is
+shown with **This is my billing address** to tick, or **Change it**; none is
+typed once.
+
+| Studio's records | The step |
+|---|---|
+| `billingSettings/{tenantId}.salesTax.mode == "quickbooks"`, job not `salesTaxExempt`, QuickBooks connected | Required — the signature is refused (`BILLING_ADDRESS_REQUIRED` / `_INVALID`) without one |
+| QuickBooks connected otherwise (a missing billingSettings doc is mode `none`) | Optional — "Add your billing address (optional)" |
+| No QuickBooks | Hidden |
+
+The portal route decides this again when the signature arrives
+(`server/contracts/signing-billing-address.ts`); the page only sends an
+address. It is saved, in the signing transaction, to the signer's own contact —
+the job's client contact whose email is the one they signed in with — as
+`contacts.billingAddress` with `fieldProvenance.billingAddress.source:
+"couple"`, plus a `contact.billing_address_confirmed_by_client` audit event.
+It is **not** part of the signed document, its hash, or the signature records.
+A studio edit that changes the address marks it `source: "studio"`. The
+QuickBooks customer gets it on creation, or filled in when its address is
+blank (`quickBooksCustomerSparseUpdate`).
+
 ## Consent wording
 
 `features/contracts/esign-consent.ts`. Each version is kept by id and never
