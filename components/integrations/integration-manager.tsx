@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
+  CalendarCheck2,
   CalendarDays,
+  CalendarRange,
   CheckCircle2,
   CircleDollarSign,
   FileSignature,
@@ -22,7 +24,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { setCapabilityProvider } from "@/lib/integrations/command-client";
+import {
+  connectAppleCalendar,
+  setCapabilityProvider,
+} from "@/lib/integrations/command-client";
 import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import { outsideStepAvailable } from "@/features/outside-steps/registry";
@@ -32,6 +37,9 @@ import {
   type CapabilitySelections,
 } from "@/features/integrations/routing";
 import {
+  BUSY_TIME_CALENDARS_COPY,
+  busyTimeProviders,
+  integrationProviderSchema,
   isOfferedProvider,
   offeredSigningProvider,
   providerCapabilities,
@@ -151,6 +159,16 @@ type Definition = {
   // external approval the studio cannot act on. Kept in step with the
   // final-evidence column of docs/integration-production-readiness.md.
   pendingReason?: string;
+  /**
+   * Shown as "Coming soon" rather than "Not open yet" while gated: built and
+   * waiting on the provider's own app approval, not on the studio.
+   */
+  comingSoon?: boolean;
+  /**
+   * "password": connected with an app-specific password typed here, not an
+   * OAuth redirect (Apple Calendar — iCloud has no OAuth for calendars).
+   */
+  connectKind?: "oauth" | "password";
 };
 
 const definitions: ReadonlyArray<Definition> = [
@@ -163,6 +181,30 @@ const definitions: ReadonlyArray<Definition> = [
     capabilities: ["Availability", "Consultations", "Event blocks"],
     icon: CalendarDays,
     accent: "google",
+  },
+  {
+    provider: "outlook_calendar",
+    label: "Outlook",
+    description:
+      "Read busy times from your Outlook or Microsoft 365 calendar so clients can’t book over them. Read-only.",
+    scope: "Default Outlook calendar",
+    capabilities: ["Busy times"],
+    icon: CalendarRange,
+    accent: "outlook",
+    comingSoon: true,
+    pendingReason:
+      "Coming soon — Outlook is waiting on Microsoft’s app approval. Connect Google Calendar or Apple Calendar meanwhile.",
+  },
+  {
+    provider: "apple_calendar",
+    label: "Apple Calendar (iCloud)",
+    description:
+      "Read busy times from your iCloud calendars so clients can’t book over them. Read-only.",
+    scope: "Your iCloud calendars",
+    capabilities: ["Busy times"],
+    icon: CalendarCheck2,
+    accent: "apple",
+    connectKind: "password",
   },
   {
     provider: "zoom",
@@ -246,9 +288,7 @@ const definitions: ReadonlyArray<Definition> = [
 // Keeping a second private copy here is how the proposal page and the
 // server came to disagree with these rows about which app signs a contract.
 const hiddenUiProviders = new Set<Provider>(
-  (
-    ["google_calendar", "zoom", "docusign", "dropbox_sign", "quickbooks", "stripe", "dropbox"] as Provider[]
-  ).filter((provider) => !isOfferedProvider(provider)),
+  integrationProviderSchema.options.filter((provider) => !isOfferedProvider(provider)),
 );
 const visibleDefinitions = definitions.filter(
   (definition) => !hiddenUiProviders.has(definition.provider),
@@ -261,8 +301,17 @@ const enabledOAuthProviders = new Set(
     .filter(Boolean),
 );
 
+const passwordConnect = (provider: Provider) =>
+  definitions.find((definition) => definition.provider === provider)
+    ?.connectKind === "password";
+
+// "Can this card connect?" An OAuth provider needs its production app named
+// in NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS. Apple Calendar needs no app at
+// StudioCue's end — only the integration Functions to post the password to.
 const oauthEnabled = (provider: Provider) =>
-  enabledOAuthProviders.has(provider);
+  passwordConnect(provider)
+    ? Boolean(process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL)
+    : enabledOAuthProviders.has(provider);
 
 const callbackErrors: Record<string, string> = {
   GOOGLE_CLOUD_PROJECT_REQUIRED:
@@ -281,6 +330,15 @@ const callbackErrors: Record<string, string> = {
     "That provider didn’t grant access. You may have declined, or this studio’s account isn’t permitted for the app yet — a Testing-mode OAuth app only lets approved accounts connect. Check with your admin, then reconnect.",
   OAUTH_PROVIDER_NOT_CONFIGURED:
     "This provider’s production application credentials are not configured.",
+  APPLE_CALENDAR_AUTH_FAILED:
+    "iCloud didn’t accept that Apple ID and app-specific password. Check the email, make a new app-specific password, and try again.",
+  APPLE_APP_PASSWORD_FORMAT:
+    "That isn’t an app-specific password. It looks like abcd-efgh-ijkl-mnop — make one at account.apple.com, under Sign-In and Security. Don’t use your Apple ID password.",
+  APPLE_ID_INVALID: "Enter the email address you sign in to iCloud with.",
+  APPLE_CALENDAR_NO_CALENDARS:
+    "That iCloud account has no calendars StudioCue can read. Turn on Calendars in iCloud settings, then try again.",
+  APPLE_CALENDAR_DISCOVERY_FAILED:
+    "iCloud didn’t answer as expected. Try again in a minute.",
 };
 
 function readableError(value: string): string {
@@ -316,6 +374,7 @@ export function IntegrationManager() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [ready, setReady] = useState(false);
   const [busyProvider, setBusyProvider] = useState<Provider | null>(null);
+  const [passwordFormFor, setPasswordFormFor] = useState<Provider | null>(null);
   const [savingCapability, setSavingCapability] =
     useState<IntegrationCapability | null>(null);
   const noticeRef = useRef<HTMLDivElement | null>(null);
@@ -456,7 +515,39 @@ export function IntegrationManager() {
     return { user, tenantId: status.tenantId };
   }
 
+  async function connectWithPassword(appleId: string, appPassword: string) {
+    setBusyProvider("apple_calendar");
+    try {
+      const { tenantId } = await tenantContext();
+      const result = await connectAppleCalendar({ tenantId, appleId, appPassword });
+      setPasswordFormFor(null);
+      setNotice({
+        tone: "success",
+        message: result.calendars.length
+          ? `Apple Calendar connected. Busy times now come from ${result.calendars.join(", ")}.`
+          : "Apple Calendar connected securely.",
+      });
+      await load();
+      return true;
+    } catch (caught: unknown) {
+      setNotice({
+        tone: "danger",
+        message:
+          caught instanceof Error
+            ? readableError(caught.message)
+            : "Apple Calendar could not be connected.",
+      });
+      return false;
+    } finally {
+      setBusyProvider(null);
+    }
+  }
+
   async function connect(provider: Provider) {
+    if (passwordConnect(provider) && oauthEnabled(provider)) {
+      setPasswordFormFor((current) => (current === provider ? null : provider));
+      return;
+    }
     if (!oauthEnabled(provider)) {
       setNotice({
         tone: "info",
@@ -568,13 +659,17 @@ export function IntegrationManager() {
   // there is a real choice. The page used to list every provider as a wide
   // row, then repeat the same facts as a routing table beneath them, so the
   // studio scrolled past both to reach anything else (docs/ui-audit-2026-09-27.md).
-  const usedFor = (provider: Provider) =>
-    capabilityRows
+  const usedFor = (provider: Provider) => [
+    ...capabilityRows
       .filter(
         ({ resolution }) =>
           resolution.outcome === "resolved" && resolution.provider === provider,
       )
-      .map(({ capability }) => capabilityCopy[capability].label);
+      .map(({ capability }) => capabilityCopy[capability].label),
+    // Busy time is read from every connected calendar at once, so it is not
+    // a routed capability with one winner — it is on every calendar tile.
+    ...(busyTimeProviders.has(provider) ? ["Busy times"] : []),
+  ];
   const gaps = capabilityRows.filter(
     ({ capability, resolution }) =>
       resolution.outcome !== "resolved" &&
@@ -627,6 +722,12 @@ export function IntegrationManager() {
         ) : null}
         <small>Sign-in details are encrypted and never shown in the browser.</small>
       </section>
+      <p className="integration-busy-note">
+        <CalendarDays size={14} aria-hidden="true" />
+        <span>
+          <strong>Busy times.</strong> {BUSY_TIME_CALENDARS_COPY}
+        </span>
+      </p>
 
       {notice ? (
         <div
@@ -688,7 +789,9 @@ export function IntegrationManager() {
                       ? "Connected"
                       : available
                         ? "Ready to connect"
-                        : "Not open yet"}
+                        : definition.comingSoon
+                          ? "Coming soon"
+                          : "Not open yet"}
                   </StatusBadge>
                 </span>
               </header>
@@ -721,6 +824,16 @@ export function IntegrationManager() {
                   <span>
                     {definition.pendingReason ?? "Not open for connection yet."}
                   </span>
+                </p>
+              ) : null}
+
+              {/* A connection that stopped working (an app-specific password
+                  revoked at Apple, a refresh token Microsoft no longer takes)
+                  says so, rather than reading as never connected. */}
+              {!connected && connection?.status === "error" && connection.lastError ? (
+                <p className="ds-int-pending">
+                  <TriangleAlert size={14} aria-hidden />
+                  <span>{readableError(connection.lastError)} Reconnect to start reading it again.</span>
                 </p>
               ) : null}
 
@@ -758,6 +871,14 @@ export function IntegrationManager() {
                   </button>
                 ) : null}
               </footer>
+
+              {!connected && passwordFormFor === definition.provider ? (
+                <AppleCalendarForm
+                  busy={busy}
+                  onCancel={() => setPasswordFormFor(null)}
+                  onSubmit={connectWithPassword}
+                />
+              ) : null}
 
               {connected ? (
                 <details className="integration-tile-manage">
@@ -852,5 +973,87 @@ export function IntegrationManager() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Apple Calendar's connect form.
+ *
+ * iCloud has no OAuth for calendars, so the studio makes an app-specific
+ * password at Apple and pastes it here. The how-to sits beside the fields
+ * because nobody knows where Apple keeps that page. The password is posted
+ * once to the integration Function and the field is cleared; it is never
+ * stored in the browser.
+ */
+function AppleCalendarForm({
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (appleId: string, appPassword: string) => Promise<boolean>;
+}) {
+  const [appleId, setAppleId] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  return (
+    <form
+      className="integration-apple-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void onSubmit(appleId.trim(), appPassword).then((connected) => {
+          if (connected) setAppPassword("");
+        });
+      }}
+    >
+      <ol className="integration-apple-howto">
+        <li>
+          Go to{" "}
+          <a href="https://account.apple.com" target="_blank" rel="noreferrer">
+            account.apple.com
+          </a>{" "}
+          and sign in.
+        </li>
+        <li>Open Sign-In and Security, then App-Specific Passwords.</li>
+        <li>Make one called “StudioCue” and paste it below.</li>
+      </ol>
+      <label>
+        <span>Apple ID email</span>
+        <input
+          autoComplete="username"
+          inputMode="email"
+          onChange={(event) => setAppleId(event.target.value)}
+          placeholder="you@icloud.com"
+          required
+          type="email"
+          value={appleId}
+        />
+      </label>
+      <label>
+        <span>App-specific password</span>
+        <input
+          autoComplete="off"
+          onChange={(event) => setAppPassword(event.target.value)}
+          placeholder="abcd-efgh-ijkl-mnop"
+          required
+          spellCheck={false}
+          type="password"
+          value={appPassword}
+        />
+      </label>
+      <small>
+        Not your Apple ID password. StudioCue only reads when you’re busy, and you can revoke this
+        password at Apple at any time.
+      </small>
+      <div className="integration-apple-actions">
+        <button className="ds-btn ds-btn-ghost ds-btn-sm" type="button" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+        <button className="ds-btn ds-btn-primary ds-btn-sm" type="submit" disabled={busy || !appleId || !appPassword}>
+          {busy ? <RefreshCw size={14} className="spin" /> : <CheckCircle2 size={14} />}
+          Connect Apple Calendar
+        </button>
+      </div>
+    </form>
   );
 }

@@ -13296,6 +13296,80 @@ form:has(> .address-field) > .address-field,
   justify-self: start;
 }
 
+/* Which calendars busy time is read from. */
+.integration-busy-note {
+  align-items: flex-start;
+  color: var(--ds-ink-soft, #565d68);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.integration-busy-note > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.provider-outlook {
+  background: #eaf2fb;
+  color: #0f62b3;
+}
+
+.provider-apple {
+  background: #f1f1f3;
+  color: #2c2c30;
+}
+
+/* Apple Calendar: Apple ID + app-specific password, with the how-to. */
+.integration-apple-form {
+  border-top: 1px solid var(--ds-line, var(--line));
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.integration-apple-howto {
+  color: var(--ds-ink-soft, #565d68);
+  display: grid;
+  font-size: 13px;
+  gap: 4px;
+  line-height: 1.45;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.integration-apple-form label {
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 600;
+  gap: 4px;
+}
+
+.integration-apple-form input {
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 400;
+  min-height: 40px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.integration-apple-form small {
+  color: var(--ds-muted, var(--muted));
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.integration-apple-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .integration-center {
   display: grid;
   gap: 16px;

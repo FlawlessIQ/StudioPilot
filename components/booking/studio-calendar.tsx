@@ -36,6 +36,7 @@ import {
   Unlock,
 } from "lucide-react";
 import { generateConsultationSlots, type ConsultationSlot } from "@/features/consultations/slots";
+import { formatStudioTime, formatStudioTimeRange } from "@/features/consultations/studio-time";
 import type { ConsultationSettings, Weekday } from "@/features/consultations/availability-schema";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -675,8 +676,7 @@ export function StudioCalendar() {
                   return (
                     <li className="ds-cal-row" key={booking.id}>
                       <span className="ds-cal-row-time">
-                        {format(new Date(String(booking.startsAt)), "h:mm a")} –{" "}
-                        {format(new Date(String(booking.endsAt)), "h:mm a")}
+                        {formatStudioTimeRange(String(booking.startsAt), String(booking.endsAt), timezone)}
                       </span>
                       <span className="ds-cal-row-name">
                         {project ? String(project.name) : "Booked"}
@@ -689,6 +689,7 @@ export function StudioCalendar() {
                       {booking.status === "scheduled" ? (
                         <ConsultationActions
                           booking={booking}
+                          timezone={timezone}
                           freeSlots={selectedSlots.filter(
                             (slot) => !selectedBookedKeys.has(slot.startsAt),
                           )}
@@ -754,6 +755,7 @@ export function StudioCalendar() {
                       projectId={schedulingFor ? schedulingFor.id : null}
                       slot={slot}
                       tenantId={tenantId}
+                      timezone={timezone}
                     />
                   ),
                 )}
@@ -774,9 +776,12 @@ export function StudioCalendar() {
 function ConsultationActions({
   booking,
   freeSlots,
+  timezone,
 }: {
   booking: TenantDocument;
   freeSlots: ConsultationSlot[];
+  /** The studio's zone: times shown and the move sent on its clock. */
+  timezone: string;
 }) {
   // Compact until used, matching SlotRow: a day with three consultations should
   // read as three times, not three forms.
@@ -836,7 +841,7 @@ function ConsultationActions({
             <option value="">Move to…</option>
             {freeSlots.map((value) => (
               <option key={value.startsAt} value={value.startsAt}>
-                {format(new Date(value.startsAt), "h:mm a")}
+                {formatStudioTime(value.startsAt, timezone)}
               </option>
             ))}
           </select>
@@ -855,7 +860,7 @@ function ConsultationActions({
                     consultationId,
                     startsAt: slot.startsAt,
                     endsAt: slot.endsAt,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    timezone,
                   },
                 },
                 (notified) =>
@@ -922,10 +927,12 @@ function SlotRow({
   slot,
   tenantId,
   projectId,
+  timezone,
 }: {
   slot: ConsultationSlot;
   tenantId: string;
   projectId: string | null;
+  timezone: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -933,10 +940,16 @@ function SlotRow({
     // times, not eight cards. It expands only when one is being booked.
     <li className={`ds-cal-row${open ? "" : " ds-cal-row-slot"}`}>
       <span className="ds-cal-row-time">
-        {format(new Date(slot.startsAt), "h:mm a")} – {format(new Date(slot.endsAt), "h:mm a")}
+        {formatStudioTimeRange(slot.startsAt, slot.endsAt, timezone)}
       </span>
       {open ? (
-        <BookSlotForm initialProjectId={projectId} slot={slot} tenantId={tenantId} onCancel={() => setOpen(false)} />
+        <BookSlotForm
+          initialProjectId={projectId}
+          slot={slot}
+          tenantId={tenantId}
+          timezone={timezone}
+          onCancel={() => setOpen(false)}
+        />
       ) : (
         <button type="button" className="ds-cal-slot-btn" onClick={() => setOpen(true)}>
           Book
@@ -950,9 +963,12 @@ function BookSlotForm({
   slot,
   onCancel,
   initialProjectId,
+  timezone,
 }: {
   slot: ConsultationSlot;
   tenantId: string;
+  /** The studio's zone, sent with the booking — never the browser's. */
+  timezone: string;
   onCancel: () => void;
   /** The job the studio came from ("Scheduling a consultation for …"). */
   initialProjectId: string | null;
@@ -1013,7 +1029,7 @@ function BookSlotForm({
           mode,
           startsAt: slot.startsAt,
           endsAt: slot.endsAt,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timezone,
           location: null,
         },
       });

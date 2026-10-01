@@ -1158,6 +1158,8 @@ export function ForwardingAddressCard() {
 
 const PROVIDER_LABELS: Partial<Record<IntegrationProvider, string>> = {
   google_calendar: "Google Calendar",
+  outlook_calendar: "Outlook",
+  apple_calendar: "Apple Calendar",
   zoom: "Zoom",
   quickbooks: "QuickBooks",
   dropbox: "Dropbox",
@@ -1187,11 +1189,16 @@ export function ConnectIntegrationCard({ action }: ActionCardProps) {
   const title = "Connect an app";
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   const chosen = options.find((option) => option.id === choice.chosen) ?? null;
-  const available = chosen ? enabledOAuth.has(chosen.id) : false;
+  // Apple Calendar has no OAuth: it connects with an app-specific password,
+  // on the Integrations page, where the how-to sits next to the form.
+  const passwordConnect = chosen?.id === "apple_calendar";
+  const available = chosen && !passwordConnect ? enabledOAuth.has(chosen.id) : false;
   return (
     <ActionShell detail="You sign in to the app and approve StudioCue there, then come back here." icon={<Plug size={15} />} title={title}>
       <SubjectPicker {...choice} noun="app" options={options} subject={action.subject} />
-      {chosen && !available ? <Blocked>{`${chosen.name} can't be connected in this environment yet.`}</Blocked> : null}
+      {passwordConnect ? (
+        <Blocked>Apple Calendar connects with an app-specific password. Open All integrations and use the Apple Calendar card.</Blocked>
+      ) : chosen && !available ? <Blocked>{`${chosen.name} can't be connected in this environment yet.`}</Blocked> : null}
       <Actions
         busy={runner.busy}
         disabled={!chosen || !available || !workspace.tenantId}

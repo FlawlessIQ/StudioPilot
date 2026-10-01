@@ -90,6 +90,9 @@ else
     --format='value(serviceConfig.secretEnvironmentVariables)')"
   for provider in ${enabled//,/ }; do
     key="$(printf '%s' "${provider}" | tr '[:lower:]' '[:upper:]')_CLIENT_ID"
+    # Outlook's Azure app is Microsoft's: its id is MICROSOFT_CLIENT_ID
+    # (functions/src/integrations/provider-config.ts oauthClientPrefix).
+    [ "${provider}" = "outlook_calendar" ] && key="MICROSOFT_CLIENT_ID"
     if printf '%s\n' "${oauth_env}" | grep -q "^${key}=" \
       || printf '%s\n' "${oauth_secrets}" | grep -q "${key}"; then
       pass "${provider}: ${key} present"

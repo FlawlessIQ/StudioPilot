@@ -16,6 +16,8 @@ const BRANDS: Record<string, string> = {
   docusign: "DocuSign",
   dropbox_sign: "Dropbox Sign",
   google_calendar: "Google Calendar",
+  outlook_calendar: "Outlook",
+  apple_calendar: "Apple Calendar",
   sendgrid: "SendGrid",
   zoom: "Zoom",
   dropbox: "Dropbox",

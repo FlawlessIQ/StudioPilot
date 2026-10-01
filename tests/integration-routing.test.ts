@@ -7,6 +7,7 @@ import {
   type RoutableConnection,
 } from "../features/integrations/routing";
 import {
+  busyTimeProviders,
   integrationProviderSchema,
   providerCapabilities,
 } from "../features/integrations/schema";
@@ -36,9 +37,15 @@ function connection(
   };
 }
 
-test("every provider declares at least one capability", () => {
-  for (const capabilities of Object.values(providerCapabilities)) {
-    assert.ok(capabilities.length > 0);
+test("every provider does a job: a routed capability, or busy time", () => {
+  // Outlook and Apple Calendar are read for busy time only — every connected
+  // calendar counts at once, so busy time is not a routed capability with one
+  // winner, and they never take "calendar" (writing events), which is Google's.
+  for (const [provider, capabilities] of Object.entries(providerCapabilities)) {
+    assert.ok(
+      capabilities.length > 0 || busyTimeProviders.has(provider as never),
+      `${provider} does nothing`,
+    );
   }
 });
 
