@@ -14,6 +14,11 @@ import {
 } from "@/features/contracts/esign-consent";
 import { contractDocumentSchema } from "@/features/contracts/document";
 import { contractDocumentHash, sha256Text } from "@/server/contracts/document-hash";
+import { planSigningBillingAddress } from "@/features/contacts/billing-address-signing";
+import {
+  readSigningBillingAddress,
+  writeSigningBillingAddress,
+} from "@/server/contracts/signing-billing-address";
 
 /**
  * The couple's side of a StudioCue contract: opening it, and signing it.
@@ -164,6 +169,12 @@ export async function signContract(
     evidence: RequestEvidence;
     studioAddress: string | null;
     appUrl: string;
+    /**
+     * The billing address from the sheet's last step, or nothing. Checked
+     * against what the studio's tax setting asks (signing-billing-address.ts);
+     * never part of the signed document or its hash.
+     */
+    billingAddress?: unknown;
   },
 ) {
   const consent = esignConsentVersion(input.consentVersion);
@@ -244,6 +255,16 @@ export async function signContract(
     const document = contractDocumentSchema.parse(contract.get("document"));
     if (contractDocumentHash(document) !== contract.get("documentHash"))
       throw new SigningRefused("DOCUMENT_CHANGED");
+    // The billing address, when the studio's sales tax needs one. Read here,
+    // before any write; saved to the signer's own contact below.
+    const billing = await readSigningBillingAddress(db, (reference) => transaction.get(reference), {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      signerEmail: input.signer.email,
+      kind: "contract",
+    });
+    const billingPlan = planSigningBillingAddress({ step: billing.step, submitted: input.billingAddress });
+    if ("refusal" in billingPlan) throw new SigningRefused(billingPlan.refusal);
 
     const typedName = normaliseTypedName(input.typedName)!;
     const now = new Date().toISOString();
@@ -395,6 +416,18 @@ export async function signContract(
         updatedAt: now,
       });
     }
+    writeSigningBillingAddress(db, transaction, {
+      context: billing,
+      address: billingPlan.save,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      via: "contract_signing",
+      recordId: input.contractId,
+      auditId: `${executionId}_billing`,
+      now,
+      signer: input.signer,
+      evidence: input.evidence,
+    });
     const result = {
       contractId: input.contractId,
       status: "completed",

@@ -72,6 +72,7 @@ import {
 import { statusLabel } from "@/features/format/status-label";
 import { canCreateProposalForProject } from "@/features/proposals/eligibility";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { BillingAddressSummary } from "@/components/clients/billing-address-summary";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -916,6 +917,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </Link>
         </aside>
       ) : null}
+      {/* Where they are billed, and whether the couple confirmed it at signing. */}
+      <BillingAddressSummary contact={contact} showMissing={invoicingProvider === "quickbooks"} />
       {/* One step at a time.
 
           Three equal columns gave the same weight to the step you can act on

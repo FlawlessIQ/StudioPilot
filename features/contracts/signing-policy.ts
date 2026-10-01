@@ -30,7 +30,15 @@ export type SigningRefusal =
    * CONTRACT_VOIDED, whose "they'll send a new one" is wrong here: nothing new
    * is coming, and the booking stands as it was.
    */
-  | "CHANGE_WITHDRAWN";
+  | "CHANGE_WITHDRAWN"
+  /**
+   * The studio has QuickBooks charge sales tax, which is worked out from the
+   * couple's billing address — so this signature needs one
+   * (features/contacts/billing-address-signing.ts).
+   */
+  | "BILLING_ADDRESS_REQUIRED"
+  /** An address that arrived without a street, city, state or ZIP QuickBooks can use. */
+  | "BILLING_ADDRESS_INVALID";
 
 export type SigningDecision =
   | { allowed: true; alreadySigned: false }
@@ -111,4 +119,6 @@ export const signingRefusalCopy: Record<SigningRefusal, string> = {
   NAME_REQUIRED: "Type your full name as your signature.",
   PROPOSAL_EXPIRED: "The prices in this agreement were valid until a date that has now passed. Message your studio and they'll send it again.",
   CHANGE_WITHDRAWN: "Your studio withdrew this change, so there's nothing to sign. Your booking stands exactly as it was.",
+  BILLING_ADDRESS_REQUIRED: "Add your billing address before you sign — your studio needs it for your invoices. If you don't see a place for it, reload the page.",
+  BILLING_ADDRESS_INVALID: "Check your billing address — it needs a street, city, state and ZIP code. Nothing was signed.",
 };

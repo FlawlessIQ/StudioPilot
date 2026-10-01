@@ -5,6 +5,8 @@ import { currentEsignConsent, esignConsentText, esignConsentVersion } from "@/fe
 import { contractDocumentSchema } from "@/features/contracts/document";
 import { contractDocumentHash, sha256Text } from "@/server/contracts/document-hash";
 import { SigningRefused, type RequestEvidence, type SignerIdentity } from "@/server/contracts/client-signing";
+import { planSigningBillingAddress } from "@/features/contacts/billing-address-signing";
+import { readSigningBillingAddress, writeSigningBillingAddress } from "@/server/contracts/signing-billing-address";
 
 /**
  * The couple signs a change to a booking they already signed.
@@ -70,6 +72,11 @@ export async function signAmendment(
     idempotencyKey: string;
     signer: SignerIdentity;
     evidence: RequestEvidence;
+    /**
+     * Asked only when none is on file — a booking change, not a first
+     * signature (billingAddressStepFor). Not signed, not hashed.
+     */
+    billingAddress?: unknown;
   },
 ) {
   const consent = esignConsentVersion(input.consentVersion);
@@ -115,6 +122,14 @@ export async function signAmendment(
     if (amendment.get("documentHash") !== input.documentHash) throw new SigningRefused("DOCUMENT_CHANGED");
     const document = contractDocumentSchema.parse(amendment.get("document"));
     if (contractDocumentHash(document) !== input.documentHash) throw new SigningRefused("DOCUMENT_CHANGED");
+    const billing = await readSigningBillingAddress(db, (reference) => transaction.get(reference), {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      signerEmail: input.signer.email,
+      kind: "amendment",
+    });
+    const billingPlan = planSigningBillingAddress({ step: billing.step, submitted: input.billingAddress });
+    if ("refusal" in billingPlan) throw new SigningRefused(billingPlan.refusal);
 
     const now = new Date().toISOString();
     transaction.create(signatureReference, {
@@ -168,6 +183,18 @@ export async function signAmendment(
       correlationId: executionId,
       automationRunId: null,
       providerEventId: null,
+    });
+    writeSigningBillingAddress(db, transaction, {
+      context: billing,
+      address: billingPlan.save,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      via: "amendment_signing",
+      recordId: input.amendmentId,
+      auditId: `${executionId}_billing`,
+      now,
+      signer: input.signer,
+      evidence: input.evidence,
     });
     const result = { amendmentId: input.amendmentId, status: "signed", alreadySigned: false };
     transaction.create(executionReference, {

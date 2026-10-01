@@ -37,10 +37,29 @@ import {
   viewContract,
 } from "@/server/contracts/client-signing";
 import { signCombinedAgreement } from "@/server/contracts/combined-signing";
+import { signingBillingAddressStep } from "@/server/contracts/signing-billing-address";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * The billing address a couple confirms or types as they sign. Only its shape
+ * here: whether it is needed, and whether a state and ZIP are real, is the
+ * server's call (features/contacts/billing-address-signing.ts), so a bad ZIP
+ * is answered in words rather than as an invalid request.
+ */
+const signingBillingAddressSchema = z
+  .object({
+    line1: z.string().max(200),
+    line2: z.string().max(200).nullable().optional(),
+    city: z.string().max(120),
+    region: z.string().max(80).nullable().optional(),
+    postalCode: z.string().max(20).nullable().optional(),
+    country: z.string().max(2).nullable().optional(),
+  })
+  .nullable()
+  .optional();
 
 const requestSchema = z.discriminatedUnion("type", [
   z.object({
@@ -116,6 +135,7 @@ const requestSchema = z.discriminatedUnion("type", [
     // Not defaulted: agreeing to sign electronically has to be an explicit act.
     consent: z.literal(true),
     consentVersion: z.string().min(1).max(80),
+    billingAddress: signingBillingAddressSchema,
     idempotencyKey: z.string().min(8).max(160),
   }),
   z.object({
@@ -133,7 +153,18 @@ const requestSchema = z.discriminatedUnion("type", [
     typedNameCoverage: z.string().max(200),
     consent: z.literal(true),
     consentVersion: z.string().min(1).max(80),
+    billingAddress: signingBillingAddressSchema,
     idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
+    /**
+     * What the signing sheet asks about the billing address, and the
+     * signer's own address to prefill. See server/contracts/signing-billing-address.ts.
+     */
+    type: z.literal("billing_address_step"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    kind: z.enum(["contract", "amendment"]),
   }),
   z.object({
     /** A change to a signed booking, waiting for the couple. See server/contracts/amendment-signing.ts. */
@@ -150,6 +181,7 @@ const requestSchema = z.discriminatedUnion("type", [
     typedName: z.string().max(200),
     consent: z.literal(true),
     consentVersion: z.string().min(1).max(80),
+    billingAddress: signingBillingAddressSchema,
     idempotencyKey: z.string().min(8).max(160),
   }),
   z.object({
@@ -2064,6 +2096,19 @@ export async function POST(request: Request) {
       return Response.json({ change: await pendingAmendmentFor(adminFirestore, parsed.tenantId, parsed.projectId) });
     }
 
+    if (parsed.type === "billing_address_step") {
+      // The signer's own address only: found by their verified email, never
+      // by an id the page sends.
+      return Response.json(
+        await signingBillingAddressStep(adminFirestore, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          signerEmail: typeof identity.email === "string" ? identity.email : null,
+          kind: parsed.kind,
+        }),
+      );
+    }
+
     if (
       parsed.type === "view_contract" ||
       parsed.type === "sign_contract" ||
@@ -2116,6 +2161,7 @@ export async function POST(request: Request) {
               idempotencyKey: parsed.idempotencyKey,
               signer,
               evidence,
+              billingAddress: parsed.billingAddress,
             }),
             { status: 201 },
           );
@@ -2136,6 +2182,7 @@ export async function POST(request: Request) {
               evidence,
               studioAddress,
               appUrl: process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin,
+              billingAddress: parsed.billingAddress,
             }),
             { status: 201 },
           );
@@ -2156,6 +2203,7 @@ export async function POST(request: Request) {
             appUrl:
               process.env.NEXT_PUBLIC_APP_URL ??
               new URL(request.url).origin,
+            billingAddress: parsed.billingAddress,
           }),
           { status: 201 },
         );

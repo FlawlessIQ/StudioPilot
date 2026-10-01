@@ -52,6 +52,12 @@ export const contactSchema = auditFieldsSchema.extend({
   marketingConsent: z.boolean(),
   notes: z.string().max(5000).nullable(),
   billingAddress: billingAddressSchema.nullable().optional(),
+  /**
+   * Who a field's value came from. `billingAddress` is the couple's when they
+   * confirmed or typed it at signing (features/contacts/billing-address-
+   * signing.ts), the studio's once the studio changes it.
+   */
+  fieldProvenance: z.record(z.string(), z.unknown()).optional(),
   archivedAt: z.string().datetime().nullable(),
 });
 

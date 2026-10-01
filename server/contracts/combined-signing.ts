@@ -15,6 +15,8 @@ import { sectionDocument, sectionsValid, type CombinedSection } from "@/features
 import { planClientProposalDecision } from "@/server/client/proposal-decision";
 import { contractDocumentHash, sha256Text } from "@/server/contracts/document-hash";
 import { SigningRefused, type RequestEvidence, type SignerIdentity } from "@/server/contracts/client-signing";
+import { planSigningBillingAddress } from "@/features/contacts/billing-address-signing";
+import { readSigningBillingAddress, writeSigningBillingAddress } from "@/server/contracts/signing-billing-address";
 
 /**
  * The couple signs the booking agreement: both parts, one sitting (H2 Part B,
@@ -53,6 +55,8 @@ export async function signCombinedAgreement(
     evidence: RequestEvidence;
     studioAddress: string | null;
     appUrl: string;
+    /** The sheet's billing address step, or nothing (signing-billing-address.ts). Not signed, not hashed. */
+    billingAddress?: unknown;
   },
 ) {
   const consent = esignConsentVersion(input.consentVersion);
@@ -169,6 +173,14 @@ export async function signCombinedAgreement(
       sections.some((section) => contractDocumentHash(sectionDocument(document, section)) !== section.hash)
     )
       throw new SigningRefused("DOCUMENT_CHANGED");
+    const billing = await readSigningBillingAddress(db, (reference) => transaction.get(reference), {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      signerEmail: input.signer.email,
+      kind: "contract",
+    });
+    const billingPlan = planSigningBillingAddress({ step: billing.step, submitted: input.billingAddress });
+    if ("refusal" in billingPlan) throw new SigningRefused(billingPlan.refusal);
 
     const priorStateVersion = Number(project.get("stateVersion") ?? 0);
     const consentTextHash = sha256Text(esignConsentText(consent));
@@ -333,6 +345,18 @@ export async function signCombinedAgreement(
         updatedAt: now,
       });
     }
+    writeSigningBillingAddress(db, transaction, {
+      context: billing,
+      address: billingPlan.save,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      via: "contract_signing",
+      recordId: input.contractId,
+      auditId: `${executionId}_billing`,
+      now,
+      signer: input.signer,
+      evidence: input.evidence,
+    });
     const result = { contractId: input.contractId, status: "completed", projectState: "RETAINER_PENDING", alreadySigned: false };
     transaction.create(executionReference, {
       id: executionId,

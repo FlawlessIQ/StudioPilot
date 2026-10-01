@@ -63,6 +63,8 @@ export function ClientRecordActions({
      * then only sends an address someone typed); null when there is none.
      */
     billingAddress?: ClientBillingAddress | null;
+    /** The couple confirmed or typed the address when they signed. */
+    billingAddressByCouple?: boolean;
   };
 }) {
   const [busy, setBusy] = useState(false);
@@ -239,6 +241,9 @@ export function ClientRecordActions({
               placeholder="Street"
             />
             <small>
+              {client.billingAddressByCouple && client.billingAddress
+                ? "Confirmed by the couple at signing. Changing it here makes it yours. "
+                : ""}
               QuickBooks works out sales tax from this. Filled in on their
               QuickBooks customer if it has none.
             </small>

@@ -69,6 +69,7 @@ import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { leadIntakeGaps } from "@/features/crm/lead-intake";
 import { billingAddressOf, ClientRecordActions } from "@/components/clients/client-record-actions";
+import { coupleConfirmed, formatBillingAddress } from "@/features/contacts/billing-address-signing";
 import { cacheEntryPredatesWrite } from "@/lib/live/record-writes";
 import {
   InferredTag,
@@ -647,6 +648,7 @@ export function LiveClientCards({
               (value): value is string => typeof value === "string",
             )
           : [];
+        const billingAddress = billingAddressOf(client.billingAddress);
         return (
           <article className="ds-people-row" key={client.id}>
             <span className="ds-people-avatar">
@@ -659,6 +661,13 @@ export function LiveClientCards({
             <span className="ds-people-copy">
               <strong>{name}</strong>
               <small>{email ?? "No email recorded"}</small>
+              {billingAddress ? (
+                <small title={formatBillingAddress(billingAddress)}>
+                  {`Billing: ${formatBillingAddress(billingAddress)}${
+                    coupleConfirmed(client) ? " · confirmed by the couple at signing" : ""
+                  }`}
+                </small>
+              ) : null}
             </span>
             <StatusBadge tone={client.portalUserId ? "success" : "neutral"}>
               {client.portalUserId ? "Portal active" : "Portal inactive"}
@@ -702,6 +711,7 @@ export function LiveClientCards({
                     typeof client.company === "string" ? client.company : null,
                   notes: typeof client.notes === "string" ? client.notes : null,
                   billingAddress: billingAddressOf(client.billingAddress),
+                  billingAddressByCouple: coupleConfirmed(client) !== null,
                 }}
               />
               {!client.portalUserId && email ? (
