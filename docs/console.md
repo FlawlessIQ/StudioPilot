@@ -153,6 +153,16 @@ The webhook now also records `invoice.paid`, `invoice.payment_failed` and
 timeline). A failed payment stamps `lastPaymentFailedAt` on the subscription.
 Subscription events also carry the discount and Stripe's unit amount.
 
+The Stripe account is shared with other products, and the endpoint receives
+their invoices too. One is recorded only when it names a studio StudioCue has
+(a `subscriptions` record for the tenant, or the customer id on one);
+anything else is logged as `ignored` in `webhookEvents`.
+
+MRR uses Stripe's own amount for the subscription when the webhook has
+reported it, so a studio on an older price shows what it really pays. List
+prices (`PLAN_LIST_PRICE_CENTS`, $150/$1,500 Studio and $299/$2,990
+Multi-Brand) are the fallback and what a trial is worth.
+
 `BILLING_MOCK_MODE=true` (the emulator) makes every billing command write what
 Stripe would have, without calling it.
 

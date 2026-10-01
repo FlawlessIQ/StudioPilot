@@ -88,8 +88,8 @@ export const HEALTH_WEIGHT_LABELS: Record<HealthWeightKey, string> = {
  * Stripe actually charges them.
  */
 export const PLAN_LIST_PRICE_CENTS: Record<string, { monthly: number; yearly: number }> = {
-  studio: { monthly: 25_000, yearly: 250_000 },
-  multi_brand: { monthly: 39_900, yearly: 399_000 },
+  studio: { monthly: 15_000, yearly: 150_000 },
+  multi_brand: { monthly: 29_900, yearly: 299_000 },
 };
 
 export const PLAN_LABELS: Record<string, string> = {

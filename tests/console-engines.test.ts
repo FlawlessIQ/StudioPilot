@@ -42,26 +42,27 @@ const signals = (overrides: Partial<server.StudioSignals> = {}): server.StudioSi
 });
 
 test("MRR counts only paying subscriptions, spreads yearly over twelve and applies a live discount", () => {
-  assert.equal(server.monthlyRecurringCents(facts(), NOW), 25_000);
-  assert.equal(server.monthlyRecurringCents(facts({ cadence: "yearly" }), NOW), Math.round(250_000 / 12));
-  assert.equal(server.monthlyRecurringCents(facts({ plan: "multi_brand" }), NOW), 39_900);
-  // Stripe's own amount wins over the list price: an older price keeps its rate.
-  assert.equal(server.monthlyRecurringCents(facts({ unitAmountCents: 15_000 }), NOW), 15_000);
+  assert.equal(server.monthlyRecurringCents(facts(), NOW), 15_000);
+  assert.equal(server.monthlyRecurringCents(facts({ cadence: "yearly" }), NOW), Math.round(150_000 / 12));
+  assert.equal(server.monthlyRecurringCents(facts({ plan: "multi_brand" }), NOW), 29_900);
+  // Stripe's own amount wins over the list price: a studio still on the
+  // legacy $250 price keeps paying it.
+  assert.equal(server.monthlyRecurringCents(facts({ unitAmountCents: 25_000 }), NOW), 25_000);
   for (const status of ["trialing", "past_due", "paused", "cancelled", "incomplete"])
     assert.equal(server.monthlyRecurringCents(facts({ status }), NOW), 0, `${status} is not revenue`);
   assert.equal(server.monthlyRecurringCents(facts({ comped: true }), NOW), 0);
   assert.equal(server.monthlyRecurringCents(facts({ suspended: true }), NOW), 0);
   const twenty = { code: "FALL20", couponId: "c", percentOff: 20, amountOffCents: null, duration: "repeating" as const, durationMonths: 3, endsAt: day(30) };
-  assert.equal(server.monthlyRecurringCents(facts({ discount: twenty }), NOW), 20_000);
-  assert.equal(server.monthlyRecurringCents(facts({ discount: { ...twenty, endsAt: day(-1) } }), NOW), 25_000, "an ended discount takes nothing off");
+  assert.equal(server.monthlyRecurringCents(facts({ discount: twenty }), NOW), 12_000);
+  assert.equal(server.monthlyRecurringCents(facts({ discount: { ...twenty, endsAt: day(-1) } }), NOW), 15_000, "an ended discount takes nothing off");
   const fifty = { ...twenty, percentOff: null, amountOffCents: 5_000, duration: "forever" as const, endsAt: null };
-  assert.equal(server.monthlyRecurringCents(facts({ discount: fifty }), NOW), 20_000);
+  assert.equal(server.monthlyRecurringCents(facts({ discount: fifty }), NOW), 10_000);
   assert.equal(server.monthlyRecurringCents(facts({ discount: { ...fifty, amountOffCents: 99_999 } }), NOW), 0, "never negative");
 });
 
 test("a trial's potential MRR is its plan's monthly price", () => {
-  assert.equal(server.potentialMonthlyCents(facts({ status: "trialing" })), 25_000);
-  assert.equal(server.potentialMonthlyCents(facts({ status: "trialing", cadence: "yearly" })), Math.round(250_000 / 12));
+  assert.equal(server.potentialMonthlyCents(facts({ status: "trialing" })), 15_000);
+  assert.equal(server.potentialMonthlyCents(facts({ status: "trialing", cadence: "yearly" })), Math.round(150_000 / 12));
 });
 
 test("health starts at 100 and every deduction says why", () => {
@@ -154,7 +155,7 @@ test("a studio's row: name, plan, trial, setup and judgement in one place", () =
   assert.deepEqual(row.billingMoment, { kind: "trial_ends", at: day(4) });
   assert.equal(row.setupDone, 3);
   assert.equal(row.mrrCents, 0);
-  assert.equal(row.potentialMrrCents, 25_000);
+  assert.equal(row.potentialMrrCents, 15_000);
   assert.equal(row.lifecycle, "activated");
   assert.equal(row.seats.max, 3);
   assert.equal(row.removed, false);

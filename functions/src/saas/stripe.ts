@@ -646,7 +646,11 @@ async function tenantForInvoice(db: FirebaseFirestore.Firestore, invoice: Record
   const details = (invoice.subscription_details ??
     (invoice.parent as Record<string, unknown> | undefined)?.subscription_details) as Record<string, unknown> | undefined;
   const fromMetadata = (details?.metadata as Record<string, unknown> | undefined)?.tenantId;
-  if (typeof fromMetadata === "string" && fromMetadata) return fromMetadata;
+  // The account is shared with other products, whose subscriptions may carry
+  // a tenantId of their own. Only a studio StudioCue has is recorded, so an
+  // invoice from elsewhere can't create a subscription record by merging.
+  if (typeof fromMetadata === "string" && fromMetadata)
+    return (await db.doc(`subscriptions/${fromMetadata}`).get()).exists ? fromMetadata : null;
   const customer = typeof invoice.customer === "string" ? invoice.customer : null;
   if (!customer) return null;
   const match = await db.collection("subscriptions").where("stripeCustomerId", "==", customer).limit(1).get();
