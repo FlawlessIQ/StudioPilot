@@ -31,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "dist", "functions", "cloud-run", "tests"]
+  "exclude": ["node_modules", "dist", "functions", "cloud-run", "tests", "scripts/purge-tenant-jobs.ts"]
 }
