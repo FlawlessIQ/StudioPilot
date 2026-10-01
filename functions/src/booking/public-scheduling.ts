@@ -91,6 +91,8 @@ const commandSchema = z.discriminatedUnion("type", [
       token: inquiryToken,
       startsAt: z.string().datetime(),
       format: z.enum(["zoom", "in_person", "phone"]),
+      /** Asked for on the page when they pick a phone call and none is on file. */
+      phone: z.string().trim().max(30).optional(),
     }),
   }),
   // The studio's event form, before the times (intake/inquiry-form.ts).
@@ -700,6 +702,14 @@ async function handleInquiryCommand(
   if (!previous && inquiryFormOwed(await inquiryFormState(db, context))) {
     throw new Error("INQUIRY_FORM_REQUIRED");
   }
+  // A phone call needs a number to call. A forwarded inquiry often has none,
+  // and the call was booked with nothing for the studio to dial (local walk,
+  // 2026-10-01). The number they give is kept on the inquiry, as their own.
+  const phone = phoneForCall(text(context.lead.get("phone")), command.input.phone);
+  if (command.input.format === "phone" && !phone) throw new Error("PHONE_NUMBER_REQUIRED");
+  if (command.input.format === "phone" && !text(context.lead.get("phone")) && phone) {
+    await saveCoupleDetails(db, context, { phone }, new Date().toISOString());
+  }
   const consultationId = `consultation_${createHash("sha256")
     .update(`inquiry:${context.lead.id}:${selected.startsAt}:${command.input.format}`)
     .digest("hex")
@@ -711,7 +721,7 @@ async function handleInquiryCommand(
     command.input.format === "in_person"
       ? options.inPersonLocation
       : command.input.format === "phone"
-        ? text(context.lead.get("phone")) || null
+        ? phone
         : null;
   const inquiryUrl = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app").replace(/\/$/, "")}/i/${command.input.token}`;
   const batch = db.batch();
@@ -1039,4 +1049,13 @@ async function handleInquiryForm(
     });
   }
   return { responseId, ...outcome };
+}
+
+/** The number to call: the one on file, else the one just given, if it has enough digits. */
+export function phoneForCall(onFile: string, given: string | undefined): string | null {
+  for (const candidate of [onFile, given ?? ""]) {
+    const value = candidate.trim();
+    if (value.replace(/\D/g, "").length >= 7) return value.slice(0, 30);
+  }
+  return null;
 }

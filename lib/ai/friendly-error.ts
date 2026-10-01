@@ -242,6 +242,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INQUIRY_PAST_CONSULTATION: "You've already spoken with the studio, and your proposal is on its way. Reply to their email to talk again.",
   // The studio's event form on that link (functions/src/intake/inquiry-form.ts).
   INQUIRY_FORM_REQUIRED: "Please fill in the studio's form first — they'd like your answers before the call.",
+  PHONE_NUMBER_REQUIRED: "Add the best number to call you, so the studio can ring you at that time.",
   INQUIRY_FORM_INCOMPLETE: "A few questions marked Required still need an answer.",
   INQUIRY_FORM_NOT_AVAILABLE: "This form isn't available any more. You can go ahead and pick a time.",
   QUICKBOOKS_PAYMENTS_NOT_GRANTED:

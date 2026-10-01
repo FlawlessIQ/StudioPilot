@@ -555,3 +555,15 @@ test("the reply's link line doesn't promise two minutes when the form comes firs
   assert.equal(inquiryLinkLine(url, true), `Tell us about your day and pick a time to talk: ${url}`);
   assert.match(inquiryLinkLine(url, false), /it takes two minutes: https:\/\/studio-cue\.com\/i\/abc$/);
 });
+
+test("a phone call needs a number: the one on file, else the one given", async () => {
+  const { phoneForCall } = await import("../functions/src/booking/public-scheduling");
+  assert.equal(phoneForCall("201-555-0123", undefined), "201-555-0123");
+  assert.equal(phoneForCall("", " (201) 555 0144 "), "(201) 555 0144");
+  assert.equal(phoneForCall("", "12345"), null);
+  assert.equal(phoneForCall("", undefined), null);
+  const server = readFileSync("functions/src/booking/public-scheduling.ts", "utf8");
+  assert.match(server, /if \(command\.input\.format === "phone" && !phone\) throw new Error\("PHONE_NUMBER_REQUIRED"\);/);
+  const page = readFileSync("components/inquiries/couple-inquiry-page.tsx", "utf8");
+  assert.match(page, /const needsPhone = format === "phone" && Boolean\(preview\?\.missing\.includes\("phone"\)\);/);
+});

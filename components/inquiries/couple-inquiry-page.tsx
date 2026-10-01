@@ -103,6 +103,7 @@ const friendly: Record<string, string> = {
   TIME_NO_LONGER_AVAILABLE: "That time was just taken. Please choose another.",
   EVENT_DATE_REQUIRED: "Add your wedding date first, so the studio can check it’s free.",
   FORMAT_NOT_OFFERED: "Please choose one of the ways the studio meets.",
+  PHONE_NUMBER_REQUIRED: "Add the best number to call you, so the studio can ring you at that time.",
   INQUIRY_FORM_REQUIRED: "Please fill in the studio’s form first — they’d like your answers before the call.",
   INQUIRY_FORM_INCOMPLETE: "A few questions marked Required still need an answer.",
   INQUIRY_FORM_NOT_AVAILABLE: "This form isn’t available any more. You can go ahead and pick a time.",
@@ -147,6 +148,8 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selected, setSelected] = useState("");
   const [format, setFormat] = useState<Format | "">("");
+  // Only asked when they choose a phone call and no number is on file.
+  const [callPhone, setCallPhone] = useState("");
   // Bumped after each change so the page re-reads where the couple stands.
   const [reloadKey, setReloadKey] = useState(0);
   const load = () => setReloadKey((key) => key + 1);
@@ -369,12 +372,15 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     }
   }
 
+  const needsPhone = format === "phone" && Boolean(preview?.missing.includes("phone"));
+  const phoneUsable = callPhone.replace(/\D/g, "").length >= 7;
+
   async function book() {
-    if (!selected || !format) return;
+    if (!selected || !format || (needsPhone && !phoneUsable)) return;
     setBusy(true);
     setNotice("");
     try {
-      await call("inquiry_book", { token, startsAt: selected, format });
+      await call("inquiry_book", { token, startsAt: selected, format, ...(needsPhone ? { phone: callPhone.trim() } : {}) });
       setSelected("");
       load();
     } catch (caught: unknown) {
@@ -666,6 +672,16 @@ export function CoupleInquiryPage({ token }: { token: string }) {
               {preview.formats.includes("in_person") && format === "in_person" && preview.inPersonLocation ? (
                 <p className="kit-caption">In person at {preview.inPersonLocation}</p>
               ) : null}
+              {needsPhone ? (
+                <Field
+                  hint={`${studio} will call you on this number at the time you pick.`}
+                  inputMode="tel"
+                  label="Best number to call you"
+                  onChange={(event) => setCallPhone(event.target.value)}
+                  type="tel"
+                  value={callPhone}
+                />
+              ) : null}
               <SlotPicker onSelect={setSelected} selected={selected} slots={slots} timezone={preview.timezone} />
               {slots.length ? (
                 <p className="kit-caption">Times shown in {preview.timezone}.</p>
@@ -738,7 +754,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
 
         {step === "time" && preview?.takesBookings ? (
           <Actions note={preview.booked ? "Your current time stays booked until you confirm a new one." : undefined}>
-            <Button disabled={!selected || !format || busy} onClick={() => void book()}>
+            <Button disabled={!selected || !format || busy || (needsPhone && !phoneUsable)} onClick={() => void book()}>
               {busy
                 ? "Confirming…"
                 : selected
