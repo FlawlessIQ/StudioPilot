@@ -24,6 +24,9 @@ import { isReturned, liveAssignmentFor } from "../planning/questionnaire-lifecyc
  * the job too (public-scheduling.ts, EVENT_DATE_REQUIRED), and needs the form
  * sent, so by the time a consultation exists the response does as well.
  *
+ * The AI read of the answers waits for the call (queueInquiryFormAnalysis):
+ * it is charged to the studio, and a couple who never books shouldn't cost one.
+ *
  * The pure parts are exported for tests/inquiry-event-form.test.ts.
  */
 
@@ -282,6 +285,79 @@ export function coupleVisibleAnswers(sections: readonly CoupleSection[], answers
   return Object.fromEntries(Object.entries(answers).filter(([fieldId]) => ids.has(fieldId)));
 }
 
+const labelKey = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** Questions the couple just answered on the page's details step, by label. */
+const INQUIRY_DETAIL_ALIASES: ReadonlyArray<{
+  labels: readonly string[];
+  value: (lead: { get(field: string): unknown }) => string | null;
+}> = [
+  {
+    labels: ["expected guest count", "guest count", "estimated guest count", "number of guests", "how many guests"],
+    value: (lead) => {
+      const count = Number(lead.get("estimatedGuestCount"));
+      return Number.isFinite(count) && count > 0 ? String(Math.round(count)) : null;
+    },
+  },
+  {
+    labels: ["second partner s full name", "partner s name", "partner name", "partner s full name", "your partner s name"],
+    value: (lead) => text(lead.get("partnerName")) || null,
+  },
+  {
+    labels: ["first partner s full name", "your full name", "your name"],
+    value: (lead) => {
+      const first = text(lead.get("firstName"));
+      const last = text(lead.get("lastName"));
+      return first && last ? `${first} ${last}` : null;
+    },
+  },
+];
+
+/**
+ * What the couple already told the page, as answers to the same questions on
+ * the studio's form.
+ *
+ * The dateless walk (2026-10-01): the date step asks for their partner's name
+ * and roughly how many guests, and the form that opens straight after asked
+ * "Second partner's full name" and "Expected guest count" again. The job holds
+ * neither (intake/convert.ts), so verifiedPrefill — which reads the job —
+ * could not fill them. These come from the inquiry itself, marked as the
+ * couple's own answer, not a verified fact; the job's facts win where both
+ * have one. Text-like questions only: a choice or a time is theirs to pick.
+ */
+export function inquiryDetailsPrefill(
+  lead: { get(field: string): unknown },
+  sections: unknown,
+): { answers: Record<string, unknown>; answerProvenance: Record<string, unknown> } {
+  const answers: Record<string, unknown> = {};
+  const answerProvenance: Record<string, unknown> = {};
+  for (const section of Array.isArray(sections) ? sections : []) {
+    for (const candidate of Array.isArray(record(section).fields) ? (record(section).fields as unknown[]) : []) {
+      const field = record(candidate);
+      const fieldId = text(field.id);
+      if (!fieldId || field.internalOnly === true || field.locked === true) continue;
+      if (!["text", "long_text", ""].includes(text(field.type))) continue;
+      const label = labelKey(field.label ?? field.id);
+      const alias = INQUIRY_DETAIL_ALIASES.find((item) => item.labels.includes(label));
+      const value = alias?.value(lead);
+      if (!value) continue;
+      answers[fieldId] = value;
+      answerProvenance[fieldId] = {
+        sourceType: "client_answer",
+        sourceId: fieldId,
+        label: "From their inquiry details",
+        verified: false,
+      };
+    }
+  }
+  return { answers, answerProvenance };
+}
+
 /**
  * The response's id when the inquiry page makes it: one per job and form, so
  * a retried save, or two tabs, can only ever make the one.
@@ -372,4 +448,125 @@ export async function inquiryFormState(
     requiresDate: false,
     status: response ? text(response.get("status")) || "not_started" : "not_started",
   };
+}
+
+/* ── The AI read of the answers, when the studio needs it ───────────────── */
+
+/**
+ * One analysis job per response, whoever queues it — the id the portal's
+ * saveQuestionnaire (planning/commands.ts) and the inquiry page share.
+ */
+export const questionnaireAnalysisJobId = (responseId: string) => `questionnaire_${responseId}`;
+
+/** The aiJobs document saveQuestionnaire queues, in the one shape. */
+export function questionnaireAnalysisJob(input: {
+  tenantId: string;
+  projectId: string;
+  responseId: string;
+  now: string;
+}) {
+  return {
+    id: questionnaireAnalysisJobId(input.responseId),
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    responseId: input.responseId,
+    type: "questionnaire_analysis",
+    status: "queued",
+    attempts: 0,
+    humanReviewRequired: true,
+    createdAt: input.now,
+    updatedAt: input.now,
+  };
+}
+
+/** A call that happened or is still to: not cancelled, moved, or missed. */
+export function consultationStands(status: unknown): boolean {
+  return ["scheduled", "completed"].includes(text(status));
+}
+
+/** Whether the job has a call that stands — the meeting the brief is for. */
+export async function jobHasConsultation(
+  db: Firestore,
+  input: { tenantId: string; projectId: string },
+): Promise<boolean> {
+  const consultations = await db
+    .collection("consultations")
+    .where("tenantId", "==", input.tenantId)
+    .where("projectId", "==", input.projectId)
+    .limit(20)
+    .get();
+  return consultations.docs.some((document) => consultationStands(document.get("status")));
+}
+
+/**
+ * Queue the AI read of a form the couple sent from the inquiry page — once,
+ * and only when the studio needs it.
+ *
+ * Analysis is charged to the studio's AI allowance, and the inquiry page is
+ * public: a couple who fills the form in and never books would cost the studio
+ * a run for an inquiry that went nowhere. The brief is for the meeting, so the
+ * analysis waits for the meeting: the couple booking their call (inquiry_book),
+ * the studio booking one (scheduleConsultation), a scheduling link, or — when
+ * no call was booked here at all — the proposal going out. A form sent after
+ * the call is already booked is queued at submit (public-scheduling.ts).
+ *
+ * `create`, not a merge: each of those moments can recur (a call moved, a
+ * proposal resent) and none should run it again. A resubmit after the studio
+ * reopens the form re-runs it from the submit path, as the portal does.
+ *
+ * Never throws: the read is never a reason to fail a booking.
+ */
+export async function queueInquiryFormAnalysis(
+  db: Firestore,
+  input: { tenantId: string; projectId: string; now: string },
+): Promise<string[]> {
+  try {
+    const responses = await db
+      .collection("questionnaireResponses")
+      .where("tenantId", "==", input.tenantId)
+      .where("projectId", "==", input.projectId)
+      .limit(50)
+      .get();
+    const queued: string[] = [];
+    for (const response of responses.docs) {
+      if (response.get("source") !== INQUIRY_FORM_SOURCE) continue;
+      if (!isReturned(response.get("status")) || response.get("archivedAt")) continue;
+      try {
+        await db
+          .doc(`aiJobs/${questionnaireAnalysisJobId(response.id)}`)
+          .create(
+            questionnaireAnalysisJob({
+              tenantId: input.tenantId,
+              projectId: input.projectId,
+              responseId: response.id,
+              now: input.now,
+            }),
+          );
+        queued.push(response.id);
+      } catch (caught) {
+        if (!alreadyExists(caught)) throw caught;
+      }
+    }
+    return queued;
+  } catch (caught) {
+    console.error(
+      JSON.stringify({
+        event: "inquiry_form.analysis_queue_failed",
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        message: (caught instanceof Error ? caught.message : String(caught)).slice(0, 300),
+      }),
+    );
+    return [];
+  }
+}
+
+/** Firestore's "that document is already there" (gRPC code 6). */
+function alreadyExists(caught: unknown): boolean {
+  const code = (caught as { code?: unknown })?.code;
+  return (
+    code === 6 ||
+    code === "already-exists" ||
+    /ALREADY_EXISTS/.test(caught instanceof Error ? caught.message : "")
+  );
 }

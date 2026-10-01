@@ -6,11 +6,15 @@ import {
   coupleCompletionPercent,
   coupleFormSections,
   coupleVisibleAnswers,
+  inquiryDetailsPrefill,
   inquiryEventKind,
   inquiryFormOwed,
   inquiryFormResponseId,
   inquiryFormState,
   inquiryGetsEventForm,
+  jobHasConsultation,
+  queueInquiryFormAnalysis,
+  questionnaireAnalysisJobId,
   resolveInquiryFormTemplate,
 } from "../functions/src/intake/inquiry-form.ts";
 import { verifiedPrefill } from "../functions/src/planning/questionnaire-prefill.ts";
@@ -193,6 +197,35 @@ test("the form starts from what the job knows (shared with Send the form)", () =
   assert.equal((prefill.answerProvenance.date as { sourceType: string }).sourceType, "project_fact");
 });
 
+test("the form doesn't ask again what the couple told the date step a moment ago", () => {
+  // The shipped wedding template's own labels (features/questionnaires/starter-templates.ts).
+  const wedding = [
+    {
+      id: "couple",
+      fields: [
+        { id: "partner-one", label: "First partner's full name", type: "text" },
+        { id: "partner-two", label: "Second partner's full name", type: "text" },
+        { id: "guest-count", label: "Expected guest count", type: "text" },
+        { id: "first-look", label: "Guest count", type: "radio", options: ["Yes"] },
+        { id: "secret", label: "Partner name", type: "text", internalOnly: true },
+      ],
+    },
+  ];
+  const fields: Record<string, unknown> = { firstName: "Priya", lastName: "Shah", partnerName: "Jordan Lee", estimatedGuestCount: 120 };
+  const prefill = inquiryDetailsPrefill({ get: (field: string) => fields[field] }, wedding);
+  assert.deepEqual(prefill.answers, { "partner-one": "Priya Shah", "partner-two": "Jordan Lee", "guest-count": "120" });
+  assert.equal((prefill.answerProvenance["guest-count"] as { sourceType: string; verified: boolean }).sourceType, "client_answer");
+  assert.equal((prefill.answerProvenance["guest-count"] as { verified: boolean }).verified, false, "the couple's word, not a verified fact");
+  // Nothing known, nothing filled.
+  assert.deepEqual(inquiryDetailsPrefill({ get: () => undefined }, wedding).answers, {});
+  // A first name alone is not a full name.
+  assert.deepEqual(inquiryDetailsPrefill({ get: (field: string) => ({ firstName: "Priya" })[field as "firstName"] }, wedding).answers, {});
+  // The page starts from both, the job's facts winning.
+  const source = read("functions/src/booking/public-scheduling.ts");
+  assert.match(source, /answers: \{ \.\.\.fromInquiry\.answers, \.\.\.fromJob\.answers \}/);
+  assert.equal((source.match(/startingAnswers\(project, context\.lead, templateSections\)/g) ?? []).length, 2, "load and first save");
+});
+
 /* ── Where the inquiry stands: inquiryFormState over a small double ───── */
 
 type Row = Record<string, unknown>;
@@ -286,6 +319,104 @@ test("a copy the studio withdrew is not the couple's to fill in", async () => {
     { tenantId: "t1", lead: lead({}), project: project({ eventType: "Wedding" }) },
   );
   assert.equal(state, null);
+});
+
+/* ── The AI read waits for the call ───────────────────────────────────── */
+
+/**
+ * The analysis is charged to the studio's AI allowance, and the inquiry page
+ * is public: a form from a couple who never books must not cost a run. It is
+ * queued when the call is booked (or the proposal goes out), once.
+ */
+function writableDb(seed: Record<string, Row>) {
+  const store: Record<string, Row> = { ...seed };
+  const reads = fakeDb(store) as unknown as { collection: (name: string) => unknown };
+  return {
+    store,
+    db: {
+      collection: reads.collection,
+      doc: (path: string) => ({
+        create: async (data: Row) => {
+          if (store[path]) throw Object.assign(new Error("6 ALREADY_EXISTS: Document already exists"), { code: 6 });
+          store[path] = data;
+        },
+      }),
+    } as unknown as FirebaseFirestore.Firestore,
+  };
+}
+
+test("a sent inquiry-page form is analysed once the call is booked — once, however often that moment recurs", async () => {
+  const { db, store } = writableDb({
+    "questionnaireResponses/r1": { tenantId: "t1", projectId: "p1", source: "inquiry_page", status: "submitted", archivedAt: null },
+    // Still being filled in: nothing to read yet.
+    "questionnaireResponses/r2": { tenantId: "t1", projectId: "p1", source: "inquiry_page", status: "in_progress", archivedAt: null },
+    // Sent from the job page: the portal submit queued its own.
+    "questionnaireResponses/r3": { tenantId: "t1", projectId: "p1", source: "studio", status: "submitted", archivedAt: null },
+    // Another studio's job of the same id.
+    "questionnaireResponses/r4": { tenantId: "t2", projectId: "p1", source: "inquiry_page", status: "submitted", archivedAt: null },
+  });
+  const now = "2026-10-01T12:00:00.000Z";
+  assert.deepEqual(await queueInquiryFormAnalysis(db, { tenantId: "t1", projectId: "p1", now }), ["r1"]);
+  const job = store[`aiJobs/${questionnaireAnalysisJobId("r1")}`];
+  assert.equal(job?.type, "questionnaire_analysis");
+  assert.equal(job?.status, "queued");
+  assert.equal(job?.tenantId, "t1");
+  assert.equal(job?.responseId, "r1");
+  assert.equal(job?.humanReviewRequired, true);
+  assert.equal(job?.id, "questionnaire_r1", "the id the portal submit uses: one job per response");
+  // The call moved, the proposal went out: never a second run.
+  store[`aiJobs/${questionnaireAnalysisJobId("r1")}`] = { ...job, status: "succeeded" };
+  assert.deepEqual(await queueInquiryFormAnalysis(db, { tenantId: "t1", projectId: "p1", now }), []);
+  assert.equal(store[`aiJobs/${questionnaireAnalysisJobId("r1")}`]?.status, "succeeded", "a finished run is not re-queued");
+  assert.equal(Object.keys(store).filter((path) => path.startsWith("aiJobs/")).length, 1);
+});
+
+test("queueing the read never fails the booking it rides on", async () => {
+  const broken = {
+    collection: () => {
+      throw new Error("UNAVAILABLE");
+    },
+  } as unknown as FirebaseFirestore.Firestore;
+  const original = console.error;
+  console.error = () => {};
+  try {
+    assert.deepEqual(await queueInquiryFormAnalysis(broken, { tenantId: "t1", projectId: "p1", now: "x" }), []);
+  } finally {
+    console.error = original;
+  }
+});
+
+test("a call that stands is booked or held; a cancelled, moved or missed one is not", async () => {
+  const db = (status: string) => fakeDb({ "consultations/c1": { tenantId: "t1", projectId: "p1", status } });
+  for (const status of ["scheduled", "completed"]) {
+    assert.equal(await jobHasConsultation(db(status), { tenantId: "t1", projectId: "p1" }), true, status);
+  }
+  for (const status of ["cancelled", "rescheduled", "no_show"]) {
+    assert.equal(await jobHasConsultation(db(status), { tenantId: "t1", projectId: "p1" }), false, status);
+  }
+  assert.equal(await jobHasConsultation(db("scheduled"), { tenantId: "t2", projectId: "p1" }), false, "another studio's call");
+});
+
+test("submit queues the read only when the call is already booked; booking queues it otherwise", () => {
+  const source = read("functions/src/booking/public-scheduling.ts");
+  const handler = source.slice(source.indexOf("async function handleInquiryForm("));
+  assert.match(handler, /const analyseNow =\s*submit && \(pastTheCall\(context\) \|\| \(await jobHasConsultation\(/);
+  assert.match(handler, /if \(submit && analyseNow\) \{\s*transaction\.set\(\s*db\.doc\(`aiJobs\/\$\{questionnaireAnalysisJobId\(responseId\)\}`\)/);
+  assert.equal((handler.match(/questionnaire_analysis|aiJobs\//g) ?? []).length, 1, "the one guarded write");
+  // inquiry_book: after the consultation is committed.
+  const book = source.slice(source.indexOf("// inquiry_book"), source.indexOf("async function handleInquiryForm("));
+  assert.match(book, /await batch\.commit\(\);\s*(\/\/[^\n]*\n\s*)*await queueInquiryFormAnalysis\(db, \{ tenantId: context\.tenantId, projectId: project\.id, now \}\)/);
+  // A studio-sent scheduling link books a call too.
+  assert.match(source, /await batch\.commit\(\);\s*(\/\/[^\n]*\n\s*)*await queueInquiryFormAnalysis\(db, \{\s*tenantId: String\(link\.get\("tenantId"\)\)/);
+  // The studio booking the call, and a proposal with no call booked here.
+  const commands = read("functions/src/booking/commands.ts");
+  const schedule = commands.slice(
+    commands.indexOf('command.type === "scheduleConsultation"'),
+    commands.indexOf('command.type === "cancelConsultation"'),
+  );
+  assert.match(schedule, /await queueInquiryFormAnalysis\(firestore, \{\s*tenantId: command\.tenantId,\s*projectId: command\.input\.projectId/);
+  const proposals = read("functions/src/booking/proposals.ts");
+  assert.match(proposals, /if \(command\.type === "send" && result\.status === "sent"\) \{[\s\S]{0,300}await queueInquiryFormAnalysis\(db,/);
 });
 
 /* ── The couple's journey ──────────────────────────────────────────────── */

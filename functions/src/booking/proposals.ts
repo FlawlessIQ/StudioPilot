@@ -18,6 +18,7 @@ import {
 } from "./proposal-domain.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
 
 const authoringFields = z.object({
   expiresAt: z.string().datetime(),
@@ -1725,6 +1726,21 @@ export const proposalCommand = onRequest(
               trustedGenerator: "studiohub-pdf",
             },
           });
+      }
+
+      // A job that reached the proposal with no call booked through StudioCue:
+      // the event form the couple sent from their inquiry page waited for a
+      // moment like this one (intake/inquiry-form.ts). Queued once.
+      if (command.type === "send" && result.status === "sent") {
+        const sent = await db.doc(`proposals/${command.input.proposalId}`).get();
+        const sentProjectId = stringValue(sent.get("projectId"));
+        if (sentProjectId) {
+          await queueInquiryFormAnalysis(db, {
+            tenantId: command.tenantId,
+            projectId: sentProjectId,
+            now: new Date().toISOString(),
+          });
+        }
       }
 
       response.status(200).json(result);

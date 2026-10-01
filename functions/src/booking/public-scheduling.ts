@@ -22,7 +22,12 @@ import {
   coupleVisibleAnswers,
   inquiryFormOwed,
   inquiryFormResponseId,
+  inquiryDetailsPrefill,
   inquiryFormState,
+  jobHasConsultation,
+  queueInquiryFormAnalysis,
+  questionnaireAnalysisJob,
+  questionnaireAnalysisJobId,
 } from "../intake/inquiry-form.js";
 import { verifiedPrefill } from "../planning/questionnaire-prefill.js";
 import { isReturned, statusAfterSave, submittedAtAfterSave } from "../planning/questionnaire-lifecycle.js";
@@ -428,6 +433,12 @@ export const publicConsultationScheduling = onRequest(
         updatedAt: now,
       });
       await batch.commit();
+      // An event form the couple sent from their inquiry page waited for this.
+      await queueInquiryFormAnalysis(db, {
+        tenantId: String(link.get("tenantId")),
+        projectId: String(link.get("projectId")),
+        now,
+      });
       response.status(201).json({
         consultationId,
         startsAt: selected.startsAt,
@@ -792,6 +803,9 @@ async function handleInquiryCommand(
     updatedAt: now,
   });
   await batch.commit();
+  // The call is what the studio reads the event form for: its AI read goes
+  // now, once (queueInquiryFormAnalysis), not when the couple sent it.
+  await queueInquiryFormAnalysis(db, { tenantId: context.tenantId, projectId: project.id, now });
   const who = text(context.lead.get("firstName")) || "The couple";
   const formatLabel = command.input.format === "in_person" ? "in person" : command.input.format === "phone" ? "by phone" : "on Zoom";
   await recordCoupleAction(db, context, {
@@ -819,6 +833,24 @@ const plain = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+
+/**
+ * What the form starts from: the job's facts (verifiedPrefill, shared with the
+ * studio's "Send the form"), over what the couple told this page a moment ago
+ * — their partner's name, their guest count (inquiryDetailsPrefill).
+ */
+function startingAnswers(
+  project: FirebaseFirestore.DocumentSnapshot,
+  lead: FirebaseFirestore.DocumentSnapshot,
+  templateSections: unknown,
+) {
+  const fromInquiry = inquiryDetailsPrefill(lead, templateSections);
+  const fromJob = verifiedPrefill(project.id, project, templateSections);
+  return {
+    answers: { ...fromInquiry.answers, ...fromJob.answers },
+    answerProvenance: { ...fromInquiry.answerProvenance, ...fromJob.answerProvenance },
+  };
+}
 
 /** Saves per inquiry per hour: generous for autosave, a ceiling for a script. */
 const INQUIRY_FORM_SAVES_PER_HOUR = 240;
@@ -876,7 +908,7 @@ async function handleInquiryForm(
   if (command.type === "inquiry_form") {
     const answers = form.response
       ? plain(form.response.get("answers"))
-      : verifiedPrefill(project.id, project, templateSections).answers;
+      : startingAnswers(project, context.lead, templateSections).answers;
     return {
       name,
       sections,
@@ -890,6 +922,9 @@ async function handleInquiryForm(
   const responseId = form.response?.id ?? inquiryFormResponseId(context.tenantId, project.id, template.id);
   const reference = db.doc(`questionnaireResponses/${responseId}`);
   const submit = command.input.submit;
+  // The call is already booked (or behind them): the studio needs the read now.
+  const analyseNow =
+    submit && (pastTheCall(context) || (await jobHasConsultation(db, { tenantId: context.tenantId, projectId: project.id })));
   const outcome = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(reference);
     if (
@@ -898,7 +933,7 @@ async function handleInquiryForm(
     ) {
       throw new Error("INQUIRY_FORM_NOT_AVAILABLE");
     }
-    const prefill = verifiedPrefill(project.id, project, templateSections);
+    const prefill = startingAnswers(project, context.lead, templateSections);
     const priorStatus = snapshot.exists ? text(snapshot.get("status")) || "not_started" : "not_started";
     // Theirs to change until they send it; after that the studio has it.
     if (isReturned(priorStatus)) throw new Error("QUESTIONNAIRE_ALREADY_SUBMITTED");
@@ -979,22 +1014,14 @@ async function handleInquiryForm(
         updatedBy: "couple",
       });
     }
-    // The same analysis a portal submit queues (saveQuestionnaire).
-    if (submit) {
+    // The same analysis a portal submit queues (saveQuestionnaire) — but only
+    // once the call is booked. Before that it waits for the booking
+    // (queueInquiryFormAnalysis): it is charged to the studio, and a couple
+    // who never books shouldn't cost them a run.
+    if (submit && analyseNow) {
       transaction.set(
-        db.doc(`aiJobs/questionnaire_${responseId}`),
-        {
-          id: `questionnaire_${responseId}`,
-          tenantId: context.tenantId,
-          projectId: project.id,
-          responseId,
-          type: "questionnaire_analysis",
-          status: "queued",
-          attempts: 0,
-          humanReviewRequired: true,
-          createdAt: now,
-          updatedAt: now,
-        },
+        db.doc(`aiJobs/${questionnaireAnalysisJobId(responseId)}`),
+        questionnaireAnalysisJob({ tenantId: context.tenantId, projectId: project.id, responseId, now }),
         { merge: true },
       );
     }

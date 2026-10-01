@@ -26,6 +26,7 @@ import {
   reopenedConsultationNeedsNotes,
 } from "./consultation-undo.js";
 import { coupleInquiryUrl } from "./consultation-email.js";
+import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
 import { mayContactClient } from "../post-event/client-outreach.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { sendFinalBalance, sendFinalBalanceInput } from "./send-final-balance.js";
@@ -1026,6 +1027,13 @@ export const bookingCommand = onRequest(
             automationRunId: null,
             providerEventId: null,
           });
+        });
+        // An event form the couple sent from their inquiry page waited for
+        // the call to be booked (intake/inquiry-form.ts).
+        await queueInquiryFormAnalysis(firestore, {
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          now: timestamp,
         });
         result = {
           consultationId,
