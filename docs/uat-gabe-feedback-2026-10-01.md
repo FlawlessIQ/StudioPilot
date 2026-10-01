@@ -121,24 +121,24 @@ Run 2026-10-01 on studio-cue.com (Chrome, signed in as the FlawlessIQ owner),
 against commit `959b5ab`. Mostly on the **Package bullets test wedding**, plus
 Smith, Rivera and **Undo Walktest wedding**.
 
-**Totals (37):** 29 run: 27 ✅, 2 🟡, 0 ❌. 8 not run (⏭): 6 need a person or a live provider (T13, T19, T23, T24, T29, T30); 2 had no data on prod to test with (T14, T37).
+**Totals (37):** 31 run, all ✅ after the fixes below. 6 not run (⏭): they need a person or a live provider (T13, T19, T23, T24, T29, T30).
 
 | ID | Result | What happened |
 |---|---|---|
 | T01 | ✅ | *Add alongside* Test video package: both chips, combined $5,000 |
 | T02 | ✅ | Confirm: "Take Test video package off the job? Adding it back later starts it at today's price." Removed; total updated |
-| T03 | 🟡 | Works; only the new package remains. **Finding F2:** the confirm says "This takes Signing test package and Test video package off the job…" when starting over *with* Signing test package. It names the package you're keeping as being removed |
+| T03 | ✅ | Works; only the new package remains. **Finding F2:** the confirm says "This takes Signing test package and Test video package off the job…" when starting over *with* Signing test package. It names the package you're keeping as being removed |
 | T04 | ✅ | Terms prefilled under each package's name; *Create draft* worked |
 | T05 | ✅ | Heading **Packages**; each package's inclusions as its own bullets |
 | T06 | ✅ | $10 retainer kept after save + reload; schedule $10 / balance |
 | T07 | ✅ | Unrelated edit + save: retainer still $10 |
 | T08 | ✅ | Unsaved notes edit saved by *Approve this proposal* |
-| T09 | 🟡 | PDF: PACKAGES, bullets per package, $10 retainer, logo. **Finding F1:** the PDF leaves out the 10% video discount line. Its lines add up to $6,500 while its total says $6,200. The studio page and the agreement both show the discount |
+| T09 | ✅ | PDF: PACKAGES, bullets per package, $10 retainer, logo. **Finding F1:** the PDF leaves out the 10% video discount line. Its lines add up to $6,500 while its total says $6,200. The studio page and the agreement both show the discount |
 | T10 | ✅ | One-off "Engagement shoot $500" saved on the package; total includes it; idea chips listed |
 | T11 | ✅ | Discard: confirm → *Discarded*; composer free for a new draft at once |
 | T12 | ✅ | (earlier walk today) Undo acceptance → back to Proposal; unsent agreement draft discarded |
 | T13 | ⏭ P | Needs the couple's view of a withdrawn proposal |
-| T14 | ⏭ | No AI action that failed validation exists on FlawlessIQ right now; covered by unit tests (`blocked-ai-actions`) |
+| T14 | ✅ | Set up on prod: a new job (*Pick Test wedding*, conor+t14@), a phone consultation booked from the calendar, and notes that fit no package. The brief said why nothing fit. Today showed one card, "Pick packages", linking to the brief with no Approve button. Picking Test video package and *Approve inputs & create draft* gave "Nothing has been sent"; the card cleared. **Finding F4:** the brief showed "100% confidence" beside "Choose the package that actually fits" with nothing suggested |
 | T15 | ✅ | Test video package: *What's included* as 3 lines + new *Terms*. Saved ("New proposals use these numbers…") and both survived a reload |
 | T16 | ✅ | 10% discount kept as a percentage after the swap (−$300, total $6,200) |
 | T17 | ✅ | Agreement preview: Part 2 lists both packages with bullets, the extras, the discount line and the $10 retainer. Closed without sending |
@@ -161,13 +161,16 @@ Smith, Rivera and **Undo Walktest wedding**.
 | T34 | ✅ | (earlier walk) Assignee shown as "For …"; edit, done, reopen |
 | T35 | ✅ | *Send reply* → *Undo*: both email jobs cancelled, never sent; card back without a reload (fix `959b5ab`) |
 | T36 | ✅ | Smith "Staff second photographer" action open in two tabs. Approved in tab 1; tab 2 says "Already done — this was approved or put away a moment ago, so nothing was sent again." Exactly one task created |
-| T37 | ⏭ | No booking blocker on Today right now. Today shows no raw codes anywhere. The wording (`bookingBlockerLabel`) is covered by `tests/prod-walk-fixes.test.ts` |
+| T37 | ✅ | Set up on prod as a real double-booking: imported *Clash Test* (BOOKED, 2027-06-12, quiet, conor+t37@), then recorded *Native signing test wedding*'s retainer as paid another way. Its plan stopped on `eventDateAvailable`. Today: "Booking stopped for a reason · Native signing test wedding · the date clashes with another booking" — no code. **Finding F5:** the job's name printed twice (subtitle and detail) |
 
 ### Findings
 
 - **F1 — PDF proposal drops the discount line** (T09). Its lines add up to $6,500 and its total says $6,200, so a couple reading the PDF sees numbers that don't add up. **Fixed `8b0ec80`, live 2026-10-01:** a Discount row (and Tax, when there is any) under the package lines. Re-checked on prod by regenerating this proposal's PDF: $3,000 + $500 + $2,000 + $1,000, Discount −$300.00, Total $6,200.00. A PDF made before the fix keeps its old layout until it is made again.
 - **F2 — "Start over" confirm names the kept package as removed** (T03). **Fixed `8b0ec80`, live 2026-10-01:** the confirm now names only the packages that come off. Starting over with the one already on the job says its extras and discount are cleared.
-- Minor: the T36 "nothing was sent again" wording is used even when the action was a task, not an email. Harmless.
+- **F3 — "nothing was sent again" on a task** (T36). **Fixed `d3f502f`, live:** a second approval of a task now reads "…so it wasn't done twice." Re-checked on prod with the Rivera staffing action in two tabs. An email keeps "nothing was sent again".
+- **F4 — "100% confidence" with no package suggested** (T14). **Fixed `c9b5163`, live:** the badge reads "No package suggested".
+- **F5 — the stopped-booking card named the job twice** (T37). **Fixed `c9b5163`, live:** now "Stopped because the date clashes with another booking", re-checked on Today.
+- **Start over click-through** (T03, after F2). On *Undo Walktest wedding* with both test packages, Start over on each read "Start over with just X? This takes Y off the job…". Cancel left both packages in place.
 
 ### Test data left on FlawlessIQ
 
@@ -175,7 +178,10 @@ Smith, Rivera and **Undo Walktest wedding**.
 - **Package bullets test wedding:** approved proposal, $6,200 with a $10 retainer, extras and a 10% video discount.
 - **Undo Walktest wedding** (`conor+undowalk@`).
 - **Smith:** cancelled and restored; its final bill superseded. It also has a new *Staff second photographer* task from T36.
-- **Rivera:** an empty run-of-show draft.
+- **Rivera:** an empty run-of-show draft, and a *Staff second photographer* task (T36 re-run).
+- **Pick Test wedding** (conor+t14@): a phone consultation booked for Oct 2, 9:00, and an unsent Test video package proposal draft.
+- **Clash Test** (imported, BOOKED 2027-06-12, conor+t37@) and **Native signing test wedding**: retainer recorded as paid ("Test only (UAT T37…)"), booking stopped on the date clash. Archive Clash Test, then press *Review booking* on Native signing, to let it book.
+- **Undo Walktest wedding:** now in Consultation with Signing test + Test video packages locked.
 - **Test video package:** inclusions are now 3 lines, and its terms read "UAT 2026-10-01…".
 
 ### What needs a person
