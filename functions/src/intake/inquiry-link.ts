@@ -2,6 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getConsultationSettings } from "../booking/availability.js";
 import { convertInquiryToJob } from "./convert.js";
+import {
+  INQUIRY_FORM_EVENT_TYPES,
+  INQUIRY_FORM_SETTINGS_PATH,
+  inquiryGetsEventForm,
+} from "./inquiry-form.js";
 
 /**
  * The couple's own link: tell us about your day, then pick a time to talk.
@@ -61,6 +66,40 @@ export async function studioTakesBookings(db: Firestore, tenantId: string): Prom
   return settings.exists;
 }
 
+/**
+ * The sentence that carries the link.
+ *
+ * "It takes two minutes" was true of the short details step. A couple whose
+ * studio asks its event form on that page first has more to fill in, and a
+ * reply that promised two minutes would be the first thing the studio said
+ * that wasn't so (2026-10-01).
+ */
+export function inquiryLinkLine(url: string, withForm: boolean): string {
+  return withForm
+    ? `Tell us about your day and pick a time to talk: ${url}`
+    : `Tell us a little more about your day and pick a time to talk — it takes two minutes: ${url}`;
+}
+
+/** Whether this couple's page will open on the studio's event form. */
+async function inquiryLinkCarriesForm(
+  db: Firestore,
+  input: { tenantId: string; leadId: string },
+): Promise<boolean> {
+  const [settings, lead] = await Promise.all([
+    db.doc(INQUIRY_FORM_SETTINGS_PATH(input.tenantId)).get(),
+    db.doc(`leads/${input.leadId}`).get(),
+  ]);
+  const setting = settings.get("inquiryEventForm") as { templateId?: unknown; eventTypes?: unknown } | undefined;
+  if (!setting || typeof setting.templateId !== "string" || !setting.templateId) return false;
+  const appliesTo = Array.isArray(setting.eventTypes) && setting.eventTypes.length
+    ? setting.eventTypes.map(String)
+    : INQUIRY_FORM_EVENT_TYPES;
+  return inquiryGetsEventForm(
+    { eventTypeId: lead.get("eventTypeId"), eventTypeLabel: lead.get("eventTypeLabel") },
+    appliesTo,
+  );
+}
+
 /** The link's closing line on a drafted reply, or the reply unchanged. */
 export async function withInquiryLink(
   db: Firestore,
@@ -71,7 +110,7 @@ export async function withInquiryLink(
   }
   const url = await inquiryLinkFor(db, input);
   if (input.body.includes(url)) return { body: input.body, linked: true };
-  const line = `Tell us a little more about your day and pick a time to talk — it takes two minutes: ${url}`;
+  const line = inquiryLinkLine(url, await inquiryLinkCarriesForm(db, input));
   // Before the sign-off when there is one, so the link isn't the last thing
   // after "Warmly,".
   const signOff = /\n\n((?:warmly|best|thanks|thank you|kind regards|regards|cheers|all the best)[^\n]*,?\s*(?:\n[^\n]*)?)$/i.exec(

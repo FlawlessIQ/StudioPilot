@@ -417,3 +417,10 @@ test("every new refusal reads as English", () => {
     assert.equal(errorCodeHasCopy(code), true, code);
   }
 });
+
+test("the reply's link line doesn't promise two minutes when the form comes first", async () => {
+  const { inquiryLinkLine } = await import("../functions/src/intake/inquiry-link");
+  const url = "https://studio-cue.com/i/abc";
+  assert.equal(inquiryLinkLine(url, true), `Tell us about your day and pick a time to talk: ${url}`);
+  assert.match(inquiryLinkLine(url, false), /it takes two minutes: https:\/\/studio-cue\.com\/i\/abc$/);
+});
