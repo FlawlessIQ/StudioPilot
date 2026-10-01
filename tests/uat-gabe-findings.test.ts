@@ -43,3 +43,16 @@ test("F2: starting over names only the packages that come off", () => {
   assert.doesNotMatch(same, /off the job/);
   assert.match(same, /extras and discount are cleared/);
 });
+
+test("T36: a second approval says 'nothing was sent again' only when the work was an email", async () => {
+  const { decisionError } = await import("@/lib/ai/friendly-error");
+  const refused = new Error("AI_ACTION_ALREADY_DECIDED");
+  assert.match(decisionError(refused, { sends: true }), /nothing was sent again/);
+  const task = decisionError(refused, { sends: false });
+  assert.match(task, /^Already done/);
+  assert.doesNotMatch(task, /sent/);
+  // Any other refusal reads as it always did.
+  assert.match(decisionError(new Error("AI_ACTION_NOT_APPROVED"), { sends: false }), /Approve this first/);
+  const queue = readFileSync("components/ai/ai-approval-queue.tsx", "utf8");
+  assert.match(queue, /decisionError\(caught, \{ sends: output\.outward === true \|\| approvingSends \}/);
+});

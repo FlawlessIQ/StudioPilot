@@ -880,3 +880,22 @@ export function friendlyError(
 ): string {
   return friendlyAiError(caught, fallback);
 }
+
+/**
+ * A refused decision on prepared work, said for what the work was.
+ *
+ * AI_ACTION_ALREADY_DECIDED's copy reassures that "nothing was sent again",
+ * which is the point when the work was an email — and odd when it was a task
+ * or a booking step that sends nothing (UAT T36, 2026-10-01). The card knows
+ * which it was; the server's code does not say.
+ */
+export function decisionError(
+  caught: unknown,
+  { sends }: { sends: boolean },
+  fallback = "The decision could not be saved.",
+): string {
+  const message = caught instanceof Error ? caught.message : String(caught ?? "");
+  if (!sends && message.split(":")[0]?.trim() === "AI_ACTION_ALREADY_DECIDED")
+    return "Already done — this was approved or put away a moment ago, so it wasn't done twice.";
+  return friendlyError(caught, fallback);
+}

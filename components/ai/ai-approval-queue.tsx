@@ -35,7 +35,7 @@ import {
   dispatchesOnApproval,
   sendsOnApproval,
 } from "@/features/ai/approval-consequence";
-import { friendlyError } from "@/lib/ai/friendly-error";
+import { decisionError, friendlyError } from "@/lib/ai/friendly-error";
 import {
   StructuredContentFields,
   StructuredContentPreview,
@@ -219,7 +219,9 @@ export function AiQueueCard({
       // Readable copy for the refusals that matter here — "Already done" on a
       // second approval, and why a paused or put-away job's couple was not
       // written to — instead of the raw code with its underscores removed.
-      setNotice(friendlyError(caught, "The decision could not be saved."));
+      setNotice(
+        decisionError(caught, { sends: output.outward === true || approvingSends }, "The decision could not be saved."),
+      );
     } finally {
       setBusy(null);
     }
