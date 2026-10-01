@@ -351,7 +351,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   ASSIGNMENT_NOT_FOUND:
     "That assignment is no longer on this job. Refresh to see who is on it now.",
   PROJECT_HAS_LIVE_CREW:
-    "Someone is still waiting on this job. Cancel it — that ends the offers and records why — or settle them first.",
+    "Someone is still waiting on this job — an offer out, or crew who said yes. Open the job to see who: Archive job and Delete this job permanently both list them and can withdraw them in the same step. Cancel it instead if the wedding is off.",
   CREW_IDENTITY_OWNED_BY_MEMBER:
     "They have their own account now, so their name and email are theirs to change. You can still update rate, specialties and areas.",
   CONTACT_NOT_FOUND: "That client record could not be found.",

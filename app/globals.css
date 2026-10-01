@@ -20268,6 +20268,12 @@ label {
 .project-danger-zone .button-danger:disabled { cursor: not-allowed; opacity: .45; }
 .project-danger-final { background: color-mix(in srgb, #7d2929 8%, var(--surface)); border: 1px solid color-mix(in srgb, #7d2929 35%, var(--border)); border-radius: 12px; display: grid; gap: 12px; padding: 14px; }
 .project-danger-final > span { display: flex; flex-wrap: wrap; gap: 9px; }
+/* Who is still waiting on a job the studio wants to delete or archive. */
+.project-danger-waiting { background: color-mix(in srgb, #b7791f 8%, var(--surface)); border: 1px solid color-mix(in srgb, #b7791f 35%, var(--border)); border-radius: 12px; display: grid; gap: 8px; padding: 14px; }
+.project-danger-waiting h4 { font-size: 13px; margin: 0; }
+.project-danger-waiting ul { display: grid; gap: 4px; margin: 0; padding-left: 18px; }
+.project-danger-waiting li, .project-danger-waiting p { color: var(--ink); font-size: 12.5px; line-height: 1.45; margin: 0; }
+.project-danger-waiting > span { display: flex; flex-wrap: wrap; gap: 9px; }
 
 /*
   People tabs: the icon is not the part that gives way.

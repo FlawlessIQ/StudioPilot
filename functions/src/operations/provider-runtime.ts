@@ -2100,11 +2100,19 @@ export async function removeCrewCalendarInvite(job: DocumentSnapshot) {
   const assignmentId = String(job.get("assignmentId") ?? "");
   const reference = db.doc(`crewAssignments/${assignmentId}`);
   const assignment = await reference.get();
-  if (!assignment.exists) throw new Error("ASSIGNMENT_NOT_FOUND");
+  /**
+   * Withdrawn on the way to deleting the job (crew/withdraw-for-job.ts): the
+   * assignment went with the job, so the job carries the event id itself.
+   * Nobody can be "still accepted" on a job that no longer exists.
+   */
+  const deletedWithJob = !assignment.exists && Boolean(text(job.get("calendarEventId")));
+  if (!assignment.exists && !deletedWithJob) throw new Error("ASSIGNMENT_NOT_FOUND");
   // Never take down the invite of somebody who is on the job.
   if (assignment.get("status") === "accepted")
     return { assignmentId, skipped: "still_accepted" };
-  const calendarEventId = text(assignment.get("calendarEventId"));
+  const calendarEventId = deletedWithJob
+    ? text(job.get("calendarEventId"))
+    : text(assignment.get("calendarEventId"));
   if (!calendarEventId) return { assignmentId, skipped: "no_calendar_event" };
   const tenantId = String(job.get("tenantId"));
   const calendar = await connection(tenantId, "google_calendar");
@@ -2122,6 +2130,7 @@ export async function removeCrewCalendarInvite(job: DocumentSnapshot) {
     if (!response.ok && response.status !== 404 && response.status !== 410)
       throw new Error(`CALENDAR_DELETE_FAILED:${response.status}`);
   }
+  if (deletedWithJob) return { assignmentId, removed: calendarEventId };
   await reference.update({
     calendarEventId: null,
     calendarInviteLink: null,

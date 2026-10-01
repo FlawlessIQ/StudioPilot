@@ -15,6 +15,10 @@ import {
   type PurgePreview,
 } from "@/lib/projects/purge-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import {
+  waitingLine,
+  withdrawAllConsequence,
+} from "@/features/crew/withdraw-copy";
 
 /**
  * Deleting a wedding and everything StudioCue holds about it.
@@ -37,6 +41,15 @@ import { friendlyError } from "@/lib/ai/friendly-error";
  *
  * The server repeats every one of these checks — owner, live crew, name — and
  * trusts nothing decided here.
+ *
+ * ## When somebody is still waiting on the job
+ *
+ * A job with an offer out, or crew who said yes, used to be refused with one
+ * sentence that named nobody (GR Productions, 2026-10-01: "I tried to delete
+ * [the] job to restart and won't let me"). The preview now says who they are,
+ * and the one button withdraws them and deletes the job in a single server
+ * command — the same typed name, the same second press, and a sentence before
+ * it saying who gets an email.
  */
 export function DeleteJobPermanently({
   projectId,
@@ -69,7 +82,11 @@ export function DeleteJobPermanently({
     setBusy("delete");
     setNotice(null);
     try {
-      await purgeProject({ projectId, confirmation: typed });
+      await purgeProject({
+        projectId,
+        confirmation: typed,
+        withdrawLiveCrew: waiting.length > 0,
+      });
       // The job no longer exists, so there is nothing to return to.
       router.replace("/studio/projects");
       router.refresh();
@@ -81,6 +98,7 @@ export function DeleteJobPermanently({
   }
 
   const lines = preview ? orderPurgeLines(preview.lines) : [];
+  const waiting = preview?.waiting ?? [];
   const total = purgeTotal(lines);
   const nameMatches = purgeConfirmationMatches(typed, projectName);
 
@@ -146,6 +164,24 @@ export function DeleteJobPermanently({
               </section>
             </div>
 
+            {waiting.length ? (
+              <section className="project-danger-waiting" role="note">
+                <h4>
+                  {waiting.length === 1
+                    ? "One person is still waiting on this job"
+                    : `${waiting.length} people are still waiting on this job`}
+                </h4>
+                <ul>
+                  {waiting.map((member) => (
+                    <li key={member.assignmentId}>{waitingLine(member)}</li>
+                  ))}
+                </ul>
+                <p>
+                  {`Deleting the job withdraws ${waiting.length === 1 ? "them" : "them all"} first. ${withdrawAllConsequence(waiting)}`}
+                </p>
+              </section>
+            ) : null}
+
             <label className="project-danger-confirm">
               {`To confirm, type the job's name: ${projectName}`}
               <input
@@ -163,7 +199,9 @@ export function DeleteJobPermanently({
             {armed ? (
               <div className="project-danger-final" role="alert">
                 <strong>
-                  {`Delete ${projectName} and ${total} ${total === 1 ? "record" : "records"} now? This cannot be undone.`}
+                  {waiting.length
+                    ? `Withdraw ${waiting.length === 1 ? "1 person" : `${waiting.length} people`}, then delete ${projectName} and ${total} ${total === 1 ? "record" : "records"} now? This cannot be undone.`
+                    : `Delete ${projectName} and ${total} ${total === 1 ? "record" : "records"} now? This cannot be undone.`}
                 </strong>
                 <span>
                   <button
@@ -175,7 +213,9 @@ export function DeleteJobPermanently({
                     {busy === "delete" ? (
                       <LoaderCircle className="spin" size={15} />
                     ) : null}
-                    Yes, delete it all
+                    {waiting.length
+                      ? "Yes, withdraw them and delete it all"
+                      : "Yes, delete it all"}
                   </button>
                   <button
                     className="button button-light"
@@ -194,7 +234,9 @@ export function DeleteJobPermanently({
                 onClick={() => setArmed(true)}
                 type="button"
               >
-                Delete this job and everything in it
+                {waiting.length
+                  ? "Withdraw these and delete the job"
+                  : "Delete this job and everything in it"}
               </button>
             )}
           </>

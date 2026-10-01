@@ -5,6 +5,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import { markTenantRecordsWritten } from "@/lib/live/record-writes";
 import type { PurgeLine } from "@/features/projects/purge-policy";
+import type { WaitingCrewMember } from "@/features/crew/withdraw-copy";
 
 export type PurgePreview = {
   projectId: string;
@@ -13,6 +14,11 @@ export type PurgePreview = {
   fileCount: number;
   clientsDeleted: string[];
   clientsKept: string[];
+  /**
+   * Crew still waiting on the job. Empty when nobody is; otherwise a plain
+   * delete is refused and the panel offers to withdraw them first.
+   */
+  waiting: WaitingCrewMember[];
 };
 
 export type PurgeOutcome = {
@@ -20,6 +26,8 @@ export type PurgeOutcome = {
   status: string;
   filesDeleted: number;
   contactsDeleted: number;
+  crewWithdrawn?: number;
+  crewNotified?: number;
 };
 
 /**
@@ -74,12 +82,16 @@ async function call(
 export async function previewProjectPurge(
   projectId: string,
 ): Promise<PurgePreview> {
-  return (await call("previewProjectPurge", { projectId })) as PurgePreview;
+  const preview = (await call("previewProjectPurge", { projectId })) as PurgePreview;
+  // A Function deployed before `waiting` existed answers without it.
+  return { ...preview, waiting: Array.isArray(preview.waiting) ? preview.waiting : [] };
 }
 
 export async function purgeProject(input: {
   projectId: string;
   confirmation: string;
+  /** Withdraw everyone still waiting on the job, then delete it. */
+  withdrawLiveCrew?: boolean;
 }): Promise<PurgeOutcome> {
   const result = await call("purgeProject", input);
   markTenantRecordsWritten();

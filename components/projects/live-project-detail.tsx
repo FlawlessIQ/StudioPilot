@@ -38,6 +38,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
+import {
+  ArchiveJobWithCrew,
+  useWaitingCrew,
+} from "@/components/projects/archive-job-with-crew";
 import { WithdrawCrewControl } from "@/components/crew/withdraw-crew-control";
 import { OwnerShootingToggle } from "@/components/crew/owner-shooting-toggle";
 import { ownerShootsJob } from "@/features/crew/staffing-plan";
@@ -406,24 +410,40 @@ function ProjectStageControl({
 function ProjectArchiveControl({
   archived,
   projectId,
+  crewAssignments,
 }: {
   archived: boolean;
   projectId: string;
+  /** This job's crew, so a job somebody is waiting on can say who. */
+  crewAssignments: LifecycleRecord[];
 }) {
   const [notice, setNotice] = useState<string | null>(null);
+  const waiting = useWaitingCrew(crewAssignments);
   return (
     <>
-      <ArchiveToggle
-        archived={archived}
-        kind="job"
-        onDone={(message) => {
-          setNotice(message);
-          refreshTenantRecords("projects");
-        }}
-        run={async (restore) => {
-          await runCrmCommand("archiveProject", { projectId, restore });
-        }}
-      />
+      {!archived && waiting.length ? (
+        <ArchiveJobWithCrew
+          onDone={(message) => {
+            setNotice(message);
+            refreshTenantRecords("projects");
+            refreshTenantRecords("crewAssignments");
+          }}
+          projectId={projectId}
+          waiting={waiting}
+        />
+      ) : (
+        <ArchiveToggle
+          archived={archived}
+          kind="job"
+          onDone={(message) => {
+            setNotice(message);
+            refreshTenantRecords("projects");
+          }}
+          run={async (restore) => {
+            await runCrmCommand("archiveProject", { projectId, restore });
+          }}
+        />
+      )}
       {notice ? (
         <p className="form-notice" role="status">
           {notice}
@@ -1392,6 +1412,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       />
       <ProjectArchiveControl
         archived={typeof project.archivedAt === "string"}
+        crewAssignments={related.crewAssignments}
         projectId={projectId}
       />
       {/*

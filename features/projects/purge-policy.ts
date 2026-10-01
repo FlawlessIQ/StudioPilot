@@ -15,7 +15,8 @@
  *
  * So this is the deliberate exception, and it is built to be hard to reach and
  * impossible to do by accident: owner only, blocked while anyone is still
- * waiting on the job, and gated on the owner typing the job's own name.
+ * waiting on the job unless the owner withdraws them in the same step, and
+ * gated on the owner typing the job's own name.
  *
  * ## What it must never take with it
  *
@@ -207,6 +208,6 @@ export const PURGE_REFUSALS: Record<string, string> = {
   PROJECT_PURGE_NAME_MISMATCH:
     "That is not the job's name. Type it exactly as it appears above.",
   PROJECT_HAS_LIVE_CREW:
-    "Someone is still waiting on this job. Cancel it first — that ends the offers and tells them why — then delete it.",
+    "Someone was offered work on this job after this panel opened. Close it and open it again to see who, then choose whether to withdraw them and delete the job.",
   PROJECT_NOT_FOUND: "That job could not be found. It may already be deleted.",
 };
