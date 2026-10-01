@@ -3,6 +3,8 @@ import { auditFieldsSchema } from "@/features/tenants/schema";
 
 export const integrationProviderSchema = z.enum([
   "google_calendar",
+  "outlook_calendar",
+  "apple_calendar",
   "zoom",
   "docusign",
   "dropbox_sign",
@@ -33,6 +35,10 @@ export const providerCapabilities: Readonly<
   Record<IntegrationProvider, readonly IntegrationCapability[]>
 > = {
   google_calendar: ["calendar"],
+  // Busy time only (see busyTimeProviders below). "calendar" is putting
+  // events on a calendar, which StudioCue does in Google alone.
+  outlook_calendar: [],
+  apple_calendar: [],
   zoom: ["meetings"],
   docusign: ["signing"],
   dropbox_sign: ["signing"],
@@ -74,10 +80,29 @@ export const providerCapabilities: Readonly<
  */
 export const offeredProviders: ReadonlySet<IntegrationProvider> = new Set([
   "google_calendar",
+  "outlook_calendar",
+  "apple_calendar",
   "zoom",
   "quickbooks",
   "dropbox",
 ]);
+
+/**
+ * Calendars StudioCue reads busy time from, so a couple cannot book a
+ * consultation over something already in the studio's diary. Every connected
+ * one counts — a studio with Google and Apple both connected is busy whenever
+ * either says so (functions/src/integrations/busy-time.ts unions them).
+ * Mirrored by BUSY_TIME_PROVIDERS on the server.
+ */
+export const busyTimeProviders: ReadonlySet<IntegrationProvider> = new Set([
+  "google_calendar",
+  "outlook_calendar",
+  "apple_calendar",
+]);
+
+/** Said wherever availability is set or calendars are connected. */
+export const BUSY_TIME_CALENDARS_COPY =
+  "We check Google Calendar, Outlook and Apple Calendar when connected, so clients can’t book a consultation over something already in your calendar.";
 
 export function isOfferedProvider(provider: IntegrationProvider): boolean {
   return offeredProviders.has(provider);

@@ -19,6 +19,8 @@ export type Capability = z.infer<typeof capabilitySchema>;
 
 export const providerSchema = z.enum([
   "google_calendar",
+  "outlook_calendar",
+  "apple_calendar",
   "zoom",
   "docusign",
   "dropbox_sign",
@@ -37,6 +39,8 @@ export type Provider = z.infer<typeof providerSchema>;
  */
 export const offeredProviders: ReadonlySet<Provider> = new Set<Provider>([
   "google_calendar",
+  "outlook_calendar",
+  "apple_calendar",
   "zoom",
   "quickbooks",
   "dropbox",
@@ -44,6 +48,10 @@ export const offeredProviders: ReadonlySet<Provider> = new Set<Provider>([
 
 export const providerCapabilities: Readonly<Record<Provider, readonly Capability[]>> = {
   google_calendar: ["calendar"],
+  // Busy time only. "calendar" means putting events on a calendar, which
+  // StudioCue does only in Google; these two are read, never written.
+  outlook_calendar: [],
+  apple_calendar: [],
   zoom: ["meetings"],
   docusign: ["signing"],
   dropbox_sign: ["signing"],

@@ -49,6 +49,16 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CREW_ALREADY_HAS_ACCOUNT: "They already have a crew account, so there's nothing to invite them to.",
   PROVIDER_NOT_CONNECTED: "That app isn't connected yet. Connect it under Integrations first.",
   OAUTH_PROVIDER_NOT_CONFIGURED: "That app can't be connected yet.",
+  APPLE_CALENDAR_AUTH_FAILED:
+    "iCloud didn't accept that Apple ID and app-specific password. Check the email, make a new app-specific password, and try again.",
+  APPLE_APP_PASSWORD_FORMAT:
+    "That isn't an app-specific password. It looks like abcd-efgh-ijkl-mnop — make one at account.apple.com, under Sign-In and Security. Don't use your Apple ID password.",
+  APPLE_ID_INVALID: "Enter the email address you sign in to iCloud with.",
+  APPLE_CALENDAR_NO_CALENDARS:
+    "That iCloud account has no calendars StudioCue can read. Turn on Calendars in iCloud settings, then try again.",
+  APPLE_CALENDAR_DISCOVERY_FAILED: "iCloud didn't answer as expected. Try again in a minute.",
+  APPLE_CALENDAR_USES_APP_PASSWORD:
+    "Apple Calendar connects with an app-specific password. Use the form on its card under Integrations.",
   CHECKPOINT_NOT_FOUND: "That readiness item isn't there any more. Refresh and try again.",
   MEMBER_NOT_EDITABLE: "That person's access can't be changed here — the owner's can't, and neither can your own.",
   INTERNAL_USER_LIMIT_REACHED: "Your plan has no seats left. Remove someone or change your plan first.",

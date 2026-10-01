@@ -1,6 +1,7 @@
 export type OAuthProvider =
   | "quickbooks"
   | "google_calendar"
+  | "outlook_calendar"
   | "docusign"
   | "dropbox_sign"
   | "dropbox"
@@ -9,6 +10,7 @@ export type OAuthProvider =
 
 const pkceProviders: ReadonlySet<OAuthProvider> = new Set([
   "google_calendar",
+  "outlook_calendar",
   "zoom",
 ]);
 

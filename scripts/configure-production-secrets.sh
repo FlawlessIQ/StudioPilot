@@ -13,6 +13,10 @@ runtime_secrets=(
   STRIPE_WEBHOOK_SECRET
   STRIPE_CONNECT_WEBHOOK_SECRET
   GOOGLE_CALENDAR_CLIENT_SECRET
+  # Outlook busy times. Read at run time by integrations/platform-secret.ts,
+  # not bound with `secrets:` — so this container may stay empty until the
+  # Azure app exists without breaking any deploy.
+  MICROSOFT_CLIENT_SECRET
   ZOOM_CLIENT_SECRET
   ZOOM_WEBHOOK_SECRET_TOKEN
   DROPBOX_CLIENT_SECRET

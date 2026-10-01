@@ -15,10 +15,24 @@ import { QUICKBOOKS_PAYMENTS_SCOPE } from "../billing/autopay-core.js";
 import {
   docusignOAuthBaseUrl,
   docusignUserInfoUrl,
+  MICROSOFT_AUTHORIZE_URL,
+  MICROSOFT_CALENDAR_SCOPES,
+  MICROSOFT_TOKEN_URL,
+  oauthClientPrefix,
 } from "./provider-config.js";
+import { platformSecret } from "./platform-secret.js";
+import { GRAPH_BASE_URL } from "./outlook-calendar.js";
+import {
+  AppleCalendarAuthError,
+  appleConnectionRecord,
+  discoverAppleCalendars,
+  normalizeAppSpecificPassword,
+} from "./apple-calendar.js";
 
 const providerSchema = z.enum([
   "google_calendar",
+  "outlook_calendar",
+  "apple_calendar",
   "zoom",
   "dropbox",
   "docusign",
@@ -26,7 +40,13 @@ const providerSchema = z.enum([
   "quickbooks",
   "stripe",
 ]);
-type Provider = z.infer<typeof providerSchema>;
+type AnyProvider = z.infer<typeof providerSchema>;
+/**
+ * Apple Calendar is connected here — it shares this endpoint's membership
+ * check, credential vault and disconnect — but it has no OAuth. It connects
+ * through `connect_apple` below, never through an authorize URL.
+ */
+type Provider = Exclude<AnyProvider, "apple_calendar">;
 const startSchema = z.object({
   provider: providerSchema,
   tenantId: z.string().min(1),
@@ -58,10 +78,18 @@ type Config = {
   extra: Record<string, string>;
 };
 const environment = (provider: Provider, key: "CLIENT_ID" | "CLIENT_SECRET") =>
-  process.env[
-    `${provider === "google_calendar" ? "GOOGLE_CALENDAR" : provider.toUpperCase()}_${key}`
-  ] ?? "";
-const config = (provider: Provider): Config => {
+  process.env[`${oauthClientPrefix(provider)}_${key}`] ?? "";
+/**
+ * `config` plus the one client secret that is read at run time rather than
+ * bound at deploy: Outlook's (see platform-secret.ts). Use this wherever a
+ * flow starts or a code is exchanged.
+ */
+async function configFor(provider: Provider): Promise<Config> {
+  return provider === "outlook_calendar"
+    ? config(provider, await platformSecret("MICROSOFT_CLIENT_SECRET"))
+    : config(provider);
+}
+const config = (provider: Provider, secretOverride?: string): Config => {
   const clientId = environment(provider, "CLIENT_ID");
   // Stripe Connect's token exchange takes the platform's own secret API
   // key as "client_secret" — Stripe doesn't issue a separate OAuth client
@@ -69,9 +97,10 @@ const config = (provider: Provider): Config => {
   // (already configured for saas/stripe.ts's subscription billing) rather
   // than asking for a redundant STRIPE_CLIENT_SECRET.
   const clientSecret =
-    provider === "stripe"
+    secretOverride ??
+    (provider === "stripe"
       ? (process.env.STRIPE_SECRET_KEY ?? "")
-      : environment(provider, "CLIENT_SECRET");
+      : environment(provider, "CLIENT_SECRET"));
   if (!clientId || !clientSecret)
     throw new Error("OAUTH_PROVIDER_NOT_CONFIGURED");
   const configs: Record<Provider, Omit<Config, "clientId" | "clientSecret">> = {
@@ -93,6 +122,16 @@ const config = (provider: Provider): Config => {
         "https://www.googleapis.com/auth/calendar.events.owned",
       ],
       extra: { access_type: "offline", prompt: "consent" },
+    },
+    // Outlook / Microsoft 365, read-only: Calendars.Read is enough for
+    // calendarView, and offline_access is what returns a refresh token.
+    // StudioCue never writes to an Outlook calendar, so it never asks to.
+    // The `common` authority admits work, school and personal accounts.
+    outlook_calendar: {
+      authorizeUrl: MICROSOFT_AUTHORIZE_URL,
+      tokenUrl: MICROSOFT_TOKEN_URL,
+      scopes: [...MICROSOFT_CALENDAR_SCOPES],
+      extra: { response_mode: "query", prompt: "select_account" },
     },
     zoom: {
       authorizeUrl: "https://zoom.us/oauth/authorize",
@@ -172,7 +211,7 @@ async function runtimeToken() {
 }
 async function saveCredential(
   tenantId: string,
-  provider: Provider,
+  provider: AnyProvider,
   value: Record<string, unknown>,
 ) {
   const project =
@@ -237,7 +276,7 @@ async function saveCredential(
 //
 // The secret id has to be derived exactly as saveCredential derives it, or this
 // silently destroys nothing.
-async function deleteCredential(tenantId: string, provider: Provider) {
+async function deleteCredential(tenantId: string, provider: AnyProvider) {
   const project =
     process.env.GOOGLE_CLOUD_PROJECT ??
     process.env.GCLOUD_PROJECT ??
@@ -297,7 +336,7 @@ async function exchange(
   verifier: string | null,
   redirectUri: string,
 ) {
-  const current = config(provider);
+  const current = await configFor(provider);
   const params = new URLSearchParams({ grant_type: "authorization_code", code });
   // Stripe Connect's token endpoint doesn't take redirect_uri — the
   // redirect is validated against the Connect app's own settings instead.
@@ -311,6 +350,7 @@ async function exchange(
   // it wants client_id/client_secret as body params instead.
   if (
     provider === "google_calendar" ||
+    provider === "outlook_calendar" ||
     provider === "stripe" ||
     provider === "dropbox_sign"
   ) {
@@ -386,6 +426,116 @@ async function resolveQuickBooksApiBaseUrl(
   throw new Error(`QUICKBOOKS_REALM_HOST_UNRESOLVED:${attempts.join(",")}`);
 }
 
+const appleConnectSchema = z.object({
+  action: z.literal("connect_apple"),
+  provider: z.literal("apple_calendar").default("apple_calendar"),
+  tenantId: z.string().min(1),
+  appleId: z.string().trim().toLowerCase().email().max(254),
+  appPassword: z.string().min(1).max(64),
+});
+
+/**
+ * Connect Apple Calendar (iCloud) with an Apple ID and an app-specific
+ * password.
+ *
+ * Order matters, and mirrors the OAuth callback: prove the credential works
+ * (CalDAV discovery against caldav.icloud.com), store it in Secret Manager,
+ * and only then write a connection document — which holds the email and the
+ * calendar URLs and nothing that can sign in. A wrong password writes
+ * nothing at all.
+ *
+ * With PROVIDER_MOCK_MODE=true (the emulator) nothing leaves the machine: a
+ * mock connection is recorded and no secret is stored, the same as every
+ * other provider's mock.
+ */
+async function connectAppleCalendar(
+  body: unknown,
+  userId: string,
+  requestContext: { ipAddress: string | null; userAgent: string | null },
+) {
+  const parsed = appleConnectSchema.safeParse(body);
+  if (!parsed.success) {
+    // Never echo the input back: it carries a password.
+    const field = String(parsed.error.issues[0]?.path[0] ?? "");
+    throw new Error(field === "appleId" ? "APPLE_ID_INVALID" : "APPLE_CONNECT_INVALID");
+  }
+  const input = parsed.data;
+  const db = getFirestore();
+  const membership = await db.doc(`memberships/${input.tenantId}_${userId}`).get();
+  if (
+    !membership.exists ||
+    membership.get("status") !== "active" ||
+    !["studio_owner", "studio_admin"].includes(String(membership.get("role")))
+  )
+    throw new Error("FORBIDDEN");
+  const appPassword = normalizeAppSpecificPassword(input.appPassword);
+  if (!appPassword) throw new Error("APPLE_APP_PASSWORD_FORMAT");
+  const mockMode = process.env.PROVIDER_MOCK_MODE === "true";
+  let calendars: Array<{ url: string; name: string }>;
+  if (mockMode) {
+    calendars = [{ url: "https://caldav.icloud.com/mock/calendars/home/", name: "Home" }];
+  } else {
+    try {
+      ({ calendars } = await discoverAppleCalendars({ appleId: input.appleId, appPassword }));
+    } catch (caught: unknown) {
+      if (caught instanceof AppleCalendarAuthError) throw caught;
+      const code = caught instanceof Error ? caught.message : "APPLE_CALENDAR_DISCOVERY_FAILED";
+      console.error(
+        JSON.stringify({ severity: "ERROR", event: "integration.apple_discovery_failed", tenantId: input.tenantId, code }),
+      );
+      throw new Error(code.startsWith("APPLE_CALENDAR_") ? code : "APPLE_CALENDAR_DISCOVERY_FAILED");
+    }
+    if (!calendars.length) throw new Error("APPLE_CALENDAR_NO_CALENDARS");
+  }
+  // The password goes to the vault and nowhere else.
+  const credentialReference = mockMode
+    ? null
+    : await saveCredential(input.tenantId, "apple_calendar", {
+        accessToken: appPassword,
+        username: input.appleId,
+      });
+  const now = new Date().toISOString();
+  const connectionId = `${input.tenantId}_apple_calendar`;
+  const batch = db.batch();
+  batch.set(
+    db.doc(`integrationConnections/${connectionId}`),
+    appleConnectionRecord({
+      tenantId: input.tenantId,
+      appleId: input.appleId,
+      calendars,
+      credentialReference,
+      userId,
+      now,
+      mockMode,
+    }),
+    { merge: true },
+  );
+  batch.create(db.collection("auditEvents").doc(), {
+    tenantId: input.tenantId,
+    projectId: null,
+    actorId: userId,
+    actorType: "user",
+    action: "integration.connect",
+    entityType: "integrationConnection",
+    entityId: connectionId,
+    timestamp: now,
+    before: null,
+    after: { provider: "apple_calendar", status: "connected", calendars: calendars.length },
+    ipAddress: requestContext.ipAddress,
+    userAgent: requestContext.userAgent,
+    correlationId: `apple_connect_${Date.now()}`,
+    automationRunId: null,
+    providerEventId: null,
+  });
+  await batch.commit();
+  return {
+    provider: "apple_calendar",
+    status: "connected",
+    mockMode,
+    calendars: calendars.map((calendar) => calendar.name),
+  };
+}
+
 export const integrationOAuth = onRequest(
   {
     cors: studioHubCors,
@@ -414,6 +564,19 @@ export const integrationOAuth = onRequest(
       if (request.method === "POST") {
         await requireAppCheckOrAppHostingProxy(request);
         const identity = await requireIdentity(request);
+        if (
+          typeof request.body === "object" &&
+          request.body !== null &&
+          (request.body as Record<string, unknown>).action === "connect_apple"
+        ) {
+          failureProvider = "apple_calendar";
+          const result = await connectAppleCalendar(request.body, identity.uid, {
+            ipAddress: request.ip ?? null,
+            userAgent: request.get("user-agent") ?? null,
+          });
+          response.status(200).json(result);
+          return;
+        }
         const input = startSchema.parse(request.body);
         failureProvider = input.provider;
         failureTenantId = input.tenantId;
@@ -477,7 +640,11 @@ export const integrationOAuth = onRequest(
           response.status(200).json({ provider: input.provider, status: "disconnected" });
           return;
         }
-        const base = config(input.provider);
+        if (input.provider === "apple_calendar") {
+          // iCloud has no OAuth; its card posts connect_apple instead.
+          throw new Error("APPLE_CALENDAR_USES_APP_PASSWORD");
+        }
+        const base = await configFor(input.provider);
         const current =
           input.provider === "quickbooks" && input.payments
             ? { ...base, scopes: [...base.scopes, QUICKBOOKS_PAYMENTS_SCOPE] }
@@ -564,7 +731,10 @@ export const integrationOAuth = onRequest(
         new Date(String(saved.get("expiresAt"))) < new Date()
       )
         throw new Error("OAUTH_STATE_INVALID");
-      const provider = providerSchema.parse(saved.get("provider"));
+      const parsedProvider = providerSchema.parse(saved.get("provider"));
+      // No OAuth state is ever minted for Apple Calendar.
+      if (parsedProvider === "apple_calendar") throw new Error("OAUTH_STATE_INVALID");
+      const provider: Provider = parsedProvider;
       const tenantId = String(saved.get("tenantId"));
       failureProvider = provider;
       failureTenantId = tenantId;
@@ -682,6 +852,22 @@ export const integrationOAuth = onRequest(
           accountId,
           String(token.access_token),
         );
+      } else if (provider === "outlook_calendar") {
+        // The calendar's owner names the mailbox, and reading it needs only
+        // Calendars.Read — no profile scope is requested just for a label.
+        // Best effort: a missing label never fails a granted connection.
+        const calendar = await fetch(
+          `${GRAPH_BASE_URL}/me/calendar?$select=owner`,
+          { headers: { authorization: `Bearer ${String(token.access_token)}` } },
+        ).catch(() => null);
+        const body =
+          calendar && calendar.ok
+            ? ((await calendar.json().catch(() => ({}))) as {
+                owner?: { name?: string; address?: string };
+              })
+            : {};
+        accountId = body.owner?.address ?? "";
+        displayName = body.owner?.address ?? body.owner?.name ?? "Outlook";
       } else if (provider === "stripe") {
         // Connect returns the connected account id directly in the token
         // response — no separate userinfo call needed.

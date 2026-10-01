@@ -46,6 +46,8 @@ export type CapabilityReadiness = {
 
 const PROVIDER_NAMES: Record<IntegrationProvider, string> = {
   google_calendar: "Google Calendar",
+  outlook_calendar: "Outlook",
+  apple_calendar: "Apple Calendar",
   zoom: "Zoom",
   docusign: "DocuSign",
   dropbox_sign: "Dropbox Sign",

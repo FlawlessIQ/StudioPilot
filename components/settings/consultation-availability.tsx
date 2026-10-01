@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { CalendarClock, Plus, X } from "lucide-react";
@@ -9,6 +10,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
+import { BUSY_TIME_CALENDARS_COPY } from "@/features/integrations/schema";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultMeetingFormats, videoCallDetail } from "@/features/consultations/meeting-mode";
 
@@ -336,6 +338,10 @@ export function ConsultationAvailability() {
                 Closed: only the hours you add can be booked. Open: your widest hours can be booked, except the times
                 you mark unavailable.
               </InfoHint>
+            </p>
+            <p>
+              {BUSY_TIME_CALENDARS_COPY}{" "}
+              <Link href="/studio/integrations">Connect a calendar</Link>
             </p>
           </div>
         </div>

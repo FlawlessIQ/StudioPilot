@@ -14,7 +14,19 @@ import {
   quickBooksApiBaseUrl,
   refreshCredentialsInRequestBody,
   refreshNeedsClientCredentials,
+  oauthClientPrefix,
+  refreshScope,
 } from "../integrations/provider-config.js";
+import {
+  collectBusyIntervals,
+  isBusyTimeProvider,
+  type BusyInterval,
+  type BusyTimeProvider,
+  type FreeBusyResult,
+} from "../integrations/busy-time.js";
+import { GRAPH_BASE_URL, outlookBusyFromGraph } from "../integrations/outlook-calendar.js";
+import { appleBusyFromCalDav, isIcloudCalDavUrl } from "../integrations/apple-calendar.js";
+import { platformSecret } from "../integrations/platform-secret.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { autoInstantiateWorkflow } from "../workflow/commands.js";
 import { productEvent } from "./product-events.js";
@@ -26,9 +38,17 @@ import { voidInvoiceTask } from "../booking/stopped-billing.js";
 import { providerVoidJobType } from "../booking/invoice-corrections.js";
 import { landStudioPaymentAtProvider, studioPaymentFor } from "../booking/invoice-payments.js";
 
-export type Provider="google_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
+export type Provider="google_calendar"|"outlook_calendar"|"apple_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
+/**
+ * A provider credential as stored in Secret Manager.
+ *
+ * Apple Calendar (CalDAV) has no OAuth: `accessToken` holds the app-specific
+ * password and `username` the Apple ID, sent together as HTTP Basic auth. It
+ * has no expiry, so refreshCredential passes it straight through.
+ */
 export type Credential={
   accessToken:string;
+  username?:string;
   refreshToken?:string;
   expiresAt?:string;
   baseUrl?:string;
@@ -59,22 +79,29 @@ async function readSecret(reference:string):Promise<Credential>{
     baseUrl:text(parsed.baseUrl)||undefined,
     accountId:text(parsed.accountId)||undefined,
     realmId:text(parsed.realmId)||undefined,
+    username:text(parsed.username)||undefined,
   };
 }
-const clientPrefix=(provider:Provider)=>provider==="google_calendar"?"GOOGLE_CALENDAR":provider.toUpperCase();
 async function refreshCredential(reference:string,provider:Provider,current:Credential):Promise<Credential>{
+  if(provider==="apple_calendar")return current;
   if(!current.expiresAt||new Date(current.expiresAt).valueOf()>Date.now()+5*60_000)return current;
   if(!current.refreshToken)throw new Error(`${provider.toUpperCase()}_REAUTHORIZATION_REQUIRED`);
   const params=new URLSearchParams({grant_type:"refresh_token",refresh_token:current.refreshToken});
   const headers:Record<string,string>={"content-type":"application/x-www-form-urlencoded"};
   if(refreshNeedsClientCredentials(provider)){
-    const prefix=clientPrefix(provider);
+    const prefix=oauthClientPrefix(provider);
     const clientId=process.env[`${prefix}_CLIENT_ID`];
-    const clientSecret=process.env[`${prefix}_CLIENT_SECRET`];
+    // Outlook's secret is read at run time rather than bound at deploy time;
+    // integrations/platform-secret.ts says why.
+    const clientSecret=provider==="outlook_calendar"
+      ?await platformSecret("MICROSOFT_CLIENT_SECRET")
+      :process.env[`${prefix}_CLIENT_SECRET`];
     if(!clientId||!clientSecret)throw new Error(`${provider.toUpperCase()}_REFRESH_NOT_CONFIGURED`);
     if(refreshCredentialsInRequestBody(provider)){
       params.set("client_id",clientId);
       params.set("client_secret",clientSecret);
+      const scope=refreshScope(provider);
+      if(scope)params.set("scope",scope);
     }else{
       headers.authorization=`Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
     }
@@ -226,6 +253,18 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
     // authorized by calendar.freebusy. calendarList would force the much broader
     // calendar.readonly scope to be requested for a health check alone.
     google_calendar:()=>fetch("https://www.googleapis.com/calendar/v3/freeBusy",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({timeMin:new Date().toISOString(),timeMax:new Date(Date.now()+60_000).toISOString(),items:[{id:String(current.document.get("selectedResourceId")??"primary")}]})}),
+    // Reading the default calendar's own record needs only Calendars.Read.
+    outlook_calendar:()=>fetch(`${GRAPH_BASE_URL}/me/calendar?$select=id`,{headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json"}}),
+    // A Depth:0 PROPFIND on the first chosen calendar: proves the app-specific
+    // password still works and the calendar still exists. Only to an iCloud
+    // host — the URL comes from the connection document.
+    apple_calendar:async()=>{
+      const urls=Array.isArray(current.document.get("calendarUrls"))?(current.document.get("calendarUrls") as unknown[]).map(String).filter(isIcloudCalDavUrl):[];
+      const target=urls[0];
+      if(!target)return new Response(null,{status:404});
+      const username=credential.username??text(current.document.get("providerAccountId"));
+      return fetch(target,{method:"PROPFIND",redirect:"manual",headers:{authorization:`Basic ${Buffer.from(`${username}:${credential.accessToken}`).toString("base64")}`,depth:"0","content-type":"application/xml; charset=utf-8"},body:'<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>'});
+    },
     zoom:()=>fetch("https://api.zoom.us/v2/users/me/meetings?page_size=1",{headers:{authorization:`Bearer ${credential.accessToken}`}}),
     dropbox:()=>fetch("https://api.dropboxapi.com/2/files/list_folder",{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,"content-type":"application/json"},body:JSON.stringify({path:"",recursive:false,include_deleted:false,limit:1})}),
     docusign:()=>fetch(docusignUserInfoUrl(),{headers:{authorization:`Bearer ${credential.accessToken}`}}),
@@ -272,11 +311,11 @@ export async function checkProviderConnection(tenantId:string,provider:Provider)
   await current.document.ref.update({status:"connected",lastHealthCheckAt:now,lastHealthLatencyMs:latencyMs,diagnosticSeverity:diagnostics.severity,diagnosticRecommendation:diagnostics.recommendedAction,diagnosticFailedJobs7d:diagnostics.failedJobs7d,diagnostics,configurationWarning,lastError:null,updatedAt:now});
   return{provider,status:"connected",mockMode:false,diagnostics};
 }
-export type BusyInterval={start:string;end:string};
-type FreeBusyResult={ok:true;busy:BusyInterval[]}|{ok:false;reason:string};
-type FreeBusyFetcher=(tenantId:string,timeMinIso:string,timeMaxIso:string)=>Promise<FreeBusyResult>;
+export type { BusyInterval };
+type BusyContext={tenantId:string;timeMinIso:string;timeMaxIso:string;studioTimeZone:()=>Promise<string>};
+type FreeBusyFetcher=(context:BusyContext)=>Promise<FreeBusyResult>;
 
-async function googleCalendarBusyIntervals(tenantId:string,timeMinIso:string,timeMaxIso:string):Promise<FreeBusyResult>{
+async function googleCalendarBusyIntervals({tenantId,timeMinIso,timeMaxIso}:BusyContext):Promise<FreeBusyResult>{
   let current:Awaited<ReturnType<typeof connection>>;
   try{
     current=await connection(tenantId,"google_calendar");
@@ -303,28 +342,96 @@ async function googleCalendarBusyIntervals(tenantId:string,timeMinIso:string,tim
   return{ok:true,busy};
 }
 
-// Provider-pluggable so a future Outlook freebusy fetcher is one map entry,
-// not a rewrite — mirrors this file's existing `probes` map convention.
-const freeBusyFetchers:Partial<Record<Provider,FreeBusyFetcher>>={
+/** Outlook / Microsoft 365 through Graph calendarView (a read-only grant). */
+async function outlookCalendarBusyIntervals({tenantId,timeMinIso,timeMaxIso,studioTimeZone}:BusyContext):Promise<FreeBusyResult>{
+  let current:Awaited<ReturnType<typeof connection>>;
+  try{
+    current=await connection(tenantId,"outlook_calendar");
+  }catch(caught:unknown){
+    return{ok:false,reason:caught instanceof Error?caught.message:"OUTLOOK_CALENDAR_NOT_CONNECTED"};
+  }
+  if(current.mock)return{ok:true,busy:[]};
+  const credential=current.credential;
+  if(!credential)return{ok:false,reason:"OUTLOOK_CALENDAR_CREDENTIAL_UNAVAILABLE"};
+  return outlookBusyFromGraph({accessToken:credential.accessToken,timeMinIso,timeMaxIso,studioTimeZone:await studioTimeZone()});
+}
+
+/**
+ * Apple Calendar (iCloud) over CalDAV, with the app-specific password from
+ * Secret Manager. A refused password marks the connection, so the studio's
+ * Integrations page says to reconnect instead of quietly reading nothing.
+ */
+async function appleCalendarBusyIntervals({tenantId,timeMinIso,timeMaxIso,studioTimeZone}:BusyContext):Promise<FreeBusyResult>{
+  let current:Awaited<ReturnType<typeof connection>>;
+  try{
+    current=await connection(tenantId,"apple_calendar");
+  }catch(caught:unknown){
+    return{ok:false,reason:caught instanceof Error?caught.message:"APPLE_CALENDAR_NOT_CONNECTED"};
+  }
+  if(current.mock)return{ok:true,busy:[]};
+  const credential=current.credential;
+  if(!credential)return{ok:false,reason:"APPLE_CALENDAR_CREDENTIAL_UNAVAILABLE"};
+  const appleId=credential.username??text(current.document.get("providerAccountId"));
+  const calendarUrls=Array.isArray(current.document.get("calendarUrls"))
+    ?(current.document.get("calendarUrls") as unknown[]).map(String)
+    :[];
+  const result=await appleBusyFromCalDav({appleId,appPassword:credential.accessToken,calendarUrls,timeMinIso,timeMaxIso,studioTimeZone:await studioTimeZone()});
+  if(result.skipped?.length){
+    console.warn(JSON.stringify({severity:"WARNING",event:"calendar_busy.apple_calendars_skipped",tenantId,skipped:result.skipped}));
+  }
+  if(!result.ok&&result.authFailed){
+    await current.document.ref.update({status:"error",lastError:"APPLE_CALENDAR_AUTH_FAILED",updatedAt:new Date().toISOString()}).catch(()=>{});
+  }
+  return result.ok?{ok:true,busy:result.busy}:{ok:false,reason:result.reason};
+}
+
+/**
+ * Every provider that can say when the studio is busy. Adding one is an
+ * entry here plus its id in BUSY_TIME_PROVIDERS (integrations/busy-time.ts).
+ */
+const freeBusyFetchers:Record<BusyTimeProvider,FreeBusyFetcher>={
   google_calendar:googleCalendarBusyIntervals,
+  outlook_calendar:outlookCalendarBusyIntervals,
+  apple_calendar:appleCalendarBusyIntervals,
 };
 
 /**
- * Real busy intervals from the tenant's connected calendar provider, for
- * merging into consultation slot generation. Never throws — an unconnected
- * or failing provider degrades to `{ok:false, reason}` so callers can
- * proceed with `busy=[]` rather than fail the whole read.
+ * Real busy intervals from every calendar the tenant has connected — Google,
+ * Outlook and Apple, in any combination — unioned, for merging into
+ * consultation slot generation.
+ *
+ * Never throws. A provider that fails is logged and skipped; the others still
+ * count. `{ok:false}` means nothing connected answered, and callers proceed
+ * with no extra busy time rather than fail the whole read — the same contract
+ * this had when Google was the only source.
  */
 export async function getCalendarBusyIntervals(
   tenantId:string,
   timeMinIso:string,
   timeMaxIso:string,
-  provider:Provider="google_calendar",
-):Promise<FreeBusyResult>{
-  const fetcher=freeBusyFetchers[provider];
-  if(!fetcher)return{ok:false,reason:`${provider.toUpperCase()}_FREEBUSY_UNSUPPORTED`};
+):Promise<FreeBusyResult&{sources?:BusyTimeProvider[]}>{
   try{
-    return await fetcher(tenantId,timeMinIso,timeMaxIso);
+    const db=getFirestore();
+    const snapshot=await db.collection("integrationConnections").where("tenantId","==",tenantId).where("status","==","connected").get();
+    const providers=snapshot.docs
+      .filter((document)=>!document.get("archivedAt"))
+      .map((document)=>document.get("provider"))
+      .filter(isBusyTimeProvider);
+    let timezone:Promise<string>|null=null;
+    const studioTimeZone=()=>timezone??=db.doc(`tenants/${tenantId}`).get()
+      .then((tenant)=>text(tenant.get("timezone"))||"America/New_York")
+      .catch(()=>"America/New_York");
+    const context:BusyContext={tenantId,timeMinIso,timeMaxIso,studioTimeZone};
+    const collected=await collectBusyIntervals({
+      providers,
+      fetchers:Object.fromEntries(providers.map((provider)=>[provider,()=>freeBusyFetchers[provider](context)])),
+    });
+    for(const failure of collected.failures){
+      console.warn(JSON.stringify({severity:"WARNING",event:"calendar_busy.provider_skipped",tenantId,provider:failure.provider,reason:failure.reason}));
+    }
+    return collected.ok
+      ?{ok:true,busy:collected.busy,sources:collected.sources}
+      :{ok:false,reason:collected.reason};
   }catch(caught:unknown){
     return{ok:false,reason:caught instanceof Error?caught.message:"FREEBUSY_FAILED"};
   }
