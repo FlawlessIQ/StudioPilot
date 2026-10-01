@@ -27,6 +27,7 @@ import {
   planClientProposalDecision,
 } from "@/server/client/proposal-decision";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { invoiceRaisedAtProvider } from "@/features/client/invoice-pay-route";
 import { isAmendable } from "@/features/booking/amendable";
 import {
   signContract,
@@ -631,6 +632,13 @@ async function clientRecords(
       ).map((signer) =>
         pick(signer, ["name", "role", "order", "status", "completedAt", "signedAt"]),
       );
+    }
+    if (collectionName === "invoiceReferences") {
+      // Whether the invoice exists in the studio's books yet — a yes/no,
+      // never the provider's own state or id. Without it an invoice that
+      // QuickBooks made with no pay link (no online payments on the company)
+      // read as "still syncing" forever, and the couple had no way to pay.
+      sanitized.atProvider = invoiceRaisedAtProvider(value);
     }
     if (collectionName === "deliveryRecords" && typeof value.viewToken === "string" && value.viewToken) {
       // The couple opens their delivery through StudioCue's redirect, which

@@ -5,7 +5,9 @@ import Link from "next/link";
 import { ExternalLink, LockKeyhole, MessageCircle, RotateCw } from "lucide-react";
 import { Actions, Button, Card, List, Main, Pill, PoweredBy, Row, Steps } from "@/components/kit/kit";
 import { ClientAutopay } from "@/components/client/client-autopay";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { invoicePayNote, invoicePayRoute } from "@/features/client/invoice-pay-route";
 import { statusLabel } from "@/features/format/status-label";
 import {
   date,
@@ -37,6 +39,7 @@ function invoiceName(kind: unknown): string {
  * re-checks on its own, as before.
  */
 export function ClientPayments() {
+  const workspace = useWorkspace();
   const invoices = useProjectRecords("invoiceReferences");
   const reserve = useReserveYourDate();
   const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
@@ -68,6 +71,15 @@ export function ClientPayments() {
   const due = standing.find((invoice) => number(invoice.balanceCents) > 0) ?? null;
   const hostedUrl = due && typeof due.hostedUrl === "string" && due.hostedUrl ? due.hostedUrl : null;
   const provider = due ? (text(due.provider) === "stripe" ? "Stripe" : "QuickBooks") : null;
+  // Online, paid to the studio directly (an invoice with no pay link, and
+  // none coming), or genuinely still being created.
+  const payRoute = due ? invoicePayRoute({ hostedUrl, atProvider: due.atProvider }) : null;
+  const studioName =
+    workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : null;
+  const payNote =
+    due && payRoute
+      ? invoicePayNote(payRoute, { studioName, invoiceName: invoiceName(due.kind), providerName: provider })
+      : null;
 
   if (invoices.error || standing.length === 0)
     return (
@@ -112,16 +124,12 @@ export function ClientPayments() {
                 Of {money(due.amountCents, due.currency)} · the rest is already paid.
               </p>
             ) : null}
-            {hostedUrl ? (
+            {payRoute === "online" ? (
               <p className="kit-caption">
-                <LockKeyhole aria-hidden size={14} /> Secure payment opens in {provider}. StudioCue never receives
-                your card or bank details.
+                <LockKeyhole aria-hidden size={14} /> {payNote}
               </p>
             ) : (
-              <p className="kit-caption">
-                Secure payment link is still syncing. Refresh in a moment, or message your studio if you need to pay
-                now.
-              </p>
+              <p className="kit-caption">{payNote}</p>
             )}
             {notice ? (
               <p className="kit-caption" role="status">
@@ -214,6 +222,10 @@ export function ClientPayments() {
                 Pay {money(due.balanceCents, due.currency)} securely <ExternalLink aria-hidden size={18} />
               </a>
             </>
+          ) : payRoute === "direct" ? (
+            <Button href="/client/messages?context=Payments" icon={MessageCircle}>
+              {`Message ${studioName ?? "your studio"} to arrange payment`}
+            </Button>
           ) : (
             <Button icon={RotateCw} onClick={() => refreshInvoices?.()} variant="secondary">
               Refresh status

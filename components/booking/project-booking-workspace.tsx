@@ -48,6 +48,10 @@ import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { CorrectPayment, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
 import { invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import {
+  QUICKBOOKS_NO_PAY_LINK_NOTE,
+  quickBooksInvoiceWithoutPayLink,
+} from "@/features/client/invoice-pay-route";
+import {
   friendlyError as friendlySharedError,
   isVersionConflict,
 } from "@/lib/ai/friendly-error";
@@ -1526,6 +1530,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     )} invoice`}{" "}
                     <ArrowRight size={13} />
                   </Link>
+                ) : null}
+                {/*
+                  In QuickBooks with no pay link: the company has no online
+                  payments, so the couple's portal tells them to pay the
+                  studio directly. The studio needs to know why, and that
+                  "Record a payment" below is how the money gets in.
+                */}
+                {quickBooksInvoiceWithoutPayLink(invoice) && invoicePaymentRefusal(invoice) === null ? (
+                  <p className="booking-delivery-warning" role="status">
+                    <CircleAlert aria-hidden="true" size={14} />
+                    <span>{QUICKBOOKS_NO_PAY_LINK_NOTE}</span>
+                  </p>
                 ) : null}
                 {/*
                   Raised but not delivered. QuickBooks only emails an

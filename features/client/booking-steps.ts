@@ -10,6 +10,8 @@
  * Read-only and derived. Nothing here decides a booking; the booking gate does.
  */
 
+import { invoicePayRoute } from "@/features/client/invoice-pay-route";
+
 export type BookingStepKey = "proposal" | "agreement" | "deposit" | "booked";
 export type BookingStepState = "done" | "current" | "waiting" | "upcoming";
 
@@ -24,8 +26,12 @@ export type BookingStepsInput = {
   proposalStatus: string | null;
   /** The newest non-superseded contract's status, or null when none exists. */
   contractStatus: string | null;
-  /** The standing retainer invoice, or null when none has been raised. */
-  retainer: { status: string; balanceCents: number; hostedUrl: string | null } | null;
+  /**
+   * The standing retainer invoice, or null when none has been raised.
+   * `atProvider`: it exists in the studio's books, pay link or not
+   * (features/client/invoice-pay-route.ts).
+   */
+  retainer: { status: string; balanceCents: number; hostedUrl: string | null; atProvider?: boolean } | null;
 };
 
 export type BookingStepsView = {
@@ -57,7 +63,12 @@ export function bookingSteps(input: BookingStepsInput): BookingStepsView {
     done ? "done" : !reachable ? "upcoming" : actionable ? "current" : "waiting";
 
   const agreementSent = input.contractStatus !== null && !SIGNED.has(input.contractStatus);
-  const invoiceReady = input.retainer !== null && !paid && Boolean(input.retainer.hostedUrl);
+  const payRoute = input.retainer !== null && !paid ? invoicePayRoute(input.retainer) : null;
+  const invoiceReady = payRoute === "online";
+  // Raised, with no pay link — and none coming until the studio turns on
+  // online payments. The couple pays the studio directly. Not "being
+  // prepared": that told a couple to wait for a link that was never coming.
+  const payDirect = payRoute === "direct";
 
   const steps: BookingStep[] = [
     {
@@ -73,7 +84,7 @@ export function bookingSteps(input: BookingStepsInput): BookingStepsView {
     {
       key: "deposit",
       label: "Pay your deposit",
-      state: state(paid, signed, invoiceReady),
+      state: state(paid, signed, invoiceReady || payDirect),
     },
     {
       key: "booked",
@@ -124,12 +135,20 @@ export function bookingSteps(input: BookingStepsInput): BookingStepsView {
               href: "/client/payments",
               actionLabel: "Pay deposit",
             }
-          : {
-              title: "Your deposit invoice is being prepared",
-              detail: "Your agreement is signed. The deposit invoice will appear here shortly.",
-              href: null,
-              actionLabel: null,
-            };
+          : payDirect
+            ? {
+                title: "Your deposit invoice is ready",
+                detail:
+                  "Your studio takes this payment directly — by check, cash or bank transfer. Message them to arrange it. Your date is secured the moment it's paid.",
+                href: "/client/payments",
+                actionLabel: "See your invoice",
+              }
+            : {
+                title: "Your deposit invoice is being prepared",
+                detail: "Your agreement is signed. The deposit invoice will appear here shortly.",
+                href: null,
+                actionLabel: null,
+              };
 
   return { steps, booked, next };
 }
