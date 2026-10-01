@@ -15,6 +15,12 @@ import {
 } from "../intake/inquiry-link.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import {
+  dayFieldsFor,
+  normaliseInquiryFormConfig,
+  resolveInquiryEventType,
+  type InquiryEventKind,
+} from "../intake/inquiry-form-config.js";
+import {
   INQUIRY_FORM_SOURCE,
   applyCoupleAnswers,
   coupleCompletionPercent,
@@ -583,7 +589,16 @@ async function handleInquiryCommand(
       db.doc(`consultationSettings/${context.tenantId}`).get(),
       inquiryFormState(db, context),
     ]);
-    const { known, missing } = detailsOf(context.lead);
+    const { known, missing: allMissing } = detailsOf(context.lead);
+    // Only what this kind of inquiry is asked: a cheer-photo inquiry was asked
+    // for a partner, ceremony time and guest count (2026-10-01).
+    const inquiryConfig = normaliseInquiryFormConfig(
+      (await db.doc(`leadCaptureSettings/${context.tenantId}`).get().catch(() => null))?.get("inquiryForm"),
+    );
+    const { type: inquiryType } = resolveInquiryEventType(inquiryConfig, {
+      eventType: context.lead.get("eventTypeLabel"),
+    });
+    const missing = detailsAskedFor(allMissing, inquiryType?.kind ?? null, dayFieldsFor(inquiryType));
     const inquiryBrand = resolveTenantBrand(tenant.data(), "Your photography studio");
     const pastConsultation = pastTheCall(context);
     return {
@@ -593,6 +608,8 @@ async function handleInquiryCommand(
       firstName: text(context.lead.get("firstName")) || null,
       known,
       missing,
+      // "wedding" words only for a wedding; null for an inquiry from before types.
+      eventKind: inquiryType?.kind ?? null,
       detailsSubmitted: Boolean(context.lead.get("detailsSubmittedAt")),
       formats: options.formats,
       inPersonLocation: options.inPersonLocation,
@@ -1058,4 +1075,25 @@ export function phoneForCall(onFile: string, given: string | undefined): string 
     if (value.replace(/\D/g, "").length >= 7) return value.slice(0, 30);
   }
   return null;
+}
+
+/**
+ * The details a couple's link asks for, by kind of inquiry. A wedding (or an
+ * inquiry from before the studio had types) is asked everything it hasn't
+ * said; anything else only what its type asks — never a partner or ceremony
+ * time. The date stays: a call is booked against a job, and a job needs one.
+ */
+export function detailsAskedFor<T extends string>(
+  missing: readonly T[],
+  kind: InquiryEventKind | null,
+  fields: { city: string; venue: boolean; guests: boolean },
+): T[] {
+  if (kind === null || kind === "wedding") return [...missing];
+  return missing.filter((field) => {
+    if (field === "partnerName" || field === "ceremonyTime") return false;
+    if (field === "venue") return fields.venue;
+    if (field === "estimatedGuestCount") return fields.guests;
+    if (field === "city") return fields.city !== "hidden";
+    return true;
+  });
 }

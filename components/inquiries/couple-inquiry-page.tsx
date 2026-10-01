@@ -56,6 +56,8 @@ type Preview = {
   firstName: string | null;
   known: Partial<Record<Field, string | number>>;
   missing: Field[];
+  /** The kind of inquiry; absent from an older build or before types (reads as a wedding). */
+  eventKind?: string | null;
   detailsSubmitted: boolean;
   formats: Format[];
   inPersonLocation: string | null;
@@ -528,7 +530,11 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                 <Field
                   inputMode={field === "estimatedGuestCount" ? "numeric" : field === "phone" ? "tel" : undefined}
                   key={field}
-                  label={fieldCopy[field].label}
+                  label={
+                    field === "eventDate" && preview.eventKind && preview.eventKind !== "wedding"
+                      ? "The date you have in mind"
+                      : fieldCopy[field].label
+                  }
                   min={field === "estimatedGuestCount" ? 1 : undefined}
                   name={field}
                   onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))}

@@ -405,3 +405,17 @@ test("the server, the command and the page all read the studio's form", () => {
   assert.match(read("functions/src/operations/ai-pdf.ts"), /customAnswers:Array\.isArray\(lead\.get\("customAnswers"\)\)/);
   assert.match(read("functions/src/ai/message-draft.ts"), /answers: Array\.isArray\(lead\.get\("customAnswers"\)\)/);
 });
+
+test("a non-wedding inquiry's link asks only what its type asks", async () => {
+  const { detailsAskedFor } = await import("../functions/src/booking/public-scheduling");
+  const all = ["eventDate", "partnerName", "venue", "city", "ceremonyTime", "estimatedGuestCount", "phone"] as const;
+  const sports = { city: "optional", venue: false, guests: false };
+  assert.deepEqual(detailsAskedFor([...all], "sports", sports), ["eventDate", "city", "phone"]);
+  assert.deepEqual(detailsAskedFor([...all], "wedding", sports), [...all]);
+  // An inquiry from before the studio had types reads as before.
+  assert.deepEqual(detailsAskedFor([...all], null, sports), [...all]);
+  assert.deepEqual(
+    detailsAskedFor([...all], "corporate", { city: "hidden", venue: true, guests: true }),
+    ["eventDate", "venue", "estimatedGuestCount", "phone"],
+  );
+});
