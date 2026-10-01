@@ -24,10 +24,10 @@ Required secrets and values:
 
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- monthly and yearly `STRIPE_PRICE_*` values for all three plans
+- monthly and yearly `STRIPE_PRICE_*` values for both plans
 - `NEXT_PUBLIC_BILLING_FUNCTIONS_URL`
 
-Current public list prices are $150/$1,500 for Studio and $299/$2,990 for
+Current public list prices are $250/$2,500 for Studio and $399/$3,990 for
 Multi-Brand (Solo was retired 2026-08-25; Studio is the entry plan). Annual
 prices represent ten months of the monthly price. Stripe price IDs are
 immutable references: a pricing change creates new Stripe Price objects while
@@ -121,15 +121,18 @@ snapshots remain immutable.
 
 ## Platform operations
 
-`saasAdminCommand` requires the `platformAdmin` Firebase custom claim and App
-Check. It supports:
+The StudioCue Console (`docs/console.md`) is the platform admin. Its one
+endpoint, `saasAdminCommand`, requires App Check, the `platformAdmin` claim
+and a Console role able to run the command. Among other things it covers:
 
-- feature-flag updates;
-- reasoned tenant suspension;
+- studio CRM;
+- subscription changes and discount codes;
+- suspension;
 - 5–60 minute tenant-specific support grants;
-- controlled reruns of failed or dead-letter provider jobs.
+- reruns and dismissals of failed jobs;
+- feature access.
 
-Every command appends an audit event. Support grants require an exact tenant ID
+Every command appends an audit event with the admin's role and reason. Support grants require an exact tenant ID
 and business reason. A grant is authorization context, not user impersonation;
 downstream support tooling must verify active, unexpired scope on every access.
 Manual reruns reject nonfailed work, preserve job identity/input evidence, and
@@ -138,9 +141,9 @@ return work to the queue without manufacturing provider success.
 ## Health and observability
 
 `operationsHealthScheduler` runs every 15 minutes with bounded retries and
-writes normalized health snapshots. Platform administration exposes
-subscription state, provider health, failed jobs, flags, audit events, support
-access, and system health.
+writes normalized health snapshots. `consoleRollupScheduler` rebuilds the
+Console's per-studio and per-person rows on the same cadence. The Console
+shows all of it (`docs/console.md`).
 
 Production logs use correlation, tenant, provider-event, and automation-run
 identifiers. Logs and Sentry events must exclude contracts, questionnaire

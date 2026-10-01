@@ -47,7 +47,7 @@ function safeNext(value: string | null): string | null {
   return value?.startsWith("/") && !value.startsWith("//") ? value : null;
 }
 
-function appActionUrl(
+export function appActionUrl(
   generatedLink: string,
   pathname: "/auth/reset-password" | "/auth/verify-email",
   next: string | null = null,
@@ -63,7 +63,7 @@ function appActionUrl(
   return action.toString();
 }
 
-async function tenantForAccount(
+export async function tenantForAccount(
   userId: string,
   email: string,
 ): Promise<string> {

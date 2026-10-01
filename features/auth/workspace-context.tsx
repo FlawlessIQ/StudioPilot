@@ -12,6 +12,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   doc,
   getDoc,
+  updateDoc,
 } from "firebase/firestore";
 import type { Role } from "@/features/auth/roles";
 import {
@@ -75,6 +76,11 @@ type WorkspaceState = {
    * while loading or in mock mode (which never gates).
    */
   subscriptionStatus: string | null;
+  /**
+   * The StudioCue team has suspended this studio (Console → Suspend). Studio
+   * area only; optional so workspaces built by hand in tests keep compiling.
+   */
+  tenantSuspended?: boolean;
   role: Role | null;
   projectIds: string[];
   projectId: string | null;
@@ -89,6 +95,24 @@ type WorkspaceContextValue = WorkspaceState & {
   selectProject: (projectId: string) => Promise<void>;
   retry: () => void;
 };
+
+/**
+ * When someone was last in the app, for the StudioCue Console's "last active"
+ * (docs/console.md). At most one write an hour, to the person's own user
+ * document, and only the one field firestore.rules lets them stamp. A hint the
+ * Console reads, never authority; a refused write changes nothing here.
+ */
+const ACTIVITY_STAMP_MS = 60 * 60 * 1000;
+
+async function stampActivity(uid: string, last: unknown): Promise<void> {
+  const previous = typeof last === "string" ? Date.parse(last) : Number.NaN;
+  if (Number.isFinite(previous) && Date.now() - previous < ACTIVITY_STAMP_MS) return;
+  try {
+    await updateDoc(doc(getFirebaseClient().firestore, "users", uid), { lastActiveAt: new Date().toISOString() });
+  } catch {
+    // No user document, or offline. Activity is best-effort.
+  }
+}
 
 const mockWorkspace: WorkspaceState = {
   loading: false,
@@ -348,6 +372,7 @@ export function WorkspaceProvider({
             }
           }
           if (!active) return;
+          void stampActivity(user.uid, profile.lastActiveAt);
           setState({
             loading: false,
             error: null,
@@ -368,6 +393,7 @@ export function WorkspaceProvider({
                 : roleLabel(membership.role),
             ),
             subscriptionStatus,
+            tenantSuspended: area === "studio" && tenant.status === "suspended",
             role: membership.role,
             projectIds: membership.projectIds,
             projectId,

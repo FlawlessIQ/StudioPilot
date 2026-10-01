@@ -5,10 +5,10 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { applyFeedbackStatus } from "./status.js";
 import {
   FEEDBACK_KINDS,
   FEEDBACK_MESSAGE_MAX,
-  FEEDBACK_NOTIFYING_STATUSES,
   FEEDBACK_ROLES,
   FEEDBACK_SCREENSHOT_MAX_BYTES,
   FEEDBACK_STATUSES,
@@ -259,6 +259,8 @@ export const feedbackCommand = onRequest(
           lastError: input.context.lastError,
           screenshotPath,
           status: "received" as FeedbackStatus,
+          // The team's inbox state (features/console/inbox.ts).
+          triage: "new",
           statusNote: null,
           statusHistory: [{ status: "received", at: now, by: identity.uid, note: null }],
           createdAt: now,
@@ -304,7 +306,7 @@ export const feedbackCommand = onRequest(
               userAgent: input.context.userAgent,
               lastError: input.context.lastError,
               feedbackScreenshotPath: screenshotPath,
-              actionUrl: appUrl(`/platform-admin/feedback?id=${feedbackId}`),
+              actionUrl: appUrl(`/platform-admin/inbox?id=${feedbackId}`),
             }),
           );
         } else {
@@ -339,62 +341,13 @@ export const feedbackCommand = onRequest(
       // setFeedbackStatus — the team's triage.
       if (identity.platformAdmin !== true) throw new Error("FORBIDDEN");
       const input = parsed.input;
-      const reference = db.doc(`feedback/${input.feedbackId}`);
-      const result = await db.runTransaction(async (transaction) => {
-        const current = await transaction.get(reference);
-        if (!current.exists) throw new Error("FEEDBACK_NOT_FOUND");
-        const before = String(current.get("status")) as FeedbackStatus;
-        // One email per status, ever: moving Planned → Received → Planned
-        // doesn't tell them twice. Read before any write — a transaction
-        // takes all its reads first.
-        const notifyType = input.status === "shipped" ? "feedback_shipped" : "feedback_planned";
-        const jobReference = db.doc(`emailJobs/feedback_${input.status}_${input.feedbackId}`);
-        const notify =
-          input.status !== before &&
-          FEEDBACK_NOTIFYING_STATUSES.includes(input.status) &&
-          current.get("followUpOk") === true &&
-          typeof current.get("userEmail") === "string" &&
-          !(await transaction.get(jobReference)).exists;
-
-        const now = new Date().toISOString();
-        const history = Array.isArray(current.get("statusHistory")) ? current.get("statusHistory") : [];
-        transaction.update(reference, {
-          status: input.status,
-          statusNote: input.note,
-          statusHistory: [...history, { status: input.status, at: now, by: identity.uid, note: input.note }].slice(-20),
-          updatedAt: now,
-          ...(input.status === "shipped" ? { shippedAt: now } : {}),
-        });
-        const audit = auditEvent({
-          tenantId: String(current.get("tenantId")),
-          actorId: identity.uid,
-          actorType: "platform_admin",
-          action: "feedback.status_changed",
-          entityId: input.feedbackId,
-          before: { status: before },
-          after: { status: input.status, note: input.note, notified: notify },
-          correlationId: parsed.idempotencyKey,
-          userAgent,
-        });
-        transaction.create(db.doc(`auditEvents/${audit.id}`), audit.data);
-        if (notify) {
-          transaction.create(
-            jobReference,
-            emailJob(jobReference.id, {
-              type: notifyType,
-              recipient: String(current.get("userEmail")),
-              recipientName: current.get("userName") ?? null,
-              replyAddress: teamReplyAddress(),
-              feedbackId: input.feedbackId,
-              feedbackKind: current.get("kind"),
-              feedbackMessage: current.get("message"),
-              statusNote: input.note,
-              actionUrl: appUrl("/studio/help#feedback"),
-            }),
-          );
-        }
-        const notified = notify;
-        return { before, notified };
+      const result = await applyFeedbackStatus(db, {
+        feedbackId: input.feedbackId,
+        status: input.status,
+        note: input.note,
+        actorUid: identity.uid,
+        correlationId: parsed.idempotencyKey,
+        userAgent,
       });
       response.status(200).json({ feedbackId: input.feedbackId, status: input.status, ...result });
     } catch (caught: unknown) {

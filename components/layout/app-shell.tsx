@@ -521,7 +521,28 @@ function StudioShell({
             </div>
           ) : null}
           <main className="ds-content">
-            {subscriptionGated ? (
+            {workspace.tenantSuspended ? (
+              // Console → Suspend (docs/console.md). Studio commands refuse
+              // with STUDIO_SUSPENDED on the server; this says so plainly
+              // instead of letting every screen fail one action at a time.
+              // Couples' and crew portals stay up.
+              <section
+                className="panel"
+                style={{
+                  maxWidth: 520,
+                  margin: "56px auto",
+                  textAlign: "center",
+                }}
+              >
+                <p className="eyebrow">Studio paused</p>
+                <h1>Your studio is paused</h1>
+                <p>
+                  The StudioCue team has paused this workspace. Your clients and crew can still
+                  reach their portals. Reply to the email we sent, or write to
+                  support@studio-cue.com, and we&apos;ll help you sort it out.
+                </p>
+              </section>
+            ) : subscriptionGated ? (
               <section
                 className="panel"
                 style={{

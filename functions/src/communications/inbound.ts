@@ -13,6 +13,8 @@ import {
   stripQuotedReply,
 } from "./inbound-email.js";
 import { conversationIdFromReplyToken } from "./reply-address.js";
+import { feedbackIdFromReplyToken, feedbackTokenFromRecipients } from "../feedback/reply-address.js";
+import { recordFeedbackReply } from "../feedback/inbound-reply.js";
 import {
   inquirySignatureMatches,
   envelopeSender,
@@ -68,6 +70,8 @@ function equal(a: string | undefined, b: string | undefined) {
 type ParsedInbound = {
   messageId: string;
   token: string | null;
+  /** `feedback+<id>.<signature>`: a studio replying to the team about their feedback. */
+  feedbackToken: string | null;
   /** `inquiries+<slug>.<signature>` when forwarded to the studio's inquiry address. */
   inquiry: { slug: string; signature: string } | null;
   from: string;
@@ -131,6 +135,7 @@ function parseMultipart(request: Request) {
         resolve({
           messageId,
           token: replyTokenFromRecipients(recipients),
+          feedbackToken: feedbackTokenFromRecipients(recipients),
           inquiry: inquiryTokenFromRecipients(recipients),
           from: sender.email,
           fromName: sender.name,
@@ -385,6 +390,32 @@ export const sendgridInboundMessage = onRequest(
     if (isAutomatedEmail(parsed.headers)) {
       await quarantine("AUTOMATED", parsed, rawHash);
       response.status(200).json({ status: "ignored", reason: "AUTOMATED" });
+      return;
+    }
+
+    // A studio answering the StudioCue team about their feedback (Console
+    // inbox). Its own thread, never a client conversation.
+    if (parsed.feedbackToken) {
+      const feedbackId = feedbackIdFromReplyToken(parsed.feedbackToken);
+      if (!feedbackId) {
+        await quarantine("FEEDBACK_TOKEN_INVALID", parsed, rawHash);
+        response.status(200).json({ status: "quarantined", reason: "UNMATCHED" });
+        return;
+      }
+      const outcome = await recordFeedbackReply(
+        db,
+        feedbackId,
+        {
+          messageId: parsed.messageId,
+          from: parsed.from,
+          fromName: parsed.fromName,
+          subject: parsed.subject,
+          text: stripQuotedReply(parsed.text || "") || parsed.text,
+        },
+        now,
+      );
+      if (outcome === "missing") await quarantine("FEEDBACK_MISSING", parsed, rawHash);
+      response.status(200).json({ status: outcome });
       return;
     }
 

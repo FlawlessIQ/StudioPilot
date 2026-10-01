@@ -5,7 +5,11 @@ export const auditEventSchema = z.object({
   tenantId: z.string().min(1),
   projectId: z.string().min(1).optional(),
   actorId: z.string().min(1),
-  actorType: z.enum(["user", "client", "subcontractor", "guest", "system", "provider"]),
+  actorType: z.enum(["user", "client", "subcontractor", "guest", "system", "provider", "platform_admin"]),
+  /** Console commands: who acted, in what role, and the reason they gave. */
+  actorEmail: z.string().nullable().optional(),
+  actorRole: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
   action: z.string().min(2),
   entityType: z.string().min(2),
   entityId: z.string().min(1),

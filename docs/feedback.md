@@ -12,7 +12,7 @@ answers. Studios only: couples and crew don't get the button.
 | Screenshot | `lib/feedback/screenshot.ts`: the visible screen, captured as the button is pressed (before the sheet covers it), JPEG ≤ 2.5 MB; or an image the studio attaches |
 | Command | `functions/src/feedback/commands.ts`, `feedbackCommand`: `submitFeedback` (studio member) and `setFeedbackStatus` (platform admin) |
 | Studio's list | **Your feedback** in Help & guides (`components/feedback/your-feedback.tsx`) |
-| Team triage | Platform admin → **Feedback** (`components/platform/feedback-triage.tsx`) |
+| Team triage | Console → **Inbox** and **Issues** (`components/console/pages/inbox-page.tsx`, `issues-page.tsx`; see `docs/console.md`) |
 
 ## What happens when a studio sends one
 
@@ -31,10 +31,14 @@ answers. Studios only: couples and crew don't get the button.
    - `feedback_thanks` goes to the studio, signed "The StudioCue team".
      Reply-To is `FEEDBACK_REPLY_TO` (default `support@studio-cue.com`).
 
-Moving one to **Planned** or **Shipped** in triage emails the studio once per
-status (`feedback_planned` / `feedback_shipped`), with the team's note. This
-only happens if they allowed contact. **Closed** reads as "Reviewed" to the
-studio and sends nothing.
+In the Console inbox the team can reply by email (`feedback_reply`), add
+internal notes, and link feedback to an issue. A reply's Reply-To is a signed
+`feedback+…` address, so the studio's answer threads back onto the feedback.
+
+Moving an issue, or a single piece of feedback, to **Planned** or **Shipped**
+emails each person who sent it once per status (`feedback_planned` /
+`feedback_shipped`), with the team's note. This only happens if they allowed
+contact. **Closed** reads as "Reviewed" to the studio and sends nothing.
 
 The command is deliberately not gated on the subscription. A studio whose trial
 lapsed is exactly the one worth hearing from.

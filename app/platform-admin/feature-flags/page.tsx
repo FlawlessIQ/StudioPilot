@@ -1,17 +1,6 @@
-import { AdminShell } from "@/components/platform/admin-shell";
-import { LiveAdminCollection } from "@/components/platform/live-admin-data";
+import { redirect } from "next/navigation";
 
-export default function FeatureFlagsPage() {
-  return (
-    <AdminShell active="Feature flags">
-      <header>
-        <div>
-          <p className="eyebrow">Controlled rollout</p>
-          <h1>Feature flags</h1>
-          <p>Platform-only controls; subscription capabilities still require entitlements.</p>
-        </div>
-      </header>
-      <LiveAdminCollection domain="feature_flags" />
-    </AdminShell>
-  );
+/** Moved to Feature access in the Console (docs/console.md). */
+export default function Page() {
+  redirect("/platform-admin/features");
 }

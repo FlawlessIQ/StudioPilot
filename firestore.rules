@@ -115,7 +115,11 @@ service cloud.firestore {
       allow update: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(["displayName", "photoUrl", "phone", "updatedAt", "updatedBy"]);
+          .hasOnly(["displayName", "photoUrl", "phone", "updatedAt", "updatedBy", "lastActiveAt"])
+        // The activity heartbeat (features/auth/workspace-context.tsx): a
+        // person may stamp when they were last in the app, and nothing else.
+        // It is read only by the Console, as a hint, never as authority.
+        && (!("lastActiveAt" in request.resource.data) || request.resource.data.lastActiveAt is string);
       allow delete: if false;
     }
 
@@ -895,6 +899,66 @@ service cloud.firestore {
     }
     match /supportAccess/{accessId} {
       allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    // The StudioCue Console (docs/console.md). Summary rows derived from the
+    // records above, and the team's own notes, tasks, issues and billing
+    // mirrors. Platform admins read; only Console commands and the rollup
+    // write. Studios never see any of it — internal notes above all.
+    match /consoleStudios/{tenantId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /consolePeople/{userId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /consoleNotes/{noteId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /consoleTasks/{taskId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /consoleMetrics/{day} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /consoleSettings/{settingId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /consoleReplies/{replyId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /platformAdmins/{userId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /issues/{issueId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /saasInvoices/{invoiceId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /saasDiscounts/{discountId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    // The thread on a piece of feedback. The team reads all of it; the person
+    // who sent the feedback reads only the replies the team sent them, never an
+    // internal note.
+    match /feedbackMessages/{messageId} {
+      allow read: if isPlatformAdmin()
+        || (
+          signedIn()
+          && resource.data.visibleToSender == true
+          && resource.data.senderUserId == request.auth.uid
+        );
       allow write: if false;
     }
     // Feedback a studio sent the StudioCue team (functions/src/feedback).

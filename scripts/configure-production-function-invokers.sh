@@ -151,6 +151,10 @@ scheduler_services=(
   autopayscheduler
   automationretryscheduler
   coichasescheduler
+  # Refreshes the Console's studio and people rows and re-applies feature
+  # rollouts. Missing here, it 403s after the next invoker reset and the
+  # Console quietly shows stale numbers.
+  consolerollupscheduler
   # Reminds a couple who has not signed a StudioCue contract, at 3 and 7 days.
   contractreminderscheduler
   crewcascadeexpiryscheduler

@@ -33,9 +33,18 @@ export const FEEDBACK_EMAIL_TYPES = [
   "feedback_shipped",
 ] as const;
 
+/**
+ * The StudioCue team writing to a studio from the Console (docs/console.md):
+ * a one-off message from a studio's record, and a reply to a piece of their
+ * feedback. Platform mail, signed by the team, never by a person.
+ */
+export const TEAM_EMAIL_TYPES = ["platform_message", "feedback_reply"] as const;
+
 /** Sent by StudioCue itself rather than by a studio. */
 export const isPlatformEmailType = (type: string): boolean =>
-  isAuthEmailType(type) || (FEEDBACK_EMAIL_TYPES as readonly string[]).includes(type);
+  isAuthEmailType(type) ||
+  (FEEDBACK_EMAIL_TYPES as readonly string[]).includes(type) ||
+  (TEAM_EMAIL_TYPES as readonly string[]).includes(type);
 
 export const emailTemplateKeys = [
   "staff_invitation",
@@ -115,6 +124,9 @@ export const emailTemplateKeys = [
   "feedback_thanks",
   "feedback_planned",
   "feedback_shipped",
+  // StudioCue team → studio, from the Console. Platform mail.
+  "platform_message",
+  "feedback_reply",
 ] as const;
 
 export type EmailTemplateKey = (typeof emailTemplateKeys)[number];
@@ -1426,6 +1438,44 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "The StudioCue team",
         ],
         action: actionUrl ? { label: "See your feedback", url: actionUrl } : undefined,
+      };
+    }
+    case "platform_message": {
+      // Written in the Console by the team, to a studio's owner. The body is
+      // theirs, line for line; the frame and sign-off are ours, so a message
+      // can never go out unsigned or signed by a person.
+      const subject = stringValue(values, "customSubject") || "A note from the StudioCue team";
+      const body = stringValue(values, "customBody");
+      const lines = body.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const label = stringValue(values, "actionLabel") || "Open StudioCue";
+      return {
+        subject,
+        preheader: (lines[0] ?? "A note from the StudioCue team.").slice(0, 120),
+        eyebrow: "From the StudioCue team",
+        heading: subject,
+        paragraphs: [greeting, ...(lines.length ? lines : ["We wanted to get in touch about your studio."]), "The StudioCue team"],
+        action: actionUrl ? { label, url: actionUrl } : undefined,
+        note: "Reply to this email and it reaches the StudioCue team.",
+      };
+    }
+    case "feedback_reply": {
+      // The team answering a piece of feedback from the Console inbox.
+      const body = stringValue(values, "customBody");
+      const lines = body.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const original = stringValue(values, "feedbackMessage");
+      return {
+        subject: stringValue(values, "customSubject") || "Re: your feedback to StudioCue",
+        preheader: (lines[0] ?? "The StudioCue team replied to your feedback.").slice(0, 120),
+        eyebrow: "Reply to your feedback",
+        heading: "The StudioCue team replied",
+        paragraphs: [
+          greeting,
+          ...(lines.length ? lines : ["Thank you for your feedback."]),
+          ...(original ? [`You wrote: “${clip(original, 400)}”`] : []),
+          "The StudioCue team",
+        ],
+        action: actionUrl ? { label: "See your feedback", url: actionUrl } : undefined,
+        note: "Reply to this email and it reaches the StudioCue team.",
       };
     }
     case "daily_digest": {
