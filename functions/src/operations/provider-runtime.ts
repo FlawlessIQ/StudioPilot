@@ -1353,6 +1353,27 @@ async function findQuickBooksInvoiceByDocNumber(
 }
 
 /**
+ * Ask QuickBooks to let the client pay this invoice online, by card and by
+ * bank transfer.
+ *
+ * Never set before, so every invoice StudioCue made was created with online
+ * payment off — and an invoice with online payment off has no InvoiceLink,
+ * even for a company that has QuickBooks Payments. GR Productions' retainer
+ * landed with no pay link and the couple portal said "still syncing" for an
+ * invoice that already existed (2026-10-01).
+ *
+ * Safe for a company without QuickBooks Payments: the flags only say which
+ * online methods the invoice accepts, and QuickBooks accepts them on create
+ * and simply offers no online payment when the company has none. If a
+ * company ever refuses them, the create fails loudly (QUICKBOOKS_CREATE_FAILED)
+ * rather than silently — look here first.
+ */
+export const QUICKBOOKS_ONLINE_PAYMENT_FLAGS = {
+  AllowOnlineCreditCardPayment: true,
+  AllowOnlineACHPayment: true,
+} as const;
+
+/**
  * The shareable link QuickBooks puts behind its own "Review and pay" button.
  *
  * Never fetched before, so hostedUrl was null for every QuickBooks studio
@@ -1483,7 +1504,7 @@ async function adoptQuickBooksInvoice(
 export async function createQuickBooksInvoice(job:DocumentSnapshot){const db=getFirestore();const invoiceId=String(job.get("invoiceId"));const reference=db.doc(`invoiceReferences/${invoiceId}`);const invoice=await reference.get();if(!invoice.exists)throw new Error("INVOICE_NOT_FOUND");
   if(invoice.get("providerState")==="completed")return{invoiceId,providerInvoiceId:invoice.get("providerInvoiceId")};
   if(invoiceClosedToProviderWork(invoice.get("status")))return skipClosedInvoice(reference,invoice,job);
-  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;let docNumber:string|null=null;let alreadyDelivered=false;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const supplyNumber=await quickBooksCustomTxnNumbers(base,realmId,credential);const ourNumber=supplyNumber?studioCueDocNumber(invoiceId):null;const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")))??(ourNumber?await findQuickBooksInvoiceByDocNumber(base,realmId,credential,ourNumber):null);if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;docNumber=already.docNumber}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({...(ourNumber?{DocNumber:ourNumber}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);docNumber=text(created.DocNumber)||null}
+  const tenantId=String(job.get("tenantId"));const provider=await connection(tenantId,"quickbooks");let providerInvoiceId:string;let providerCustomerId=text(invoice.get("providerCustomerId"));let balanceCents=Number(invoice.get("balanceCents"));let hostedUrl:string|null=null;let docNumber:string|null=null;let alreadyDelivered=false;if(provider.mock){providerInvoiceId=mockId("qbo_invoice",job.id);providerCustomerId=providerCustomerId.startsWith("pending_")?mockId("qbo_customer",String(invoice.get("projectId"))):providerCustomerId}else{const credential=provider.credential;const realmId=credential?.realmId??String(provider.document.get("providerAccountId")??"");if(!credential||!realmId)throw new Error("QUICKBOOKS_REALM_MISSING");providerCustomerId=await quickBooksCustomerId(tenantId,String(invoice.get("projectId")),invoice,credential,realmId,String(job.get("idempotencyKey")??job.id));const base=quickBooksApiBaseUrl(credential.baseUrl);const supplyNumber=await quickBooksCustomTxnNumbers(base,realmId,credential);const ourNumber=supplyNumber?studioCueDocNumber(invoiceId):null;const already=await adoptQuickBooksInvoice(base,realmId,credential,text(invoice.get("providerInvoiceId")))??(ourNumber?await findQuickBooksInvoiceByDocNumber(base,realmId,credential,ourNumber):null);if(already){providerInvoiceId=already.id;balanceCents=already.balanceCents;docNumber=already.docNumber}else{const itemRef=await quickBooksItemRef(base,realmId,credential,String(job.get("idempotencyKey")??job.id));const value=await providerJson(`${quickBooksApiBaseUrl(credential.baseUrl)}/v3/company/${encodeURIComponent(realmId)}/invoice?minorversion=75`,{method:"POST",headers:{authorization:`Bearer ${credential.accessToken}`,accept:"application/json","content-type":"application/json","request-id":String(job.get("idempotencyKey")??job.id)},body:JSON.stringify({...(ourNumber?{DocNumber:ourNumber}:{}),CustomerRef:{value:providerCustomerId},DueDate:invoice.get("dueDate"),PrivateNote:`StudioCue ${invoiceId}`,...QUICKBOOKS_ONLINE_PAYMENT_FLAGS,Line:[{Amount:Number(invoice.get("amountCents"))/100,DetailType:"SalesItemLineDetail",Description:String(invoice.get("kind")),SalesItemLineDetail:{ItemRef:itemRef,Qty:1,UnitPrice:Number(invoice.get("amountCents"))/100}}]})},"QUICKBOOKS_CREATE_FAILED");const created=asRecord(value.Invoice);providerInvoiceId=text(created.Id);balanceCents=Math.round(number(created.Balance)*100);docNumber=text(created.DocNumber)||null}
     // One place for both paths: whether the invoice was just made or
     // adopted from an earlier attempt, the client still needs the link and
     // the email.

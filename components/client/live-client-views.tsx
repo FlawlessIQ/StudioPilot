@@ -476,6 +476,7 @@ export function useReserveYourDate(): BookingStepsView | null {
                 balanceCents: number(retainer.balanceCents),
                 hostedUrl:
                   typeof retainer.hostedUrl === "string" ? retainer.hostedUrl : null,
+                atProvider: retainer.atProvider === true,
               }
             : null,
         })
