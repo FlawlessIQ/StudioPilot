@@ -144,7 +144,7 @@ export function ProjectEdit({
               {dateLock ? <input name="eventDate" type="hidden" value={project.eventDate} /> : null}
               {dateLock === "signed" ? (
                 <small>
-                  The couple has signed — change the date with{" "}
+                  The client has signed — change the date with{" "}
                   {onChangeBooking ? (
                     <button
                       className="button button-light"

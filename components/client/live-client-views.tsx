@@ -14,7 +14,7 @@ import { bookingSteps, type BookingStepsView } from "@/features/client/booking-s
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { MOCK_CLIENT_PROJECT } from "@/features/client/mock-project";
-import { bookingGateNeeds, journeyProfile, jobKindOf, isPaymentShape } from "@/features/job-kinds/job-kinds";
+import { bookingGateNeeds, journeyProfile, jobKindOf, isPaymentShape, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
 
 type RecordValue = Record<string, unknown> & { id: string };
 export type Loadable<T> = {
@@ -443,6 +443,15 @@ export const date = (value: unknown) => {
         year: "numeric",
       });
 };
+
+/**
+ * The words for this client's job: "your session", never "your wedding", for
+ * a family (features/job-kinds). Neutral words until the project loads.
+ */
+export function useClientVocab(): JobVocabulary {
+  const project = useProject().value;
+  return vocab(project ? jobKindOf(project) : "other");
+}
 
 /**
  * What this client's job needs to book: an agreement, a payment, and whether

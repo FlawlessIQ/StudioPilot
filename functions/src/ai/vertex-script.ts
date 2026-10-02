@@ -123,7 +123,7 @@ export const VERTEX_SCRIPTS: Script[] = [
     because:
       "The third flow type — a form send, so subject matching is covered on all three",
     reply: () => ({
-      answer: "I can send the wedding details form.",
+      answer: "I can send the details form.",
       facts: [],
       suggestions: [],
       citations: [],

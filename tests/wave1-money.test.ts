@@ -536,7 +536,7 @@ test("updateProject refuses a signed booking's new date, and the edit sheet says
   assert.match(guard, /EVENT_DATE_LOCKED_AFTER_SIGNING/);
   assert.match(guard, /EVENT_DATE_LOCKED_AGREEMENT_OUT/);
   const sheet = read("components/projects/project-edit.tsx");
-  assert.match(sheet, /The couple has signed — change the date with/);
+  assert.match(sheet, /The client has signed — change the date with/);
   assert.match(sheet, /disabled=\{dateLock !== null\}/);
   assert.match(friendlyError(new Error("EVENT_DATE_LOCKED_AFTER_SIGNING"), "x"), /Change the booking/);
 });

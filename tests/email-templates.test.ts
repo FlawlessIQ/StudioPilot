@@ -121,7 +121,7 @@ test("the event preparation reminder includes the photographer's detail checklis
     brand,
     recipientName: "Jordan Rivera",
     projectName: "Rivera wedding",
-    values,
+    values: { ...values, eventKind: "wedding" },
   });
   for (const item of [
     "dress on a hanger",
@@ -131,6 +131,20 @@ test("the event preparation reminder includes the photographer's detail checklis
     "invitation suite",
   ]) {
     assert.match(rendered.text.toLowerCase(), new RegExp(item));
+  }
+});
+
+test("a family is never asked to hang up the wedding dress", () => {
+  for (const eventKind of ["portraits", "corporate", "sports", "other", null]) {
+    const rendered = renderEmailTemplate({
+      key: "event_reminder",
+      brand,
+      recipientName: "Jordan Rivera",
+      projectName: "Rivera family session",
+      values: { ...values, eventKind },
+    });
+    assert.doesNotMatch(rendered.text.toLowerCase(), /wedding|dress|rings|invitation suite/, String(eventKind));
+    assert.match(rendered.text, /it helps to have ready/);
   }
 });
 

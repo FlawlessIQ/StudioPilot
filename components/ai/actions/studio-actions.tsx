@@ -842,7 +842,7 @@ export function ReplaceGalleryLinkCard({ action }: ActionCardProps) {
   const offered = /^https:\/\/\S+$/.test(action.text ?? "") ? (action.text as string) : "";
   return (
     <ActionShell
-      detail="The wrong link is taken back and forwards to the right one; the couple gets one email saying so."
+      detail="The wrong link is taken back and forwards to the right one; the client gets one email saying so."
       icon={<Link2 size={15} />}
       title={title}
     >
@@ -879,14 +879,14 @@ export function SkipReviewRequestsCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
   if (typeof job.reviewRequestsSkippedAt === "string")
-    return <ActionShell title={title}><Done>Review asks are already off for this couple.</Done></ActionShell>;
+    return <ActionShell title={title}><Done>Review asks are already off for this client.</Done></ActionShell>;
   const pending = onJob(reviews, job.id).filter((item) => str(item.status) === "scheduled").length;
   return (
     <ActionShell
       detail={
         pending
           ? `${pending} review ${pending === 1 ? "ask hasn't" : "asks haven't"} gone out yet; ${pending === 1 ? "it" : "they"} will be cancelled and none scheduled. Nothing is sent to them.`
-          : "No review asks will be scheduled for this couple. Nothing is sent to them."
+          : "No review asks will be scheduled for this client. Nothing is sent to them."
       }
       icon={<Star size={15} />}
       title={title}
@@ -1007,7 +1007,7 @@ export function SettingsCard({ action }: ActionCardProps) {
   const panels: Record<string, { title: string; detail: string; ownerOnly?: boolean; body: ReactNode; href: string; open?: string }> = {
     edit_agreement: {
       title: "Your agreement",
-      detail: "The contract StudioCue writes each couple's from, and whether it goes out on its own after they accept.",
+      detail: "The contract StudioCue writes each client's from, and whether it goes out on its own after they accept.",
       body: <AgreementEditor />,
       href: "/studio/contracts/agreement",
     },
@@ -1019,7 +1019,7 @@ export function SettingsCard({ action }: ActionCardProps) {
     },
     edit_questionnaire_template: {
       title: "Planning questionnaires",
-      detail: "Create a questionnaire or change one. A change makes a new version; couples mid-way keep theirs.",
+      detail: "Create a questionnaire or change one. A change makes a new version; clients mid-way keep theirs.",
       // A full-page editor: it does not fit a chat column (it overflowed by
       // 460px on a 1440px screen), so the card opens it instead.
       body: null,
@@ -1035,7 +1035,7 @@ export function SettingsCard({ action }: ActionCardProps) {
     },
     set_consultation_availability: {
       title: "Consultation availability",
-      detail: "When couples can book, how long a consultation is, and Zoom, phone or in person.",
+      detail: "When clients can book, how long a consultation is, and Zoom, phone or in person.",
       body: <ConsultationAvailability />,
       href: "/studio/settings/consultation-availability",
     },
@@ -1058,7 +1058,7 @@ export function SettingsCard({ action }: ActionCardProps) {
     },
     edit_branding: {
       title: "Your studio's name and branding",
-      detail: "The name, logo, colour and contact details on everything the couple sees.",
+      detail: "The name, logo, colour and contact details on everything the client sees.",
       ownerOnly: true,
       body: (
         <>

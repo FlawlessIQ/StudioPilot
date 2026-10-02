@@ -46,7 +46,7 @@ test("a direct crew offer asks for what the studio's crew settings ask for", () 
 test("a published run of show isn't called approved", () => {
   const steps = read("features/journey/steps.ts");
   // Approved only once the couple said so (scheduleApprovalState, 2026-10-01).
-  assert.match(steps, /scheduleApprovedByCouple\s*\?\s*"Approved by the couple"\s*:\s*"Shared with your crew and the couple"/);
+  assert.match(steps, /scheduleApprovedByCouple\s*\?\s*`Approved by \$\{who\}`\s*:\s*`Shared with your crew and \$\{who\}`/);
   assert.match(steps, /input\.scheduleApprovalState === "client_approved"/);
 });
 

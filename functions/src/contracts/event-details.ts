@@ -91,13 +91,20 @@ const notDecided = (answer: string) => /^\s*(tbd|tbc|to be (decided|determined|c
  */
 export function eventDetailsFrom(input: {
   eventType: string;
+  /**
+   * The job's kind (job-kinds.ts). It decides: only a wedding's agreement
+   * insists on getting ready, ceremony and reception. An unknown job was
+   * treated as a wedding, so a corporate agreement listed "Ceremony: To be
+   * confirmed". Omitted: read from the type's label, as before.
+   */
+  eventKind?: string | null;
   /** Already formatted for reading: "Saturday, June 12, 2027". */
   date: string | null;
   venue: string | null;
   coverage: string | null;
   answers: ReadonlyArray<{ question: string; answer: string }>;
 }): EventDetails {
-  const wedding = /wedding/i.test(input.eventType) || !input.eventType.trim();
+  const wedding = input.eventKind ? input.eventKind === "wedding" : /wedding/i.test(input.eventType);
   const sorted = new Map<Category, EventDetailRow[]>();
   for (const row of input.answers) {
     const question = row.question.trim();
@@ -111,6 +118,8 @@ export function eventDetailsFrom(input: {
   }
   // One venue for the whole day: the ceremony is there unless they said otherwise.
   if (!sorted.has("ceremony") && input.venue?.trim()) sorted.set("ceremony", [{ label: "Venue", value: input.venue.trim() }]);
+  // Away from a wedding there is no ceremony: the venue is the location.
+  const label = (category: Category) => (!wedding && category === "ceremony" ? "Location" : CATEGORY_LABEL[category]);
 
   const rows: EventDetailRow[] = [];
   if (input.date) rows.push({ label: "Date", value: input.date });
@@ -130,10 +139,11 @@ export function eventDetailsFrom(input: {
     }
     // One answer: the part's own name. Several: each by its question, so
     // "Bride getting ready" and "Groom getting ready" both read.
-    if (entries.length === 1) rows.push({ label: CATEGORY_LABEL[category], value: entries[0]!.value });
+    if (entries.length === 1) rows.push({ label: label(category), value: entries[0]!.value });
     else for (const entry of entries) rows.push({ label: entry.label, value: entry.value });
   }
-  return { title: wedding ? "Wedding details" : "Event details", rows: rows.slice(0, 40), missing };
+  const title = wedding ? "Wedding details" : input.eventKind === "portraits" ? "Session details" : "Event details";
+  return { title, rows: rows.slice(0, 40), missing };
 }
 
 /** The schedule as agreement blocks: a heading, what it means, the details. */

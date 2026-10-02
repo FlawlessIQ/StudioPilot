@@ -222,7 +222,7 @@ export function InquiryFormEditor({
           <fieldset className="inquiry-form-editor-group">
             <legend>Kinds of inquiry</legend>
             <p className="inquiry-form-editor-hint">
-              Couples choose one at the end of the first page, and the next page asks only what you tick here. A
+              Clients choose one at the end of the first page, and the next page asks only what you tick here. A
               general question skips straight to their message.
             </p>
             {draft.eventTypes.map((type, index) => (

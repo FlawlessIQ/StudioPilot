@@ -379,12 +379,12 @@ export function primaryContact(job: Rec | null, contacts: Rec[] | null): Rec | n
 }
 
 export function contactName(contact: Rec | null): string {
-  if (!contact) return "the couple";
+  if (!contact) return "the client";
   return (
     str(contact.displayName) ||
     [str(contact.firstName), str(contact.lastName)].filter(Boolean).join(" ") ||
     str(contact.email) ||
-    "the couple"
+    "the client"
   );
 }
 

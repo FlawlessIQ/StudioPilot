@@ -68,6 +68,7 @@ import {
   recordHeldInvoiceActionFailed,
 } from "./quickbooks-held-invoice.js";
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
 import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
 import {
@@ -778,6 +779,12 @@ async function emailContext(
           project?.get("timezone"),
           tenant?.get("timezone"),
         ) ?? "UTC",
+      // The kind of work, so the words fit it: a family is never told about
+      // their wedding (job-kinds.ts). The email's own value wins; a lead's
+      // email carries the kind it was captured with.
+      eventKind:
+        firstString(document.get("eventKind")) ??
+        (project?.exists ? jobKindOf(project.data()) : null),
       portalUrl:
         firstString(document.get("portalUrl")) ??
         (projectId

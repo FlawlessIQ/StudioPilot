@@ -72,7 +72,7 @@ export function CreateCrewProfileForm() {
             The link expires in seven days and you can resend it from their row.
           </p>
           <p>
-            It does not put them on a wedding yet. To offer them a job, open
+            It does not put them on a job yet. To offer them a job, open
             that job&rsquo;s crew plan and StudioCue will rank who to ask.
           </p>
         </div>

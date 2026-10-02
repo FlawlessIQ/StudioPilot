@@ -515,7 +515,7 @@ export function EditContactCard({ action }: ActionCardProps) {
   const choice = useSubjectChoice(action.subject, options);
   const field = CONTACT_FIELDS[(action.field ?? "").toLowerCase().replace(/[\s_-]/g, "")] ?? null;
   const [value, setValue] = useState(action.text ?? "");
-  const title = "Correct the couple's details";
+  const title = "Correct the client's details";
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
@@ -618,7 +618,7 @@ export function PortalInviteCard({ action }: ActionCardProps) {
     detail: str(contact.email) || "No email on file",
   }));
   const choice = useSubjectChoice(action.subject, options);
-  const title = revoking ? "Withdraw the portal invitation" : "Invite the couple to their portal";
+  const title = revoking ? "Withdraw the portal invitation" : "Invite the client to their portal";
   if (loading || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
@@ -868,19 +868,19 @@ export function CancelJobCard({ action }: ActionCardProps) {
         <Blocked>
           {PRE_BOOKING.has(state)
             ? `${jobName(job)} is still an inquiry. Mark it lost instead — that records why and stops its follow-ups.`
-            : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, and a job can't be cancelled after the wedding.`}
+            : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, and a job can't be cancelled after the event.`}
         </Blocked>
       </ActionShell>
     );
   return (
     <ActionShell
-      detail={`Crew are released (anyone who accepted is emailed), billing stops with tasks to void open invoices, an unsigned agreement is withdrawn, the wedding comes off your calendar, and StudioCue stops emailing the couple. The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days, but the crew, invoices and agreement don't come back on their own.`}
+      detail={`Crew are released (anyone who accepted is emailed), billing stops with tasks to void open invoices, an unsigned agreement is withdrawn, the job comes off your calendar, and StudioCue stops emailing the client. The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days, but the crew, invoices and agreement don't come back on their own.`}
       icon={<CircleSlash size={15} />}
       title={title}
     >
       <Form>
         <TextAreaField label="Why (at least a sentence)" onChange={setReason} rows={2} value={reason} />
-        <CheckField checked={tell} label="Tell the couple by email" onChange={setTell} />
+        <CheckField checked={tell} label="Tell the client by email" onChange={setTell} />
         {tell ? (
           <TextAreaField
             hint="Leave empty for a short note that the booking is cancelled."
@@ -908,7 +908,7 @@ export function CancelJobCard({ action }: ActionCardProps) {
                 notifyClient: tell,
                 clientMessage: tell ? message.trim() || null : null,
               });
-              return `${jobName(job)} is cancelled.${tell ? " The couple is being emailed." : ""}`;
+              return `${jobName(job)} is cancelled.${tell ? " The client is being emailed." : ""}`;
             },
             { refresh: ["projects", "crewAssignments", "invoiceReferences", "contracts", "tasks"] },
           )
@@ -951,7 +951,7 @@ export function GoBackJobCard({ action }: ActionCardProps) {
             ? refusal === "NOT_CANCELLED"
               ? `${jobName(job)} isn't cancelled.`
               : refusal === "UNCANCEL_WINDOW_PASSED"
-                ? `${jobName(job)} was cancelled more than ${UNCANCEL_WINDOW_DAYS} days ago, so it can't be undone. Create a new job for the couple instead.`
+                ? `${jobName(job)} was cancelled more than ${UNCANCEL_WINDOW_DAYS} days ago, so it can't be undone. Create a new job for the client instead.`
                 : `${jobName(job)} was cancelled before StudioCue recorded where it stood, so it can't be brought back. Create a new job instead.`
             : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}. Only a delivered or closed job is reopened.`}
         </Blocked>
@@ -1033,7 +1033,7 @@ export function LeadLifecycleCard({ action }: ActionCardProps) {
           ? "It comes back to Inquiries, and so does its job if it had one."
           : kind === "reopen_lead"
             ? "It goes back to Inquiries as a new inquiry, and its link works again."
-            : "It moves to Closed on Inquiries, and the link the couple was sent stops offering a call."
+            : "It moves to Closed on Inquiries, and the link the client was sent stops offering a call."
       }
       icon={<Inbox size={15} />}
       title={title}

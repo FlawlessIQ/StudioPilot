@@ -1,6 +1,7 @@
 "use client";
 
 import { FileLinks } from "@/components/documents/file-link";
+import { jobKindOf, vocab } from "@/features/job-kinds/job-kinds";
 import Link from "next/link";
 import { useMemo } from "react";
 import {
@@ -116,15 +117,18 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
 
   if (!project) return null;
   const timeZone = text(project.timezone) || undefined;
+  // The kind's words: "Session brief", "the family" (job-kinds.ts).
+  const words = vocab(jobKindOf(project));
+  const who = words.clientFallback;
   const allSet = status.needsYou.length === 0 && status.waiting.length === 0;
   const proximity = describeEventProximity(project.eventDate);
 
   return (
-    <section className="wedding-brief" aria-label="Wedding brief">
+    <section className="wedding-brief" aria-label={words.brief}>
       <header className="wedding-brief-head">
         <div>
-          <p className="eyebrow">Wedding brief</p>
-          <h2>{text(project.name) || "This wedding"}</h2>
+          <p className="eyebrow">{words.brief}</p>
+          <h2>{text(project.name) || `This ${words.event}`}</h2>
           <p className="wedding-brief-when">
             <CalendarDays aria-hidden="true" size={15} />
             {formatEventDateLong(project.eventDate)}
@@ -221,7 +225,7 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
             <p className="wedding-brief-empty">
               {facts && facts.schedule.length
                 ? "Their timing answers are in. Draft the run of show from them."
-                : "No run of show yet. It drafts from the couple's planning answers."}
+                : `No run of show yet. It drafts from ${who}'s planning answers.`}
             </p>
           )}
           {schedule ? (
@@ -257,7 +261,7 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
 
       <div className="wedding-brief-block">
         <h3>
-          <Sparkles aria-hidden="true" size={15} /> From the couple
+          <Sparkles aria-hidden="true" size={15} /> From {who}
           {" "}{response ? (
             <small>
               {" "}
@@ -283,7 +287,7 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
         ) : (
           <p className="wedding-brief-empty">
             {response
-              ? "The couple hasn't filled anything in yet."
+              ? `${who.charAt(0).toUpperCase()}${who.slice(1)} hasn't filled anything in yet.`
               : "Their planning details appear here once you send the planning questionnaire."}
           </p>
         )}

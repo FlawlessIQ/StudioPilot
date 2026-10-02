@@ -7,7 +7,7 @@ import { eventDetailsFrom, type EventDetailRow } from "../contracts/event-detail
 import { formatContractDate } from "../contracts/document.js";
 import { isReturned } from "./questionnaire-lifecycle.js";
 import { detailsLockOn, resolvePlanningTimeline } from "./planning-timeline.js";
-import { finalDetailsLockApplies } from "../job-kinds/job-kinds.js";
+import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
 
 /**
  * The couple's final details, confirmed when they lock.
@@ -90,6 +90,7 @@ export async function finalDetailsSnapshot(db: Firestore, tenantId: string, proj
   const eventDate = text(project.get("eventDate")).slice(0, 10);
   const details = eventDetailsFrom({
     eventType: text(project.get("eventType")) || "Wedding",
+    eventKind: jobKindOf(project.data()),
     date: /^\d{4}-\d{2}-\d{2}$/.test(eventDate) ? formatContractDate(eventDate) : null,
     venue: text(project.get("venueName")) || null,
     coverage: null,

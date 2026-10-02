@@ -110,7 +110,7 @@ const friendly: Record<string, string> = {
   INQUIRY_LINK_CLOSED: "This inquiry is closed. Reply to the studio’s email if you’d like to pick it back up.",
   INQUIRY_PAST_CONSULTATION: "You’ve already spoken with the studio, and your proposal is on its way. Reply to their email to talk again.",
   TIME_NO_LONGER_AVAILABLE: "That time was just taken. Please choose another.",
-  EVENT_DATE_REQUIRED: "Add your wedding date first, so the studio can check it’s free.",
+  EVENT_DATE_REQUIRED: "Add your date first, so the studio can check it’s free.",
   FORMAT_NOT_OFFERED: "Please choose one of the ways the studio meets.",
   PHONE_NUMBER_REQUIRED: "Add the best number to call you, so the studio can ring you at that time.",
   INQUIRY_FORM_REQUIRED: "Please fill in the studio’s form first — they’d like your answers before the call.",
@@ -475,7 +475,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const phrase =
     step === "details"
       ? eventForm
-        ? "when’s the wedding?"
+        ? preview?.eventKind === "wedding"
+          ? "when’s the wedding?"
+          : "when’s the day?"
         : "tell us about your day"
       : step === "form"
         ? formSent
@@ -558,7 +560,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                   inputMode={field === "estimatedGuestCount" ? "numeric" : field === "phone" ? "tel" : undefined}
                   key={field}
                   label={
-                    field === "eventDate" && preview.eventKind && preview.eventKind !== "wedding"
+                    field === "eventDate" && preview.eventKind !== "wedding"
                       ? "The date you have in mind"
                       : fieldCopy[field].label
                   }

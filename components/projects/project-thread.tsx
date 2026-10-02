@@ -417,7 +417,7 @@ function ThreadNextMove({
             <p className="thread-next-eyebrow">
               <PauseCircle size={12} /> Quiet
             </p>
-            <strong>Nothing is being sent to this couple.</strong>
+            <strong>Nothing is being sent to this client.</strong>
             <small>
               They came from your old system. Bring them in above when
               you&rsquo;re ready, and StudioCue picks the job up from there.

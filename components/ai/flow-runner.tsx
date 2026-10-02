@@ -244,7 +244,7 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
       {locked ? (
         <div role="status">
           {signedBooking
-            ? `${jobName} is signed, so adding a package is a change the couple signs — below. Their agreement stands until they do.`
+            ? `${jobName} is signed, so adding a package is a change the client signs — below. Their agreement stands until they do.`
             : agreementOut
               ? `The agreement has gone out for ${jobName}'s current packages. Void it on the job's Booking tab first, then add the package.`
               : invoiceRaised

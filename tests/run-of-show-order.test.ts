@@ -247,6 +247,9 @@ test("the AI is given the same moments, in the same order, for weddings only", (
   assert.equal(serverMoments.isWeddingEventType("wedding"), true);
   assert.equal(isWeddingJob({ eventTypeId: "sports" }), false);
   assert.equal(isWeddingJob({ eventTypeId: "wedding" }), true);
+  // Unknown is "other" (job-kinds.ts): no bouquet toss on a corporate draft.
+  assert.equal(isWeddingJob({}), false);
+  assert.equal(serverMoments.isWeddingEventType({ eventKind: "portraits", eventType: "Wedding-style portraits" }), false);
   assert.match(read("functions/src/ai/schedule.ts"), /momentsInstruction \+/);
 });
 
@@ -303,7 +306,7 @@ test("the job's run-of-show step says what the couple answered", () => {
 
   const changes = runOfShow({ scheduleApprovalState: "changes_requested" });
   assert.equal(changes?.status, "current", "a change request is the studio's move");
-  assert.equal(changes?.detail, "Couple asked for changes");
+  assert.equal(changes?.detail, "The couple asked for changes");
   assert.deepEqual(changes?.action, {
     kind: "link",
     label: "See what they asked",
@@ -375,7 +378,7 @@ test("the change request is one card: not again as a task or a journey step", ()
         state: "PLANNING",
         stepKey: "run_of_show",
         stepTitle: "Run of show",
-        stepDetail: "Couple asked for changes",
+        stepDetail: "The couple asked for changes",
         owner: "studio",
         actionLabel: "See what they asked",
         actionHref: "/studio/schedules/new?project=p1",

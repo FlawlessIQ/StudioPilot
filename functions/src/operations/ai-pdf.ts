@@ -255,7 +255,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
       body:JSON.stringify({
-        systemInstruction:{parts:[{text:"Analyze wedding photography consultation notes using only supplied project facts and the exact active package catalog. Summarize stated priorities, missing information, and follow-up questions. Recommend only a supplied package id or null. Do not invent pricing, discounts, availability, deliverables, legal terms, or client agreement. Draft a short proposal introduction in the studio's professional voice. All outputs require human review."}]},
+        systemInstruction:{parts:[{text:"Analyze photography consultation notes using only supplied project facts and the exact active package catalog. Summarize stated priorities, missing information, and follow-up questions. Recommend only a supplied package id or null. Do not invent pricing, discounts, availability, deliverables, legal terms, or client agreement. Draft a short proposal introduction in the studio's professional voice. All outputs require human review."}]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{
           summary:{type:"STRING"},

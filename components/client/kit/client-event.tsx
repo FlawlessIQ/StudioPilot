@@ -6,7 +6,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { eventHasPassed } from "@/features/client/portal-day";
 import { portalStageIsBehind } from "@/features/client/portal-stage";
 import { todayLocalIso } from "@/lib/format/event-date";
-import { date, sentenceCase, text, useProject } from "@/components/client/live-client-views";
+import { date, sentenceCase, text, useClientVocab, useProject } from "@/components/client/live-client-views";
 
 /**
  * "Your event": the confirmed details of the day (M5 of
@@ -16,6 +16,7 @@ import { date, sentenceCase, text, useProject } from "@/components/client/live-c
 export function ClientEvent() {
   const workspace = useWorkspace();
   const project = useProject();
+  const words = useClientVocab();
   const studioName =
     workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : "your studio";
 
@@ -24,7 +25,7 @@ export function ClientEvent() {
       <Main label="Your event">
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Your event</p>
-          <h1 className="kit-title">Your wedding</h1>
+          <h1 className="kit-title">{words.YourEvent}</h1>
         </div>
         <Card>
           <p className="kit-body" role={project.error ? "alert" : "status"}>
@@ -44,14 +45,14 @@ export function ClientEvent() {
     <Main label="Your event">
       <div className="kit-stack-tight">
         <p className="kit-eyebrow">Your event</p>
-        <h1 className="kit-title">{text(value.name, "Your wedding")}</h1>
+        <h1 className="kit-title">{text(value.name, words.YourEvent)}</h1>
         <p className="kit-body">{`The details ${studioName === "your studio" ? "your studio has" : `${studioName} has`} confirmed.`}</p>
       </div>
 
       <List label="Event details">
         <Row icon={CalendarDays} subtitle="Date" title={value.eventDate ? date(value.eventDate) : "Date to be confirmed"} />
         <Row icon={MapPin} subtitle="Venue" title={text(value.venueName ?? value.city, "Venue to be confirmed")} />
-        <Row icon={Sparkles} subtitle="Event" title={sentenceCase(text(value.eventType, "wedding").replaceAll("_", " "))} />
+        <Row icon={Sparkles} subtitle="Event" title={sentenceCase(text(value.eventType, words.event).replaceAll("_", " "))} />
         <Row
           icon={Camera}
           subtitle="Lead photographer"
@@ -64,7 +65,7 @@ export function ClientEvent() {
 
       {value.clientStage === "Complete" ? (
         <Note icon={BadgeCheck} tone="accent">
-          Your wedding is complete. Your agreement, payments, timeline and deliveries stay in Files.
+          {`${words.YourEvent} is complete. Your agreement, payments, timeline and deliveries stay in Files.`}
         </Note>
       ) : null}
 

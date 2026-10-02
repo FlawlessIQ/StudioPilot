@@ -1,6 +1,7 @@
 "use client";
 
 import { AMENDABLE_STATES, BookingAmendment } from "@/components/booking/booking-amendment";
+import { jobKindOf, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
 import { eventDateLock } from "@/features/projects/event-date-lock";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
@@ -453,14 +454,20 @@ function ProjectArchiveControl({
   );
 }
 
+/** "the family" → "The family", to start a sentence. */
+const capital = (value: string) => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+
 function ProjectInterruptionControl({
   projectId,
   state,
   stateVersion,
   onTransition,
   cancelConsequenceLines,
+  words,
 }: {
   projectId: string;
+  /** The kind's words (job-kinds.ts): "the family", "session". */
+  words: JobVocabulary;
   state: ProjectState;
   stateVersion: number;
   onTransition: (state: ProjectState, version: number) => void;
@@ -498,7 +505,7 @@ function ProjectInterruptionControl({
         setNotice(
           target === "POSTPONED"
             ? "The job is on hold. Bring it back when the new date is settled."
-            : `The job is cancelled.${tellCouple ? " The couple is being emailed." : ""} The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days.`,
+            : `The job is cancelled.${tellCouple ? ` ${capital(words.clientFallback)} is being emailed.` : ""} The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days.`,
         );
         refreshTenantRecords("projects", "crewAssignments", "invoiceReferences", "contracts", "tasks");
       } else {
@@ -561,7 +568,7 @@ function ProjectInterruptionControl({
                     placeholder={
                       option === "POSTPONED"
                         ? "Moved to next spring after a family illness"
-                        : "The couple called the wedding off"
+                        : `${capital(words.clientFallback)} called the ${words.event} off`
                     }
                     required
                   />
@@ -574,7 +581,7 @@ function ProjectInterruptionControl({
                         onChange={(event) => setTellCouple(event.target.checked)}
                         type="checkbox"
                       />
-                      Tell the couple by email
+                      {`Tell ${words.clientFallback} by email`}
                     </label>
                     {tellCouple ? (
                       <label>
@@ -654,6 +661,7 @@ function ProjectMoveBackControl({
   onTransition: (state: ProjectState, version: number) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+  const words = vocab(jobKindOf(project));
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -759,8 +767,8 @@ function ProjectMoveBackControl({
                       onChange={(event) => setReason(event.target.value)}
                       placeholder={
                         move.route === "uncancelProject"
-                          ? "The couple changed their minds and the wedding is on"
-                          : "The couple asked for a re-edit of the ceremony"
+                          ? `${capital(words.clientFallback)} changed their minds and the ${words.event} is on`
+                          : `${capital(words.clientFallback)} asked for a re-edit`
                       }
                       required
                       value={reason}
@@ -908,7 +916,7 @@ function ProjectLifecycleLanes({
             */}
             <p>
               {cancelled
-                ? "Everything on it stays on file. StudioCue won't bill, charge or remind the client about it again. If an invoice is still open in your invoicing app, or the couple has already paid, it's on the job's tasks for you to void or settle."
+                ? "Everything on it stays on file. StudioCue won't bill, charge or remind the client about it again. If an invoice is still open in your invoicing app, or the client has already paid, it's on the job's tasks for you to void or settle."
                 : "Everything on it stays on file. While it's on hold StudioCue won't bill, charge or remind the client."}
               {" "}{reason ? ` Reason: ${reason}` : ""}
             </p>
@@ -1436,6 +1444,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         projectId={projectId}
         state={state}
         stateVersion={Number(project.stateVersion ?? 0)}
+        words={vocab(jobKindOf(project))}
       />
       <ProjectArchiveControl
         archived={typeof project.archivedAt === "string"}

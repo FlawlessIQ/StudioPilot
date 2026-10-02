@@ -178,7 +178,7 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
             <InfoHint term="readiness" />
           </h2>
           <p>
-            What has to be true before this wedding is ready. Most complete
+            What has to be true before this job is ready. Most complete
             themselves when the record arrives; the judgements are yours.
             <InfoHint term="checkpoint" />
           </p>
@@ -326,9 +326,9 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                       name="reason"
                       placeholder={
                         open.resolution === "complete"
-                          ? "Confirmed the ceremony location with the venue by phone"
+                          ? "Confirmed the location with the venue by phone"
                           : open.resolution === "reopen"
-                            ? "Marked done on the wrong wedding"
+                            ? "Marked done on the wrong job"
                             : "The venue does not require a certificate"
                       }
                       required

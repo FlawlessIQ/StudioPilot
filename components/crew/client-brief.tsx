@@ -128,7 +128,7 @@ export function CrewClientBrief({
       {onTheDay.length ? (
         <div className="kit-card kit-brief">
           <p className="kit-eyebrow">
-            <ClipboardList aria-hidden size={14} /> From the couple&rsquo;s brief
+            <ClipboardList aria-hidden size={14} /> From the client&rsquo;s brief
           </p>
           <dl className="kit-brief-list">
             {onTheDay.map((item) => (

@@ -539,7 +539,7 @@ export const aiScheduleCommand = onRequest(
         videoCoverage,
         crewFacts,
       }, standardMomentsInstruction(
-        isWeddingEventType(project.get("eventTypeId") ?? project.get("eventType")),
+        isWeddingEventType(project.data()),
       ));
       const start = Date.parse(input.coverageStartsAt);
       const end = Date.parse(input.coverageEndsAt);

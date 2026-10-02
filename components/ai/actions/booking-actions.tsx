@@ -374,7 +374,7 @@ export function BookingBriefCard({ action }: ActionCardProps) {
   const value = notes ?? (added && !saved.includes(added) ? `${saved}\n\n${added}`.trim() : saved);
   return (
     <ActionShell
-      detail="A new brief, package suggestion and proposal draft from these notes — one AI action. The current ones are set aside, not deleted. Nothing is sent to the couple."
+      detail="A new brief, package suggestion and proposal draft from these notes — one AI action. The current ones are set aside, not deleted. Nothing is sent to the client."
       icon={<FileText size={15} />}
       title={title}
     >
@@ -793,7 +793,7 @@ export function ProposalStepCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no proposal yet. Ask me to draft one.`}</Blocked></ActionShell>;
   const client = primaryContact(job, contacts);
-  const to = str(client?.email) || "the couple";
+  const to = str(client?.email) || "the client";
   const open = <Link className="button button-light" href={`/studio/proposals/${proposal.id}`}>Open the proposal</Link>;
   if (runner.done)
     return <ActionShell title={title}><Done href={`/studio/proposals/${proposal.id}`} label="Open the proposal">{runner.done}</Done></ActionShell>;
@@ -1010,7 +1010,7 @@ export function UndoAcceptanceCard({ action }: ActionCardProps) {
   if (onJob(contracts, job.id).some((item) => ACCEPTANCE_AGREEMENT_OUT.includes(str(item.status))))
     return (
       <ActionShell title={title}>
-        <Blocked>The agreement has already gone to the couple for this acceptance. Void it first (ask me to void the contract), then undo the acceptance.</Blocked>
+        <Blocked>The agreement has already gone to the client for this acceptance. Void it first (ask me to void the contract), then undo the acceptance.</Blocked>
       </ActionShell>
     );
   const byCouple = str(proposal.acceptanceAuthority) !== "studio_attested";
@@ -1018,7 +1018,7 @@ export function UndoAcceptanceCard({ action }: ActionCardProps) {
     <ActionShell
       detail={
         byCouple
-          ? "The couple accepted this themselves, in their portal. The proposal goes back to how it was and the job back to Proposal; they can accept again. Nothing is emailed."
+          ? "The client accepted this themselves, in their portal. The proposal goes back to how it was and the job back to Proposal; they can accept again. Nothing is emailed."
           : "The acceptance you recorded is taken back. The proposal goes back to how it was and the job back to Proposal. Nothing is emailed."
       }
       icon={<ShieldCheck size={15} />}
@@ -1415,7 +1415,7 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   if (held && held.sendReview)
     return (
       <ActionShell
-        detail="It's in QuickBooks with the sales tax worked out, and nothing has gone to the couple yet. Check it, then send it."
+        detail="It's in QuickBooks with the sales tax worked out, and nothing has gone to the client yet. Check it, then send it."
         icon={<HandCoins size={15} />}
         title={title}
       >
@@ -1489,7 +1489,7 @@ export function VoidInvoiceCard({ action }: ActionCardProps) {
     );
   return (
     <ActionShell
-      detail="It's voided here and in your invoicing app, so the couple can no longer pay it. You can raise a corrected one afterwards."
+      detail="It's voided here and in your invoicing app, so the client can no longer pay it. You can raise a corrected one afterwards."
       icon={<Receipt size={15} />}
       title={title}
     >
@@ -1528,13 +1528,13 @@ export function RecordPartialPaymentCard({ action }: ActionCardProps) {
     return (
       <ActionShell title={title}>
         <Blocked>
-          {`${jobName(job)} has no ${kind ?? ""} invoice out with the couple with anything left to pay. If they paid before a bill went out, record it from the retainer or final balance step instead.`.replace(/\s+/g, " ")}
+          {`${jobName(job)} has no ${kind ?? ""} invoice out with the client with anything left to pay. If they paid before a bill went out, record it from the retainer or final balance step instead.`.replace(/\s+/g, " ")}
         </Blocked>
       </ActionShell>
     );
   return (
     <ActionShell
-      detail="You enter what arrived, up to what's left. It's recorded against your name, and in QuickBooks or Stripe too so the couple's link asks only for the rest."
+      detail="You enter what arrived, up to what's left. It's recorded against your name, and in QuickBooks or Stripe too so the client's link asks only for the rest."
       icon={<HandCoins size={15} />}
       title={title}
     >
@@ -1704,7 +1704,7 @@ export function ConfirmBookingCard({ action }: ActionCardProps) {
     );
   return (
     <ActionShell
-      detail="It checks the signature, the retainer, the date and their details. If all are there, the job books, the couple's portal opens and they get a confirmation."
+      detail="It checks the signature, the retainer, the date and their details. If all are there, the job books, the client's portal opens and they get a confirmation."
       icon={<ShieldCheck size={15} />}
       title={title}
     >
@@ -1744,7 +1744,7 @@ export function ConfirmBookingCard({ action }: ActionCardProps) {
 
 export function BringBookingLiveCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
-  const title = `Bring the couple in · ${jobName(job)}`;
+  const title = `Bring the client in · ${jobName(job)}`;
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (!job.importedAt)
@@ -1764,7 +1764,7 @@ export function ImportBookingCard() {
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   return (
     <ActionShell
-      detail="For a wedding signed and paid before StudioCue. It arrives quiet: nothing is emailed, invoiced or charged to the couple."
+      detail="For a job signed and paid before StudioCue. It arrives quiet: nothing is emailed, invoiced or charged to the client."
       icon={<FileText size={15} />}
       title={title}
     >
@@ -1794,7 +1794,7 @@ export function SignedCopyCard({ action }: ActionCardProps) {
       </ActionShell>
     );
   return (
-    <ActionShell detail="Whether the couple can open the signed copy in their portal." icon={<FileSignature size={15} />} title={title}>
+    <ActionShell detail="Whether the client can open the signed copy in their portal." icon={<FileSignature size={15} />} title={title}>
       <Embedded>
         <SignedCopySharing contract={signed} showFiles />
       </Embedded>
@@ -1817,7 +1817,7 @@ export function ChangeBookingCard({ action }: ActionCardProps) {
       detail={
         resending
           ? "Send it again emails them the change to sign, now — at most once an hour."
-          : "The couple signs the change; their current agreement stands until they do, and the job keeps its stage."
+          : "The client signs the change; their current agreement stands until they do, and the job keeps its stage."
       }
       icon={<CalendarClock size={15} />}
       title={title}

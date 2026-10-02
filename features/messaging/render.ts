@@ -32,6 +32,8 @@ export type LifecycleFacts = {
   /** False when no bill stands at all, so "paid so far" needs checking. */
   paymentsOnRecord?: boolean;
   scheduleUrl: string | null;
+  /** The job's kind (job-kinds.ts): wedding words only for a wedding. */
+  eventKind?: string | null;
   recipientEmail: string | null;
   recipientName: string | null;
 };
@@ -67,7 +69,9 @@ export function renderLifecycleDraft(
           ? `You can always see the latest version here: ${facts.scheduleUrl}`
           : "",
         "",
-        "If ceremony, reception, or prep times have changed at all, just reply and we'll update the plan.",
+        facts.eventKind === "wedding"
+          ? "If ceremony, reception, or prep times have changed at all, just reply and we'll update the plan."
+          : "If any times or places have changed at all, just reply and we'll update the plan.",
         "",
         `— ${facts.studioName}`,
       ]

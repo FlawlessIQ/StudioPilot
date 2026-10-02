@@ -97,6 +97,8 @@ export type JobVocabulary = {
   YourEvent: string;
   /** "the day", "session day", "game day". */
   theDay: string;
+  /** "Wedding day", "Session day", "Game day" — a heading. */
+  Day: string;
   /** Who the client is when there is no name to use. Prefer clientRef(). */
   clientFallback: string;
   /** The planning questionnaire's default name. */
@@ -120,6 +122,7 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     yourEvent: "your wedding",
     YourEvent: "Your wedding",
     theDay: "the day",
+    Day: "Wedding day",
     clientFallback: "the couple",
     detailsForm: "Wedding details",
     schedule: "Wedding-day timeline",
@@ -138,6 +141,7 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     yourEvent: "your session",
     YourEvent: "Your session",
     theDay: "session day",
+    Day: "Session day",
     clientFallback: "the family",
     detailsForm: "Session details",
     schedule: "Session plan",
@@ -156,6 +160,7 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     yourEvent: "your event",
     YourEvent: "Your event",
     theDay: "event day",
+    Day: "Event day",
     clientFallback: "the client",
     detailsForm: "Event details",
     schedule: "Run of show",
@@ -174,6 +179,7 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     yourEvent: "your event",
     YourEvent: "Your event",
     theDay: "game day",
+    Day: "Game day",
     clientFallback: "the team",
     detailsForm: "Event details",
     schedule: "Game-day plan",
@@ -192,6 +198,7 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     yourEvent: "your event",
     YourEvent: "Your event",
     theDay: "the day",
+    Day: "Event day",
     clientFallback: "the client",
     detailsForm: "Event details",
     schedule: "Run of show",

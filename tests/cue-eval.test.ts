@@ -196,7 +196,10 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // date is a booking change they sign (change_booking) — the old line said
   // the agreement or invoice "must be voided first". K-scenarios re-run on
   // production before shipping.
-  const EXPECTED = 19067;
+  // Bumped 2026-10-02 (job kinds): every job carries `eventKind`, and Cue is
+  // told to use that kind's words — no "couple" on a family session. A2/A4
+  // and a family-job turn re-run on production in the job-kinds walk.
+  const EXPECTED = 19532;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,

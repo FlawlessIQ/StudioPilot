@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
 import { packageInclusionItems } from "../packages/inclusions.js";
@@ -227,6 +228,7 @@ export async function loadContractSources(
   const eventDate = text(event.eventDate) || text(project.get("eventDate")).slice(0, 10);
   const eventDetails = eventDetailsFrom({
     eventType: text(event.eventType) || text(project.get("eventType")),
+    eventKind: jobKindOf(project.data()),
     date: /^\d{4}-\d{2}-\d{2}$/.test(eventDate) ? formatContractDate(eventDate) : null,
     venue: text(event.venue) || text(project.get("venueName")) || null,
     coverage: coverage || null,

@@ -1,4 +1,4 @@
-import type { JourneyProfile } from "@/features/job-kinds/job-kinds";
+import { vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
 import type { ProjectState } from "@/features/projects/schema";
 import type { FileRef } from "@/features/documents/file-ref";
 import { projectStateLabel } from "@/features/projects/state-label";
@@ -415,6 +415,11 @@ export function projectJourney(input: JourneyInput): {
   current: JourneyStep | null;
 } {
   const stateRank = rank(String(input.state));
+  // The kind's words: "the family", "Session details" (job-kinds.ts). No
+  // profile is the wedding journey, as it always was.
+  const words = vocab(input.profile?.kind ?? "wedding");
+  const who = words.clientFallback;
+  const Who = `${who.charAt(0).toUpperCase()}${who.slice(1)}`;
   const days = daysUntil(input.eventDate, input.today);
   const afterEvent = days !== null && days < 0;
   /**
@@ -592,7 +597,7 @@ export function projectJourney(input: JourneyInput): {
         ? "Accepted outside StudioCue — no proposal on file here"
         : "Accepted"
       : agreementOut
-        ? "With the couple to sign — signing both parts accepts the proposal"
+        ? `With ${who} to sign — signing both parts accepts the proposal`
         : proposalWaiting
         ? "With the client to decide"
         : consulted
@@ -717,10 +722,10 @@ export function projectJourney(input: JourneyInput): {
   );
   push({
     key: "schedule_form",
-    title: "Wedding details form",
+    title: `${words.detailsForm} form`,
     detail: formDone
       ? input.questionnaireSource === "inquiry_page"
-        ? "The couple filled it in before the consultation"
+        ? `${Who} filled it in before the consultation`
         : "Client completed it"
       : formEmptyButSubmitted
         ? "Marked submitted, but no answers came through"
@@ -784,18 +789,18 @@ export function projectJourney(input: JourneyInput): {
     // approve (approvalState client_pending), and this said "Approved and
     // shared" from the moment it went out.
     detail: scheduleChangesAsked && !scheduleEmptyButSettled
-      ? "Couple asked for changes"
+      ? `${Who} asked for changes`
       : scheduleDone
         ? scheduleApprovedByCouple
-          ? "Approved by the couple"
-          : "Shared with your crew and the couple"
+          ? `Approved by ${who}`
+          : `Shared with your crew and ${who}`
         : scheduleEmptyButSettled
           ? "Approved, but it has no times in it yet"
           : scheduleWaiting
             ? "With the client to approve"
             : formDone
               ? "Drafted from the form using your timing rules"
-              : "Starts once the couple return their details form",
+              : `Starts once ${who} return their details form`,
     // Deliberately *not* gated on the form, unlike the contract and the
     // retainer. Their destinations refuse without their input; this one does
     // not — the generator asks for coverage and ceremony times directly and
@@ -1104,7 +1109,7 @@ export function projectJourney(input: JourneyInput): {
       ? "Delivered with follow-ups running"
       : String(input.state) === "EVENT_COMPLETE"
         ? "Confirm editing has started, then record the gallery"
-        : "Record the gallery — the couple is emailed when you release it",
+        : `Record the gallery — ${who} is emailed when you release it`,
     status: deliveryDone
       ? "complete"
       : afterEvent || stateRank >= 8

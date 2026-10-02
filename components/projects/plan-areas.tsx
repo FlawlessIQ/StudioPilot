@@ -36,7 +36,7 @@ const AREAS: Array<{
 }> = [
   {
     label: "Client details",
-    detail: "What the couple told you, and what is still missing.",
+    detail: "What the client told you, and what is still missing.",
     route: "questionnaires",
     icon: ClipboardList,
     steps: ["schedule_form"],

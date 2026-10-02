@@ -28,7 +28,7 @@ import {
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { date, text, useProjectRecords } from "@/components/client/live-client-views";
+import { date, text, useClientVocab, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
 
@@ -59,6 +59,7 @@ const MEDIA_ICON: Record<ClientDeliverable["mediaType"], LucideIcon> = {
 export function ClientDelivery() {
   const workspace = useWorkspace();
   const deliveries = useProjectRecords("deliveryRecords");
+  const words = useClientVocab();
   const albums = useProjectRecords("albumWorkflows");
   const [renderedAt] = useState(() => Date.now());
   const deliverables = useMemo(() => clientDeliverables(deliveries.value), [deliveries.value]);
@@ -70,7 +71,7 @@ export function ClientDelivery() {
     return (
       <Main label="Your photos">
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">After the wedding</p>
+          <p className="kit-eyebrow">{words.afterwards}</p>
           <h1 className="kit-title">Your photos</h1>
         </div>
         <EmptyMoment
@@ -87,7 +88,7 @@ export function ClientDelivery() {
   return (
     <Main label="Your photos">
       <div className="kit-stack-tight">
-        <p className="kit-eyebrow">After the wedding</p>
+        <p className="kit-eyebrow">{words.afterwards}</p>
         <h1 className="kit-title">{deliveriesHeading(deliverables)}</h1>
         {deliverables.length ? (
           <p className="kit-body">Keep your codes private, and save everything before access closes.</p>

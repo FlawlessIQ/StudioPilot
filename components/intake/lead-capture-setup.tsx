@@ -637,7 +637,7 @@ function WebsiteRoute({ onDone }: { onDone: () => void }) {
         {
           title: "Where's your website?",
           intro:
-            "Couples fill in your StudioCue form right on your site, and each inquiry lands in Today — nothing to forward, no email settings.",
+            "Clients fill in your StudioCue form right on your site, and each inquiry lands in Today — nothing to forward, no email settings.",
           ready: Boolean(guide),
           body: (
             <Chips
@@ -679,7 +679,7 @@ function WebsiteRoute({ onDone }: { onDone: () => void }) {
         },
         {
           title: "Check it, or use a button",
-          intro: "Open your page and fill it in the way a couple would. It arrives in Today within a minute.",
+          intro: "Open your page and fill it in the way a client would. It arrives in Today within a minute.",
           body: (
             <>
               <p className="capture-lead">
@@ -730,7 +730,7 @@ function FormRoute({
         <li>
           <LayoutTemplate aria-hidden="true" size={18} />
           <span>
-            <strong>A couple fills in your website&apos;s contact form</strong>
+            <strong>A client fills in your website&apos;s contact form</strong>
             <small>Nothing about your website changes.</small>
           </span>
         </li>
@@ -835,7 +835,7 @@ function FormRoute({
         },
         {
           title: "Send a test",
-          intro: "Check it works end to end, the way a couple would use it.",
+          intro: "Check it works end to end, the way a client would use it.",
           body: <TestStep actions={actions} setup={setup} />,
         },
       ]}
@@ -1040,7 +1040,7 @@ function ManualRoute({ address, onDone }: { address: string; onDone: () => void 
           <li><Check aria-hidden="true" size={16} /> Becomes an inquiry, date checked</li>
           <li><Send aria-hidden="true" size={16} /> Reply drafted for you to approve</li>
         </ul>
-        <Tip>The couple isn&apos;t emailed.</Tip>
+        <Tip>The client isn&apos;t emailed.</Tip>
       </div>
       <footer>
         <span />
@@ -1084,7 +1084,7 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
           <li>
             <span>
               Open your <strong>live website</strong>{" "}in a new tab and fill in your contact form as
-              a couple would. Your own name and email are fine.
+              a client would. Your own name and email are fine.
             </span>
           </li>
           <li><span>Come back here. It appears within a minute, showing what StudioCue read from each field.</span></li>

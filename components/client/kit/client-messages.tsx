@@ -12,7 +12,7 @@ import {
 } from "@/lib/client/message-upload";
 import { sendClientPortalMessage } from "@/lib/client/portal-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { text, useProjectRecords } from "@/components/client/live-client-views";
+import { text, useClientVocab, useProjectRecords } from "@/components/client/live-client-views";
 
 type Message = Record<string, unknown> & { id: string };
 
@@ -36,6 +36,7 @@ const time = (iso: string) => {
 export function ClientMessages() {
   const workspace = useWorkspace();
   const messages = useProjectRecords("messages");
+  const words = useClientVocab();
   const [sent, setSent] = useState<Message[]>([]);
   const [context, setContext] = useState<string | null>(null);
   const [body, setBody] = useState("");
@@ -228,7 +229,7 @@ export function ClientMessages() {
             <p className="kit-body" role="status">
               {messages.loading
                 ? "Opening your messages…"
-                : `Ask ${studioName} anything about your wedding. They’ll reply here and by email.`}
+                : `Ask ${studioName} anything about ${words.yourEvent}. They’ll reply here and by email.`}
             </p>
           </div>
         )}

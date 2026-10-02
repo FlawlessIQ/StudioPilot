@@ -374,7 +374,8 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at: assigned,
             actor: "studio",
             kind: "artifact",
-            title: "Wedding details form sent",
+            // The form's own name: "Session Details" for a family (job-kinds.ts).
+            title: `${text(response.templateName) || "Details form"} sent`,
             detail: null,
             artifact: {
               type: "questionnaire",

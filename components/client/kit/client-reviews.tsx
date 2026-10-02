@@ -7,7 +7,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { text, useProjectRecords } from "@/components/client/live-client-views";
+import { text, useClientVocab, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
 
@@ -22,6 +22,7 @@ import { InfoHint } from "@/components/ui/info-hint";
 export function ClientReviews() {
   const workspace = useWorkspace();
   const reviews = useProjectRecords("reviewRequests");
+  const words = useClientVocab();
   const review = reviews.value.find((item) => item.status !== "skipped");
   const [confirmed, setConfirmed] = useState(false);
   const [opened, setOpened] = useState(false);
@@ -34,7 +35,7 @@ export function ClientReviews() {
     return (
       <Main label="Review">
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">After the wedding</p>
+          <p className="kit-eyebrow">{words.afterwards}</p>
           <h1 className="kit-title">Thank you</h1>
         </div>
         <EmptyMoment
@@ -69,7 +70,7 @@ export function ClientReviews() {
   return (
     <Main label="Review">
       <div className="kit-stack-tight">
-        <p className="kit-eyebrow">After the wedding</p>
+        <p className="kit-eyebrow">{words.afterwards}</p>
         <h1 className="kit-title">{`Thank you for choosing ${studioName}`}</h1>
       </div>
 
@@ -88,7 +89,7 @@ export function ClientReviews() {
             </InfoHint>
           </h2>
           <p className="kit-body">
-            {`If you loved working with ${studioName}, a short review on ${site} helps other couples find them. It takes a minute.`}
+            {`If you loved working with ${studioName}, a short review on ${site} helps ${words.event === "wedding" ? "other couples" : "others"} find them. It takes a minute.`}
           </p>
           {url ? (
             <a

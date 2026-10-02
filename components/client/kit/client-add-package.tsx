@@ -12,7 +12,7 @@ import {
   type ClientPackageAdditions,
 } from "@/lib/client/portal-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { money, text } from "@/components/client/live-client-views";
+import { money, text, useClientVocab } from "@/components/client/live-client-views";
 
 /**
  * "Add to your booking" — the couple asks for another package.
@@ -39,6 +39,7 @@ export function ClientAddPackage({
   place = "proposal",
 }: { allowNew?: boolean; place?: "proposal" | "agreement" } = {}) {
   const workspace = useWorkspace();
+  const words = useClientVocab();
   const [additions, setAdditions] = useState<ClientPackageAdditions | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   const [movingDate, setMovingDate] = useState(false);
@@ -203,7 +204,7 @@ export function ClientAddPackage({
               icon={CalendarDays}
               onClick={() => setMovingDate(true)}
               subtitle="Ask your studio about a new date"
-              title="Move your wedding date"
+              title={`Move ${words.yourEvent} date`}
             />
           ) : null}
           {additions.options

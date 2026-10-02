@@ -27,6 +27,7 @@ import {
   number,
   sentenceCase,
   text,
+  useClientVocab,
   useProjectRecords,
 } from "@/components/client/live-client-views";
 
@@ -62,6 +63,7 @@ function isImage(record: Record<string, unknown>): boolean {
 export function ClientFiles() {
   const workspace = useWorkspace();
   const documents = useProjectRecords("documents");
+  const words = useClientVocab();
   const contracts = useProjectRecords("contracts");
   const invoices = useProjectRecords("invoiceReferences");
   const schedules = useProjectRecords("schedules");
@@ -153,7 +155,7 @@ export function ClientFiles() {
       .map((record) => ({
         id: `schedule-${record.id}`,
         icon: CalendarClock,
-        title: `Wedding-day timeline · version ${number(record.version)}`,
+        title: `${words.schedule} · version ${number(record.version)}`,
         subtitle: statusLabel(record.status),
         href: "/client/schedule",
       })),

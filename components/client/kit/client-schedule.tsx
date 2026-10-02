@@ -15,7 +15,7 @@ import {
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { number, text, useProject, useProjectRecords } from "@/components/client/live-client-views";
+import { number, text, useClientVocab, useProject, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
 
@@ -35,6 +35,7 @@ type Sheet = { kind: "approve" } | { kind: "changes"; item: Item | null } | null
 export function ClientSchedule() {
   const workspace = useWorkspace();
   const project = useProject();
+  const words = useClientVocab();
   const schedules = useProjectRecords("schedules");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [note, setNote] = useState("");
@@ -53,7 +54,7 @@ export function ClientSchedule() {
     return (
       <Main label="Timeline">
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">Wedding day</p>
+          <p className="kit-eyebrow">{words.Day}</p>
           <h1 className="kit-title">Your timeline</h1>
         </div>
         <EmptyMoment
@@ -148,10 +149,10 @@ export function ClientSchedule() {
     <>
       <Main label="Timeline">
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">Wedding day · version {version}</p>
+          <p className="kit-eyebrow">{words.Day} · version {version}</p>
           <h1 className="kit-title">Your timeline</h1>
           <p className="kit-body">
-            {zoneLabel ? `Times are in ${zoneLabel}, where the wedding is.` : "Times are local to the wedding."}
+            {zoneLabel ? `Times are in ${zoneLabel}, where the ${words.event} is.` : `Times are local to the ${words.event}.`}
             {ordered.length > 1 ? ` Earlier versions are kept by ${studioName}.` : ""}
           </p>
         </div>

@@ -1,4 +1,5 @@
 import { releaseHeadline } from "../post-event/deliverables.js";
+import { jobKindOf, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
 
 /**
@@ -1227,6 +1228,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
        * their timeline when one is published for them, else their portal.
        */
       const eventDate = stringValue(values, "eventDate");
+      const eventKind = jobKindOf({ eventKind: stringValue(values, "eventKind") || null });
       const primary = scheduleUrl
         ? { label: "See your timeline", url: scheduleUrl }
         : portalUrl
@@ -1246,7 +1248,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               ? "Your timeline is ready: please check the times and places"
               : "Your portal has everything we have for the day: please check it"
           }, and reply to this email if anything has changed.`,
-          "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive.",
+          // A wedding's words exactly; every other kind its own (job-kinds.ts).
+          // A family was being asked to hang up the wedding dress.
+          eventKind === "wedding"
+            ? "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive."
+            : `To help photography begin on time, it helps to have ready: ${vocab(eventKind).dayBeforeChecklist.join("; ")}.`,
         ],
         action: primary,
         secondaryAction:
@@ -1387,7 +1393,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your final details are ready to confirm",
         paragraphs: [
           greeting,
-          `Here's everything we have for your day${project}: where you're getting ready, the ceremony and reception, any photo stops, and the timeline.`,
+          stringValue(values, "eventKind") === "wedding"
+            ? `Here's everything we have for your day${project}: where you're getting ready, the ceremony and reception, any photo stops, and the timeline.`
+            : `Here's everything we have for your day${project}: every location and time, and the timeline.`,
           "Please check it and confirm. From here, small things you can still change yourself; a change to a location or time comes to us to agree.",
         ],
         action: portalUrl ? { label: "Check and confirm", url: portalUrl } : undefined,
@@ -1699,7 +1707,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "studio_new_inquiry": {
-      const couple = stringValue(values, "coupleName") || "A new couple";
+      const wedding = stringValue(values, "eventKind") === "wedding";
+      const couple = stringValue(values, "coupleName") || (wedding ? "A new couple" : "A new client");
       const when = stringValue(values, "eventDateLabel");
       const availability = stringValue(values, "availability");
       const source = stringValue(values, "sourceLabel");
@@ -1746,7 +1755,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             ? [
                 `Rather answer from your own inbox? Just hit reply — it goes straight to ${firstName || "them"}. Then tap “Replied by email” on Today, so the drafted reply isn't sent as well.`,
               ]
-            : ["Couples often write to several photographers at once; the first thoughtful reply tends to win."]),
+            : [
+                `${wedding ? "Couples" : "People"} often write to several photographers at once; the first thoughtful reply tends to win.`,
+              ]),
         ],
         details,
         quote: message ? { label: returning ? "Their message" : "What they wrote", text: message } : undefined,
@@ -1754,7 +1765,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "studio_schedule_changes_requested": {
-      const couple = stringValue(values, "coupleName") || "Your couple";
+      const couple =
+        stringValue(values, "coupleName") || (stringValue(values, "eventKind") === "wedding" ? "Your couple" : "Your client");
       const version = Number(values.scheduleVersion) || null;
       const note = stringValue(values, "changeNote");
       return {

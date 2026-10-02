@@ -113,7 +113,7 @@ export function DeleteJobPermanently({
       </summary>
       <div>
         <p className="project-danger-lede">
-          This erases the wedding and everything filed against it. There is no
+          This erases the job and everything filed against it. There is no
           undo and no archive copy. If you only want it out of your working
           list, archive it instead.
         </p>

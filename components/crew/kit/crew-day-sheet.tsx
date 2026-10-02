@@ -72,7 +72,7 @@ const directions = (address: string) =>
 function PlannerLedNote() {
   return (
     <Note icon={AlertTriangle}>
-      The planner keeps the timeline for this wedding. If the day runs differently, follow the planner and tell the
+      The planner keeps the timeline for this event. If the day runs differently, follow the planner and tell the
       studio.
     </Note>
   );
@@ -314,7 +314,7 @@ function LiveDaySheet({
             {`${dayLabel(assignment.arrivalAt, zone)} · ${text(assignment.role, "Crew")}`}
           </p>
           <p className="kit-caption">
-            {scheduleZoneLabel(zone) ? `Times in ${scheduleZoneLabel(zone)}, where the wedding is.` : "Times are local to the venue."}
+            {scheduleZoneLabel(zone) ? `Times in ${scheduleZoneLabel(zone)}, where the event is.` : "Times are local to the venue."}
           </p>
         </div>
 

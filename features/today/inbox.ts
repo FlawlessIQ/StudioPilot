@@ -22,7 +22,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
-import { hasFinalBalance, projectProfile, singleBillWindow } from "@/features/job-kinds/job-kinds";
+import { hasFinalBalance, jobKindOf, projectProfile, singleBillWindow, vocab } from "@/features/job-kinds/job-kinds";
 import { ignorableSenderOf, notInquiryAllowed } from "@/features/intake/not-inquiry";
 import {
   inquiryDraftIsOrphaned,
@@ -522,9 +522,17 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
-/** "Beth & Tom", from "Beth & Tom wedding"; a name for a title. */
-const coupleName = (jobName: string | null | undefined): string =>
-  text(jobName).replace(/\s+wedding$/i, "").trim() || "The couple";
+/**
+ * Who the client is on a card: "Beth & Tom", from "Beth & Tom wedding"; with
+ * no name, the kind's own word — "the family", never "the couple" for a
+ * family session (job-kinds.ts).
+ */
+const clientOf = (job: unknown, name?: string | null, capital = false): string => {
+  const named = text(name ?? asRecord(job).name).replace(/\s+wedding$/i, "").trim();
+  if (named) return named;
+  const fallback = vocab(jobKindOf(job)).clientFallback;
+  return capital ? `${fallback.charAt(0).toUpperCase()}${fallback.slice(1)}` : fallback;
+};
 
 /** Each job's newest run-of-show version. */
 function newestScheduleByProject(schedules: TodayRecord[]): Map<string, TodayRecord> {
@@ -1024,7 +1032,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         : null;
     const note = text(request.note).trim();
     // "Alex & Sam Rivera want to…", not "Alex & Sam Rivera wedding want to…".
-    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "A couple";
+    const couple = clientOf(job, null, true);
     // A change already written up for this job: the next step is it, not a new one.
     const changeOut = amend && Boolean(text(job.pendingAmendmentId));
     act.push({
@@ -1084,7 +1092,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (!job || job.archivedAt) continue;
     const eventDate = text(job.eventDate) || null;
     if (eventDate && eventDate < input.now.slice(0, 10)) continue;
-    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "The couple";
+    const couple = clientOf(job, null, true);
     const note = text(request.note);
     act.push({
       id: `detail-change-${request.id}`,
@@ -1122,7 +1130,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (!job || job.archivedAt) continue;
     const eventDate = text(job.eventDate) || null;
     if (eventDate && eventDate < input.now.slice(0, 10)) continue;
-    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "The couple";
+    const couple = clientOf(job, null, true);
     act.push({
       id: `final-details-${signoff.id}`,
       lane: "act",
@@ -1155,7 +1163,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const lastAsked = text(request.lastRequestedAt) || null;
     const askedDays = lastAsked ? Math.max(0, -(elapsedDayDiff(lastAsked, now) ?? 0)) : null;
     if (status === "requested" && (askedDays === null || askedDays < BILLING_ADDRESS_ASK_AGAIN_DAYS)) continue;
-    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "The couple";
+    const couple = clientOf(job, null, true);
     const asked = Number(request.requestCount ?? 0);
     act.push({
       id: `billing-address-${projectId}`,
@@ -1163,7 +1171,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: "invoice",
       title:
         status === "requested"
-          ? `Still waiting on ${couple}'s billing address`
+          ? `Still waiting on ${clientOf(job)}'s billing address`
           : `${couple}'s billing address is missing`,
       detail: [
         "QuickBooks works out the sales tax on their final invoice from it.",
@@ -1312,7 +1320,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const answer = scheduleAnswer(schedule);
     if (!answer) continue;
     const job = projectById.get(projectId);
-    const couple = coupleName(text(job?.name) || nameFor(projectId));
+    const couple = clientOf(job, text(job?.name) || nameFor(projectId), true);
     const version = Number(schedule.version ?? 0) || null;
     const eventDate = text(job?.eventDate) || eventFor(projectId);
     if (answer.decision === "changes_requested") {
@@ -1360,8 +1368,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
         kind: "schedule",
         title: `${couple} approved the day plan`,
         detail: version
-          ? `Version ${version} — you, your crew and the couple are working from the same times.`
-          : "You, your crew and the couple are working from the same times.",
+          ? `Version ${version} — you, your crew and ${clientOf(job, null)} are working from the same times.`
+          : `You, your crew and ${clientOf(job, null)} are working from the same times.`,
         evidence: "Approved in their portal",
         projectId,
         projectName: text(job?.name) || nameFor(projectId),
@@ -1705,12 +1713,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
         id: `final-balance-review-${job.id}`,
         lane: "act",
         kind: "invoice",
-        title: `Check and send ${text(job.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s final bill · ${held}`,
+        title: `Check and send ${clientOf(job)}'s final bill · ${held}`,
         detail: heldInQuickBooks
           ? heldInQuickBooks.billingAddressMissing
-            ? "Add the couple's billing address so QuickBooks can work out the tax. Nothing has gone to the couple yet."
-            : "It's in QuickBooks with the sales tax worked out. Check it, then send it with or without tax. Nothing has gone to the couple yet."
-          : "It's held for you to check: the payments on record don't match what was agreed. Nothing has gone to the couple yet.",
+            ? `Add ${clientOf(job)}'s billing address so QuickBooks can work out the tax. Nothing has gone to them yet.`
+            : "It's in QuickBooks with the sales tax worked out. Check it, then send it with or without tax. Nothing has gone to them yet."
+          : "It's held for you to check: the payments on record don't match what was agreed. Nothing has gone to them yet.",
         evidence: null,
         projectId: job.id,
         projectName: text(job.name) || null,
@@ -1737,7 +1745,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: "invoice",
       title: singleBill
         ? `Bill ${text(job.name).trim() || "the client"} · ${amount}`
-        : `Bill ${text(job.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s final balance · ${amount}`,
+        : `Bill ${clientOf(job)}'s final balance · ${amount}`,
       detail: [
         (singleBill?.dueDate ?? due.dueDate) ? `Due ${formatDueDate((singleBill?.dueDate ?? due.dueDate)!)}.` : null,
         singleBill && profile.payment === "on_the_day" ? "Paid on the day: send the link now, or take payment on the day." : null,
@@ -1783,8 +1791,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
       id: `retainer-review-${invoice.id}`,
       lane: "act",
       kind: "invoice",
-      title: `Check and send ${text(job?.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s retainer · ${amount}`,
-      detail: "It's in QuickBooks, held for you to check. Nothing has gone to the couple yet.",
+      title: `Check and send ${clientOf(job)}'s retainer · ${amount}`,
+      detail: "It's in QuickBooks, held for you to check. Nothing has gone to them yet.",
       evidence: null,
       projectId,
       projectName: text(job?.name) || null,

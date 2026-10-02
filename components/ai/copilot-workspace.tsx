@@ -73,7 +73,7 @@ const onboardingPrompts = [
 // answers. Typing "/" surfaces them; picking one fills the box (no auto-send).
 const SLASH_COMMANDS: Array<{ cmd: string; desc: string; question: string }> = [
   { cmd: "/attention", desc: "Today's priorities across every job", question: "What needs my attention today?" },
-  { cmd: "/unstuck", desc: "What's blocking my next wedding and how to clear it", question: "What is blocking my next wedding, and how do I clear it?" },
+  { cmd: "/unstuck", desc: "What's blocking my next job and how to clear it", question: "What is blocking my next job, and how do I clear it?" },
   { cmd: "/week", desc: "What's coming up this week and what it needs", question: "What's happening this week and what needs doing?" },
   { cmd: "/unpaid", desc: "Clients with an outstanding balance", question: "Which clients have unpaid balances?" },
   { cmd: "/crew", desc: "Crew assignments that need attention", question: "Which crew assignments need attention?" },

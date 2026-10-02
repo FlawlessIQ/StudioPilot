@@ -141,7 +141,7 @@ test("only a chosen venue fills City, and only an empty one", () => {
 test("a quiet imported job can still be marked shot", () => {
   const thread = source("components/projects/project-thread.tsx");
   const quiet = thread.slice(
-    thread.indexOf("Nothing is being sent to this couple."),
+    thread.indexOf("Nothing is being sent to this client."),
     thread.indexOf("if (interruption) {"),
   );
   assert.match(quiet, /current\?\.advance\?\.targetState === "EVENT_COMPLETE"/);

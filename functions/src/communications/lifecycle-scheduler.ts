@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { productEvent } from "../operations/product-events.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
@@ -147,6 +148,7 @@ export const lifecycleMessageScheduler = onSchedule(
           packageNames: balance.packageNames,
           paymentsOnRecord: balance.paymentsOnRecord,
           scheduleUrl,
+          eventKind: jobKindOf(project.data()),
           recipientEmail,
           recipientName,
         };

@@ -183,7 +183,7 @@ function JobDetail({ data, assignment, now }: { data: CrewData; assignment: Valu
           <p className="kit-caption">The studio hasn&rsquo;t asked for anything on this job.</p>
         )}
         <p className="kit-caption">
-          Only your own paperwork is here. You never see the couple&rsquo;s contract, invoices or photos.
+          Only your own paperwork is here. You never see the client&rsquo;s contract, invoices or photos.
         </p>
       </section>
 

@@ -20,6 +20,8 @@
  * Pure, no I/O.
  */
 
+import { jobKindOf } from "@/features/job-kinds/job-kinds";
+
 import { nextItemStart } from "@/features/planning/manual-run-of-show";
 
 export type StandardMomentKey =
@@ -160,12 +162,10 @@ export function placeStandardMoment(
 }
 
 /**
- * Whether a job is a wedding, for offering the wedding moments.
- *
- * Unknown reads as a wedding, as the AI draft does: it is the default event
- * type and by far the most common.
+ * Whether a job is a wedding, for offering the wedding moments — by its kind
+ * (job-kinds.ts). Unknown once read as a wedding; it is "other" now, so a
+ * corporate shoot is never offered "Bouquet toss".
  */
 export function isWeddingJob(project: Record<string, unknown> | null | undefined): boolean {
-  const type = String(project?.eventTypeId ?? project?.eventType ?? "").trim();
-  return !type || /wedding|elopement/i.test(type);
+  return jobKindOf(project) === "wedding";
 }

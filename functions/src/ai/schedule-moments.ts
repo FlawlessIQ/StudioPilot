@@ -11,6 +11,8 @@
  * place the couple's own answers on.
  */
 
+import { jobKindOf } from "../job-kinds/job-kinds.js";
+
 export const WEDDING_STANDARD_MOMENTS: ReadonlyArray<{ title: string; minutes: number }> = [
   { title: "Details", minutes: 30 },
   { title: "Getting into the dress", minutes: 30 },
@@ -24,10 +26,10 @@ export const WEDDING_STANDARD_MOMENTS: ReadonlyArray<{ title: string; minutes: n
   { title: "Cake cutting", minutes: 15 },
 ];
 
-/** Whether the job is a wedding. Unknown reads as one, as the draft defaults. */
-export function isWeddingEventType(value: unknown): boolean {
-  const type = typeof value === "string" ? value.trim() : "";
-  return !type || /wedding|elopement/i.test(type);
+/** Whether the job is a wedding, by its kind (job-kinds.ts). Unknown is "other" now, not a wedding. */
+export function isWeddingEventType(project: unknown): boolean {
+  if (typeof project === "string") return jobKindOf({ eventType: project }) === "wedding";
+  return jobKindOf(project) === "wedding";
 }
 
 /**
