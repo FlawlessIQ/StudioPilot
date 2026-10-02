@@ -89,6 +89,7 @@ export { supportTenantSummary } from "./saas/support.js";
 export { feedbackCommand } from "./feedback/commands.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { billingAddressRequestScheduler } from "./billing/billing-address-request.js";
+export { consultationPrepScheduler } from "./booking/consultation-prep.js";
 export { autopayScheduler } from "./billing/autopay.js";
 export { aiCopilotCommand } from "./ai/copilot.js";
 export { dailyDigestScheduler } from "./ai/daily-digest.js";

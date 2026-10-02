@@ -28,6 +28,9 @@ export const aiCapabilitySchema = z.enum([
   // A follow-up to an inquiry that went quiet (functions/src/intake/follow-ups.ts):
   // a template, not model-written, and still sent only on approval.
   "inquiry_follow_up",
+  // "Ahead of our call": their answers, the call details and, from the
+  // questionnaire analysis, what to talk about (booking/consultation-prep.ts).
+  "consultation_prep_draft",
 ]);
 
 export const aiAuthorityBoundarySchema = z.enum([

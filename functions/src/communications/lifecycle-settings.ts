@@ -17,6 +17,8 @@ const inputSchema = z.object({
     schedule_confirmation: triggerSetting,
     final_invoice_notice: triggerSetting,
     day_before_checklist: triggerSetting,
+    // "Ahead of our call" (booking/consultation-prep.ts): counts back from the call.
+    consultation_prep: triggerSetting.optional(),
   }),
 });
 

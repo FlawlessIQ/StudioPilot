@@ -14,6 +14,7 @@ export type LifecycleSettings = {
   schedule_confirmation: LifecycleTriggerSetting;
   final_invoice_notice: LifecycleTriggerSetting;
   day_before_checklist: LifecycleTriggerSetting;
+  consultation_prep: LifecycleTriggerSetting;
 };
 
 export async function saveLifecycleSettings(input: {

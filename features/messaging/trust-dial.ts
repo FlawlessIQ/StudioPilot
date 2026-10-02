@@ -65,6 +65,7 @@ const TITLE_TRIGGERS_BY_KEY: Record<LifecycleTrigger, true> = {
   schedule_confirmation: true,
   final_invoice_notice: true,
   day_before_checklist: true,
+  consultation_prep: true,
 };
 
 /**

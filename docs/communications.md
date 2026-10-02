@@ -122,3 +122,30 @@ Required Function configuration:
 Before enabling live mode, confirm there are no unintended queued jobs, verify
 the sending domain, and run controlled delivery, bounce, open, click, resend,
 revoke, password-reset, and verification tests.
+
+## "Ahead of our call" — before the consultation (2026-10-02)
+
+Nothing reached a couple between booking their consultation and the call: the
+`consultation_reminder` template existed and nothing queued it.
+`consultationPrepScheduler` (hourly, `functions/src/booking/consultation-prep.ts`)
+now prepares one note per scheduled consultation, the day before the call by
+default (Settings → Automatic drafts → "Ahead of the consultation"; its
+`offsetDays` count back from the call, up to a week; 0 is three hours before).
+A call booked later than that gets it within the hour.
+
+- **The facts:** when and how (Zoom link, phone, place), the couple's own
+  answers to their event form read back, and the link to their inquiry page to
+  change anything or move the call.
+- **"A few things we'd like to talk about":** the questionnaire analysis's
+  suggested questions — never its notes for the studio (risks, contradictions).
+- **Approval by default:** `aiActions/ai_consultation_prep_{consultationId}`,
+  capability `consultation_prep_draft`, on Today with "Approve & send" and a
+  "Call …" chip. Approving one for a call that moved or passed is refused
+  (`CONSULTATION_PREP_STALE`); Today drops it once the call has started.
+- **Automatic:** sends the facts alone — the AI's lines always need a person.
+  The trust dial offers it after three unedited approvals.
+- **Never** for a quiet job (imported, paused, cancelled, on hold, archived).
+
+Settings saved before this existed still parse: `consultation_prep` is optional
+with a default, and the wedding-date engine (`lifecycleTriggers`) never
+schedules it. Walk it with `scripts/uat/consultation-prep-walk.mts`.

@@ -81,6 +81,14 @@ export const lifecycleMessagingSettingsSchema = z.object({
   schedule_confirmation: lifecycleTriggerSettingSchema,
   final_invoice_notice: lifecycleTriggerSettingSchema,
   day_before_checklist: lifecycleTriggerSettingSchema,
+  /**
+   * "Ahead of our call": timed from the consultation, not the wedding — its
+   * offsetDays count back from the call (functions/src/booking/consultation-
+   * prep.ts), and the event-date engine never schedules it. Optional with a
+   * default: a studio's settings saved before it existed must still parse,
+   * or every other setting would fall back to the defaults.
+   */
+  consultation_prep: lifecycleTriggerSettingSchema.default({ enabled: true, offsetDays: -1, autoSend: false }),
 });
 export type LifecycleMessagingSettings = z.infer<
   typeof lifecycleMessagingSettingsSchema
@@ -91,8 +99,10 @@ export const defaultLifecycleMessagingSettings: LifecycleMessagingSettings = {
   schedule_confirmation: { enabled: true, offsetDays: -30, autoSend: false },
   final_invoice_notice: { enabled: true, offsetDays: -30, autoSend: false },
   day_before_checklist: { enabled: true, offsetDays: -1, autoSend: false },
+  consultation_prep: { enabled: true, offsetDays: -1, autoSend: false },
 };
 
-export const lifecycleTriggers = Object.keys(
-  defaultLifecycleMessagingSettings,
-) as Array<keyof LifecycleMessagingSettings>;
+/** The messages timed from the wedding date: everything but "Ahead of our call". */
+export const lifecycleTriggers = (
+  Object.keys(defaultLifecycleMessagingSettings) as Array<keyof LifecycleMessagingSettings>
+).filter((trigger) => trigger !== "consultation_prep");

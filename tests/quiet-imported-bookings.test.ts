@@ -81,6 +81,11 @@ const guarded: Array<[string, string, RegExp]> = [
     /if \(clientOutreachStop\(project\.data\(\)\)\) continue;/,
   ],
   [
+    "\"ahead of our call\" never writes to a quiet booking",
+    "functions/src/booking/consultation-prep.ts",
+    /if \(clientOutreachStop\(job\)\) return "quiet";/,
+  ],
+  [
     "billing-address requests never email a quiet booking on their own",
     "functions/src/billing/billing-address-request.ts",
     // A quiet job becomes "needs_studio" — a Today card, the studio's choice.

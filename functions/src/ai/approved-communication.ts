@@ -45,6 +45,8 @@ export const SEND_ON_APPROVAL_CAPABILITIES = [
   "inquiry_follow_up",
   "delivery_message_draft",
   "review_request_draft",
+  // "Ahead of our call" (functions/src/booking/consultation-prep.ts).
+  "consultation_prep_draft",
 ] as const;
 
 export function sendsOnApproval(capability: string): boolean {

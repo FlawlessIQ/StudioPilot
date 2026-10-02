@@ -216,6 +216,7 @@ const kindAliases: Record<string, LibraryKind> = {
   message_draft: "message",
   inquiry_reply_draft: "message",
   inquiry_follow_up: "message",
+  consultation_prep_draft: "message",
   delivery_message_draft: "delivery",
   review_request_draft: "review",
   consultation_summary: "calendar",

@@ -1877,6 +1877,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const snoozed = text(action.snoozedUntil);
     if (snoozed && snoozed > input.now) continue;
     if (!jobStillOpen(action.projectId)) continue;
+    // "Ahead of our call" once the call has started: there is nothing ahead.
+    if (
+      text(action.capability) === "consultation_prep_draft" &&
+      text(asRecord(action.structuredOutput).callStartsAt) &&
+      text(asRecord(action.structuredOutput).callStartsAt) <= input.now
+    )
+      continue;
     // A draft whose whole purpose was the run-up, on a job already shot.
     if (
       preparedWorkIsMoot({
@@ -1985,6 +1992,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
         ? `/studio/projects/${text(action.projectId)}`
         : null,
       facts: [
+        // "Ahead of our call": the call is what's close, not the wedding.
+        text(action.capability) === "consultation_prep_draft" && text(asRecord(action.structuredOutput).subject).includes(" — ")
+          ? `Call ${text(asRecord(action.structuredOutput).subject).split(" — ")[1]}`
+          : null,
         eventFact(eventFor(action.projectId), now),
         waitingFact(changedAt(action), now),
       ].filter((fact): fact is string => Boolean(fact)),

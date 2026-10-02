@@ -166,6 +166,9 @@ scheduler_services=(
   # the org's next invoker-IAM reset and delivery status would silently stop
   # advancing again.
   emaildeliveryreconciler
+  # "Ahead of our call": the couple's answers and the call details, the day
+  # before their consultation (booking/consultation-prep.ts).
+  consultationprepscheduler
   # Asks couples with no billing address for one before the final bill is
   # taxed (billing/billing-address-request.ts).
   billingaddressrequestscheduler

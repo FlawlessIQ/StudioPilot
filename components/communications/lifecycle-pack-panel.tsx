@@ -30,6 +30,10 @@ const COPY: Record<
     label: "Day-before checklist",
     detail: "Dress, shoes, flowers, rings, invitations ready",
   },
+  consultation_prep: {
+    label: "Ahead of the consultation",
+    detail: "Day before the call · their answers and the call details. Sent automatically, it leaves out the AI's \"things to talk about\"",
+  },
 };
 
 /**
@@ -120,7 +124,7 @@ export function LifecyclePackPanel() {
         <ShieldCheck aria-hidden="true" />
       </div>
       <p className="communications-lifecycle-note">
-        StudioCue prepares these messages on schedule for every booked project.
+        StudioCue prepares these messages on schedule — for booked weddings, and for couples with a consultation coming up.
         Drafts wait for your approval on Today unless a message is explicitly set
         to send automatically.
       </p>

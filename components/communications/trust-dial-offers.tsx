@@ -22,6 +22,8 @@ const LABELS: Record<LifecycleTrigger, string> = {
   schedule_confirmation: "schedule confirmations",
   final_invoice_notice: "final balance summaries",
   day_before_checklist: "day-before checklists",
+  // Sent automatically, it is the facts alone: the AI's lines need a person.
+  consultation_prep: "\"ahead of our call\" notes (their answers and the call details)",
 };
 
 const DISMISSED_KEY = "studiocue:trust-dial-dismissed";

@@ -17,6 +17,7 @@ import {
   mayContactClient,
 } from "../post-event/client-outreach.js";
 import { studioHubCors } from "../security/cors.js";
+import { consultationPrepStale } from "../booking/consultation-prep.js";
 
 const commandSchema = z.object({
   tenantId: z.string().min(1),
@@ -251,6 +252,16 @@ export const aiActionCommand = onRequest(
             throw new Error(
               `CLIENT_OUTREACH_STOPPED:${clientOutreachStop(data) ?? "job_missing"}`,
             );
+        }
+        // "Ahead of our call" for a call that has moved or passed must not go.
+        if (communicationApproval && capability === "consultation_prep_draft") {
+          const consultationId = text(record(action.get("structuredOutput")).consultationId);
+          const consultation = consultationId ? await db.doc(`consultations/${consultationId}`).get() : null;
+          const stale = consultationPrepStale(
+            consultation?.exists && consultation.get("tenantId") === parsed.tenantId ? (consultation.data() ?? null) : null,
+            new Date(),
+          );
+          if (stale) throw new Error(stale);
         }
         const communicationDraftId = communicationApproval
           ? `ai_reply_${actionId}`
