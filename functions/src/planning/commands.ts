@@ -64,6 +64,7 @@ import {
 import { detailsLocked, detailsLockOn, resolvePlanningTimeline } from "./planning-timeline.js";
 import { decideDetailChange, requestDetailChange } from "./detail-changes.js";
 import { lockingFieldIds } from "./details-lock.js";
+import { templateLinkProblems } from "./template-rules.js";
 
 const item = z.object({
   id: z.string(),
@@ -1059,6 +1060,10 @@ export const planningCommand = onRequest(
       } else if (parsed.type === "createQuestionnaireTemplate") {
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
+        // A condition or suggested time pointing at a later or missing
+        // question would never fire (template-rules.ts).
+        if (templateLinkProblems(parsed.input.sections).length)
+          throw new Error("QUESTIONNAIRE_TEMPLATE_INVALID");
         const versions = await db
           .collection("questionnaireTemplates")
           .where("tenantId", "==", parsed.tenantId)
@@ -1100,6 +1105,8 @@ export const planningCommand = onRequest(
       } else if (parsed.type === "updateQuestionnaireTemplate") {
         if (!["studio_owner", "studio_admin"].includes(role))
           throw new Error("FORBIDDEN");
+        if (templateLinkProblems(parsed.input.sections).length)
+          throw new Error("QUESTIONNAIRE_TEMPLATE_INVALID");
         const current = await db
           .doc(`questionnaireTemplates/${parsed.input.templateId}`)
           .get();

@@ -89,3 +89,17 @@ fills their own name, email and phone and their partner's name and details, blan
 only (`coupleRoleChoices` in job-facts.ts; `components/client/kit/role-chooser.tsx`
 on the portal form and the inquiry page). It goes once they've picked or typed any
 of those answers. The final schedule then fills from those answers as usual.
+
+## 7. Editing a form: order, sections and rules
+
+A copied form (or any template) is fully editable on Questionnaires → Edit this
+questionnaire, and "Build template" opens the same editor empty
+(`components/planning/questionnaire-template-editor.tsx`): questions up and down (across
+sections at the edges) and "Move to…" another section; sections added, renamed, moved
+and deleted (keeping or dropping their questions); "When it shows" — only when an
+earlier answer is X — and, on a time, a suggested time from an earlier time; reminder
+days. A rule can only read an earlier question: every rearrangement runs
+`repairTemplateLinks` (`features/questionnaires/template-rules.ts`, mirrored in functions)
+and says what it cleared, and the server refuses a template that still breaks one
+(`QUESTIONNAIRE_TEMPLATE_INVALID`). Each question shows where its answer goes — "In the
+contract", "Locks with the final details" — from its wording, as the studio types.

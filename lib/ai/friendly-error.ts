@@ -172,6 +172,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   RETAINER_HAS_NO_TAX: "A retainer never carries sales tax, so it's only ever sent as it stands.",
   BILLING_ADDRESS_NEEDED_FOR_TAX:
     "QuickBooks had no billing address to work the tax out from. Ask the couple for it, or add it on their client record and use Work the tax out again — or send it without tax.",
+  QUESTIONNAIRE_TEMPLATE_INVALID:
+    "A question is set to show, or suggest a time, from one that comes after it. Move it below that question or clear the rule.",
   DETAILS_LOCKED:
     "The final details have locked, so a change to a location or time goes to the studio as a request.",
   DETAILS_NOT_LOCKED: "The details aren't locked yet, so this can simply be changed on the form.",

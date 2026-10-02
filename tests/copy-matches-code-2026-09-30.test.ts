@@ -53,7 +53,10 @@ test("a published run of show isn't called approved", () => {
 test("editing a questionnaire keeps its Show-after conditions", () => {
   const editor = read("components/planning/questionnaire-template-editor.tsx");
   assert.doesNotMatch(editor, /conditionalOn: null,\n\s*\}\)\),/);
-  assert.match(editor, /field\.conditionalOn && fieldIds\.has\(field\.conditionalOn\.fieldId\)/);
+  // A condition is kept, and cleared only when the question it reads is gone
+  // or below it (features/questionnaires/template-rules.ts).
+  assert.match(editor, /conditionalOn: field\.conditionalOn \?\? null/);
+  assert.match(editor, /repairTemplateLinks<EditableField, EditableSection>\(kept\)/);
   assert.match(read("components/planning/questionnaire-builder.tsx"), /conditionalOn: conditionOf\(f\.conditionalOn\)/);
 });
 

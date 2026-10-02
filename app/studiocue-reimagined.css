@@ -2786,3 +2786,113 @@
     justify-self: start;
   }
 }
+
+/* The questionnaire editor's sections, order and rules
+   (components/planning/questionnaire-template-editor.tsx). Base field and
+   input styles live with .questionnaire-template-editor in globals.css. */
+/* "Build template" in the workspace panel: the panel's own inset, as the
+   single-section form it replaced had (.questionnaire-template-form). */
+.questionnaire-template-editor.is-create {
+  border-top: 0;
+  margin-top: 0;
+  padding: 25px var(--panel-inset, 26px) 28px;
+}
+
+.questionnaire-template-editor.is-create > div {
+  margin-top: 0;
+}
+
+.questionnaire-editor-actions select,
+.questionnaire-editor-actions select:is(:focus, :hover) {
+  font-size: 12.5px;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.questionnaire-editor-section {
+  gap: 12px;
+}
+
+.questionnaire-editor-section-head {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.questionnaire-editor-section-head > label {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.questionnaire-editor-actions {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.questionnaire-editor-actions select {
+  max-width: 180px;
+  width: auto;
+}
+
+.questionnaire-editor-confirm {
+  background: #fff8ec;
+  border: 1px solid #f0dcb4;
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.questionnaire-editor-confirm p {
+  margin: 0;
+}
+
+.questionnaire-editor-question {
+  border-top: 1px solid var(--cue-line);
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.questionnaire-editor-flags {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.questionnaire-editor-flags > .questionnaire-editor-actions {
+  margin-left: auto;
+}
+
+.questionnaire-editor-tag {
+  background: #edf8f3;
+  border-radius: 999px;
+  color: #2b8260;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 650;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.questionnaire-editor-rules > summary {
+  color: #7759c7;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.questionnaire-editor-rules > .questionnaire-editor-field {
+  margin-top: 8px;
+}
+
+@media (max-width: 760px) {
+  .questionnaire-editor-flags > .questionnaire-editor-actions {
+    margin-left: 0;
+  }
+}

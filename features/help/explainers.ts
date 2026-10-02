@@ -428,13 +428,14 @@ export const EXPLAINERS: readonly Explainer[] = [
     steps: [
       "Open the job's **Plan** tab and choose **Client details**, or open **Questionnaires**.",
       "If StudioCue has a form for this kind of job, tap **Send the form**. Otherwise pick a template and **Assign questionnaire**.",
-      "To build your own, choose **Build template**, add questions with **Add field**, then **Save template**. Only **Active** templates can be sent.",
+      "To start from ours, use **Make a copy** under Ready-to-use wedding forms. To build your own, choose **Build template**, add questions with **Add a question here** (and sections with **Add a section**), then **Save template**. Only **Active** templates can be sent.",
       "When the couple sends it back, open it to read their answers and **What StudioCue noticed**.",
     ],
-    next: "The couple fills it in from their portal, with reminders 7, 3 and 1 days before it's due. The due date is worked out from the wedding date.",
+    next: "The couple fills it in from their portal, with reminders before it's due (7, 3 and 1 days unless you change them on the form). The due date is worked out from the wedding date.",
     goodToKnow: [
       "Editing a template saves a new version; forms already sent keep their questions.",
       "Questions marked **Crew see it** show up in your photographers' brief.",
+      "Each question can show only after an earlier answer, or suggest a time from an earlier time — open **When it shows** under it. Moving a question above the one it depends on clears that rule, and the editor says so.",
     ],
   },
   {
