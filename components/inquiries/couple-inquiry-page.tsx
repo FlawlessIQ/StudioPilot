@@ -24,6 +24,13 @@ import {
 import { SlotPicker, slotLabel } from "@/components/kit/slot-picker";
 import { Question, spoken } from "@/components/client/kit/questionnaire-question";
 import {
+  parseRoleChoices,
+  RoleChooser,
+  roleChoiceFieldIds,
+  roleChoicesOpen,
+  type RoleChoices,
+} from "@/components/client/kit/role-chooser";
+import {
   parseQuestionnaireSections,
   visibleQuestionnaireSections,
 } from "@/features/questionnaires/client-form";
@@ -162,6 +169,8 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   /** Where a prefilled answer came from: "your booking", "your inquiry". Dropped once they change it. */
   const [sources, setSources] = useState<Record<string, string>>({});
+  // "I'm the bride / I'm the groom" (components/client/kit/role-chooser.tsx).
+  const [roleChoices, setRoleChoices] = useState<RoleChoices | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -252,6 +261,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             ? (result.answers as Record<string, unknown>)
             : {},
         );
+        setRoleChoices(parseRoleChoices(result.roleChoices));
         setSources(
           typeof result.sources === "object" && result.sources !== null
             ? Object.fromEntries(
@@ -606,6 +616,12 @@ export function CoupleInquiryPage({ token }: { token: string }) {
               {visible.map((section) => (
                 <section aria-label={section.title} className="kit-stack" key={section.id}>
                   <h2 className="kit-subsection">{section.title}</h2>
+                  {/* Above the first question it fills, once. */}
+                  {roleChoices && roleChoicesOpen(roleChoices, answers) &&
+                  section.id ===
+                    visible.find((candidate) => candidate.fields.some((field) => roleChoiceFieldIds(roleChoices).has(field.id)))?.id ? (
+                    <RoleChooser answers={answers} choices={roleChoices} onFill={answer} />
+                  ) : null}
                   {section.fields.map((field) => {
                     const missing = showMissing && outstanding.some((item) => item.id === field.id);
                     return (

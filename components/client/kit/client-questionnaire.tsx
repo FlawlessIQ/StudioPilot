@@ -44,6 +44,13 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { date, text, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
+import {
+  parseRoleChoices,
+  RoleChooser,
+  roleChoiceFieldIds,
+  roleChoicesOpen,
+  type RoleChoices,
+} from "@/components/client/kit/role-chooser";
 import { Question } from "@/components/client/kit/questionnaire-question";
 import { SubmittedAnswer } from "@/components/client/kit/submitted-answer";
 
@@ -177,6 +184,8 @@ function QuestionnaireForm({
   const changeVersion = useRef(0);
   const submitted = isSubmitted(status);
   /** The final-details lock (functions/src/planning/details-lock.ts), from the server. */
+  // "I'm the bride / I'm the groom", from the server (components/client/kit/role-chooser.tsx).
+  const [roleChoices, setRoleChoices] = useState<RoleChoices | null>(null);
   const [lock, setLock] = useState<{ locked: boolean; fieldIds: Set<string>; pending: Map<string, unknown> }>({
     locked: false,
     fieldIds: new Set(),
@@ -203,6 +212,7 @@ function QuestionnaireForm({
           // Whether the final details have locked, and what's already asked for.
           const result = (outcome?.result ?? {}) as Record<string, unknown>;
           if (!active) return;
+          setRoleChoices(parseRoleChoices(result.roleChoices));
           setLock({
             locked: result.locked === true,
             fieldIds: new Set(Array.isArray(result.lockingFieldIds) ? (result.lockingFieldIds as string[]) : []),
@@ -526,6 +536,10 @@ function QuestionnaireForm({
         </div>
         {notice ? <Note tone={notice.tone}>{notice.text}</Note> : null}
         <div className="kit-stack">
+          {roleChoices && !submitted && roleChoicesOpen(roleChoices, answers) &&
+          section.fields.some((field) => roleChoiceFieldIds(roleChoices).has(field.id)) ? (
+            <RoleChooser answers={answers} choices={roleChoices} onFill={update} />
+          ) : null}
           {section.fields.map((field) => (
             <Question
               answer={answers[field.id]}

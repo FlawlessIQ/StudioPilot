@@ -10,7 +10,15 @@ import { questionnaireFieldSchema } from "@/features/questionnaires/schema";
 import { parseQuestionnaireSections } from "@/features/questionnaires/client-form";
 import { eventDetailCategory, eventDetailsFrom } from "@/features/contracts/event-details";
 import { lockingFieldIds } from "@/features/planning/details-lock";
-import { factForField, jobFactSheet, prefillFromFacts, unmatchedFields } from "../functions/src/planning/job-facts.ts";
+import {
+  coupleRoleChoices,
+  coupleRoleField,
+  factForField,
+  jobFactSheet,
+  prefillFromFacts,
+  unmatchedFields,
+} from "../functions/src/planning/job-facts.ts";
+import { parseRoleChoices, roleChoiceFieldIds, roleChoicesOpen } from "@/components/client/kit/role-chooser";
 import { applyCoupleAnswers, coupleFormSections } from "../functions/src/intake/inquiry-form.ts";
 
 /**
@@ -194,4 +202,46 @@ test("the couple can answer TBD where it's offered, and only there", () => {
   const hide = parsed.find((field) => field.id === "hide-time")!;
   assert.deepEqual(hide.suggestedFrom, { fieldId: "ceremony-time", minutes: -30 });
   assert.match(hide.help ?? "", /30 minutes before the ceremony/);
+});
+
+test("'Which are you?': one tap places the person who inquired and their partner", () => {
+  // Gabe's labels, and the variants studios write.
+  assert.deepEqual(coupleRoleField({ label: "Bride's name", type: "text" }), { role: "bride", detail: "name" });
+  assert.deepEqual(coupleRoleField({ label: "Groom Phone:", type: "text" }), { role: "groom", detail: "phone" });
+  assert.deepEqual(coupleRoleField({ label: "Bride Email", type: "text" }), { role: "bride", detail: "email" });
+  for (const label of ["Bride's family names", "Bridal prep location", "Groom prep location", "Bride and groom first dance song", "Your name"])
+    assert.equal(coupleRoleField({ label, type: "text" }), null, label);
+
+  // GR's contact form: one name, an email, a phone — and a partner named on the inquiry page.
+  const sheet = jobFactSheet({
+    projectId: "p1",
+    project: { eventDate: "2027-06-12" },
+    leadId: "l1",
+    lead: { firstName: "Riley", lastName: "Moss", email: "riley@example.com", phone: "555 019 9876", partnerName: "Sam Lee" },
+    contacts: [],
+    vendors: [],
+    schedule: null,
+    responses: [],
+  });
+  const choices = coupleRoleChoices({ sheet, sections: details.sections, existing: { "bride-phone": "555 000 1111" } })!;
+  assert.deepEqual(choices.bride, { "bride-name": "Riley Moss", "bride-email": "riley@example.com", "groom-name": "Sam Lee" });
+  assert.deepEqual(choices.groom, {
+    "bride-name": "Sam Lee",
+    "groom-name": "Riley Moss",
+    "groom-phone": "555 019 9876",
+    "groom-email": "riley@example.com",
+  });
+  // Nothing to offer when the job knows nothing about who wrote in.
+  const empty = jobFactSheet({ projectId: "p1", project: {}, leadId: null, lead: null, contacts: [], vendors: [], schedule: null, responses: [] });
+  assert.equal(coupleRoleChoices({ sheet: empty, sections: details.sections }), null);
+  // Nor on a form that doesn't ask by role.
+  assert.equal(coupleRoleChoices({ sheet, sections: [{ fields: [{ id: "n", label: "Your name", type: "text" }] }] }), null);
+
+  // The page shows it while any of it is still blank.
+  const parsed = parseRoleChoices(choices)!;
+  assert.ok(roleChoiceFieldIds(parsed).has("groom-email"));
+  assert.equal(roleChoicesOpen(parsed, {}), true);
+  // Once they've picked (or typed one of those answers), it goes — even with the partner's left blank.
+  assert.equal(roleChoicesOpen(parsed, { "bride-name": "Riley Moss", "bride-email": "riley@example.com" }), false);
+  assert.equal(parseRoleChoices({ bride: {}, groom: {} }), null);
 });

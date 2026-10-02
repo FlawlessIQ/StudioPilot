@@ -50,7 +50,7 @@ import { sortScheduleItems } from "./item-order.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
 import { queuePartnerSends } from "../client/partner-invitations.js";
-import { refreshResponsePrefill } from "./job-prefill.js";
+import { refreshResponsePrefill, refreshResponsePrefillWithChoices } from "./job-prefill.js";
 import { sendNewQuestionnaire } from "./send-questionnaire.js";
 import {
   INQUIRY_FORM_EVENT_TYPES,
@@ -709,7 +709,7 @@ export const planningCommand = onRequest(
         });
       } else if (parsed.type === "refreshQuestionnairePrefill") {
         if (role !== "client" && !internalRoles.has(role)) throw new Error("FORBIDDEN");
-        const filled = await refreshResponsePrefill(db, {
+        const { filled, roleChoices } = await refreshResponsePrefillWithChoices(db, {
           tenantId: parsed.tenantId,
           responseId: parsed.input.responseId,
           projectId: parsed.input.projectId,
@@ -736,6 +736,8 @@ export const planningCommand = onRequest(
         const eventDate = String(projectSnapshot.get("eventDate") ?? "");
         result = {
           filled,
+          // "I'm the bride / I'm the groom", for a form that asks by role.
+          roleChoices,
           locked: detailsLocked(eventDate, now.slice(0, 10), timeline),
           lockOn: detailsLockOn(eventDate, timeline),
           lockingFieldIds: [...lockingFieldIds(plainRecord(responseSnapshot.get("templateSnapshot")).sections)],

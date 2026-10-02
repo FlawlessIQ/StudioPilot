@@ -260,6 +260,8 @@ const byLabel = (label: string) => fields.find((field) => field.label === label)
 check("the date step's partner name is already on the form", startedWith[byLabel("Second partner's full name")] === "Jordan Lee", startedWith);
 check("…and the guest count", startedWith[byLabel("Expected guest count")] === "120", startedWith);
 check("…and their own name", startedWith[byLabel("First partner's full name")] === "Priya Shah", startedWith);
+// "I'm the bride / I'm the groom" only on a form that asks by role; this one doesn't.
+check("no 'Which are you?' on a form that asks by partner, not role", loaded.body.roleChoices == null, loaded.body.roleChoices);
 check("nothing written yet", (await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get()).empty);
 
 /** An answer the couple's page would send for this question. */
@@ -381,7 +383,8 @@ check("preview shows the call booked", Boolean(preview.body.booked), preview.bod
 check("preview shows the form sent", (preview.body.eventForm as { status?: string })?.status === "submitted");
 
 step("12. Moving the call — the read is not queued again");
-const moved = await couple("inquiry_book", { token, startsAt: offered[1]!.startsAt, format: "phone" });
+// A phone call needs a number (548b996); a forwarded inquiry has none.
+const moved = await couple("inquiry_book", { token, startsAt: offered[1]!.startsAt, format: "phone", phone: "617 555 0100" });
 check("move 201", moved.status === 201, moved);
 check("move reported as rescheduled", moved.body.rescheduled === true, moved.body);
 check("old consultation rescheduled", (await db.doc(`consultations/${consultationId}`).get()).get("status") === "rescheduled");

@@ -1,5 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { loadJobFactSheet, prefillFromFacts } from "./job-facts.js";
+import { coupleRoleChoices, loadJobFactSheet, prefillFromFacts, type CoupleRoleChoices } from "./job-facts.js";
 import { templateFactMap } from "./questionnaire-fact-map.js";
 
 type Row = Record<string, unknown>;
@@ -60,13 +60,22 @@ export async function jobPrefill(
       actorId: input.actorId,
     }).catch(() => ({})),
   ]);
-  return prefillFromFacts({
+  const touched = touchedFields(input.changeHistory);
+  const prefill = prefillFromFacts({
     sheet,
     sections: input.sections,
     factMap,
     existing: input.existing,
-    touched: touchedFields(input.changeHistory),
+    touched,
   });
+  // "I'm the bride / I'm the groom": what's still blank after the prefill.
+  const roleChoices = coupleRoleChoices({
+    sheet,
+    sections: input.sections,
+    existing: { ...(input.existing ?? {}), ...prefill.answers },
+    touched,
+  });
+  return { ...prefill, roleChoices };
 }
 
 /**
@@ -78,11 +87,19 @@ export async function refreshResponsePrefill(
   db: Firestore,
   input: { tenantId: string; responseId: string; projectId: string; allowAi: boolean; actorId?: string | null },
 ): Promise<number> {
+  return (await refreshResponsePrefillWithChoices(db, input)).filled;
+}
+
+/** The same, and what "I'm the bride / I'm the groom" would fill now. */
+export async function refreshResponsePrefillWithChoices(
+  db: Firestore,
+  input: { tenantId: string; responseId: string; projectId: string; allowAi: boolean; actorId?: string | null },
+): Promise<{ filled: number; roleChoices: CoupleRoleChoices | null }> {
   const reference = db.doc(`questionnaireResponses/${input.responseId}`);
   const response = await reference.get();
   const data = response.data() ?? {};
   if (!response.exists || data.tenantId !== input.tenantId || data.projectId !== input.projectId) throw new Error("RESPONSE_NOT_FOUND");
-  if (data.archivedAt || !PREFILLABLE_STATUSES.includes(String(data.status ?? "not_started"))) return 0;
+  if (data.archivedAt || !PREFILLABLE_STATUSES.includes(String(data.status ?? "not_started"))) return { filled: 0, roleChoices: null };
   const prefill = await jobPrefill(db, {
     tenantId: input.tenantId,
     projectId: input.projectId,
@@ -96,7 +113,7 @@ export async function refreshResponsePrefill(
     actorId: input.actorId,
   });
   const filled = Object.keys(prefill.answers);
-  if (!filled.length) return 0;
+  if (!filled.length) return { filled: 0, roleChoices: prefill.roleChoices };
   await db.runTransaction(async (transaction) => {
     const fresh = await transaction.get(reference);
     const current = fresh.data() ?? {};
@@ -115,5 +132,5 @@ export async function refreshResponsePrefill(
       updatedAt: new Date().toISOString(),
     });
   });
-  return filled.length;
+  return { filled: filled.length, roleChoices: prefill.roleChoices };
 }

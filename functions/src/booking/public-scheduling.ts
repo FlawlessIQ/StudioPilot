@@ -25,6 +25,7 @@ import {
   applyCoupleAnswers,
   coupleCompletionPercent,
   coupleFormSections,
+  answerIsPresent,
   coupleVisibleAnswers,
   inquiryFormOwed,
   inquiryFormResponseId,
@@ -889,6 +890,7 @@ async function startingAnswers(
   return {
     answers: { ...fromInquiry.answers, ...fromJob.answers },
     answerProvenance: { ...fromInquiry.answerProvenance, ...fromJob.answerProvenance },
+    roleChoices: fromJob.roleChoices,
   };
 }
 
@@ -946,11 +948,21 @@ async function handleInquiryForm(
   const name = text(form.response?.get("templateName")) || text(template.get("name")) || "Event form";
 
   if (command.type === "inquiry_form") {
-    const starting = form.response ? null : await startingAnswers(project, context.lead, templateSections, template);
-    const answers = form.response ? plain(form.response.get("answers")) : starting!.answers;
+    // Read from the job either way: "I'm the bride / I'm the groom" is offered
+    // until those questions are answered, saved copy or not.
+    const starting = await startingAnswers(project, context.lead, templateSections, template);
+    const answers = form.response ? plain(form.response.get("answers")) : starting.answers;
     const visibleAnswers = coupleVisibleAnswers(sections, answers);
     // Where each prefilled answer came from, for "Filled in from your booking".
-    const provenance = form.response ? plain(form.response.get("answerProvenance")) : starting!.answerProvenance;
+    const provenance = form.response ? plain(form.response.get("answerProvenance")) : starting.answerProvenance;
+    // Only while none of those questions is answered yet: after they pick, it's done.
+    const roleChoices =
+      starting.roleChoices &&
+      [...Object.keys(starting.roleChoices.bride), ...Object.keys(starting.roleChoices.groom)].every(
+        (fieldId) => !answerIsPresent(answers[fieldId]),
+      )
+        ? starting.roleChoices
+        : null;
     return {
       name,
       sections,
@@ -962,6 +974,7 @@ async function handleInquiryForm(
           return source ? [[fieldId, source]] : [];
         }),
       ),
+      roleChoices: isReturned(form.status) ? null : roleChoices,
       status: form.status,
       submittedAt: form.response?.get("submittedAt") ?? null,
     };

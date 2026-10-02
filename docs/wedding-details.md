@@ -78,3 +78,14 @@ Fixed on the way: a form was due before it was sent when its due-days ran past
 the wedding (`questionnaire-due.ts`: never sooner than a week, never after the
 day); and after the lock date a couple couldn't fill in a form they hadn't sent
 back yet — the lock now applies only to answers already returned.
+
+## 6. "Which are you?" — forms that ask by role
+
+GR's forms ask "Bride's name", "Groom's email". An inquiry says who wrote in and their
+partner's name, never which is the bride, so those questions couldn't fill by rule.
+When a form asks by role and the job knows the person who inquired, the couple sees
+"Which are you? I'm the bride / I'm the groom" at the top of that section: one tap
+fills their own name, email and phone and their partner's name and details, blanks
+only (`coupleRoleChoices` in job-facts.ts; `components/client/kit/role-chooser.tsx`
+on the portal form and the inquiry page). It goes once they've picked or typed any
+of those answers. The final schedule then fills from those answers as usual.

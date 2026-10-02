@@ -527,6 +527,72 @@ export function prefillFromFacts(input: {
   return { answers, answerProvenance };
 }
 
+/** "Bride's name", "Groom Phone", "Bride Email" — whose, and which detail. Null for anything else. */
+export function coupleRoleField(field: { label?: unknown; id?: unknown; type?: unknown }): {
+  role: "bride" | "groom";
+  detail: "name" | "email" | "phone";
+} | null {
+  const type = text(field.type);
+  if (!["text", "email", "phone", "contact", ""].includes(type)) return null;
+  const n = ` ${normalisedQuestion(field.label ?? field.id)} `;
+  const bride = / brides? /.test(n);
+  const groom = / grooms? /.test(n);
+  if (bride === groom) return null;
+  // Their family, their parents, their prep: not the person.
+  if (/ (family|families|parents?|mother|father|maiden|prep|location|address|party|attire) /.test(n)) return null;
+  const role = bride ? "bride" : "groom";
+  if (type === "email" || / e ?mail /.test(n)) return { role, detail: "email" };
+  if (type === "phone" || / (phone|cell|mobile|telephone|number) /.test(n)) return { role, detail: "phone" };
+  if (/ name /.test(n) || n.trim() === role || n.trim() === `${role}s`) return { role, detail: "name" };
+  return null;
+}
+
+export type CoupleRoleChoices = { bride: Record<string, string>; groom: Record<string, string> };
+
+/**
+ * What "I'm the bride" and "I'm the groom" would fill on a form that asks by
+ * role (GR Productions' forms, 2026-10-02).
+ *
+ * An inquiry says who wrote in and their partner's name, never which of them
+ * is the bride — so "Bride's email" can't be filled by rule, and the couple
+ * typed six things the job already knew. Asked once, at the top of the form,
+ * one tap places the person who inquired (their name, email, phone) and their
+ * partner. Only blank, untouched questions; nothing when the job knows nothing
+ * about the person who inquired.
+ */
+export function coupleRoleChoices(input: {
+  sheet: JobFactSheet;
+  sections: unknown;
+  existing?: Record<string, unknown> | null;
+  touched?: ReadonlySet<string>;
+}): CoupleRoleChoices | null {
+  const facts = input.sheet.facts;
+  const value = (key: FactKey) => facts[key]?.value ?? "";
+  const inquirer = { name: value("partner_one_name"), email: value("client_email"), phone: value("client_phone") };
+  const partner = { name: value("partner_two_name"), email: value("partner_two_email"), phone: value("partner_two_phone") };
+  const existing = input.existing ?? {};
+  const choices: CoupleRoleChoices = { bride: {}, groom: {} };
+  let inquirerFills = false;
+  for (const section of list(input.sections)) {
+    for (const candidate of list(record(section).fields)) {
+      const field = record(candidate);
+      const fieldId = text(field.id);
+      if (!fieldId || field.internalOnly === true || field.locked === true) continue;
+      if (!blank(existing[fieldId]) || input.touched?.has(fieldId)) continue;
+      const placed = coupleRoleField(field);
+      if (!placed) continue;
+      for (const chosen of ["bride", "groom"] as const) {
+        const person = placed.role === chosen ? inquirer : partner;
+        const shaped = person[placed.detail] ? valueForField(field, person[placed.detail]) : undefined;
+        if (!shaped) continue;
+        choices[chosen][fieldId] = shaped;
+        if (placed.role === chosen) inquirerFills = true;
+      }
+    }
+  }
+  return inquirerFills ? choices : null;
+}
+
 /** Fields the sheet can't place by rule or by an earlier answer: what an AI map is asked about. */
 export function unmatchedFields(sections: unknown): Array<{ id: string; label: string; type: string; options: string[] }> {
   const fields: Array<{ id: string; label: string; type: string; options: string[] }> = [];
