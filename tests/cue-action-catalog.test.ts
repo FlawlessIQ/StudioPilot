@@ -114,6 +114,8 @@ const REACHED: Record<string, string> = {
   voidInvoice: "<VoidInvoice", correctPaymentRecord: "<CorrectPayment", recordInvoicePayment: "<RecordInvoicePayment", approveFinalInvoice: "<ApproveFinalInvoice",
   // A bill held in QuickBooks for the tax check: send with or without tax.
   sendHeldInvoice: "<HeldInvoiceReview",
+  // "Ask the couple for it" sits in the same review, when QuickBooks had no address.
+  requestBillingAddress: "<HeldInvoiceReview",
   lookupQuickBooksPayments: "lookupQuickBooksPayments", runBookingGate: "\"runBookingGate\"",
   // "Don't charge sales tax on this job", on the final-bill card as on the booking page.
   setJobSalesTaxExempt: "JobSalesTax",

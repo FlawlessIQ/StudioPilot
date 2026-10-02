@@ -172,6 +172,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   RETAINER_HAS_NO_TAX: "A retainer never carries sales tax, so it's only ever sent as it stands.",
   BILLING_ADDRESS_NEEDED_FOR_TAX:
     "QuickBooks had no billing address to work the tax out from. Ask the couple for it, or add it on their client record and use Work the tax out again — or send it without tax.",
+  BILLING_ADDRESS_INVALID: "Check the street, city, state and ZIP code, then save it again.",
+  BILLING_ADDRESS_NOT_ASKED: "Your studio doesn't need a billing address from you any more, so there's nothing to save.",
+  BILLING_ADDRESS_CONTACT_NOT_FOUND:
+    "We couldn't match your sign-in email to this booking. Reply to your studio's email with your billing address instead.",
   BILLING_ADDRESS_ON_FILE:
     "Their billing address is already on their client record, so there's nothing to ask. If a bill is waiting, use Work the tax out again.",
   BILLING_ADDRESS_REQUEST_PERMISSION_REQUIRED: "An owner or admin asks the couple for their billing address.",
