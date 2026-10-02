@@ -213,3 +213,12 @@ test("send-time thread scope follows a converted lead onto its job", () => {
   const jobs = readFileSync("functions/src/operations/jobs.ts", "utf8");
   assert.match(jobs, /const scope = await resolveThreadScope\(/);
 });
+
+test("the job header and bar read live checkpoints by the server's rule", () => {
+  // Firestore's `where("archivedAt", "==", null)` leaves out documents with no
+  // such field; a truthiness check let four of those into the header's count.
+  const detail = readFileSync("components/projects/live-project-detail.tsx", "utf8");
+  assert.match(detail, /checkpoint\.get\("archivedAt"\) === null/);
+  const bar = readFileSync("components/studio/live-domain-view.tsx", "utf8");
+  assert.match(bar, /entry\.archivedAt === null/);
+});

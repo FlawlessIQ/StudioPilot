@@ -1226,9 +1226,10 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
    */
   const readinessEvidence = useReadinessEvidence(projectId);
   const readinessView = readinessSummary(
-    // Archived checkpoints are history, as on the job page.
+    // Live checkpoints only, by the server's rule (archivedAt === null), as
+    // on the job page.
     (checkpoints ?? []).filter(
-      (entry) => entry.projectId === projectId && !entry.archivedAt,
+      (entry) => entry.projectId === projectId && entry.archivedAt === null,
     ),
     new Date(),
     readinessEvidence,

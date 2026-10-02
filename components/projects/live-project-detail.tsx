@@ -1200,13 +1200,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           id: projectSnapshot.id,
           ...projectSnapshot.data(),
         });
-        // Archived checkpoints are history. The readiness panel always left
-        // them out and the header did not, so the header said "9 things before
-        // the day: Retainer paid" above a panel listing seven, none of them the
-        // retainer (UI audit, 2026-10-02). One list, filtered once, here.
+        // Only live checkpoints: `archivedAt === null`, the server's own rule
+        // (`where("archivedAt", "==", null)` in functions/src/workflow, which
+        // also leaves out documents with no such field). The readiness panel
+        // always used it and the header did not, so the header said "9 things
+        // before the day: Retainer paid" above a panel listing seven, none of
+        // them the retainer (UI audit, 2026-10-02). One list, filtered here.
         setCheckpoints(
           checkpointSnapshot.docs
-            .filter((checkpoint) => !checkpoint.get("archivedAt"))
+            .filter((checkpoint) => checkpoint.get("archivedAt") === null)
             .map((checkpoint) => ({
               id: checkpoint.id,
               ...checkpoint.data(),
