@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requestFingerprint, requireAppCheck } from "./security.js";
 import { recordInquiryMessage } from "../intake/capture.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
-import { queueNewInquiryAlert } from "../intake/new-inquiry-alert.js";
+import { formInquiryDetails, queueNewInquiryAlert } from "../intake/new-inquiry-alert.js";
 
 /** A couple's job still open to their next message: any stage before delivery. */
 const JOINABLE_STATES = [
@@ -446,6 +446,43 @@ export const publicLeadIntake = onRequest(
       console.warn(`[intake] recording the form inquiry on its thread failed: ${String(caught).slice(0, 160)}`);
     });
 
+    // Everything they wrote goes to the studio's inbox too, with Reply-To set
+    // to them, so the studio can answer from its own email straight away.
+    const coupleName = input.partnerName ? `${displayName} & ${input.partnerName}` : displayName;
+    const alertFor = (projectId: string | null, returning: boolean) =>
+      queueNewInquiryAlert(db, {
+        tenantId,
+        leadId,
+        projectId,
+        coupleName,
+        eventDate: input.eventDate,
+        availability: availabilityStatus,
+        sourceLabel: "from your StudioCue inquiry form",
+        now: timestamp,
+        inquiry: {
+          email: normalizedEmail,
+          firstName: input.firstName,
+          message: input.message,
+          returning,
+          details: formInquiryDetails({
+            email: normalizedEmail,
+            phone: input.phone,
+            partnerName: input.partnerName,
+            eventTypeLabel,
+            venue: input.venuePlace?.formatted ?? input.venue,
+            city: input.city,
+            estimatedGuestCount: input.estimatedGuestCount,
+            servicesRequested: input.servicesRequested,
+            budgetRange: input.budgetRange,
+            referralSource: input.referralSource,
+            coiRequired: input.coiRequired,
+            venueContactName: input.venueContactName,
+            venueContactEmail: input.venueContactEmail,
+            answers: customAnswers,
+          }),
+        },
+      });
+
     // A couple already in conversation with the studio joins the job they
     // have; anyone else's inquiry becomes a job now (intake/convert.ts).
     try {
@@ -473,23 +510,20 @@ export const publicLeadIntake = onRequest(
           updatedAt: timestamp,
         });
         await afterConversion(db, { tenantId, leadId, projectId: existingJob.id, now: timestamp });
+        await alertFor(existingJob.id, true);
       } else {
         const converted = await convertInquiryToJob(db, { tenantId, leadId, now: timestamp, actor: systemActor });
-        await queueNewInquiryAlert(db, {
-          tenantId,
-          leadId,
-          projectId: converted.converted ? converted.projectId : null,
-          coupleName: input.partnerName ? `${displayName} & ${input.partnerName}` : displayName,
-          eventDate: input.eventDate,
-          availability: availabilityStatus,
-          sourceLabel: "from your StudioCue inquiry form",
-          now: timestamp,
-        });
+        await alertFor(converted.converted ? converted.projectId : null, false);
       }
     } catch (caught: unknown) {
       // The inquiry is saved either way; an unconverted lead still shows on
       // Today and can be converted by hand.
       console.warn(`[intake] converting the form inquiry failed: ${String(caught).slice(0, 160)}`);
+      // The studio still hears about it (one alert per lead, so a second
+      // call after a failed first is harmless).
+      await alertFor(null, false).catch((alertCaught: unknown) => {
+        console.warn(`[intake] new-inquiry alert failed: ${String(alertCaught).slice(0, 160)}`);
+      });
     }
 
     response.status(201).json({

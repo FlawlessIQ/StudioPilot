@@ -179,6 +179,7 @@ export function useProjectJourney({
                 conversations: conversations.records ?? [],
                 projectId,
                 leadId: lead.id,
+                repliedOutsideAt: text(lead.repliedOutsideAt) || null,
               }).replied,
             }
           : null,

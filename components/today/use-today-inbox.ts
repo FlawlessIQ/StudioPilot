@@ -214,6 +214,7 @@ export function useTodayInbox(): {
                 conversations: conversations.records ?? [],
                 projectId,
                 leadId: lead.id,
+                repliedOutsideAt: text(lead.repliedOutsideAt) || null,
               }).replied,
             }
           : null,

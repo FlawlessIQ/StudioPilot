@@ -229,3 +229,23 @@ test("insights count couples once, by where StudioCue received them, with how fa
   assert.equal(replyTimeLabel(insights.medianFirstReplyHours), "3 hours");
   assert.deepEqual(insights.closedReasons, [{ reason: "Went quiet", count: 1 }]);
 });
+
+test("a reply sent from the studio's own inbox is the couple's move, until they write again", () => {
+  const answered = inquiryNextMove({
+    conversations: [thread([["inbound", "2026-10-02T10:00:00Z"]])],
+    projectId: "p1",
+    leadId: "l1",
+    repliedOutsideAt: "2026-10-02T10:20:00Z",
+  });
+  assert.equal(answered.owner, "couple");
+  assert.equal(answered.replied, true);
+  assert.equal(answered.waitingSince, "2026-10-02T10:20:00Z");
+
+  const wroteBack = inquiryNextMove({
+    conversations: [thread([["inbound", "2026-10-02T10:00:00Z"], ["inbound", "2026-10-03T09:00:00Z"]])],
+    projectId: "p1",
+    leadId: "l1",
+    repliedOutsideAt: "2026-10-02T10:20:00Z",
+  });
+  assert.equal(wroteBack.owner, "studio");
+});

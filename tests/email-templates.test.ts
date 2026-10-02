@@ -438,3 +438,49 @@ test("the new-inquiry alert names the couple, the date and whether it's free", (
   assert.match(rendered.text, /The date is free/);
   assert.match(rendered.html, /https:\/\/example\.com\/studio\/projects\/p1/);
 });
+
+test("a form inquiry's alert carries what they wrote, and says a reply goes to them", () => {
+  const rendered = renderEmailTemplate({
+    key: "studio_new_inquiry",
+    brand,
+    recipientName: null,
+    projectName: null,
+    values: {
+      coupleName: "Gabriel Rhodes",
+      coupleFirstName: "Gabriel",
+      eventDateLabel: "",
+      availability: "unknown",
+      sourceLabel: "from your StudioCue inquiry form",
+      replyToCouple: true,
+      details: [
+        { label: "Email", value: "gabe@example.test" },
+        { label: "Phone", value: "555-0100" },
+        { label: "Empty", value: "" },
+      ],
+      message: "We're getting married next fall <3\nWould love to chat.",
+      actionUrl: "https://example.com/studio/leads/l1",
+    },
+  } as Parameters<typeof renderEmailTemplate>[0]);
+  assert.match(rendered.text, /Just hit reply — it goes straight to Gabriel\./);
+  assert.match(rendered.text, /Email: gabe@example\.test\nPhone: 555-0100/);
+  assert.doesNotMatch(rendered.text, /Empty:/);
+  assert.match(rendered.text, /What they wrote:\nWe're getting married next fall <3\nWould love to chat\./);
+  assert.match(rendered.html, /gabe@example\.test/);
+  // Escaped in the HTML, and the line break kept.
+  assert.match(rendered.html, /next fall &lt;3/);
+  assert.match(rendered.html, /white-space:pre-line/);
+  assert.match(rendered.preheader, /^We're getting married next fall/);
+});
+
+test("a couple writing again through the form is a new message on their job", () => {
+  const rendered = renderEmailTemplate({
+    key: "studio_new_inquiry",
+    brand,
+    recipientName: null,
+    projectName: null,
+    values: { coupleName: "Gabriel Rhodes", returning: true, message: "One more question about albums." },
+  } as Parameters<typeof renderEmailTemplate>[0]);
+  assert.equal(rendered.subject, "New message: Gabriel Rhodes");
+  assert.match(rendered.text, /Gabriel Rhodes wrote again/);
+  assert.match(rendered.text, /Their message:/);
+});

@@ -183,6 +183,15 @@ type EmailCopy = {
    * film, and each is its own thing to open (H4, docs/delivery-plan-2026-09-28.md).
    */
   moreActions?: Array<{ label: string; url: string }>;
+  /**
+   * What someone told the studio, as label/value rows, then their own words.
+   *
+   * The new-inquiry alert carried a name and a button, so a studio wanting to
+   * answer from its own inbox had to open StudioCue first to learn what the
+   * couple had asked. These sit under the paragraphs, before the button.
+   */
+  details?: Array<{ label: string; value: string }>;
+  quote?: { label: string; text: string };
   note?: string;
 };
 
@@ -324,8 +333,11 @@ function customizedCopy(
             url: base.action.url,
           }
         : base.action,
-    // A studio's own wording for the email never removes a link it carries.
+    // A studio's own wording for the email never removes a link it carries,
+    // or what the couple wrote.
     moreActions: base.moreActions,
+    details: base.details,
+    quote: base.quote,
     secondaryAction: base.secondaryAction,
     note: template.note ? templateValue(template.note, input) : undefined,
   };
@@ -1601,29 +1613,54 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const when = stringValue(values, "eventDateLabel");
       const availability = stringValue(values, "availability");
       const source = stringValue(values, "sourceLabel");
+      const firstName = stringValue(values, "coupleFirstName");
+      // The worker set Reply-To to the couple (operations/jobs.ts), so a
+      // reply from the studio's own inbox reaches them, not StudioCue.
+      const replyable = values.replyToCouple === true;
+      // A couple with a job already open, writing through the form again.
+      const returning = values.returning === true;
+      const message = stringValue(values, "message");
+      const details = Array.isArray(values.details)
+        ? values.details.flatMap((row) => {
+            const entry = typeof row === "object" && row !== null ? (row as Record<string, unknown>) : {};
+            const label = typeof entry.label === "string" ? entry.label.trim() : "";
+            const value = typeof entry.value === "string" ? entry.value.trim() : "";
+            return label && value ? [{ label, value }] : [];
+          })
+        : [];
       return {
-        subject: `New inquiry: ${couple}${when ? `, ${when}` : ""}`,
-        preheader: availability === "available"
-          ? "The date is free and a reply is being prepared."
-          : availability === "conflict"
-            ? "You already have a job on that date."
-            : "A reply is being prepared.",
-        eyebrow: "New inquiry",
-        heading: `${couple} would like to talk`,
+        subject: `${returning ? "New message" : "New inquiry"}: ${couple}${when ? `, ${when}` : ""}`,
+        preheader: message
+          ? clip(message, 90)
+          : availability === "available"
+            ? "The date is free and a reply is being prepared."
+            : availability === "conflict"
+              ? "You already have a job on that date."
+              : "A reply is being prepared.",
+        eyebrow: returning ? "New message" : "New inquiry",
+        heading: returning ? `${couple} wrote again` : `${couple} would like to talk`,
         paragraphs: [
           [
             when ? `They're asking about ${when}` : "They didn't give a date yet",
             source ? ` (${source})` : "",
             ".",
           ].join(""),
-          availability === "available"
-            ? "The date is free. StudioCue is drafting a reply now — it'll be on Today for you to check and send."
-            : availability === "conflict"
-              ? "You already have a job on that date. StudioCue is drafting a reply for you to check — you can close it as date taken once you've answered."
-              : "StudioCue is drafting a reply now — it'll be on Today for you to check and send.",
-          "Couples often write to several photographers at once; the first thoughtful reply tends to win.",
+          returning
+            ? "They already have a job with you, so StudioCue added this to it and is drafting a reply for Today."
+            : availability === "available"
+              ? "The date is free. StudioCue is drafting a reply now — it'll be on Today for you to check and send."
+              : availability === "conflict"
+                ? "You already have a job on that date. StudioCue is drafting a reply for you to check — you can close it as date taken once you've answered."
+                : "StudioCue is drafting a reply now — it'll be on Today for you to check and send.",
+          ...(replyable
+            ? [
+                `Rather answer from your own inbox? Just hit reply — it goes straight to ${firstName || "them"}. Then tap “Replied by email” on Today, so the drafted reply isn't sent as well.`,
+              ]
+            : ["Couples often write to several photographers at once; the first thoughtful reply tends to win."]),
         ],
-        action: actionUrl ? { label: "Open the inquiry", url: actionUrl } : undefined,
+        details,
+        quote: message ? { label: returning ? "Their message" : "What they wrote", text: message } : undefined,
+        action: actionUrl ? { label: returning ? "Open the job" : "Open the inquiry", url: actionUrl } : undefined,
       };
     }
     case "studio_schedule_changes_requested": {
@@ -1815,6 +1852,22 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const secondaryAction = copy.secondaryAction?.url
     ? `<p style="margin:-14px 0 26px;font-size:14px;line-height:1.6;color:#626a65;"><a href="${escapeHtml(copy.secondaryAction.url)}" style="color:#4f5752;">${escapeHtml(copy.secondaryAction.label)}</a></p>`
     : "";
+  const details = (copy.details ?? []).filter((row) => row.label && row.value);
+  const detailsHtml = details.length
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;margin:6px 0 18px;border-collapse:collapse;">${details
+        .map(
+          (row) =>
+            `<tr><td width="36%" style="width:36%;padding:8px 12px 8px 0;border-top:1px solid #e6eae7;color:#778079;font-size:13px;line-height:1.5;vertical-align:top;">${escapeHtml(row.label)}</td><td style="padding:8px 0;border-top:1px solid #e6eae7;color:#171a18;font-size:15px;line-height:1.5;vertical-align:top;word-break:break-word;">${escapeHtml(row.value)}</td></tr>`,
+        )
+        .join("")}</table>`
+    : "";
+  const quoteHtml = copy.quote?.text
+    ? `<p style="margin:18px 0 6px;color:#778079;font-size:13px;line-height:1.5;">${escapeHtml(copy.quote.label)}</p><div style="margin:0 0 18px;padding:14px 18px;border-left:3px solid ${accent};background:#f5f7f5;color:#171a18;font-size:15px;line-height:1.65;white-space:pre-line;">${escapeHtml(copy.quote.text)}</div>`
+    : "";
+  const detailLines = [
+    ...(details.length ? ["", ...details.map((row) => `${row.label}: ${row.value}`)] : []),
+    ...(copy.quote?.text ? ["", `${copy.quote.label}:`, copy.quote.text] : []),
+  ];
   const note = copy.note
     ? `<div style="margin-top:28px;padding:16px 18px;border:1px solid #dde3de;border-radius:12px;background:#f5f7f5;color:#626a65;font-size:13px;line-height:1.6;">${escapeHtml(copy.note)}</div>`
     : "";
@@ -1862,6 +1915,8 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
             <p style="margin:0 0 13px;color:${accent};font-size:12px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;">${escapeHtml(copy.eyebrow)}</p>
             <h1 class="email-heading" style="margin:0 0 24px;color:#171a18;font-size:31px;line-height:1.18;letter-spacing:-0.025em;">${escapeHtml(copy.heading)}</h1>
             ${copy.paragraphs.map(paragraphHtml).join("")}
+            ${detailsHtml}
+            ${quoteHtml}
             ${action}
             ${moreActions}
             ${secondaryAction}
@@ -1886,6 +1941,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     copy.heading,
     "",
     ...copy.paragraphs,
+    ...detailLines,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
     ...(copy.moreActions ?? []).flatMap((extra) => ["", `${extra.label}: ${extra.url}`]),
     ...(copy.secondaryAction
@@ -1907,6 +1963,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     copy.heading,
     "",
     ...copy.paragraphs,
+    ...detailLines,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
     ...(copy.moreActions ?? []).flatMap((extra) => ["", `${extra.label}: ${extra.url}`]),
     ...(copy.secondaryAction

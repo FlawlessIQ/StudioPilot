@@ -8,6 +8,12 @@ import { studioNotificationAddress } from "../communications/notify-address.js";
  * usually writing to three or four photographers at once. One email per
  * inquiry — keyed on the lead, so a retried capture never sends two — and
  * never for a "maybe", which waits for the studio to say it is one.
+ *
+ * An inquiry from the studio's own form carries everything the couple wrote,
+ * and replies go to the couple: the studio can answer from its own inbox
+ * without opening StudioCue first. One captured from the inbox does neither —
+ * the original is already sitting in that inbox, and the address it read may
+ * be a form builder's no-reply.
  */
 export async function queueNewInquiryAlert(
   db: Firestore,
@@ -20,6 +26,15 @@ export async function queueNewInquiryAlert(
     availability: string | null;
     sourceLabel: string | null;
     now: string;
+    /** What they told the studio, for a studio to answer without opening StudioCue. */
+    inquiry?: {
+      email: string;
+      firstName: string;
+      details: Array<{ label: string; value: string }>;
+      message: string;
+      /** They already have a job open; this joined it. */
+      returning: boolean;
+    };
   },
 ): Promise<void> {
   const recipient = await studioNotificationAddress(db, input.tenantId).catch(() => null);
@@ -46,11 +61,72 @@ export async function queueNewInquiryAlert(
       eventDateLabel,
       availability: input.availability ?? "unknown",
       sourceLabel: input.sourceLabel ?? "",
+      ...(input.inquiry
+        ? {
+            // operations/jobs.ts puts these on Reply-To.
+            replyAddress: input.inquiry.email,
+            replyName: input.coupleName,
+            replyToCouple: true,
+            coupleFirstName: input.inquiry.firstName,
+            details: input.inquiry.details,
+            message: input.inquiry.message,
+            returning: input.inquiry.returning,
+          }
+        : {}),
       actionUrl: input.projectId ? `${appUrl}/studio/projects/${input.projectId}` : `${appUrl}/studio/leads/${input.leadId}`,
       status: "queued",
       attempts: 0,
       createdAt: input.now,
       updatedAt: input.now,
     });
+  });
+}
+
+const COI_LABELS: Record<string, string> = { yes: "Yes", no: "No", not_sure: "Not sure" };
+
+/**
+ * The rows of a form inquiry, in the order a studio reads them: how to reach
+ * them, then the day, then the studio's own questions. Only what was answered —
+ * a form that hid a field leaves no empty row. Pure.
+ */
+export function formInquiryDetails(input: {
+  email: string;
+  phone: string | null;
+  partnerName: string | null;
+  eventTypeLabel: string | null;
+  venue: string | null;
+  city: string | null;
+  estimatedGuestCount: number | null;
+  servicesRequested: string[];
+  budgetRange: string | null;
+  referralSource: string | null;
+  coiRequired: string | null;
+  venueContactName: string | null;
+  venueContactEmail: string | null;
+  answers: Array<{ question: string; answer: string }>;
+}): Array<{ label: string; value: string }> {
+  const service = (key: string) => {
+    const words = key.replaceAll("_", " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  };
+  const venueContact = [input.venueContactName, input.venueContactEmail].filter(Boolean).join(", ");
+  const rows: Array<[string, string | null | undefined]> = [
+    ["Email", input.email],
+    ["Phone", input.phone],
+    ["Partner", input.partnerName],
+    ["Event", input.eventTypeLabel],
+    ["Venue", input.venue],
+    ["City", input.venue && input.city && input.venue.includes(input.city) ? null : input.city],
+    ["Guests", input.estimatedGuestCount ? String(input.estimatedGuestCount) : null],
+    ["Looking for", input.servicesRequested.map(service).join(", ")],
+    ["Budget", input.budgetRange],
+    ["Heard about you", input.referralSource],
+    ["Venue needs insurance", input.coiRequired ? COI_LABELS[input.coiRequired] ?? null : null],
+    ["Venue contact", venueContact],
+    ...input.answers.map((entry): [string, string] => [entry.question, entry.answer]),
+  ];
+  return rows.flatMap(([label, value]) => {
+    const text = typeof value === "string" ? value.trim() : "";
+    return text ? [{ label, value: text }] : [];
   });
 }

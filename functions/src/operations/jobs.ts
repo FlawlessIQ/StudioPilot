@@ -1008,8 +1008,15 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   // `reply+Y29udl8wZDhjMj...@inbound.studio-cue.com` sitting in the To field —
   // which looks like machine spam from the studio they just booked. Mail clients
   // show the display name instead when one is present, so they see the studio.
+  //
+  // A job that names whose address it is (the new-inquiry alert, replying to
+  // the couple) carries that name instead: a studio replying to a couple
+  // should see the couple in To, not itself.
   if (replyAddress) {
-    payload.reply_to = { email: replyAddress, name: fromName };
+    payload.reply_to = {
+      email: replyAddress,
+      name: (!threadReplyAddress && firstString(document.get("replyName"))) || fromName,
+    };
   }
   if (type === "coi_venue_delivery") {
     const documentId = String(document.get("documentId") ?? "");

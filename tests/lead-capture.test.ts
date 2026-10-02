@@ -852,3 +852,34 @@ test("a new inquiry emails the studio once; a maybe doesn't", async () => {
   });
   assert.equal(store.has(`emailJobs/new_inquiry_${maybe.leadId}`), false);
 });
+
+test("a form inquiry's alert lists only what was answered, contact first", async () => {
+  const { formInquiryDetails } = await import("../functions/src/intake/new-inquiry-alert");
+  const rows = formInquiryDetails({
+    email: "gabe@example.test",
+    phone: "555-0100",
+    partnerName: null,
+    eventTypeLabel: "Wedding",
+    venue: "The Rockleigh, Rockleigh, NJ",
+    city: "Rockleigh",
+    estimatedGuestCount: 140,
+    servicesRequested: ["photography", "engagement_session"],
+    budgetRange: null,
+    referralSource: "Instagram",
+    coiRequired: "not_sure",
+    venueContactName: null,
+    venueContactEmail: null,
+    answers: [{ question: "Getting ready at the venue?", answer: "Yes" }],
+  });
+  assert.deepEqual(rows, [
+    { label: "Email", value: "gabe@example.test" },
+    { label: "Phone", value: "555-0100" },
+    { label: "Event", value: "Wedding" },
+    { label: "Venue", value: "The Rockleigh, Rockleigh, NJ" },
+    { label: "Guests", value: "140" },
+    { label: "Looking for", value: "Photography, Engagement session" },
+    { label: "Heard about you", value: "Instagram" },
+    { label: "Venue needs insurance", value: "Not sure" },
+    { label: "Getting ready at the venue?", value: "Yes" },
+  ]);
+});

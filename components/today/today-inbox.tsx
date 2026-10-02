@@ -1265,6 +1265,19 @@ function InquiryActions({
               <Pencil size={13} /> Edit
             </button>
           ) : null}
+          {reply && !action.followUp ? (
+            // The new-inquiry email replies to the couple, so the studio may
+            // have answered from its own inbox: put the drafted reply away
+            // rather than let one tap send them a second answer.
+            <button
+              className={secondaryClass}
+              disabled={busy !== null}
+              onClick={() => void lifecycle("inquiryHeardElsewhere", { studioReplied: true })}
+              type="button"
+            >
+              Replied by email
+            </button>
+          ) : null}
           {action.followUp ? (
             // They may well have answered in the studio's own inbox, which
             // StudioCue can't see: say so, and nobody is chased who replied.

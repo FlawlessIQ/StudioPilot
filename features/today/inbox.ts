@@ -845,6 +845,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectId: job?.id ?? null,
       leadId: lead.id,
       receivedAt: arrivedAt(lead),
+      repliedOutsideAt: text(lead.repliedOutsideAt) || null,
     });
     // Answered, and waiting on the couple: nothing for the studio to do —
     // unless a follow-up is drafted, or it has been quiet long enough to close.

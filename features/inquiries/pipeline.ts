@@ -147,6 +147,7 @@ export function inquiryPipeline(input: {
       projectId: project.id,
       leadId: lead?.id ?? null,
       receivedAt: text(lead?.createdAt) || text(project.createdAt) || null,
+      repliedOutsideAt: text(lead?.repliedOutsideAt) || null,
     });
     const reason = text(project.lostReason);
     const stage = lost ? "closed" : inquiryStage(state, move.replied);
@@ -183,6 +184,7 @@ export function inquiryPipeline(input: {
       conversations: input.conversations,
       leadId: lead.id,
       receivedAt: text(lead.createdAt) || null,
+      repliedOutsideAt: text(lead.repliedOutsideAt) || null,
     });
     rows.push({
       id: lead.id,

@@ -543,6 +543,14 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({
       projectId: z.string().min(1).nullable().default(null),
       leadId: z.string().min(1).nullable().default(null),
+      /**
+       * The other way round: the studio answered from its own inbox (the
+       * new-inquiry alert's Reply-To is the couple). Their move now, and the
+       * drafted reply is put away so it isn't sent as a second answer. No
+       * follow-up round starts — the couple's answer lands in that inbox too,
+       * where StudioCue can't see it.
+       */
+      studioReplied: z.boolean().default(false),
     }),
   }),
   z.object({
@@ -4308,7 +4316,9 @@ export const crmCommand = onRequest(
                 return (
                   forThisCouple &&
                   (capability === "inquiry_follow_up" ||
-                    (kind === "closeInquiry" && capability === "inquiry_reply_draft"))
+                    ((kind === "closeInquiry" ||
+                      (lifecycle.type === "inquiryHeardElsewhere" && lifecycle.input.studioReplied)) &&
+                      capability === "inquiry_reply_draft"))
                 );
               })
             : [];
@@ -4392,6 +4402,16 @@ export const crmCommand = onRequest(
               });
             }
             output = { ...output, reopened: true };
+          } else if (lifecycle.type === "inquiryHeardElsewhere" && lifecycle.input.studioReplied) {
+            for (const lead of inquiry.leads) {
+              transaction.update(lead.ref, {
+                repliedOutsideAt: timestamp,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+            }
+            retire("The studio replied from its own inbox.");
+            output = { ...output, studioReplied: true };
           } else if (kind === "inquiryHeardElsewhere") {
             for (const lead of inquiry.leads) {
               transaction.update(lead.ref, {

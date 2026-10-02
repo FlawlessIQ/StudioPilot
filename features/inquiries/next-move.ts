@@ -40,15 +40,20 @@ const later = (a: string | null, b: string | null): string | null => (!a ? b : !
 /**
  * `receivedAt` is when the inquiry arrived: before any thread exists (a form
  * inquiry a moment old), the studio owes the first reply from then.
+ *
+ * `repliedOutsideAt` is the studio saying it answered from its own inbox
+ * (the lead's `repliedOutsideAt`, set by "Replied by email" on Today).
+ * StudioCue can't see that inbox, so it counts as a reply sent then.
  */
 export function inquiryNextMove(input: {
   conversations: readonly InquiryConversation[];
   projectId?: string | null;
   leadId?: string | null;
   receivedAt?: string | null;
+  repliedOutsideAt?: string | null;
 }): InquiryNextMove {
   let lastInboundAt: string | null = null;
-  let lastOutboundAt: string | null = null;
+  let lastOutboundAt: string | null = input.repliedOutsideAt || null;
   for (const conversation of input.conversations) {
     if (text(conversation.movedTo)) continue;
     const onJob = input.projectId && text(conversation.projectId) === input.projectId;
