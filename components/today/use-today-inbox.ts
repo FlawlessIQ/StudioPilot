@@ -1,6 +1,7 @@
 "use client";
 
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
+import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deliverables";
 import { jobExpectedDeliverables } from "@/features/post-event/job-deliverables";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
@@ -203,6 +204,7 @@ export function useTodayInbox(): {
       });
       const { current } = projectJourney({
         projectId,
+        profile: projectProfile(project),
         state: text(project.state),
         eventDate: text(project.eventDate) || null,
         today,

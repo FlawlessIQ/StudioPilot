@@ -382,3 +382,125 @@ export function bookingGateNeeds(profile: Pick<JourneyProfile, "agreement" | "pa
 export function hasFinalBalance(profile: Pick<JourneyProfile, "payment">): boolean {
   return profile.payment === "deposit_and_balance";
 }
+
+/**
+ * A job's profile, from the job itself: its kind, and the payment shape its
+ * package carried onto it (`paymentShape`, written when the package is
+ * chosen). What the booking gate, the schedulers and the journey all read.
+ */
+export function projectProfile(project: unknown): JourneyProfile {
+  const record = (project && typeof project === "object" ? project : {}) as { paymentShape?: unknown };
+  return journeyProfile(jobKindOf(project), { payment: record.paymentShape });
+}
+
+/** What booking this job needs — the booking gate's `needs` (gate-requirements.ts). */
+export function projectGateNeeds(project: unknown): {
+  agreement: boolean;
+  payment: boolean;
+  exclusiveDay: boolean;
+} {
+  const profile = projectProfile(project);
+  return { ...bookingGateNeeds(profile), exclusiveDay: profile.exclusiveDay };
+}
+
+/**
+ * The day a job's details form goes out. Weddings follow the studio's
+ * planning timeline (passed in — planning-timeline.ts counts it in months);
+ * every other kind counts back its profile's days. Null for an undated job
+ * or a kind that sends no details form.
+ */
+export function detailsFormOpensOn(
+  project: unknown,
+  eventDate: string | null | undefined,
+  weddingOpensOn: string | null,
+): string | null {
+  const profile = projectProfile(project);
+  if (profile.detailsFormDaysBefore === null) return null;
+  if (profile.kind === "wedding") return weddingOpensOn;
+  const day = String(eventDate ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const value = new Date(`${day}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() - profile.detailsFormDaysBefore);
+  return value.toISOString().slice(0, 10);
+}
+
+/** Whether the final details lock (and the sign-off before it) apply to this job. */
+export function finalDetailsLockApplies(project: unknown): boolean {
+  return projectProfile(project).finalDetailsLock;
+}
+
+/**
+ * Whether a job's date clashes with jobs already on that day.
+ *
+ * One booking per day was the rule for everything, which is right for a
+ * wedding and wrong for family sessions — several fit in a day. So a day is
+ * taken when either side is a whole-day kind (`exclusiveDay`): a wedding
+ * blocks the sessions, a session doesn't block another session. `others` are
+ * the jobs already holding the date (booked, not archived), the caller's
+ * filter.
+ */
+export function dateClashes(project: unknown, others: readonly unknown[]): boolean {
+  const exclusive = projectProfile(project).exclusiveDay;
+  return others.some((other) => exclusive || projectProfile(other).exclusiveDay);
+}
+
+const ON_THE_DAY_STATES = ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"];
+const AFTER_EVENT_STATES = ["EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"];
+
+function shiftDay(day: string, days: number): string {
+  const value = new Date(`${day}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+/**
+ * When a job that booked with nothing paid gets its one bill, and when it is
+ * due — or null when today isn't that time (or the job bills another way).
+ *
+ * - **Paid on the day** (sports): from a fortnight before, due on the day. A
+ *   "Take payment" on the day settles it, or the client pays the link.
+ * - **Invoiced after** (some corporate work): once the job is shot, due in
+ *   thirty days.
+ *
+ * Offered to the studio on Today, never raised by the scheduler: no customer
+ * exists for these jobs yet, and nothing new is billed without someone
+ * choosing to (final-balance billing, 2026-09-30).
+ */
+export function singleBillWindow(project: unknown, today: string): { dueDate: string } | null {
+  const fields = (project ?? {}) as { state?: unknown; eventDate?: unknown };
+  const eventDate = String(fields.eventDate ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) return null;
+  const state = String(fields.state ?? "");
+  const payment = projectProfile(project).payment;
+  if (payment === "on_the_day") {
+    if (!ON_THE_DAY_STATES.includes(state) || eventDate > shiftDay(today, 14)) return null;
+  } else if (payment === "invoice_after") {
+    if (!AFTER_EVENT_STATES.includes(state) || eventDate > today) return null;
+  } else return null;
+  return { dueDate: singleBillDueDate(project) ?? eventDate };
+}
+
+/** When a job's one bill is due: the day itself, or thirty days after it. Null for a deposit or paid-in-full job. */
+export function singleBillDueDate(project: unknown): string | null {
+  const eventDate = String(((project ?? {}) as { eventDate?: unknown }).eventDate ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) return null;
+  const payment = projectProfile(project).payment;
+  if (payment === "on_the_day") return eventDate;
+  if (payment === "invoice_after") return shiftDay(eventDate, 30);
+  return null;
+}
+
+/**
+ * What books a job of this profile, as a clause: "the agreement is signed and
+ * the retainer is paid". One sentence for the Booking tab, Cue's card and the
+ * help, so none of them tells a family-session studio about a contract.
+ */
+export function bookedOnceClause(profile: Pick<JourneyProfile, "agreement" | "payment">): string {
+  const needs = bookingGateNeeds(profile);
+  const payment =
+    profile.payment === "paid_in_full" ? "it's paid in full" : needs.payment ? "the retainer is paid" : null;
+  if (needs.agreement && payment) return `the agreement is signed and ${payment}`;
+  if (needs.agreement) return "the agreement is signed";
+  if (payment) return payment;
+  return "the date and client details check out";
+}

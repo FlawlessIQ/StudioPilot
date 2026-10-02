@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { applyMessageToConversation } from "../communications/conversation.js";
 import { convertInquiryToJob } from "./convert.js";
 import { normaliseInquiryFormConfig, resolveInquiryEventType } from "./inquiry-form-config.js";
-import { jobKindFromLabel, jobKindOf } from "../job-kinds/job-kinds.js";
+import { dateClashes, jobKindFromLabel, jobKindOf } from "../job-kinds/job-kinds.js";
 import { queueNewInquiryAlert } from "./new-inquiry-alert.js";
 import {
   BUILDER_LABEL,
@@ -424,11 +424,6 @@ async function writeLead(
   const existingContact = contactResult?.docs[0];
   const contactId = fields.email ? (existingContact?.id ?? randomUUID()) : null;
   // An archived job holds no date.
-  const availabilityStatus = !fields.eventDate
-    ? "unknown"
-    : dateConflicts?.docs.some((project) => !project.get("archivedAt"))
-      ? "conflict"
-      : "available";
   const marketplace = MARKETPLACES.has(read.builder);
   const source = read.builder === "unknown" ? "forwarded_email" : marketplace ? `marketplace_${read.builder}` : "website_form";
   const actor = "inquiry-capture";
@@ -452,6 +447,17 @@ async function writeLead(
     : fields.eventTypeLabel
       ? (jobKindFromLabel(fields.eventTypeLabel) ?? "other")
       : jobKindOf({ eventTypeId: tenantData?.defaultEventTypeId ?? "wedding" });
+  // A wedding takes the whole day; two sessions can share one (dateClashes).
+  const availabilityStatus = !fields.eventDate
+    ? "unknown"
+    : dateClashes(
+          { eventKind: capturedKind },
+          (dateConflicts?.docs ?? [])
+            .filter((project) => !project.get("archivedAt"))
+            .map((project) => project.data()),
+        )
+      ? "conflict"
+      : "available";
   const batch = db.batch();
   if (contactId && !existingContact) {
     batch.create(db.doc(`contacts/${contactId}`), {

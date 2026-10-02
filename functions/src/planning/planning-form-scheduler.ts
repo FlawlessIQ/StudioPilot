@@ -5,6 +5,7 @@ import { INQUIRY_FORM_SETTINGS_PATH, resolveInquiryFormTemplate } from "../intak
 import { liveAssignmentFor } from "./questionnaire-lifecycle.js";
 import { planningFormOpensOn, resolvePlanningTimeline, type PlanningTimeline } from "./planning-timeline.js";
 import { sendNewQuestionnaire } from "./send-questionnaire.js";
+import { detailsFormOpensOn, jobKindOf } from "../job-kinds/job-kinds.js";
 
 /**
  * The planning form, sent when the studio's timeline says.
@@ -29,7 +30,9 @@ export function planningFormDue(project: Row, timeline: PlanningTimeline, today:
   if (timeline.formSend !== "auto") return false;
   if (!BOOKED.includes(text(project.state))) return false;
   const eventDate = text(project.eventDate).slice(0, 10);
-  const opensOn = planningFormOpensOn(eventDate, timeline);
+  // A wedding's form follows the studio's timeline; a session's goes two
+  // weeks out (job-kinds.ts).
+  const opensOn = detailsFormOpensOn(project, eventDate, planningFormOpensOn(eventDate, timeline));
   if (!opensOn || today < opensOn || today >= eventDate) return false;
   return clientOutreachStop(project) === null;
 }
@@ -37,8 +40,13 @@ export function planningFormDue(project: Row, timeline: PlanningTimeline, today:
 type Studio = { timeline: PlanningTimeline; templates: Array<Row & { id: string }>; inquiryFormId: string | null };
 
 /** The form this studio's couples get: the chosen one at its live version, else the newest for the event type that isn't the inquiry form. */
-export function planningFormTemplate(studio: Studio, eventTypeId: string): (Row & { id: string }) | null {
-  if (studio.timeline.formTemplateId) return resolveInquiryFormTemplate(studio.templates as never, studio.timeline.formTemplateId) as (Row & { id: string }) | null;
+export function planningFormTemplate(
+  studio: Studio,
+  eventTypeId: string,
+  /** The studio's chosen form is its wedding planning form; other kinds get their own. */
+  useStudioChoice = true,
+): (Row & { id: string }) | null {
+  if (useStudioChoice && studio.timeline.formTemplateId) return resolveInquiryFormTemplate(studio.templates as never, studio.timeline.formTemplateId) as (Row & { id: string }) | null;
   const inquiry = studio.inquiryFormId ? resolveInquiryFormTemplate(studio.templates as never, studio.inquiryFormId) : null;
   const candidates = studio.templates
     .filter((template) => template.status === "active" && !template.archivedAt)
@@ -65,7 +73,11 @@ async function sendOne(db: Firestore, project: DocumentSnapshot, studio: Studio,
   const data = project.data() ?? {};
   const tenantId = text(data.tenantId);
   if (!planningFormDue(data, studio.timeline, today)) return "not_due";
-  const template = planningFormTemplate(studio, text(data.eventTypeId));
+  const kind = jobKindOf(data);
+  const template =
+    planningFormTemplate(studio, text(data.eventTypeId), kind === "wedding") ??
+    // A job filed under a studio's own id still finds the form for its kind.
+    planningFormTemplate(studio, kind, kind === "wedding");
   if (!template) return "no_form";
   const responses = await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", project.id).get();
   const live = liveAssignmentFor(

@@ -62,6 +62,7 @@ import {
   staleVendorShares,
 } from "./schedule-lifecycle.js";
 import { detailsLocked, detailsLockOn, resolvePlanningTimeline } from "./planning-timeline.js";
+import { finalDetailsLockApplies } from "../job-kinds/job-kinds.js";
 import { decideDetailChange, requestDetailChange } from "./detail-changes.js";
 import { lockingFieldIds } from "./details-lock.js";
 import { templateLinkProblems } from "./template-rules.js";
@@ -739,8 +740,9 @@ export const planningCommand = onRequest(
           filled,
           // "I'm the bride / I'm the groom", for a form that asks by role.
           roleChoices,
-          locked: detailsLocked(eventDate, now.slice(0, 10), timeline),
-          lockOn: detailsLockOn(eventDate, timeline),
+          // Only a kind of job with a final-details lock has one (job-kinds.ts).
+          locked: finalDetailsLockApplies(projectSnapshot.data()) && detailsLocked(eventDate, now.slice(0, 10), timeline),
+          lockOn: finalDetailsLockApplies(projectSnapshot.data()) ? detailsLockOn(eventDate, timeline) : null,
           lockingFieldIds: [...lockingFieldIds(plainRecord(responseSnapshot.get("templateSnapshot")).sections)],
           pendingChanges: pending.docs
             .filter((request) => request.get("status") === "pending")
@@ -815,11 +817,13 @@ export const planningCommand = onRequest(
             db.doc(`projects/${parsed.input.projectId}`).get(),
             db.doc(`tenants/${parsed.tenantId}`).get(),
           ]);
-          const locked = detailsLocked(
-            String(projectSnapshot.get("eventDate") ?? ""),
-            now.slice(0, 10),
-            resolvePlanningTimeline(tenantSnapshot.get("planningTimeline")),
-          );
+          const locked =
+            finalDetailsLockApplies(projectSnapshot.data()) &&
+            detailsLocked(
+              String(projectSnapshot.get("eventDate") ?? ""),
+              now.slice(0, 10),
+              resolvePlanningTimeline(tenantSnapshot.get("planningTimeline")),
+            );
           if (locked) {
             const locking = lockingFieldIds(plainRecord(snapshot.get("templateSnapshot")).sections);
             if (changes.some((change) => locking.has(change.fieldId)))

@@ -26,8 +26,9 @@ export default async function BookingPage({
             <p className="eyebrow">Agreement and payment</p>
             <h2>Getting them booked</h2>
             <p>
-              The job is booked once the agreement is signed and the retainer
-              is paid — confirmed by a connected app, or recorded by you.
+              The job is booked once what its kind asks for is in — a signed
+              agreement and a retainer for a wedding, payment alone for a
+              family session — confirmed by a connected app, or recorded by you.
             </p>
           </section>
           <ProjectBookingWorkspace projectId={project} />

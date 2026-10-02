@@ -14,6 +14,7 @@ import { bookingSteps, type BookingStepsView } from "@/features/client/booking-s
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { MOCK_CLIENT_PROJECT } from "@/features/client/mock-project";
+import { bookingGateNeeds, journeyProfile, jobKindOf, isPaymentShape } from "@/features/job-kinds/job-kinds";
 
 type RecordValue = Record<string, unknown> & { id: string };
 export type Loadable<T> = {
@@ -444,6 +445,20 @@ export const date = (value: unknown) => {
 };
 
 /**
+ * What this client's job needs to book: an agreement, a payment, and whether
+ * that payment is the whole price (features/job-kinds). Both, as for a
+ * wedding, until the project has loaded.
+ */
+export function useBookingNeeds(): { agreement: boolean; payment: boolean; paidInFull: boolean } {
+  const project = useProject().value;
+  if (!project) return { agreement: true, payment: true, paidInFull: false };
+  const profile = journeyProfile(jobKindOf(project), {
+    payment: isPaymentShape(project.paymentShape) ? project.paymentShape : undefined,
+  });
+  return { ...bookingGateNeeds(profile), paidInFull: profile.payment === "paid_in_full" };
+}
+
+/**
  * Where the couple is in reserving their date, or null outside booking.
  *
  * Null before any proposal is shared and once the date is booked: the
@@ -453,6 +468,7 @@ export const date = (value: unknown) => {
  * the couple reloading.
  */
 export function useReserveYourDate(): BookingStepsView | null {
+  const needs = useBookingNeeds();
   const proposals = useProjectRecords("proposals");
   const contracts = useProjectRecords("contracts");
   const invoices = useProjectRecords("invoiceReferences");
@@ -479,6 +495,7 @@ export function useReserveYourDate(): BookingStepsView | null {
                 atProvider: retainer.atProvider === true,
               }
             : null,
+          needs,
         })
       : null;
   const waiting = Boolean(

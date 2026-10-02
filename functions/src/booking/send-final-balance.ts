@@ -3,6 +3,7 @@ import { z } from "zod";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
 import { balanceMayBeAttested } from "./agreed-final-balance.js";
 import { raiseFinalInvoice } from "./final-invoice.js";
+import { bookingGateNeeds, projectProfile, singleBillDueDate } from "../job-kinds/job-kinds.js";
 
 /**
  * "Send the final bill", asked for by a person.
@@ -71,6 +72,11 @@ export async function sendFinalBalance(
       now: new Date().toISOString(),
       provider,
       resolveCustomer: true,
+      // Booked with nothing paid (paid on the day, invoiced after): this bill
+      // is the whole price, not a balance after a retainer (job-kinds.ts).
+      billedWithoutRetainer: !bookingGateNeeds(projectProfile(project.data())).payment,
+      // Due on the day, or thirty days after it — not a fortnight before.
+      dueDate: singleBillDueDate(project.data()) ?? undefined,
     }),
   );
   if (!outcome.raised) throw new Error(REASON_TO_ERROR[outcome.reason] ?? "FINAL_INVOICE_NOT_RAISED");

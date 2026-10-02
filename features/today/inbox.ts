@@ -22,6 +22,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
+import { hasFinalBalance, projectProfile, singleBillWindow } from "@/features/job-kinds/job-kinds";
 import { ignorableSenderOf, notInquiryAllowed } from "@/features/intake/not-inquiry";
 import {
   inquiryDraftIsOrphaned,
@@ -57,8 +58,8 @@ import { planningFormOpensOn, resolvePlanningTimeline } from "@/features/plannin
 /** A couple emailed for their billing address: Today offers "Ask again" after this many days. */
 const BILLING_ADDRESS_ASK_AGAIN_DAYS = 5;
 
-/** When a final balance becomes Today's business: the journey's own "one month out" step opens at 45. */
-const FINAL_BALANCE_WINDOW_DAYS = 45;
+/** When a final balance becomes Today's business: four weeks out, when the scheduler raises it (B11). */
+const FINAL_BALANCE_WINDOW_DAYS = 28;
 
 export type TodayLane = "act" | "approve" | "fyi";
 
@@ -1666,8 +1667,15 @@ export function todayInbox(input: TodayInput): TodayInbox {
   const finalBalanceProjectIds = new Set<string>();
   for (const job of rows(input.projects)) {
     if (job.archivedAt || !balanceMayBeAttested(text(job.state))) continue;
-    const days = calendarDayDiff(text(job.eventDate) || null, now);
-    if (days === null || days > FINAL_BALANCE_WINDOW_DAYS) continue;
+    // A deposit leaves a balance, billed from four weeks out. Paid in full
+    // owes nothing more. Paid on the day or invoiced after is one bill for
+    // the whole price, offered when it falls due (job-kinds.ts).
+    const profile = projectProfile(job);
+    const singleBill = hasFinalBalance(profile) ? null : singleBillWindow(job, input.now.slice(0, 10));
+    if (hasFinalBalance(profile)) {
+      const days = calendarDayDiff(text(job.eventDate) || null, now);
+      if (days === null || days > FINAL_BALANCE_WINDOW_DAYS) continue;
+    } else if (!singleBill) continue;
     const due = outstandingFinalBalance({
       projectId: job.id,
       proposals: rows(input.proposals) as Array<Record<string, unknown> & { id: string }>,
@@ -1727,9 +1735,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
       id: `final-balance-${job.id}`,
       lane: "act",
       kind: "invoice",
-      title: `Bill ${text(job.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s final balance · ${amount}`,
+      title: singleBill
+        ? `Bill ${text(job.name).trim() || "the client"} · ${amount}`
+        : `Bill ${text(job.name).replace(/\s+wedding$/i, "").trim() || "the couple"}'s final balance · ${amount}`,
       detail: [
-        due.dueDate ? `Due ${formatDueDate(due.dueDate)}.` : null,
+        (singleBill?.dueDate ?? due.dueDate) ? `Due ${formatDueDate((singleBill?.dueDate ?? due.dueDate)!)}.` : null,
+        singleBill && profile.payment === "on_the_day" ? "Paid on the day: send the link now, or take payment on the day." : null,
         due.lastFailure
           ? `The last try didn't go through. ${due.lastFailure}`
           : "Nothing has billed it yet. Send it from here, or record it if they paid another way.",
@@ -1741,7 +1752,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectName: text(job.name) || null,
       action: {
         kind: "final_balance",
-        label: due.lastFailure ? "Send it again" : "Send the final bill",
+        label: due.lastFailure ? "Send it again" : singleBill ? "Send the bill" : "Send the final bill",
         projectId: job.id,
         packageSnapshotId: text(job.packageSnapshotId) || null,
         balanceCents: due.cents,

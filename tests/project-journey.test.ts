@@ -128,7 +128,7 @@ test("a booked project with a submitted form points at the run of show", () => {
   );
 });
 
-test("the final balance stays upcoming until 45 days out, then activates", () => {
+test("the final balance stays upcoming until four weeks out, then activates", () => {
   const planned: JourneyInput = {
     ...base,
     state: "PLANNING",
@@ -149,7 +149,10 @@ test("the final balance stays upcoming until 45 days out, then activates", () =>
     early.steps.find((step) => step.key === "final_balance")?.status,
     "upcoming",
   );
-  const near = projectJourney({ ...planned, today: "2026-09-14" });
+  // 30 days out: still upcoming — the bill goes out at 28, when Today offers it.
+  const month = projectJourney({ ...planned, today: "2026-09-14" });
+  assert.equal(month.steps.find((step) => step.key === "final_balance")?.status, "upcoming");
+  const near = projectJourney({ ...planned, today: "2026-09-16" });
   assert.equal(near.current?.key, "final_balance");
 });
 

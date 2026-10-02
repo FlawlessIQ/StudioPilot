@@ -2,6 +2,7 @@ import { getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { raiseFinalInvoice } from "../booking/final-invoice.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
+import { hasFinalBalance, projectProfile } from "../job-kinds/job-kinds.js";
 
 const date = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -58,6 +59,11 @@ export function mayMarkOverdue(
 /** Pure: whether the daily run may raise this job's final bill. */
 export function mayRaiseFinalBill(project: unknown, today: string, horizon: string): boolean {
   const fields = (project ?? {}) as { state?: unknown; eventDate?: unknown };
+  // Only a deposit leaves a balance to bill before the day (job-kinds.ts):
+  // a job paid in full has nothing owed, and one paid on the day or invoiced
+  // after is offered on Today (singleBillWindow) — there is no customer to
+  // bill yet, and nothing new is billed without someone choosing to.
+  if (!hasFinalBalance(projectProfile(project))) return false;
   if (!FINAL_BILL_STATES.includes(String(fields.state ?? ""))) return false;
   const eventDate = typeof fields.eventDate === "string" ? fields.eventDate : "";
   if (!eventDate || eventDate < today || eventDate > horizon) return false;

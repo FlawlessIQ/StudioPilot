@@ -63,7 +63,7 @@ test("what locks is where and when; little things stay the couple's", () => {
 
 test("the scheduler sends only for a studio on automatic, from the day planning opens, never to a quiet job", () => {
   const auto = { ...DEFAULT_PLANNING_TIMELINE, formSend: "auto" as const };
-  const job = (fields: Record<string, unknown> = {}) => ({ state: "BOOKED", eventDate: "2027-06-12", ...fields });
+  const job = (fields: Record<string, unknown> = {}) => ({ state: "BOOKED", eventDate: "2027-06-12", eventType: "Wedding", ...fields });
   assert.equal(planningFormDue(job(), auto, "2026-12-12"), true);
   assert.equal(planningFormDue(job(), auto, "2026-12-11"), false, "not yet");
   assert.equal(planningFormDue(job(), DEFAULT_PLANNING_TIMELINE, "2026-12-12"), false, "remind: Today offers it instead");

@@ -1,13 +1,20 @@
 import { prepareOnAcceptance } from "../contracts/commands.js";
 import { studioVouchedAuthorities } from "../imports/existing-booking.js";
 import { createHash } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import {
+  getFirestore,
+  type DocumentReference,
+  type DocumentSnapshot,
+  type Firestore,
+  type QuerySnapshot,
+} from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { jobCalledOff, refundOrKeepTask } from "./stopped-billing.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
+import { dateClashes, jobKindOf, projectGateNeeds } from "../job-kinds/job-kinds.js";
 import {
   requireProviderForTenant,
   resolveProviderForTenant,
@@ -115,6 +122,19 @@ export const bookingProposalAccepted = onDocumentWritten(
     const tenantId = String(proposal.get("tenantId") ?? "");
     const projectId = String(proposal.get("projectId") ?? "");
     if (!tenantId || !projectId) return;
+
+    // A kind of job that books without an agreement — a family session, a
+    // sports day (job-kinds.ts; GR Productions, 2026-10-02) — goes straight
+    // to payment, or straight to booked when nothing is paid to book.
+    const acceptedProject = await db.doc(`projects/${projectId}`).get();
+    if (
+      acceptedProject.exists &&
+      acceptedProject.get("tenantId") === tenantId &&
+      !projectGateNeeds(acceptedProject.data()).agreement
+    ) {
+      await bookWithoutAgreement(db, { tenantId, projectId, proposal });
+      return;
+    }
 
     // StudioCue's own contracts come first: when the studio has saved an
     // agreement, the contract is written from it and waits as a draft (or is
@@ -637,6 +657,43 @@ export const bookingRetainerPaid = onDocumentWritten(
       return;
     }
 
+    await runAutomaticGate(db, {
+      tenantId,
+      projectId,
+      invoice,
+      contracts,
+      project,
+      planReference,
+      projectReference,
+      triggerId: invoice.id,
+    });
+  },
+);
+
+/**
+ * The automatic booking gate, once the job's requirements may be met.
+ *
+ * Run when a retainer is paid (bookingRetainerPaid), and — for a kind of job
+ * that books without paying (a sports day, an invoice-after corporate job) —
+ * when its proposal is accepted (bookWithoutAgreement). One copy, because two
+ * gates that disagree are how jobs book that shouldn't (gate-requirements.ts).
+ * `invoice` is null when no payment was asked for.
+ */
+async function runAutomaticGate(
+  db: Firestore,
+  input: {
+    tenantId: string;
+    projectId: string;
+    invoice: DocumentSnapshot | null;
+    contracts: QuerySnapshot;
+    project: DocumentSnapshot;
+    planReference: DocumentReference;
+    projectReference: DocumentReference;
+    /** What fired this: the invoice, or the accepted proposal. Keys the ids. */
+    triggerId: string;
+  },
+): Promise<void> {
+  const { tenantId, projectId, invoice, contracts, project, planReference, projectReference, triggerId } = input;
     const eventDate = String(project.get("eventDate") ?? "");
     const contactIds = strings(project.get("clientContactIds"));
     const [sameDateProjects, contacts] = await Promise.all([
@@ -673,23 +730,27 @@ export const bookingRetainerPaid = onDocumentWritten(
           String(contract.get("completionAuthority")),
         ),
     );
-    const retainerAttestedManually =
-      studioVouchedAuthorities.includes(
-        String(invoice.get("completionAuthority")),
-      );
+    const retainerAttestedManually = invoice
+      ? studioVouchedAuthorities.includes(String(invoice.get("completionAuthority")))
+      : false;
     const checks = {
       contractCompleted: !contracts.empty && !contractAttestedManually,
       contractAttestedManually,
-      retainerInvoiceCreated: true,
+      retainerInvoiceCreated: Boolean(invoice),
       retainerAttestedManually,
-      retainerSatisfied: !retainerAttestedManually,
+      retainerSatisfied: Boolean(invoice) && !retainerAttestedManually,
       retainerExceptionApproved: false,
-      eventDateAvailable: Boolean(eventDate) && !sameDateProjects.docs.some(
-        (candidate) =>
-          candidate.id !== projectId &&
-          // An archived job holds no date (see commands.ts, runBookingGate).
-          !candidate.get("archivedAt") &&
-          blockingStates.has(String(candidate.get("state"))),
+      eventDateAvailable: Boolean(eventDate) && !dateClashes(
+        project.data(),
+        sameDateProjects.docs
+          .filter(
+            (candidate) =>
+              candidate.id !== projectId &&
+              // An archived job holds no date (see commands.ts, runBookingGate).
+              !candidate.get("archivedAt") &&
+              blockingStates.has(String(candidate.get("state"))),
+          )
+          .map((candidate) => candidate.data()),
       ),
       requiredContactsComplete: contactIds.length > 0 && contacts.every(
         (contact) => contact.exists &&
@@ -699,14 +760,16 @@ export const bookingRetainerPaid = onDocumentWritten(
       ),
     };
     // Fold the alternatives before asking what is missing. See
-    // gate-requirements.ts.
-    const requirements = bookingGateRequirements(checks);
+    // gate-requirements.ts. What the job needs comes from its kind
+    // (job-kinds.ts): with no payment to book, no invoice is required.
+    const needs = projectGateNeeds(project.data());
+    const requirements = bookingGateRequirements(checks, needs);
     const blockers = Object.entries(requirements)
       .filter(([, passed]) => !passed)
       .map(([key]) => key);
     const now = new Date().toISOString();
-    const gateId = stableId("gate_auto", tenantId, projectId, invoice.id);
-    const correlationId = stableId("booking_paid", tenantId, projectId, invoice.id);
+    const gateId = stableId("gate_auto", tenantId, projectId, triggerId);
+    const correlationId = stableId("booking_paid", tenantId, projectId, triggerId);
     const eventName = blockers.length
       ? "booking.exception_raised" as const
       : "booking.completed_automatically" as const;
@@ -720,7 +783,7 @@ export const bookingRetainerPaid = onDocumentWritten(
       correlationId,
       sourceEntityType: blockers.length ? "bookingOrchestration" : "project",
       sourceEntityId: projectId,
-      properties: { invoiceId: invoice.id, blockers },
+      properties: { invoiceId: invoice?.id ?? null, blockers },
     });
     // The studio hears that it booked. A booking that completes itself is
     // otherwise invisible until someone opens the app.
@@ -750,7 +813,7 @@ export const bookingRetainerPaid = onDocumentWritten(
           reason: `project_${String(currentProject.get("state"))}`,
           tenantId,
           projectId,
-          invoiceId: invoice.id,
+          invoiceId: invoice?.id ?? null,
         });
         return;
       }
@@ -762,7 +825,8 @@ export const bookingRetainerPaid = onDocumentWritten(
         requirements,
         blockers,
         passed: blockers.length === 0,
-        rulesVersion: 2,
+        profile: { kind: jobKindOf(project.data()), ...needs },
+        rulesVersion: 3,
         source: "booking_orchestrator",
         createdAt: now,
         createdBy: "booking-orchestrator",
@@ -856,12 +920,16 @@ export const bookingRetainerPaid = onDocumentWritten(
         tenantId,
         projectId,
         title: "Booking completed automatically",
-        summary: "StudioCue verified the signed agreement and cleared retainer, then confirmed the booking and queued project setup.",
+        summary: needs.agreement && needs.payment
+          ? "StudioCue verified the signed agreement and cleared retainer, then confirmed the booking and queued project setup."
+          : needs.payment
+            ? "StudioCue confirmed the payment, then booked the job and queued its setup. This kind of job books without an agreement."
+            : "StudioCue booked the job on its date and contact details, and queued its setup. This kind of job is paid later.",
         status: "completed",
         source: "booking_orchestrator",
         affectedEntityType: "project",
         affectedEntityId: projectId,
-        providerEvidence: { contractId: contracts.docs[0]!.id, invoiceId: invoice.id },
+        providerEvidence: { contractId: contracts.docs[0]?.id ?? null, invoiceId: invoice?.id ?? null },
         reversible: false,
         retryable: true,
         canCancel: false,
@@ -875,5 +943,220 @@ export const bookingRetainerPaid = onDocumentWritten(
         archivedAt: null,
       }, { merge: true });
     });
-  },
-);
+}
+
+/** Every payment line the client agreed to, added up: the whole price. */
+function fullAmountFromSchedule(schedule: unknown, fallbackCents: number): number {
+  if (!Array.isArray(schedule) || !schedule.length) return fallbackCents;
+  const total = schedule.reduce(
+    (sum, entry) => sum + Number((entry as { amountCents?: unknown })?.amountCents ?? 0),
+    0,
+  );
+  return Number.isInteger(total) && total > 0 ? total : fallbackCents;
+}
+
+/**
+ * Booking a job whose kind has no agreement (job-kinds.ts).
+ *
+ * Accepting a proposal moves a job to CONTRACT_PENDING, and for a wedding the
+ * agreement goes out from there. A family session has no agreement — "that's
+ * overkill" (GR Productions, 2026-10-02) — so this moves it on at once, with
+ * the reason on the audit trail:
+ *
+ * - **Paid to book** (family, paid in full; or a deposit): the invoice is
+ *   raised now — the whole price when the package is paid in full — and the
+ *   job books itself when it is paid (bookingRetainerPaid → runAutomaticGate).
+ *   "Book & pay": the client accepts, pays, and is booked; the studio taps
+ *   nothing.
+ * - **Nothing to book** (sports, paid on the day; or invoiced after): the
+ *   gate runs now and books it on its date and contact details. The bill is
+ *   raised later (invoice-scheduler.ts).
+ *
+ * Either way the gate, not this, decides: it re-reads the job and records the
+ * profile it used. Ids derive from the proposal, so a retried trigger cannot
+ * raise a second invoice.
+ */
+async function bookWithoutAgreement(
+  db: Firestore,
+  input: { tenantId: string; projectId: string; proposal: DocumentSnapshot },
+): Promise<void> {
+  const { tenantId, projectId, proposal } = input;
+  const projectReference = db.doc(`projects/${projectId}`);
+  const planReference = db.doc(`bookingOrchestrations/${projectId}`);
+  const project = await projectReference.get();
+  if (!project.exists || project.get("tenantId") !== tenantId) return;
+  if (project.get("state") !== "CONTRACT_PENDING") {
+    logger.info("bookWithoutAgreementSkipped", { tenantId, projectId, reason: `project_${String(project.get("state"))}` });
+    return;
+  }
+  if (jobCalledOff(project.data())) return;
+  const needs = projectGateNeeds(project.data());
+  const kind = jobKindOf(project.data());
+  const now = new Date().toISOString();
+  const retainerDueDays = 7;
+
+  let invoice: { id: string; data: Record<string, unknown>; providerJob: Record<string, unknown> } | null = null;
+  if (needs.payment) {
+    const existing = await db
+      .collection("invoiceReferences")
+      .where("tenantId", "==", tenantId)
+      .where("projectId", "==", projectId)
+      .where("kind", "==", "retainer")
+      .limit(10)
+      .get();
+    if (!existing.docs.some((document) => isStandingInvoice(document.get("status")))) {
+      const packageSnapshotId = String(project.get("packageSnapshotId") ?? "");
+      const packageSnapshot = packageSnapshotId
+        ? await db.doc(`packageSnapshots/${packageSnapshotId}`).get()
+        : null;
+      if (!packageSnapshot?.exists || packageSnapshot.get("tenantId") !== tenantId) {
+        logger.error("bookWithoutAgreementNoPackage", { tenantId, projectId });
+        return;
+      }
+      const paidInFull = project.get("paymentShape") === "paid_in_full" ||
+        (!project.get("paymentShape") && kind === "portraits");
+      const amountCents = paidInFull
+        ? fullAmountFromSchedule(
+            proposal.get("paymentSchedule"),
+            Number(packageSnapshot.get("totalCents") ?? 0),
+          )
+        : await agreedRetainerCents(db, tenantId, projectId, packageSnapshot);
+      const provider = await resolveProviderForTenant(db, tenantId, "invoicing", "quickbooks");
+      const invoiceId = stableId("invoice_auto", tenantId, projectId, proposal.id);
+      invoice = {
+        id: invoiceId,
+        data: {
+          id: invoiceId,
+          tenantId,
+          projectId,
+          kind: "retainer",
+          // Paid in full: this one invoice is the whole price, and no final
+          // balance follows (hasFinalBalance in job-kinds.ts).
+          paidInFull,
+          provider,
+          providerInvoiceId: provider === "stripe" ? `stripe_invoice_${invoiceId}` : `qbo_invoice_${invoiceId}`,
+          providerCustomerId: `pending_${projectId}`,
+          status: "sent",
+          currency: packageSnapshot.get("currency") ?? "USD",
+          amountCents,
+          balanceCents: amountCents,
+          dueDate: dueDate(retainerDueDays, now, String(project.get("timezone") ?? "")),
+          hostedUrl: null,
+          lastSyncedAt: now,
+          lastProviderEventId: null,
+          providerState: "queued",
+          createdAt: now,
+          updatedAt: now,
+          createdBy: "booking-orchestrator",
+          updatedBy: "booking-orchestrator",
+          archivedAt: null,
+        },
+        providerJob: {
+          tenantId,
+          projectId,
+          type: provider === "stripe" ? "create_stripe_invoice" : "create_quickbooks_invoice",
+          invoiceId,
+          idempotencyKey: stableId("retainer", tenantId, projectId, proposal.id),
+          status: "queued",
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+      };
+    }
+  }
+
+  const moved = await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(projectReference);
+    if (!current.exists || current.get("state") !== "CONTRACT_PENDING") return false;
+    const priorVersion = Number(current.get("stateVersion") ?? 0);
+    transaction.update(projectReference, {
+      state: "RETAINER_PENDING",
+      stateVersion: priorVersion + 1,
+      nextAction: needs.payment ? "Waiting for the client to pay" : "Booking",
+      updatedAt: now,
+      updatedBy: "booking-orchestrator",
+    });
+    const auditId = stableId("audit_no_agreement", tenantId, projectId, proposal.id);
+    transaction.create(db.doc(`auditEvents/${auditId}`), {
+      id: auditId,
+      tenantId,
+      projectId,
+      actorId: "booking-orchestrator",
+      actorType: "system",
+      action: "project.state_changed",
+      entityType: "project",
+      entityId: projectId,
+      timestamp: now,
+      before: { state: "CONTRACT_PENDING", stateVersion: priorVersion },
+      after: {
+        state: "RETAINER_PENDING",
+        stateVersion: priorVersion + 1,
+        reason: `This kind of job (${kind}) books without an agreement`,
+        profile: { kind, ...needs },
+      },
+      ipAddress: null,
+      userAgent: null,
+      correlationId: proposal.id,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    if (invoice) {
+      transaction.create(db.doc(`invoiceReferences/${invoice.id}`), invoice.data);
+      transaction.create(db.doc(`providerJobs/invoice_${invoice.id}`), invoice.providerJob);
+    }
+    transaction.set(planReference, {
+      id: projectId,
+      tenantId,
+      projectId,
+      proposalId: proposal.id,
+      contractId: null,
+      invoiceId: invoice?.id ?? null,
+      status: "active",
+      currentStep: needs.payment ? "wait_for_payment" : "wait_for_gate",
+      policy: {
+        createRetainerAfterSignature: false,
+        completeBookingAfterPayment: true,
+        retainerDueDays,
+        noAgreement: true,
+      },
+      approvedBy: "studio_policy:job_kind",
+      approvedAt: now,
+      lastError: null,
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }, { merge: false });
+    // "Prepare client agreement" has nothing to prepare.
+    transaction.set(db.doc(`tasks/proposal_decision_${proposal.id}`), {
+      status: "complete",
+      completedAt: now,
+      completedBy: "booking-orchestrator",
+      updatedAt: now,
+      updatedBy: "booking-orchestrator",
+    }, { merge: true });
+    return true;
+  });
+  if (!moved || needs.payment) return;
+
+  // Nothing to pay to book: the gate decides now.
+  const [booked, contracts] = await Promise.all([
+    projectReference.get(),
+    db.collection("contracts")
+      .where("tenantId", "==", tenantId)
+      .where("projectId", "==", projectId)
+      .where("status", "==", "completed")
+      .limit(1)
+      .get(),
+  ]);
+  await runAutomaticGate(db, {
+    tenantId,
+    projectId,
+    invoice: null,
+    contracts,
+    project: booked,
+    planReference,
+    projectReference,
+    triggerId: proposal.id,
+  });
+}

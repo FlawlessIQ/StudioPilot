@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { finalDetailsLockApplies } from "../job-kinds/job-kinds.js";
 import type { Firestore } from "firebase-admin/firestore";
 import { answerText } from "./crew-brief.js";
 import { lockingFieldIds } from "./details-lock.js";
@@ -49,7 +50,10 @@ export async function requestDetailChange(
   if (!field || field.internalOnly === true || !lockingFieldIds(record(response.get("templateSnapshot")).sections).has(input.fieldId))
     throw new Error("FIELD_NOT_LOCKABLE");
   // Before the lock it's simply theirs to change: the form saves it.
-  if (!detailsLocked(text(project.get("eventDate")), input.now.slice(0, 10), resolvePlanningTimeline(tenant.get("planningTimeline"))))
+  if (
+    !finalDetailsLockApplies(project.data()) ||
+    !detailsLocked(text(project.get("eventDate")), input.now.slice(0, 10), resolvePlanningTimeline(tenant.get("planningTimeline")))
+  )
     throw new Error("DETAILS_NOT_LOCKED");
   const type = text(field.type);
   const from = record(response.get("answers"))[input.fieldId] ?? null;

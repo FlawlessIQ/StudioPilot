@@ -1,6 +1,7 @@
 import { getFirestore, type DocumentSnapshot, type Firestore, type Transaction } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
+import { projectProfile } from "../job-kinds/job-kinds.js";
 import { normaliseBillingSettings, salesTaxApplies } from "./sales-tax-settings.js";
 import { QUICKBOOKS_ITEMISED_FLAG } from "../operations/quickbooks-invoice-plan.js";
 
@@ -77,6 +78,8 @@ export function billingAddressNeeded(input: {
  */
 export function scheduledRequestStatus(project: Row, today: string, horizon: string): BillingAddressRequestStatus | null {
   if (!REQUEST_STATES.includes(text(project.state))) return null;
+  // Paid up front, or on the day: no later invoice needs taxing (job-kinds.ts).
+  if (!projectProfile(project).billingAddressRequest) return null;
   const eventDate = text(project.eventDate).slice(0, 10);
   if (!eventDate || eventDate < today || eventDate > horizon) return null;
   const stop = clientOutreachStop(project);

@@ -137,7 +137,7 @@ test("sending by hand resolves the customer; the scheduler still never bills any
   assert.match(raise, /else if \(options\.resolveCustomer\) customerId = `pending_\$\{project\.id\}`;/);
   assert.match(raise, /type: provider === "stripe" \? "create_stripe_invoice" : "create_quickbooks_invoice"/);
   assert.doesNotMatch(raise, /provider: "quickbooks",/);
-  assert.doesNotMatch(read("functions/src/operations/invoice-scheduler.ts"), /resolveCustomer/);
+  assert.doesNotMatch(read("functions/src/operations/invoice-scheduler.ts"), /resolveCustomer|billedWithoutRetainer/);
   assert.doesNotMatch(read("functions/src/booking/amendment-apply.ts"), /resolveCustomer/);
   const send = read("functions/src/booking/send-final-balance.ts");
   assert.match(send, /resolveCustomer: true/);

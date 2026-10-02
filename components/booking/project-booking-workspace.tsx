@@ -1,6 +1,7 @@
 "use client";
 
 import { bookingBlockerLabel } from "@/features/booking/blocker-label";
+import { bookingGateNeeds, projectProfile, bookedOnceClause } from "@/features/job-kinds/job-kinds";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { offeredSigningProvider } from "@/features/integrations/schema";
@@ -635,13 +636,19 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    * the retainer clears — so at most one of them is ever actionable. The
    * page now shows that one.
    */
-  const activeStep = !contractComplete ? 1 : !invoicePaid ? 2 : 3;
+  // What this kind of job needs to book (job-kinds.ts): a family session has
+  // no agreement; a sports day pays nothing to book.
+  const kindProfile = projectProfile(project);
+  const kindNeeds = bookingGateNeeds(kindProfile);
+  const agreementSettled = contractComplete || !kindNeeds.agreement;
+  const paymentSettled = invoicePaid || !kindNeeds.payment;
+  const activeStep = !agreementSettled ? 1 : !paymentSettled ? 2 : 3;
   const stepState = (step: number) =>
     step < activeStep ? "done" : step === activeStep ? "current" : "waiting";
   const steps = [
     {
       number: 1,
-      title: "Contract",
+      title: kindNeeds.agreement ? "Contract" : "Agreement",
       state: bookingComplete ? "done" : stepState(1),
       /**
        * A booked job with no contract document here.
@@ -654,7 +661,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
        */
       note: contractComplete
         ? "Signed"
-        : shownContract
+        : !kindNeeds.agreement
+          ? "Not needed for this kind of job"
+          : shownContract
           ? statusLabel(String(shownContract.status))
           : bookingComplete
             ? "Not recorded here"
@@ -664,18 +673,22 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     },
     {
       number: 2,
-      title: "Retainer",
+      title: kindNeeds.payment && kindProfile.payment !== "paid_in_full" ? "Retainer" : "Payment",
       state: bookingComplete ? "done" : stepState(2),
       // "Waits for the signature" is only true while it is waiting. Once
       // this becomes the live step that sentence describes the past and
       // reads as though the step is still blocked.
       note: invoicePaid
         ? "Paid"
-        : invoice
+        : !kindNeeds.payment
+          ? kindProfile.payment === "on_the_day"
+            ? "Paid on the day"
+            : "Invoiced after the event"
+          : invoice
           ? statusLabel(String(invoice.status))
           : bookingComplete
             ? "Not recorded here"
-            : contractComplete
+            : agreementSettled
               ? "Ready to raise"
               : "Waits for the signature",
     },
@@ -1835,8 +1848,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               </StatusBadge>
             </div>
             <p>
-              StudioCue confirms the booking once the agreement is signed, the
-              retainer has cleared, and the date and client details check out.
+              {kindNeeds.agreement || kindNeeds.payment
+                ? `StudioCue confirms the booking once ${bookedOnceClause(kindProfile)}, and the date and client details check out.`
+                : "StudioCue confirms the booking once the date and client details check out."}{" "}
               Nothing here can be talked into skipping a step.
             </p>
             {bookingComplete ? (

@@ -1,3 +1,4 @@
+import type { JourneyProfile } from "@/features/job-kinds/job-kinds";
 import type { ProjectState } from "@/features/projects/schema";
 import type { FileRef } from "@/features/documents/file-ref";
 import { projectStateLabel } from "@/features/projects/state-label";
@@ -310,6 +311,14 @@ export type JourneyInput = {
   albumOrReviewDone: boolean;
   /** Record-specific links and files, by step. Optional; see JourneyEvidence. */
   evidence?: JourneyEvidence;
+  /**
+   * The job's kind of work, as its journey profile (job-kinds.ts). Absent,
+   * every step applies — the wedding journey, as it always was.
+   */
+  profile?: Pick<
+    JourneyProfile,
+    "kind" | "consultation" | "agreement" | "payment" | "runOfShow" | "crew" | "coi"
+  >;
 };
 
 const STATE_RANK: Record<string, number> = {
@@ -353,6 +362,52 @@ export function invoiceIsOverdue(
   if (Number(invoice.balanceCents ?? 0) <= 0 && status !== "sent") return false;
   const due = typeof invoice.dueDate === "string" ? invoice.dueDate.slice(0, 10) : "";
   return Boolean(due) && due < today;
+}
+
+/**
+ * The steps this kind of job has (features/job-kinds/job-kinds.ts).
+ *
+ * A family session has no agreement and is paid in full to book; a sports day
+ * has neither an agreement nor anything to pay before the day; a corporate
+ * job may be invoiced after. The journey was fifteen fixed steps, so a sports
+ * job showed a retainer, a final balance and a contract its workflow had
+ * already dropped (job-types plan, B7). A step the job doesn't have is left
+ * out — not shown as owed — and a step whose meaning changes says so. A step
+ * that already has a record behind it stays, whatever the profile says: the
+ * history of the job is still its history.
+ */
+function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
+  const profile = input.profile;
+  if (!profile) return;
+  const drop = (key: JourneyStepKey) => {
+    const index = steps.findIndex((step) => step.key === key);
+    if (index >= 0) steps.splice(index, 1);
+  };
+  const retitle = (key: JourneyStepKey, title: string) => {
+    const step = steps.find((candidate) => candidate.key === key);
+    if (step) step.title = title;
+  };
+  if (!profile.agreement && !input.contractStatus) drop("contract");
+  if (!profile.consultation && !input.hasConsultation) drop("consultation");
+  if (!profile.coi && !input.coiStatus) drop("coi");
+  if (!profile.runOfShow && !input.scheduleStatus) drop("run_of_show");
+  if (!profile.crew && !(input.crewRequired ?? 0)) drop("crew");
+  switch (profile.payment) {
+    case "paid_in_full":
+      retitle("retainer", "Paid in full");
+      if (!input.finalInvoiceStatus) drop("final_balance");
+      break;
+    case "on_the_day":
+      if (!input.retainerInvoiceStatus) drop("retainer");
+      retitle("final_balance", "Paid on the day");
+      break;
+    case "invoice_after":
+      if (!input.retainerInvoiceStatus) drop("retainer");
+      retitle("final_balance", "Invoice after the event");
+      break;
+    default:
+      break;
+  }
 }
 
 export function projectJourney(input: JourneyInput): {
@@ -926,7 +981,11 @@ export function projectJourney(input: JourneyInput): {
   const finalWaiting = ["draft", "awaiting_delivery", "sent", "viewed", "partially_paid", "overdue"].includes(
     input.finalInvoiceStatus ?? "",
   );
-  const finalDue = days !== null && days <= 45 && days >= 0;
+  // Four weeks out, when the daily scheduler raises it
+  // (functions/src/operations/invoice-scheduler.ts). This said 45 days while
+  // the scheduler raised at 28, so the step opened on a bill that did not
+  // exist yet (job-types plan, B11).
+  const finalDue = days !== null && days <= 28 && days >= 0;
   // An invoice that has gone past its date stops being the client's move and
   // becomes the studio's: somebody has to chase it. Without this the job
   // page said "nothing for you right now" on a wedding four days out with
@@ -1099,6 +1158,8 @@ export function projectJourney(input: JourneyInput): {
    * "upcoming", which is where I first put the precedence check and why it did
    * nothing.
    */
+  shapeForProfile(steps, input);
+
   const priorityKey: JourneyStepKey | null = needsReconciling
     ? "event_day"
     : null;
@@ -1148,7 +1209,7 @@ export function projectJourney(input: JourneyInput): {
     album_review: { label: "Open reviews", href: project("/studio/reviews") },
   };
   const unlockCopy: Partial<Record<JourneyStepKey, string>> = {
-    final_balance: "Unlocks about 45 days before the event.",
+    final_balance: "Unlocks four weeks before the event.",
     day_before: "Unlocks two days before the event.",
     event_day: input.eventDate
       ? `The live plan opens on ${input.eventDate}.`

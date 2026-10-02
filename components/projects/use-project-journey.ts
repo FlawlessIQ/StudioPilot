@@ -1,6 +1,7 @@
 "use client";
 
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
+import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
 import {
@@ -168,6 +169,8 @@ export function useProjectJourney({
 
   const journey = projectJourney({
     projectId,
+    // Which steps this kind of job has (job-kinds.ts).
+    profile: journeyProject ? projectProfile(journeyProject) : undefined,
     state: projectState,
     eventDate,
     today: todayLocalIso(),

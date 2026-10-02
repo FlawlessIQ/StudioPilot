@@ -48,6 +48,14 @@ export async function raiseFinalInvoice(
      * this, so nothing new is billed without somebody choosing to.
      */
     resolveCustomer?: boolean;
+    /**
+     * A job paid on the day or invoiced after the event (job-kinds.ts): it
+     * booked with nothing paid, so there is no retainer to bill after, and
+     * this one invoice is the whole price.
+     */
+    billedWithoutRetainer?: boolean;
+    /** When the bill is due; two weeks before the event when omitted. */
+    dueDate?: string;
   },
 ): Promise<FinalInvoiceOutcome> {
   const tenantId = String(project.get("tenantId") ?? "");
@@ -92,7 +100,7 @@ export async function raiseFinalInvoice(
             .limit(5),
         )
       ).docs.find((exception) => exception.get("status") === "approved") ?? null;
-  if (!retainer && !waiver) return { raised: false, reason: "no_retainer" };
+  if (!retainer && !waiver && !options.billedWithoutRetainer) return { raised: false, reason: "no_retainer" };
   // Billed by whoever billed the retainer; a retainer recorded by hand names
   // no provider, and then the studio's invoicing provider decides. Before
   // this, every final went to QuickBooks — a Stripe studio's final carried a
@@ -152,8 +160,8 @@ export async function raiseFinalInvoice(
   const discrepancies: string[] = [];
   if (retainerPaidCents !== retainerExpectedCents) discrepancies.push("RETAINER_EVIDENCE_MISMATCH");
   const readyForProviderDraft = discrepancies.length === 0;
-  const due = new Date(`${String(project.get("eventDate"))}T00:00:00Z`);
-  due.setUTCDate(due.getUTCDate() - 14);
+  const due = new Date(`${options.dueDate ?? String(project.get("eventDate"))}T00:00:00Z`);
+  if (!options.dueDate) due.setUTCDate(due.getUTCDate() - 14);
   const calculation = {
     lines: [
       { label: "Approved package and add-ons", amountCents: totalCents - taxCents, source },
@@ -166,11 +174,17 @@ export async function raiseFinalInvoice(
             amountCents: -retainerPaidCents,
             source: `invoiceReferences/${retainer.id}`,
           }
-        : {
-            label: "Retainer waived by the studio",
-            amountCents: 0,
-            source: `bookingExceptions/${waiver!.id}`,
-          },
+        : waiver
+          ? {
+              label: "Retainer waived by the studio",
+              amountCents: 0,
+              source: `bookingExceptions/${waiver.id}`,
+            }
+          : {
+              label: "Nothing was paid to book this job",
+              amountCents: 0,
+              source: "job_kind",
+            },
       ...(earlierFinalsPaidCents
         ? [{ label: "Earlier balance payments received", amountCents: -earlierFinalsPaidCents, source: "invoiceReferences" }]
         : []),

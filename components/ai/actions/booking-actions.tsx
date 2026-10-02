@@ -34,6 +34,7 @@ import { ApproveFinalInvoice, CorrectPayment, RecordInvoicePayment, VoidInvoice 
 import { HeldInvoiceReview } from "@/components/booking/held-invoice-review";
 import { invoicePaymentRefusal } from "@/features/booking/invoice-payments";
 import { statusLabel } from "@/features/format/status-label";
+import { bookedOnceClause, dateClashes, projectProfile } from "@/features/job-kinds/job-kinds";
 import { AMENDABLE_STATES, BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { SignedCopySharing } from "@/components/contracts/signed-copy-sharing";
 import { FILE_BEARING } from "@/features/documents/file-ref";
@@ -1677,13 +1678,15 @@ export function ConfirmBookingCard({ action }: ActionCardProps) {
   const [blockers, setBlockers] = useState<string[] | null>(null);
   const title = `Confirm the booking · ${jobName(job)}`;
   // Which booked job holds the date, when that is what blocks it.
+  // A wedding takes the whole day; sessions share one (dateClashes).
   const sameDay = (projects ?? []).filter(
     (other) =>
       job &&
       other.id !== job.id &&
       !other.archivedAt &&
       str(other.eventDate) === str(job.eventDate) &&
-      ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"].includes(str(other.state)),
+      ["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE"].includes(str(other.state)) &&
+      dateClashes(job, [other]),
   );
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
@@ -1695,7 +1698,7 @@ export function ConfirmBookingCard({ action }: ActionCardProps) {
         {["BOOKED", "PLANNING", "READY"].includes(state) ? (
           <Done>{`${jobName(job)} is already booked.`}</Done>
         ) : (
-          <Blocked>{`A booking is confirmed once the contract is signed and the retainer is paid. ${jobName(job)} is ${state.toLowerCase().replace(/_/g, " ")}.`}</Blocked>
+          <Blocked>{`A booking is confirmed once ${bookedOnceClause(projectProfile(job))}. ${jobName(job)} is ${state.toLowerCase().replace(/_/g, " ")}.`}</Blocked>
         )}
       </ActionShell>
     );

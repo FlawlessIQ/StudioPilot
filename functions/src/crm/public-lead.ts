@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { dateClashes } from "../job-kinds/job-kinds.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -289,9 +290,16 @@ export const publicLeadIntake = onRequest(
     const missingInformation = missingFields(input, dayFields, formConfig);
     // An archived job holds no date: put away is put away. No date, nothing
     // to check yet.
+    // A wedding takes the whole day; two family sessions can share one
+    // (job-kinds.ts, dateClashes).
     const availabilityStatus = !dateConflicts
       ? "unknown"
-      : dateConflicts.docs.some((project) => !project.get("archivedAt"))
+      : dateClashes(
+            { eventKind: chosenType?.kind ?? null, eventTypeLabel: input.eventType },
+            dateConflicts.docs
+              .filter((project) => !project.get("archivedAt"))
+              .map((project) => project.data()),
+          )
         ? "conflict"
         : "available";
     const displayName = `${input.firstName} ${input.lastName}`.trim();

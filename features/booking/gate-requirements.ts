@@ -33,9 +33,39 @@ export type BookingGateRequirements = {
   requiredContactsComplete: boolean;
 };
 
+/**
+ * What this kind of job needs to book (job-kinds.ts, `bookingGateNeeds`).
+ *
+ * A family session books on payment alone and a sports day on its date and
+ * contact (GR Productions, 2026-10-02). A requirement the job does not have
+ * is satisfied by the job's profile — still evaluated here, server-side, and
+ * the profile used is written onto the gate run, so a later audit can see why
+ * a job booked without a signature. Omitted, every requirement applies: the
+ * wedding gate, unchanged.
+ */
+export type BookingGateNeeds = {
+  agreement: boolean;
+  payment: boolean;
+  /** One booking per day: false lets two sessions share a date. */
+  exclusiveDay: boolean;
+};
+
+export const ALL_GATE_NEEDS: BookingGateNeeds = { agreement: true, payment: true, exclusiveDay: true };
+
 export function bookingGateRequirements(
   evidence: BookingGateEvidenceFlags,
+  needs: BookingGateNeeds = ALL_GATE_NEEDS,
 ): BookingGateRequirements {
+  if (!needs.agreement || !needs.payment || !needs.exclusiveDay) {
+    const full = bookingGateRequirements(evidence);
+    return {
+      contractCompleted: needs.agreement ? full.contractCompleted : true,
+      retainerInvoiceCreated: needs.payment ? full.retainerInvoiceCreated : true,
+      retainerSatisfied: needs.payment ? full.retainerSatisfied : true,
+      eventDateAvailable: needs.exclusiveDay ? full.eventDateAvailable : true,
+      requiredContactsComplete: full.requiredContactsComplete,
+    };
+  }
   return {
     contractCompleted:
       evidence.contractCompleted || evidence.contractAttestedManually,

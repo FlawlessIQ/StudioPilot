@@ -4,6 +4,7 @@ import {
   type CoverageRole,
 } from "@/features/packages/coverage";
 import { pendingAmendmentFor, signAmendment } from "@/server/contracts/amendment-signing";
+import { jobKindOf, projectProfile } from "@/features/job-kinds/job-kinds";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
 import { isCataloguePackage } from "@/features/packages/one-off";
@@ -985,6 +986,10 @@ async function clientProject(tenantId: string, projectId: string) {
       safeString(projectSnapshot.get("eventType")) ??
       safeString(projectSnapshot.get("eventTypeName")) ??
       "Photography",
+    // The kind decides the client's steps: no agreement for a family
+    // session, nothing to pay before a sports day (job-kinds.ts).
+    eventKind: jobKindOf(projectSnapshot.data()),
+    paymentShape: projectProfile(projectSnapshot.data()).payment,
     eventDate: safeString(projectSnapshot.get("eventDate")),
     timezone: safeString(projectSnapshot.get("timezone")),
     venueName: safeString(projectSnapshot.get("venueName")),

@@ -11,6 +11,10 @@ export type ClientPortalProject = {
   id: string;
   name: string;
   eventType: string;
+  /** The kind of work (features/job-kinds); older responses omit it. */
+  eventKind?: string;
+  /** How the job is paid: deposit_and_balance, paid_in_full, on_the_day or invoice_after. */
+  paymentShape?: string;
   eventDate: string | null;
   timezone: string | null;
   venueName: string | null;

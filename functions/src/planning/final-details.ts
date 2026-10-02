@@ -7,6 +7,7 @@ import { eventDetailsFrom, type EventDetailRow } from "../contracts/event-detail
 import { formatContractDate } from "../contracts/document.js";
 import { isReturned } from "./questionnaire-lifecycle.js";
 import { detailsLockOn, resolvePlanningTimeline } from "./planning-timeline.js";
+import { finalDetailsLockApplies } from "../job-kinds/job-kinds.js";
 
 /**
  * The couple's final details, confirmed when they lock.
@@ -162,6 +163,9 @@ export const finalDetailsScheduler = onSchedule(
       if (!tenantId || !["BOOKED", "PLANNING", "READY"].includes(text(data.state))) continue;
       // Archived, paused (imported), cancelled, on hold: nobody is asked.
       if (clientOutreachStop(data)) continue;
+      // A wedding's final-details lock and sign-off; a one-hour family
+      // session or a game has neither (job-kinds.ts).
+      if (!finalDetailsLockApplies(data)) continue;
       try {
         if (!timelines.has(tenantId))
           timelines.set(tenantId, db.doc(`tenants/${tenantId}`).get().then((tenant) => resolvePlanningTimeline(tenant.get("planningTimeline"))));

@@ -20,6 +20,7 @@ import {
   finalBalanceFromSchedule,
 } from "./agreed-final-balance.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
+import { dateClashes, jobKindOf, projectGateNeeds } from "../job-kinds/job-kinds.js";
 import { consultationBookingAdvancesTo } from "./consultation-advance.js";
 import {
   consultationCorrectionRefusal,
@@ -2763,13 +2764,18 @@ export const bookingCommand = onRequest(
           "READY",
           "EVENT_COMPLETE",
         ]);
-        const eventDateAvailable = !sameDateProjects.docs.some(
-          (candidate) =>
-            candidate.id !== command.input.projectId &&
-            // An archived job holds no date. An archived test booking on the
-            // same day blocked a real one on production, 2026-09-29.
-            !candidate.get("archivedAt") &&
-            blockingStates.has(String(candidate.get("state"))),
+        const eventDateAvailable = !dateClashes(
+          projectBeforeGate.data(),
+          sameDateProjects.docs
+            .filter(
+              (candidate) =>
+                candidate.id !== command.input.projectId &&
+                // An archived job holds no date. An archived test booking on
+                // the same day blocked a real one on production, 2026-09-29.
+                !candidate.get("archivedAt") &&
+                blockingStates.has(String(candidate.get("state"))),
+            )
+            .map((candidate) => candidate.data()),
         );
         const requiredContactsComplete =
           contactIds.length > 0 &&
@@ -2856,8 +2862,11 @@ export const bookingCommand = onRequest(
           };
           // Fold the alternatives before asking what is missing: several
           // evidence fields answer the same requirement by different
-          // authorities. See gate-requirements.ts.
-          const requirements = bookingGateRequirements(checks);
+          // authorities. See gate-requirements.ts. What the job needs comes
+          // from its kind (job-kinds.ts): a family session books on payment
+          // alone, a sports day on its date and contact.
+          const needs = projectGateNeeds(project.data());
+          const requirements = bookingGateRequirements(checks, needs);
           const blockers = Object.entries(requirements)
             .filter(([, passed]) => !passed)
             .map(([key]) => key);
@@ -2874,7 +2883,9 @@ export const bookingCommand = onRequest(
             requirements,
             blockers,
             passed: blockers.length === 0,
-            rulesVersion: 1,
+            // Why a requirement was or wasn't asked: the profile used.
+            profile: { kind: jobKindOf(project.data()), ...needs },
+            rulesVersion: 2,
             createdAt: timestamp,
             createdBy: identity.uid,
           });

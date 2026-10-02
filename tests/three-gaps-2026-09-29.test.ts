@@ -72,10 +72,11 @@ test("an archived job does not hold its date anywhere availability is decided", 
   const sites: Array<[string, RegExp]> = [
     ["functions/src/booking/commands.ts", /!candidate\.get\("archivedAt"\) &&\s*blockingStates\.has/],
     ["functions/src/booking/orchestration.ts", /!candidate\.get\("archivedAt"\) &&\s*blockingStates\.has/],
-    ["functions/src/crm/public-lead.ts", /dateConflicts\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
+    // A session doesn't block a session (job-kinds.ts, dateClashes); the archived filter stands.
+    ["functions/src/crm/public-lead.ts", /dateConflicts\.docs\s*\.filter\(\(project\) => !project\.get\("archivedAt"\)\)/],
     ["functions/src/crm/commands.ts", /clash\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
     ["functions/src/intake/inquiry-link.ts", /clash\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
-    ["functions/src/intake/capture.ts", /dateConflicts\?\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
+    ["functions/src/intake/capture.ts", /\(dateConflicts\?\.docs \?\? \[\]\)\s*\.filter\(\(project\) => !project\.get\("archivedAt"\)\)/],
     ["functions/src/intake/enrich.ts", /conflicts\.docs\.some\(\(project\) => !project\.get\("archivedAt"\)\)/],
   ];
   for (const [path, pattern] of sites) assert.match(readFileSync(path, "utf8"), pattern, path);

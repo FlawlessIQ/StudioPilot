@@ -35,6 +35,7 @@ import {
   PROPOSAL_ERROR_FALLBACK,
   text,
   useProjectRecords,
+  useBookingNeeds,
   useReserveYourDate,
 } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
@@ -54,6 +55,7 @@ export function ClientProposal() {
   const workspace = useWorkspace();
   const proposals = useProjectRecords("proposals");
   const reserve = useReserveYourDate();
+  const needs = useBookingNeeds();
   const proposal = useMemo(
     () => [...proposals.value].sort((a, b) => number(b.version) - number(a.version))[0],
     [proposals.value],
@@ -130,7 +132,9 @@ export function ClientProposal() {
       setMode("idle");
       setNotice(
         decision === "accepted"
-          ? "Proposal accepted. Your studio can now prepare the agreement."
+          ? needs.agreement
+            ? "Proposal accepted. Your studio can now prepare the agreement."
+            : "Proposal accepted."
           : "Your change request was sent to your studio.",
       );
       window.scrollTo({ top: 0 });
@@ -183,12 +187,29 @@ export function ClientProposal() {
             <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
               <BadgeCheck aria-hidden="true" size={14} /> Accepted
             </p>
-            <h2 className="kit-section">Next, sign your agreement</h2>
-            <p className="kit-body">
-              Your agreement arrives by email with a secure signing link. Once it’s signed, the
-              retainer is the last step to reserve your date.
-            </p>
-            <Button href="/client/contract">See your agreement</Button>
+            {needs.agreement ? (
+              <>
+                <h2 className="kit-section">Next, sign your agreement</h2>
+                <p className="kit-body">
+                  Your agreement arrives by email with a secure signing link. Once it’s signed, the
+                  retainer is the last step to reserve your date.
+                </p>
+                <Button href="/client/contract">See your agreement</Button>
+              </>
+            ) : needs.payment ? (
+              <>
+                <h2 className="kit-section">Next, your payment</h2>
+                <p className="kit-body">
+                  Your invoice will appear in Payments shortly. Your date is reserved the moment it’s paid.
+                </p>
+                <Button href="/client/payments">See payments</Button>
+              </>
+            ) : (
+              <>
+                <h2 className="kit-section">Your date is reserved</h2>
+                <p className="kit-body">Your studio has it in the diary. Details for the day will appear here as it gets closer.</p>
+              </>
+            )}
           </Card>
         ) : status === "declined" ? (
           <Card>
@@ -311,7 +332,9 @@ export function ClientProposal() {
             <p className="kit-caption">
               {proposal.combinedContractId
                 ? "These prices are Part 2 of your booking agreement. Signing it accepts them — no payment is taken until the retainer."
-                : "Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps."}
+                : needs.agreement
+                  ? "Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps."
+                  : "Accepting doesn’t take a payment. Any payment is a separate, secure step."}
             </p>
           </section>
         ) : null}
@@ -325,8 +348,12 @@ export function ClientProposal() {
 
         <Note icon={ShieldCheck}>
           <strong>Before you decide:</strong>{" "}
-          {text(proposal.termsSummary, "Your studio will send the full agreement as the next step.")}{" "}
-          The signed agreement, not this summary, governs the photography.
+          {needs.agreement
+            ? <>
+                {text(proposal.termsSummary, "Your studio will send the full agreement as the next step.")}{" "}
+                The signed agreement, not this summary, governs the photography.
+              </>
+            : text(proposal.termsSummary, "Message your studio with any questions before you accept.")}
         </Note>
 
         {mode === "changes" ? (
@@ -346,7 +373,9 @@ export function ClientProposal() {
         <Actions
           note={
             mode === "accept"
-              ? "This locks this proposal to your project and asks your studio for the agreement. No charge is made now."
+              ? needs.agreement
+                ? "This locks this proposal to your project and asks your studio for the agreement. No charge is made now."
+                : "This locks this proposal to your project. No charge is made now."
               : undefined
           }
         >
