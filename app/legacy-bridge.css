@@ -2742,11 +2742,6 @@
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.7fr) 92px 30px;
   }
 }
-@media (max-width: 660px) {
-  .ds-root .crm-leads-table.inquiry-pipeline-table article {
-    grid-template-columns: 1fr auto;
-  }
-}
 /* Above the row's full-width link (globals.css: a[href]::after), or the tap
    opens the inquiry instead. */
 .ds-root .inquiry-row-actions {
@@ -2782,11 +2777,44 @@
   border-color: var(--ds-claret, #2f6b4f);
   color: var(--ink);
 }
+/* Phones: each row is a wrapping flex line (globals.css), so order it —
+   the name with Close beside it, then the date, the stage and the arrow.
+   Seen on prod: left to flow, the arrow landed before the date and the
+   stage wrapped onto a third line. */
 @media (max-width: 660px) {
-  .ds-root .inquiry-row-actions {
-    align-items: flex-start;
+  .ds-root .crm-leads-table.inquiry-pipeline-table article {
+    flex-wrap: wrap;
+    align-items: center;
   }
-  .ds-root .inquiry-row-actions .form-error {
-    text-align: left;
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > .crm-primary {
+    order: 1;
+    flex: 1 1 calc(100% - 110px);
+    min-width: 0;
+  }
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > .inquiry-row-actions {
+    order: 2;
+    flex: none;
+    align-items: flex-end;
+  }
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > span:nth-of-type(2) {
+    order: 3;
+  }
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > span:nth-of-type(4) {
+    order: 4;
+  }
+  /* The whole row opens it (a[href]::after), so the arrow box only took a
+     line of its own. Kept as the link, without the box. */
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > a {
+    order: 5;
+    width: 0;
+    height: 0;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    margin: 0;
+    overflow: visible;
+  }
+  .ds-root .crm-leads-table.inquiry-pipeline-table article > a > svg {
+    display: none;
   }
 }
