@@ -328,6 +328,10 @@
   line-height: 1;
   padding: 6px 9px;
   cursor: pointer;
+  /* The count beside it grew ("19 conversations · 2 waiting on you"); the
+     count wraps, the button doesn't. */
+  flex: none;
+  white-space: nowrap;
 }
 
 .msg-new-button:hover { background: var(--soft); }
