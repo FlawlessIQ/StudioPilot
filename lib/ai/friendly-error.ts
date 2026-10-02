@@ -171,7 +171,12 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVOICE_ACTION_IN_PROGRESS: "QuickBooks is still working on your last choice for this bill. Give it a moment, then refresh.",
   RETAINER_HAS_NO_TAX: "A retainer never carries sales tax, so it's only ever sent as it stands.",
   BILLING_ADDRESS_NEEDED_FOR_TAX:
-    "QuickBooks had no billing address to work the tax out from. Add the couple's billing address on their client record, then use Work the tax out again — or send it without tax.",
+    "QuickBooks had no billing address to work the tax out from. Ask the couple for it, or add it on their client record and use Work the tax out again — or send it without tax.",
+  BILLING_ADDRESS_ON_FILE:
+    "Their billing address is already on their client record, so there's nothing to ask. If a bill is waiting, use Work the tax out again.",
+  BILLING_ADDRESS_REQUEST_PERMISSION_REQUIRED: "An owner or admin asks the couple for their billing address.",
+  PROJECT_CANCELLED: "This job was called off, so StudioCue won't write to the couple about it.",
+  CLIENT_EMAIL_MISSING: "There's no email on this couple's client record to send the request to. Add one, then ask again.",
   HELD_INVOICE_AMOUNT_CHANGED:
     "The bill changed since this page loaded. Refresh and check the new figures before sending.",
   // Editing a job's date (crmCommand updateProject).

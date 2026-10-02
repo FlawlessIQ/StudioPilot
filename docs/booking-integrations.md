@@ -229,6 +229,41 @@ in the classic shape and are recorded in `webhookEvents`.
 
 **Still not verified:** what Automated Sales Tax does with no BillAddr.
 
+## Asking the couple for their billing address (2026-10-01)
+
+QuickBooks works out sales tax from the billing address. Signing asks for it when
+the studio charges QuickBooks sales tax, but three kinds of booking never reach that
+step: couples who signed before the studio switched tax on, imported bookings, and
+contracts signed outside StudioCue. Their final would be held with "Send with tax"
+blocked. So StudioCue asks them (`functions/src/billing/billing-address-request.ts`):
+
+- **When.** `billingAddressRequestScheduler` (daily 07:00 UTC) looks at booked jobs
+  within **8 weeks** of the event — four weeks before the final is raised. A job
+  needs asking when the studio is on itemised QuickBooks invoices, QuickBooks is
+  connected, sales tax is "quickbooks", the job isn't exempt, and **no** client
+  contact on it has an address (`billingAddressNeeded`).
+- **Who is emailed.** An ordinary job: the couple gets "Your billing address for
+  {studio}" with a link to `/client?billing-address=1`; the email job carries
+  `clientOutreachGuard`, so the sender checks the job again as it goes. A quiet job
+  (imported, paused, on hold) is **never emailed by the scheduler** — it becomes
+  `needs_studio`, a Today card with **Ask them**. Archived and cancelled jobs are
+  left alone.
+- **The studio.** Today shows "{couple}'s billing address is missing" (Ask them) and,
+  five days after an email, "Still waiting on …" (Ask again). The held final's review
+  has **Ask the couple for it**. All three call `requestBillingAddress` on
+  `bookingCommand` (owner/admin), which emails now — quiet or not, since it's the
+  studio's own press — and refuses an address already on file.
+- **The couple.** A card at the top of their portal home (`ClientBillingAddress`),
+  shown while the studio needs it and their own contact has none; the same form as
+  at signing. Saved to their own contact, found by their verified email
+  (`server/billing/billing-address-request.ts`), marked "Confirmed by the couple".
+- **Then.** The request closes, and a final held for want of an address gets the
+  studio's "Work the tax out again" queued for it. An address the studio types on
+  the client record closes the request the next morning.
+
+One request per job: `billingAddressRequests/{tenantId}_{projectId}` (studio read,
+server-only writes). Walk it with `scripts/uat/billing-address-request-walk.mts`.
+
 ## QuickBooks from inside StudioCue: settings, items, test invoice, money moving back (2026-10-01)
 
 QuickBooks is the sales-tax authority. The foundation the invoice tax flow builds on:

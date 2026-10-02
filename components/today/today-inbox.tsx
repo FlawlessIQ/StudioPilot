@@ -21,7 +21,7 @@ import { NotInquiryConfirm } from "@/components/leads/not-inquiry-confirm";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
-import { sendFinalBalance } from "@/lib/booking/command-client";
+import { requestBillingAddress, sendFinalBalance } from "@/lib/booking/command-client";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { ConfirmStep } from "@/components/ui/confirm-step";
 import { jobClientRecipient, recipientLabel } from "@/features/projects/client-recipient";
@@ -1082,6 +1082,8 @@ function TodayCard({
           </>
         ) : item.action.kind === "final_balance" ? (
           <FinalBalanceCardActions action={item.action} onCleared={onCleared} onSettle={onSettleBalance} />
+        ) : item.action.kind === "billing_address" ? (
+          <BillingAddressActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "package_request" ? (
           <PackageRequestActions action={item.action} onChangeBooking={onChangeBooking} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
@@ -1428,6 +1430,88 @@ function EmailProblemActions({ action, onCleared }: { action: EmailProblemAction
 }
 
 type PackageRequestAction = Extract<TodayItem["action"], { kind: "package_request" }>;
+type BillingAddressAction = Extract<TodayItem["action"], { kind: "billing_address" }>;
+
+/**
+ * "Ask them" / "Ask again": email the couple for their billing address.
+ * Names who gets it before it goes, as the final bill does.
+ */
+function BillingAddressActions({
+  action,
+  jobHref,
+  onCleared,
+}: {
+  action: BillingAddressAction;
+  jobHref: string | null;
+  onCleared?: () => void;
+}) {
+  const workspace = useWorkspace();
+  const { records: projects } = useTenantDocuments("projects");
+  const { records: contacts } = useTenantDocuments("contacts");
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const recipient = recipientLabel(
+    jobClientRecipient(
+      projects?.find((project) => project.id === action.projectId),
+      contacts,
+    ),
+  );
+  async function ask() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await requestBillingAddress(action.projectId);
+      refreshTenantRecords("billingAddressRequests", "emailJobs");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The request couldn't be sent. Open the job to check."));
+      setConfirming(false);
+      setBusy(false);
+    }
+  }
+  if (!ownerOrAdmin(workspace.role)) {
+    return (
+      <>
+        <Link className="today-card-primary" href={jobHref ?? `/studio/projects/${action.projectId}`}>
+          Open the job <ArrowRight size={14} />
+        </Link>
+        <span className="today-card-notice">An owner or admin asks the couple.</span>
+      </>
+    );
+  }
+  if (confirming) {
+    return (
+      <ConfirmStep
+        busy={busy}
+        cancelClassName="today-card-secondary"
+        cancelLabel="Not now"
+        className="today-confirm-step"
+        confirmClassName="today-card-primary"
+        confirmLabel="Send the request"
+        label="Ask for their billing address?"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => void ask()}
+      >
+        {`${recipient ?? "The couple"} gets an email from you with a link to their portal, where they add it once. QuickBooks then works out the tax on their final invoice.`}
+      </ConfirmStep>
+    );
+  }
+  return (
+    <>
+      <button className="today-card-primary" disabled={busy} onClick={() => setConfirming(true)} type="button">
+        {action.label} <ArrowRight size={14} />
+      </button>
+      {jobHref ? (
+        <Link className="today-card-secondary" href={jobHref}>
+          Open the job
+        </Link>
+      ) : null}
+      {notice ? <span className="today-card-notice">{notice}</span> : null}
+    </>
+  );
+}
+
 type FinalBalanceAction = Extract<TodayItem["action"], { kind: "final_balance" }>;
 
 /**

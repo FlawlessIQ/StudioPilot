@@ -81,6 +81,12 @@ const guarded: Array<[string, string, RegExp]> = [
     /if \(clientOutreachStop\(project\.data\(\)\)\) continue;/,
   ],
   [
+    "billing-address requests never email a quiet booking on their own",
+    "functions/src/billing/billing-address-request.ts",
+    // A quiet job becomes "needs_studio" — a Today card, the studio's choice.
+    /return stop === null \? "requested" : "needs_studio";/,
+  ],
+  [
     "the email sender holds automated mail for a quiet booking",
     "functions/src/operations/jobs.ts",
     /clientAutomationEmailTypes\.includes\(type\)/,

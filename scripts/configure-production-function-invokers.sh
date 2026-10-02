@@ -166,6 +166,9 @@ scheduler_services=(
   # the org's next invoker-IAM reset and delivery status would silently stop
   # advancing again.
   emaildeliveryreconciler
+  # Asks couples with no billing address for one before the final bill is
+  # taxed (billing/billing-address-request.ts).
+  billingaddressrequestscheduler
   finalinvoicescheduler
   # Drafts follow-ups for inquiries that went quiet, and offers the close.
   # Missing here, it would 403 after the next invoker reset and quiet couples

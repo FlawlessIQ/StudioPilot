@@ -519,3 +519,16 @@ export async function lookupQuickBooksPayments(
   if (result.mode === "preview") return null;
   return result.payload as { mock: boolean; clients: QuickBooksClientHistory[] };
 }
+
+/**
+ * "Ask them" / "Ask again": email the couple a link to add their billing
+ * address, so QuickBooks can work out the sales tax on their final
+ * (functions/src/billing/billing-address-request.ts).
+ */
+export async function requestBillingAddress(projectId: string) {
+  return sendBookingCommand({
+    type: "requestBillingAddress",
+    idempotencyKey: `billing_address_${projectId}_${crypto.randomUUID()}`.slice(0, 160),
+    input: { projectId },
+  });
+}

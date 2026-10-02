@@ -72,6 +72,8 @@ export function useBillingAddressStep(input: {
   kind: SigningKind;
   /** Load when the sheet opens, not on every page view. */
   active: boolean;
+  /** Asked for outside a signature (the portal's billing-address card): what it says when nothing is typed. */
+  missingMessage?: string;
 }) {
   const [step, setStep] = useState<BillingAddressRequirement | null>(null);
   const [onFile, setOnFile] = useState<BillingAddress | null>(null);
@@ -121,12 +123,14 @@ export function useBillingAddressStep(input: {
       value.trim(),
     );
     if (!typed) {
-      return step === "required" ? fail("Add your billing address to sign.") : { ok: true, address: null };
+      return step === "required"
+        ? fail(input.missingMessage ?? "Add your billing address to sign.")
+        : { ok: true, address: null };
     }
     const parsed = parseSigningBillingAddress({ ...fields, line2: fields.line2 || null });
     if (!parsed.ok) return fail(billingAddressProblemCopy[parsed.problem]);
     return { ok: true, address: parsed.address };
-  }, [confirmed, editing, fields, onFile, step]);
+  }, [confirmed, editing, fields, input.missingMessage, onFile, step]);
 
   return {
     step,

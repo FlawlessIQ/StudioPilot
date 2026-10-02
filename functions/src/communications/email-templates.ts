@@ -91,6 +91,7 @@ export const emailTemplateKeys = [
   "project_cancelled",
   "final_invoice",
   "final_payment_reminder",
+  "billing_address_request",
   "schedule_review",
   "final_schedule_published",
   "event_reminder",
@@ -1270,6 +1271,26 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: portalUrl ? { label: "Your project portal", url: portalUrl } : undefined,
       };
     }
+    case "billing_address_request":
+      /**
+       * QuickBooks works out the sales tax from the billing address, and this
+       * couple never gave one (billing/billing-address-request.ts). The whole
+       * point is the link: no portal URL, no button, and the copy still says
+       * where to go.
+       */
+      return {
+        subject: `Your billing address for ${brand.studioName}`,
+        preheader: "One minute: the address we put on your invoice.",
+        eyebrow: "Billing address",
+        heading: "Could you confirm your billing address?",
+        paragraphs: [
+          greeting,
+          `Before we send the final invoice${project}, we need the billing address to put on it — sales tax is worked out from it.`,
+          "It takes a minute, and you only do it once.",
+        ],
+        action: portalUrl ? { label: "Add your billing address", url: portalUrl } : undefined,
+        note: portalUrl ? undefined : `Sign in to your ${brand.studioName} client portal to add it.`,
+      };
     case "album_selection_reminder": {
       /**
        * The reminder that exists to carry a link.

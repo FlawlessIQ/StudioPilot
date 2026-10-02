@@ -1835,3 +1835,19 @@
   cursor: progress;
   opacity: .6;
 }
+
+/* A confirm step ("Send the final bill?", "Ask for their billing address?")
+   carries a sentence, and in the right-hand action column that sentence
+   widened the column until the title wrapped a word to a line. While one is
+   open the actions take a full row under the card instead. */
+@media (min-width: 720px) {
+  .ds-root .today-card > .today-card-actions:has(> .today-confirm-step),
+  .today-card > .today-card-actions:has(> .today-confirm-step) {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .ds-root .today-card.has-glyph > .today-card-actions:has(> .today-confirm-step),
+  .today-card.has-glyph > .today-card-actions:has(> .today-confirm-step) {
+    grid-column: 2 / -1;
+  }
+}

@@ -10,6 +10,7 @@ import {
   billingAddressStepFor,
   coupleBillingAddressProvenance,
   type BillingAddressRequirement,
+  type BillingAddressVia,
   type SigningKind,
 } from "@/features/contacts/billing-address-signing";
 import { normaliseEmail } from "@/features/contracts/signing-policy";
@@ -125,7 +126,7 @@ export function writeSigningBillingAddress(
     address: BillingAddress | null;
     tenantId: string;
     projectId: string;
-    via: "contract_signing" | "amendment_signing";
+    via: BillingAddressVia;
     recordId: string;
     auditId: string;
     now: string;

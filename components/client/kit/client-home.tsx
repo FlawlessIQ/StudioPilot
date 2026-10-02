@@ -1,6 +1,7 @@
 "use client";
 
 import { ClientBookingChange } from "@/components/client/kit/client-booking-change";
+import { ClientBillingAddress } from "@/components/client/kit/client-billing-address";
 import { useState } from "react";
 import { CalendarDays, CheckCircle2, Clock3, MapPin, ShieldCheck } from "lucide-react";
 import { Button, Card, Main, Pill, PoweredBy, Steps } from "@/components/kit/kit";
@@ -73,6 +74,9 @@ export function ClientHome() {
 
       {/* A change to their signed booking, waiting for their signature. */}
       <ClientBookingChange compact />
+
+      {/* The studio needs their billing address for the sales tax on the final invoice. */}
+      <ClientBillingAddress />
 
       {reserve ? (
         <Card tone="accent">

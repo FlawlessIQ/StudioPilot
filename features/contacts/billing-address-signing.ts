@@ -141,19 +141,29 @@ export type BillingAddressProvenance = {
   label: string | null;
   /** When it was confirmed or typed. */
   at: string;
-  /** For the couple's: the signing that carried it. */
-  via?: "contract_signing" | "amendment_signing";
+  /** For the couple's: the signing that carried it, or the studio's request for it. */
+  via?: BillingAddressVia;
   recordId?: string;
 };
 
+/** How the couple gave it: at a signature, or when asked for it on their portal. */
+export type BillingAddressVia = "contract_signing" | "amendment_signing" | "address_request";
+
 export const COUPLE_CONFIRMED_LABEL = "Confirmed by the couple at signing";
+export const COUPLE_CONFIRMED_ON_REQUEST_LABEL = "Confirmed by the couple";
 
 export function coupleBillingAddressProvenance(input: {
   at: string;
-  via: "contract_signing" | "amendment_signing";
+  via: BillingAddressVia;
   recordId: string;
 }): BillingAddressProvenance {
-  return { source: "couple", label: COUPLE_CONFIRMED_LABEL, at: input.at, via: input.via, recordId: input.recordId };
+  return {
+    source: "couple",
+    label: input.via === "address_request" ? COUPLE_CONFIRMED_ON_REQUEST_LABEL : COUPLE_CONFIRMED_LABEL,
+    at: input.at,
+    via: input.via,
+    recordId: input.recordId,
+  };
 }
 
 /** Whether the stored address is the couple's own, and when they confirmed it. Null when it isn't. */

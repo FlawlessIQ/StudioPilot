@@ -40,6 +40,11 @@ import {
 } from "@/server/contracts/client-signing";
 import { signCombinedAgreement } from "@/server/contracts/combined-signing";
 import { signingBillingAddressStep } from "@/server/contracts/signing-billing-address";
+import {
+  billingAddressRequestFor,
+  confirmRequestedBillingAddress,
+} from "@/server/billing/billing-address-request";
+import { parseSigningBillingAddress } from "@/features/contacts/billing-address-signing";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
 
 export const runtime = "nodejs";
@@ -157,6 +162,22 @@ const requestSchema = z.discriminatedUnion("type", [
     consentVersion: z.string().min(1).max(80),
     billingAddress: signingBillingAddressSchema,
     idempotencyKey: z.string().min(8).max(160),
+  }),
+  z.object({
+    /**
+     * Whether the studio is waiting on this couple's billing address, for
+     * the portal card. See server/billing/billing-address-request.ts.
+     */
+    type: z.literal("billing_address_request"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    /** The couple's billing address, given on their portal when the studio asked. */
+    type: z.literal("confirm_billing_address"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    billingAddress: signingBillingAddressSchema,
   }),
   z.object({
     /**
@@ -2126,6 +2147,39 @@ export async function POST(request: Request) {
       return Response.json({ change: await pendingAmendmentFor(adminFirestore, parsed.tenantId, parsed.projectId) });
     }
 
+    if (parsed.type === "billing_address_request") {
+      return Response.json(
+        await billingAddressRequestFor(adminFirestore, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          email: typeof identity.email === "string" ? identity.email : null,
+        }),
+      );
+    }
+
+    if (parsed.type === "confirm_billing_address") {
+      // Whether a state and ZIP are real is answered in words, as at signing.
+      const address = parseSigningBillingAddress(parsed.billingAddress ?? {});
+      if (!address.ok) return Response.json({ error: "BILLING_ADDRESS_INVALID", problem: address.problem }, { status: 400 });
+      return Response.json(
+        await confirmRequestedBillingAddress(adminFirestore, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          address: address.address,
+          signer: {
+            uid: identity.uid,
+            email: typeof identity.email === "string" ? identity.email : null,
+            emailVerified: typeof identity.email_verified === "boolean" ? identity.email_verified : null,
+            authMethod: identity.firebase?.sign_in_provider ?? null,
+          },
+          evidence: {
+            ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+            userAgent: request.headers.get("x-studiohub-user-agent")?.slice(0, 400) ?? request.headers.get("user-agent"),
+          },
+        }),
+      );
+    }
+
     if (parsed.type === "billing_address_step") {
       // The signer's own address only: found by their verified email, never
       // by an id the page sends.
@@ -2561,6 +2615,9 @@ export async function POST(request: Request) {
       error === "PACKAGE_SELECTION_NOT_AVAILABLE" ||
       error === "PACKAGE_ALREADY_SELECTED"
     ) {
+      return Response.json({ error }, { status: 409 });
+    }
+    if (error === "BILLING_ADDRESS_NOT_ASKED" || error === "BILLING_ADDRESS_CONTACT_NOT_FOUND") {
       return Response.json({ error }, { status: 409 });
     }
     if (error === "AUTOPAY_UNAVAILABLE") {

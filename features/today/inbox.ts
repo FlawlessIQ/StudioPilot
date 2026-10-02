@@ -52,6 +52,9 @@ import { BOOKING_BRIEF_CAPABILITIES, blockingIssues } from "@/features/ai/blocki
 import { emailProblemOf } from "@/features/today/email-problems";
 import { dispatchesOnApproval } from "@/features/ai/approval-consequence";
 
+/** A couple emailed for their billing address: Today offers "Ask again" after this many days. */
+const BILLING_ADDRESS_ASK_AGAIN_DAYS = 5;
+
 /** When a final balance becomes Today's business: the journey's own "one month out" step opens at 45. */
 const FINAL_BALANCE_WINDOW_DAYS = 45;
 
@@ -80,6 +83,16 @@ export type TodayAction =
       projectId: string;
       packageSnapshotId: string | null;
       balanceCents: number | null;
+    }
+  | {
+      /**
+       * QuickBooks needs the couple's billing address to tax their final:
+       * ask them (a quiet job the scheduler won't email), or ask again
+       * (functions/src/billing/billing-address-request.ts).
+       */
+      kind: "billing_address";
+      label: string;
+      projectId: string;
     }
   | {
       kind: "package_request";
@@ -303,6 +316,8 @@ export type TodayInput = {
   conversations?: TodayRecord[] | null;
   /** Couples asking to add a package (portal "Add to your booking"). */
   packageRequests?: TodayRecord[] | null;
+  /** Billing addresses StudioCue asked couples for (functions/src/billing/billing-address-request.ts). */
+  billingAddressRequests?: TodayRecord[] | null;
   /**
    * Run-of-show versions, so the couple's answer to the day plan reaches
    * Today: a card when they ask for changes, a line when they approve it.
@@ -1040,6 +1055,54 @@ export function todayInbox(input: TodayInput): TodayInbox {
       band: "soon",
       eventDate: text(job.eventDate) || null,
       score: score({ lane: "act", severity: "inquiry", updatedAt: changedAt(request), now }),
+    });
+  }
+
+  // ── Act · a billing address QuickBooks needs to tax the final ───────
+  // A quiet job the scheduler wouldn't email: the studio decides. One the
+  // couple was emailed about: nothing to do until it's been a few days.
+  for (const request of rows(input.billingAddressRequests)) {
+    const status = text(request.status);
+    if (status !== "needs_studio" && status !== "requested") continue;
+    const projectId = text(request.projectId);
+    const job = inquiryJobById.get(projectId);
+    if (!job || job.archivedAt || ["ARCHIVED", "CANCELLED", "LOST"].includes(text(job.state))) continue;
+    const eventDate = text(job.eventDate) || null;
+    if (eventDate && eventDate < input.now.slice(0, 10)) continue;
+    const lastAsked = text(request.lastRequestedAt) || null;
+    const askedDays = lastAsked ? Math.max(0, -(elapsedDayDiff(lastAsked, now) ?? 0)) : null;
+    if (status === "requested" && (askedDays === null || askedDays < BILLING_ADDRESS_ASK_AGAIN_DAYS)) continue;
+    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "The couple";
+    const asked = Number(request.requestCount ?? 0);
+    act.push({
+      id: `billing-address-${projectId}`,
+      lane: "act",
+      kind: "invoice",
+      title:
+        status === "requested"
+          ? `Still waiting on ${couple}'s billing address`
+          : `${couple}'s billing address is missing`,
+      detail: [
+        "QuickBooks works out the sales tax on their final invoice from it.",
+        status === "requested"
+          ? `Asked ${asked === 1 ? "once" : `${asked} times`}${askedDays !== null ? `, last ${askedDays} ${askedDays === 1 ? "day" : "days"} ago` : ""}.`
+          : text(request.reason) === "no_client_email"
+            ? "There's no email on their client record — add one, or type the address in yourself."
+            : "This booking is quiet (imported or paused), so StudioCue hasn't emailed them.",
+      ].join(" "),
+      evidence: "Needed before the final invoice",
+      projectId,
+      projectName: text(job.name) || null,
+      action: {
+        kind: "billing_address",
+        label: status === "requested" ? "Ask again" : "Ask them",
+        projectId,
+      },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [eventDate ? formatDueDate(eventDate) : null].filter((fact): fact is string => Boolean(fact)),
+      band: "soon",
+      eventDate,
+      score: score({ lane: "act", severity: "step", eventDate, updatedAt: text(request.updatedAt) || null, now }),
     });
   }
 

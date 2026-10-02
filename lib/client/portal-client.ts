@@ -421,6 +421,21 @@ export function getSigningBillingAddressStep(tenantId: string, projectId: string
   });
 }
 
+/** Whether the studio is waiting on this couple's billing address (server/billing/billing-address-request.ts). */
+export function getBillingAddressRequest(tenantId: string, projectId: string) {
+  return portalRequest<{ needed: boolean }>({ type: "billing_address_request", tenantId, projectId });
+}
+
+/** The couple's billing address, given because the studio asked; saved to their own contact. */
+export function confirmBillingAddress(tenantId: string, projectId: string, billingAddress: BillingAddress) {
+  return portalRequest<{ saved: boolean; recalculating: string[] }>({
+    type: "confirm_billing_address",
+    tenantId,
+    projectId,
+    billingAddress,
+  });
+}
+
 /** A change to a signed booking, waiting for the couple (server/contracts/amendment-signing.ts). */
 export function getClientBookingChange(tenantId: string, projectId: string) {
   return portalRequest<{ change: ClientBookingChange | null }>({ type: "booking_change", tenantId, projectId });

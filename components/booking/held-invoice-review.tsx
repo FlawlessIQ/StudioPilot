@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CircleAlert, LoaderCircle, PencilLine, RefreshCw, Send } from "lucide-react";
+import { CircleAlert, LoaderCircle, Mail, PencilLine, RefreshCw, Send } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { heldInvoiceView } from "@/features/billing/held-invoice-review";
 import { friendlyError } from "@/lib/ai/friendly-error";
-import { sendHeldInvoice } from "@/lib/booking/command-client";
+import { requestBillingAddress, sendHeldInvoice } from "@/lib/booking/command-client";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { VoidInvoice } from "@/components/booking/invoice-corrections";
 
@@ -52,6 +52,29 @@ export function HeldInvoiceReview({
   const ownerOrAdmin = OWNER_ADMIN.includes(String(workspace.role));
   const working = view.state !== "awaiting_studio";
   const final = view.kind === "final";
+
+  /**
+   * QuickBooks had no address to tax from: email the couple a link to add
+   * it. When they do, the tax is worked out again without anyone pressing
+   * anything (server/billing/billing-address-request.ts).
+   */
+  async function askCouple() {
+    setBusy("ask");
+    setNotice(null);
+    try {
+      const result = await requestBillingAddress(String(invoice.projectId ?? ""));
+      if (result.mode === "preview") {
+        setNotice("Development preview: nothing was sent.");
+        return;
+      }
+      refreshTenantRecords("billingAddressRequests", "emailJobs");
+      setNotice("Asked. When they add it, QuickBooks works the tax out again and this updates.");
+    } catch (caught) {
+      setNotice(friendlyError(caught, "The request couldn't be sent."));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function act(action: "send_with_tax" | "send_without_tax" | "recalculate") {
     if (!view) return;
@@ -146,6 +169,17 @@ export function HeldInvoiceReview({
             >
               {busy === "send_without_tax" ? <LoaderCircle aria-hidden="true" className="spin" size={14} /> : null}
               {`Send without tax · ${money(view.subtotalCents, currency)}`}
+            </button>
+          ) : null}
+          {view.billingAddressMissing && final ? (
+            <button
+              className="button button-secondary"
+              disabled={busy !== null}
+              onClick={() => void askCouple()}
+              type="button"
+            >
+              {busy === "ask" ? <LoaderCircle aria-hidden="true" className="spin" size={14} /> : <Mail aria-hidden="true" size={14} />}
+              Ask the couple for it
             </button>
           ) : null}
           {view.billingAddressMissing ? (

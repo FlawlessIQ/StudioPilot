@@ -41,6 +41,7 @@ import {
 } from "./invoice-corrections.js";
 import { recordInvoicePayment, recordInvoicePaymentInput } from "./invoice-payments.js";
 import { sendHeldInvoice, sendHeldInvoiceInput } from "./held-invoice-send.js";
+import { requestBillingAddressIn } from "../billing/billing-address-request.js";
 import { invoiceVoidRefusal } from "./invoice-corrections-core.js";
 import { planRetainerAttestation } from "./retainer-attestation.js";
 import {
@@ -481,6 +482,13 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: approveFinalInvoiceInput,
+  }),
+  z.object({
+    /** "Ask them" / "Ask again": email the couple for their billing address (billing/billing-address-request.ts). */
+    type: z.literal("requestBillingAddress"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ projectId: z.string().min(1).max(160) }),
   }),
   // A bill held in QuickBooks for the studio to check: send with tax, send
   // without tax, or work the tax out again — see ./held-invoice-send.ts.
@@ -2181,6 +2189,16 @@ export const bookingCommand = onRequest(
         else if (command.type === "sendHeldInvoice")
           result = await sendHeldInvoice(firestore, correctionContext, command.input);
         else result = await approveFinalInvoice(firestore, correctionContext, command.input);
+      } else if (command.type === "requestBillingAddress") {
+        const input = command.input;
+        result = await firestore.runTransaction((transaction) =>
+          requestBillingAddressIn(
+            firestore,
+            transaction,
+            { tenantId: command.tenantId, role: String(membership.role), actorId: identity.uid, now: timestamp },
+            input,
+          ),
+        );
       } else if (command.type === "recordFinalPayment") {
         /**
          * The balance, vouched for by a person.

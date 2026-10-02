@@ -551,7 +551,11 @@ test("a booking change asks only when none is on file", async () => {
 
 test("the portal passes the address to every signing path and takes no contact id from the page", () => {
   const route = read("app/api/client/portal/route.ts");
-  assert.equal(route.match(/billingAddress: signingBillingAddressSchema/g)?.length, 3);
+  // Three signing paths, and the card that asks for it when the studio needs it
+  // (server/billing/billing-address-request.ts) — which takes no contact id either.
+  assert.equal(route.match(/billingAddress: signingBillingAddressSchema/g)?.length, 4);
+  const asked = route.slice(route.indexOf('z.literal("confirm_billing_address")'), route.indexOf('z.literal("billing_address_step")'));
+  assert.doesNotMatch(asked, /contactId/);
   assert.equal(route.match(/billingAddress: parsed\.billingAddress/g)?.length, 3);
   const step = route.slice(route.indexOf('z.literal("billing_address_step")'), route.indexOf('z.literal("booking_change")'));
   assert.doesNotMatch(step, /contactId/);
