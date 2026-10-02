@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
 import {
   ArrowRight,
   CircleGauge,
@@ -52,6 +53,7 @@ const CONCEPTS: Concept[] = [
 ];
 
 export function HelpCenter() {
+  const shootsWeddings = useStudioJobTypes().some((type) => type.kind === "wedding");
   return (
     <div className="post-event-page help-page">
       <header className="page-heading">
@@ -95,17 +97,19 @@ export function HelpCenter() {
             );
           })}
         </div>
-        <Link className="help-example-link" href="/studio/help/example">
+        {shootsWeddings ? (
+        <Link className="help-example-link" href="/studio/help/journey">
           <Compass aria-hidden="true" />
           <span>
-            <strong>Walk through an example job</strong>
+            <strong>A wedding, start to finish</strong>
             <small>
-              See a sample wedding end to end — the phases, readiness, and how
-              Cue prepares your next step.
+              Inquiry to album: what StudioCue does by itself, what you
+              approve, and what your couple and crew see at each stage.
             </small>
           </span>
           <ArrowRight className="help-link-arrow" aria-hidden="true" />
         </Link>
+        ) : null}
       </section>
 
       <section className="help-section" id="glossary">

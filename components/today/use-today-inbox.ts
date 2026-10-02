@@ -33,6 +33,7 @@ import {
   type TodayJourneyPosition,
   type TodayRecord,
 } from "@/features/today/inbox";
+import { studioHasBookedAJob } from "@/features/journey/expected-timeline";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -84,6 +85,8 @@ export function useTodayInbox(): {
     next: SetupGapKey | null;
     brandNew: boolean;
     noInquiriesEver: boolean;
+    /** Whether any job has ever booked: until one has, Today offers "A wedding, start to finish". */
+    bookedAJob: boolean;
   };
   /** Value of work actually won — see bookedValueCents. */
   booked: number;
@@ -402,6 +405,7 @@ export function useTodayInbox(): {
        * forwarding address exists. This is the moment to say so.
        */
       noInquiriesEver: (leads.records ?? []).length === 0,
+      bookedAJob: studioHasBookedAJob(projects.records),
     },
     // The studio's pulse, from the same engine the old dashboard used.
     metrics: homeMetrics({

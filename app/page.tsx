@@ -16,6 +16,8 @@ import { Logo } from "@/components/brand/logo";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { planCards } from "@/config/saas-plans";
+import { helpVideo } from "@/features/help/videos";
+import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
 
 const readinessItems = [
   { label: "Contract signed", detail: "Completed Jul 02", complete: true },
@@ -107,6 +109,11 @@ export default function MarketingHome() {
               </Link>
               <Link className="button button-light" href="/studio-preview">
                 Explore the live product
+              </Link>
+              {/* "Watch" once the film is published; until then the page is
+                  the same story in words, and says so. */}
+              <Link className="button button-light" href="/how-to/wedding-journey">
+                {helpVideo(JOURNEY_FILM_ID) ? "Watch a wedding, start to finish" : "See a wedding, start to finish"}
               </Link>
             </div>
             <div className="hero-proof">

@@ -1,13 +1,10 @@
-import type { Metadata } from "next";
-import { AppShell } from "@/components/layout/app-shell";
-import { ExampleTour } from "@/components/help/example-tour";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Example job" };
-
-export default function ExampleJobPage() {
-  return (
-    <AppShell active="Help & guides">
-      <ExampleTour />
-    </AppShell>
-  );
+/**
+ * The annotated example job lived here until "A wedding, start to finish"
+ * replaced it: the whole wedding, not one moment of it. Kept so a bookmarked
+ * or linked URL never dead-ends on a 404.
+ */
+export default function ExampleJobAlias() {
+  redirect("/studio/help/journey");
 }

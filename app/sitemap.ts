@@ -15,6 +15,7 @@ const publicRoutes: Array<{
   { path: "/corporate-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/sports-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/how-to", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/how-to/wedding-journey", changeFrequency: "monthly", priority: 0.7 },
   { path: "/how-to/glossary", changeFrequency: "monthly", priority: 0.5 },
   ...EXPLAINERS.map((guide) => ({
     path: `/how-to/${guide.id}`,

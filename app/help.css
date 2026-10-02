@@ -151,334 +151,365 @@
   line-height: 1.45;
 }
 
-/* ── Example job tour ─────────────────────────────────────────────────── */
-.example-tour {
+/* ── A wedding, start to finish (components/help/wedding-journey.tsx) ─────
+   One wedding, inquiry to closed, in the studio (/studio/help/journey) and on
+   the website (/how-to/wedding-journey). :root tokens, so it reads the same in
+   both shells. The three lanes sit side by side when the page is wide enough
+   (a container query: the studio's content column is narrower than the
+   window); below that one lane shows at a time, chosen with the switch. */
+.journey {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  container-type: inline-size;
+}
+.journey-stops ol {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.journey-stops li {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.journey-stops li + li::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: color-mix(in srgb, var(--success) 35%, var(--line));
+}
+.journey-stops a {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-}
-.example-banner {
-  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0.6rem 0.9rem;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--ds-amber) 40%, var(--ds-line));
-  background: color-mix(in srgb, var(--ds-amber) 8%, var(--ds-paper));
-  color: var(--amber-dark, #8b5b17);
-  font-size: 0.85rem;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
 }
-.example-banner > svg {
+.journey-stops a:hover {
+  color: var(--success);
+}
+.journey-stop-dot {
+  width: 16px;
+  height: 16px;
+  border: 3px solid var(--surface, #fff);
+  border-radius: 999px;
+  background: var(--success);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 45%, transparent);
+}
+.journey-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.journey-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.journey-legend svg {
   flex: none;
-  color: var(--ds-amber);
+  color: var(--success);
 }
-
-/* an annotation note + the sample UI it points at */
-.example-step {
+.journey-stages {
   display: grid;
-  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
-  gap: 1rem 1.5rem;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.journey-stage {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  scroll-margin-top: 90px;
+}
+.journey-stage-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 14px;
   align-items: start;
 }
-.example-note {
-  display: flex;
-  gap: 0.7rem;
-  align-items: flex-start;
-  padding-top: 0.35rem;
+.journey-stage-head > :not(.journey-stage-num) {
+  grid-column: 2;
 }
-.example-note-num {
+.journey-stage-num {
+  grid-row: 1 / span 3;
   display: grid;
   place-items: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  flex: none;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   background: var(--success);
   color: #fff;
-  font-size: 0.85rem;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-:root[data-theme="dark"] .example-note-num,
-:root:not([data-theme="light"]) .example-note-num {
+:root[data-theme="dark"] .journey-stage-num {
   color: #10241a;
 }
-.example-note p {
+.journey-stage-when {
   margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: var(--ds-muted);
-}
-.example-note strong {
-  color: var(--ds-ink);
-  font-weight: 600;
-}
-
-/* the sample job header + phase track */
-.example-job {
-  padding: 1.15rem 1.25rem;
-}
-.example-job-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.1rem;
-}
-.example-job-head strong {
-  display: block;
-  font-family: var(--ds-serif, Georgia, serif);
-  font-size: 1.05rem;
-  color: var(--ds-ink);
-}
-.example-job-head small {
-  color: var(--ds-muted);
-  font-size: 0.85rem;
-}
-.example-badge {
-  flex: none;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-.example-badge.is-booked {
   color: var(--success);
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-}
-.example-phases {
-  display: flex;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.example-phases li {
-  position: relative;
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-}
-.example-phases li::before {
-  content: "";
-  position: absolute;
-  top: 11px;
-  left: -50%;
-  width: 100%;
-  height: 2px;
-  background: var(--ds-line);
-}
-.example-phases li:first-child::before {
-  display: none;
-}
-.example-phases li.is-done::before,
-.example-phases li.is-current::before {
-  background: var(--success);
-}
-.example-phase-mark {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: var(--ds-paper);
-  border: 2px solid var(--ds-line);
-  color: var(--ds-muted);
-  z-index: 1;
-}
-.example-phases li.is-done .example-phase-mark {
-  border-color: var(--success);
-  background: var(--success);
-  color: #fff;
-}
-.example-phases li.is-current .example-phase-mark {
-  border-color: var(--success);
-  color: var(--success);
-}
-.example-phases small {
-  font-size: 0.72rem;
-  color: var(--ds-muted);
-}
-.example-phases li.is-current small {
-  color: var(--ds-ink);
-  font-weight: 600;
-}
-
-/* readiness */
-.example-readiness {
-  padding: 1.15rem 1.25rem;
-}
-.example-readiness-head {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding-bottom: 0.9rem;
-  margin-bottom: 0.35rem;
-  border-bottom: 1px solid var(--ds-line);
-}
-.example-gauge {
-  display: grid;
-  place-items: center;
-  padding: 0.35rem 0.7rem;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--success) 8%, transparent);
-  line-height: 1.1;
-}
-.example-gauge strong {
-  font-size: 1.35rem;
-  color: var(--success);
-}
-.example-gauge small {
-  font-size: 0.68rem;
-  color: var(--ds-muted);
-}
-.example-readiness-title {
-  display: flex;
-  flex-direction: column;
-  font-weight: 600;
-  color: var(--ds-ink);
-}
-.example-readiness-title small {
-  font-weight: 400;
-  color: var(--ds-muted);
-  font-size: 0.82rem;
-}
-.example-checks {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.example-checks li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid var(--ds-line);
-}
-.example-checks li:last-child {
-  border-bottom: none;
-}
-.example-check-mark {
-  display: grid;
-  place-items: center;
-  color: var(--ds-muted);
-}
-.example-checks li.is-done .example-check-mark {
-  color: var(--success);
-}
-.example-check-label {
-  font-size: 0.9rem;
-  color: var(--ds-ink);
-}
-.example-check-note {
-  font-size: 0.8rem;
-  color: var(--ds-muted);
-  text-align: right;
-}
-
-/* prepared-for-you card */
-.example-prepared {
-  padding: 1.15rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-.example-prepared-head {
-  display: flex;
-  gap: 0.7rem;
-  align-items: center;
-}
-.example-prepared-icon {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  flex: none;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-  color: var(--success);
-}
-.example-prepared-head small {
-  display: block;
-  font-size: 0.72rem;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ds-muted);
 }
-.example-prepared-head strong {
-  color: var(--ds-ink);
-}
-.example-email {
-  border: 1px solid var(--ds-line);
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
-  background: var(--ds-paper);
-}
-.example-email p {
+.journey-stage-head h2 {
   margin: 0;
-  font-size: 0.88rem;
+  color: var(--ink);
+  font-size: 21px;
+  line-height: 1.25;
+}
+.journey-stage-summary {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 15px;
   line-height: 1.55;
-  color: var(--ds-ink);
 }
-.example-email-line {
-  color: var(--ds-muted) !important;
-  font-size: 0.78rem !important;
-  margin-bottom: 0.5rem !important;
+.journey-switch {
+  display: inline-flex;
+  justify-self: start;
+  gap: 2px;
+  max-width: 100%;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.journey-switch button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.journey-switch button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.journey-switch button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--success) 55%, transparent);
+  outline-offset: 1px;
+}
+.journey-lanes {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.journey-lane {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+.journey-lane h3 {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
-.example-prepared-actions {
+.journey-group {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+.journey-group.is-auto {
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+.journey-group.is-approve {
+  border: 1px dashed color-mix(in srgb, var(--success) 50%, var(--line));
+}
+.journey-group.is-plain {
+  border: 1px solid var(--line);
+}
+.journey-group h4 {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 6px;
+  margin: 0;
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 650;
+}
+.journey-group.is-approve h4 {
+  color: var(--ink);
+}
+.journey-group h4 svg {
+  flex: none;
+  color: var(--success);
+}
+.journey-items {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+.journey-items li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.journey-when {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 650;
+}
+.journey-note {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.journey-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.journey-footnote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+/* Narrow: one lane at a time, the one the switch picked. */
+@container (max-width: 839px) {
+  .journey[data-lane="you"] .journey-lane:not([data-lane="you"]),
+  .journey[data-lane="couple"] .journey-lane:not([data-lane="couple"]),
+  .journey[data-lane="crew"] .journey-lane:not([data-lane="crew"]) {
+    display: none;
+  }
+  .journey-lane h3 {
+    display: none;
+  }
+}
+/* Wide: all three side by side, so the switch has nothing to do. */
+@container (min-width: 840px) {
+  .journey-switch {
+    display: none;
+  }
+  .journey-lanes {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px;
+  }
+}
+@container (max-width: 520px) {
+  .journey-stage {
+    padding: 18px 16px;
+  }
+  .journey-stage-head h2 {
+    font-size: 19px;
+  }
+  .journey-stops a {
+    font-size: 11.5px;
+  }
+  .journey-switch {
+    justify-self: stretch;
+  }
+  .journey-switch button {
+    flex: 1 1 0;
+    padding-inline: 6px;
+  }
+  .journey-group {
+    padding: 12px 14px;
+  }
+  /* The summary takes the full width under the number, not a narrow column. */
+  .journey-stage-num {
+    grid-row: 1 / span 2;
+  }
+  .journey-stage-head > .journey-stage-summary {
+    grid-column: 1 / -1;
+  }
+}
+/* The website's call to action beneath the journey. */
+.journey-public-cta {
   flex-wrap: wrap;
 }
-.example-prepared-actions .ds-btn[aria-disabled="true"] {
-  opacity: 0.9;
-  cursor: default;
+.journey-public-cta .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
-.example-prepared-actions em {
-  font-style: normal;
-  font-size: 0.78rem;
-  color: var(--ds-muted);
-}
-
-.example-close {
-  display: flex;
-  gap: 0.85rem;
-  align-items: flex-start;
-  padding: 1.15rem 1.25rem;
-}
-.example-close > svg {
-  flex: none;
-  color: var(--success);
-  margin-top: 0.15rem;
-}
-.example-close h2 {
-  font-family: var(--ds-serif, Georgia, serif);
-  font-size: 1.05rem;
-  margin: 0 0 0.3rem;
-  color: var(--ds-ink);
-}
-.example-close p {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--ds-muted);
-}
-
-@media (max-width: 760px) {
-  .example-step {
-    grid-template-columns: 1fr;
-    gap: 0.6rem;
+/* The studio page heading on phones: short, no rule, like the help hub. */
+@media (max-width: 640px) {
+  .ds-root .journey-page > .page-heading {
+    display: grid;
+    gap: 8px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
-  .example-phases small {
-    font-size: 0.64rem;
+  .ds-root .journey-page > .page-heading::before,
+  .ds-root .journey-page > .page-heading .eyebrow {
+    display: none;
   }
+  .ds-root .journey-page > .page-heading h1 {
+    margin: 0;
+    font-size: 23px;
+  }
+  .ds-root .journey-page > .page-heading > div > p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .ds-root .journey-page > .page-heading > .button {
+    justify-self: start;
+    min-height: 34px;
+  }
+}
+/* Today's invitation (components/help/journey-today-card.tsx). */
+.journey-today-card {
+  position: relative;
+  padding-right: 48px;
+}
+.journey-today-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.journey-today-dismiss:hover {
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  color: var(--ink);
 }
 
 /* InfoHint — an ⓘ that explains a word or a field, on hover or tap
@@ -574,44 +605,6 @@
 @media (prefers-reduced-motion: reduce) {
   .info-hint-pop:popover-open {
     animation: none;
-  }
-}
-
-/* Example tour on phones: a short heading, and each readiness row's note drops
-   under its label instead of squeezing it from the right. */
-@media (max-width: 640px) {
-  .ds-root .example-tour > .page-heading {
-    border: 0;
-    display: grid;
-    gap: 8px;
-    margin: 0;
-    min-height: 0;
-    padding: 0;
-  }
-  .ds-root .example-tour > .page-heading::before,
-  .ds-root .example-tour > .page-heading .eyebrow {
-    display: none;
-  }
-  .ds-root .example-tour > .page-heading h1 {
-    font-size: 23px;
-    margin: 0;
-  }
-  .ds-root .example-tour > .page-heading > div > p {
-    font-size: 13px;
-    line-height: 1.45;
-    margin: 4px 0 0;
-  }
-  .ds-root .example-tour > .page-heading > .button {
-    justify-self: start;
-    min-height: 34px;
-  }
-  .example-checks li {
-    grid-template-columns: auto minmax(0, 1fr);
-    row-gap: 2px;
-  }
-  .example-check-note {
-    grid-column: 2;
-    text-align: left;
   }
 }
 

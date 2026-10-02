@@ -7,6 +7,7 @@ import { GLOSSARY, glossaryTerm } from "@/features/help/glossary";
 import { boldLabels, plainText } from "@/features/help/rich-text";
 import { helpForRoute, routeMatches } from "@/features/help/routes";
 import { helpVideo, helpVideoIds } from "@/features/help/videos";
+import { JOURNEY_VIDEO_IDS } from "@/features/journey/expected-timeline";
 
 /**
  * Help that describes a screen as it used to be is worse than no help
@@ -59,6 +60,7 @@ test("explainer and glossary ids are unique and URL-safe", () => {
     for (const id of list) assert.match(id, /^[a-z0-9]+(-[a-z0-9]+)*$/, id);
   }
   assert.ok(!explainer("glossary"), "'glossary' is the /how-to/glossary page, not a guide id");
+  assert.ok(!explainer("wedding-journey"), "'wedding-journey' is the /how-to/wedding-journey page, not a guide id");
 });
 
 test("every UI label a guide names in bold still exists in the product", () => {
@@ -138,7 +140,10 @@ test("each explainer is a guide, not an essay", () => {
 });
 
 test("videos are only shown once the pipeline has published them", () => {
-  for (const id of helpVideoIds()) assert.ok(EXPLAINERS.some((guide) => guide.video === id), `${id} has no explainer`);
+  // A video belongs to an explainer, or is the wedding film and its chapters
+  // ("A wedding, start to finish", features/journey/expected-timeline.ts).
+  for (const id of helpVideoIds())
+    assert.ok(EXPLAINERS.some((guide) => guide.video === id) || JOURNEY_VIDEO_IDS.includes(id), `${id} has no explainer`);
   assert.equal(helpVideo("today", undefined), null, "no media base, no video");
   assert.equal(helpVideo("not-a-video", "https://example.test"), null);
   const [first] = helpVideoIds();

@@ -16,7 +16,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     summary: "The four places that do most of the work, and where everything else lives.",
     audience: "studio",
     stage: "getting-started",
-    routes: ["/studio/help", "/studio/help/example"],
+    routes: ["/studio/help", "/studio/help/journey"],
     video: "tour",
     purpose:
       "StudioCue runs your studio from the first inquiry to the final gallery. Four places in the menu do most of the work.",

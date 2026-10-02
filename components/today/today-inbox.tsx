@@ -32,6 +32,7 @@ import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { LeadCaptureStart } from "@/components/intake/lead-capture-setup";
+import { JourneyTodayCard } from "@/components/help/journey-today-card";
 import { SETUP_STEP_NAME } from "@/features/today/setup-gaps";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { greetingFor } from "@/features/dashboard/home-metrics";
@@ -682,6 +683,10 @@ export function TodayInbox() {
               onAnswered={(leadId) => clear(`maybe-${leadId}`)}
             />
           ) : null}
+
+          {/* Until the first booking: what the next year of a wedding looks
+              like. Below the work, so it never pushes a real inquiry down. */}
+          {!loading && !setup.bookedAJob ? <JourneyTodayCard /> : null}
 
           {inbox.fyi.length ? (
             <section className="today-handled" aria-label="Handled for you">

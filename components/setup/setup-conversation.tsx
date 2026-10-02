@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -134,6 +135,7 @@ const IMPORT_PRICES = fromSetup("/studio/import?kind=Package");
 const IMPORT_FORM = fromSetup("/studio/import?kind=Questionnaire");
 
 export function SetupConversation() {
+  const shootsWeddings = useStudioJobTypes().some((type) => type.kind === "wedding");
   const workspace = useWorkspace();
   const { gaps, complete, loading, refresh, calendarConnected } = useSetupState();
   const gapByKey = new Map(gaps.map((gap) => [gap.key, gap]));
@@ -296,6 +298,12 @@ export function SetupConversation() {
           <Link href="/studio/library">your library</Link> and{" "}
           <Link href="/studio/integrations">integrations</Link>.
         </p>
+        {shootsWeddings ? (
+          <p className="setup-footnote">
+            What happens once a couple inquires?{" "}
+            <Link href="/studio/help/journey">See a wedding, start to finish</Link>.
+          </p>
+        ) : null}
       </div>
     </AppShell>
   );

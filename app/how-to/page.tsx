@@ -28,6 +28,13 @@ export default function HowToPage() {
       title="How to use StudioCue"
     >
       <div className="how-to-public">
+        <Link className="how-to-public-glossary" href="/how-to/wedding-journey">
+          <span>
+            <strong>A wedding, start to finish</strong>
+            <small>One wedding from inquiry to closed: what runs by itself, what you approve, and what your couple and crew see.</small>
+          </span>
+          <ArrowRight aria-hidden="true" />
+        </Link>
         {AUDIENCES.filter(({ audience }) => EXPLAINERS.some((guide) => guide.audience === audience)).map(
           ({ audience, intro }) => (
             <section className="how-to-public-section" id={audience} key={audience}>
