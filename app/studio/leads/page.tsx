@@ -33,7 +33,7 @@ export default async function LeadsPage({
           <div className="crm-table crm-leads-table inquiry-pipeline-table">
             {/* "Owner" read "Unassigned" on every row — pure noise in a
                 one-photographer studio, which is the shape a pilot ships to. */}
-            <div className="crm-table-head"><span>Inquiry</span><span>Date</span><span>Source</span><span>Stage</span><span /></div>
+            <div className="crm-table-head"><span>Inquiry</span><span>Date</span><span>Source</span><span>Stage</span><span /><span /></div>
             <InquiryPipelineRows view={view} q={q}/>
           </div>
           <div className="crm-empty-hint"><Inbox size={15} /><span>New inquiries are protected from spam and checked for duplicates.</span></div>

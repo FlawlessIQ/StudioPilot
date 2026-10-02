@@ -285,3 +285,23 @@ test("the automatic acknowledgement is not the studio's reply", async () => {
   const worker = readFileSync("functions/src/operations/jobs.ts", "utf8");
   assert.match(worker, /countsAsReply: document\.get\("type"\) !== "inquiry_acknowledgement"/);
 });
+
+test("an inquiry can be closed or reopened from its row on Inquiries", () => {
+  const rows = inquiryPipeline({
+    projects: [
+      { id: "p1", tenantId: "t1", state: "PROPOSAL", name: "Quiet Couple", createdAt: "2026-09-01T00:00:00Z" },
+      { id: "p2", tenantId: "t1", state: "LOST", lostReason: "went_quiet", name: "Gone Couple" },
+    ],
+    leads: [{ id: "l1", tenantId: "t1", status: "new", firstName: "Ella", createdAt: "2026-10-01T00:00:00Z" }],
+    conversations: [],
+  });
+  const state = (id: string) => rows.find((row) => row.id === id)?.state;
+  assert.equal(state("p1"), "PROPOSAL", "the job's own state decides it");
+  assert.equal(state("p2"), "LOST");
+  assert.equal(state("l1"), "LEAD");
+  const list = readFileSync("components/inquiries/inquiry-pipeline.tsx", "utf8");
+  assert.match(list, /<ProjectInquiryClose[\s\S]*?compact[\s\S]*?state=\{row\.state\}/);
+  assert.match(readFileSync("app/studio/leads/page.tsx", "utf8"), /<span>Stage<\/span><span \/><span \/>/);
+  // Above the row's full-width link, or the tap opens the inquiry instead.
+  assert.match(readFileSync("app/legacy-bridge.css", "utf8"), /\.inquiry-row-actions \{[^}]*z-index: 1;/);
+});

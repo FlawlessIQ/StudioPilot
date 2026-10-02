@@ -32,6 +32,11 @@ export type InquiryRow = {
   /** Why it closed, in the studio's words, when it did. */
   closedReason: string | null;
   closedAt: string | null;
+  /**
+   * The job's state (a lead: LEAD, or LOST once closed) — what decides
+   * whether the row can be closed or reopened from the list.
+   */
+  state: string;
 };
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -168,6 +173,7 @@ export function inquiryPipeline(input: {
       availability: availabilityNow(lead?.availabilityStatus, text(project.eventDate) || null, project.id, holdersByDate),
       closedReason: lost ? (lostReasonLabel[reason] ?? "Closed") : null,
       closedAt: lost ? text(project.lostAt) || text(project.updatedAt) || null : null,
+      state,
     });
   }
 
@@ -200,6 +206,7 @@ export function inquiryPipeline(input: {
       availability: availabilityNow(lead.availabilityStatus, text(lead.eventDate) || null, null, holdersByDate),
       closedReason: closed ? (lostReasonLabel[text(lead.lostReason)] ?? "Closed") : null,
       closedAt: closed ? text(lead.archivedAt) || text(lead.updatedAt) || null : null,
+      state: closed ? "LOST" : "LEAD",
     });
   }
 

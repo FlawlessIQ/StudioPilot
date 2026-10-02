@@ -2728,3 +2728,65 @@
   flex-basis: 100%;
   color: var(--ds-muted);
 }
+
+/* Inquiries: Close / Reopen on each row, so a lead that went quiet is closed
+   without opening it. One more track, between the stage and the arrow. */
+.ds-root .crm-leads-table.inquiry-pipeline-table .crm-table-head,
+.ds-root .crm-leads-table.inquiry-pipeline-table article {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.8fr) 92px 30px;
+}
+@media (max-width: 1100px) {
+  /* Source is hidden here (globals.css), so one track fewer. */
+  .ds-root .crm-leads-table.inquiry-pipeline-table .crm-table-head,
+  .ds-root .crm-leads-table.inquiry-pipeline-table article {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.7fr) 92px 30px;
+  }
+}
+@media (max-width: 660px) {
+  .ds-root .crm-leads-table.inquiry-pipeline-table article {
+    grid-template-columns: 1fr auto;
+  }
+}
+/* Above the row's full-width link (globals.css: a[href]::after), or the tap
+   opens the inquiry instead. */
+.ds-root .inquiry-row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  position: relative;
+  z-index: 1;
+}
+.ds-root .inquiry-row-actions .form-error {
+  font-size: 11.5px;
+  margin: 0;
+  text-align: right;
+}
+.ds-root .inquiry-row-action {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e7e2);
+  border-radius: 999px;
+  color: var(--ink-soft, #56605a);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  gap: 5px;
+  line-height: 1;
+  padding: 7px 11px;
+  white-space: nowrap;
+}
+.ds-root .inquiry-row-action:hover {
+  border-color: var(--ds-claret, #2f6b4f);
+  color: var(--ink);
+}
+@media (max-width: 660px) {
+  .ds-root .inquiry-row-actions {
+    align-items: flex-start;
+  }
+  .ds-root .inquiry-row-actions .form-error {
+    text-align: left;
+  }
+}

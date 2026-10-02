@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { LiveRecordsState, useTenantDocuments } from "@/components/live/tenant-records";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
 import { inquiryPipeline, type InquiryRow } from "@/features/inquiries/pipeline";
 import { inquiryStageLabel } from "@/features/inquiries/stages";
 import { waitingDays } from "@/features/ordering/attention";
@@ -105,6 +106,17 @@ export function InquiryPipelineRows({ view, q }: { view: string; q: string }) {
             >
               {stageLabel(row)}
             </StatusBadge>
+          </span>
+          {/* Close one that went quiet (or reopen it) without opening it:
+              the same reasons sheet as the job page, "Went quiet" first. */}
+          <span className="inquiry-row-actions">
+            <ProjectInquiryClose
+              className="inquiry-row-action"
+              compact
+              leadId={row.kind === "lead" ? row.id : null}
+              projectId={row.kind === "job" ? row.id : null}
+              state={row.state}
+            />
           </span>
           <Link aria-label={`Open ${row.name}`} href={row.href}>
             <ArrowUpRight size={16} />

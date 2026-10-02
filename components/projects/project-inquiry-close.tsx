@@ -25,6 +25,7 @@ export function ProjectInquiryClose({
   leadId = null,
   state,
   className = "project-title-action",
+  compact = false,
 }: {
   projectId: string | null;
   /**
@@ -35,6 +36,8 @@ export function ProjectInquiryClose({
   leadId?: string | null;
   state: string;
   className?: string;
+  /** In a list row: "Close" / "Reopen", the inquiry being the row itself. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<Reason>("went_quiet");
@@ -67,7 +70,7 @@ export function ProjectInquiryClose({
       <>
         <button className={className} disabled={busy} onClick={() => void run("reopenInquiry")} type="button">
           {busy ? <LoaderCircle className="spin" size={14} /> : <RotateCcw aria-hidden size={14} />}
-          Reopen inquiry
+          {compact ? "Reopen" : "Reopen inquiry"}
         </button>
         {error ? (
           <p className="form-error" role="alert">
@@ -88,7 +91,7 @@ export function ProjectInquiryClose({
         }}
         type="button"
       >
-        <Archive aria-hidden size={14} /> Close inquiry
+        <Archive aria-hidden size={14} /> {compact ? "Close" : "Close inquiry"}
       </button>
       <SheetDialog label="Close this inquiry" onClose={() => setOpen(false)} open={open}>
         <form
