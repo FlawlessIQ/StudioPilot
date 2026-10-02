@@ -267,7 +267,10 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                   {waivable ? (
                     <ActionHint hint="Counts this checkpoint as settled without the evidence. Your reason is saved to the audit log under your name.">
                       <button
-                        className={resolvable ? "button button-quiet" : "button"}
+                        // One look for Waive on every row: it was a bordered
+                        // button on some and faded text on others (UI audit,
+                        // 2026-10-02). It is the lesser choice everywhere.
+                        className="button button-quiet"
                         disabled={busy !== null}
                         onClick={() =>
                           setOpen({ id: row.id, resolution: "waived" })

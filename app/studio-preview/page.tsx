@@ -123,7 +123,7 @@ export default function StudioPreviewPage() {
             <Upload size={16} /> Import documents
           </button>
           <button type="button" className="ds-btn ds-btn-primary">
-            <Plus size={16} /> New project
+            <Plus size={16} /> New job
           </button>
         </div>
       </section>
@@ -161,7 +161,7 @@ export default function StudioPreviewPage() {
                 <p>The next decision on each project, ready to make</p>
               </div>
               <span className="ds-seehead-link">
-                All projects <ArrowRight size={14} />
+                All jobs <ArrowRight size={14} />
               </span>
             </div>
             <div className="ds-attn">

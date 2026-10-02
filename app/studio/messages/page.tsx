@@ -15,7 +15,7 @@ export default async function MessagesPage({
         {/* `page-heading-echo`: on phones the top bar already says "Messages",
             so the eyebrow + title are hidden and only the one-line intro
             remains — the header stops repeating the screen name. */}
-        <header className="page-heading page-heading-echo">
+        <header className="page-heading page-heading-echo page-heading-compact">
           <div>
             <p className="eyebrow">Client communication</p>
             <h1>Client messages</h1>

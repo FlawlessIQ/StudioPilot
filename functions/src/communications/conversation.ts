@@ -166,10 +166,35 @@ export function foldMessageIntoConversation(
  * a lifecycle send completes — and unread counts computed from a stale read
  * would lose one of them.
  */
+/**
+ * The scope a lead's message belongs to once the lead has become a job.
+ *
+ * A form inquiry's acknowledgement is queued with only a leadId, then the lead
+ * converts and its thread moves onto the job (intake/lead-thread.ts). The send
+ * lands a moment later, derives the lead-scoped id again and recreates the
+ * thread that just moved — so the inbox showed the same couple twice: the
+ * studio's "we received your inquiry" in one thread and the couple's inquiry in
+ * the other (UI audit, 2026-10-02). A converted lead's messages go to its job.
+ */
+export async function resolveThreadScope(
+  firestore: Firestore,
+  scope: { tenantId: string; projectId: string | null; leadId: string | null },
+): Promise<{ projectId: string | null; leadId: string | null }> {
+  if (scope.projectId || !scope.leadId) return scope;
+  const lead = await firestore.doc(`leads/${scope.leadId}`).get().catch(() => null);
+  const projectId = lead?.exists && lead.get("tenantId") === scope.tenantId
+    ? lead.get("projectId")
+    : null;
+  return typeof projectId === "string" && projectId
+    ? { projectId, leadId: scope.leadId }
+    : scope;
+}
+
 export async function applyMessageToConversation(
   firestore: Firestore,
-  delta: ConversationDelta,
+  incoming: ConversationDelta,
 ): Promise<string> {
+  const delta = { ...incoming, ...(await resolveThreadScope(firestore, incoming)) };
   const id = conversationIdFor({
     tenantId: delta.tenantId,
     projectId: delta.projectId,

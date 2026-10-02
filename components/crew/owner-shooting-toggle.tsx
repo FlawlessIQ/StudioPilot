@@ -56,7 +56,7 @@ export function OwnerShootingToggle({
           : "Not you this time — every role is booked from your crew."}
       </p>
       {canChange ? (
-        <button className="button button-quiet button-sm" disabled={busy} onClick={() => void change()} type="button">
+        <button className="button button-light button-sm" disabled={busy} onClick={() => void change()} type="button">
           {busy ? <LoaderCircle className="spin" size={14} /> : null}
           {shooting ? "Not me this time" : "I'm shooting it"}
         </button>

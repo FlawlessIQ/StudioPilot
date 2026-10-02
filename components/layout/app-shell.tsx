@@ -31,6 +31,8 @@ import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { openFeedback } from "@/components/feedback/feedback-events";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
+import { useTenantDocuments } from "@/components/live/tenant-records";
+import { taskIsOpenWork } from "@/features/tasks/live-work";
 import { AuthBoundary } from "@/features/auth/auth-boundary";
 import { isStaffShooter } from "@/features/auth/roles";
 import { SignOutButton } from "@/features/auth/auth-boundary";
@@ -107,7 +109,9 @@ const mobileTabs = [
 const primaryTabGroups = new Set(["Today", "Inquiries", "Jobs", "Cue"]);
 
 const activeGroups: Record<string, string[]> = {
-  Today: ["Today", "Dashboard", "Notifications", "AI review", "AI queue"],
+  // Not "Notifications": the bell's page lit up Today in the sidebar, so
+  // the studio was told it was somewhere it wasn't (UI audit, 2026-10-02).
+  Today: ["Today", "Dashboard", "AI review", "AI queue"],
   Inquiries: ["Inquiries", "Leads"],
   Cue: ["Cue", "Copilot"],
   Insights: ["Insights"],
@@ -179,7 +183,7 @@ const studioRouteLabels: Record<string, string> = {
   leads: "Inquiries",
   library: "Library",
   messages: "Messages",
-  notifications: "Notifications",
+  notifications: "Open tasks",
   packages: "Packages",
   planning: "Planning",
   "post-production": "Post-production",
@@ -317,7 +321,7 @@ function StudioShell({
     ? "Jobs"
     : (Object.entries(activeGroups).find(([, values]) =>
         values.includes(resolvedActive),
-      )?.[0] ?? "Today");
+      )?.[0] ?? (resolvedActive === "Open tasks" ? "" : "Today"));
 
   return (
     <div className="ds-root" data-ds-theme="emerald">
@@ -476,15 +480,9 @@ function StudioShell({
             <GlobalSearch />
             <HowToButton variant="topbar" />
             <Link href="/studio/projects/new" className="ds-action">
-              <Plus size={15} /> New project
+              <Plus size={15} /> New job
             </Link>
-            <Link
-              className="ds-btn ds-btn-ghost ds-btn-sm"
-              href="/studio/notifications"
-              aria-label="Notifications"
-            >
-              <Bell size={18} />
-            </Link>
+            <OpenTasksBell active={resolvedActive === "Open tasks"} />
           </header>
           {workspace.error ? (
             <div className="ds-topbar-error" role="alert">
@@ -576,5 +574,25 @@ function StudioShell({
       </div>
       <FeedbackLauncher />
     </div>
+  );
+}
+
+/**
+ * The bell: open tasks, with how many. It carried no count, so it never said
+ * whether there was anything behind it (UI audit, 2026-10-02).
+ */
+function OpenTasksBell({ active }: { active: boolean }) {
+  const tasks = useTenantDocuments("tasks");
+  const open = (tasks.records ?? []).filter(taskIsOpenWork).length;
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      aria-label={open ? `Open tasks: ${open}` : "Open tasks"}
+      className={cn("ds-btn ds-btn-ghost ds-btn-sm ds-bell", active && "is-active")}
+      href="/studio/notifications"
+    >
+      <Bell size={18} />
+      {open ? <span className="ds-bell-count">{open > 99 ? "99+" : open}</span> : null}
+    </Link>
   );
 }

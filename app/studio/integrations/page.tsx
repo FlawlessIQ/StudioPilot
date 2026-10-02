@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { IntegrationsTabs } from "@/components/integrations/integrations-tabs";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Integrations" };
 
 export default async function IntegrationsPage({
   searchParams,

@@ -189,6 +189,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
   const [confirmingRelease, setConfirmingRelease] = useState(false);
   // One release, one key, for as long as it takes to succeed (D1).
   const [releaseKey, setReleaseKey] = useState(() => crypto.randomUUID());
+  // Before the wedding the release form is folded away (see below); a studio
+  // preparing a link early can still open it.
+  const [earlyOpen, setEarlyOpen] = useState(false);
 
   // Until touched: the newest draft from the inbox, else one empty item for
   // the next thing this job owes.
@@ -326,6 +329,44 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
 
   const expiredSoonest = released.find((item) => item.expirationDate)?.expirationDate;
 
+  /**
+   * Twelve days before the wedding the tab showed the whole release form —
+   * link, access code, the couple's email, a full-colour Release button — and
+   * one cream line at the bottom saying none of it could be used yet (UI audit,
+   * 2026-10-02). Until the event is behind the job, it is one line saying when
+   * this opens and what it will deliver.
+   */
+  const eventBehindJob = [
+    "EVENT_COMPLETE",
+    "POST_PRODUCTION",
+    "DELIVERED",
+    "REVIEW_REQUESTED",
+    "CLOSED",
+  ].includes(state);
+  if (project && !eventBehindJob && released.length === 0 && !earlyOpen) {
+    return (
+      <div className="delivery-before-event">
+        <p>
+          <strong>
+            {`Opens after the wedding${
+              text(project.eventDate) ? ` on ${formatEventDate(text(project.eventDate))}` : ""
+            }.`}
+          </strong>{" "}
+          {expected.length
+            ? `What it delivers: ${expected.map((entry) => entry.label).join(", ")}.`
+            : null}
+        </p>
+        <button
+          className="button button-light button-sm"
+          onClick={() => setEarlyOpen(true)}
+          type="button"
+        >
+          Fill it in early
+        </button>
+      </div>
+    );
+  }
+
   return (
     <form
       className="delivery-form delivery-release-form"
@@ -338,12 +379,9 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
       {/* Opened for one job, the form names it. A disabled select showed
           "Select a project" for an archived job it had filtered out (walked
           2026-09-29). */}
+      {/* Opened for one job, the job bar above already names it. */}
       {projectId ? (
-        <p className="form-span delivery-project-named">
-          <small>Releasing for</small>
-          <strong>{String(project?.name ?? "This job")}</strong>
-          <input name="projectId" type="hidden" value={projectId} />
-        </p>
+        <input name="projectId" type="hidden" value={projectId} />
       ) : (
         <label className="form-span delivery-project-first">
           Project

@@ -346,12 +346,12 @@ function ProjectStageControl({
       <summary>Move this project forward</summary>
       <form onSubmit={(event) => void submit(event)}>
         <span>
-          <small>Current stage</small>
+          <small>Now</small>
           <strong>{stateLabel(state)}</strong>
         </span>
         <ArrowRight aria-hidden="true" size={16} />
         <span>
-          <small>Next stage</small>
+          <small>Next</small>
           <strong>{stateLabel(nextStage)}</strong>
         </span>
         {/* The example used to be a consultation at every stage, so a booked
@@ -591,7 +591,11 @@ function ProjectInterruptionControl({
                   </>
                 ) : null}
                 <div>
-                  <button className="button" disabled={busy} type="submit">
+                  <button
+                    className={`button ${option === "CANCELLED" ? "button-danger" : "button-dark"}`}
+                    disabled={busy}
+                    type="submit"
+                  >
                     {busy ? "Saving…" : INTERRUPTION_COPY[option].label}
                   </button>
                   {/* "Cancel" beside "Cancel the job" read as the same act. */}
@@ -605,8 +609,10 @@ function ProjectInterruptionControl({
                 </div>
               </form>
             ) : (
+              // Both used to be `button-quiet`: no fill and no border, so on
+              // the rail they read as captions (UI audit, 2026-10-02).
               <button
-                className="button button-quiet"
+                className={`button ${option === "CANCELLED" ? "project-interruption-cancel" : "button-light"}`}
                 disabled={busy}
                 onClick={() => setOpen(option)}
                 type="button"
@@ -914,11 +920,18 @@ function ProjectLifecycleLanes({
   // The same evidence the header above is scored from. Passing it is the whole
   // fix for a panel that listed the contract and the retainer as outstanding
   // while the header, four inches higher, counted them as done.
+  // Drafts waiting on the studio are the prepared tray's, a few inches down.
+  // Listed here too, the same four drafts showed in "Studio needs", in the
+  // tray and on Today (UI audit, 2026-10-02). Work StudioCue is still doing
+  // stays: that is the tray's blind spot, not a duplicate.
   const projection = projectLifecycleProjection({
     project,
     checkpoints,
     evidence,
     ...related,
+    aiActions: related.aiActions.filter(
+      (action) => String(action.status) !== "review_required",
+    ),
   });
   return (
     <section className="project-lifecycle-cockpit" id="project-checkpoints">
@@ -1031,7 +1044,13 @@ function ProjectCrewPanel({
           <p className="eyebrow">On the day</p>
           <h2>Your crew</h2>
         </span>
-        <Link className="button button-quiet" href={`/studio/crew?project=${projectId}`}>
+        {/* The card's own action, as a button. It was grey text in the
+            corner, unrecognisable as the way to staff the job (UI audit,
+            2026-10-02); primary only while nobody is booked. */}
+        <Link
+          className={`button button-sm ${live.length ? "button-light" : "button-dark"}`}
+          href={`/studio/crew?project=${projectId}`}
+        >
           {live.length ? "Staff another role" : "Staff this job"}
         </Link>
       </header>
@@ -1065,7 +1084,7 @@ function ProjectCrewPanel({
           })}
         </ul>
       ) : (
-        <p className="form-notice">
+        <p className="form-notice project-crew-empty">
           {lapsed
             ? "Nobody is booked on this job yet. Earlier offers have lapsed — staffing it again starts a fresh one."
             : "Nobody is booked on this job yet."}
@@ -1181,11 +1200,17 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           id: projectSnapshot.id,
           ...projectSnapshot.data(),
         });
+        // Archived checkpoints are history. The readiness panel always left
+        // them out and the header did not, so the header said "9 things before
+        // the day: Retainer paid" above a panel listing seven, none of them the
+        // retainer (UI audit, 2026-10-02). One list, filtered once, here.
         setCheckpoints(
-          checkpointSnapshot.docs.map((checkpoint) => ({
-            id: checkpoint.id,
-            ...checkpoint.data(),
-          })),
+          checkpointSnapshot.docs
+            .filter((checkpoint) => !checkpoint.get("archivedAt"))
+            .map((checkpoint) => ({
+              id: checkpoint.id,
+              ...checkpoint.data(),
+            })),
         );
         setRelated(
           relatedCollections.reduce<RelatedRecords>(
@@ -1438,7 +1463,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         </Link>
       ) : (
         <Link className="back-link" href="/studio/projects">
-          <ArrowLeft size={15} /> All projects
+          <ArrowLeft size={15} /> All jobs
         </Link>
       )}
       <header className="project-detail-header">
@@ -1495,6 +1520,25 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                   archived: Boolean(project.archivedAt),
                 }}
               />
+              {/* What stands between the job and the day, named rather than
+                  scored. It sat outside this row as underlined text, centred
+                  on the whole title block — 16px below the buttons and pinned
+                  to the far edge — and it led with a checkpoint's name, so
+                  "Retainer paid" read as good news when it was a missing item
+                  (UI audit, 2026-10-02). A count in the row; the names on
+                  hover and in the list it links to. */}
+              {readinessView.tracked && outstanding.length ? (
+                <a
+                  className="project-title-action project-readiness-gap"
+                  href="#project-checkpoints"
+                  title={`Still open: ${outstanding.join(", ")}`}
+                >
+                  <span aria-hidden="true" className="project-readiness-dot" />
+                  {outstanding.length === 1
+                    ? "1 thing before the day"
+                    : `${outstanding.length} things before the day`}
+                </a>
+              ) : null}
             </div>
           </div>
           {/* "Wedding photography" was printed under every job, including the
@@ -1541,16 +1585,6 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             ) : null}
           </div>
         </div>
-        {/* What stands between the job and the day, named rather than scored.
-            The percentage and "blockers" belong to the readiness engine; a
-            photographer needs to know what is left. */}
-        {readinessView.tracked && outstanding.length ? (
-          <a className="project-readiness-gap" href="#project-checkpoints">
-            {outstanding.length === 1
-              ? `Before the day: ${outstanding[0]}`
-              : `${outstanding.length} things before the day: ${outstanding[0]} +${outstanding.length - 1} more`}
-          </a>
-        ) : null}
       </header>
       <ImportedBookingBanner
         onChanged={() =>

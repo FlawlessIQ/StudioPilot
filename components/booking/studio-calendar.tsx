@@ -12,9 +12,11 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  isBefore,
   isSameMonth,
   isToday,
   parseISO,
+  startOfDay,
   startOfMonth,
   startOfWeek,
   subMonths,
@@ -443,7 +445,6 @@ export function StudioCalendar() {
               <span className="ds-cal-legend-dot" /> Blocked
             </span>
           </div>
-          <AvailabilityDialog label="Availability settings" variant="link" />
         </div>
 
         {view === "agenda" ? (
@@ -522,6 +523,9 @@ export function StudioCalendar() {
                   "ds-cal-day",
                   blocked ? "is-state-blocked" : closed ? "is-state-closed" : "",
                   !isSameMonth(day, month) ? "is-outside" : "",
+                  isSameMonth(day, month) && isBefore(day, startOfDay(new Date()))
+                    ? "is-past"
+                    : "",
                   isToday(day) ? "is-today" : "",
                   selected ? "is-selected" : "",
                 ].filter(Boolean).join(" ")}

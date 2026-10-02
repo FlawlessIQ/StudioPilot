@@ -193,11 +193,23 @@ export function readinessEvidenceFromFacts(input: {
    * one.
    */
   insuranceRequired: string | null;
+  /**
+   * The job has passed the booking gate (bookingCompletedAt stamped, or a
+   * booked-and-after state). The gate only opens on a signed agreement and a
+   * paid retainer, so a booked job has both — whatever the newest contract
+   * record says. Without this a later draft (an amendment not yet sent) or a
+   * retainer settled another way left "Retainer paid" and "Sign the contract"
+   * outstanding on a job the journey rail beside them ticked, and the header
+   * counted them (UI audit, 2026-10-02).
+   */
+  bookingConfirmed?: boolean;
 }): ReadinessEvidence {
   const paid = (status: string | null) => status === "paid";
   return {
-    contractCompleted: input.contractStatus === "completed",
-    retainerPaid: paid(input.retainerInvoiceStatus),
+    contractCompleted:
+      input.contractStatus === "completed" || input.bookingConfirmed === true,
+    retainerPaid:
+      paid(input.retainerInvoiceStatus) || input.bookingConfirmed === true,
     finalBalancePaid: paid(input.finalInvoiceStatus),
     questionnaireAnswered: questionnaireIsAnswered({
       status: input.questionnaireStatus,

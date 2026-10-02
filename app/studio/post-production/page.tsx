@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { StudioDomainPage } from "@/components/studio/live-domain-view";
 import { PostProductionChecklist } from "@/components/post-event/post-production-checklist";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Post-production" };
 
 export default async function PostProductionPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;

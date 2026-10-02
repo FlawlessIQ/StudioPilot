@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { StudioCalendar } from "@/components/booking/studio-calendar";
 import { AvailabilityDialog } from "@/components/booking/availability-dialog";
 import { AppShell } from "@/components/layout/app-shell";
+
+export const metadata: Metadata = { title: "Calendar" };
 
 export default function CalendarPage() {
   return (
@@ -17,7 +20,10 @@ export default function CalendarPage() {
               top of a long settings screen and left the reader to find the
               right card. It opens here instead, over the month they were
               looking at. */}
-          <AvailabilityDialog className="button button-dark calendar-availability-cta" />
+          {/* Secondary: a setting, not the page's main act — and the only
+              way in now, the legend's "Availability settings" link having
+              opened this same dialog (UI audit, 2026-10-02). */}
+          <AvailabilityDialog className="button button-light calendar-availability-cta" />
         </header>
         <StudioCalendar />
       </div>

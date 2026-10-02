@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import Link from "next/link";
 import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builder";
@@ -7,6 +8,10 @@ import { InquiryEventFormSetting } from "@/components/planning/inquiry-event-for
 import { RecommendedQuestionnaires } from "@/components/planning/recommended-questionnaires";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 import { PendingImportNotice } from "@/components/ai/pending-import-notice";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Questionnaires" };
 
 export default async function QuestionnairesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;

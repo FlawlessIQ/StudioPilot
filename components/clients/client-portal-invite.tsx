@@ -264,7 +264,7 @@ export function ClientPortalInvite({
 
       {!loadingProjects && !projects.length ? (
         <p className="client-access-empty">
-          Create a project before inviting this client.
+          Start a job before inviting this client.
         </p>
       ) : null}
 

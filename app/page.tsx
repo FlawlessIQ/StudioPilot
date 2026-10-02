@@ -35,7 +35,7 @@ const productPoints = [
     icon: MessageSquareText,
     eyebrow: "Stop writing it again",
     title: "The message is already written",
-    text: "Enquiry replies, reminders, chasers and updates arrive drafted in your voice, with the client's details already in them. Read it, change a word, send.",
+    text: "Inquiry replies, reminders, chasers and updates arrive drafted in your voice, with the client's details already in them. Read it, change a word, send.",
   },
   {
     icon: CalendarCheck2,

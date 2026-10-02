@@ -150,7 +150,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Every client has one job: their whole story in one place, from inquiry to closeout. Open it from **Jobs** or from any card on Today.",
     steps: [
       "Open **Jobs** and pick a wedding. **Active** and **Archived** split them, and the chips filter by type.",
-      "The track along the top shows where it is: **Enquiry**, **Booking**, **Preparation**, **The day**, **Delivery**.",
+      "The track along the top shows where it is: **Inquiry**, **Booking**, **Preparation**, **The day**, **Delivery**.",
       "Start with **Your next move** — the one thing to do now. **Nothing for you right now** means it's waiting on someone else.",
       "Drafts for this job wait under **Prepared for you**, ready to approve.",
       "The tabs — **Overview**, **Booking**, **Plan**, **Delivery** — hold each stage's detail.",
@@ -159,7 +159,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     next: "As the couple signs, pays and fills things in, the job moves along the track by itself.",
     goodToKnow: [
       "**Edit job** changes the date, venue or type; **Add a client** adds a second contact.",
-      "A new client? **Create project** starts a job from their message.",
+      "A new client? **New job** starts a job from their message.",
       "Weddings booked before StudioCue? **Import bookings** brings them in without emailing anyone.",
     ],
     terms: ["job", "readiness"],

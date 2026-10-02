@@ -327,6 +327,15 @@
   background: transparent;
 }
 
+/* A card with no glyph (studio setup, a connector) still keeps the glyph's
+   gutter on wide screens, so every title in the list starts on the same line
+   — the plain ones sat 42px left of their neighbours (UI audit, 2026-10-02). */
+@media (min-width: 641px) {
+  .today-card:not(.has-glyph) {
+    padding-left: 63px;
+  }
+}
+
 /* With a glyph the card grows a gutter, and the glyph spans every row so
    it sits against the title rather than floating beside the buttons. On a
    phone that is two columns; from 720px the card puts its actions on the
@@ -1073,9 +1082,12 @@
 .today-rail-dot.is-later { background: #9aa79f; }
 
 /* The one thing, actionable from the hero itself. */
+/* justify-self: a grid child of the hero copy, it stretched to the column —
+   a 360px pill around "Open the task" (UI audit, 2026-10-02). */
 .today-hero-go {
   align-items: center;
   align-self: start;
+  justify-self: start;
   background: #f3f7f3;
   border-radius: 99px;
   color: #1a3c30;

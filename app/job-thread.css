@@ -1237,3 +1237,138 @@
 .thread-entry-files {
   margin-top: 6px;
 }
+
+/* ── Rail disclosures on a white card (UI audit, 2026-10-02) ──────────
+   The stage and interruption controls were written for the old dark job
+   hero: white-alpha borders, light-grey 9.5px type. The stage control got a
+   rail override; the interruption control never did, so on the rail its
+   explanations were 2:1 grey, "Put the job on hold" had no fill and no
+   border, and the closed card opened with 32px of dead space. These are the
+   two controls a studio needs when a wedding moves. */
+.ds-root .job-rail-card .project-stage-control > summary,
+.ds-root .job-rail-card .project-interruption-control > summary {
+  align-items: center;
+  color: var(--ds-ink, #191b20);
+  cursor: pointer;
+  display: flex;
+  font-size: 13.5px;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 0;
+}
+
+.ds-root .job-rail-card .project-stage-control > summary::-webkit-details-marker,
+.ds-root .job-rail-card .project-interruption-control > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* One chevron, the same one every other disclosure uses, instead of the
+   browser's ▶/▼ glyph. */
+.ds-root .job-rail-card .project-stage-control > summary::after,
+.ds-root .job-rail-card .project-interruption-control > summary::after {
+  background: currentColor;
+  content: "";
+  flex: none;
+  height: 16px;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / 16px no-repeat;
+  opacity: 0.55;
+  transition: transform 0.15s ease;
+  width: 16px;
+}
+
+.ds-root .job-rail-card .project-stage-control[open] > summary::after,
+.ds-root .job-rail-card .project-interruption-control[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+/* "Now → Next" on one line each, so Booked and Planning sit level. */
+.ds-root .job-rail-card .project-stage-control form {
+  align-items: end;
+}
+
+.ds-root .job-rail-card .project-stage-control form small {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.ds-root .job-rail-card .project-stage-control form > p {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 12.5px;
+}
+
+.ds-root .job-rail-card .project-interruption-control {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.ds-root .job-rail-card .project-interruption-control[open] > summary {
+  margin-bottom: 6px;
+}
+
+.ds-root .job-rail-card .project-interruption-control > div + div {
+  border-top-color: var(--ds-line, #e8eaf0);
+}
+
+.ds-root .job-rail-card .project-interruption-control p,
+.ds-root .job-rail-card .project-interruption-control ul {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.ds-root .job-rail-card .project-interruption-control strong {
+  color: var(--ds-ink, #191b20);
+}
+
+.ds-root .job-rail-card .project-interruption-control .button {
+  font-size: 13px;
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.ds-root .job-rail-card .project-interruption-control form label {
+  color: var(--ds-ink, #191b20);
+  font-size: 12.5px;
+}
+
+.ds-root .job-rail-card .project-interruption-control form input,
+.ds-root .job-rail-card .project-interruption-control form textarea {
+  background: var(--ds-paper, #fff);
+  border-color: var(--ds-line, #e8eaf0);
+  color: var(--ds-ink, #191b20);
+  font-size: 13px;
+}
+
+/* Calling a wedding off is the one destructive move here: outlined in the
+   danger colour, so it is findable and not mistaken for "on hold". */
+.ds-root .project-interruption-cancel {
+  background: var(--ds-paper, #fff);
+  border-color: color-mix(in srgb, var(--ds-danger, #a63c3a) 40%, transparent);
+  color: var(--ds-danger, #a63c3a);
+}
+
+.ds-root .project-interruption-cancel:hover {
+  background: var(--ds-danger-soft, #f7e6e5);
+}
+
+.ds-root .job-rail-card .project-stage-notice {
+  color: var(--ds-ink-soft, #565d68) !important;
+}
+
+/* Archive job sat in the rail as grey text with an icon — it read as
+   disabled (UI audit, 2026-10-02). Outlined, like the controls above it. */
+.ds-root .job-rail .record-archive-confirm > .button-quiet {
+  background: var(--ds-paper, #fff);
+  border-color: var(--ds-line, #e8eaf0);
+  color: var(--ds-ink-soft, #565d68);
+}
+.ds-root .job-rail .record-archive-confirm > .button-quiet:hover {
+  border-color: var(--ds-ink-soft, #565d68);
+  color: var(--ds-ink, #191b20);
+}

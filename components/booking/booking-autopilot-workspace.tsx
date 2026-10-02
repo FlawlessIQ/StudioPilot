@@ -687,10 +687,12 @@ export function BookingAutopilotWorkspace({
                 that could not start until they did. */}
             {proposalSettled ? (
               <>
-                <h1>{text(project?.name) || "This job"} is past the proposal.</h1>
+                <h1>The proposal is accepted.</h1>
+                {/* Promised "the balance" below, and no balance section
+                    followed — it lives on Invoices (UI audit, 2026-10-02). */}
                 <p>
-                  The agreement, the retainer and the balance for this job are
-                  below.
+                  The agreement and the retainer are below. The final balance
+                  is on <Link href={`/studio/invoices?project=${projectId}`}>Invoices</Link>.
                 </p>
               </>
             ) : bookingAgreementOut ? (
@@ -764,7 +766,8 @@ export function BookingAutopilotWorkspace({
             <span>
               <strong>The proposal they accepted is on file.</strong>
             </span>
-            <Link href={`/studio/proposals/${proposalId}`}>
+            {/* A button, not grey text that read as disabled. */}
+            <Link className="button button-light button-sm" href={`/studio/proposals/${proposalId}`}>
               Open proposal <ArrowRight />
             </Link>
           </section>

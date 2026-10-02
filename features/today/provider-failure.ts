@@ -116,6 +116,22 @@ const FAILURES: Record<string, ProviderFailure> = {
 };
 
 /**
+ * Which glyph a failed step wears on Today: the thing it was making.
+ */
+export function providerFailureKind(
+  type: unknown,
+): "invoice" | "contract" | "calendar" | "document" | "review" | "crew" | "automation" {
+  const value = String(type ?? "");
+  if (/invoice|payment|money/.test(value)) return "invoice";
+  if (/docusign|dropbox_sign/.test(value)) return "contract";
+  if (/crew/.test(value)) return "crew";
+  if (/consultation|calendar|zoom/.test(value)) return "calendar";
+  if (/document/.test(value)) return "document";
+  if (/review/.test(value)) return "review";
+  return "automation";
+}
+
+/**
  * What to call a failed provider job.
  *
  * Falls back to a generic sentence rather than the raw type: an unmapped type is

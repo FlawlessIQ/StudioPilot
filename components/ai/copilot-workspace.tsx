@@ -345,11 +345,11 @@ export function CopilotWorkspace() {
                 onChange={(event) => setProjectOnly(event.target.checked)}
               />
               <FolderKanban size={13} aria-hidden="true" />
-              {projectOnly ? workspace.projectName : "All projects"}
+              {projectOnly ? workspace.projectName : "All jobs"}
             </label>
           ) : (
             <span className="cue-scope is-static">
-              <FolderKanban size={13} aria-hidden="true" /> All projects
+              <FolderKanban size={13} aria-hidden="true" /> All jobs
             </span>
           )}
           {canRecordSignatures ? (
@@ -562,7 +562,11 @@ export function CopilotWorkspace() {
                   onClick={() => void resumeThread(thread.id)}
                 >
                   <span className="t">{thread.title}</span>
+                  {/* When, too: six "What needs my attention today?" in a
+                      row were indistinguishable (UI audit, 2026-10-02). */}
                   <span className="m">
+                    {threadWhen(thread.updatedAt)}
+                    {threadWhen(thread.updatedAt) ? " · " : ""}
                     {thread.turnCount}{" "}
                     {thread.turnCount === 1 ? "message" : "messages"}
                   </span>
@@ -590,7 +594,7 @@ export function CopilotWorkspace() {
                 <FolderPlus size={16} />
               </span>
               <span className="cue-quick-label">
-                <strong>Create a project</strong>
+                <strong>Start a job</strong>
                 <small>Start with the client and event</small>
               </span>
               <ChevronRight size={15} className="cue-quick-arr" />
@@ -1254,4 +1258,18 @@ function CueOutsideStep({ question }: { question?: string }) {
       <OutsideStepCard status={statuses[id]} stepId={id} />
     </div>
   );
+}
+
+/** "Today, 9:14 AM", "Yesterday", "Mon, Sep 29" — when a past conversation was. */
+function threadWhen(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.valueOf())) return "";
+  const now = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === now.toDateString()) {
+    return `Today, ${date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+  }
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }

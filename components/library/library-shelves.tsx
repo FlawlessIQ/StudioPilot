@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, PackagePlus, Sparkles, type LucideIcon } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { isCataloguePackage } from "@/features/packages/one-off";
 import { KindGlyph } from "@/components/library/kind-glyph";
@@ -37,6 +37,8 @@ type Shelf = {
   noun: [string, string];
   /** Which records the shelf counts, when not every one in the collection. */
   counts?: (record: Record<string, unknown>) => boolean;
+  /** A glyph of its own, where two shelves share a kind. */
+  icon?: LucideIcon;
 };
 
 const SETUP: Shelf[] = [
@@ -56,6 +58,7 @@ const SETUP: Shelf[] = [
     description: "Extras sold on top of a package — an engagement session, an extra hour.",
     href: "/studio/library/add-ons",
     kind: "package",
+    icon: PackagePlus,
     collection: "addOns",
     emptyLabel: "No extras to offer yet",
     noun: ["add-on", "add-ons"],
@@ -110,7 +113,7 @@ function ShelfCard({ shelf }: { shelf: Shelf }) {
       className={count === 0 ? "is-empty" : undefined}
       href={shelf.href}
     >
-      <KindGlyph kind={shelf.kind} size={42} />
+      <KindGlyph icon={shelf.icon} kind={shelf.kind} size={42} />
       <div>
         <h2>{shelf.title}</h2>
         <p>{shelf.description}</p>

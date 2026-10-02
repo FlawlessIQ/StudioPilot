@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { AgreementLinkCard } from "@/components/contracts/agreement-link-card";
 import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Contracts" };
 
 export default async function ContractsPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;

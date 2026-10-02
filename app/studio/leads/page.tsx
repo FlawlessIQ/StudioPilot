@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Filter, Inbox, Search } from "lucide-react";
+import { Inbox, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveMaybeInquiries } from "@/components/live/tenant-records";
 import { InquiryPipelineRows } from "@/components/inquiries/inquiry-pipeline";
@@ -28,12 +28,12 @@ export default async function LeadsPage({
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
             <div className="crm-tabs">{inquiryViews.map(([value, label]) => <Link className={view === value ? "active" : ""} href={`?view=${value}`} key={value}>{label}</Link>)}</div>
-            <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Search size={15} /><input aria-label="Search inquiries" defaultValue={q} name="q" placeholder="Search by name or email" /><button type="submit"><Filter size={14} /> Apply</button></form>
+            <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Search size={15} /><input aria-label="Search inquiries" defaultValue={q} name="q" placeholder="Search by name or email" /><button type="submit">Search</button></form>
           </div>
           <div className="crm-table crm-leads-table inquiry-pipeline-table">
             {/* "Owner" read "Unassigned" on every row — pure noise in a
                 one-photographer studio, which is the shape a pilot ships to. */}
-            <div className="crm-table-head"><span>Couple</span><span>Date</span><span>Source</span><span>Stage</span><span /></div>
+            <div className="crm-table-head"><span>Inquiry</span><span>Date</span><span>Source</span><span>Stage</span><span /></div>
             <InquiryPipelineRows view={view} q={q}/>
           </div>
           <div className="crm-empty-hint"><Inbox size={15} /><span>New inquiries are protected from spam and checked for duplicates.</span></div>

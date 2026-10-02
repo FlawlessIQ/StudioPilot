@@ -49,6 +49,7 @@ import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { preBookingStates } from "@/features/inquiries/stages";
+import { describeProviderFailure } from "@/features/today/provider-failure";
 import { jobValueCents } from "@/features/packages/job-packages";
 import {
   ClientPortalInvite,
@@ -525,6 +526,18 @@ export function LiveClientCards({
         ),
     [projectRecords],
   );
+  // Every job by id, archived ones too: a client row names the wedding, not a
+  // bare count (UI audit, 2026-10-02).
+  const jobNameById = useMemo(
+    () =>
+      new Map(
+        (projectRecords ?? []).map((project) => [
+          project.id,
+          String(project.name ?? "Untitled job"),
+        ]),
+      ),
+    [projectRecords],
+  );
   const inviteContactIds = values
     .filter(
       (contact) =>
@@ -643,9 +656,6 @@ export function LiveClientCards({
         const name = String(client.displayName ?? "Client");
         const email =
           typeof client.email === "string" ? client.email : null;
-        const projectCount = Array.isArray(client.projectIds)
-          ? client.projectIds.length
-          : 0;
         const projectIds = Array.isArray(client.projectIds)
           ? client.projectIds.filter(
               (value): value is string => typeof value === "string",
@@ -663,7 +673,11 @@ export function LiveClientCards({
             </span>
             <span className="ds-people-copy">
               <strong>{name}</strong>
-              <small>{email ?? "No email recorded"}</small>
+              <small>
+                {[email ?? "No email recorded", typeof client.company === "string" && client.company ? client.company : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </small>
               {billingAddress ? (
                 <small title={formatBillingAddress(billingAddress)}>
                   {`Billing: ${formatBillingAddress(billingAddress)}${
@@ -672,17 +686,23 @@ export function LiveClientCards({
                 </small>
               ) : null}
             </span>
+            {/* Which wedding, as a link. This read "PROJECTS 1" beside a
+                COMPANY column that was "—" for every couple (UI audit,
+                2026-10-02). */}
+            <span className="ds-people-job">
+              <small>Job</small>
+              {projectIds.length ? (
+                <Link href={`/studio/projects/${projectIds[0]}`}>
+                  {jobNameById.get(projectIds[0]) ?? "Open job"}
+                  {projectIds.length > 1 ? ` +${projectIds.length - 1}` : ""}
+                </Link>
+              ) : (
+                <strong>None yet</strong>
+              )}
+            </span>
             <StatusBadge tone={client.portalUserId ? "success" : "neutral"}>
-              {client.portalUserId ? "Portal active" : "Portal inactive"}
+              {client.portalUserId ? "Portal active" : "No portal yet"}
             </StatusBadge>
-            <span className="ds-people-stat">
-              <small>Projects</small>
-              <strong>{projectCount}</strong>
-            </span>
-            <span className="ds-people-stat">
-              <small>Company</small>
-              <strong>{String(client.company ?? "—")}</strong>
-            </span>
             {email ? (
               <a
                 className="ds-people-message"
@@ -800,11 +820,23 @@ export function LiveProjectRows({
   // to create that invoice had failed and been waiting a day.
   const providerJobs = useTenantDocuments("providerJobs");
   const today = todayLocalIso();
-  const stalled = new Set<string>();
+  // Only a step whose *latest* attempt failed: an old failure later retried
+  // successfully left "a previous attempt failed" under four of five jobs
+  // (UI audit, 2026-10-02). Named for what did not happen.
+  const latestStep = new Map<string, Record<string, unknown>>();
   for (const job of providerJobs.records ?? []) {
-    if (!["failed", "dead_letter"].includes(String(job.status))) continue;
     const projectId = String(job.projectId ?? "");
-    if (projectId) stalled.add(projectId);
+    if (!projectId) continue;
+    const key = `${projectId}|${String(job.type ?? "")}`;
+    const prior = latestStep.get(key);
+    const at = (record: Record<string, unknown>) =>
+      String(record.updatedAt ?? record.createdAt ?? "");
+    if (!prior || at(job) > at(prior)) latestStep.set(key, job);
+  }
+  const stalled = new Map<string, string>();
+  for (const [key, job] of latestStep) {
+    if (!["failed", "dead_letter"].includes(String(job.status))) continue;
+    stalled.set(key.split("|")[0], describeProviderFailure(String(job.type ?? "")).title);
   }
   const owed = new Map<string, { cents: number; overdue: boolean }>();
   // Whether a job has ever been billed at all. "Paid up" needs an invoice
@@ -840,8 +872,13 @@ export function LiveProjectRows({
         )
         // Not booked yet is an inquiry, listed under Inquiries: a couple
         // becomes a job here when they book.
+        // A closed inquiry (LOST) never booked either — it sat in Active jobs
+        // as "Closed inquiry" with money outstanding (UI audit, 2026-10-02).
         .filter(
-          (item) => view === "archived" || !preBookingStates.has(String(item.state ?? "")),
+          (item) =>
+            view === "archived" ||
+            (!preBookingStates.has(String(item.state ?? "")) &&
+              String(item.state ?? "") !== "LOST"),
         )
         .filter(
           (item) =>
@@ -876,7 +913,7 @@ export function LiveProjectRows({
               position?.actionLabel ??
               position?.stepTitle ??
               String(item.nextAction ?? "Nothing outstanding"),
-            stalled: stalled.has(item.id),
+            stalled: stalled.get(item.id) ?? null,
             owner: position
               ? position.owner === "studio"
                 ? "You"
@@ -930,7 +967,7 @@ export function LiveProjectRows({
         }
         action={
           filtered
-            ? { href: "/studio/projects/new", label: "Create project" }
+            ? { href: "/studio/projects/new", label: "New job" }
             : { href: "/studio/leads", label: "Open Inquiries" }
         }
       />
@@ -988,9 +1025,10 @@ export function LiveProjectRows({
                 rather than fresh work. Saying so is the difference between
                 "do this" and "this broke, and here is what it was trying". */}
             <small>
-              {"stalled" in project && project.stalled
-                ? "a previous attempt failed"
-                : project.owner}
+              {project.owner}
+              {"stalled" in project && project.stalled ? (
+                <em className="is-overdue"> · {project.stalled}</em>
+              ) : null}
             </small>
           </span>
           <Link

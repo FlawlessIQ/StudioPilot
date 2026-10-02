@@ -15,7 +15,6 @@ import {
   Gauge,
   Info,
   Printer,
-  Rocket,
   SlidersHorizontal,
   TrendingDown,
   WalletCards,
@@ -24,7 +23,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { actionsPerWedding } from "@/features/reporting/actions-per-wedding";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
 import { formatCents } from "@/lib/format/money";
-import { analyseFunnel } from "@/features/operations/funnel";
+import { analyseFunnel, jobFunnelStages } from "@/features/operations/funnel";
 import { bookedStates } from "@/features/inquiries/stages";
 import { inquiryInsights, replyTimeLabel } from "@/features/reporting/inquiry-insights";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -110,13 +109,15 @@ export function LiveReports() {
   // Weddings the studio has won. Every inquiry is a job from the moment it
   // arrives, so counting all jobs counted every couple who ever asked.
   const bookedProjects = projects.filter((project) => bookedStates.has(String(project.state)));
+  // Case-folded: "Wedding" and "wedding" were two bars of one kind of work.
   const projectTypes = Object.entries(
     bookedProjects.reduce<Record<string, number>>((counts, project) => {
-      const key = String(project.eventType ?? "Other");
+      const raw = String(project.eventType ?? "").trim() || "Other";
+      const key = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
       counts[key] = (counts[key] ?? 0) + 1;
       return counts;
     }, {}),
-  );
+  ).sort(([, left], [, right]) => right - left);
   const maxSource = Math.max(1, ...leadSources.map(([, count]) => count));
   const firstReplyHint =
     inquiries.replied === 0
@@ -166,34 +167,11 @@ export function LiveReports() {
       String(item.status),
     ),
   );
-  const funnel = analyseFunnel([
-    // Spam the studio dismissed is not an inquiry that didn't book.
-    {
-      label: "Inquiries",
-      value: (leadsState.records ?? []).filter((lead) => lead.notInquiry !== true).length,
-    },
-    { label: "Consultations", value: consultations.length },
-    { label: "Proposals sent", value: proposalsSent.length },
-    {
-      label: "Contracts complete",
-      value: contracts.filter((item) => item.status === "completed").length,
-    },
-    {
-      label: "Booked projects",
-      value: projects.filter((item) =>
-        [
-          "BOOKED",
-          "PLANNING",
-          "READY",
-          "EVENT_COMPLETE",
-          "POST_PRODUCTION",
-          "DELIVERED",
-          "REVIEW_REQUESTED",
-          "CLOSED",
-        ].includes(String(item.state)),
-      ).length,
-    },
-  ]);
+  // Jobs that got at least this far, so the funnel only ever narrows
+  // (features/operations/funnel.ts).
+  const funnel = analyseFunnel(
+    jobFunnelStages({ projects, consultations, proposals, contracts }),
+  );
   const proposalAcceptance = proposalsSent.length
     ? Math.round(
         (proposalsSent.filter((item) => item.status === "accepted").length /
@@ -278,10 +256,10 @@ export function LiveReports() {
           <h1>Insights</h1>
           <p>Understand the health of your pipeline, projects, and collections without losing sight of where each number came from.</p>
         </div>
+        {/* "Release evidence" moved to the foot of the page, beside the audit
+            log: it is about how StudioCue ships, not how the studio is doing,
+            and it was the widest button in the studio's own header. */}
         <div className="report-actions">
-          <Link className="button button-light" href="/studio/reports/release-evidence">
-            <Rocket /> Release evidence
-          </Link>
           <button className="button button-light" type="button" onClick={() => window.print()}>
             <Printer /> Print
           </button>
@@ -388,11 +366,11 @@ export function LiveReports() {
           </div>
         </section>
         <section className="panel report-chart-card">
-          <div className="panel-heading"><div><h2>Projects by type</h2><p>Filtered portfolio mix</p></div></div>
+          <div className="panel-heading"><div><h2>Booked jobs by type</h2><p>The mix of work you have won</p></div></div>
           <div className="report-bars">
             {projectTypes.map(([type, count]) => (
               <article key={type}>
-                <span><strong>{type}</strong><small>{count} {count === 1 ? "project" : "projects"}</small></span>
+                <span><strong>{type}</strong><small>{count} {count === 1 ? "job" : "jobs"}</small></span>
                 <i><b style={{ width: `${bookedProjects.length ? (count / bookedProjects.length) * 100 : 0}%` }} /></i>
               </article>
             ))}
@@ -401,7 +379,7 @@ export function LiveReports() {
                 <BriefcaseBusiness />
                 <span>
                   <strong>Your portfolio mix will appear here</strong>
-                  <small>Create a project to begin comparing work by project type.</small>
+                  <small>Your first booked job starts the comparison by type.</small>
                 </span>
               </div>
             ) : null}
@@ -491,8 +469,8 @@ export function LiveReports() {
               <h2>
                 Where inquiries stop becoming bookings
                 <InfoHint label="The funnel">
-                  The steps after the first count what reached them in this range. The first, Inquiries, counts
-                  every inquiry, whatever the range.
+                  Jobs in this range that came in as an inquiry, and how many got at least as far as each
+                  step. Imported bookings aren&apos;t counted — they never went through it.
                 </InfoHint>
               </h2>
             </div>
@@ -557,6 +535,9 @@ export function LiveReports() {
               about where each number came from, so it belongs here. */}
           <Link className="report-audit-link" href="/studio/audit">
             See the full audit log <ArrowRight aria-hidden="true" size={14} />
+          </Link>
+          <Link className="report-audit-link" href="/studio/reports/release-evidence">
+            How StudioCue checks a release <ArrowRight aria-hidden="true" size={14} />
           </Link>
         </span>
       </aside>

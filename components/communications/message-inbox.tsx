@@ -15,6 +15,7 @@ import {
   where,
 } from "firebase/firestore";
 import {
+  ArrowUpRight,
   ChevronLeft,
   Inbox,
   Loader2,
@@ -36,6 +37,12 @@ import type {
 } from "@/features/messaging/conversation";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { MessageApprovals } from "@/components/communications/message-approvals";
+import Link from "next/link";
+import {
+  defaultThread,
+  groupConversations,
+  type ThreadGroup,
+} from "@/features/messaging/thread-groups";
 
 /**
  * The mailbox. Replaces a screen that put a compose form, an automation
@@ -165,9 +172,15 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const workspace = useWorkspace();
   const tenantId = workspace.tenantId;
 
-  const [threads, setThreads] = useState<Conversation[]>([]);
+  const [threads, setThreads] = useState<ThreadGroup[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // The thread open before the studio picks one, chosen once when the list
+  // first arrives: the newest *unread* one. Pinned, because opening it marks it
+  // read — re-deriving would then jump to a different thread under the reader.
+  const [defaultId, setDefaultId] = useState<string | null>(null);
+  // The open thread's job, by name, for the header link to it.
+  const [jobNames, setJobNames] = useState<Record<string, string>>({});
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [loadedThreadId, setLoadedThreadId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -184,7 +197,8 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   // recomputed for that click, so it reads their current values through refs
   // (assigned in render, below) rather than a stale closure.
   const openThreadIdRef = useRef<string | null>(null);
-  const visibleThreadsRef = useRef<Conversation[]>([]);
+  const visibleThreadsRef = useRef<ThreadGroup[]>([]);
+  const defaultIdRef = useRef<string | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
   // Only the drafted case needs state — it arrives from a subscription. The
   // prepared-from-facts case is already on the message, so it is derived.
@@ -223,7 +237,11 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   // loader (keyed on openThreadId) would never re-run to repopulate them.
   const selectThread = useCallback((id: string | null) => {
     const current = openThreadIdRef.current;
-    const nextId = id ?? visibleThreadsRef.current[0]?.id ?? null;
+    const nextId =
+      id ??
+      (visibleThreadsRef.current.find((thread) => thread.id === defaultIdRef.current) ??
+        visibleThreadsRef.current[0])?.id ??
+      null;
     setActiveId(id);
     if (nextId === current) return;
     setMessages([]);
@@ -246,9 +264,11 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         limit(THREAD_LIMIT),
       ),
       (snapshot) => {
-        setThreads(
+        const grouped = groupConversations(
           snapshot.docs.map((document) => document.data() as Conversation),
         );
+        setThreads(grouped);
+        setDefaultId((current) => current ?? defaultThread(grouped)?.id ?? null);
         setThreadsLoading(false);
       },
       () => setThreadsLoading(false),
@@ -324,17 +344,22 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     );
   }, [threads, search, initialProjectId]);
 
-  // Derived, not stored: the newest thread is open until one is chosen, so the
-  // screen never starts empty with work waiting. Setting this from an effect
-  // would mean an extra render pass on every thread-list update.
+  // Derived, not stored: a thread is open until one is chosen, so the screen
+  // never starts empty with work waiting — the first unread one, pinned when
+  // the list arrived (see defaultId), else the newest.
   const activeThread = useMemo(
     () =>
       visibleThreads.find((thread) => thread.id === activeId) ??
+      visibleThreads.find((thread) => thread.id === defaultId) ??
       visibleThreads[0] ??
       null,
-    [visibleThreads, activeId],
+    [visibleThreads, activeId, defaultId],
   );
   const openThreadId = activeThread?.id ?? null;
+  // Every conversation folded into the open row (thread-groups.ts). A string,
+  // so the loader below re-runs on a change of membership, not of identity.
+  const openMemberIds = activeThread?.memberIds.join(",") ?? "";
+  const openProjectId = activeThread?.projectId ?? null;
   const messagesLoading = openThreadId !== loadedThreadId;
   // Keep the refs selectThread reads in sync with the rendered values. Written
   // in an effect (not during render) so a click, which happens after commit,
@@ -342,7 +367,26 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   useEffect(() => {
     openThreadIdRef.current = openThreadId;
     visibleThreadsRef.current = visibleThreads;
+    defaultIdRef.current = defaultId;
   });
+
+  // The open thread's job name, for "Open job" in its header. One read per
+  // job, cached; the full project list still loads only for the composer.
+  useEffect(() => {
+    if (!openProjectId || !tenantId || jobNames[openProjectId]) return;
+    let active = true;
+    const { firestore } = getFirebaseClient();
+    void getDoc(doc(firestore, "projects", openProjectId))
+      .then((snapshot) => {
+        if (!active || !snapshot.exists() || snapshot.get("tenantId") !== tenantId) return;
+        const name = String(snapshot.get("name") ?? "");
+        if (name) setJobNames((current) => ({ ...current, [openProjectId]: name }));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [openProjectId, tenantId, jobNames]);
 
   useEffect(() => {
     if (!openThreadId || !tenantId) return;
@@ -356,11 +400,14 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         // resolves correctly and throws clearly on any denial. MUST filter by
         // tenantId — firestore.rules proves message-read access from
         // `resource.data.tenantId`, so an unscoped query is rejected.
+        const memberIds = openMemberIds ? openMemberIds.split(",").slice(0, 10) : [openThreadId];
         const snapshot = await getDocs(
           query(
             collection(firestore, "messages"),
             where("tenantId", "==", tenantId),
-            where("conversationId", "==", openThreadId),
+            memberIds.length > 1
+              ? where("conversationId", "in", memberIds)
+              : where("conversationId", "==", openThreadId),
             limit(MESSAGE_LIMIT),
           ),
         );
@@ -398,17 +445,19 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     return () => {
       active = false;
     };
-  }, [openThreadId, tenantId, messageRefresh]);
+  }, [openThreadId, openMemberIds, tenantId, messageRefresh]);
 
   // Opening a thread clears its badge. Fire-and-forget: failing to clear a
   // count must not stop the studio reading the message.
   useEffect(() => {
     if (!activeThread || activeThread.studioUnreadCount === 0) return;
-    void sendCommunicationsCommand({
-      type: "markConversationRead",
-      idempotencyKey: `read_${activeThread.id}_${activeThread.lastMessageAt}`,
-      input: { conversationId: activeThread.id },
-    }).catch(() => undefined);
+    for (const conversationId of activeThread.memberIds) {
+      void sendCommunicationsCommand({
+        type: "markConversationRead",
+        idempotencyKey: `read_${conversationId}_${activeThread.lastMessageAt}`,
+        input: { conversationId },
+      }).catch(() => undefined);
+    }
   }, [activeThread]);
 
   // A reply waiting before the studio asked for one. Either composed from the
@@ -681,9 +730,8 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
           </label>
           <div className="msg-threads-meta">
             <p className="msg-threads-count">
-              {totalUnread > 0
-                ? `${totalUnread} waiting on you`
-                : `${visibleThreads.length} conversation${visibleThreads.length === 1 ? "" : "s"}`}
+              {`${visibleThreads.length} conversation${visibleThreads.length === 1 ? "" : "s"}`}
+              {totalUnread > 0 ? ` · ${totalUnread} waiting on you` : ""}
             </p>
             <button
               type="button"
@@ -823,8 +871,16 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                           thread.participant.email ??
                           "Client"}
                       </span>
+                      {/* The count sits after the time in the row, not
+                          absolutely over it — it covered "ago" (UI audit,
+                          2026-10-02). */}
                       <span className="msg-thread-when">
                         {whenLabel(thread.lastMessageAt)}
+                        {unread ? (
+                          <span className="msg-thread-badge">
+                            {thread.studioUnreadCount}
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                     <span className="msg-thread-subject">
@@ -835,11 +891,6 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                       {thread.lastMessageDirection === "outbound" ? "You: " : ""}
                       {thread.lastMessagePreview}
                     </span>
-                    {unread ? (
-                      <span className="msg-thread-badge">
-                        {thread.studioUnreadCount}
-                      </span>
-                    ) : null}
                   </button>
                 </li>
               );
@@ -879,25 +930,27 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                     studio needs here is which job this is and how to reach them. */}
                 <p>
                   {[
-                    projects.find(
-                      (entry) => entry.id === activeThread.projectId,
-                    )?.name,
+                    activeThread.projectId
+                      ? (jobNames[activeThread.projectId] ??
+                        projects.find((entry) => entry.id === activeThread.projectId)?.name)
+                      : null,
                     activeThread.participant.email,
                   ]
                     .filter(Boolean)
-                    .join(" · ") || "No project linked"}
+                    .join(" · ") || "No job linked"}
                 </p>
               </div>
-              <span className="msg-thread-channels">
-                {activeThread.channels.map((channel) => {
-                  const Icon = channelIcon[channel] ?? Mail;
-                  return (
-                    <span key={channel} title={channel}>
-                      <Icon size={14} aria-hidden />
-                    </span>
-                  );
-                })}
-              </span>
+              {/* The corner held a channel icon that looked like a button and
+                  did nothing; there was no way from a conversation to the
+                  wedding it is about (UI audit, 2026-10-02). */}
+              {activeThread.projectId ? (
+                <Link
+                  className="msg-thread-job"
+                  href={`/studio/projects/${activeThread.projectId}`}
+                >
+                  Open job <ArrowUpRight size={14} aria-hidden />
+                </Link>
+              ) : null}
             </header>
 
             <div className="msg-stream" ref={streamRef}>

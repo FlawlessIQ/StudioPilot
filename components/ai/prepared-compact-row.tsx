@@ -15,6 +15,19 @@ function readable(value: string) {
   return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : value;
 }
 
+/**
+ * The kind of draft, in the studio's words. The capability name leaked its
+ * workflow phase: a pre-wedding invoice notice was labelled "Delivery message
+ * draft" (UI audit, 2026-10-02).
+ */
+function draftLabel(capability: string): string {
+  if (/reply/.test(capability)) return "Reply draft";
+  if (/message|email|notice/.test(capability)) return "Message draft";
+  if (/proposal/.test(capability)) return "Proposal draft";
+  if (/schedule|run_of_show/.test(capability)) return "Schedule draft";
+  return readable(capability) || "Prepared for you";
+}
+
 function relativeTime(value: unknown) {
   const raw = typeof value === "number" ? value : Date.parse(text(value));
   if (!Number.isFinite(raw)) return "";
@@ -77,7 +90,7 @@ export function PreparedCompactRow({
           <BrainCircuit size={16} />
         </span>
         <span className="prepared-compact-body">
-          <small>{readable(capability) || "AI prepared work"}</small>
+          <small>{draftLabel(capability)}</small>
           <strong>
             {text(record.title) || `Review ${readable(capability) || "AI suggestion"}`}
           </strong>
@@ -88,10 +101,12 @@ export function PreparedCompactRow({
           </em>
           {flags}
         </span>
+        {/* A bare "95%" said nothing; it is how sure the draft is. */}
         <span
           className={`ai-confidence is-${text(confidence.label) || "medium"}`}
+          title="How sure StudioCue is that this draft is right"
         >
-          {Math.round(Number(confidence.overall ?? 0) * 100)}%
+          {Math.round(Number(confidence.overall ?? 0) * 100)}% sure
         </span>
         <ChevronRight size={18} className="prepared-compact-chevron" />
       </button>

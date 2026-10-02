@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Insurance" };
 
 export default async function InsurancePage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;

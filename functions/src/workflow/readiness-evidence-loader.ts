@@ -36,6 +36,17 @@ import {
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
+const BOOKED_STATES = new Set([
+  "BOOKED",
+  "PLANNING",
+  "READY",
+  "EVENT_COMPLETE",
+  "POST_PRODUCTION",
+  "DELIVERED",
+  "REVIEW_REQUESTED",
+  "CLOSED",
+]);
+
 /**
  * Read the six collections readiness derives from and apply the rules.
  *
@@ -111,7 +122,15 @@ export async function loadReadinessEvidence(
     ownerCovers: ownerShootsJob(project.data()),
   });
 
+  // Past the booking gate means signed and paid, whatever the newest contract
+  // record says. Mirrors bookingIsConfirmed in features/inquiries/stages.ts.
+  const bookingConfirmed =
+    ownProject &&
+    ((typeof project.get("bookingCompletedAt") === "string" &&
+      Boolean(project.get("bookingCompletedAt"))) ||
+      BOOKED_STATES.has(text(project.get("state"))));
   return readinessEvidenceFromFacts({
+    bookingConfirmed,
     contractStatus: text(newestContract?.get("status")) || null,
     retainerInvoiceStatus:
       text(invoiceOfKind("retainer")?.get("status")) || null,

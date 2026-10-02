@@ -1809,7 +1809,9 @@
 .ds-root[data-ds-theme="emerald"] {
   --ds-ink: #191b20;
   --ds-ink-soft: #565d68;
-  --ds-muted: #8b929d;
+  /* Was #8b929d: 3.1:1 on white, under AA's 4.5 — every label, tab and
+     subtitle in the studio read as disabled (UI audit, 2026-10-02). */
+  --ds-muted: #6b7280;
   --ds-line: #e8eaf0;
   --ds-line-soft: #f2f4f7;
   --ds-canvas: #f6f7f9;
@@ -1854,6 +1856,12 @@
   --ds-brass: #c99a3f;
   --ds-brass-deep: #977325;
   --ds-brass-soft: #f6efda;
+  /* The one filled "do this" colour. White on the bright #0ea372 accent is
+     3.2:1, and five different fills had grown up for the main action
+     (UI audit, 2026-10-02); every primary button now reads these. */
+  --ds-action: #0b7d57;
+  --ds-action-deep: #086447;
+  --ds-action-fill: linear-gradient(160deg, #0d8a60 0%, #09704e 100%);
   --ds-forest: #2f6f8f; /* shift "success/almost-ready" to teal-blue so it reads distinct from the green accent */
   --ds-forest-soft: #e0eef4;
   --ds-shell-glow-1: rgba(18, 192, 132, 0.07);
@@ -2386,7 +2394,7 @@
 }
 
 .ds-cal-legend-item.is-project { color: var(--ds-brass-deep); }
-.ds-cal-legend-item.is-booked { color: var(--ds-amber); }
+.ds-cal-legend-item.is-booked { color: var(--ds-claret-deep); } /* was amber, a shade off "Project event"'s brass — the two read as one (UI audit, 2026-10-02) */
 .ds-cal-legend-item.is-open { color: var(--ds-forest); }
 .ds-cal-legend-item.is-blocked { color: var(--ds-danger); }
 
@@ -2464,8 +2472,19 @@
   background: var(--ds-danger-soft);
 }
 
+/* No consultation hours that weekday. It shared the grey of days outside the
+   month, so a wedding photographer's Saturdays — the days they work — looked
+   shut. Grey now means "already gone": outside the month, or past. */
 .ds-cal-day.is-state-closed {
+  background: var(--ds-paper);
+}
+
+.ds-cal-day.is-past {
   background: var(--ds-line-soft);
+}
+
+.ds-cal-day.is-past time {
+  color: var(--ds-muted);
 }
 
 .ds-cal-day-lock {
@@ -2514,8 +2533,8 @@
 }
 
 .ds-cal-pill-booked {
-  background: var(--ds-amber-soft);
-  color: var(--ds-amber);
+  background: var(--ds-claret-soft);
+  color: var(--ds-claret-deep);
 }
 
 .ds-cal-pill-open {
@@ -2710,7 +2729,7 @@
   background: var(--ds-brass-deep);
 }
 .ds-cal-dot.is-booked {
-  background: var(--ds-amber);
+  background: var(--ds-claret-deep);
 }
 .ds-cal-dot.is-open {
   background: var(--ds-forest);
@@ -3010,9 +3029,14 @@
   overflow: hidden;
 }
 
+/* One line per client: avatar, name, their job, portal, actions, email. The
+   actions took a second line on every row, doubling the list's height (UI
+   audit, 2026-10-02); they drop to a full line only while one is open. */
 .ds-people-row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto auto auto auto;
+  /* Fixed tracks after the job, so a row with one action and a row with two
+     keep the Job column on one line down the list. */
+  grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) 118px 252px 34px;
   align-items: center;
   gap: 16px;
   padding: 12px 20px;
@@ -3077,6 +3101,54 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ds-people-job {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.ds-people-job small {
+  color: var(--ds-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ds-people-job a,
+.ds-people-job strong {
+  color: var(--ds-ink);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ds-people-job strong {
+  color: var(--ds-muted);
+  font-weight: 500;
+}
+.ds-people-job a:hover {
+  color: var(--ds-claret-deep);
+  text-decoration: underline;
+}
+
+.ds-people-row > .status-badge {
+  justify-self: start;
+}
+.ds-people-row > .record-row-actions {
+  flex-wrap: nowrap;
+  grid-column: auto;
+  justify-content: flex-end;
+  order: 5;
+}
+.ds-people-row > .ds-people-message,
+.ds-people-row > .ds-people-message + span {
+  order: 6;
+}
+.ds-people-row:has(.record-row-actions > details[open]) > .record-row-actions {
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
 }
 
 .ds-people-message {
@@ -3384,7 +3456,16 @@
   }
   .ds-people-row > .record-row-actions {
     flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     order: 4;
+  }
+  .ds-people-job {
+    flex: 1 1 100%;
+    order: 2;
+  }
+  .ds-people-row > .ds-people-message {
+    order: 3;
   }
 }
 .project-planning-copilot {

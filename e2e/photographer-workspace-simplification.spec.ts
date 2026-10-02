@@ -50,7 +50,7 @@ test("home leads with one decision, not competing dashboards", async ({ page }) 
   const main = page.locator("main");
 
   // Exactly one primary recommended action, and it names the project it is about.
-  const primary = main.getByRole("link", { name: /Review and decide|Create project/ });
+  const primary = main.getByRole("link", { name: /Review and decide|New job/ });
   await expect(primary).toHaveCount(1);
 
   // The concepts the simplification removed stay removed: a generic grid of AI

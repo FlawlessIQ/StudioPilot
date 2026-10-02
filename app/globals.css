@@ -3869,8 +3869,14 @@ textarea:focus-visible {
    every row. Leaving six here left an empty track and pushed Status off. */
 .crm-leads-table .crm-table-head,
 .crm-leads-table article {
-  grid-template-columns: 1.35fr 1.2fr 0.8fr 0.8fr auto;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.8fr) 30px;
 }
+
+/* The header and each row are separate grids. With plain `fr` tracks (auto
+   minimum) and an `auto` last track — 0px in the header, the 30px open
+   button in a row — every column resolved to a different width per row, and
+   the headings sat 8–24px right of their data (UI audit, 2026-10-02).
+   `minmax(0, …)` plus a fixed last track makes every row the same grid. */
 
 /* Date & Venue was 0.95fr — 167px against 188px of content — so venue names
    and long date strings both clipped at a plain 1280px desktop ("The Estate at
@@ -3879,7 +3885,7 @@ textarea:focus-visible {
    next-action column, which holds short verbs. */
 .crm-projects-table .crm-table-head,
 .crm-projects-table article {
-  grid-template-columns: 1.15fr 1.25fr 0.68fr 0.62fr 0.82fr auto;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.25fr) minmax(0, 0.68fr) minmax(0, 0.62fr) minmax(0, 0.82fr) 30px;
 }
 
 /* The state cell carries the chip and, under it, where the job sits in the
@@ -3939,9 +3945,17 @@ textarea:focus-visible {
 }
 
 .crm-table article > span:not(.readiness-cell) {
+  align-items: flex-start;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* Text cells still truncate: a flex child that no longer stretches needs its
+   width back to be able to clip. */
+.crm-table article > span:not(.readiness-cell) > strong,
+.crm-table article > span:not(.readiness-cell) > small {
+  max-width: 100%;
 }
 
 .crm-table article strong {
@@ -3962,6 +3976,11 @@ textarea:focus-visible {
 
 .crm-primary strong {
   font-size: 11px !important;
+}
+
+.crm-table article small > em.is-overdue {
+  color: var(--ds-danger, #a63c3a);
+  font-style: normal;
 }
 
 .crm-table article > a {
@@ -4853,7 +4872,7 @@ textarea:focus-visible {
   .crm-leads-table article,
   .crm-projects-table .crm-table-head,
   .crm-projects-table article {
-    grid-template-columns: 1.3fr 1fr 0.7fr 0.7fr auto;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr) 30px;
   }
 
   .crm-leads-table .crm-table-head span:nth-child(3),
@@ -9812,6 +9831,13 @@ textarea:focus-visible {
   text-decoration: none;
 }
 
+.ds-root .booking-autopilot-empty > a.button {
+  color: var(--ds-ink, #191b20);
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 34px;
+}
+
 .booking-consultation-capture {
   align-items: end;
   background: white;
@@ -11472,6 +11498,8 @@ textarea:focus-visible {
 .project-crew-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .project-crew-panel>header h2{margin:0;font-size:18px}
 .project-crew-panel ul{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+/* Flush with the card's text, not inset 28px like a page-level notice. */
+.ds-root .project-crew-panel > .project-crew-empty{margin:0}
 .project-crew-panel li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;background:var(--surface)}
 .project-crew-panel li>span{display:grid;gap:2px;min-width:0}
 .project-crew-panel li small{color:var(--muted)}
@@ -15964,9 +15992,34 @@ label {
    type filter is a row of chips, and "New" sits on the tab row. Base (desktop)
    hides the phone-only controls. .ds-root beats the .crm-table grid rules.
    ========================================================================== */
-.crm-toolbar-new,
-.crm-type-chips {
+.crm-toolbar-new {
   display: none;
+}
+
+.crm-type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.crm-type-chips a {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  text-decoration: none;
+}
+
+.crm-type-chips a:hover {
+  border-color: var(--ink-soft);
+}
+
+.crm-type-chips a.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface, #fff);
 }
 @media (max-width: 660px) {
   .ds-root .crm-page:has(.crm-projects-table) > .dashboard-heading {

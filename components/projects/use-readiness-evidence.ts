@@ -9,6 +9,7 @@ import {
   ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { bookingIsConfirmed } from "@/features/inquiries/stages";
 import {
   readinessEvidenceFromFacts,
   type ReadinessEvidence,
@@ -75,6 +76,7 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   });
 
   return readinessEvidenceFromFacts({
+    bookingConfirmed: bookingIsConfirmed(projectRecord ?? {}),
     contractStatus: text(latestContract?.status) || null,
     retainerInvoiceStatus:
       text(projectInvoices.find((invoice) => invoice.kind === "retainer")?.status) ||

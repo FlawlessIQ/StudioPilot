@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { DeliveryForm } from "@/components/post-event/delivery-form";
 import { DeliveryCloseoutWorkspace } from "@/components/post-event/delivery-closeout-workspace";
 import { PostProductionChecklist } from "@/components/post-event/post-production-checklist";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Delivery" };
 
 export default async function DeliveryPage({
   searchParams,

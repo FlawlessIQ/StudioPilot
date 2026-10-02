@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -9,6 +10,10 @@ import {
   ProjectContextBar,
 } from "@/components/studio/live-domain-view";
 import { PeopleSectionNav } from "@/components/layout/people-section-nav";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Crew" };
 
 export default async function StudioCrewPage({
   searchParams,

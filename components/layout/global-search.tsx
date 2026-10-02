@@ -295,7 +295,7 @@ export function GlobalSearch() {
                 {operator ? <Link href="/studio/projects/new" onClick={close}>
                   <Plus size={17} />
                   <span>
-                    <strong>Create project</strong>
+                    <strong>New job</strong>
                     <small>Start a new photography job</small>
                   </span>
                 </Link> : null}

@@ -3,11 +3,8 @@
 import { FileLinks } from "@/components/documents/file-link";
 import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  jobIsOver,
-  taskMomentHasGone,
-  workStillMatters,
-} from "@/features/projects/job-moment";
+import { jobIsOver } from "@/features/projects/job-moment";
+import { taskIsOpenWork, taskJobStillWantsIt } from "@/features/tasks/live-work";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -58,7 +55,6 @@ import { withTimeout } from "@/lib/async/with-timeout";
 import { getStudioRecords } from "@/lib/studio/records-client";
 import { isCataloguePackage } from "@/features/packages/one-off";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
-import { ReadinessRing } from "@/components/ds/readiness-ring";
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import {
@@ -336,7 +332,6 @@ const configurations: Record<Domain, DomainConfig> = {
     facts: [
       { label: "Due", fields: ["dueDate"], kind: "date" },
       { label: "Priority", fields: ["priority"] },
-      { label: "Blocking", fields: ["blocking"] },
     ],
     href: (record) => `/studio/projects/${String(record.projectId)}`,
   },
@@ -636,8 +631,11 @@ export function LiveDomainView({
   emptyAction,
   projectId,
   rowActions,
+  openOnly = false,
 }: {
   domain: Domain;
+  /** Tasks only: leave out settled and archived ones (the bell's list). */
+  openOnly?: boolean;
   emptyAction?: { href: string; label: string };
   projectId?: string;
   /**
@@ -953,24 +951,18 @@ export function LiveDomainView({
     config.collection === "packages"
       ? records.filter((record) => isCataloguePackage(record))
       : config.collection === "tasks"
-      ? records.filter((record) => {
-          const state = String(record.projectState ?? "");
-          if (!state) return true;
-          if (!workStillMatters(state)) return false;
-          return !taskMomentHasGone({
-            state,
-            dueDate:
-              typeof record.dueAt === "string"
-                ? record.dueAt
-                : typeof record.dueDate === "string"
-                  ? record.dueDate
-                  : null,
-            eventDate:
-              typeof record.projectEventDate === "string"
-                ? record.projectEventDate
-                : null,
-          });
-        })
+      ? records
+          .filter((record) =>
+            openOnly ? taskIsOpenWork(record) : taskJobStillWantsIt(record),
+          )
+          // Soonest due first on the open list; undated last.
+          .sort((left, right) =>
+            openOnly
+              ? String(left.dueDate ?? left.dueAt ?? "9999").localeCompare(
+                  String(right.dueDate ?? right.dueAt ?? "9999"),
+                )
+              : 0,
+          )
       : records;
   const visibleRecords = rowActions
     ? showArchived
@@ -1162,8 +1154,10 @@ export function StudioDomainPage({
   projectId,
   beforeContent,
   rowActions,
+  openOnly,
 }: {
   domain: Domain;
+  openOnly?: boolean;
   eyebrow: string;
   title: string;
   description: string;
@@ -1194,6 +1188,7 @@ export function StudioDomainPage({
         emptyAction={action}
         projectId={projectId}
         rowActions={rowActions}
+        openOnly={openOnly}
       />
     </div>
   );
@@ -1231,7 +1226,10 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
    */
   const readinessEvidence = useReadinessEvidence(projectId);
   const readinessView = readinessSummary(
-    (checkpoints ?? []).filter((entry) => entry.projectId === projectId),
+    // Archived checkpoints are history, as on the job page.
+    (checkpoints ?? []).filter(
+      (entry) => entry.projectId === projectId && !entry.archivedAt,
+    ),
     new Date(),
     readinessEvidence,
   );
@@ -1269,7 +1267,7 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
         <Link className="project-context-identity" href={`/studio/projects/${projectId}`}>
           <ArrowLeft aria-hidden="true" />
           <span>
-            <small>Project</small>
+            <small>Job</small>
             <strong>{name}</strong>
           </span>
         </Link>
@@ -1291,16 +1289,23 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
                   {projectStateLabel(state)}
                 </StatusBadge>
               ) : null}
-              {/* The ring carries the number, so no separate label: printing
-                  readiness twice was a habit worth breaking. */}
-              {readinessTracked ? (
-                <span
-                  className="project-context-readiness"
-                  title={`${readiness}% ready`}
+              {/* What is left, in the words the job's own header uses. A bare
+                  ring reading "43" said nothing a studio could act on, and
+                  the Overview a tab away spoke in things, not percent (UI
+                  audit, 2026-10-02). */}
+              {readinessTracked && readinessView.blocking.length ? (
+                <Link
+                  className="project-title-action project-readiness-gap"
+                  href={`/studio/projects/${projectId}#project-checkpoints`}
+                  title={`${readiness}% ready · still open: ${readinessView.blocking.join(", ")}`}
                 >
-                  <ReadinessRing size={42} stroke={3} value={readiness} />
-                  <span className="ds-sr-only">{readiness}% ready</span>
-                </span>
+                  <span aria-hidden="true" className="project-readiness-dot" />
+                  {readinessView.blocking.length === 1
+                    ? "1 thing before the day"
+                    : `${readinessView.blocking.length} things before the day`}
+                </Link>
+              ) : readinessTracked ? (
+                <span className="project-context-ready">Ready for the day</span>
               ) : null}
             </span>
           </>

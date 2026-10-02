@@ -34,6 +34,7 @@ import { kindFromValue, type LibraryKind } from "@/features/library/kinds";
 import {
   describeProviderFailure,
   groupProviderFailures,
+  providerFailureKind,
 } from "@/features/today/provider-failure";
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { isAmendable } from "@/features/booking/amendable";
@@ -1246,10 +1247,15 @@ export function todayInbox(input: TodayInput): TodayInbox {
   const journeyById = new Map(
     (input.journeys ?? []).map((position) => [position.projectId, position]),
   );
+  // Falls back to the job record itself: a card whose job has no journey
+  // position (a crew cascade on a job off the live list) printed no job name
+  // at all — "Still no second videographer", for whom? (UI audit, 2026-10-02).
   const nameFor = (projectId: unknown) =>
-    journeyById.get(text(projectId))?.projectName ?? null;
+    journeyById.get(text(projectId))?.projectName ??
+    (text(projectById.get(text(projectId))?.name) || null);
   const eventFor = (projectId: unknown) =>
-    journeyById.get(text(projectId))?.eventDate ?? null;
+    journeyById.get(text(projectId))?.eventDate ??
+    (text(projectById.get(text(projectId))?.eventDate) || null);
   const projectById = new Map(
     rows(input.projects).map((project) => [project.id, project]),
   );
@@ -1578,7 +1584,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const failure = describeProviderFailure(job.type);
     exception({
       id: `provider-${job.id}`,
-      kind: null,
+      // Every card carries a glyph, so every title starts on the same line;
+      // these were the only plain ones, 42px left of their neighbours.
+      kind: providerFailureKind(job.type),
       title: failure.title,
       // The project name is already the card's subtitle, so repeating it here
       // printed it twice on one card. This says who could not do it, and how

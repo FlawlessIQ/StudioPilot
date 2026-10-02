@@ -22,9 +22,12 @@ export default async function ClientsPage({
             <h1>Clients</h1>
             <p>Keep client details, project relationships, and portal access in one place.</p>
           </div>
-          <PeopleSectionNav />
           <Link className="button button-dark" href="/studio/clients/new"><Plus size={16} /> Add client</Link>
         </div>
+        {/* Below the heading, as on Crew, Team and Vendors. Between the title
+            and Add client it floated 18px above the button's line (UI audit,
+            2026-10-02). */}
+        <PeopleSectionNav />
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
             <div className="crm-tabs">

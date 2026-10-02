@@ -21,6 +21,10 @@
   --border: var(--ds-line);
   --soft: var(--ds-line-soft);
   --accent: var(--ds-claret);
+  /* Read by fourteen rules (booking steps, outcomes icons, notices) and
+     defined nowhere, so each fell back to currentColor: the booked card's
+     border rendered ink-black (UI audit, 2026-10-02). */
+  --green: var(--ds-claret-deep);
   --success: var(--ds-forest);
   --danger: var(--ds-danger);
   --cream: var(--ds-brass-soft);
@@ -151,7 +155,11 @@
   background: var(--ds-line-soft);
   color: var(--ds-ink-soft);
 }
-.ds-root .status-success { background: var(--ds-forest-soft); color: var(--ds-forest); }
+/* Success is green. The emerald theme moved --ds-forest to a teal-blue for
+   "almost ready", which made every success badge — "Booked", "Portal
+   active" — blue, while the job bar's "Booked" was green (UI audit,
+   2026-10-02). */
+.ds-root .status-success { background: var(--ds-claret-soft); color: var(--ds-claret-deep); }
 .ds-root .status-warning { background: var(--ds-amber-soft); color: var(--ds-amber); }
 .ds-root .status-danger { background: var(--ds-danger-soft); color: var(--ds-danger); }
 .ds-root .status-info { background: #e6eef5; color: #35607d; border-color: #cddef0; }
@@ -1372,7 +1380,6 @@
 /* The event itself: readable, colour-coded, and clipped rather than wrapping
    so a long client name cannot blow out the cell. */
 .ds-root .ds-cal-event {
-  display: block;
   min-width: 0;
   width: 100%;
   padding: 3px 6px;
@@ -1384,9 +1391,14 @@
   font-weight: 600;
   line-height: 1.3;
   text-align: left;
+  /* Two lines, then clipped: on one line a 100px cell showed "Smith We…" —
+     the name is how a photographer recognises the day (UI audit, 2026-10-02).
+     overflow-wrap keeps a long single word from widening the grid. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* Availability: present, but never competing with a commitment. */
@@ -1771,18 +1783,20 @@
   }
 }
 
-/* Readiness explains its own gap: the percentage now names the blockers that
-   make up the remainder and links to the list that holds them. */
+/* What is left before the day: a pill in the job's own action row, the same
+   shape as Edit job beside it, with an amber dot for "open". It was
+   underlined body text sitting off the row (UI audit, 2026-10-02). */
 .ds-root .project-readiness-gap {
-  display: inline-block;
-  max-width: 34ch;
-  margin-top: 3px;
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--ds-danger, #a3201a);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  color: var(--ds-ink, #191b20);
+  text-decoration: none;
+}
+
+.ds-root .project-readiness-dot {
+  background: var(--ds-amber, #b07d29);
+  border-radius: 99px;
+  flex: none;
+  height: 7px;
+  width: 7px;
 }
 
 .ds-root .project-readiness-clear {
@@ -2513,4 +2527,151 @@
   gap: 8px;
   margin: 0 0 16px;
   padding: 12px 14px;
+}
+
+/* =========================================================================
+   Button defaults every studio surface gets (UI audit, 2026-10-02).
+
+   1. One primary fill. The studio had grown five "do this" colours — flat
+      emerald (top bar), an emerald gradient (.button-dark, .ds-btn-primary),
+      forest (Today approve), near-black (Today resolve, the stage card) and
+      aubergine (the import banner) — so no colour meant "press me".
+   2. A disabled look. There was no global one: disabled styling existed only
+      where a component remembered to add it, so a disabled "Release to the
+      couple" rendered at full colour with a pointer cursor. Same allowlist
+      trap as the panel inset (see the :where(.panel) default above); this is
+      the default, not another entry in a list.
+   ========================================================================= */
+.ds-root .button-dark,
+.ds-root .ds-btn-primary,
+.ds-root .ds-action,
+.ds-root .today-card .today-card-primary,
+.ds-root .msg-suggestion-use,
+.ds-root .pending-import-notice a,
+.ds-root .job-rail-card .project-stage-control form > .button {
+  background: var(--ds-action-fill, var(--ds-claret-deep));
+  border-color: transparent;
+  color: #fff;
+}
+.ds-root .button-dark:hover,
+.ds-root .ds-btn-primary:hover,
+.ds-root .ds-action:hover,
+.ds-root .today-card .today-card-primary:hover,
+.ds-root .msg-suggestion-use:hover,
+.ds-root .pending-import-notice a:hover,
+.ds-root .job-rail-card .project-stage-control form > .button:hover {
+  background: var(--ds-action-deep, var(--ds-claret-deep));
+  filter: none;
+}
+
+.ds-root :is(button, .button, .ds-btn, [role="button"]):is(:disabled, [aria-disabled="true"]) {
+  box-shadow: none;
+  cursor: not-allowed;
+  filter: saturate(0.35);
+  opacity: 0.5;
+}
+
+/* ---- Insights (UI audit, 2026-10-02) ----
+   Header buttons wrapped their own labels ("Export / CSV"); the four headline
+   numbers inherited a grey that read as disabled; a 42px green stub under
+   each tile looked like a progress bar and encoded nothing; and a two-line
+   label in the outcomes grid dropped its number below its neighbours'. */
+.ds-root .report-actions {
+  flex-wrap: nowrap;
+  width: auto;
+}
+.ds-root .report-actions .button {
+  white-space: nowrap;
+}
+.ds-root .report-metric-copy strong {
+  color: var(--ds-ink, #191b20);
+}
+.ds-root .report-metric-card::after {
+  content: none;
+}
+.ds-root .report-performance-grid small {
+  min-height: 2.6em;
+}
+
+/* ---- The bell (UI audit, 2026-10-02) ---- */
+.ds-root .ds-bell {
+  position: relative;
+}
+.ds-root .ds-bell.is-active {
+  border-color: var(--ds-claret-deep);
+  color: var(--ds-claret-deep);
+}
+.ds-root .ds-bell-count {
+  align-items: center;
+  background: var(--ds-danger, #a63c3a);
+  border: 2px solid var(--ds-paper, #fff);
+  border-radius: 99px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 10.5px;
+  font-weight: 700;
+  height: 19px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 19px;
+  padding: 0 4px;
+  position: absolute;
+  right: -7px;
+  top: -7px;
+}
+
+/* ---- Domain lists: the phone-only line break was a grid cell on desktop ----
+   `.live-domain-table span { display: grid }` out-ranked the
+   `.live-domain-break { display: none }` meant to hide it, so every list row
+   had one cell too many and its trailing arrow wrapped onto a line of its own
+   under the title (Notifications, Documents, Invoices…; UI audit, 2026-10-02). */
+.ds-root .live-domain-table .live-domain-break {
+  display: none;
+}
+@media (max-width: 560px) {
+  .ds-root .live-domain-table .live-domain-break {
+    display: block;
+    flex: 0 0 100%;
+    height: 0;
+  }
+}
+/* Tasks show two facts (Due, Priority) — "Blocking: No" on every row was
+   noise — so their grid has two fact tracks, not the default three. */
+@media (min-width: 1101px) {
+  .ds-root .live-domain-table[data-domain="tasks"] > :is(a, article) {
+    grid-template-columns: minmax(190px, 2fr) repeat(2, minmax(110px, 0.75fr)) auto min-content;
+  }
+}
+
+/* Delivery before the wedding: one line and a way in, not the whole form
+   (components/post-event/delivery-form.tsx; UI audit, 2026-10-02). */
+.ds-root .delivery-before-event {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  justify-content: space-between;
+}
+.ds-root .delivery-before-event p {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+.ds-root .delivery-before-event strong {
+  color: var(--ds-ink, #191b20);
+}
+
+/* The job bar's readiness, as words (live-domain-view ProjectContextBar). */
+.ds-root .project-context-ready {
+  color: var(--ds-claret-deep, #0a7a55);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* One banner at a time on the Library: with an import waiting for review, the
+   "Bring your current business in" banner beneath it pointed at the same
+   import studio and pushed the shelves below the fold (UI audit, 2026-10-02). */
+.ds-root .hub-page:has(> .pending-import-notice) .library-import-cta {
+  display: none;
 }

@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
 import { StudioDomainPage } from "@/components/studio/live-domain-view";
 import { TimelineAuthorityPanel } from "@/components/planning/timeline-authority-panel";
 import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
 import { RecordTimelineAnswer } from "@/components/planning/record-timeline-answer";
+
+// Every studio page names itself on its tab; these fell back to
+// "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
+export const metadata: Metadata = { title: "Run of show" };
 
 export default async function SchedulesPage({ searchParams }: { searchParams: Promise<{ project?: string }> }) {
   const { project } = await searchParams;

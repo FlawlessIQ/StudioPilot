@@ -231,6 +231,7 @@ export function projectLifecycleProjection(input: {
   const checkpointRowByObligation = new Map<string, string>();
   const obligationsCoveredByRecords = new Set<string>();
   for (const checkpoint of input.checkpoints ?? []) {
+    if (checkpoint.archivedAt) continue;
     if (["complete", "waived"].includes(text(checkpoint.status))) continue;
     // Settled by the records, even though nothing wrote it to the document.
     if (
@@ -308,9 +309,19 @@ export function projectLifecycleProjection(input: {
     );
   }
 
+  // Once one agreement is signed, a later draft nobody has sent (an amendment
+  // being written) is studio work in progress, not the client's to sign:
+  // "Sign the contract — Not sent yet" sat under "Client needs" on a job whose
+  // contract the rail beside it showed signed (UI audit, 2026-10-02). A sent
+  // or opened one still waits on them.
+  const anySigned = (input.contracts ?? []).some(
+    (contract) => text(contract.status) === "completed",
+  );
   const activeContract = (input.contracts ?? []).find(
     (contract) =>
-      !["completed", "voided", "declined"].includes(text(contract.status)),
+      !["completed", "voided", "declined"].includes(text(contract.status)) &&
+      !contract.archivedAt &&
+      (!anySigned || ["sent", "viewed"].includes(text(contract.status))),
   );
   if (activeContract) {
     obligationsCoveredByRecords.add("contract-completed");

@@ -16,7 +16,7 @@ import type { JourneyStep, JourneyStepKey } from "@/features/journey/steps";
 export type JourneyPhase = "enquire" | "book" | "prepare" | "the_day" | "deliver";
 
 export const journeyPhaseLabel: Record<JourneyPhase, string> = {
-  enquire: "Enquiry",
+  enquire: "Inquiry",
   book: "Booking",
   prepare: "Preparation",
   the_day: "The day",

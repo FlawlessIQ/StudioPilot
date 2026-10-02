@@ -66,3 +66,15 @@ export const inquiryViews = [
   ["signing", "Signing"],
   ["closed", "Closed"],
 ] as const;
+
+/**
+ * Whether the job has passed the booking gate: stamped by the gate, or in a
+ * booked-and-after state. Mirrored in functions/src/workflow/
+ * readiness-evidence-loader.ts, which cannot import from features/.
+ */
+export function bookingIsConfirmed(project: Record<string, unknown>): boolean {
+  if (typeof project.bookingCompletedAt === "string" && project.bookingCompletedAt) {
+    return true;
+  }
+  return bookedStates.has(String(project.state ?? ""));
+}

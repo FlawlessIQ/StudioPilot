@@ -257,8 +257,21 @@
   background: linear-gradient(180deg, rgb(201 154 63 / 5%) 0%, transparent 60%);
 }
 
+/* Open rows are the white, raised ones; settled rows step back. It was the
+   other way round — pending rows grey-filled like disabled ones, done rows
+   white and bordered like work (UI audit, 2026-10-02). */
 .readiness-checkpoints li.is-waiting {
+  background: var(--surface, #fff);
+}
+
+.readiness-checkpoints li.is-settled {
   background: var(--canvas, #f6f7f5);
+  border-color: transparent;
+}
+
+.readiness-checkpoints li.is-settled .readiness-checkpoint-copy strong {
+  color: var(--ink-soft, #565d68);
+  font-weight: 600;
 }
 
 .readiness-checkpoint-mark {
@@ -470,14 +483,6 @@
 .project-phase-track li.is-current > span {
   background: #477254;
   border-color: #477254;
-}
-
-.ds-root .project-detail-header > .project-readiness-gap {
-  align-self: center;
-  max-width: 34ch;
-  color: var(--ds-text, #243128);
-  font-size: 13px;
-  font-weight: 560;
 }
 
 @media (max-width: 760px) {

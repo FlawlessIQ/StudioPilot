@@ -80,12 +80,16 @@ export function KindGlyph({
   size = 38,
 }: {
   className?: string;
-  /** Required when `kind` is null, ignored otherwise. */
+  /**
+   * Required when `kind` is null. With a kind, it swaps the glyph and keeps
+   * the kind's tint — for two shelves of one family (Packages, Add-ons) that
+   * otherwise wore the identical tile.
+   */
   icon?: LucideIcon;
   kind: LibraryKind | null;
   size?: number;
 }) {
-  const Icon = kind ? kindIcons[kind] : icon;
+  const Icon = icon ?? (kind ? kindIcons[kind] : undefined);
   if (!Icon) return null;
   const tone = kind ? `tone-${kindTone(kind)}` : "is-neutral";
   return (

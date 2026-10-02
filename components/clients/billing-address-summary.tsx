@@ -29,20 +29,28 @@ export function BillingAddressSummary({
   return (
     <aside aria-label="Billing address" className="booking-billing-address">
       <MapPin aria-hidden="true" size={17} />
-      <span>
-        <small>
-          {address
-            ? byCouple
+      {/* The state is the headline and the reason the small print. With no
+          address it read the other way round: "No billing address yet" in
+          11px grey over a bold sentence about QuickBooks (UI audit,
+          2026-10-02). */}
+      {address ? (
+        <span>
+          <small>
+            {byCouple
               ? "Billing address · confirmed by the couple at signing"
-              : "Billing address · added by the studio"
-            : "No billing address yet"}
-        </small>
-        <strong>
-          {address
-            ? formatBillingAddress(address)
-            : "QuickBooks works out sales tax from it. The couple is asked for it when they sign."}
-        </strong>
-      </span>
+              : "Billing address · added by the studio"}
+          </small>
+          <strong>{formatBillingAddress(address)}</strong>
+        </span>
+      ) : (
+        <span>
+          <strong>No billing address yet</strong>
+          <small>
+            QuickBooks works out sales tax from it. The couple is asked for it
+            when they sign.
+          </small>
+        </span>
+      )}
       <Link className="button button-light" href={editHref}>
         {address ? "Edit" : "Add it"}
       </Link>

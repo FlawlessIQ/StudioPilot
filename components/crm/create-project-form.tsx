@@ -589,7 +589,7 @@ export function CreateProjectForm({
         <div className="intake-submit">
           <button className="button button-dark" disabled={isSubmitting} type="submit">
             {isSubmitting ? <LoaderCircle className="spin" size={16} /> : null}
-            {clientMode === "new" ? "Create client & project" : "Create project"}
+            {clientMode === "new" ? "Create client & job" : "Create job"}
           </button>
           <small>
             Creates the {clientMode === "new" ? "client record and the " : ""}

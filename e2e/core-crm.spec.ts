@@ -73,7 +73,7 @@ test("home prioritizes approvals and reports only observed workflow evidence", a
   // are not durable selectors.
   const heroAction = page
     .locator("main")
-    .getByRole("link", { name: /Review and decide|Create project/ });
+    .getByRole("link", { name: /Review and decide|New job/ });
   await expect(heroAction).toHaveCount(1);
   await expect(heroAction).toBeVisible();
 

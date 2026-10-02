@@ -87,3 +87,77 @@ export function analyseFunnel(stages: readonly FunnelStage[]): FunnelAnalysis {
   }
   return { steps, biggestLeak };
 }
+
+/**
+ * The funnel's stages, counted as jobs that got at least that far.
+ *
+ * The stages were counted from unrelated piles: every inquiry ever (ignoring
+ * the range), every consultation record (several per job), every completed
+ * contract (amendments too). So the "funnel" rose mid-way — 8 inquiries, 12
+ * consultations, 19 contracts — every bar was capped at full width, and the
+ * "largest leak" was an artefact of the counting (UI audit, 2026-10-02).
+ *
+ * Now the population is the jobs in range that came in as inquiries (an
+ * imported booking never went through the funnel), and each job counts at
+ * every stage up to the furthest its records or its state prove it reached.
+ * Monotonic by construction, so every bar is a true share of the first.
+ *
+ * Pure.
+ */
+const STATE_REACH: Record<string, number> = {
+  LEAD: 0,
+  CONSULTATION: 1,
+  PROPOSAL: 1,
+  CONTRACT_PENDING: 2,
+  RETAINER_PENDING: 3,
+  BOOKED: 4,
+  PLANNING: 4,
+  READY: 4,
+  EVENT_COMPLETE: 4,
+  POST_PRODUCTION: 4,
+  DELIVERED: 4,
+  REVIEW_REQUESTED: 4,
+  CLOSED: 4,
+};
+
+const SENT_PROPOSAL = new Set(["sent", "viewed", "accepted", "declined", "expired"]);
+
+export function jobFunnelStages(input: {
+  projects: readonly Record<string, unknown>[];
+  consultations: readonly Record<string, unknown>[];
+  proposals: readonly Record<string, unknown>[];
+  contracts: readonly Record<string, unknown>[];
+}): FunnelStage[] {
+  const ids = (records: readonly Record<string, unknown>[], keep: (record: Record<string, unknown>) => boolean) =>
+    new Set(
+      records
+        .filter(keep)
+        .map((record) => String(record.projectId ?? ""))
+        .filter(Boolean),
+    );
+  const consulted = ids(input.consultations, (record) => String(record.status ?? "") !== "cancelled");
+  const proposed = ids(input.proposals, (record) => SENT_PROPOSAL.has(String(record.status ?? "")));
+  const signed = ids(input.contracts, (record) => record.status === "completed");
+  const counts = [0, 0, 0, 0, 0];
+  for (const project of input.projects) {
+    if (typeof project.importedAt === "string" && project.importedAt) continue;
+    const id = String(project.id ?? "");
+    const fromState =
+      STATE_REACH[String(project.state ?? "")] ??
+      (typeof project.bookingCompletedAt === "string" && project.bookingCompletedAt ? 4 : 0);
+    const furthest = Math.max(
+      fromState,
+      consulted.has(id) ? 1 : 0,
+      proposed.has(id) ? 2 : 0,
+      signed.has(id) ? 3 : 0,
+    );
+    for (let stage = 0; stage <= furthest; stage += 1) counts[stage] += 1;
+  }
+  return [
+    { label: "Inquiries", value: counts[0] },
+    { label: "Consultations", value: counts[1] },
+    { label: "Proposals sent", value: counts[2] },
+    { label: "Contracts signed", value: counts[3] },
+    { label: "Booked", value: counts[4] },
+  ];
+}

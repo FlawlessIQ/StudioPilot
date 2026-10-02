@@ -62,6 +62,7 @@ import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import {
   addCalendarDays,
   formatDueDate,
+  formatEventDate,
   todayLocalIso,
 } from "@/lib/format/event-date";
 import { providerName } from "@/lib/format/provider-name";
@@ -487,6 +488,13 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     "REVIEW_REQUESTED",
     "CLOSED",
   ].includes(projectState);
+  const bookedOn =
+    typeof project?.bookingCompletedAt === "string" && project.bookingCompletedAt
+      ? project.bookingCompletedAt.slice(0, 10)
+      : null;
+  // Setup runs in the minutes after booking: say so on the day it booked,
+  // and that it happened on any day after.
+  const bookedRecently = bookedOn !== null && bookedOn >= todayLocalIso();
   /**
    * When the retainer is due.
    *
@@ -1835,11 +1843,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <div className="booking-complete-message">
                 <Check size={18} />
                 <span>
-                  <strong>Booking is confirmed</strong>
+                  <strong>
+                    {bookedOn ? `Booked on ${formatEventDate(bookedOn)}` : "Booking is confirmed"}
+                  </strong>
+                  {/* "This takes a minute" was still shown months later
+                      (UI audit, 2026-10-02): only while it is true. */}
                   <small>
-                    We&rsquo;re setting up the client portal, the planning
-                    checklist, the calendar entry and the job folder — this
-                    takes a minute. Nothing else is needed from you.
+                    {bookedRecently
+                      ? "We’re setting up the client portal, the planning checklist, the calendar entry and the job folder — this takes a minute. Nothing else is needed from you."
+                      : "The client portal, planning checklist, calendar entry and job folder were set up when it booked."}
                   </small>
                 </span>
               </div>

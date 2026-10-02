@@ -30,6 +30,7 @@ import {
 import {
   applyMessageToConversation,
   conversationIdFor,
+  resolveThreadScope,
 } from "../communications/conversation.js";
 import { replyAddressFor } from "../communications/reply-address.js";
 import { emailHeldBack } from "../communications/undo-send.js";
@@ -1251,13 +1252,16 @@ function threadIdForSend(
   document: DocumentSnapshot,
   recipient: string,
   recipientIsClient: boolean,
+  scope?: { projectId: string | null; leadId: string | null },
 ): string | null {
   if (!recipientIsClient) return null;
   if (AUTH_EMAIL_TYPES.has(String(document.get("type")))) return null;
   return conversationIdFor({
     tenantId: String(document.get("tenantId") ?? ""),
-    projectId: (document.get("projectId") as string | null) ?? null,
-    leadId: (document.get("leadId") as string | null) ?? null,
+    projectId: scope
+      ? scope.projectId
+      : ((document.get("projectId") as string | null) ?? null),
+    leadId: scope ? scope.leadId : ((document.get("leadId") as string | null) ?? null),
     participant: { email: recipient },
   });
 }
@@ -1274,10 +1278,18 @@ async function saveMessage(
   threadBody: string,
 ) {
   const now = new Date().toISOString();
+  // A lead that became a job while this send was queued files the message on
+  // the job's thread, not a recreated lead thread (resolveThreadScope).
+  const scope = await resolveThreadScope(getFirestore(), {
+    tenantId: String(document.get("tenantId") ?? ""),
+    projectId: (document.get("projectId") as string | null) ?? null,
+    leadId: (document.get("leadId") as string | null) ?? null,
+  });
   const conversationId = threadIdForSend(
     document,
     recipient,
     recipientIsClient,
+    scope,
   );
   await getFirestore()
     .doc(`messages/${document.id}`)
@@ -1285,7 +1297,7 @@ async function saveMessage(
       {
         id: document.id,
         tenantId: document.get("tenantId"),
-        projectId: document.get("projectId") ?? null,
+        projectId: scope.projectId,
         direction: "outbound",
         channel: "email",
         templateKey: document.get("type"),
@@ -1330,8 +1342,8 @@ async function saveMessage(
   if (conversationId) {
     await applyMessageToConversation(getFirestore(), {
       tenantId: String(document.get("tenantId") ?? ""),
-      projectId: (document.get("projectId") as string | null) ?? null,
-      leadId: (document.get("leadId") as string | null) ?? null,
+      projectId: scope.projectId,
+      leadId: scope.leadId,
       participant: {
         contactId: (document.get("contactId") as string | null) ?? null,
         email: recipient,
