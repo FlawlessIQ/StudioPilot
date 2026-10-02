@@ -1382,6 +1382,9 @@ async function saveMessage(
       subject,
       preview: threadBody.slice(0, 240),
       occurredAt: now,
+      // The automatic acknowledgement is not the studio's reply: the inquiry
+      // still needs one, and Today must keep offering it.
+      countsAsReply: document.get("type") !== "inquiry_acknowledgement",
     });
   }
 }

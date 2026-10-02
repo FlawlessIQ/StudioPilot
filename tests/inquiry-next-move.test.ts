@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { inquiryNextMove } from "../features/inquiries/next-move.ts";
 import { foldMessageIntoConversation } from "../features/messaging/conversation.ts";
@@ -248,4 +249,39 @@ test("a reply sent from the studio's own inbox is the couple's move, until they 
     repliedOutsideAt: "2026-10-02T10:20:00Z",
   });
   assert.equal(wroteBack.owner, "studio");
+});
+
+test("the automatic acknowledgement is not the studio's reply", async () => {
+  // Regression (da24ff3): the "thanks, we got it" email joined the job's
+  // thread, set lastOutboundAt, and new form inquiries left Today.
+  const server = await import("../functions/src/communications/conversation.ts");
+  for (const fold of [foldMessageIntoConversation, server.foldMessageIntoConversation]) {
+    const base = {
+      tenantId: "t1",
+      projectId: "p1",
+      leadId: "l1",
+      participant: { contactId: null, email: "ella@example.com", phone: null, name: "Ella" },
+      channel: "email" as const,
+      subject: "Inquiry",
+      preview: "Hi",
+    };
+    const inquiry = fold(null, { ...base, direction: "inbound" as const, occurredAt: "2026-10-02T18:30:00.000Z" });
+    const acked = fold(inquiry as never, {
+      ...base,
+      direction: "outbound" as const,
+      occurredAt: "2026-10-02T18:30:05.000Z",
+      countsAsReply: false,
+    });
+    assert.equal(acked.lastOutboundAt, null);
+    assert.equal(acked.firstOutboundAt, null);
+    assert.equal(acked.lastMessageDirection, "outbound", "it is still the newest message on the thread");
+    const move = inquiryNextMove({ conversations: [acked as never], projectId: "p1", leadId: "l1" });
+    assert.equal(move.owner, "studio");
+    assert.equal(move.replied, false);
+    // A real reply still counts.
+    const replied = fold(acked as never, { ...base, direction: "outbound" as const, occurredAt: "2026-10-02T19:00:00.000Z" });
+    assert.equal(inquiryNextMove({ conversations: [replied as never], projectId: "p1" }).owner, "couple");
+  }
+  const worker = readFileSync("functions/src/operations/jobs.ts", "utf8");
+  assert.match(worker, /countsAsReply: document\.get\("type"\) !== "inquiry_acknowledgement"/);
 });

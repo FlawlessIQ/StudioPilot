@@ -60,11 +60,14 @@ export function inquiryNextMove(input: {
     const onLead = input.leadId && text(conversation.leadId) === input.leadId;
     if (!onJob && !onLead) continue;
     // Threads written before the per-side fields existed still say which
-    // side spoke last, and when.
+    // side spoke last, and when. A thread that has the fields is read by
+    // them alone: its last message may be an automatic acknowledgement,
+    // which is outbound but is not the studio's reply (countsAsReply).
     const lastAt = text(conversation.lastMessageAt) || null;
     const direction = text(conversation.lastMessageDirection);
-    const inbound = text(conversation.lastInboundAt) || (direction === "inbound" ? lastAt : null);
-    const outbound = text(conversation.lastOutboundAt) || (direction === "outbound" ? lastAt : null);
+    const legacy = conversation.lastInboundAt === undefined && conversation.lastOutboundAt === undefined;
+    const inbound = text(conversation.lastInboundAt) || (legacy && direction === "inbound" ? lastAt : null);
+    const outbound = text(conversation.lastOutboundAt) || (legacy && direction === "outbound" ? lastAt : null);
     lastInboundAt = later(lastInboundAt, inbound);
     lastOutboundAt = later(lastOutboundAt, outbound);
   }

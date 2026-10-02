@@ -55,6 +55,15 @@ export type ConversationDelta = {
   subject: string | null;
   preview: string;
   occurredAt: string;
+  /**
+   * False for an automatic send that is not the studio speaking — the
+   * instant "thanks, we got your inquiry". It is a message on the thread,
+   * but not a reply: it must not say the studio has answered. Once the
+   * acknowledgement shared the job's thread (da24ff3), it set lastOutboundAt,
+   * next-move read "the couple owes", and new form inquiries vanished from
+   * Today. Omitted: true.
+   */
+  countsAsReply?: boolean;
 };
 
 export function participantKey(participant: {
@@ -150,11 +159,13 @@ export function foldMessageIntoConversation(
     lastInboundAt: inbound
       ? latest(current?.lastInboundAt, delta.occurredAt)
       : (current?.lastInboundAt ?? null),
-    lastOutboundAt: inbound
-      ? (current?.lastOutboundAt ?? null)
-      : latest(current?.lastOutboundAt, delta.occurredAt),
+    lastOutboundAt:
+      inbound || delta.countsAsReply === false
+        ? (current?.lastOutboundAt ?? null)
+        : latest(current?.lastOutboundAt, delta.occurredAt),
     // The studio's first word on this thread, for "how fast do we reply".
-    firstOutboundAt: current?.firstOutboundAt ?? (inbound ? null : delta.occurredAt),
+    firstOutboundAt:
+      current?.firstOutboundAt ?? (inbound || delta.countsAsReply === false ? null : delta.occurredAt),
     status: inbound ? "open" : (current?.status ?? "open"),
     archivedAt: inbound ? null : (current?.archivedAt ?? null),
   };
