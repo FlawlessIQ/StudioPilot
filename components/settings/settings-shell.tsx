@@ -23,9 +23,11 @@ import {
   UserRoundCheck,
   UsersRound,
   Wand2,
+  CalendarRange,
 } from "lucide-react";
 
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
+import { PlanningTimelineSettings } from "@/components/planning/planning-timeline-settings";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { ConsultationAvailability } from "@/components/settings/consultation-availability";
@@ -77,6 +79,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   firstReply: FirstReplySettings,
   drafts: LifecyclePackPanel,
   forwarding: InquiryForwardingSettings,
+  planning: PlanningTimelineSettings,
   crewOffers: CrewOfferSettings,
   insurance: CoiSettings,
   data: DataControls,
@@ -112,6 +115,10 @@ const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
       { kind: "section", key: "firstReply", icon: MessageSquareReply },
       { kind: "section", key: "drafts", icon: Sparkles },
     ],
+  },
+  {
+    label: "Planning",
+    items: [{ kind: "section", key: "planning", icon: CalendarRange }],
   },
   {
     label: "Crew and insurance",

@@ -12,7 +12,8 @@ import { sampleContractSources } from "@/features/contracts/sample";
  * was the last line of the reference studio's own agreement StudioCue could
  * not reproduce.
  */
-const base = sampleContractSources("Hart Light Photography", "2026-09-25");
+// Schedule A (contract-event-details.test.ts) left out: these read one block alone.
+const base = { ...sampleContractSources("Hart Light Photography", "2026-09-25"), eventDetails: null };
 
 const resolve = (body: string, sources = base) =>
   resolveContractDocument({

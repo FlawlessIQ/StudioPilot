@@ -16,6 +16,7 @@ export type SettingsSectionKey =
   | "firstReply"
   | "drafts"
   | "forwarding"
+  | "planning"
   | "crewOffers"
   | "insurance"
   | "data";
@@ -33,6 +34,7 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{
   { key: "firstReply", slug: "first-reply", title: "How your first reply should go", subtitle: "What Cue's personal reply to a new inquiry always does" },
   { key: "drafts", slug: "automatic-drafts", title: "Automatic drafts", subtitle: "Which lifecycle emails are drafted for you" },
   { key: "forwarding", slug: "inquiry-capture", title: "Inquiry capture", subtitle: "Your form on your website, or forwarding" },
+  { key: "planning", slug: "planning-timeline", title: "Planning timeline", subtitle: "When couples get their planning form, and when details lock" },
   { key: "crewOffers", slug: "crew-offers", title: "Crew offers", subtitle: "Whether booking sends the prepared offers, or you do" },
   { key: "insurance", slug: "insurance", title: "Insurance", subtitle: "Who sends your certificates, and how far StudioCue goes on its own" },
   { key: "data", slug: "data", title: "Data & account", subtitle: "Export your data or request deletion" },

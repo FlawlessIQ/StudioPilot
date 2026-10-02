@@ -431,7 +431,7 @@ export function buildClientPortalExperience({
    * by typing the URL, while the card pointed them at a questionnaire they
    * had already submitted.
    */
-  currentSchedule?: { status: string; version: number } | null;
+  currentSchedule?: { status: string; version: number; approvalState?: string } | null;
   /** So the fallback never sends them back to a form they have finished. */
   questionnaireStatus?: string | null;
   /** The event form from their inquiry page, when the job has one. */
@@ -465,7 +465,11 @@ export function buildClientPortalExperience({
    * thing the checkpoint path could not see.
    */
   const scheduleAction: ClientNextAction | null =
-    currentSchedule?.status === "client_review"
+    // A published timeline waiting on the couple (planning/commands.ts,
+    // publishSchedule writes "published" + "client_pending"); "client_review"
+    // was the old status and is still honoured.
+    currentSchedule?.status === "client_review" ||
+    (currentSchedule?.status === "published" && currentSchedule.approvalState === "client_pending")
       ? {
           name: "Approve your event-day schedule",
           description: `Version ${currentSchedule.version} of your timeline is ready for you to check. Approve it, or tell your studio what to change.`,

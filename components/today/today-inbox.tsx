@@ -22,6 +22,7 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { requestBillingAddress, sendFinalBalance } from "@/lib/booking/command-client";
+import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { ConfirmStep } from "@/components/ui/confirm-step";
 import { jobClientRecipient, recipientLabel } from "@/features/projects/client-recipient";
@@ -1082,6 +1083,8 @@ function TodayCard({
           </>
         ) : item.action.kind === "final_balance" ? (
           <FinalBalanceCardActions action={item.action} onCleared={onCleared} onSettle={onSettleBalance} />
+        ) : item.action.kind === "detail_change" ? (
+          <DetailChangeActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "billing_address" ? (
           <BillingAddressActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "package_request" ? (
@@ -1430,6 +1433,72 @@ function EmailProblemActions({ action, onCleared }: { action: EmailProblemAction
 }
 
 type PackageRequestAction = Extract<TodayItem["action"], { kind: "package_request" }>;
+type DetailChangeAction = Extract<TodayItem["action"], { kind: "detail_change" }>;
+
+/**
+ * A couple's change to a locked location or time: Accept changes it and tells
+ * them (and opens a task when the timeline is already published); Decline
+ * keeps it and tells them (functions/src/planning/detail-changes.ts).
+ */
+function DetailChangeActions({
+  action,
+  jobHref,
+  onCleared,
+}: {
+  action: DetailChangeAction;
+  jobHref: string | null;
+  onCleared?: () => void;
+}) {
+  const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
+  const [confirmingDecline, setConfirmingDecline] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function decide(decision: "accept" | "decline") {
+    setBusy(decision);
+    setNotice(null);
+    try {
+      await sendPlanningCommand("decideDetailChange", { requestId: action.requestId, projectId: action.projectId, decision });
+      refreshTenantRecords("detailChangeRequests", "questionnaireResponses", "tasks", "detailSignoffs");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That couldn't be saved. Open the job to check."));
+      setBusy(null);
+      setConfirmingDecline(false);
+    }
+  }
+  if (confirmingDecline)
+    return (
+      <ConfirmStep
+        busy={busy !== null}
+        cancelClassName="today-card-secondary"
+        cancelLabel="Go back"
+        className="today-confirm-step"
+        confirmClassName="today-card-primary"
+        confirmLabel="Keep it as it is"
+        label="Decline the change?"
+        onCancel={() => setConfirmingDecline(false)}
+        onConfirm={() => void decide("decline")}
+      >
+        They get an email saying it stays as it was, and that they can reply to talk it through.
+      </ConfirmStep>
+    );
+  return (
+    <>
+      <button className="today-card-primary" disabled={busy !== null} onClick={() => void decide("accept")} type="button">
+        {busy === "accept" ? "Accepting…" : "Accept"} <ArrowRight size={14} />
+      </button>
+      <button className="today-card-secondary" disabled={busy !== null} onClick={() => setConfirmingDecline(true)} type="button">
+        Decline
+      </button>
+      {jobHref ? (
+        <Link className="today-card-secondary" href={jobHref}>
+          Open the job
+        </Link>
+      ) : null}
+      {notice ? <span className="today-card-notice">{notice}</span> : null}
+    </>
+  );
+}
+
 type BillingAddressAction = Extract<TodayItem["action"], { kind: "billing_address" }>;
 
 /**

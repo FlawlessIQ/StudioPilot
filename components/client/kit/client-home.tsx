@@ -2,6 +2,7 @@
 
 import { ClientBookingChange } from "@/components/client/kit/client-booking-change";
 import { ClientBillingAddress } from "@/components/client/kit/client-billing-address";
+import { ClientFinalDetails } from "@/components/client/kit/client-final-details";
 import { useState } from "react";
 import { CalendarDays, CheckCircle2, Clock3, MapPin, ShieldCheck } from "lucide-react";
 import { Button, Card, Main, Pill, PoweredBy, Steps } from "@/components/kit/kit";
@@ -77,6 +78,9 @@ export function ClientHome() {
 
       {/* The studio needs their billing address for the sales tax on the final invoice. */}
       <ClientBillingAddress />
+
+      {/* Four weeks out: every location and time, confirmed by name. */}
+      <ClientFinalDetails />
 
       {reserve ? (
         <Card tone="accent">

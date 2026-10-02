@@ -166,6 +166,10 @@ scheduler_services=(
   # the org's next invoker-IAM reset and delivery status would silently stop
   # advancing again.
   emaildeliveryreconciler
+  # Sends the planning form on the studio's timeline (planning/planning-form-scheduler.ts).
+  planningformscheduler
+  # Opens the final-details sign-off on the lock day (planning/final-details.ts).
+  finaldetailsscheduler
   # "Ahead of our call": the couple's answers and the call details, the day
   # before their consultation (booking/consultation-prep.ts).
   consultationprepscheduler

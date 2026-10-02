@@ -29,13 +29,16 @@ function handlerBody(source: string, marker: string): string {
 test("assignQuestionnaire enqueues questionnaire_request (P17)", () => {
   const src = readFileSync("functions/src/planning/commands.ts", "utf8");
   const body = handlerBody(src, 'parsed.type === "assignQuestionnaire"');
+  // The new form is sent by the module the planning-form scheduler shares.
+  assert.match(body, /sendNewQuestionnaire\(db,/);
+  const sender = readFileSync("functions/src/planning/send-questionnaire.ts", "utf8");
   assert.match(
-    body,
+    sender,
     /emailJobs\/questionnaire_request_/,
     "assignQuestionnaire must create a questionnaire_request emailJob",
   );
   assert.match(
-    body,
+    sender,
     /type: "questionnaire_request"/,
     "the enqueued job's type must be questionnaire_request",
   );

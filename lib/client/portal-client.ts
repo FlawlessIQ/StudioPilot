@@ -5,6 +5,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { withTimeout } from "@/lib/async/with-timeout";
 import type { BillingAddress } from "@/features/contacts/schema";
 import type { BillingAddressRequirement, SigningKind } from "@/features/contacts/billing-address-signing";
+import type { FinalDetailsView } from "@/features/planning/final-details-view";
 
 export type ClientPortalProject = {
   id: string;
@@ -419,6 +420,16 @@ export function getSigningBillingAddressStep(tenantId: string, projectId: string
     projectId,
     kind,
   });
+}
+
+/** Their final details, once their studio's timeline has locked them (server/planning/final-details.ts). */
+export function getFinalDetails(tenantId: string, projectId: string) {
+  return portalRequest<{ details: FinalDetailsView | null }>({ type: "final_details", tenantId, projectId });
+}
+
+/** The couple confirming their final details, by typed name, as they were shown them. */
+export function confirmFinalDetailsRequest(tenantId: string, projectId: string, typedName: string, snapshotHash: string) {
+  return portalRequest<{ confirmedAt: string }>({ type: "confirm_final_details", tenantId, projectId, typedName, snapshotHash, consent: true });
 }
 
 /** Whether the studio is waiting on this couple's billing address (server/billing/billing-address-request.ts). */

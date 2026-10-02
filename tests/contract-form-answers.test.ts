@@ -19,7 +19,8 @@ const template = {
   customFields: [],
 };
 
-const base = sampleContractSources("Hart Light Photography", "2026-09-25");
+// Schedule A (contract-event-details.test.ts) left out: these read one block alone.
+const base = { ...sampleContractSources("Hart Light Photography", "2026-09-25"), eventDetails: null };
 
 function resolve(sources: typeof base) {
   return resolveContractDocument({ template, sources, overrides: {} });

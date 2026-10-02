@@ -205,6 +205,17 @@ service cloud.firestore {
       allow read: if canManageProjects(resource.data.tenantId);
       allow write: if false;
     }
+    // A couple's change to a locked location or time, and their final-details
+    // sign-off (functions/src/planning/detail-changes.ts, final-details.ts).
+    // Read for Today and the job; written only server-side.
+    match /detailChangeRequests/{requestId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow write: if false;
+    }
+    match /detailSignoffs/{signoffId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow write: if false;
+    }
         match /leads/{leadId} {
       allow read: if canManageProjects(resource.data.tenantId);
       allow create: if false;

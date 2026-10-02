@@ -111,6 +111,8 @@ const projectScopedCollections = new Set([
   "conversations",
   "packageRequests",
   "billingAddressRequests",
+  "detailChangeRequests",
+  "detailSignoffs",
   "bookingAmendments",
   "communicationDrafts",
   "aiActions",

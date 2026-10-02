@@ -90,6 +90,8 @@ export { feedbackCommand } from "./feedback/commands.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { billingAddressRequestScheduler } from "./billing/billing-address-request.js";
 export { consultationPrepScheduler } from "./booking/consultation-prep.js";
+export { planningFormScheduler } from "./planning/planning-form-scheduler.js";
+export { finalDetailsScheduler } from "./planning/final-details.js";
 export { autopayScheduler } from "./billing/autopay.js";
 export { aiCopilotCommand } from "./ai/copilot.js";
 export { dailyDigestScheduler } from "./ai/daily-digest.js";

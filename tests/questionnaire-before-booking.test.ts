@@ -92,7 +92,10 @@ test("4a: calendarDay refuses days that do not exist", () => {
 test("4a: the assign command uses the helper, not the throwing construction", () => {
   const source = readFileSync("functions/src/planning/commands.ts", "utf8");
   const start = source.indexOf('parsed.type === "assignQuestionnaire"');
-  const body = source.slice(start, source.indexOf('parsed.type === "saveTimingRule"', start));
+  const body =
+    source.slice(start, source.indexOf('parsed.type === "saveTimingRule"', start)) +
+    // The new form goes out through the module the scheduler shares.
+    readFileSync("functions/src/planning/send-questionnaire.ts", "utf8");
   assert.match(body, /questionnaireDueDate\(/);
   assert.doesNotMatch(body, /T12:00:00\.000Z/);
   assert.doesNotMatch(body, /toISOString\(\)\.slice\(0, 10\)/);
@@ -169,7 +172,10 @@ test("4b: every questionnaire request or reminder to the couple is built by the 
     commands.indexOf('parsed.type === "assignQuestionnaire"'),
     commands.indexOf('parsed.type === "saveTimingRule"'),
   );
-  assert.equal((assign.match(/questionnaireLinkFor\(/g) ?? []).length, 2, "new form and re-send");
+  assert.equal((assign.match(/questionnaireLinkFor\(/g) ?? []).length, 1, "re-send");
+  const sender = readFileSync("functions/src/planning/send-questionnaire.ts", "utf8");
+  assert.equal((sender.match(/questionnaireLinkFor\(/g) ?? []).length, 1, "new form");
+  assert.doesNotMatch(sender, /\/client\/questionnaire/);
   assert.doesNotMatch(assign, /\/client\/questionnaire/);
   const resend = commands.slice(
     commands.indexOf('parsed.type === "reopenQuestionnaire" ||'),

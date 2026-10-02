@@ -117,6 +117,11 @@ export function useTodayInbox(): {
   const conversations = useTenantDocuments("conversations");
   const packageRequests = useTenantDocuments("packageRequests");
   const billingAddressRequests = useTenantDocuments("billingAddressRequests");
+  const detailChangeRequests = useTenantDocuments("detailChangeRequests");
+  const detailSignoffs = useTenantDocuments("detailSignoffs");
+  // The studio's planning timeline: when Today starts offering "Send the form".
+  const tenants = useTenantDocuments("tenants");
+  const planningTimeline = tenants.records?.find((tenant) => tenant.id === workspace.tenantId)?.planningTimeline;
   const aiActions = useTenantDocuments("aiActions");
   const actionReceipts = useTenantDocuments("actionReceipts");
   const automationApprovals = useTenantDocuments("automationApprovals", {
@@ -326,6 +331,9 @@ export function useTodayInbox(): {
     conversations: conversations.records,
     packageRequests: packageRequests.records,
     billingAddressRequests: billingAddressRequests.records,
+    detailChangeRequests: detailChangeRequests.records,
+    detailSignoffs: detailSignoffs.records,
+    planningTimeline,
     schedules: schedules.records,
     tasks: tasks.records,
     aiActions: aiActions.records,

@@ -69,12 +69,15 @@ test("the studio can write internal-only and locked answers", () => {
   assert.deepEqual(merged, { studioNotes: "70-200 too", package: "Signature" });
 });
 
-test("the command saves the merge, and refuses a couple's save after submit", () => {
+test("the command saves the merge; after submit the couple keeps it current, and locations and times lock", () => {
   const source = readFileSync("functions/src/planning/commands.ts", "utf8");
   const save = source.slice(source.indexOf('parsed.type === "saveQuestionnaire"'));
   assert.match(save, /answers: nextAnswers,/);
   assert.doesNotMatch(save.slice(0, 4000), /answers: parsed\.input\.answers/);
-  assert.match(save, /QUESTIONNAIRE_ALREADY_SUBMITTED/);
+  // GR Productions (2026-10-02): couples can update little things after
+  // sending; after the lock a location or time is a request, never a save.
+  assert.match(save, /const amendingReturned = byClient && isReturned\(priorStatus\);/);
+  assert.match(save, /throw new Error\("DETAILS_LOCKED"\)/);
 });
 
 test("the couple's form sends every answer it holds, not only the visible ones", () => {

@@ -51,6 +51,7 @@ import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
 import { BOOKING_BRIEF_CAPABILITIES, blockingIssues } from "@/features/ai/blocking-issues";
 import { emailProblemOf } from "@/features/today/email-problems";
 import { dispatchesOnApproval } from "@/features/ai/approval-consequence";
+import { planningFormOpensOn, resolvePlanningTimeline } from "@/features/planning/planning-timeline";
 
 /** A couple emailed for their billing address: Today offers "Ask again" after this many days. */
 const BILLING_ADDRESS_ASK_AGAIN_DAYS = 5;
@@ -92,6 +93,13 @@ export type TodayAction =
        */
       kind: "billing_address";
       label: string;
+      projectId: string;
+    }
+  | {
+      /** A couple asked to change a locked location or time: accept or decline. */
+      kind: "detail_change";
+      label: string;
+      requestId: string;
       projectId: string;
     }
   | {
@@ -316,6 +324,12 @@ export type TodayInput = {
   conversations?: TodayRecord[] | null;
   /** Couples asking to add a package (portal "Add to your booking"). */
   packageRequests?: TodayRecord[] | null;
+  /** A couple's change to a locked location or time (functions/src/planning/detail-changes.ts). */
+  detailChangeRequests?: TodayRecord[] | null;
+  /** Final-details sign-offs (functions/src/planning/final-details.ts). */
+  detailSignoffs?: TodayRecord[] | null;
+  /** The studio's planning timeline (tenants/{id}.planningTimeline): when the form goes out. */
+  planningTimeline?: unknown;
   /** Billing addresses StudioCue asked couples for (functions/src/billing/billing-address-request.ts). */
   billingAddressRequests?: TodayRecord[] | null;
   /**
@@ -748,6 +762,7 @@ function leadEvidence(lead: TodayRecord): string {
 }
 
 export function todayInbox(input: TodayInput): TodayInbox {
+  const planningTimeline = resolvePlanningTimeline(input.planningTimeline);
   const now = new Date(input.now);
   const today = input.now.slice(0, 10);
   const act: TodayItem[] = [];
@@ -1055,6 +1070,71 @@ export function todayInbox(input: TodayInput): TodayInbox {
       band: "soon",
       eventDate: text(job.eventDate) || null,
       score: score({ lane: "act", severity: "inquiry", updatedAt: changedAt(request), now }),
+    });
+  }
+
+  // ── Act · a couple asked to change a locked location or time ───────
+  for (const request of rows(input.detailChangeRequests)) {
+    if (text(request.status) !== "pending") continue;
+    const projectId = text(request.projectId);
+    const job = inquiryJobById.get(projectId);
+    if (!job || job.archivedAt) continue;
+    const eventDate = text(job.eventDate) || null;
+    if (eventDate && eventDate < input.now.slice(0, 10)) continue;
+    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "The couple";
+    const note = text(request.note);
+    act.push({
+      id: `detail-change-${request.id}`,
+      lane: "act",
+      kind: "schedule",
+      title: `${couple} want to change ${text(request.label) || "a detail"}`,
+      detail: [
+        `${text(request.fromText) || "(blank)"} → ${text(request.toText) || "(blank)"}`,
+        note ? `“${note.length > 120 ? `${note.slice(0, 119)}…` : note}”` : null,
+        "Their final details are locked, so it's yours to agree. No charge.",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      evidence: "Asked in their portal",
+      projectId,
+      projectName: text(job.name) || null,
+      action: { kind: "detail_change", label: "Accept", requestId: request.id, projectId },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [eventDate ? formatDueDate(eventDate) : null, waitingFact(changedAt(request), now)].filter((fact): fact is string => Boolean(fact)),
+      band: "soon",
+      eventDate,
+      score: score({ lane: "act", severity: "inquiry", eventDate, updatedAt: changedAt(request), now }),
+    });
+  }
+
+  // ── Act · final details still not confirmed, five days after the lock ──
+  for (const signoff of rows(input.detailSignoffs)) {
+    if (text(signoff.status) !== "awaiting_couple") continue;
+    const lockOn = text(signoff.lockOn);
+    if (!lockOn) continue;
+    const nudgeOn = new Date(Date.parse(`${lockOn}T00:00:00Z`) + 5 * 86_400_000).toISOString().slice(0, 10);
+    if (input.now.slice(0, 10) < nudgeOn) continue;
+    const projectId = text(signoff.projectId);
+    const job = inquiryJobById.get(projectId);
+    if (!job || job.archivedAt) continue;
+    const eventDate = text(job.eventDate) || null;
+    if (eventDate && eventDate < input.now.slice(0, 10)) continue;
+    const couple = text(job.name).replace(/\s+wedding$/i, "").trim() || "The couple";
+    act.push({
+      id: `final-details-${signoff.id}`,
+      lane: "act",
+      kind: "schedule",
+      title: `${couple} haven't confirmed their final details`,
+      detail: "They were asked when the details locked. A quick message usually does it.",
+      evidence: "Final details sign-off",
+      projectId,
+      projectName: text(job.name) || null,
+      action: { kind: "link", label: "Message them", href: `/studio/messages?project=${projectId}` },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [eventDate ? formatDueDate(eventDate) : null].filter((fact): fact is string => Boolean(fact)),
+      band: "soon",
+      eventDate,
+      score: score({ lane: "act", severity: "step", eventDate, updatedAt: lockOn, now }),
     });
   }
 
@@ -1731,6 +1811,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (position.stepKey === "final_balance" && finalBalanceProjectIds.has(position.projectId)) continue;
     // The couple's change request has its own card, with their words.
     if (position.stepKey === "run_of_show" && scheduleChangeProjectIds.has(position.projectId)) continue;
+    // The planning form goes out when the studio's timeline says (six months
+    // before, by default): a wedding a year away isn't asked yet.
+    if (position.stepKey === "schedule_form") {
+      const opensOn = planningFormOpensOn(eventFor(position.projectId), planningTimeline);
+      if (opensOn && input.now.slice(0, 10) < opensOn) continue;
+    }
     act.push({
       id: `journey-${position.projectId}`,
       lane: "act",

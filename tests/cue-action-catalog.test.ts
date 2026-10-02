@@ -229,6 +229,8 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   decideAutomationApproval: "automation approvals on Today", cancelReceipt: "action receipts on Today", retryReceipt: "action receipts on Today",
   retryEmailJob: "failed-email cards on Today", dismissEmailProblem: "failed-email cards on Today",
   refreshQuestionnairePrefill: "runs as a couple opens their form",
+  requestDetailChange: "couple", decideDetailChange: "the change-request card on Today",
+  setPlanningTimeline: "Settings → Planning timeline",
   // Not offered: StudioCue has no signing provider (features/integrations/schema.ts offeredProviders).
   createEnvelope: "no signing provider is offered",
 };

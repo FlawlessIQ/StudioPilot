@@ -92,6 +92,7 @@ export const emailTemplateKeys = [
   "final_invoice",
   "final_payment_reminder",
   "billing_address_request",
+  "final_details_request",
   "schedule_review",
   "final_schedule_published",
   "event_reminder",
@@ -1271,6 +1272,25 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: portalUrl ? { label: "Your project portal", url: portalUrl } : undefined,
       };
     }
+    case "final_details_request":
+      /**
+       * Four weeks out: the couple confirms their final details — every
+       * location and time, and the timeline (planning/final-details.ts). The
+       * link is the point; without one the copy still says where to go.
+       */
+      return {
+        subject: `Please confirm your final details with ${brand.studioName}`,
+        preheader: "Every location and time for your day, in one place.",
+        eyebrow: "Final details",
+        heading: "Your final details are ready to confirm",
+        paragraphs: [
+          greeting,
+          `Here's everything we have for your day${project}: where you're getting ready, the ceremony and reception, any photo stops, and the timeline.`,
+          "Please check it and confirm. From here, small things you can still change yourself; a change to a location or time comes to us to agree.",
+        ],
+        action: portalUrl ? { label: "Check and confirm", url: portalUrl } : undefined,
+        note: portalUrl ? undefined : `Sign in to your ${brand.studioName} client portal to confirm them.`,
+      };
     case "billing_address_request":
       /**
        * QuickBooks works out the sales tax from the billing address, and this

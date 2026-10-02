@@ -21,7 +21,6 @@ import {
   List,
   Main,
   Note,
-  Pill,
   PoweredBy,
   Row,
   Steps,
@@ -34,7 +33,6 @@ import {
   type QuestionnaireSection,
 } from "@/features/questionnaires/client-form";
 import {
-  answerIsPresent,
   outstandingNotice,
   outstandingRequired,
 } from "@/features/questionnaires/outstanding";
@@ -46,7 +44,8 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { date, text, useProjectRecords } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
-import { Question, spoken } from "@/components/client/kit/questionnaire-question";
+import { Question } from "@/components/client/kit/questionnaire-question";
+import { SubmittedAnswer } from "@/components/client/kit/submitted-answer";
 
 type ResponseRecord = Record<string, unknown> & { id: string };
 
@@ -177,6 +176,12 @@ function QuestionnaireForm({
   const answersRef = useRef(answers);
   const changeVersion = useRef(0);
   const submitted = isSubmitted(status);
+  /** The final-details lock (functions/src/planning/details-lock.ts), from the server. */
+  const [lock, setLock] = useState<{ locked: boolean; fieldIds: Set<string>; pending: Map<string, unknown> }>({
+    locked: false,
+    fieldIds: new Set(),
+    pending: new Map(),
+  });
 
   useEffect(() => {
     answersRef.current = answers;
@@ -193,7 +198,22 @@ function QuestionnaireForm({
     // first (functions/src/planning/job-prefill.ts). Never holds the form up:
     // a slow or failed refresh opens it as it stands.
     const refreshed = Promise.race([
-      sendPlanningCommand("refreshQuestionnairePrefill", { responseId: response.id, projectId }).catch(() => undefined),
+      sendPlanningCommand("refreshQuestionnairePrefill", { responseId: response.id, projectId })
+        .then((outcome) => {
+          // Whether the final details have locked, and what's already asked for.
+          const result = (outcome?.result ?? {}) as Record<string, unknown>;
+          if (!active) return;
+          setLock({
+            locked: result.locked === true,
+            fieldIds: new Set(Array.isArray(result.lockingFieldIds) ? (result.lockingFieldIds as string[]) : []),
+            pending: new Map(
+              (Array.isArray(result.pendingChanges) ? (result.pendingChanges as Array<{ fieldId: string; to: unknown }>) : []).map(
+                (change) => [change.fieldId, change.to],
+              ),
+            ),
+          });
+        })
+        .catch(() => undefined),
       new Promise((resolve) => setTimeout(resolve, 2500)),
     ]);
     void refreshed
@@ -376,15 +396,31 @@ function QuestionnaireForm({
               {section.fields
                 .filter((field) => field.type !== "information")
                 .map((field) => (
-                  <Row
+                  <SubmittedAnswer
+                    answer={answers[field.id]}
+                    field={field}
                     key={field.id}
-                    subtitle={spoken(answers[field.id], field.type) || "Not answered"}
-                    title={field.label}
-                    trailing={
-                      field.required && !answerIsPresent(answers[field.id]) ? (
-                        <Pill tone="danger">Still needed</Pill>
-                      ) : undefined
-                    }
+                    locked={lock.locked && lock.fieldIds.has(field.id)}
+                    onRequest={async (value, note) => {
+                      await sendPlanningCommand("requestDetailChange", {
+                        responseId: response.id,
+                        projectId,
+                        fieldId: field.id,
+                        value,
+                        note: note.trim() || null,
+                      });
+                      setLock((current) => ({ ...current, pending: new Map(current.pending).set(field.id, value) }));
+                      setNotice({ tone: "accent", text: `Sent to ${studioName}. They'll let you know.` });
+                    }}
+                    onSave={async (value) => {
+                      const next = { ...answersRef.current, [field.id]: value };
+                      await sendPlanningCommand("saveQuestionnaire", { responseId: response.id, projectId, answers: next, submit: false });
+                      setAnswers(next);
+                      setNotice({ tone: "accent", text: `Saved. ${studioName} can see it.` });
+                    }}
+                    pending={lock.pending.has(field.id) ? lock.pending.get(field.id) : undefined}
+                    required={field.required}
+                    studioName={studioName}
                   />
                 ))}
             </List>
@@ -395,7 +431,7 @@ function QuestionnaireForm({
           href="/client/messages?context=Questionnaire"
           style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
         >
-          <MessageCircle aria-hidden size={15} /> {`Ask ${studioName} to change an answer`}
+          <MessageCircle aria-hidden size={15} /> {`Message ${studioName}`}
         </Link>
         <PoweredBy />
       </Main>
@@ -415,8 +451,8 @@ function QuestionnaireForm({
             <h1 className="kit-title">
               {outstanding.length ? "Nearly there" : "Ready to send"}
               <InfoHint label="Sending your answers">
-                Required questions must be answered before you can send. After that, your studio has your answers; to
-                change one, just message them.
+                Required questions must be answered before you can send. After that you can still change your answers;
+                four weeks before, locations and times lock and changes to those go to your studio to agree.
               </InfoHint>
             </h1>
             <p className="kit-body">

@@ -51,7 +51,8 @@ import { studioNotificationAddress } from "../communications/notify-address.js";
 import { questionnaireDueDate } from "./questionnaire-due.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
 import { queuePartnerSends } from "../client/partner-invitations.js";
-import { jobPrefill, refreshResponsePrefill } from "./job-prefill.js";
+import { refreshResponsePrefill } from "./job-prefill.js";
+import { sendNewQuestionnaire } from "./send-questionnaire.js";
 import {
   INQUIRY_FORM_EVENT_TYPES,
   INQUIRY_FORM_SETTINGS_PATH,
@@ -61,6 +62,9 @@ import {
   revisedTimelineEmail,
   staleVendorShares,
 } from "./schedule-lifecycle.js";
+import { detailsLocked, detailsLockOn, resolvePlanningTimeline } from "./planning-timeline.js";
+import { decideDetailChange, requestDetailChange } from "./detail-changes.js";
+import { lockingFieldIds } from "./details-lock.js";
 
 const item = z.object({
   id: z.string(),
@@ -130,6 +134,45 @@ const questionnaireField = z.object({
     .nullable(),
 });
 const command = z.discriminatedUnion("type", [
+  z.object({
+    /**
+     * After the lock, a couple asking to change where or when (planning/
+     * details-lock.ts): the studio accepts or declines it on Today.
+     */
+    type: z.literal("requestDetailChange"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      responseId: z.string().min(1),
+      projectId: z.string().min(1),
+      fieldId: z.string().min(1).max(200),
+      value: z.unknown(),
+      note: z.string().max(1000).nullable().default(null),
+    }),
+  }),
+  z.object({
+    /** The studio's answer to a couple's change request. Accepting changes the answer and tells them. */
+    type: z.literal("decideDetailChange"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      requestId: z.string().min(1),
+      projectId: z.string().min(1),
+      decision: z.enum(["accept", "decline"]),
+    }),
+  }),
+  z.object({
+    /** When the planning form goes out and when details lock (planning-timeline.ts). Owner or admin. */
+    type: z.literal("setPlanningTimeline"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      formMonthsBefore: z.number().int().min(1).max(12),
+      formSend: z.enum(["remind", "auto"]),
+      formTemplateId: z.string().min(1).max(200).nullable(),
+      lockDaysBefore: z.number().int().min(7).max(90),
+    }),
+  }),
   z.object({
     /**
      * Fill a sent form's blanks from what the job knows now, as the couple
@@ -609,18 +652,89 @@ export const planningCommand = onRequest(
       }
       const now = new Date().toISOString();
       let result: Record<string, unknown>;
-      if (parsed.type === "refreshQuestionnairePrefill") {
+      if (parsed.type === "setPlanningTimeline") {
+        if (!["studio_owner", "studio_admin"].includes(role)) throw new Error("FORBIDDEN");
+        if (parsed.input.formTemplateId) {
+          const template = await db.doc(`questionnaireTemplates/${parsed.input.formTemplateId}`).get();
+          if (!template.exists || template.get("tenantId") !== parsed.tenantId) throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
+        }
+        const tenantReference = db.doc(`tenants/${parsed.tenantId}`);
+        const before = (await tenantReference.get()).get("planningTimeline") ?? null;
+        const timeline = { ...parsed.input, updatedAt: now, updatedBy: identity.uid };
+        const auditId = stable("audit_planning_timeline", parsed.tenantId, parsed.idempotencyKey);
+        const batch = db.batch();
+        batch.set(tenantReference, { planningTimeline: timeline }, { merge: true });
+        batch.set(db.doc(`auditEvents/${auditId}`), {
+          id: auditId,
+          tenantId: parsed.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "tenant.planning_timeline_updated",
+          entityType: "tenant",
+          entityId: parsed.tenantId,
+          timestamp: now,
+          before,
+          after: parsed.input,
+          ipAddress: null,
+          userAgent: null,
+          correlationId: auditId,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { planningTimeline: parsed.input };
+      } else if (parsed.type === "requestDetailChange") {
+        if (role !== "client") throw new Error("FORBIDDEN");
+        result = await requestDetailChange(db, {
+          tenantId: parsed.tenantId,
+          ...parsed.input,
+          actorId: identity.uid,
+          now,
+        });
+      } else if (parsed.type === "decideDetailChange") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        result = await decideDetailChange(db, {
+          tenantId: parsed.tenantId,
+          ...parsed.input,
+          actorId: identity.uid,
+          now,
+        });
+      } else if (parsed.type === "refreshQuestionnairePrefill") {
         if (role !== "client" && !internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const filled = await refreshResponsePrefill(db, {
+          tenantId: parsed.tenantId,
+          responseId: parsed.input.responseId,
+          projectId: parsed.input.projectId,
+          // Opening a form never spends the studio's AI allowance; a map
+          // made when it was sent is used if there is one.
+          allowAi: false,
+          actorId: identity.uid,
+        });
+        // What the form needs to know to show itself: whether the final
+        // details have locked, which answers that covers, and the changes
+        // already asked for (the couple can't read either record directly).
+        const [projectSnapshot, tenantSnapshot, responseSnapshot, pending] = await Promise.all([
+          db.doc(`projects/${parsed.input.projectId}`).get(),
+          db.doc(`tenants/${parsed.tenantId}`).get(),
+          db.doc(`questionnaireResponses/${parsed.input.responseId}`).get(),
+          db
+            .collection("detailChangeRequests")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("responseId", "==", parsed.input.responseId)
+            .limit(50)
+            .get(),
+        ]);
+        const timeline = resolvePlanningTimeline(tenantSnapshot.get("planningTimeline"));
+        const eventDate = String(projectSnapshot.get("eventDate") ?? "");
         result = {
-          filled: await refreshResponsePrefill(db, {
-            tenantId: parsed.tenantId,
-            responseId: parsed.input.responseId,
-            projectId: parsed.input.projectId,
-            // Opening a form never spends the studio's AI allowance; a map
-            // made when it was sent is used if there is one.
-            allowAi: false,
-            actorId: identity.uid,
-          }),
+          filled,
+          locked: detailsLocked(eventDate, now.slice(0, 10), timeline),
+          lockOn: detailsLockOn(eventDate, timeline),
+          lockingFieldIds: [...lockingFieldIds(plainRecord(responseSnapshot.get("templateSnapshot")).sections)],
+          pendingChanges: pending.docs
+            .filter((request) => request.get("status") === "pending")
+            .map((request) => ({ fieldId: String(request.get("fieldId")), to: request.get("to") ?? null })),
         };
       } else if (parsed.type === "saveQuestionnaire") {
         const reference = db.doc(
@@ -635,16 +749,19 @@ export const planningCommand = onRequest(
           throw new Error("RESPONSE_NOT_FOUND");
         const byClient = role === "client";
         if (!byClient && !internalRoles.has(role)) throw new Error("FORBIDDEN");
-        // A couple's answers are theirs to change until they submit; after
-        // that the studio has them, until the studio reopens the form.
+        // Sent back, a couple's form is still theirs to keep current (GR
+        // Productions, 2026-10-02): little things any time, and locations and
+        // times until their final details lock (planning/details-lock.ts).
+        // It stays submitted; the studio sees each change on the job.
         const priorStatus = String(snapshot.get("status") ?? "not_started");
-        if (byClient && isReturned(priorStatus))
-          throw new Error("QUESTIONNAIRE_ALREADY_SUBMITTED");
-        const nextStatus = statusAfterSave({
-          prior: priorStatus,
-          submit: parsed.input.submit,
-          byClient,
-        });
+        const amendingReturned = byClient && isReturned(priorStatus);
+        const nextStatus = amendingReturned
+          ? priorStatus
+          : statusAfterSave({
+              prior: priorStatus,
+              submit: parsed.input.submit,
+              byClient,
+            });
         const priorAnswers = plainRecord(snapshot.get("answers"));
         const nextAnswers = mergeQuestionnaireAnswers({
           prior: priorAnswers,
@@ -679,10 +796,50 @@ export const planningCommand = onRequest(
             ];
           },
         );
+        // After the lock, a couple's change to where or when is a request the
+        // studio accepts, never a save (requestDetailChange).
+        if (byClient && changes.length) {
+          const [projectSnapshot, tenantSnapshot] = await Promise.all([
+            db.doc(`projects/${parsed.input.projectId}`).get(),
+            db.doc(`tenants/${parsed.tenantId}`).get(),
+          ]);
+          const locked = detailsLocked(
+            String(projectSnapshot.get("eventDate") ?? ""),
+            now.slice(0, 10),
+            resolvePlanningTimeline(tenantSnapshot.get("planningTimeline")),
+          );
+          if (locked) {
+            const locking = lockingFieldIds(plainRecord(snapshot.get("templateSnapshot")).sections);
+            if (changes.some((change) => locking.has(change.fieldId)))
+              throw new Error("DETAILS_LOCKED");
+          }
+        }
         const changeHistory = Array.isArray(snapshot.get("changeHistory"))
           ? (snapshot.get("changeHistory") as unknown[])
           : [];
         const batch = db.batch();
+        if (amendingReturned && changes.length) {
+          // The studio hears about a change to a form it already had.
+          const receiptId = stable("receipt_form_change", parsed.tenantId, parsed.idempotencyKey);
+          batch.set(db.doc(`actionReceipts/${receiptId}`), {
+            id: receiptId,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            title: `The couple updated ${changes.length === 1 ? "an answer" : `${changes.length} answers`} on ${String(snapshot.get("templateName") ?? "their form")}`,
+            summary: "Changed after they sent it back — see the form on the job.",
+            status: "completed",
+            source: "client_form_update",
+            affectedEntityType: "questionnaireResponse",
+            affectedEntityId: parsed.input.responseId,
+            providerEvidence: null,
+            reversible: false,
+            retryable: false,
+            canCancel: false,
+            canRetry: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
         batch.update(reference, {
           answers: nextAnswers,
           answerProvenance,
@@ -692,12 +849,15 @@ export const planningCommand = onRequest(
           completionPercent: isReturned(nextStatus)
             ? 100
             : snapshot.get("completionPercent"),
-          submittedAt: submittedAtAfterSave({
-            nextStatus,
-            priorSubmittedAt: snapshot.get("submittedAt"),
-            byClient,
-            now,
-          }),
+          // Keeping a sent form current isn't sending it again.
+          submittedAt: amendingReturned
+            ? (snapshot.get("submittedAt") ?? now)
+            : submittedAtAfterSave({
+                nextStatus,
+                priorSubmittedAt: snapshot.get("submittedAt"),
+                byClient,
+                now,
+              }),
           // The couple sending it again closes the reopening.
           ...(byClient && isReturned(nextStatus) ? { reopenedAt: null } : {}),
           ...(!byClient && changes.length
@@ -708,9 +868,10 @@ export const planningCommand = onRequest(
         });
         // A studio correction to a returned form changes what the analysis
         // was run on, so it runs again; the crew brief follows the write.
+        // A couple keeping a sent form current doesn't re-run it each time.
         if (
-          parsed.input.submit ||
-          (isReturned(nextStatus) && changes.length > 0)
+          (parsed.input.submit && !amendingReturned) ||
+          (!byClient && isReturned(nextStatus) && changes.length > 0)
         ) {
           batch.set(
             db.doc(`aiJobs/questionnaire_${parsed.input.responseId}`),
@@ -1078,126 +1239,16 @@ export const planningCommand = onRequest(
             invited: Boolean(link.invitationWrite),
           };
         } else {
-        // An inquiry may have no date yet; that used to throw "Invalid time
-        // value" here (questionnaire-due.ts).
-        const due = questionnaireDueDate({
-          eventDate: project.get("eventDate"),
-          dueDaysBeforeEvent: template.get("dueDaysBeforeEvent"),
-          today: now,
-        });
-        const id = stable(
-          "questionnaire_response",
-          parsed.tenantId,
-          parsed.idempotencyKey,
-        );
-        const sections = template.get("sections");
-        // Everything the job already knows that the form asks (job-facts.ts).
-        const prefill = await jobPrefill(db, {
+        result = await sendNewQuestionnaire(db, {
           tenantId: parsed.tenantId,
           projectId: parsed.input.projectId,
-          project: project.data() ?? null,
-          templateId: parsed.input.templateId,
-          templateVersion: template.get("version"),
-          sections,
-          allowAi: true,
-          actorId: identity.uid,
-        });
-        const fieldValues = Array.isArray(sections)
-          ? sections.flatMap((section) => {
-              const fields = plainRecord(section).fields;
-              return Array.isArray(fields) ? fields : [];
-            })
-          : [];
-        const requiredFieldIds = fieldValues
-          .map(plainRecord)
-          .filter((field) => field.required === true)
-          .map((field) => String(field.id));
-        const completedRequired = requiredFieldIds.filter((fieldId) =>
-          Object.prototype.hasOwnProperty.call(prefill.answers, fieldId),
-        ).length;
-        const completionPercent = requiredFieldIds.length
-          ? Math.round((completedRequired / requiredFieldIds.length) * 100)
-          : 0;
-        const emailJobId = `questionnaire_request_${id}`;
-        const link = await questionnaireLinkFor(db, {
-          tenantId: parsed.tenantId,
-          projectId: parsed.input.projectId,
-          clientContactIds: project.get("clientContactIds"),
-          emailJobId,
+          project,
+          template,
+          idempotencyKey: parsed.idempotencyKey,
           actorId: identity.uid,
           now,
+          allowAi: true,
         });
-        const batch = db.batch();
-        batch.create(db.doc(`questionnaireResponses/${id}`), {
-          id,
-          tenantId: parsed.tenantId,
-          projectId: parsed.input.projectId,
-          templateId: parsed.input.templateId,
-          templateVersion: Number(template.get("version")),
-          templateName: String(template.get("name")),
-          templateSnapshot: {
-            name: String(template.get("name")),
-            sections,
-          },
-          status: "not_started",
-          answers: prefill.answers,
-          answerProvenance: prefill.answerProvenance,
-          changeHistory: [],
-          hasPlanningChanges: false,
-          completionPercent,
-          dueDate: due.dueDate,
-          // Snapshotted like the sections, so editing the template later
-          // doesn't change when this client is reminded.
-          reminderDaysBeforeDue: Array.isArray(template.get("reminderDaysBeforeDue"))
-            ? (template.get("reminderDaysBeforeDue") as unknown[]).map(Number)
-            : [],
-          remindersSent: [],
-          submittedAt: null,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: identity.uid,
-          updatedBy: identity.uid,
-          archivedAt: null,
-        });
-        // P17: assigning the details form must actually send it. This command
-        // previously created the response record but queued no email, so the
-        // couple was never told a form was waiting ("Send the form" sent
-        // nothing). The worker resolves the client recipient from the project;
-        // actionUrl drives the "Complete questionnaire" button: the portal
-        // for a couple who has it, otherwise a portal invitation that lands
-        // on the form (questionnaire-link.ts) — an inquiry has not been
-        // invited yet, and the bare portal link sent them to a sign-in page.
-        const requestJob = {
-          id: emailJobId,
-          tenantId: parsed.tenantId,
-          projectId: parsed.input.projectId,
-          type: "questionnaire_request",
-          actionUrl: link.actionUrl,
-          // The partner's own copy and link go beside it when anyone's link
-          // is an invitation (client/partner-invitations.ts).
-          soleRecipient: link.partnerSends.length > 0,
-          status: "queued",
-          attempts: 0,
-          createdAt: now,
-          updatedAt: now,
-        };
-        batch.create(db.doc(`emailJobs/questionnaire_request_${id}`), requestJob);
-        queuePartnerSends(db, batch, requestJob, link.partnerSends);
-        if (link.invitationWrite)
-          batch.set(link.invitationWrite.reference, link.invitationWrite.data, {
-            merge: true,
-          });
-        await batch.commit();
-
-        result = {
-          responseId: id,
-          status: "not_started",
-          resent: false,
-          prefilledFieldCount: Object.keys(prefill.answers).length,
-          dueDate: due.dueDate,
-          dueCountedFrom: due.countedFrom,
-          invited: Boolean(link.invitationWrite),
-        };
         }
       } else if (parsed.type === "setInquiryEventForm") {
         // A setting that reaches every couple who writes in: the owner's call.

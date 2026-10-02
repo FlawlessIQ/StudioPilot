@@ -45,6 +45,7 @@ import {
   confirmRequestedBillingAddress,
 } from "@/server/billing/billing-address-request";
 import { parseSigningBillingAddress } from "@/features/contacts/billing-address-signing";
+import { confirmFinalDetails, finalDetailsFor } from "@/server/planning/final-details";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
 
 export const runtime = "nodejs";
@@ -171,6 +172,21 @@ const requestSchema = z.discriminatedUnion("type", [
     type: z.literal("billing_address_request"),
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    /** Their final details, when the studio's timeline has locked them (server/planning/final-details.ts). */
+    type: z.literal("final_details"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    /** The couple confirming their final details, by typed name, as shown. */
+    type: z.literal("confirm_final_details"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    typedName: z.string().max(200),
+    snapshotHash: z.string().min(16).max(128),
+    consent: z.literal(true),
   }),
   z.object({
     /** The couple's billing address, given on their portal when the studio asked. */
@@ -873,6 +889,9 @@ async function clientProject(tenantId: string, projectId: string) {
     ? {
         status: String(currentScheduleDoc.get("status") ?? ""),
         version: Number(currentScheduleDoc.get("version") ?? 0),
+        // Publishing writes "published" with the couple's answer pending;
+        // without this the couple's home never asked them to approve it.
+        approvalState: String(currentScheduleDoc.get("approvalState") ?? ""),
       }
     : null;
   const questionnaireIndex = Object.keys(availabilityCollections).indexOf("questionnaire");
@@ -2157,6 +2176,31 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parsed.type === "final_details") {
+      return Response.json({ details: await finalDetailsFor(adminFirestore, { tenantId: parsed.tenantId, projectId: parsed.projectId }) });
+    }
+
+    if (parsed.type === "confirm_final_details") {
+      return Response.json(
+        await confirmFinalDetails(adminFirestore, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          typedName: parsed.typedName,
+          snapshotHash: parsed.snapshotHash,
+          signer: {
+            uid: identity.uid,
+            email: typeof identity.email === "string" ? identity.email : null,
+            emailVerified: typeof identity.email_verified === "boolean" ? identity.email_verified : null,
+            authMethod: identity.firebase?.sign_in_provider ?? null,
+          },
+          evidence: {
+            ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+            userAgent: request.headers.get("x-studiohub-user-agent")?.slice(0, 400) ?? request.headers.get("user-agent"),
+          },
+        }),
+      );
+    }
+
     if (parsed.type === "confirm_billing_address") {
       // Whether a state and ZIP are real is answered in words, as at signing.
       const address = parseSigningBillingAddress(parsed.billingAddress ?? {});
@@ -2615,6 +2659,9 @@ export async function POST(request: Request) {
       error === "PACKAGE_SELECTION_NOT_AVAILABLE" ||
       error === "PACKAGE_ALREADY_SELECTED"
     ) {
+      return Response.json({ error }, { status: 409 });
+    }
+    if (error === "FINAL_DETAILS_CHANGED" || error === "FINAL_DETAILS_NOT_FOUND" || error === "FINAL_DETAILS_NAME_REQUIRED") {
       return Response.json({ error }, { status: 409 });
     }
     if (error === "BILLING_ADDRESS_NOT_ASKED" || error === "BILLING_ADDRESS_CONTACT_NOT_FOUND") {
