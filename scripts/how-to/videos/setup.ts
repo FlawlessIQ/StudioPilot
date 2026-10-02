@@ -28,15 +28,16 @@ export default defineHowTo({
     {
       chapter: "The questions",
       say: "The ones with a tick are already done. The first asks what you shoot: weddings, portraits, corporate or sports. It sets the words StudioCue uses with each client, and the types on your inquiry form.",
-      do: [{ spotlight: { text: "What do you shoot?" }, holdMs: 3400 }],
+      do: [{ scrollTo: { text: "What do you shoot?" } }, { spotlight: { text: "What do you shoot?" }, holdMs: 3400 }],
     },
     {
       say: "The next asks how inquiries reach you, so every new client lands in StudioCue.",
-      do: [{ spotlight: { text: "How do inquiries reach you?" }, holdMs: 2600 }],
+      do: [{ scrollTo: { text: "How do inquiries reach you?" } }, { spotlight: { text: "How do inquiries reach you?" }, holdMs: 2600 }],
     },
     {
       say: "Then, when clients can book a call with you. Tap Use Mon to Fri, nine to five, or choose your own hours.",
       do: [
+        { scrollTo: { text: "When can clients book a call?" } },
         { spotlight: { text: "When can clients book a call?" }, holdMs: 2200 },
         { wait: 900 },
         { hover: { role: "button", name: /Use Mon/ } },

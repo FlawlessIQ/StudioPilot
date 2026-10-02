@@ -479,29 +479,29 @@
     "recordedCommit": "acfa740"
   },
   "setup": {
-    "version": 1,
-    "durationSec": 57.8,
+    "version": 2,
+    "durationSec": 69.2,
     "orientation": "landscape",
-    "file": "setup.v1.mp4",
-    "poster": "setup.v1.jpg",
-    "captions": "setup.v1.vtt",
+    "file": "setup.v2.mp4",
+    "poster": "setup.v2.jpg",
+    "captions": "setup.v2.vtt",
     "chapters": [
       {
         "at": 3,
         "title": "Finding setup"
       },
       {
-        "at": 17.4,
+        "at": 17.9,
         "title": "The questions"
       },
       {
-        "at": 43.4,
+        "at": 54.5,
         "title": "Skip anything"
       }
     ],
-    "transcript": "Let's set up your studio. On the Today tab, look for the card that says Finish setting up your studio, and tap Continue setup. Setup is six short questions. Each one says why it matters, and most can be answered right here on the page. The ones with a tick are already done. The first asks how inquiries reach you, so every new couple lands in StudioCue. The next one sets when couples can book a call with you. Tap Use Mon to Fri, nine to five, or choose your own hours. Further down, you'll tell StudioCue what you charge, how your clients sign, what you ask couples before the day, and who sends your insurance certificates. You can skip anything you're not ready for. StudioCue brings it back on Today when a job actually needs it, and every answer can be changed later in Studio settings.",
-    "recordedAt": "2026-09-30",
-    "recordedCommit": "acfa740"
+    "transcript": "Let's set up your studio. On the Today tab, look for the card that says Finish setting up your studio, and tap Continue setup. Setup is seven short questions. Each one says why it matters, and most can be answered right here on the page. The ones with a tick are already done. The first asks what you shoot: weddings, portraits, corporate or sports. It sets the words StudioCue uses with each client, and the types on your inquiry form. The next asks how inquiries reach you, so every new client lands in StudioCue. Then, when clients can book a call with you. Tap Use Mon to Fri, nine to five, or choose your own hours. Further down, you'll tell StudioCue what you charge, how your clients sign, what you ask couples before the day, and who sends your insurance certificates. You can skip anything you're not ready for. StudioCue brings it back on Today when a job actually needs it, and every answer can be changed later in Studio settings.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "27e4ac5"
   },
   "today": {
     "version": 1,
