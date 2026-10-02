@@ -683,12 +683,18 @@ async function emailContext(
       emailBranding.primaryColor,
       brandColors.primary,
     ) ?? "#35664a";
-  const contactEmail = firstString(
-    document.get("replyAddress"),
-    emailBranding.replyTo,
-    tenant?.get("contactEmail"),
-    tenant?.get("email"),
-  );
+  // A reply address that names its owner (`replyName`) is someone else's —
+  // the new-inquiry alert replies to the couple. The footer's "Questions?
+  // Reply to this email or contact …" then offered the couple's address as the
+  // studio's, so such mail carries no contact line at all.
+  const contactEmail = firstString(document.get("replyName"))
+    ? null
+    : firstString(
+        document.get("replyAddress"),
+        emailBranding.replyTo,
+        tenant?.get("contactEmail"),
+        tenant?.get("email"),
+      );
   const recipientName = firstString(
     document.get("recipientName"),
     contact?.get("displayName"),
