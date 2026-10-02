@@ -340,14 +340,17 @@ export function factForField(field: { label?: unknown; id?: unknown; type?: unkn
   if (has("billing", "mailing", "home address", "your address")) return has("address") || type === "address" ? "billing_address" : null;
   if (has("budget")) return "budget";
   if (has("hear about", "find us", "referral", "referred")) return "referral_source";
-  if (has("guest")) return has("count", "number", "how many", "expected", "total", "estimated") || n.trim() === "guests" ? "guest_count" : null;
+  if (has("guest")) return has("count", "number", "how many", "expected", "total", "estimated", "invited", "of") || n.trim() === "guests" ? "guest_count" : null;
 
-  if (has("videographer", "videography", "video")) return "videographer";
-  if (has("florist", "flowers", "floral")) return "florist";
-  if (has("dj", "disc jockey")) return "dj";
-  if (has("band", "live music")) return "band";
-  if (has("caterer", "catering")) return "caterer";
-  if (has("hair", "makeup", "make up", "mua")) return "hair_makeup";
+  // "Photo/Video Start and End Time" asks about hours, not who the videographer is.
+  const askingTime = type === "time" || has("time", "times", "start", "end", "hours", "arrival", "arrive");
+  if (!askingTime && has("videographer", "videography", "video")) return "videographer";
+  if (!askingTime && has("florist", "flowers", "floral")) return "florist";
+  if (!askingTime && has("dj", "disc jockey")) return "dj";
+  if (!askingTime && has("band", "live music")) return "band";
+  if (!askingTime && has("caterer", "catering")) return "caterer";
+  if (!askingTime && has("hair", "makeup", "make up", "mua")) return "hair_makeup";
+  if (askingTime && !has("ceremony")) return null;
   // The reception, getting ready, the hotel: often not the venue on the job.
   if (has("reception", "getting ready", "hotel", "after party") && !has("ceremony")) return null;
   if (has("venue")) {
@@ -378,10 +381,19 @@ export function factForField(field: { label?: unknown; id?: unknown; type?: unkn
   return null;
 }
 
+/** "16:30" → "4:30 PM", for a time going into a text box. */
+function spokenTime(value: string): string {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return value;
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour < 12 ? "AM" : "PM"}`;
+}
+
 /** A fact's value, shaped for the field — or undefined when it doesn't fit. */
-export function valueForField(field: { type?: unknown; options?: unknown }, value: string): string | undefined {
+export function valueForField(field: { type?: unknown; options?: unknown }, value: string, fact?: FactKey): string | undefined {
   const type = text(field.type);
   if (!value) return undefined;
+  if (fact === "ceremony_time" && type !== "time") return spokenTime(value);
   if (type === "date") return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
   if (type === "time") return clockTime(value) || undefined;
   if (type === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : undefined;
@@ -422,6 +434,18 @@ export function prefillFromFacts(input: {
   const answers: Record<string, unknown> = {};
   const answerProvenance: Record<string, unknown> = {};
   const existing = input.existing ?? {};
+  // One person's email, phone or name answers one question per form. A second
+  // unlabelled email ("Question 7") is somebody else's (GR Productions'
+  // imported form, 2026-10-02); the same planner may well answer twice.
+  const ONE_PERSON: ReadonlySet<FactKey> = new Set([
+    "partner_one_name",
+    "partner_two_name",
+    "client_email",
+    "client_phone",
+    "partner_two_email",
+    "partner_two_phone",
+  ]);
+  const used = new Set<FactKey>();
   for (const section of list(input.sections)) {
     for (const candidate of list(record(section).fields)) {
       const field = record(candidate);
@@ -452,9 +476,10 @@ export function prefillFromFacts(input: {
 
       const key = factForField(field) ?? input.factMap?.[fieldId] ?? null;
       const fact = key ? input.sheet.facts[key] : undefined;
-      if (!fact) continue;
-      const value = valueForField(field, fact.value);
+      if (!fact || (ONE_PERSON.has(fact.key) && used.has(fact.key))) continue;
+      const value = valueForField(field, fact.value, fact.key);
       if (blank(value)) continue;
+      used.add(fact.key);
       answers[fieldId] = value;
       answerProvenance[fieldId] = {
         // "project_fact" kept for everything the studio's records hold, so

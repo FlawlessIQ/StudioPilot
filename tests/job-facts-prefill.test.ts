@@ -93,6 +93,15 @@ test("which fact a question asks for — and the questions that stay the couple'
     ["Who should we call on the day?", "contact", null],
     ["Family groups", "repeating_group", null],
     ["Wedding date", "file", null],
+    // GR Productions' own forms (2026-10-02).
+    ["Photo/Video Start and End Time", "text", null],
+    ["# of Invited Guests", "dropdown", "guest_count"],
+    ["Ceremony Times", "text", "ceremony_time"],
+    ["Florist Name and Number", "text", "florist"],
+    ["Hair Name and Number", "text", "hair_makeup"],
+    ["Bride Email", "email", null],
+    ["Groom Phone", "phone", null],
+    ["Reception Times", "text", null],
   ];
   for (const [label, type, expected] of cases)
     assert.equal(factForField({ label, type }), expected, `${label} (${type})`);
@@ -107,6 +116,8 @@ test("a fact goes in only in the shape its field takes", () => {
   assert.equal(valueForField({ type: "dropdown", options: ["Under 50", "50–100", "100–150", "150+"] }, "120"), "100–150");
   assert.equal(valueForField({ type: "dropdown", options: ["Under 50", "50–100", "100–150", "150+"] }, "200"), "150+");
   assert.equal(valueForField({ type: "radio", options: ["Yes", "No"] }, "120"), undefined);
+  assert.equal(valueForField({ type: "text" }, "16:30", "ceremony_time"), "4:30 PM", "a time in a text box reads as one");
+  assert.equal(valueForField({ type: "time" }, "16:30", "ceremony_time"), "16:30");
   assert.equal(clockTime("4pm"), "16:00");
   assert.equal(clockTime("12am"), "00:00");
   assert.equal(clockTime("16:30"), "16:30");
@@ -147,6 +158,24 @@ test("only blanks nobody touched: a cleared answer stays cleared", () => {
     touched: new Set(["venue"]),
   });
   assert.deepEqual(answers, {}, "their date stands, their cleared venue stays clear, internal questions are the studio's");
+});
+
+test("one person's email answers one question: a second, unlabelled one is somebody else's", () => {
+  const { answers } = prefillFromFacts({
+    sheet: job(),
+    sections: [
+      {
+        fields: [
+          { id: "q2", label: "Question 2", type: "email" },
+          { id: "q7", label: "Question 7", type: "email" },
+          { id: "hair", label: "Hair Name and Number", type: "text" },
+          { id: "makeup", label: "Makeup Name and Number", type: "text" },
+        ],
+      },
+    ],
+  });
+  assert.equal(answers.q2, "priya@example.com");
+  assert.equal(answers.q7, undefined);
 });
 
 test("a couple filed as one contact is not one person's name", () => {
