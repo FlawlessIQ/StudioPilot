@@ -1,4 +1,5 @@
 import type { ContractSources } from "@/features/contracts/document";
+import { eventDetailsFrom } from "@/features/contracts/event-details";
 
 /**
  * Stand-in job details for the agreement editor's preview, so a studio sees
@@ -31,6 +32,21 @@ export function sampleContractSources(studioName: string, today: string): Contra
     { question: "Ceremony start", answer: "3:00 PM" },
     { question: "Getting ready address", answer: "The Lodge, 14 Mill Lane" },
   ],
+    // Schedule A, as a real agreement carries it at the end.
+    eventDetails: eventDetailsFrom({
+      eventType: "Wedding",
+      date: "June 12, 2027",
+      venue: "Harbor View Estate",
+      coverage: "2 photographers, 8 hours",
+      answers: [
+        { question: "Getting ready address", answer: "The Lodge, 14 Mill Lane" },
+        { question: "Ceremony location", answer: "St Mary's Church, 3 Church St" },
+        { question: "Reception location", answer: "Harbor View Estate, 1 Harbor View Rd" },
+        { question: "Ceremony start", answer: "3:00 PM" },
+        { question: "Reception times", answer: "5:30 PM – 11:00 PM" },
+        { question: "Expected guest count", answer: "140" },
+      ],
+    }),
   studio: {
       name: studioName,
       legalName: null,

@@ -363,6 +363,12 @@ export async function resolveDraft(
     clientName: loaded.clientName,
     resolved,
     documentHash: contractDocumentHash(resolved.document),
+    /**
+     * Parts of Schedule A nobody has given yet — getting ready, ceremony,
+     * reception, times. Printed "To be confirmed"; the studio is told before
+     * sending, and it doesn't stop the send (./event-details.ts).
+     */
+    detailsMissing: loaded.sources.eventDetails?.missing ?? [],
   };
 }
 
@@ -408,6 +414,7 @@ export async function prepareContract(
     sentContractId: null,
     fields: draft.resolved.fields,
     unresolvedFields: draft.resolved.unresolved,
+    detailsMissing: draft.detailsMissing,
     mergeOverrides: input.overrides,
     preparedOn: today,
     clientName: draft.clientName,
@@ -1068,6 +1075,7 @@ export async function prepareOnAcceptance(
       documentHash: draft.documentHash,
       fields: draft.resolved.fields,
       unresolvedFields: draft.resolved.unresolved,
+      detailsMissing: draft.detailsMissing,
       mergeOverrides: {},
       preparedOn: today,
       clientName: draft.clientName,

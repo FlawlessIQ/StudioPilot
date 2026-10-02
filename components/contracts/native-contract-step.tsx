@@ -39,6 +39,8 @@ type Draft = {
   document: unknown;
   fields: ResolvedField[];
   unresolvedFields: string[];
+  /** Schedule A parts nobody has given yet (functions/src/contracts/event-details.ts). */
+  detailsMissing?: string[];
   mergeOverrides: Record<string, string>;
   clientName: string;
   clientEmail: string;
@@ -192,6 +194,7 @@ export function NativeContractStep({
     (field) => !recordOnlyFields.has(field.key) && field.source !== "record",
   );
   const missing = draft?.unresolvedFields ?? [];
+  const detailsMissing = draft?.detailsMissing ?? [];
   /**
    * The studio edited its agreement after this draft was prepared. Sending
    * resolves against the draft's pinned version, so the old wording would go
@@ -496,6 +499,11 @@ export function NativeContractStep({
           Edit your agreement
         </Link>
       </div>
+      {detailsMissing.length ? (
+        <p className="booking-delivery-warning" role="status">
+          {`Wedding details not given yet: ${detailsMissing.join(", ").toLowerCase()}. They go in Schedule A as "To be confirmed" and are confirmed with the final details four weeks before. Ask the couple now if you'd rather they were in the signed agreement.`}
+        </p>
+      ) : null}
       {parsed ? (
         <div className="contract-sheet native-contract-preview">
           <ContractDocumentView document={parsed} missing={missing} showFields />

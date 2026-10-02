@@ -90,6 +90,8 @@ export const contractSchema = auditFieldsSchema.extend({
   document: contractDocumentSchema.optional(),
   documentHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   unresolvedFields: z.array(z.string()).optional(),
+  /** Schedule A parts nobody has given yet; printed "To be confirmed". */
+  detailsMissing: z.array(z.string()).optional(),
   mergeOverrides: z.record(z.string(), z.string()).optional(),
   signatures: z.array(contractSignatureSummarySchema).optional(),
   voidedAt: z.string().datetime().nullable().optional(),

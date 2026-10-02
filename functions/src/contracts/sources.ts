@@ -12,6 +12,8 @@ import {
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { isReturned } from "../planning/questionnaire-lifecycle.js";
 import { contractFormAnswers } from "./form-answers.js";
+import { eventDetailsFrom } from "./event-details.js";
+import { formatContractDate } from "./document.js";
 
 /**
  * Everything a StudioCue contract is resolved from, read from records.
@@ -220,6 +222,17 @@ export async function loadContractSources(
         })
       : includedFor(allSnapshots[0]!);
 
+  // Schedule A: the couple's own answers sorted into the parts of the day,
+  // with the date, venue and coverage from the records (./event-details.ts).
+  const eventDate = text(event.eventDate) || text(project.get("eventDate")).slice(0, 10);
+  const eventDetails = eventDetailsFrom({
+    eventType: text(event.eventType) || text(project.get("eventType")),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(eventDate) ? formatContractDate(eventDate) : null,
+    venue: text(event.venue) || text(project.get("venueName")) || null,
+    coverage: coverage || null,
+    answers: formAnswers,
+  });
+
   return {
     clientEmail,
     clientName,
@@ -257,6 +270,7 @@ export async function loadContractSources(
       },
       packages,
       formAnswers,
+      eventDetails,
       paymentSchedule: schedule.map((row) => ({
         label: text(row.label) || "Payment",
         amountCents: cents(row.amountCents),

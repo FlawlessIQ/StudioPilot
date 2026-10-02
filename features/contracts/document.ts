@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { balanceWithSalesTax, readPricedSalesTax, totalWithSalesTax } from "../billing/sales-tax-pricing";
 import type { PricedSalesTax } from "../pricing/package-price";
+import { eventDetailsBlocks, type EventDetails } from "./event-details";
 
 /**
  * A contract StudioCue writes and the couple signs.
@@ -138,6 +139,11 @@ export const contractMergeFields = [
    * inside the agreement rather than attached beside it.
    */
   { key: "form.answers", label: "Details form answers (list)", example: "Ceremony start: 3:00 PM", block: true },
+  /**
+   * Schedule A — the wedding details (./event-details.ts). Every agreement
+   * carries it at the end; this places it somewhere else.
+   */
+  { key: "event.details", label: "Wedding details (Schedule A)", example: "Ceremony: St Mary's, 3:00 PM", block: true },
   { key: "studio.name", label: "Studio name", example: "Hart Light Photography" },
   { key: "studio.legal_name", label: "Studio legal name", example: "Hart Light Photography LLC" },
   /**
@@ -222,6 +228,13 @@ export type ContractSources = {
    * unfilled placeholder like any other, rather than an empty heading.
    */
   formAnswers: Array<{ question: string; answer: string }>;
+  /**
+   * Schedule A — the wedding details (./event-details.ts). Printed where the
+   * template says {{event.details}}, otherwise at the end: every agreement
+   * carries it. Absent for an agreement resolved without one (the editor's
+   * own preview of an old template, tests of the template alone).
+   */
+  eventDetails?: EventDetails | null;
   studio: {
     name: string;
     legalName: string | null;
@@ -366,6 +379,12 @@ function recordValue(key: string, sources: ContractSources): string | null {
       return nonEmpty(sources.studio.email);
     case "studio.website":
       return nonEmpty(sources.studio.website);
+    case "event.details": {
+      // Written mid-sentence: the details on one line. On a line of its own
+      // it is the whole schedule (resolveContractDocument).
+      const rows = sources.eventDetails?.rows ?? [];
+      return rows.length ? rows.map((row) => `${row.label}: ${row.value}`).join("; ") : null;
+    }
     case "form.answers": {
       // Inline fallback for a field written mid-sentence, the same shape the
       // other block fields take. Nothing submitted reads as missing, not blank.
@@ -472,7 +491,8 @@ function parseRawBlocks(body: string): RawBlock[] {
         key === "payment.schedule" ||
         key === "package.deliverables" ||
         key === "form.answers" ||
-        key === "price.packages"
+        key === "price.packages" ||
+        key === "event.details"
       ) {
         flush();
         blocks.push({ type: "field_block", key });
@@ -592,7 +612,13 @@ export function resolveContractDocument(input: {
   };
 
   const blocks: ContractBlock[] = [];
+  let detailsPlaced = false;
   for (const raw of parseRawBlocks(template.body)) {
+    if (raw.type === "field_block" && raw.key === "event.details") {
+      if (sources.eventDetails && !detailsPlaced) blocks.push(...eventDetailsBlocks(sources.eventDetails));
+      detailsPlaced = true;
+      continue;
+    }
     if (raw.type === "heading") {
       blocks.push({ type: "heading", level: raw.level, content: inlines(raw.text, valueFor) });
     } else if (raw.type === "paragraph") {
@@ -688,6 +714,8 @@ export function resolveContractDocument(input: {
       );
     }
   }
+  // Schedule A in every agreement: at the end when the template doesn't place it.
+  if (sources.eventDetails && !detailsPlaced) blocks.push(...eventDetailsBlocks(sources.eventDetails));
   const resolvedFields = [...fields.values()];
   return {
     document: {
