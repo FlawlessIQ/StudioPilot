@@ -44,8 +44,12 @@ function addDays(day: string, days: number): string {
 
 export type QuestionnaireDue = {
   dueDate: string;
-  /** What the date was counted from, so the studio can be told. */
-  countedFrom: "event_date" | "sent_date";
+  /**
+   * What the date was counted from, so the studio can be told: the event, the
+   * day it was sent (no event date), or the soonest fair date (counting back
+   * from the event would have made it due already).
+   */
+  countedFrom: "event_date" | "sent_date" | "soonest";
 };
 
 export function questionnaireDueDate(input: {
@@ -54,14 +58,23 @@ export function questionnaireDueDate(input: {
   /** The day it is sent, YYYY-MM-DD (or a full ISO timestamp). */
   today: string;
 }): QuestionnaireDue {
+  const today =
+    calendarDay(input.today) ?? new Date().toISOString().slice(0, 10);
   const eventDay = calendarDay(input.eventDate);
   if (eventDay) {
     const before = Number(input.dueDaysBeforeEvent ?? 0);
     const days = Number.isFinite(before) && before > 0 ? Math.floor(before) : 0;
-    return { dueDate: addDays(eventDay, -days), countedFrom: "event_date" };
+    const counted = addDays(eventDay, -days);
+    /**
+     * Never due before the couple has had a week — nor after the day itself.
+     * GR's event details form is due 180 days out; sent to a wedding four
+     * months away, counting back put its due date two months in the past, so
+     * the couple's first sight of it said overdue (2026-10-02).
+     */
+    const soonest = addDays(today, QUESTIONNAIRE_DUE_DAYS_WITHOUT_EVENT_DATE);
+    if (counted >= soonest) return { dueDate: counted, countedFrom: "event_date" };
+    return { dueDate: soonest < eventDay ? soonest : eventDay, countedFrom: "soonest" };
   }
-  const today =
-    calendarDay(input.today) ?? new Date().toISOString().slice(0, 10);
   return {
     dueDate: addDays(today, QUESTIONNAIRE_DUE_DAYS_WITHOUT_EVENT_DATE),
     countedFrom: "sent_date",

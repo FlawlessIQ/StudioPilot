@@ -4,6 +4,7 @@ import { QuestionnaireBuilder } from "@/components/planning/questionnaire-builde
 import { QuestionnaireQuickSend } from "@/components/planning/questionnaire-quick-send";
 import { QuestionnaireReviewInsights } from "@/components/planning/questionnaire-review-insights";
 import { InquiryEventFormSetting } from "@/components/planning/inquiry-event-form-setting";
+import { RecommendedQuestionnaires } from "@/components/planning/recommended-questionnaires";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 import { PendingImportNotice } from "@/components/ai/pending-import-notice";
 
@@ -52,6 +53,8 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
           <>
             {/* Which form new wedding inquiries fill in before the call. */}
             <InquiryEventFormSetting />
+            {/* GR Productions' wedding forms, for any studio to copy. */}
+            <RecommendedQuestionnaires />
             <QuestionnaireBuilder />
           </>
         )}

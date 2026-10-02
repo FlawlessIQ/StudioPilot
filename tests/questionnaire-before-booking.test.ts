@@ -205,3 +205,19 @@ test("a refused send reads as a sentence", () => {
   assert.notEqual(copy, "fallback");
   assert.match(copy, /form/);
 });
+
+test("never due before the couple has had a week, nor after the day itself", () => {
+  // GR's event details form, due 180 days out, sent four months before.
+  assert.deepEqual(questionnaireDueDate({ eventDate: "2027-02-01", dueDaysBeforeEvent: 180, today: "2026-10-01" }), {
+    dueDate: "2026-10-08",
+    countedFrom: "soonest",
+  });
+  assert.deepEqual(questionnaireDueDate({ eventDate: "2026-10-04", dueDaysBeforeEvent: 30, today: "2026-10-01" }), {
+    dueDate: "2026-10-04",
+    countedFrom: "soonest",
+  });
+  assert.equal(
+    questionnaireAssignNotice({ dueDate: "2026-10-08", dueCountedFrom: "soonest" }),
+    "Questionnaire sent. Counted back from the event date it would already be due, so it's due October 8, 2026. They fill it in from their portal.",
+  );
+});

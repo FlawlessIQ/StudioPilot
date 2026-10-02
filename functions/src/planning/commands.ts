@@ -131,6 +131,12 @@ const questionnaireField = z.object({
   conditionalOn: z
     .object({ fieldId: z.string(), equals: z.unknown() })
     .nullable(),
+  // A note under the question, "TBD" allowed, a suggested time (field-extras.ts).
+  help: z.string().max(500).optional(),
+  allowTbd: z.boolean().optional(),
+  suggestedFrom: z
+    .object({ fieldId: z.string().min(1), minutes: z.number().int().min(-720).max(720) })
+    .optional(),
 });
 const command = z.discriminatedUnion("type", [
   z.object({
@@ -212,6 +218,8 @@ const command = z.discriminatedUnion("type", [
         .min(1),
       dueDaysBeforeEvent: z.number().int().nonnegative().max(365),
       reminderDaysBeforeDue: z.array(z.number().int().nonnegative().max(365)),
+      /** A copy of one of StudioCue's recommended forms. */
+      recommendedId: z.string().min(1).max(80).optional(),
     }),
   }),
   z.object({
@@ -795,9 +803,11 @@ export const planningCommand = onRequest(
             ];
           },
         );
-        // After the lock, a couple's change to where or when is a request the
-        // studio accepts, never a save (requestDetailChange).
-        if (byClient && changes.length) {
+        // After the lock, a couple's change to where or when they already gave
+        // is a request the studio accepts, never a save (requestDetailChange).
+        // A form they haven't sent back yet is theirs to fill in, lock or not:
+        // a planning form sent three weeks out refused every time on it.
+        if (amendingReturned && changes.length) {
           const [projectSnapshot, tenantSnapshot] = await Promise.all([
             db.doc(`projects/${parsed.input.projectId}`).get(),
             db.doc(`tenants/${parsed.tenantId}`).get(),
@@ -1144,6 +1154,8 @@ export const planningCommand = onRequest(
           sections: parsed.input.sections,
           dueDaysBeforeEvent: parsed.input.dueDaysBeforeEvent,
           reminderDaysBeforeDue: parsed.input.reminderDaysBeforeDue,
+          // A copy of a recommended form stays one through its edits.
+          ...(current.get("recommendedId") ? { recommendedId: String(current.get("recommendedId")) } : {}),
           version,
           // What this version replaced, so the trail is readable.
           supersedesTemplateId: parsed.input.templateId,

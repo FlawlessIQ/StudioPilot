@@ -150,6 +150,8 @@ test("wired: the lock is enforced on save, and everything runs and can be read",
   const commands = read("functions/src/planning/commands.ts");
   assert.match(commands, /throw new Error\("DETAILS_LOCKED"\)/);
   assert.match(commands, /const amendingReturned = byClient && isReturned\(priorStatus\);/);
+  // Only what they sent back locks: a form not yet returned is still theirs to fill in.
+  assert.match(commands, /if \(amendingReturned && changes\.length\) \{\s*const \[projectSnapshot, tenantSnapshot\]/);
   assert.match(read("firestore.rules"), /match \/detailChangeRequests\/\{requestId\} \{\s*allow read: if canManageProjects\(resource\.data\.tenantId\);\s*allow write: if false;/);
   assert.match(read("firestore.rules"), /match \/detailSignoffs\/\{signoffId\} \{\s*allow read: if canManageProjects\(resource\.data\.tenantId\);\s*allow write: if false;/);
   for (const name of ["planningFormScheduler", "finalDetailsScheduler"]) assert.match(read("functions/src/index.ts"), new RegExp(name));

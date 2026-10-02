@@ -79,6 +79,13 @@ export function eventDetailCategory(question: string): Category | null {
 }
 
 /**
+ * The couple's "not decided yet" (features/questionnaires/field-extras.ts,
+ * kept inline so this file has no imports): printed as "To be confirmed", and
+ * a part answered only that way is still missing.
+ */
+const notDecided = (answer: string) => /^\s*(tbd|tbc|to be (decided|determined|confirmed))\s*$/i.test(answer);
+
+/**
  * Pure: the schedule from what the job knows. `answers` are the couple's form
  * rows (question, answer); the date, venue and coverage come from records.
  */
@@ -99,7 +106,7 @@ export function eventDetailsFrom(input: {
     const category = eventDetailCategory(question);
     if (!category) continue;
     const list = sorted.get(category) ?? [];
-    list.push({ label: question.replace(/[:?]\s*$/, ""), value: answer });
+    list.push({ label: question.replace(/[:?]\s*$/, ""), value: notDecided(answer) ? "To be confirmed" : answer });
     sorted.set(category, list);
   }
   // One venue for the whole day: the ceremony is there unless they said otherwise.
@@ -112,6 +119,8 @@ export function eventDetailsFrom(input: {
   const missing: string[] = [];
   for (const category of order) {
     const entries = sorted.get(category) ?? [];
+    if (wedding && REQUIRED_WEDDING_PARTS.includes(category) && entries.length && entries.every((entry) => entry.value === "To be confirmed"))
+      missing.push(CATEGORY_LABEL[category]);
     if (!entries.length) {
       if (wedding && REQUIRED_WEDDING_PARTS.includes(category)) {
         missing.push(CATEGORY_LABEL[category]);

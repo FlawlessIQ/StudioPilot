@@ -16,12 +16,18 @@ export type QuestionnaireField = {
   internalOnly: boolean;
   options: string[];
   conditionalOn: { fieldId: string; equals: unknown } | null;
+  /** A note under the question, "TBD" allowed, a suggested time (field-extras.ts). */
+  help?: string;
+  allowTbd?: boolean;
+  suggestedFrom?: SuggestedFrom;
 };
 export type QuestionnaireSection = {
   id: string;
   title: string;
   fields: QuestionnaireField[];
 };
+
+import { suggestedFromOf, type SuggestedFrom } from "./field-extras";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -81,6 +87,9 @@ export function parseQuestionnaireSections(value: unknown): QuestionnaireSection
             conditionalOn: item.conditionalOn
               ? { fieldId: String(condition.fieldId), equals: condition.equals }
               : null,
+            ...(typeof item.help === "string" && item.help.trim() ? { help: item.help.trim() } : {}),
+            ...(item.allowTbd === true ? { allowTbd: true } : {}),
+            ...(suggestedFromOf(item.suggestedFrom) ? { suggestedFrom: suggestedFromOf(item.suggestedFrom)! } : {}),
           };
         }),
       },

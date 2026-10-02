@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { isReturned, liveAssignmentFor } from "../planning/questionnaire-lifecycle.js";
+import { isTbd, suggestedFromOf, TBD, type SuggestedFrom } from "../planning/field-extras.js";
 
 /**
  * The studio's event form, on the couple's inquiry page.
@@ -123,6 +124,10 @@ export type CoupleField = {
   locked: boolean;
   options: string[];
   conditionalOn: { fieldId: string; equals: unknown } | null;
+  /** A note under the question, "TBD" allowed, a suggested time (planning/field-extras.ts). */
+  help?: string;
+  allowTbd?: boolean;
+  suggestedFrom?: SuggestedFrom;
 };
 export type CoupleSection = { id: string; title: string; fields: CoupleField[] };
 
@@ -168,6 +173,9 @@ export function coupleFormSections(sections: unknown): CoupleSection[] {
           locked: field.locked === true,
           options: Array.isArray(field.options) ? field.options.map(String) : [],
           conditionalOn: text(condition.fieldId) ? { fieldId: text(condition.fieldId), equals: condition.equals } : null,
+          ...(text(field.help) ? { help: text(field.help).slice(0, 500) } : {}),
+          ...(field.allowTbd === true ? { allowTbd: true } : {}),
+          ...(suggestedFromOf(field.suggestedFrom) ? { suggestedFrom: suggestedFromOf(field.suggestedFrom)! } : {}),
         } satisfies CoupleField,
       ];
     });
@@ -221,6 +229,8 @@ const MAX_TEXT = 5000;
  */
 function coerce(field: CoupleField, value: unknown): unknown {
   if (value === null || value === "") return null;
+  // "Not decided yet", where the studio offers it: answered, and said so.
+  if (field.allowTbd && isTbd(value)) return TBD;
   switch (field.type) {
     case "checkbox":
     case "acknowledgement":

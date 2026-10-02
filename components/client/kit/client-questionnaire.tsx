@@ -529,6 +529,7 @@ function QuestionnaireForm({
           {section.fields.map((field) => (
             <Question
               answer={answers[field.id]}
+              answers={answers}
               field={field}
               key={field.id}
               onChange={(value) => update(field.id, value)}

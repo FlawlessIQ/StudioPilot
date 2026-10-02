@@ -493,6 +493,23 @@ textarea.kit-input {
   margin: 0;
   accent-color: var(--kit-accent);
 }
+/* "Suggested: 1:30 PM — use it", under a time that follows another
+   (features/questionnaires/field-extras.ts). A tap target, read as a link. */
+.kit-note-button {
+  align-self: flex-start;
+  min-height: var(--kit-size-tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kit-accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
 .kit .honeypot {
   position: absolute;
   left: -10000px;

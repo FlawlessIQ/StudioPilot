@@ -6,6 +6,7 @@ import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { criticalCrewQuestions } from "@/features/questionnaires/crew-brief";
+import type { SuggestedFrom } from "@/features/questionnaires/field-extras";
 
 /**
  * Editing a questionnaire template in place.
@@ -41,6 +42,12 @@ type EditableField = {
    * conditional question always show.
    */
   conditionalOn?: { fieldId: string; equals: unknown } | null;
+  /** A note under the question, for the couple. */
+  help?: string;
+  /** The couple may answer "TBD" (features/questionnaires/field-extras.ts). */
+  allowTbd?: boolean;
+  /** A time suggested from another answer — kept, not edited here. */
+  suggestedFrom?: SuggestedFrom | null;
 };
 
 type EditableSection = { id: string; title: string; fields: EditableField[] };
@@ -63,6 +70,9 @@ const FIELD_TYPES = [
 ];
 
 const CHOICE_TYPES = ["dropdown", "multi_select", "radio"];
+
+/** Questions a couple can honestly answer "not decided yet". */
+const TBD_TYPES = ["text", "long_text", "time", "address", "contact"];
 
 export function QuestionnaireTemplateEditor({
   template,
@@ -185,6 +195,12 @@ export function QuestionnaireTemplateEditor({
             // Kept while the question it depends on is still in the form.
             conditionalOn:
               field.conditionalOn && fieldIds.has(field.conditionalOn.fieldId) ? field.conditionalOn : null,
+            ...(field.help?.trim() ? { help: field.help.trim().slice(0, 500) } : {}),
+            ...(field.allowTbd ? { allowTbd: true } : {}),
+            // Only a time follows a time, and only one still in the form.
+            ...(field.type === "time" && field.suggestedFrom && fieldIds.has(field.suggestedFrom.fieldId)
+              ? { suggestedFrom: field.suggestedFrom }
+              : {}),
           })),
         })),
       });
@@ -281,6 +297,36 @@ export function QuestionnaireTemplateEditor({
                       placeholder="Yes, No, Undecided"
                       value={field.options}
                     />
+                  </label>
+                ) : null}
+                <label>
+                  Note for the couple
+                  <input
+                    maxLength={500}
+                    onChange={(event) =>
+                      patchField(section.id, field.id, {
+                        help: event.target.value,
+                      })
+                    }
+                    placeholder="Optional"
+                    value={field.help ?? ""}
+                  />
+                </label>
+                {TBD_TYPES.includes(field.type) ? (
+                  <label
+                    className="questionnaire-editor-required"
+                    title="The couple can answer TBD — not decided yet"
+                  >
+                    <input
+                      checked={field.allowTbd === true}
+                      onChange={(event) =>
+                        patchField(section.id, field.id, {
+                          allowTbd: event.target.checked,
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    Allow TBD
                   </label>
                 ) : null}
                 <label className="questionnaire-editor-required">

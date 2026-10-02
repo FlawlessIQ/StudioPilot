@@ -5,6 +5,7 @@ import { Paperclip } from "lucide-react";
 import { Choices, Field, TextArea } from "@/components/kit/kit";
 import { attachmentRef, type FileRef } from "@/features/documents/file-ref";
 import type { QuestionnaireField } from "@/features/questionnaires/client-form";
+import { isTbd, suggestedTime, TBD } from "@/features/questionnaires/field-extras";
 
 /**
  * One questionnaire question, as the couple answers it.
@@ -42,7 +43,69 @@ export function spoken(value: unknown, type = "text"): string {
   return String(value ?? "").trim();
 }
 
-export function Question({
+export function Question(props: {
+  field: QuestionnaireField;
+  answer: unknown;
+  source: string;
+  uploading: boolean;
+  onChange: (value: unknown) => void;
+  onFile: (file: File | null) => void;
+  /** Opens a file the couple uploaded; only the signed-in portal can. */
+  renderUpload?: (file: FileRef) => ReactNode;
+  /** Every answer so far, for a time suggested from another (field-extras.ts). */
+  answers?: Record<string, unknown>;
+}) {
+  const { field, answer, onChange } = props;
+  // "Not decided yet", where the studio offers it (GR Productions, 2026-10-02).
+  const tbd = Boolean(field.allowTbd) && !field.locked;
+  if (tbd && isTbd(answer))
+    return (
+      <div className="kit-stack-tight">
+        <Field hint={field.help} label={field.label} readOnly value="TBD — not decided yet" />
+        <TbdToggle checked field={field} onChange={onChange} />
+      </div>
+    );
+  const suggestion =
+    field.type === "time" && props.answers && (answer === undefined || answer === null || answer === "")
+      ? suggestedTime(field, props.answers)
+      : null;
+  if (!tbd && !suggestion) return <Answer {...props} />;
+  return (
+    <div className="kit-stack-tight">
+      <Answer {...props} />
+      {suggestion ? (
+        <button className="kit-note-button" onClick={() => onChange(suggestion)} type="button">
+          {`Suggested: ${spoken(suggestion, "time")} — use it`}
+        </button>
+      ) : null}
+      {tbd ? <TbdToggle checked={false} field={field} onChange={onChange} /> : null}
+    </div>
+  );
+}
+
+function TbdToggle({
+  checked,
+  field,
+  onChange,
+}: {
+  checked: boolean;
+  field: QuestionnaireField;
+  onChange: (value: unknown) => void;
+}) {
+  return (
+    <label className="kit-check">
+      <input
+        aria-label={`${field.label}: not decided yet`}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked ? TBD : "")}
+        type="checkbox"
+      />
+      <span>Not decided yet (TBD)</span>
+    </label>
+  );
+}
+
+function Answer({
   field,
   answer,
   source,
@@ -57,7 +120,6 @@ export function Question({
   uploading: boolean;
   onChange: (value: unknown) => void;
   onFile: (file: File | null) => void;
-  /** Opens a file the couple uploaded; only the signed-in portal can. */
   renderUpload?: (file: FileRef) => ReactNode;
 }) {
   const label = (
@@ -66,8 +128,11 @@ export function Question({
       {field.required ? <span className="required-mark">Required</span> : null}
     </>
   );
-  const hint = source ? `Filled in from ${source}. You can change it.` : undefined;
   const value = typeof answer === "string" ? answer : answer == null ? "" : spoken(answer);
+  // The studio's note first; then where a prefilled answer came from, while it's there.
+  const hint =
+    [field.help, source && value ? `Filled in from ${source}. You can change it.` : ""].filter(Boolean).join(" ") ||
+    undefined;
 
   if (field.type === "information")
     return (
@@ -140,7 +205,8 @@ export function Question({
           options={field.options.map((option) => ({ value: option, label: option }))}
           value={value || null}
         />
-        {hint && value ? <span className="kit-hint">{hint}</span> : null}
+        {field.help ? <span className="kit-hint">{field.help}</span> : null}
+        {source && value ? <span className="kit-hint">{`Filled in from ${source}. You can change it.`}</span> : null}
       </div>
     );
 

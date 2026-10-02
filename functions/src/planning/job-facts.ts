@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { isTbd, suggestedFromOf, suggestedTime } from "./field-extras.js";
 
 /**
  * Everything a job already knows that a couple's form might ask — and which
@@ -295,6 +296,8 @@ export function jobFactSheet(input: {
         if (!fieldId || field.internalOnly === true) continue;
         const value = answers[fieldId];
         if (value === undefined || value === null || value === "" || (Array.isArray(value) && !value.length)) continue;
+        // "Not decided yet" is asked again, never copied forward as an answer.
+        if (isTbd(value)) continue;
         // Only what a person gave: a prefill copied onward would launder a guess.
         const source = text(record(provenance[fieldId]).sourceType);
         if (source && !ANSWERED_BY_PEOPLE.has(source)) continue;
@@ -452,6 +455,9 @@ export function prefillFromFacts(input: {
       const fieldId = text(field.id);
       if (!fieldId || field.internalOnly === true || field.locked === true) continue;
       if (!blank(existing[fieldId]) || input.touched?.has(fieldId)) continue;
+      // A time that follows another on this form follows it (below), not the
+      // job's records: "Ceremony — time" is the couple's own ceremony time.
+      if (suggestedFromOf(field.suggestedFrom)) continue;
       const type = text(field.type);
 
       // The same question, answered on another of this job's forms.
@@ -495,6 +501,29 @@ export function prefillFromFacts(input: {
       };
     }
   }
+  // Then the times that follow another ("30 minutes before prep ends"), from
+  // what the form now holds — the couple's own, and what was just filled.
+  const known = { ...existing, ...answers };
+  for (const section of list(input.sections)) {
+    for (const candidate of list(record(section).fields)) {
+      const field = record(candidate);
+      const fieldId = text(field.id);
+      if (!fieldId || field.internalOnly === true || field.locked === true || text(field.type) !== "time") continue;
+      if (!blank(known[fieldId]) || input.touched?.has(fieldId)) continue;
+      const from = suggestedFromOf(field.suggestedFrom);
+      const value = suggestedTime(field, known);
+      if (!from || !value) continue;
+      answers[fieldId] = value;
+      known[fieldId] = value;
+      answerProvenance[fieldId] = {
+        sourceType: "suggested_time",
+        sourceId: fieldId,
+        sourceField: from.fieldId,
+        label: "the times you gave us",
+        verified: false,
+      };
+    }
+  }
   return { answers, answerProvenance };
 }
 
@@ -506,7 +535,7 @@ export function unmatchedFields(sections: unknown): Array<{ id: string; label: s
       const field = record(candidate);
       const id = text(field.id);
       if (!id || field.internalOnly === true || field.locked === true) continue;
-      if (!FILLABLE.has(text(field.type)) || factForField(field)) continue;
+      if (!FILLABLE.has(text(field.type)) || factForField(field) || suggestedFromOf(field.suggestedFrom)) continue;
       fields.push({ id, label: text(field.label) || id, type: text(field.type), options: list(field.options).map((option) => text(option)).filter(Boolean) });
     }
   }

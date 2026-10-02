@@ -612,6 +612,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                       <div className="kit-stack-tight" id={`inquiry-question-${field.id}`} key={field.id}>
                         <Question
                           answer={answers[field.id]}
+                          answers={answers}
                           field={field}
                           onChange={(value) => answer(field.id, value)}
                           onFile={() => undefined}

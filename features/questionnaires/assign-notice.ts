@@ -40,9 +40,11 @@ export function questionnaireAssignNotice(result: AssignResult): string {
   const when =
     result.dueCountedFrom === "sent_date"
       ? `There's no date on the job yet, so it's due a week from today${due ? ` (${due})` : ""}.`
-      : due
-        ? `It's due ${due}, counted back from the event date.`
-        : "Its due date was counted back from the event date.";
+      : result.dueCountedFrom === "soonest"
+        ? `Counted back from the event date it would already be due, so it's due ${due ?? "a week from today"}.`
+        : due
+          ? `It's due ${due}, counted back from the event date.`
+          : "Its due date was counted back from the event date.";
   const where = invited
     ? "The email carries an invitation to their portal, where they fill it in."
     : "They fill it in from their portal.";

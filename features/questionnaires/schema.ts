@@ -12,6 +12,10 @@ export const questionnaireFieldSchema = z.object({
   // Whether the answer reaches crew. Absent: see features/questionnaires/crew-brief.ts.
   crewVisible: z.boolean().optional(),
   options: z.array(z.string()), conditionalOn: z.object({ fieldId: z.string(), equals: z.unknown() }).nullable(),
+  // A note under the question, "TBD" allowed, a suggested time: field-extras.ts.
+  help: z.string().max(500).optional(),
+  allowTbd: z.boolean().optional(),
+  suggestedFrom: z.object({ fieldId: z.string().min(1), minutes: z.number().int().min(-720).max(720) }).optional(),
 });
 export const questionnaireTemplateSchema = auditFieldsSchema.extend({
   id: z.string(), tenantId: z.string(), name: z.string(), eventTypeId: z.string(),
@@ -19,6 +23,8 @@ export const questionnaireTemplateSchema = auditFieldsSchema.extend({
   sections: z.array(z.object({ id: z.string(), title: z.string(), fields: z.array(questionnaireFieldSchema) })),
   dueDaysBeforeEvent: z.number().int().nonnegative(), reminderDaysBeforeDue: z.array(z.number().int().nonnegative()),
   archivedAt: z.string().datetime().nullable(),
+  /** A copy of one of StudioCue's recommended forms (recommended-templates.ts). */
+  recommendedId: z.string().optional(),
 });
 export const questionnaireResponseSchema = auditFieldsSchema.extend({
   id: z.string(), tenantId: z.string(), projectId: z.string(), templateId: z.string(),

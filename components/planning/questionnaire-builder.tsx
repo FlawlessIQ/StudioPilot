@@ -23,6 +23,7 @@ import {
 import { QuestionnaireTemplateEditor } from "@/components/planning/questionnaire-template-editor";
 import { fieldReachesCrew } from "@/features/questionnaires/crew-brief";
 import { InfoHint } from "@/components/ui/info-hint";
+import { suggestedFromOf } from "@/features/questionnaires/field-extras";
 
 /** A saved "Show after" condition, carried through the editor unchanged. */
 function conditionOf(value: unknown): { fieldId: string; equals: unknown } | null {
@@ -319,6 +320,9 @@ export function QuestionnaireBuilder({
                                           ? f.options.map(String).join(", ")
                                           : "",
                                         conditionalOn: conditionOf(f.conditionalOn),
+                                        help: typeof f.help === "string" ? f.help : "",
+                                        allowTbd: f.allowTbd === true,
+                                        suggestedFrom: suggestedFromOf(f.suggestedFrom),
                                       };
                                     })
                                   : [],

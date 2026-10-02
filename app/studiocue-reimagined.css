@@ -2557,6 +2557,115 @@
   white-space: nowrap;
 }
 
+/* StudioCue's recommended forms, above the library
+   (components/planning/recommended-questionnaires.tsx). Two cards side by
+   side on a desktop, stacked on a phone; the question list opens in place. */
+.recommended-forms {
+  display: grid;
+  gap: 16px;
+}
+
+.recommended-forms h2,
+.recommended-forms p {
+  margin: 0;
+}
+
+.recommended-forms-list {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.recommended-forms-list > article {
+  border: 1px solid var(--cue-line);
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.recommended-forms-list > article:has(.recommended-forms-preview[open]) {
+  grid-column: 1 / -1;
+}
+
+.recommended-forms-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: space-between;
+}
+
+.recommended-forms-heading h3 {
+  margin: 0;
+}
+
+.recommended-forms-meta {
+  color: #8e8392;
+}
+
+.recommended-forms-heading em,
+.recommended-forms-preview li em {
+  align-items: center;
+  background: #e7f8f0;
+  border-radius: 999px;
+  color: #2b8260;
+  display: inline-flex;
+  font-size: 0.8em;
+  font-style: normal;
+  font-weight: 650;
+  gap: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.recommended-forms-preview summary {
+  color: #7759c7;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.recommended-forms-preview > div {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.recommended-forms-preview h4 {
+  margin: 0;
+}
+
+.recommended-forms-preview ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.recommended-forms-preview li {
+  display: grid;
+  gap: 2px;
+}
+
+.recommended-forms-preview li > span {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.recommended-forms-preview li small {
+  color: #8e8392;
+}
+
+.recommended-forms-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .questionnaire-template-empty {
   color: #817687;
   font-size: 10px;

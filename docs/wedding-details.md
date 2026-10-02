@@ -54,3 +54,27 @@ as signed); before they confirm, it refreshes what they'll confirm. Decline keep
 and tells them. No fees. The planning page shows the final details and every change.
 
 Walk: `scripts/uat/wedding-details-walk.mts`.
+
+## 5. Recommended forms (GR's own), TBD and suggested times
+
+Gabe sent GR's two wedding forms "as detailed as possible… 99.9% of weddings", to
+offer every studio as ready-to-go templates they can copy and adjust
+(`features/questionnaires/recommended-templates.ts`). Questionnaires → "Ready-to-use
+wedding forms" → Make a copy: an ordinary template (`recommendedId` on it), edited
+like any other. Nothing is written into a studio's library until they copy.
+
+- **Event details form** — with new inquiries. Locations, times and guest count
+  allow "TBD" (`allowTbd`): an answer, printed "To be confirmed" in Schedule A
+  and still listed as missing; never copied forward into a later form.
+- **Final schedule** — the planning form. The same questions in the same words,
+  so the event details fill it in (job-facts matches by question), then family
+  names and the day in order. Gabe's rules are each step's note (`help`) and,
+  where a rule names a time, a suggestion (`suggestedFrom: {fieldId, minutes}`):
+  filled when the form is sent, and offered as "Suggested: 1:30 PM — use it" to
+  a couple who clears one. Every step's wording says "time", so Schedule A and
+  the lock sort it.
+
+Fixed on the way: a form was due before it was sent when its due-days ran past
+the wedding (`questionnaire-due.ts`: never sooner than a week, never after the
+day); and after the lock date a couple couldn't fill in a form they hadn't sent
+back yet — the lock now applies only to answers already returned.
