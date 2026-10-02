@@ -20,12 +20,11 @@ import { errorCodeHasCopy } from "@/lib/ai/friendly-error";
  * says about it. Each of these has a failure that would reach a couple.
  */
 
-test("the rollout switch is the same on both sides, and off until counsel has read the wording", () => {
+test("the rollout switch is the same on both sides, and on for every studio", () => {
   assert.equal(featureFlag, functionsFlag);
-  assert.equal(featureFlag, false);
-  assert.equal(nativeSigningOn(null), false);
-  assert.equal(nativeSigningOn({ nativeContractSigning: "yes" }), false);
-  assert.equal(nativeSigningOn({ nativeContractSigning: true }), true);
+  assert.equal(featureFlag, true);
+  assert.equal(nativeSigningOn(null), true);
+  assert.equal(nativeSigningOn({ nativeContractSigning: false }), true);
 });
 
 const reminder = (overrides: Partial<Parameters<typeof contractReminderDue>[0]> = {}) =>

@@ -10,14 +10,17 @@ Why the signature counts as booking evidence: `docs/adr/0006-studiocue-signing-i
 
 ## Switching it on
 
-Held per studio until counsel has reviewed the consent and certificate wording.
+**On for every studio since 2026-10-02** (Conor's decision). The counsel
+review of the consent and certificate wording (`docs/esign-consent-review.md`)
+is still owed; any wording change it brings is a new consent version.
 
-- A platform admin sets `tenantFeatures/{tenantId}` to
+- Per studio (only matters if the switch above is off): a platform admin sets `tenantFeatures/{tenantId}` to
   `{ tenantId, nativeContractSigning: true }` (members may read it; only the
   server writes it — `firestore.rules`).
-- To switch it on for everyone, set `NATIVE_SIGNING_GENERALLY_AVAILABLE` to
-  `true` in **both** `features/contracts/rollout.ts` and
-  `functions/src/contracts/commands.ts` (a test compares them).
+- `NATIVE_SIGNING_GENERALLY_AVAILABLE` is `true` in **both**
+  `features/contracts/rollout.ts` and `functions/src/contracts/commands.ts`
+  (a test compares them). Setting both back to `false` returns to the
+  per-studio switch below.
 - A studio with it on but no saved agreement sees "Set up your agreement" on
   Today; the booking step keeps the old paths until an agreement exists.
 

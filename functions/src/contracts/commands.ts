@@ -49,8 +49,8 @@ import {
  * in the portal route (ADR 0006).
  */
 
-/** Held off until counsel has reviewed the consent wording. See docs/contracts.md. */
-export const NATIVE_SIGNING_GENERALLY_AVAILABLE = false;
+/** On for every studio since 2026-10-02 (Conor's decision). See docs/contracts.md. */
+export const NATIVE_SIGNING_GENERALLY_AVAILABLE = true;
 
 /**
  * Must match STUDIO_SIGNING_STATEMENT in features/contracts/esign-consent.ts;

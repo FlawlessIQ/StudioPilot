@@ -8,7 +8,7 @@ import {
   COMBINED_SECTION_TITLES,
 } from "@/features/contracts/combined";
 import type { ContractDocument } from "@/features/contracts/document";
-import { combinedAgreementOn } from "@/features/contracts/rollout";
+import { NATIVE_SIGNING_GENERALLY_AVAILABLE, combinedAgreementOn } from "@/features/contracts/rollout";
 import { contractDocumentHash } from "@/server/contracts/document-hash";
 
 /**
@@ -88,8 +88,10 @@ test("each part has its own hash, and a change to the price changes Part 2's and
 });
 
 test("it is off unless the studio has native signing and the flag", () => {
+  // Native signing is on for every studio (features/contracts/rollout.ts), so
+  // the combined agreement now turns on its own per-studio flag alone.
   assert.equal(combinedAgreementOn(null), false);
-  assert.equal(combinedAgreementOn({ combinedAgreement: true }), false, "needs native signing");
+  assert.equal(combinedAgreementOn({ combinedAgreement: true }), NATIVE_SIGNING_GENERALLY_AVAILABLE, "needs native signing");
   assert.equal(combinedAgreementOn({ nativeContractSigning: true }), false);
   assert.equal(combinedAgreementOn({ nativeContractSigning: true, combinedAgreement: true }), true);
   const commands = readFileSync("functions/src/contracts/combined-commands.ts", "utf8");
