@@ -228,6 +228,7 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   instantiateWorkflow: "runs at booking", recalculateReadiness: "readiness triggers",
   decideAutomationApproval: "automation approvals on Today", cancelReceipt: "action receipts on Today", retryReceipt: "action receipts on Today",
   retryEmailJob: "failed-email cards on Today", dismissEmailProblem: "failed-email cards on Today",
+  refreshQuestionnairePrefill: "runs as a couple opens their form",
   // Not offered: StudioCue has no signing provider (features/integrations/schema.ts offeredProviders).
   createEnvelope: "no signing provider is offered",
 };

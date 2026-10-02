@@ -51,7 +51,7 @@ import { studioNotificationAddress } from "../communications/notify-address.js";
 import { questionnaireDueDate } from "./questionnaire-due.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
 import { queuePartnerSends } from "../client/partner-invitations.js";
-import { verifiedPrefill } from "./questionnaire-prefill.js";
+import { jobPrefill, refreshResponsePrefill } from "./job-prefill.js";
 import {
   INQUIRY_FORM_EVENT_TYPES,
   INQUIRY_FORM_SETTINGS_PATH,
@@ -130,6 +130,16 @@ const questionnaireField = z.object({
     .nullable(),
 });
 const command = z.discriminatedUnion("type", [
+  z.object({
+    /**
+     * Fill a sent form's blanks from what the job knows now, as the couple
+     * (or studio) opens it (planning/job-prefill.ts). Never a touched field.
+     */
+    type: z.literal("refreshQuestionnairePrefill"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ responseId: z.string(), projectId: z.string() }),
+  }),
   z.object({
     type: z.literal("saveQuestionnaire"),
     tenantId: z.string(),
@@ -599,7 +609,20 @@ export const planningCommand = onRequest(
       }
       const now = new Date().toISOString();
       let result: Record<string, unknown>;
-      if (parsed.type === "saveQuestionnaire") {
+      if (parsed.type === "refreshQuestionnairePrefill") {
+        if (role !== "client" && !internalRoles.has(role)) throw new Error("FORBIDDEN");
+        result = {
+          filled: await refreshResponsePrefill(db, {
+            tenantId: parsed.tenantId,
+            responseId: parsed.input.responseId,
+            projectId: parsed.input.projectId,
+            // Opening a form never spends the studio's AI allowance; a map
+            // made when it was sent is used if there is one.
+            allowAi: false,
+            actorId: identity.uid,
+          }),
+        };
+      } else if (parsed.type === "saveQuestionnaire") {
         const reference = db.doc(
           `questionnaireResponses/${parsed.input.responseId}`,
         );
@@ -1004,6 +1027,14 @@ export const planningCommand = onRequest(
         );
         if (existing) {
           assertResendable(existing.status);
+          // Sent again: what the job has learned since fills the blanks first.
+          const refilled = await refreshResponsePrefill(db, {
+            tenantId: parsed.tenantId,
+            responseId: existing.id,
+            projectId: parsed.input.projectId,
+            allowAi: true,
+            actorId: identity.uid,
+          }).catch(() => 0);
           const jobId = stable("questionnaire_resend", parsed.tenantId, parsed.idempotencyKey);
           // A couple without portal access gets an invitation in the email,
           // not a sign-in page (questionnaire-link.ts).
@@ -1043,7 +1074,7 @@ export const planningCommand = onRequest(
             responseId: existing.id,
             status: String(existing.status),
             resent: true,
-            prefilledFieldCount: 0,
+            prefilledFieldCount: refilled,
             invited: Boolean(link.invitationWrite),
           };
         } else {
@@ -1060,11 +1091,17 @@ export const planningCommand = onRequest(
           parsed.idempotencyKey,
         );
         const sections = template.get("sections");
-        const prefill = verifiedPrefill(
-          parsed.input.projectId,
-          project,
+        // Everything the job already knows that the form asks (job-facts.ts).
+        const prefill = await jobPrefill(db, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          project: project.data() ?? null,
+          templateId: parsed.input.templateId,
+          templateVersion: template.get("version"),
           sections,
-        );
+          allowAi: true,
+          actorId: identity.uid,
+        });
         const fieldValues = Array.isArray(sections)
           ? sections.flatMap((section) => {
               const fields = plainRecord(section).fields;

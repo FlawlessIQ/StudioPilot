@@ -35,7 +35,7 @@ import {
   questionnaireAnalysisJob,
   questionnaireAnalysisJobId,
 } from "../intake/inquiry-form.js";
-import { verifiedPrefill } from "../planning/questionnaire-prefill.js";
+import { jobPrefill } from "../planning/job-prefill.js";
 import { isReturned, statusAfterSave, submittedAtAfterSave } from "../planning/questionnaire-lifecycle.js";
 
 const inquiryToken = z.string().min(32).max(200);
@@ -862,17 +862,30 @@ const plain = (value: unknown): Record<string, unknown> =>
     : {};
 
 /**
- * What the form starts from: the job's facts (verifiedPrefill, shared with the
- * studio's "Send the form"), over what the couple told this page a moment ago
- * — their partner's name, their guest count (inquiryDetailsPrefill).
+ * What the form starts from: the job's facts (planning/job-facts.ts, shared
+ * with the studio's "Send the form"), over what the couple told this page a
+ * moment ago — their partner's name, their guest count (inquiryDetailsPrefill).
+ * A public page: it uses the form's AI map if the studio has one, and never
+ * spends on making one.
  */
-function startingAnswers(
+async function startingAnswers(
   project: FirebaseFirestore.DocumentSnapshot,
   lead: FirebaseFirestore.DocumentSnapshot,
   templateSections: unknown,
+  template?: FirebaseFirestore.DocumentSnapshot,
 ) {
   const fromInquiry = inquiryDetailsPrefill(lead, templateSections);
-  const fromJob = verifiedPrefill(project.id, project, templateSections);
+  const fromJob = await jobPrefill(getFirestore(), {
+    tenantId: String(project.get("tenantId") ?? lead.get("tenantId") ?? ""),
+    projectId: project.id,
+    project: project.data() ?? null,
+    leadId: lead.id,
+    lead: lead.data() ?? null,
+    templateId: template?.id ?? null,
+    templateVersion: template?.get("version"),
+    sections: templateSections,
+    allowAi: false,
+  });
   return {
     answers: { ...fromInquiry.answers, ...fromJob.answers },
     answerProvenance: { ...fromInquiry.answerProvenance, ...fromJob.answerProvenance },
@@ -933,13 +946,22 @@ async function handleInquiryForm(
   const name = text(form.response?.get("templateName")) || text(template.get("name")) || "Event form";
 
   if (command.type === "inquiry_form") {
-    const answers = form.response
-      ? plain(form.response.get("answers"))
-      : startingAnswers(project, context.lead, templateSections).answers;
+    const starting = form.response ? null : await startingAnswers(project, context.lead, templateSections, template);
+    const answers = form.response ? plain(form.response.get("answers")) : starting!.answers;
+    const visibleAnswers = coupleVisibleAnswers(sections, answers);
+    // Where each prefilled answer came from, for "Filled in from your booking".
+    const provenance = form.response ? plain(form.response.get("answerProvenance")) : starting!.answerProvenance;
     return {
       name,
       sections,
-      answers: coupleVisibleAnswers(sections, answers),
+      answers: visibleAnswers,
+      sources: Object.fromEntries(
+        Object.keys(visibleAnswers).flatMap((fieldId) => {
+          const entry = plain(provenance[fieldId]);
+          const source = ["project_fact", "inquiry_fact", "earlier_answer"].includes(text(entry.sourceType)) ? text(entry.label) : "";
+          return source ? [[fieldId, source]] : [];
+        }),
+      ),
       status: form.status,
       submittedAt: form.response?.get("submittedAt") ?? null,
     };
@@ -960,7 +982,7 @@ async function handleInquiryForm(
     ) {
       throw new Error("INQUIRY_FORM_NOT_AVAILABLE");
     }
-    const prefill = startingAnswers(project, context.lead, templateSections);
+    const prefill = await startingAnswers(project, context.lead, templateSections, template);
     const priorStatus = snapshot.exists ? text(snapshot.get("status")) || "not_started" : "not_started";
     // Theirs to change until they send it; after that the studio has it.
     if (isReturned(priorStatus)) throw new Error("QUESTIONNAIRE_ALREADY_SUBMITTED");

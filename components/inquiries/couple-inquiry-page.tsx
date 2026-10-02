@@ -160,6 +160,8 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   // autosave that never takes the keyboard away (as the portal's does).
   const [form, setForm] = useState<EventForm | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  /** Where a prefilled answer came from: "your booking", "your inquiry". Dropped once they change it. */
+  const [sources, setSources] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -250,6 +252,15 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             ? (result.answers as Record<string, unknown>)
             : {},
         );
+        setSources(
+          typeof result.sources === "object" && result.sources !== null
+            ? Object.fromEntries(
+                Object.entries(result.sources as Record<string, unknown>).filter(
+                  (entry): entry is [string, string] => typeof entry[1] === "string",
+                ),
+              )
+            : {},
+        );
         setDirty(false);
       })
       .catch((caught: unknown) => {
@@ -336,6 +347,12 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     if (formSent) return;
     changeVersion.current += 1;
     setAnswers((current) => ({ ...current, [fieldId]: value }));
+    setSources((current) => {
+      if (!(fieldId in current)) return current;
+      const next = { ...current };
+      delete next[fieldId];
+      return next;
+    });
     setDirty(true);
   }
 
@@ -598,7 +615,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                           field={field}
                           onChange={(value) => answer(field.id, value)}
                           onFile={() => undefined}
-                          source=""
+                          source={sources[field.id] ?? ""}
                           uploading={false}
                         />
                         {missing ? (

@@ -17,7 +17,7 @@ import {
   questionnaireAnalysisJobId,
   resolveInquiryFormTemplate,
 } from "../functions/src/intake/inquiry-form.ts";
-import { verifiedPrefill } from "../functions/src/planning/questionnaire-prefill.ts";
+import { jobFactSheet, prefillFromFacts } from "../functions/src/planning/job-facts.ts";
 import { currentInquiryFormTemplate } from "@/features/questionnaires/inquiry-form-setting";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { buildClientMilestones, buildClientPortalExperience } from "@/server/client/portal-experience";
@@ -191,8 +191,17 @@ test("the time step waits for the form only while the couple still owes it", () 
 });
 
 test("the form starts from what the job knows (shared with Send the form)", () => {
-  const project = { get: (field: string) => ({ eventDate: "2027-06-12", venueName: "The Barn" })[field as "eventDate"] };
-  const prefill = verifiedPrefill("p1", project, templateSections);
+  const sheet = jobFactSheet({
+    projectId: "p1",
+    project: { eventDate: "2027-06-12", venueName: "The Barn" },
+    leadId: null,
+    lead: null,
+    contacts: [],
+    vendors: [],
+    schedule: null,
+    responses: [],
+  });
+  const prefill = prefillFromFacts({ sheet, sections: templateSections });
   assert.deepEqual(prefill.answers, { date: "2027-06-12", venue: "The Barn" });
   assert.equal((prefill.answerProvenance.date as { sourceType: string }).sourceType, "project_fact");
 });
@@ -223,7 +232,8 @@ test("the form doesn't ask again what the couple told the date step a moment ago
   // The page starts from both, the job's facts winning.
   const source = read("functions/src/booking/public-scheduling.ts");
   assert.match(source, /answers: \{ \.\.\.fromInquiry\.answers, \.\.\.fromJob\.answers \}/);
-  assert.equal((source.match(/startingAnswers\(project, context\.lead, templateSections\)/g) ?? []).length, 2, "load and first save");
+  // The form goes with it, so its AI map (if the studio made one) is used.
+  assert.equal((source.match(/startingAnswers\(project, context\.lead, templateSections, template\)/g) ?? []).length, 2, "load and first save");
 });
 
 /* ── Where the inquiry stands: inquiryFormState over a small double ───── */

@@ -189,7 +189,15 @@ function QuestionnaireForm({
     if (!dataIsLive) return;
     let active = true;
     const { firestore } = getFirebaseClient();
-    void getDoc(doc(firestore, "questionnaireResponses", response.id))
+    // Anything the job has learned since the form was sent fills its blanks
+    // first (functions/src/planning/job-prefill.ts). Never holds the form up:
+    // a slow or failed refresh opens it as it stands.
+    const refreshed = Promise.race([
+      sendPlanningCommand("refreshQuestionnairePrefill", { responseId: response.id, projectId }).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
+    void refreshed
+      .then(() => getDoc(doc(firestore, "questionnaireResponses", response.id)))
       .then((snapshot) => {
         if (!active || !snapshot.exists()) return;
         setSections(parseQuestionnaireSections(record(snapshot.get("templateSnapshot")).sections));
@@ -204,7 +212,7 @@ function QuestionnaireForm({
     return () => {
       active = false;
     };
-  }, [response.id]);
+  }, [projectId, response.id]);
 
   const visible = useMemo(() => visibleQuestionnaireSections(sections, answers), [sections, answers]);
   const requiredFields = visible.flatMap((section) => section.fields.filter((field) => field.required));

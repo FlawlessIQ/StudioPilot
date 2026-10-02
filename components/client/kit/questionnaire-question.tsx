@@ -133,12 +133,15 @@ export function Question({
 
   if (["dropdown", "radio"].includes(field.type) && field.options.length)
     return (
-      <Choices
-        legend={label}
-        onChange={(next) => onChange(next)}
-        options={field.options.map((option) => ({ value: option, label: option }))}
-        value={value || null}
-      />
+      <div className="kit-stack-tight">
+        <Choices
+          legend={label}
+          onChange={(next) => onChange(next)}
+          options={field.options.map((option) => ({ value: option, label: option }))}
+          value={value || null}
+        />
+        {hint && value ? <span className="kit-hint">{hint}</span> : null}
+      </div>
     );
 
   if (["checkbox", "acknowledgement"].includes(field.type))
