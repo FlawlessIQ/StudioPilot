@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, CircleAlert, Clock, LoaderCircle } from "lucide-react";
 import {
   refreshTenantRecords,
-  useTenantDocuments,
 } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
@@ -21,6 +20,7 @@ import {
   type CheckpointResolution,
 } from "@/features/readiness/checkpoint-resolution";
 import { checkpointSatisfiedByEvidence } from "@/features/readiness/checkpoint-evidence";
+import { useProjectCheckpoints } from "@/components/projects/use-project-checkpoints";
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import { ActionHint, InfoHint } from "@/components/ui/info-hint";
 import { formatDueDate } from "@/lib/format/event-date";
@@ -44,7 +44,9 @@ const text = (value: unknown): string =>
  * be actioned. See features/readiness/checkpoint-resolution.ts.
  */
 export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
-  const { records: checkpoints } = useTenantDocuments("checkpoints");
+  // The job's own checkpoints, not the capped tenant-wide cache
+  // (use-project-checkpoints.ts).
+  const checkpoints = useProjectCheckpoints(projectId);
   /**
    * The same evidence the score is computed from.
    *

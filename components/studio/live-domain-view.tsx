@@ -57,6 +57,7 @@ import { isCataloguePackage } from "@/features/packages/one-off";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
+import { useProjectCheckpoints } from "@/components/projects/use-project-checkpoints";
 import {
   describeEventProximity,
   eventDateHasPassed,
@@ -1204,7 +1205,8 @@ export function StudioDomainPage({
  */
 export function ProjectContextBar({ projectId }: { projectId: string }) {
   const { records, loading } = useTenantDocuments("projects");
-  const { records: checkpoints } = useTenantDocuments("checkpoints");
+  // The job's own checkpoints, not the capped tenant-wide cache.
+  const checkpoints = useProjectCheckpoints(projectId);
   const project = records?.find((entry) => entry.id === projectId);
   const name = loading
     ? "Loading project…"
