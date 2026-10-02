@@ -73,7 +73,7 @@ record("1 not yet, and not when an address is on file", c === null && d === null
 
 // --- 2. the email, through the real sender ----------------------------------------
 await processJobDocument("emailJobs", aEmails[0]!.id);
-const sentA = (await db.collection("messages").where("tenantId", "==", T).where("projectId", "==", A).get()).docs.map((doc) => doc.data());
+const sentA = (await db.collection("messages").where("tenantId", "==", T).where("projectId", "==", A).get()).docs.map((doc: { data(): Record<string, unknown> }) => doc.data());
 const body = String(sentA[0]?.body ?? sentA[0]?.bodyText ?? sentA[0]?.text ?? "");
 record("2 the couple's email has the link", sentA.length === 1 && /billing-address=1/.test(JSON.stringify(sentA[0])), `"${sentA[0]?.subject}" → ${sentA[0]?.to ?? sentA[0]?.recipient}; ${body.slice(0, 90).replace(/\s+/g, " ")}…`);
 
