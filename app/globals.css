@@ -2995,8 +2995,12 @@ textarea:focus-visible {
 
 .marketing-footer > div {
   display: flex;
-  gap: 20px;
+  /* Eleven links in one unbroken row stretched every marketing page to
+     738px on a 375px phone (2026-10-02). They wrap, here and on phones. */
+  flex-wrap: wrap;
+  gap: 8px 20px;
   justify-self: end;
+  min-width: 0;
 }
 
 /* Studio application */
@@ -5184,7 +5188,7 @@ textarea:focus-visible {
   .marketing-footer {
     align-items: flex-start;
     gap: 18px;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .marketing-footer > div {
