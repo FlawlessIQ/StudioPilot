@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { JOB_KIND_LABELS, JOB_KINDS } from "@/features/job-kinds/job-kinds";
 import Link from "next/link";
 import {
   CircleAlert,
@@ -49,7 +50,8 @@ export type ExistingBookingFormValues = {
   partnerFirstName: string;
   partnerLastName: string;
   partnerEmail: string;
-  eventType: "Wedding" | "Corporate" | "Sports";
+  /** One of JOB_KIND_LABELS; the server reads the kind from it (job-kinds.ts). */
+  eventType: string;
   eventDate: string;
   venueName: string;
   city: string;
@@ -424,10 +426,12 @@ export function ExistingBookingForm({
         <legend>The event</legend>
         <label>
           Type
-          <select onChange={(e) => set("eventType", e.target.value as ExistingBookingFormValues["eventType"])} value={values.eventType}>
-            <option>Wedding</option>
-            <option>Corporate</option>
-            <option>Sports</option>
+          <select onChange={(e) => set("eventType", e.target.value)} value={values.eventType}>
+            {JOB_KINDS.map((kind) => (
+              <option key={kind} value={JOB_KIND_LABELS[kind]}>
+                {JOB_KIND_LABELS[kind]}
+              </option>
+            ))}
           </select>
         </label>
         <label>

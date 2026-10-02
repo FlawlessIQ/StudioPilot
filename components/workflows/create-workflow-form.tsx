@@ -14,11 +14,13 @@ import {
 } from "@/features/workflows/publication";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
+import { JOB_KIND_LABELS, JOB_KINDS, jobKindOf } from "@/features/job-kinds/job-kinds";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(160),
   description: z.string().trim().min(10).max(3000),
-  eventType: z.enum(["Wedding", "Corporate", "Sports"]),
+  // A kind of job (job-kinds.ts): workflows run on jobs of their kind.
+  eventType: z.enum(JOB_KINDS),
   status: z.enum(["draft", "active"]),
 });
 type FormValues = z.infer<typeof formSchema>;
@@ -150,7 +152,7 @@ const automationChoices = [
         value: "schedule_confirmation_30_days",
       },
     ],
-    eventTypes: ["Wedding"],
+    eventTypes: ["wedding"],
     actions: [
       {
         key: "send-schedule-confirmation",
@@ -176,7 +178,7 @@ const automationChoices = [
         value: "event_preparation_1_day",
       },
     ],
-    eventTypes: ["Wedding"],
+    eventTypes: ["wedding"],
     actions: [
       {
         key: "send-event-preparation",
@@ -224,7 +226,7 @@ export function CreateWorkflowForm({
     defaultValues: {
       name: "Wedding Photography",
       description: "A complete client lifecycle from booking through event readiness.",
-      eventType: "Wedding",
+      eventType: "wedding",
       // Publishing is the point. A draft template is inert, and defaulting
       // to it meant the ordinary path through this form produced nothing.
       status: "active",
@@ -243,10 +245,10 @@ export function CreateWorkflowForm({
     setAdopted(reviseTemplateId);
     setValue("name", String(source.name ?? ""));
     setValue("description", String(source.description ?? ""));
-    const label = String(source.eventTypeLabel ?? "");
-    if (["Wedding", "Corporate", "Sports"].includes(label)) {
-      setValue("eventType", label as FormValues["eventType"]);
-    }
+    setValue(
+      "eventType",
+      jobKindOf({ eventTypeId: source.eventTypeId, eventType: source.eventTypeLabel }),
+    );
     const keys = new Set(
       (Array.isArray(source.checkpointTemplates)
         ? source.checkpointTemplates
@@ -294,7 +296,9 @@ export function CreateWorkflowForm({
       ).length
     : 0;
 
-  const eventType = watch("eventType");
+  const eventKind = watch("eventType");
+  // Read as words: "new family & portraits jobs", "every wedding".
+  const eventType = JOB_KIND_LABELS[eventKind];
   const status = watch("status");
   /**
    * Editing a workflow is republishing one under the same name.
@@ -307,7 +311,7 @@ export function CreateWorkflowForm({
    */
   const effect = publishEffect({
     name: watch("name"),
-    eventTypeId: watch("eventType").toLowerCase(),
+    eventTypeId: eventKind,
     status: watch("status"),
     existing: (templates.records ?? []).map((template) => ({
       id: String(template.id ?? ""),
@@ -320,7 +324,7 @@ export function CreateWorkflowForm({
   const availableAutomations = automationChoices.filter(
     (automation) =>
       !("eventTypes" in automation) ||
-      (automation.eventTypes as readonly string[]).includes(eventType),
+      (automation.eventTypes as readonly string[]).includes(eventKind),
   );
 
   const submit = handleSubmit(async (values) => {
@@ -333,8 +337,8 @@ export function CreateWorkflowForm({
       const command = await runWorkflowCommand("createWorkflowTemplate", {
         name: values.name,
         description: values.description,
-        eventTypeId: values.eventType.toLowerCase(),
-        eventTypeLabel: values.eventType,
+        eventTypeId: values.eventType,
+        eventTypeLabel: JOB_KIND_LABELS[values.eventType],
         status: values.status,
         checkpointTemplates: checkpointChoices
           .filter((checkpoint) => selected.includes(checkpoint.key))
@@ -384,7 +388,7 @@ export function CreateWorkflowForm({
           command.result.workflowTemplateId ?? command.result.reference,
         ),
         active: values.status === "active",
-        eventType: values.eventType,
+        eventType: JOB_KIND_LABELS[values.eventType],
       });
     } catch (caught: unknown) {
       setError(friendlyError(caught, "Workflow could not be created."));
@@ -430,7 +434,16 @@ export function CreateWorkflowForm({
       <div className="form-grid">
         <label className="form-span">Template name<input {...register("name")} /><small>{errors.name?.message}</small></label>
         <label className="form-span">Description<textarea {...register("description")} rows={3} /><small>{errors.description?.message}</small></label>
-        <label>Event type<select {...register("eventType")}><option>Wedding</option><option>Corporate</option><option>Sports</option></select></label>
+        <label>
+          Kind of job
+          <select {...register("eventType")}>
+            {JOB_KINDS.map((kind) => (
+              <option key={kind} value={kind}>
+                {JOB_KIND_LABELS[kind]}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Availability
           <select {...register("status")}>

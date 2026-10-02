@@ -185,6 +185,41 @@ const SPORTS: readonly StarterSection[] = [
   ]),
 ];
 
+/**
+ * A family or portrait session (docs/job-types-plan-2026-10-02.md): short,
+ * because it is filled in two weeks out for an hour's shoot. The adult is the
+ * client; children's names only where the family types them, and never a
+ * birthdate (docs/product-spec.md, safety and privacy).
+ */
+const PORTRAITS: readonly StarterSection[] = [
+  section("session", "Your session", [
+    ["location", "Where would you like the session?", "address", true],
+    ["start-time", "Preferred start time", "time", false],
+    ["who", "Who's in the photos?", "long_text", true],
+  ]),
+  section("style", "The photos you want", [
+    ["must-have", "Shots you'd love us to get", "long_text", false],
+    ["outfits", "What you're planning to wear", "long_text", false],
+    ["notes", "Anything we should know — a shy toddler, a pet joining in", "long_text", false],
+    ["no-photo-list", "Anyone who shouldn't appear in the photos", "long_text", false],
+  ]),
+];
+
+/** Any other dated event: who, where, when, and what matters. */
+const OTHER: readonly StarterSection[] = [
+  section("contacts", "Contacts", [
+    ["primary-contact", "Primary contact", "contact", true],
+    ["day-contact", "Who meets us on the day?", "contact", false],
+  ]),
+  section("event", "The event", [
+    ["venue-address", "Venue address", "address", true],
+    ["arrival-time", "When should we arrive?", "time", true],
+    ["schedule", "Running order, if you have one", "long_text", false],
+    ["shot-priorities", "The shots that matter most", "long_text", true],
+    ["no-photo-list", "Anyone who must not appear", "long_text", false],
+  ]),
+];
+
 export function starterQuestionnaires(): StarterQuestionnaire[] {
   return [
     {
@@ -209,6 +244,21 @@ export function starterQuestionnaires(): StarterQuestionnaire[] {
       dueDaysBeforeEvent: 21,
       reminderDaysBeforeDue: [7, 2],
       sections: [...SPORTS],
+    },
+    {
+      name: "Session Details",
+      eventTypeId: "portraits",
+      // Sent two weeks out (journeyProfile), back a week before.
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [3, 1],
+      sections: [...PORTRAITS],
+    },
+    {
+      name: "Event Details",
+      eventTypeId: "other",
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [7, 2],
+      sections: [...OTHER],
     },
   ];
 }

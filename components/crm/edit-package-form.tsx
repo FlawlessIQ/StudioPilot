@@ -7,6 +7,14 @@ import {
 import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { useState } from "react";
+import {
+  isPaymentShape,
+  jobKindOf,
+  journeyProfile,
+  PAYMENT_SHAPE_LABELS,
+  PAYMENT_SHAPES,
+  type PaymentShape,
+} from "@/features/job-kinds/job-kinds";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, LoaderCircle } from "lucide-react";
@@ -54,6 +62,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     addOnIds?: string[];
     description?: string;
     terms?: string;
+    paymentShape?: PaymentShape;
   }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +87,14 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     ? (rule.billedRoles as string[])
     : null;
 
+  // How jobs on this package are paid (job-kinds.ts): stored, else the
+  // usual way for the package's kind of job.
+  const paymentShape: PaymentShape =
+    edits.paymentShape ??
+    (isPaymentShape(record?.paymentShape)
+      ? record.paymentShape
+      : journeyProfile(jobKindOf({ eventTypeId: record?.eventTypeId, eventType: record?.eventTypeLabel })).payment);
+  const hasDeposit = paymentShape === "deposit_and_balance";
   const name = edits.name ?? String(record?.name ?? "");
   const description = edits.description ?? String(record?.description ?? "");
   const terms = edits.terms ?? String(record?.terms ?? "");
@@ -173,8 +190,13 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         packageId,
         name: name.trim(),
         basePriceCents: priceCents,
+        paymentShape,
         retainerRule:
-          mode === "percentage"
+          paymentShape === "paid_in_full"
+            ? { type: "percentage", basisPoints: 10000 }
+            : !hasDeposit
+              ? { type: "fixed", amountCents: 0 }
+              : mode === "percentage"
             ? { type: "percentage", basisPoints: Math.round(amountValue * 100) }
             : mode === "fixed"
               ? { type: "fixed", amountCents: Math.round(amountValue * 100) }
@@ -264,6 +286,30 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           />
         </label>
         <label>
+          How it&rsquo;s paid
+          <select
+            onChange={(event) => set("paymentShape", event.target.value as PaymentShape)}
+            value={paymentShape}
+          >
+            {PAYMENT_SHAPES.map((shape) => (
+              <option key={shape} value={shape}>
+                {PAYMENT_SHAPE_LABELS[shape]}
+              </option>
+            ))}
+          </select>
+          <small>
+            {paymentShape === "paid_in_full"
+              ? `Clients pay ${formatCents(priceCents)} to book.`
+              : paymentShape === "on_the_day"
+                ? "Nothing to book; the invoice is due on the day."
+                : paymentShape === "invoice_after"
+                  ? "Nothing to book; invoiced after the event."
+                  : "A deposit to book, the balance before the day."}
+          </small>
+        </label>
+        {hasDeposit ? (
+        <>
+        <label>
           Retainer type
           <select
             onChange={(event) => set("mode", event.target.value as RetainerMode)}
@@ -312,6 +358,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
               <span>Charge this per videographer</span>
             </label>
           </>
+        ) : null}
+        </>
         ) : null}
         <label>
           Photographers

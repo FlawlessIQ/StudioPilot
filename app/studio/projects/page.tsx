@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus, Upload } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { JOB_KIND_LABELS, JOB_KINDS } from "@/features/job-kinds/job-kinds";
 import { LiveProjectRows } from "@/components/live/tenant-records";
 
 export const metadata: Metadata = { title: "Jobs" };
@@ -31,7 +32,7 @@ export default async function ProjectsPage({
                 width — a select plus an "Apply" button was a third search
                 pattern beside Inquiries' and Clients' (UI audit, 2026-10-02). */}
             <Link className="crm-toolbar-new" href="/studio/projects/new"><Plus size={15} /> New</Link>
-            <nav aria-label="Project type" className="crm-type-chips">{[["all", "All"], ["wedding", "Wedding"], ["corporate", "Corporate"], ["sports", "Sports"]].map(([value, label]) => <Link aria-current={type === value ? "page" : undefined} className={type === value ? "active" : ""} href={`?view=${view}&type=${value}`} key={value}>{label}</Link>)}</nav>
+            <nav aria-label="Project type" className="crm-type-chips">{[["all", "All"], ...JOB_KINDS.map((kind) => [kind, JOB_KIND_LABELS[kind]])].map(([value, label]) => <Link aria-current={type === value ? "page" : undefined} className={type === value ? "active" : ""} href={`?view=${view}&type=${value}`} key={value}>{label}</Link>)}</nav>
           </div>
           <div className="crm-table crm-projects-table">
             <div className="crm-table-head"><span>Job</span><span>Date & venue</span><span>State</span><span>Value</span><span>Next action</span><span /></div>

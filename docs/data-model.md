@@ -35,15 +35,19 @@ server-side batch.
 AI fields begin empty. Later AI enrichment may summarize or suggest questions, but
 cannot create prices or confirm availability.
 
-### `eventTypeTemplates`
+### Kinds of job (no collection)
 
-Tenant-scoped project-type defaults. The initial seed includes Wedding, Corporate,
-and Sports. Records reference default workflow and questionnaire templates without
-embedding mutable workflow definitions.
+`eventTypeTemplates` was retired on 2026-10-02: it was seeded and nothing read it.
+A job's kind now lives on the job — see `projects` below and
+`features/job-kinds/job-kinds.ts`. The studio's own job types (its labels, each
+pointing at one kind) are the inquiry form's types on `leadCaptureSettings`.
 
 ### `projects`
 
-The operational aggregate root. It stores event identity, current deterministic
+The operational aggregate root. It stores event identity (`eventKind` — wedding,
+portraits, corporate, sports or other, which decides the job's words, steps and
+timings; `eventTypeKey`, the studio's own type id; `eventTypeId`, the key
+templates are matched on; and `eventType`, the label), current deterministic
 state, `stateVersion` for optimistic concurrency, contact links, optional lead and
 package-snapshot links, readiness projection, and next action.
 

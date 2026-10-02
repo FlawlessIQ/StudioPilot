@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { JOB_KIND_LABELS, JOB_KINDS } from "@/features/job-kinds/job-kinds";
 import { Check, Clock3, LoaderCircle, Plus, ShieldCheck, Sparkles } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -277,14 +278,16 @@ export function TimingRuleEditor() {
             />
           </label>
           <label>
-            Event type
+            Kind of job
             <select
               defaultValue={String(editing?.eventTypeId ?? "wedding")}
               name="eventTypeId"
             >
-              <option value="wedding">Wedding</option>
-              <option value="corporate">Corporate</option>
-              <option value="sports">Sports</option>
+              {JOB_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {JOB_KIND_LABELS[kind]}
+                </option>
+              ))}
             </select>
           </label>
           <label>

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { jobKindFromLabel } from "../job-kinds/job-kinds.js";
 import {
   FieldValue,
   getFirestore,
@@ -152,7 +153,9 @@ const intakeExtractionSchema = z.object({
   partnerName: z.string().max(120).nullable(),
   email: z.string().max(160).nullable(),
   phone: z.string().max(40).nullable(),
-  eventType: z.enum(["Wedding", "Corporate", "Sports"]).nullable(),
+  // One label per kind of job (job-kinds.ts); the form maps it to the
+  // studio's own type of that kind.
+  eventType: z.enum(["Wedding", "Family", "Corporate", "Sports", "Other"]).nullable(),
   eventDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -1862,10 +1865,18 @@ async function buildCommandProposalActions(
       const was = current[field];
       // Nothing to approve when the record already says this.
       if (String(was ?? "") === value) continue;
+      // A new type is a new kind of work when its name says which
+      // (job-kinds.ts): "Corporate" on a wedding job moves its words and
+      // steps, not only its label.
+      const kindFromValue = field === "eventType" ? jobKindFromLabel(value) : null;
       command = {
         domain: "crm",
         op: "updateProject",
-        input: { ...current, [field]: value, projectId: proposal.projectId },
+        input: {
+          ...current, [field]: value,
+          ...(kindFromValue ? { eventKind: kindFromValue, eventTypeKey: null } : {}),
+          projectId: proposal.projectId,
+        },
       };
       const fieldLabel: Record<string, string> = {
         name: "name",
@@ -2012,7 +2023,7 @@ async function generateIntake(
           systemInstruction: {
             parts: [
               {
-                text: "Extract booking-intake fields from a prospective photography client's message. Use null for anything not explicitly stated — never guess or invent names, dates, places, or contact details. eventDate must be YYYY-MM-DD. eventType is Wedding, Corporate, or Sports only when the message clearly implies it. summary is one neutral sentence describing what the client asked for, written from the studio's point of view. Return JSON only.",
+                text: "Extract booking-intake fields from a prospective photography client's message. Use null for anything not explicitly stated — never guess or invent names, dates, places, or contact details. eventDate must be YYYY-MM-DD. eventType is Wedding, Family (family, newborn, maternity, senior or portrait sessions), Corporate (company events, conferences, headshots), Sports, or Other (any other dated event) only when the message clearly implies it. summary is one neutral sentence describing what the client asked for, written from the studio's point of view. Return JSON only.",
               },
             ],
           },
@@ -2031,7 +2042,7 @@ async function generateIntake(
                 eventType: {
                   type: "STRING",
                   nullable: true,
-                  enum: ["Wedding", "Corporate", "Sports"],
+                  enum: ["Wedding", "Family", "Corporate", "Sports", "Other"],
                 },
                 eventDate: { type: "STRING", nullable: true },
                 venueName: { type: "STRING", nullable: true },

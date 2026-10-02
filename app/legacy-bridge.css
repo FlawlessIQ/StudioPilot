@@ -2675,3 +2675,40 @@
 .ds-root .hub-page:has(> .pending-import-notice) .library-import-cta {
   display: none;
 }
+
+/* ---- Settings → Job types (docs/job-types-plan-2026-10-02.md) ---- */
+.ds-root .job-types-settings {
+  display: grid;
+  gap: 20px;
+}
+.ds-root .job-kinds-guide h2 {
+  margin: 4px 0 6px;
+}
+.ds-root .job-kinds-guide > p:not(.eyebrow) {
+  color: var(--ds-ink-soft, #565d68);
+  margin: 0 0 14px;
+  max-width: 62ch;
+}
+.ds-root .job-kinds-guide ul {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ds-root .job-kinds-guide li {
+  border-top: 1px solid var(--ds-line, #e8eaf0);
+  display: grid;
+  gap: 2px 18px;
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
+  padding: 11px 0;
+}
+.ds-root .job-kinds-guide li span {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .ds-root .job-kinds-guide li {
+    grid-template-columns: 1fr;
+  }
+}

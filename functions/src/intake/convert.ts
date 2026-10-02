@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { plausiblePersonName } from "./form-email.js";
 import { moveLeadThreadsToProject } from "./lead-thread.js";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 
 /**
  * An inquiry becomes a job the moment it is one.
@@ -170,6 +171,16 @@ export async function convertInquiryToJob(
         name: `${displayName} ${eventTypeLabel}`.trim().slice(0, 160),
         eventTypeId: text(lead.get("eventTypeId")) || eventTypeLabel.toLowerCase(),
         eventType: eventTypeLabel,
+        // The kind decides the job's words, steps and timings
+        // (job-kinds.ts); the studio's own type id decides its label. Both
+        // were dropped here, so every job forgot what kind of work it was
+        // (docs/job-types-plan-2026-10-02.md, B1).
+        eventKind: jobKindOf({
+          eventKind: lead.get("eventKind"),
+          eventTypeId: lead.get("eventTypeId"),
+          eventTypeLabel,
+        }),
+        eventTypeKey: text(lead.get("eventTypeKey")) || null,
         eventDate,
         timezone: text(tenant.get("timezone")) || "America/New_York",
         clientContactIds: [contactId],

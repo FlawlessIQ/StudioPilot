@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { JOB_KIND_LABELS } from "@/features/job-kinds/job-kinds";
 import { doc, getDoc } from "firebase/firestore";
 import { ArrowDown, ArrowUp, ExternalLink, FileText, Plus, X } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -43,12 +44,10 @@ import { dataIsLive } from "@/lib/runtime-mode";
  * loses focus.
  */
 
+// The product's names for the kinds of job (job-kinds.ts), plus the
+// inquiry-only general question.
 const KIND_LABEL: Record<InquiryEventKind, string> = {
-  wedding: "Wedding",
-  portraits: "Portraits",
-  sports: "Sports",
-  corporate: "Corporate event",
-  other: "Other event",
+  ...JOB_KIND_LABELS,
   general: "General question — skips “your day”",
 };
 
@@ -79,7 +78,16 @@ function moved<T>(rows: readonly T[], from: number, to: number): T[] {
   return next;
 }
 
-export function InquiryFormEditor() {
+export function InquiryFormEditor({
+  typesOnly = false,
+}: {
+  /**
+   * Settings → Job types: only the list of types, each one kind of work.
+   * The same list the inquiry form offers — one source of truth for "what
+   * kinds of job does this studio take".
+   */
+  typesOnly?: boolean;
+} = {}) {
   const workspace = useWorkspace();
   const ownerOrAdmin = ["studio_owner", "studio_admin"].includes(String(workspace.role));
   const [saved, setSaved] = useState<InquiryFormConfig>(() => defaultInquiryFormConfig());
@@ -189,11 +197,12 @@ export function InquiryFormEditor() {
           <FileText aria-hidden="true" />
         </span>
         <div>
-          <p className="eyebrow">Your inquiry form</p>
-          <h2 id="inquiry-form-editor-title">What your form asks</h2>
+          <p className="eyebrow">{typesOnly ? "Job types" : "Your inquiry form"}</p>
+          <h2 id="inquiry-form-editor-title">{typesOnly ? "The work you take" : "What your form asks"}</h2>
           <p>
-            It&rsquo;s your website&rsquo;s contact form. Choose the kinds of inquiry you take, what each one is
-            asked, and how it looks.
+            {typesOnly
+              ? "Your own names — Mini sessions, Cheer, Headshots — each one kind of work. Clients pick one on your inquiry form, and you pick one when you start a job."
+              : "It’s your website’s contact form. Choose the kinds of inquiry you take, what each one is asked, and how it looks."}
           </p>
         </div>
       </div>
@@ -342,6 +351,8 @@ export function InquiryFormEditor() {
             ) : null}
           </fieldset>
 
+          {typesOnly ? null : (
+          <>
           <fieldset className="inquiry-form-editor-group">
             <legend>On the last page</legend>
             <label className="inquiry-form-editor-check">
@@ -551,6 +562,8 @@ export function InquiryFormEditor() {
               </small>
             </div>
           </fieldset>
+          </>
+          )}
 
           {problems.length ? (
             <ul className="inquiry-form-editor-problems" role="alert">
@@ -561,7 +574,7 @@ export function InquiryFormEditor() {
           ) : null}
           <div className="inquiry-form-editor-footer">
             <button className="button button-dark" disabled={busy || !dirty} onClick={() => void save()} type="button">
-              {busy ? "Saving…" : "Save your form"}
+              {busy ? "Saving…" : typesOnly ? "Save your job types" : "Save your form"}
             </button>
             {dirty ? (
               <button

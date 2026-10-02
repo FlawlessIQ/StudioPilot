@@ -7,6 +7,8 @@ import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import type { EventDateLock } from "@/features/projects/event-date-lock";
+import { jobTypeFor, useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
+import { JOB_KIND_LABELS, jobKindOf } from "@/features/job-kinds/job-kinds";
 
 /**
  * Correcting a job.
@@ -41,6 +43,9 @@ export function ProjectEdit({
     name: string;
     eventDate: string;
     eventType: string;
+    eventKind?: string | null;
+    eventTypeKey?: string | null;
+    eventTypeId?: string | null;
     venueName: string | null;
     city: string | null;
     timezone: string;
@@ -48,6 +53,13 @@ export function ProjectEdit({
   };
 }) {
   const [open, setOpen] = useState(false);
+  // The type is one of the studio's own, so changing it changes the kind of
+  // work — words, steps and timings — not only the label (job-types plan, B3).
+  const jobTypes = useStudioJobTypes();
+  const currentType = jobTypeFor(jobTypes, project);
+  const currentKind = jobKindOf(project);
+  const [typeKey, setTypeKey] = useState<string | null>(null);
+  const chosenType = jobTypes.find((type) => type.key === (typeKey ?? currentType?.key)) ?? currentType;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +80,8 @@ export function ProjectEdit({
         projectId: project.id,
         name: text("name"),
         eventDate: nextDate,
-        eventType: text("eventType"),
+        eventType: chosenType?.label ?? project.eventType,
+        ...(chosenType ? { eventKind: chosenType.kind, eventTypeKey: chosenType.key } : {}),
         venueName: text("venueName") || null,
         city: text("city") || null,
         timezone: text("timezone") || project.timezone,
@@ -156,13 +169,24 @@ export function ProjectEdit({
               ) : null}
             </label>
             <label>
-              Event type
-              <input
-                defaultValue={project.eventType}
-                maxLength={80}
-                name="eventType"
-                required
-              />
+              Type of job
+              <select
+                name="eventTypeKey"
+                onChange={(event) => setTypeKey(event.target.value)}
+                value={chosenType?.key ?? ""}
+              >
+                {!currentType ? <option value="">{project.eventType}</option> : null}
+                {jobTypes.map((type) => (
+                  <option key={type.key} value={type.key}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              {chosenType && chosenType.kind !== currentKind ? (
+                <small>
+                  {`This makes it ${JOB_KIND_LABELS[chosenType.kind].toLowerCase()} work: its wording and steps change from here on. Anything already sent to the client stays as it was.`}
+                </small>
+              ) : null}
             </label>
             <label>
               Venue

@@ -1512,6 +1512,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                   eventDate:
                     typeof project.eventDate === "string" ? project.eventDate : "",
                   eventType: String(project.eventType ?? ""),
+                  eventKind: typeof project.eventKind === "string" ? project.eventKind : null,
+                  eventTypeKey: typeof project.eventTypeKey === "string" ? project.eventTypeKey : null,
+                  eventTypeId: typeof project.eventTypeId === "string" ? project.eventTypeId : null,
                   venueName:
                     typeof project.venueName === "string" ? project.venueName : null,
                   city: typeof project.city === "string" ? project.city : null,

@@ -32,6 +32,9 @@ const collections = [
   "contacts",
   "leads",
   "projects",
+  // Retired 2026-10-02 (nothing read it; a job's kind replaced it — see
+  // features/job-kinds/job-kinds.ts). Kept here so a studio's old documents
+  // are still exported and erased with the rest of its data.
   "eventTypeTemplates",
   "packages",
   "packageSnapshots",

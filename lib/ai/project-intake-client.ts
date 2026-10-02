@@ -10,7 +10,7 @@ export type ProjectIntake = {
   partnerName: string | null;
   email: string | null;
   phone: string | null;
-  eventType: "Wedding" | "Corporate" | "Sports" | null;
+  eventType: "Wedding" | "Family" | "Corporate" | "Sports" | "Other" | null;
   eventDate: string | null;
   venueName: string | null;
   city: string | null;

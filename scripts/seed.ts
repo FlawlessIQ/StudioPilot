@@ -358,28 +358,6 @@ batch.set(firestore.doc("packages/signature-wedding"), {
   archivedAt: null,
 });
 
-for (const eventType of [
-  { id: "wedding", name: "Wedding Photography", category: "wedding" },
-  { id: "corporate", name: "Corporate Photography", category: "corporate" },
-  { id: "sports", name: "Sports Photography", category: "sports" },
-] as const) {
-  batch.set(firestore.doc(`eventTypeTemplates/${eventType.id}`), {
-    ...audit,
-    id: eventType.id,
-    tenantId,
-    name: eventType.name,
-    slug: eventType.id,
-    category: eventType.category,
-    description: `${eventType.name} lifecycle and project defaults.`,
-    active: true,
-    requiresGuardian: eventType.category === "sports",
-    displayOrder: eventType.category === "wedding" ? 1 : eventType.category === "corporate" ? 2 : 3,
-    defaultWorkflowTemplateId: `${eventType.category}-v1`,
-    defaultQuestionnaireTemplateId:
-      eventType.category === "wedding" ? "wedding-questionnaire-v1" : null,
-    archivedAt: null,
-  });
-}
 
 batch.set(firestore.doc("leads/lead-lena-chris"), {
   ...audit,

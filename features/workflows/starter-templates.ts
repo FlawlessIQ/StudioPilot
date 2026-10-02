@@ -68,9 +68,12 @@ const CORPORATE_KEYS = [
   "locations-confirmed",
 ];
 
-/** Sports drops the client questionnaire — the organiser sets the terms. */
+/**
+ * Sports drops the client questionnaire — the organiser sets the terms — and
+ * the agreement: GR Productions books sports days without one (2026-10-02,
+ * docs/job-types-plan-2026-10-02.md).
+ */
 const SPORTS_KEYS = [
-  "contract-completed",
   "primary-contacts",
   "schedule-approved",
   "crew-accepted",
@@ -185,6 +188,13 @@ export function starterTemplates(): StarterTemplate[] {
         ),
       }));
 
+  // A family or portrait session: no agreement, paid in full to book, and
+  // the details form goes two weeks out, so it is due a week before.
+  const portraits = [
+    checkpointFrom(["questionnaire-complete", "Session details complete", "Planning", "client", -7, "form_submitted"]),
+    checkpointFrom(["locations-confirmed", "Location confirmed", "Logistics", "studio", -3, "manual"]),
+  ];
+
   return [
     {
       name: "Wedding Photography",
@@ -208,6 +218,23 @@ export function starterTemplates(): StarterTemplate[] {
       eventTypeId: "sports",
       eventTypeLabel: "Sports",
       checkpointTemplates: subset(SPORTS_KEYS),
+    },
+    // Every kind of job gets a workflow: "Family & portraits" and "Other
+    // event" had none, so readiness never engaged on them
+    // (no_active_template; job-types plan, B4).
+    {
+      name: "Family & Portrait Sessions",
+      description: "A light path for sessions: the details form, then the location.",
+      eventTypeId: "portraits",
+      eventTypeLabel: "Family & portraits",
+      checkpointTemplates: portraits,
+    },
+    {
+      name: "Other Events",
+      description: "The general shape for any other dated event.",
+      eventTypeId: "other",
+      eventTypeLabel: "Other event",
+      checkpointTemplates: subset(CORPORATE_KEYS),
     },
   ];
 }

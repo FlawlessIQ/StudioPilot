@@ -12,7 +12,9 @@ test("a new studio gets one published workflow per event type", () => {
   // correct shape — two for one type would compete.
   const starters = starterTemplates();
   const types = starters.map((template) => template.eventTypeId);
-  assert.deepEqual(types.sort(), ["corporate", "sports", "wedding"]);
+  // Every kind of job (job-kinds.ts) — a family session or an "other" event
+  // with no workflow never engaged readiness (job-types plan, B4).
+  assert.deepEqual(types.sort(), ["corporate", "other", "portraits", "sports", "wedding"]);
   assert.equal(new Set(types).size, types.length);
 });
 

@@ -15,6 +15,13 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { PackageAddOnPicker } from "@/components/crm/package-add-on-picker";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { InfoHint } from "@/components/ui/info-hint";
+import {
+  JOB_KIND_LABELS,
+  JOB_KINDS,
+  journeyProfile,
+  PAYMENT_SHAPE_LABELS,
+  PAYMENT_SHAPES,
+} from "@/features/job-kinds/job-kinds";
 
 const schema = z
   .object({
@@ -36,7 +43,9 @@ const schema = z
       .trim()
       .min(10, "A sentence or two on what this package includes.")
       .max(3000, "Keep the description under 3,000 characters."),
-    eventType: z.enum(["Wedding", "Corporate", "Sports"]),
+    // A kind of job (job-kinds.ts): packages are offered to jobs of their kind.
+    eventType: z.enum(JOB_KINDS),
+    paymentShape: z.enum(PAYMENT_SHAPES),
     basePrice: z.coerce
       .number()
       .positive("Set a price above zero."),
@@ -126,23 +135,32 @@ export function CreatePackageForm({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [addOnIds, setAddOnIds] = useState<string[]>([]);
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", eventType: "Wedding", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
+    defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
   const retainerMode = watch("retainerMode");
+  const paymentShape = watch("paymentShape");
+  // Only a deposit has a retainer to set: paid in full takes the whole price
+  // to book, and "on the day" or "invoiced after" take nothing up front.
+  const hasDeposit = paymentShape === "deposit_and_balance";
   const submit = handleSubmit(async (values) => {
     setError(null);
     try {
       const command = await runCrmCommand("createPackage", {
         name: values.name,
         description: values.description,
-        eventTypeId: values.eventType.toLowerCase(),
-        eventTypeLabel: values.eventType,
+        eventTypeId: values.eventType,
+        eventTypeLabel: JOB_KIND_LABELS[values.eventType],
+        paymentShape: values.paymentShape,
         basePriceCents: Math.round(values.basePrice * 100),
         currency: "USD",
         retainerRule:
-          values.retainerMode === "percentage"
+          values.paymentShape === "paid_in_full"
+            ? { type: "percentage" as const, basisPoints: 10000 }
+            : values.paymentShape !== "deposit_and_balance"
+              ? { type: "fixed" as const, amountCents: 0 }
+              : values.retainerMode === "percentage"
             ? { type: "percentage" as const, basisPoints: Math.round(values.retainerAmount * 100) }
             : values.retainerMode === "fixed"
               ? { type: "fixed" as const, amountCents: Math.round(values.retainerAmount * 100) }
@@ -213,19 +231,39 @@ export function CreatePackageForm({
           <small>{errors.description?.message}</small>
         </label>
         <label>
-          Event type <span className="required-mark">Required</span>
-          <select {...register("eventType")}>
-            <option>Wedding</option>
-            <option>Corporate</option>
-            <option>Sports</option>
+          Kind of job <span className="required-mark">Required</span>
+          <select
+            {...register("eventType", {
+              // Each kind has its usual way of being paid; the studio can change it.
+              onChange: (event) =>
+                setValue("paymentShape", journeyProfile(event.target.value).payment),
+            })}
+          >
+            {JOB_KINDS.map((kind) => (
+              <option key={kind} value={kind}>
+                {JOB_KIND_LABELS[kind]}
+              </option>
+            ))}
           </select>
           <small>{errors.eventType?.message}</small>
+        </label>
+        <label>
+          How it&rsquo;s paid <span className="required-mark">Required</span>
+          <select {...register("paymentShape")}>
+            {PAYMENT_SHAPES.map((shape) => (
+              <option key={shape} value={shape}>
+                {PAYMENT_SHAPE_LABELS[shape]}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Base price (USD) <span className="required-mark">Required</span>
           <input {...register("basePrice")} min="0.01" step="0.01" type="number" />
           <small>{errors.basePrice?.message}</small>
         </label>
+        {hasDeposit ? (
+        <>
         <label>
           Retainer type <span className="required-mark">Required</span>
           <select {...register("retainerMode")}>
@@ -263,6 +301,8 @@ export function CreatePackageForm({
               <span>Charge this per videographer</span>
             </label>
           </>
+        ) : null}
+        </>
         ) : null}
         <label>
           Coverage hours <span className="required-mark">Required</span>

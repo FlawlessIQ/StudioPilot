@@ -2,6 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { applyMessageToConversation } from "../communications/conversation.js";
 import { convertInquiryToJob } from "./convert.js";
+import { normaliseInquiryFormConfig, resolveInquiryEventType } from "./inquiry-form-config.js";
+import { jobKindFromLabel, jobKindOf } from "../job-kinds/job-kinds.js";
 import { queueNewInquiryAlert } from "./new-inquiry-alert.js";
 import {
   BUILDER_LABEL,
@@ -59,6 +61,7 @@ const ACTIVE_STATES = ["CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER
 const ATTACH_STATES = ["LEAD", ...ACTIVE_STATES];
 
 type Settings = {
+  inquiryForm?: unknown;
   forms?: Record<string, { fieldMapping?: Record<string, LeadFieldKey | "ignore"> }>;
   inquirySenders?: string[];
   notInquirySenders?: string[];
@@ -328,6 +331,7 @@ export async function captureInquiry(input: {
     providerMessageId: input.providerMessageId,
     captureId,
     route: input.route,
+    inquiryForm: settings.inquiryForm,
     now,
   });
   await attachMessage(db, {
@@ -381,6 +385,8 @@ async function writeLead(
     providerMessageId: string;
     captureId: string;
     route: CaptureRoute;
+    /** The studio's inquiry form, for its own type names. */
+    inquiryForm: unknown;
     now: string;
   },
 ): Promise<string> {
@@ -427,6 +433,25 @@ async function writeLead(
   const source = read.builder === "unknown" ? "forwarded_email" : marketplace ? `marketplace_${read.builder}` : "website_form";
   const actor = "inquiry-capture";
   const tenantData = tenant.data() as { defaultLeadAssigneeId?: string; defaultEventTypeId?: string } | undefined;
+  /**
+   * What kind of work the email is about.
+   *
+   * Every captured inquiry was filed as a wedding (`eventTypeId: "wedding"`)
+   * even when the form said "Corporate" (docs/job-types-plan-2026-10-02.md,
+   * B2). The label is matched to the studio's own types first — its "Cheer"
+   * is sports — then read for a kind; a label nobody recognises is "other",
+   * never a wedding. No label at all keeps the studio's default.
+   */
+  const studioType = fields.eventTypeLabel
+    ? resolveInquiryEventType(normaliseInquiryFormConfig(input.inquiryForm), {
+        eventType: fields.eventTypeLabel,
+      }).type
+    : null;
+  const capturedKind = studioType
+    ? jobKindOf({ eventKind: studioType.kind })
+    : fields.eventTypeLabel
+      ? (jobKindFromLabel(fields.eventTypeLabel) ?? "other")
+      : jobKindOf({ eventTypeId: tenantData?.defaultEventTypeId ?? "wedding" });
   const batch = db.batch();
   if (contactId && !existingContact) {
     batch.create(db.doc(`contacts/${contactId}`), {
@@ -460,8 +485,11 @@ async function writeLead(
     status: "new",
     // An inquiry the reader wasn't sure about waits for the studio to say so.
     needsConfirmation: read.verdict !== "inquiry",
-    eventTypeId: tenantData?.defaultEventTypeId ?? "wedding",
-    eventTypeLabel: fields.eventTypeLabel ?? "Wedding",
+    eventTypeId:
+      capturedKind === "wedding" ? (tenantData?.defaultEventTypeId ?? "wedding") : capturedKind,
+    eventTypeLabel: studioType?.label ?? fields.eventTypeLabel ?? "Wedding",
+    eventKind: capturedKind,
+    eventTypeKey: studioType?.id ?? null,
     eventDate: fields.eventDate,
     venue: fields.venue,
     coiRequired: fields.coiRequired ?? null,

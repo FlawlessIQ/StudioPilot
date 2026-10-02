@@ -50,6 +50,7 @@ import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { preBookingStates } from "@/features/inquiries/stages";
 import { describeProviderFailure } from "@/features/today/provider-failure";
+import { jobKindOf } from "@/features/job-kinds/job-kinds";
 import { jobValueCents } from "@/features/packages/job-packages";
 import {
   ClientPortalInvite,
@@ -881,8 +882,7 @@ export function LiveProjectRows({
               String(item.state ?? "") !== "LOST"),
         )
         .filter(
-          (item) =>
-            type === "all" || String(item.eventType).toLowerCase() === type,
+          (item) => type === "all" || jobKindOf(item) === type,
         )
         // Nearest wedding first — never document order. See job-order.ts.
         .sort((left, right) => compareJobsForList(left, right))
@@ -1628,6 +1628,14 @@ function ConvertInquiryButton({ lead }: { lead: TenantDocument }) {
         name: `${displayName || "Client"} ${eventTypeLabel}`.trim(),
         eventTypeId: String(lead.eventTypeId ?? eventTypeLabel.toLowerCase()),
         eventType: eventTypeLabel,
+        // The kind the inquiry form recorded; the server reads the label
+        // when there is none (job-kinds.ts).
+        eventKind: jobKindOf({
+          eventKind: lead.eventKind,
+          eventTypeId: lead.eventTypeId,
+          eventTypeLabel,
+        }),
+        eventTypeKey: typeof lead.eventTypeKey === "string" ? lead.eventTypeKey : null,
         eventDate,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         clientContactIds: [contactId],

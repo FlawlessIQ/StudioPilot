@@ -1,4 +1,5 @@
 import type { ExistingBooking } from "./existing-booking";
+import { JOB_KIND_LABELS, JOB_KINDS, jobKindFromLabel } from "@/features/job-kinds/job-kinds";
 
 /**
  * Turning a studio's exported spreadsheet into bookings to review.
@@ -241,11 +242,9 @@ function splitCouple(raw: string): Array<{ first: string; last: string }> {
   return [first, second];
 }
 
-const eventTypes: Record<string, { id: string; label: string }> = {
-  wedding: { id: "wedding", label: "Wedding" },
-  corporate: { id: "corporate", label: "Corporate" },
-  sports: { id: "sports", label: "Sports" },
-};
+const eventTypes: Record<string, { id: string; label: string }> = Object.fromEntries(
+  JOB_KINDS.map((kind) => [kind, { id: kind, label: JOB_KIND_LABELS[kind] }]),
+);
 
 export type SpreadsheetRowResult =
   | { row: number; booking: ExistingBooking; notes: string[] }
@@ -326,12 +325,12 @@ export function bookingFromSpreadsheetRow(input: {
 
   if (problems.length) return { row: input.row, problems };
 
-  const type =
-    eventTypes[get("eventType").toLowerCase()] ??
-    Object.values(eventTypes).find((candidate) =>
-      get("eventType").toLowerCase().includes(candidate.id),
-    ) ??
-    eventTypes.wedding!;
+  // The sheet's own word for it ("Family session", "Cheer") read as a kind
+  // (job-kinds.ts); an unrecognised word is an "other" event, not a wedding.
+  const type = get("eventType")
+    ? eventTypes[jobKindFromLabel(get("eventType")) ?? get("eventType").toLowerCase()] ??
+      eventTypes.other!
+    : eventTypes.wedding!;
   if (!get("eventType")) notes.push("No event type in the sheet, so it's a wedding.");
 
   const payments =

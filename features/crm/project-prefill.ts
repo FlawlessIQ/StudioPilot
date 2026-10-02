@@ -10,7 +10,7 @@
 
 export type ProjectPrefill = {
   eventDate: string | null; // YYYY-MM-DD
-  eventType: "Wedding" | "Corporate" | "Sports" | null;
+  eventType: "Wedding" | "Family" | "Corporate" | "Sports" | "Other" | null;
   email: string | null;
   phone: string | null;
   venueName: string | null;
@@ -79,8 +79,10 @@ function extractEventType(text: string): ProjectPrefill["eventType"] {
     return "Wedding";
   if (/\bcorporate|conference|summit|company event|gala\b/.test(lowered))
     return "Corporate";
-  if (/\bsports?|tournament|match day|game day\b/.test(lowered))
+  if (/\bsports?|tournament|match day|game day|cheer\b/.test(lowered))
     return "Sports";
+  if (/\bfamily (photos|session|shoot)|newborn|maternity|senior (photos|portraits)|portrait session|headshots?\b/.test(lowered))
+    return /headshot/.test(lowered) ? "Corporate" : "Family";
   return null;
 }
 

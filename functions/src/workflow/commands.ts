@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 import type {
   DocumentData,
   Firestore,
@@ -858,7 +859,10 @@ export const workflowCommand = onRequest(
           ) {
             throw new Error("WORKFLOW_TEMPLATE_NOT_FOUND");
           }
-          if (template.eventTypeId !== project.eventTypeId) {
+          if (
+            template.eventTypeId !== project.eventTypeId &&
+            template.eventTypeId !== jobKindOf(project as Record<string, unknown>)
+          ) {
             throw new Error("EVENT_TYPE_MISMATCH");
           }
           const activeRun = activeRuns.docs[0];
@@ -1808,8 +1812,16 @@ export async function autoInstantiateWorkflow(input: {
       existing: true,
     };
   }
-  const templateSnapshot = templates.docs
-    .filter((candidate) => candidate.get("eventTypeId") === project.eventTypeId)
+  // The job's own type first, then its kind: a job filed under a studio's
+  // custom id, or one written before jobs carried a kind, still finds the
+  // workflow for its kind of work (job-kinds.ts).
+  const kind = jobKindOf(project as Record<string, unknown>);
+  const byType = templates.docs.filter(
+    (candidate) => candidate.get("eventTypeId") === project.eventTypeId,
+  );
+  const templateSnapshot = (byType.length
+    ? byType
+    : templates.docs.filter((candidate) => candidate.get("eventTypeId") === kind))
     .sort(
       (left, right) =>
         Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),

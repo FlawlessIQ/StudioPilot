@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   CalendarClock,
+  Shapes,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -28,6 +29,7 @@ import {
 
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
 import { PlanningTimelineSettings } from "@/components/planning/planning-timeline-settings";
+import { JobTypesSettings } from "@/components/job-kinds/job-types-settings";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
 import { ConsultationAvailability } from "@/components/settings/consultation-availability";
@@ -75,6 +77,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   identity: StudioIdentitySettings,
   branding: EmailBranding,
   availability: ConsultationAvailability,
+  jobTypes: JobTypesSettings,
   templates: EmailTemplateDesigner,
   firstReply: FirstReplySettings,
   drafts: LifecyclePackPanel,
@@ -102,6 +105,7 @@ const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
       { kind: "section", key: "identity", icon: Store },
       { kind: "section", key: "branding", icon: Palette },
       { kind: "section", key: "availability", icon: CalendarClock },
+      { kind: "section", key: "jobTypes", icon: Shapes },
     ],
   },
   {

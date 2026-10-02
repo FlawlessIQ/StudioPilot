@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { JOB_KIND_LABELS, JOB_KINDS } from "@/features/job-kinds/job-kinds";
 import { ArrowDown, ArrowUp, LoaderCircle, PencilLine, Plus, Trash2 } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -289,9 +290,11 @@ export function QuestionnaireTemplateEditor({
           <label>
             For
             <select onChange={(event) => setEventTypeId(event.target.value)} value={eventTypeId}>
-              <option value="wedding">Weddings</option>
-              <option value="corporate">Corporate</option>
-              <option value="sports">Sports</option>
+              {JOB_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {JOB_KIND_LABELS[kind]}
+                </option>
+              ))}
             </select>
           </label>
         ) : null}

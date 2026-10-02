@@ -23,6 +23,8 @@ import {
   type ProjectIntakeResult,
 } from "@/lib/ai/project-intake-client";
 import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
+import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
+import { jobKindFromLabel, vocab } from "@/features/job-kinds/job-kinds";
 import { AddressField } from "@/components/forms/address-field";
 import {
   placeCity,
@@ -34,7 +36,8 @@ import {
 const schema = z
   .object({
     name: z.string().trim().min(2).max(160),
-    eventType: z.enum(["Wedding", "Corporate", "Sports"]),
+    // The studio's job type, by key (use-studio-job-types.ts).
+    eventType: z.string().trim().min(1, "Choose the kind of job."),
     eventDate: z.string().date(),
     timezone: z.string().min(1),
     clientMode: z.enum(["existing", "new"]),
@@ -167,6 +170,10 @@ export function CreateProjectForm({
     {},
   );
   const [venue, setVenue] = useState<CapturedPlace | null>(null);
+  // The studio's own types — "Cheer", "Mini sessions" — each one kind of
+  // work; the hard-coded Wedding / Corporate / Sports list left family
+  // sessions with nowhere to go (job-types plan, B6).
+  const jobTypes = useStudioJobTypes();
   const {
     register,
     handleSubmit,
@@ -177,7 +184,7 @@ export function CreateProjectForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "",
-      eventType: "Wedding",
+      eventType: "",
       eventDate: "",
       timezone: browserTimezone(),
       clientMode: "existing",
@@ -229,7 +236,12 @@ export function CreateProjectForm({
         nextFilled[field] = true;
       };
       set("eventDate", found.eventDate);
-      set("eventType", found.eventType);
+      // The read names a kind of work; the studio's first type of that kind.
+      const foundKind = found.eventType
+        ? (jobKindFromLabel(found.eventType) ?? "other")
+        : null;
+      const foundType = foundKind ? jobTypes.find((type) => type.kind === foundKind) : null;
+      set("eventType", foundType?.key ?? null);
       set("venueName", found.venueName);
       set("city", found.city);
       // The copilot read a venue out of the client's email, so show it in
@@ -246,7 +258,7 @@ export function CreateProjectForm({
         const projectName = `${found.firstName}${
           found.partnerName ? ` & ${found.partnerName}` : ""
         }${found.lastName ? ` ${found.lastName}` : ""} ${
-          (found.eventType ?? "Wedding").toLowerCase()
+          foundKind ? vocab(foundKind).event : "job"
         }`;
         set("name", projectName);
       }
@@ -307,8 +319,12 @@ export function CreateProjectForm({
       const command = await runCrmCommand("createProject", {
         name: values.name,
         warning,
-        eventType: values.eventType,
-        eventTypeId: values.eventType.toLowerCase(),
+        // Label, kind and the studio's type id, together (job-kinds.ts).
+        eventType:
+          jobTypes.find((type) => type.key === values.eventType)?.label ?? values.eventType,
+        eventKind: jobTypes.find((type) => type.key === values.eventType)?.kind ?? "other",
+        eventTypeKey: values.eventType,
+        eventTypeId: jobTypes.find((type) => type.key === values.eventType)?.kind ?? "other",
         eventDate: values.eventDate,
         timezone: values.timezone,
         clientContactIds: [contactId],
@@ -445,12 +461,15 @@ export function CreateProjectForm({
               <small>{errors.name?.message}</small>
             </label>
             <label className={filled.eventType ? "is-filled" : ""}>
-              Event type <span className="required-mark">Required</span>
+              Type of job <span className="required-mark">Required</span>
               {filled.eventType ? <FilledTag /> : null}
               <select {...fieldProps("eventType")} required>
-                <option>Wedding</option>
-                <option>Corporate</option>
-                <option>Sports</option>
+                <option value="">Choose…</option>
+                {jobTypes.map((type) => (
+                  <option key={type.key} value={type.key}>
+                    {type.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className={filled.eventDate ? "is-filled" : ""}>

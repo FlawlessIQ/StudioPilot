@@ -223,14 +223,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /eventTypeTemplates/{templateId} {
-      allow read: if isStudioOperator(resource.data.tenantId);
-      allow create: if hasRole(request.resource.data.tenantId, ["studio_owner", "studio_admin"]);
-      allow update: if hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
-        && tenantUnchanged();
-      allow delete: if false;
-    }
-
     match /packages/{packageId} {
       allow read: if canManageProjects(resource.data.tenantId);
       allow create: if false;

@@ -24,6 +24,7 @@ import { actionsPerWedding } from "@/features/reporting/actions-per-wedding";
 import { workflowScorecard } from "@/features/operations/workflow-scorecard";
 import { formatCents } from "@/lib/format/money";
 import { analyseFunnel, jobFunnelStages } from "@/features/operations/funnel";
+import { JOB_KIND_LABELS, JOB_KINDS, jobKindOf } from "@/features/job-kinds/job-kinds";
 import { bookedStates } from "@/features/inquiries/stages";
 import { inquiryInsights, replyTimeLabel } from "@/features/reporting/inquiry-insights";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -58,8 +59,7 @@ export function LiveReports() {
         return (
           (!dateFrom || date >= dateFrom) &&
           (!dateTo || date <= dateTo) &&
-          (projectType === "all" ||
-            String(project.eventType).toLowerCase() === projectType)
+          (projectType === "all" || jobKindOf(project) === projectType)
         );
       }),
     [dateFrom, dateTo, projectType, projectsState.records],
@@ -109,11 +109,11 @@ export function LiveReports() {
   // Weddings the studio has won. Every inquiry is a job from the moment it
   // arrives, so counting all jobs counted every couple who ever asked.
   const bookedProjects = projects.filter((project) => bookedStates.has(String(project.state)));
-  // Case-folded: "Wedding" and "wedding" were two bars of one kind of work.
+  // By kind of work (job-kinds.ts): "Wedding" and "wedding" were two bars,
+  // and a studio's "Cheer" and "Sports" are one.
   const projectTypes = Object.entries(
     bookedProjects.reduce<Record<string, number>>((counts, project) => {
-      const raw = String(project.eventType ?? "").trim() || "Other";
-      const key = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+      const key = JOB_KIND_LABELS[jobKindOf(project)];
       counts[key] = (counts[key] ?? 0) + 1;
       return counts;
     }, {}),
@@ -290,12 +290,14 @@ export function LiveReports() {
           <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
         </label>
         <label>
-          Project type
+          Kind of job
           <select value={projectType} onChange={(event) => setProjectType(event.target.value)}>
-            <option value="all">All types</option>
-            <option value="wedding">Wedding</option>
-            <option value="corporate">Corporate</option>
-            <option value="sports">Sports</option>
+            <option value="all">All kinds</option>
+            {JOB_KINDS.map((kind) => (
+              <option key={kind} value={kind}>
+                {JOB_KIND_LABELS[kind]}
+              </option>
+            ))}
           </select>
         </label>
       </div>

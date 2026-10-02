@@ -83,7 +83,7 @@ Advantages:
 
 The strategy requires every repository query to include `tenantId`. Repositories accept the tenant as a required argument and reject a returned record whose tenant does not match. Indexes start with `tenantId` for tenant-scoped access patterns.
 
-Major collections include users, tenants, memberships, tenantInvitations, contacts, leads, projects, eventTypeTemplates, packages, packageSnapshots, proposals, contracts, invoiceReferences, questionnaireTemplates, questionnaireResponses, workflowTemplates, workflowRuns, checkpoints, tasks, schedules, scheduleItems, vendors, insuranceRequirements, insuranceRequests, crewProfiles, crewAssignments, documents, messages, messageTemplates, integrationConnections, webhookEvents, automationRuns, auditEvents, subscriptions, featureFlags, notifications, reviewRequests, and deliveryRecords.
+Major collections include users, tenants, memberships, tenantInvitations, contacts, leads, projects, packages, packageSnapshots, proposals, contracts, invoiceReferences, questionnaireTemplates, questionnaireResponses, workflowTemplates, workflowRuns, checkpoints, tasks, schedules, scheduleItems, vendors, insuranceRequirements, insuranceRequests, crewProfiles, crewAssignments, documents, messages, messageTemplates, integrationConnections, webhookEvents, automationRuns, auditEvents, subscriptions, featureFlags, notifications, reviewRequests, and deliveryRecords.
 
 The implemented Core CRM model and access patterns are documented in
 [`docs/data-model.md`](./data-model.md). Public lead intake and authenticated CRM

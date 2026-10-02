@@ -10,6 +10,8 @@ import { z } from "zod";
 import { promoteContactTypesToClient } from "../contacts/promotion.js";
 import { quickBooksPaymentHistory } from "../operations/provider-runtime.js";
 import { autoInstantiateWorkflow } from "../workflow/commands.js";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { templateKeyForKind } from "../job-kinds/template-key.js";
 import {
   assessExistingBooking,
   bookingImportKey,
@@ -338,8 +340,13 @@ export async function importExistingBooking(input: {
     source: input.source,
     batchId: input.batchId,
   });
+  // The kind of work, read from the type the studio picked (job-kinds.ts).
+  const eventKind = jobKindOf(records.project);
   batch.create(db.doc(`projects/${projectId}`), {
     ...records.project,
+    eventKind,
+    eventTypeId: templateKeyForKind(eventKind, String(records.project.eventTypeId ?? "")),
+    eventTypeKey: null,
     importKey: bookingImportKey(input.booking),
   });
   batch.create(

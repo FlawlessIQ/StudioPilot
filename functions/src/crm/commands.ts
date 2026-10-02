@@ -119,6 +119,8 @@ import {
   type CoverageItem,
   type CoverageRole,
 } from "../packages/coverage.js";
+import { isPaymentShape, JOB_KINDS, jobKindOf, PAYMENT_SHAPES } from "../job-kinds/job-kinds.js";
+import { templateKeyForKind } from "../job-kinds/template-key.js";
 
 /**
  * Coverage as sent by the browser, from either shape.
@@ -171,6 +173,10 @@ const commandSchema = z.discriminatedUnion("type", [
       name: z.string().trim().min(2).max(160),
       eventTypeId: z.string().min(1),
       eventType: z.string().min(2).max(80),
+      // The kind of work (job-kinds.ts) and the studio's own type id. Both
+      // optional for older callers: the kind is then read from the label.
+      eventKind: z.enum(JOB_KINDS).optional(),
+      eventTypeKey: z.string().trim().max(40).nullable().optional(),
       eventDate: z.string().date(),
       timezone: z.string().min(1),
       clientContactIds: z.array(z.string()).min(1),
@@ -386,6 +392,13 @@ const commandSchema = z.discriminatedUnion("type", [
        */
       eventDate: z.string().date(),
       eventType: z.string().trim().min(1).max(80),
+      /**
+       * A change of type changes the kind, not just the label. Only the
+       * label used to move, so "Corporate" on a job filed as a wedding kept
+       * every wedding-only step and word (job-types plan, B3).
+       */
+      eventKind: z.enum(JOB_KINDS).optional(),
+      eventTypeKey: z.string().trim().max(40).nullable().optional(),
       venueName: z.string().trim().max(200).nullable().default(null),
       city: z.string().trim().max(120).nullable().default(null),
       timezone: z.string().trim().min(1).max(80),
@@ -613,6 +626,7 @@ const commandSchema = z.discriminatedUnion("type", [
       /** The package's own terms line for proposals; empty clears it. */
       terms: z.string().trim().max(6000).optional(),
       basePriceCents: z.number().int().nonnegative().safe().optional(),
+      paymentShape: z.enum(PAYMENT_SHAPES).optional(),
       retainerRule: z
         .discriminatedUnion("type", [
           z.object({
@@ -670,6 +684,11 @@ const commandSchema = z.discriminatedUnion("type", [
       description: z.string().trim().min(10).max(3000),
       eventTypeId: z.string().min(1),
       eventTypeLabel: z.string().min(2).max(80),
+      /**
+       * How the job is paid for (job-kinds.ts). Corporate work is booked
+       * both ways, so it is the package's choice, not the kind's.
+       */
+      paymentShape: z.enum(PAYMENT_SHAPES).optional(),
       basePriceCents: z.number().int().nonnegative().safe(),
       currency: z.string().length(3),
       retainerRule: z.discriminatedUnion("type", [
@@ -1251,11 +1270,19 @@ export const crmCommand = onRequest(
               throw new Error("LEAD_CONTACT_MISMATCH");
             }
           }
+          const eventKind = jobKindOf({
+            eventKind: command.input.eventKind,
+            eventTypeId: command.input.eventTypeId,
+            eventType: command.input.eventType,
+          });
           const project = {
             id: projectId,
             projectId,
             tenantId: command.tenantId,
             ...command.input,
+            eventKind,
+            eventTypeKey: command.input.eventTypeKey ?? null,
+            eventTypeId: templateKeyForKind(eventKind, command.input.eventTypeId),
             state: "LEAD",
             stateVersion: 0,
             packageSnapshotId: null,
@@ -2811,6 +2838,11 @@ export const crmCommand = onRequest(
                   // was priced against the package being replaced, and leaving
                   // it would put a stale line on the next proposal.
                   additionalPackageSnapshotIds: [],
+                  // How this job is paid, from its package when the package
+                  // says (job-kinds.ts). Absent, the kind's default applies.
+                  paymentShape: isPaymentShape(packageDocument.get("paymentShape"))
+                    ? packageDocument.get("paymentShape")
+                    : null,
                   updatedAt: timestamp,
                   updatedBy: identity.uid,
                 },
@@ -3572,10 +3604,22 @@ export const crmCommand = onRequest(
             city: project.get("city") ?? null,
             timezone: project.get("timezone") ?? null,
           };
+          // The kind moves with the label when the caller names one.
+          const kindChange = command.input.eventKind
+            ? {
+                eventKind: command.input.eventKind,
+                eventTypeKey: command.input.eventTypeKey ?? null,
+                eventTypeId: templateKeyForKind(
+                  command.input.eventKind,
+                  String(project.get("eventTypeId") ?? ""),
+                ),
+              }
+            : {};
           transaction.update(projectReference, {
             name: command.input.name,
             eventDate: command.input.eventDate,
             eventType: command.input.eventType,
+            ...kindChange,
             venueName: command.input.venueName,
             city: command.input.city,
             timezone: command.input.timezone,
