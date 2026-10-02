@@ -16,7 +16,7 @@
  * drawn in HTML), and the steps are joined and the voice laid under them.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
 import type { HowToScript, Persona } from "./define";
@@ -223,7 +223,9 @@ export async function compose(
 
   // The voice, step by step, exactly as assemble.ts lays it.
   const placed = [...lines.entries()].map(([step, line]) => ({ step, line, at: rec.marks.find((m) => m.step === step)!.t - t0 }));
-  const video = path.join(outDir, `${script.id}.mp4`);
+  // Voice only: join.ts lays the music under the whole film, and each
+  // chapter, from this. A copy goes out as <id>.mp4 until it does.
+  const video = path.join(outDir, `${script.id}.voice.mp4`);
   const inputs = placed.flatMap((p) => ["-i", p.line.audioPath]);
   const delays = placed.map((p, i) => `[${i + 1}:a]adelay=${Math.round(p.at * 1000)}:all=1[a${i}]`).join(";");
   const mix = placed.length
@@ -237,6 +239,8 @@ export async function compose(
     "-c:a", "aac", "-b:a", "160k", "-ar", "44100",
     "-t", duration.toFixed(3), "-movflags", "+faststart", video,
   ]);
+
+  copyFileSync(video, path.join(outDir, `${script.id}.mp4`));
 
   const posterStep = script.steps.findIndex((step) => step.poster);
   const posterMark = rec.marks.find((m) => m.step === posterStep);
@@ -262,5 +266,5 @@ export async function compose(
       2,
     ),
   );
-  return { file: video, poster, captions: vtt, meta, durationSec: duration };
+  return { file: path.join(outDir, `${script.id}.mp4`), poster, captions: vtt, meta, durationSec: duration };
 }
