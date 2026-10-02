@@ -14,6 +14,8 @@ const publicRoutes: Array<{
   { path: "/wedding-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/corporate-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/sports-photographers", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/for-crew", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/for-clients", changeFrequency: "monthly", priority: 0.7 },
   { path: "/how-to", changeFrequency: "weekly", priority: 0.7 },
   { path: "/how-to/wedding-journey", changeFrequency: "monthly", priority: 0.7 },
   { path: "/how-to/glossary", changeFrequency: "monthly", priority: 0.5 },
@@ -22,6 +24,7 @@ const publicRoutes: Array<{
     changeFrequency: "monthly" as const,
     priority: 0.6,
   })),
+  { path: "/support", changeFrequency: "monthly", priority: 0.5 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ];

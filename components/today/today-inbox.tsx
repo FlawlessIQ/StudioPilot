@@ -534,7 +534,7 @@ export function TodayInbox() {
                     : "Finish setting up your studio."}
                 </strong>
                 <small>
-                  {`${setup.answered} of 5 answered.${
+                  {`${setup.answered} of ${setup.total} answered.${
                     setup.next ? ` Next: ${SETUP_STEP_NAME[setup.next]}.` : ""
                   }`}
                 </small>

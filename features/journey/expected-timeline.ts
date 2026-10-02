@@ -168,6 +168,17 @@ export const JOURNEY_STOPS = [
 ] as const;
 export type JourneyStop = (typeof JOURNEY_STOPS)[number]["id"];
 
+/**
+ * The public page (app/how-to/wedding-journey), and its stages by anchor
+ * (`#stage-<id>`, components/help/wedding-journey.tsx). One spelling for every
+ * link the website makes to it; tests/marketing-claims.test.ts checks each
+ * anchor names a real stage.
+ */
+export const JOURNEY_PAGE = "/how-to/wedding-journey";
+export function journeyStageHref(stageId: string): string {
+  return `${JOURNEY_PAGE}#stage-${stageId}`;
+}
+
 /** The whole film, then its eight chapters. Published to video-manifest.json by the video pipeline. */
 export const JOURNEY_FILM_ID = "journey";
 export const JOURNEY_CHAPTER_IDS = [

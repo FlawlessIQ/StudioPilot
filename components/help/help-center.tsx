@@ -6,13 +6,13 @@ import {
   ArrowRight,
   CircleGauge,
   ClipboardCheck,
-  Compass,
   ExternalLink,
   FolderKanban,
   Sparkles,
   Wand2,
 } from "lucide-react";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
+import { JourneyFilmTeaser } from "@/components/help/journey-film";
 import { GlossaryList, GuideLibrary } from "@/components/help/guide-library";
 import { YourFeedback } from "@/components/feedback/your-feedback";
 
@@ -69,6 +69,21 @@ export function HelpCenter() {
         </div>
       </header>
 
+      {/* The film first, for a studio that shoots weddings: the year ahead in
+          six minutes, before the checklist asks them to configure it. */}
+      {shootsWeddings ? (
+        <section className="help-section">
+          <p className="eyebrow">Start here</p>
+          <div className="panel help-film">
+            <JourneyFilmTeaser
+              pageHref="/studio/help/journey"
+              text="Inquiry to album: what StudioCue does by itself, what you approve, and what your couple and crew see at each stage."
+              title="A wedding, start to finish"
+            />
+          </div>
+        </section>
+      ) : null}
+
       <section className="help-section">
         <p className="eyebrow">Set up your studio</p>
         <SetupChecklist />
@@ -97,19 +112,6 @@ export function HelpCenter() {
             );
           })}
         </div>
-        {shootsWeddings ? (
-        <Link className="help-example-link" href="/studio/help/journey">
-          <Compass aria-hidden="true" />
-          <span>
-            <strong>A wedding, start to finish</strong>
-            <small>
-              Inquiry to album: what StudioCue does by itself, what you
-              approve, and what your couple and crew see at each stage.
-            </small>
-          </span>
-          <ArrowRight className="help-link-arrow" aria-hidden="true" />
-        </Link>
-        ) : null}
       </section>
 
       <section className="help-section" id="glossary">

@@ -58,3 +58,20 @@ export function formatDuration(seconds: number): string {
   const whole = Math.round(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
+
+/** "6 min": a whole video's length the way a button says it. */
+export function formatMinutes(seconds: number): string {
+  return `${Math.max(1, Math.round(seconds / 60))} min`;
+}
+
+/** ISO 8601 duration for schema.org (VideoObject.duration): PT6M8S. */
+export function isoDuration(seconds: number): string {
+  const whole = Math.round(seconds);
+  return `PT${Math.floor(whole / 60)}M${whole % 60}S`;
+}
+
+/** A published video's length as a button says it ("6 min"), or null when it isn't published here. */
+export function helpVideoLength(id: string | undefined): string | null {
+  const video = helpVideo(id);
+  return video ? formatMinutes(video.durationSec) : null;
+}

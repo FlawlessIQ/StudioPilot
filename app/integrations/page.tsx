@@ -1,28 +1,41 @@
 import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
 
-export const metadata: Metadata = { title: "Integrations" };
+export const metadata: Metadata = {
+  title: "Integrations",
+  description:
+    "StudioCue connects to QuickBooks Online, Google Calendar, Zoom and Dropbox. Agreements are signed online in StudioCue, and email is built in.",
+  alternates: { canonical: "/integrations" },
+};
 
 /**
- * Only what a studio can actually connect.
+ * Only what a studio can actually connect, or actually use.
  *
- * This page listed Dropbox Sign, DocuSign and Twilio SMS as available. The
- * two signing providers are built and deliberately withdrawn from the UI, and
- * no SMS send path exists at all — so a photographer choosing StudioCue to
- * sign contracts would have found out after paying. They are marked as coming
- * soon now, which is still worth saying and is true.
+ * This page once listed Dropbox Sign, DocuSign and Twilio SMS as available.
+ * The two signing providers are built server-side and deliberately not
+ * offered (features/integrations/schema.ts, offeredProviders: each costs real
+ * money, which waits on revenue), and no SMS send path exists at all.
  *
- * SendGrid moved off the list entirely: it carries every email the platform
- * sends, but a studio never connects it, so it does not belong on a page
- * about their providers. Same for Vertex AI. Both are described below as what
- * they are — part of StudioCue, not something to go and set up.
+ * Signing is no longer "coming soon": since 2026-10-02 StudioCue writes and
+ * signs contracts itself for every studio (features/contracts/rollout.ts,
+ * NATIVE_SIGNING_GENERALLY_AVAILABLE; docs/contracts.md). That is a built-in
+ * capability, not a provider to connect, so it sits with email and Cue.
+ * Neither signing vendor is named here: a studio cannot connect either.
+ *
+ * Stripe is not listed. Studios pay StudioCue through Stripe, but per-studio
+ * client payments (Stripe Connect) are not offered — client invoices go
+ * through QuickBooks. tests/marketing-claims.test.ts checks both claims
+ * against the code.
+ *
+ * SendGrid and Vertex AI are part of StudioCue, not something a studio sets
+ * up, so they are described below as what they are.
  */
 export default function IntegrationsPage() {
   return (
     <MarketingLayout
       eyebrow="Provider-connected operations"
       title="Keep trusted systems authoritative."
-      description="StudioCue coordinates the work. Your accounting, calendar, meetings and file storage stay where they already are, and stay the source of truth."
+      description="StudioCue coordinates the work. Your accounting, calendar, meetings and file storage stay where they already are, and stay the source of truth. Contracts and email are built in."
     >
       <CapabilityGrid
         items={[
@@ -62,30 +75,19 @@ export default function IntegrationsPage() {
               "Booking and COI uploads",
             ],
           },
-          {
-            title: "E-signature",
-            badge: "Coming soon",
-            text: "Dropbox Sign and DocuSign are built and being readied. Until they are, StudioCue does not leave you stuck: record a signature taken any other way and the booking proceeds, with the record naming who vouched for it and when.",
-            points: [
-              "Reusable agreement templates",
-              "Provider-verified completion",
-              "Manual attestation available today",
-            ],
-          },
-          {
-            title: "SMS",
-            badge: "Coming soon",
-            text: "Text reminders for crew and clients, with consent handled properly. Email carries all of it today.",
-            points: [
-              "Consent captured before sending",
-              "Crew call-time reminders",
-              "Delivery recorded on the job",
-            ],
-          },
         ]}
       />
       <CapabilityGrid
         items={[
+          {
+            title: "Signing, built in",
+            text: "Bring in the agreement you already use. When a client accepts a proposal, StudioCue writes their contract from it and they sign online in their portal. No signing app to connect, and no per-contract cost.",
+            points: [
+              "Contract written from the accepted proposal",
+              "Signed copy sealed with a certificate and emailed",
+              "Signed another way? Record it and the booking proceeds",
+            ],
+          },
           {
             title: "Email, built in",
             text: "Every proposal, contract, invoice and reminder goes out in your studio's name. Nothing to connect.",
@@ -102,6 +104,16 @@ export default function IntegrationsPage() {
               "Extraction and comparison",
               "Schedule drafting",
               "Never writes a payment or signature",
+            ],
+          },
+          {
+            title: "SMS",
+            badge: "Coming soon",
+            text: "Text reminders for crew and clients, with consent handled properly. Email carries all of it today.",
+            points: [
+              "Consent captured before sending",
+              "Crew call-time reminders",
+              "Delivery recorded on the job",
             ],
           },
         ]}

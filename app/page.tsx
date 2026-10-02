@@ -6,8 +6,10 @@ import {
   Check,
   CircleCheck,
   FileCheck2,
+  FileSignature,
   Gauge,
   MessageSquareText,
+  Play,
   ShieldCheck,
   Sparkles,
   Users,
@@ -16,8 +18,10 @@ import { Logo } from "@/components/brand/logo";
 import { ReadinessMeter } from "@/components/ui/readiness-meter";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { planCards } from "@/config/saas-plans";
-import { helpVideo } from "@/features/help/videos";
-import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
+import { JourneyFilmButton } from "@/components/help/journey-film";
+import { helpVideoLength } from "@/features/help/videos";
+import { StudioProof } from "@/components/marketing/studio-proof";
+import { JOURNEY_FILM_ID, JOURNEY_PAGE, journeyStageHref } from "@/features/journey/expected-timeline";
 
 const readinessItems = [
   { label: "Contract signed", detail: "Completed Jul 02", complete: true },
@@ -32,34 +36,55 @@ const productPoints = [
     eyebrow: "Never wonder what is next",
     title: "Your week, already sequenced",
     text: "Every job shows its one live next action, ordered by what is actually urgent. No hunting through tabs to work out which wedding needs you today.",
+    href: journeyStageHref("inquiry"),
   },
   {
     icon: MessageSquareText,
     eyebrow: "Stop writing it again",
     title: "The message is already written",
     text: "Inquiry replies, reminders, chasers and updates arrive drafted in your voice, with the client's details already in them. Read it, change a word, send.",
+    href: journeyStageHref("inquiry"),
   },
   {
     icon: CalendarCheck2,
     eyebrow: "Stop the back and forth",
     title: "Clients book you, around you",
     text: "Share one link. They pick a consultation from slots checked against your real calendar, so nothing lands on a day you are already shooting.",
+    href: journeyStageHref("consultation"),
   },
   {
     icon: FileCheck2,
     eyebrow: "Stop rebuilding from scratch",
     title: "Packages and questionnaires, ready to go",
     text: "Your collections, pricing and question sets are set up once. Sending a proposal or a questionnaire to a new couple is one click, not an afternoon.",
+    href: journeyStageHref("booking"),
+  },
+  {
+    // Native e-sign, on for every studio (features/contracts/rollout.ts,
+    // NATIVE_SIGNING_GENERALLY_AVAILABLE); tests/marketing-claims.test.ts
+    // fails if this card outlives the switch.
+    icon: FileSignature,
+    eyebrow: "Stop chasing signatures",
+    title: "Agreements signed online",
+    text: "Bring in the agreement you already use. When a client accepts a proposal, StudioCue writes their contract from it, with their details and the price they chose, and they sign online in StudioCue.",
+    href: journeyStageHref("booking"),
   },
   {
     icon: Sparkles,
     eyebrow: "Know what you are missing",
     title: "Cue tells you what needs doing",
     text: "Cue reads the certificate, drafts the run of show, and says plainly what is not ready and why. It never records a payment or a signature — you stay the one deciding.",
+    href: journeyStageHref("planning"),
   },
 ];
 
 export default function MarketingHome() {
+  // "6 min" once the film is published here; without it the buttons are
+  // plain links to the written page, and say "See" rather than "Watch".
+  const filmLength = helpVideoLength(JOURNEY_FILM_ID);
+  const watchLabel = filmLength
+    ? `Watch a wedding, start to finish · ${filmLength}`
+    : "See a wedding, start to finish";
   return (
     <div className="ds-root marketing-page" data-ds-theme="emerald">
       <header className="marketing-nav">
@@ -107,14 +132,12 @@ export default function MarketingHome() {
               <Link className="button button-dark" href="/auth/register">
                 Start your free trial <ArrowRight size={17} />
               </Link>
-              <Link className="button button-light" href="/studio-preview">
-                Explore the live product
-              </Link>
-              {/* "Watch" once the film is published; until then the page is
-                  the same story in words, and says so. */}
-              <Link className="button button-light" href="/how-to/wedding-journey">
-                {helpVideo(JOURNEY_FILM_ID) ? "Watch a wedding, start to finish" : "See a wedding, start to finish"}
-              </Link>
+              {/* Opens the film in a dialog, with sound; without JavaScript
+                  it is a link to the page the film sits on. */}
+              <JourneyFilmButton className="button button-light" href={JOURNEY_PAGE}>
+                {filmLength ? <Play aria-hidden="true" size={16} /> : null}
+                {watchLabel}
+              </JourneyFilmButton>
             </div>
             <div className="hero-proof">
               <span>
@@ -212,8 +235,8 @@ export default function MarketingHome() {
                   <small>{point.eyebrow}</small>
                   <h3>{point.title}</h3>
                   <p>{point.text}</p>
-                  <Link href="/studio-preview">
-                    See it in StudioCue <ArrowRight size={15} />
+                  <Link href={point.href}>
+                    See where it happens <ArrowRight size={15} />
                   </Link>
                 </article>
               );
@@ -238,6 +261,8 @@ export default function MarketingHome() {
           </div>
         </section>
 
+        <StudioProof />
+
         <section className="readiness-story readiness-story--dark" id="cue">
           <div className="story-copy">
             <span className="section-kicker">Meet Cue</span>
@@ -260,9 +285,9 @@ export default function MarketingHome() {
                 <Check size={18} /> Nothing sends until you approve
               </li>
             </ul>
-            <Link className="button button-dark" href="/studio-preview">
-              See Cue at work <ArrowRight size={17} />
-            </Link>
+            <JourneyFilmButton className="button button-dark" href={JOURNEY_PAGE}>
+              {watchLabel} <ArrowRight size={17} />
+            </JourneyFilmButton>
           </div>
           <div className="story-visual">
             <div className="signal-row">
@@ -304,8 +329,8 @@ export default function MarketingHome() {
                 <FileCheck2 size={18} /> Evidence and audit history built in
               </li>
             </ul>
-            <Link className="button button-dark" href="/studio-preview">
-              Open the readiness dashboard <ArrowRight size={17} />
+            <Link className="button button-dark" href={journeyStageHref("wedding-week")}>
+              See the week before the day <ArrowRight size={17} />
             </Link>
           </div>
           <div className="story-visual">
@@ -363,10 +388,11 @@ export default function MarketingHome() {
               >
                 <div className="marketing-plan-heading">
                   <span>
-                    <small>{plan.highlight ? "Most popular" : "StudioCue"}</small>
+                    {/* No "Most popular" or "Best for teams": there are no
+                        customers yet to make either true (config/saas-plans.ts). */}
+                    <small>StudioCue</small>
                     <h3>{plan.name}</h3>
                   </span>
-                  {plan.highlight ? <StatusBadge tone="success">Best for teams</StatusBadge> : null}
                 </div>
                 <p>{plan.description}</p>
                 <div className="marketing-plan-price">
@@ -410,9 +436,9 @@ export default function MarketingHome() {
               <Link className="button button-dark" href="/auth/register">
                 Start your free trial <ArrowRight size={17} />
               </Link>
-              <Link className="button button-ghost" href="/studio-preview">
-                Explore the live product
-              </Link>
+              <JourneyFilmButton className="button button-ghost" href={JOURNEY_PAGE}>
+                {watchLabel}
+              </JourneyFilmButton>
             </div>
             <div className="closing-proof">
               <span>
@@ -433,7 +459,7 @@ export default function MarketingHome() {
         <Logo />
         <p>Calm operations for remarkable photography teams.</p>
         <div>
-          <Link href="/studio-preview">Product tour</Link>
+          <Link href={JOURNEY_PAGE}>A wedding, start to finish</Link>
           <Link href="/for-crew">For crew</Link>
           <Link href="/for-clients">For clients</Link>
           <Link href="/wedding-photographers">Weddings</Link>

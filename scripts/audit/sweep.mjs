@@ -225,7 +225,6 @@ const PUBLIC_ROUTES = [
   "/privacy",
   "/sports-photographers",
   "/start-trial",
-  "/studio-preview",
   "/support",
   "/terms",
   "/wedding-photographers",

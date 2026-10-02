@@ -17,6 +17,12 @@ import { X } from "lucide-react";
  * palette and the import review each grew their own; this is deliberately
  * generic so the next one does not.
  */
+const SHEET_CLASS = {
+  default: "sheet-dialog",
+  wide: "sheet-dialog is-wide",
+  film: "sheet-dialog is-film",
+} as const;
+
 export function SheetDialog({
   children,
   label,
@@ -33,8 +39,11 @@ export function SheetDialog({
    * "wide" for content that is a list of cards rather than a short form —
    * the job history's artifact rows carry chips and a link, and wrap badly
    * at the two-field width this started out serving.
+   *
+   * "film" for a video someone pressed Watch for (the journey film): as wide
+   * as a laptop screen allows, because the film shows three screens at once.
    */
-  width?: "default" | "wide";
+  width?: "default" | "wide" | "film";
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
@@ -96,7 +105,7 @@ export function SheetDialog({
       <div
         aria-label={label}
         aria-modal="true"
-        className={width === "wide" ? "sheet-dialog is-wide" : "sheet-dialog"}
+        className={SHEET_CLASS[width]}
         ref={panel}
         role="dialog"
         tabIndex={-1}

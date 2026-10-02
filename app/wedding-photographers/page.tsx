@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
+import { StudioProof } from "@/components/marketing/studio-proof";
+import { HelpVideoPlayer } from "@/components/help/video-player";
+import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
 
 export const metadata: Metadata = {
   title: "For Wedding Photographers",
@@ -15,6 +18,11 @@ export default function WeddingPhotographersPage() {
       title="Be ready for the day no one can reschedule."
       description="From the first inquiry to the delivered gallery, StudioCue runs the whole wedding, and Cue drafts each next step for you to approve. You keep every decision — you just stop being the bottleneck between the couple, the crew, and the day."
     >
+      {/* The film, high on the page: the most relevant place for it. It
+          renders nothing where the film isn't published. */}
+      <section aria-label="A wedding, start to finish" className="marketing-film">
+        <HelpVideoPlayer id={JOURNEY_FILM_ID} />
+      </section>
       <CapabilityGrid
         items={[
           {
@@ -28,11 +36,11 @@ export default function WeddingPhotographersPage() {
           },
           {
             title: "Proposal → booked",
-            text: "Send a proposal built from your own package and pricing. Booking only turns real on a signed agreement and a cleared retainer — or a signature you record yourself. Nothing books by accident.",
+            text: "Send a proposal built from your own package and pricing. When they accept, StudioCue writes the agreement from it and they sign online in StudioCue. Booking only turns real on a signed agreement and a cleared retainer. Nothing books by accident.",
             points: [
               "Proposal priced from your package",
-              "Signed-contract + retainer booking gate",
-              "Record a signature taken any other way",
+              "Agreement written from the proposal, signed online",
+              "Signed another way? Record it yourself",
             ],
           },
           {
@@ -73,6 +81,7 @@ export default function WeddingPhotographersPage() {
           },
         ]}
       />
+      <StudioProof />
       <p className="marketing-pricing-note">
         Also built for other event work — the same accountable workflow, tuned
         to each: <Link href="/corporate-photographers">corporate</Link> and{" "}

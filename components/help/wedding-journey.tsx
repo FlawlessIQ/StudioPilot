@@ -40,7 +40,7 @@ export function WeddingJourney() {
         </ol>
       </nav>
 
-      <HelpVideoPlayer id={JOURNEY_FILM_ID} />
+      <HelpVideoPlayer id={JOURNEY_FILM_ID} startFromQuery />
 
       <div className="journey-legend">
         <span>

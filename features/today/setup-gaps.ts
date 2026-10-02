@@ -41,6 +41,17 @@ export const SETUP_ORDER: ReadonlyArray<SetupGapKey> = [
   "insurance",
 ];
 
+/**
+ * How many questions setup asks, in words, for copy that says so: "Seven
+ * questions, most answered right here." The count was stated three ways at
+ * once (setup 7, Today "of 5", the journey page "six"), so the screens read it
+ * from here, and tests/setup-count-copy.test.ts holds the rest to it.
+ */
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+export function setupQuestionCount(): string {
+  return COUNT_WORDS[SETUP_ORDER.length] ?? String(SETUP_ORDER.length);
+}
+
 export const SETUP_STEP_NAME: Record<SetupGapKey, string> = {
   work: "what you shoot",
   inquiries: "how inquiries reach you",

@@ -17,6 +17,7 @@ import { useSetupState } from "@/components/setup/use-setup-state";
 import {
   SETUP_ORDER,
   SETUP_STEP_NAME,
+  setupQuestionCount,
   type SetupGapKey,
 } from "@/features/today/setup-gaps";
 
@@ -54,7 +55,7 @@ export function SetupChecklist() {
         <div>
           <span className="ds-eyebrow">Get started</span>
           <h2>Set up your studio workspace</h2>
-          <p>Seven questions, most answered in a tap. Skip anything and come back when you need it.</p>
+          <p>{`${capitalise(setupQuestionCount())} questions, most answered in a tap. Skip anything and come back when you need it.`}</p>
         </div>
         {!loading ? (
           <span className="ds-badge ds-badge-brass">{`${completed} of ${total} complete`}</span>

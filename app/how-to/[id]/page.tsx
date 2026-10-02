@@ -7,7 +7,7 @@ import { ExplainerView } from "@/components/help/explainer-view";
 import { HelpVideoPlayer } from "@/components/help/video-player";
 import { EXPLAINERS, explainer } from "@/features/help/explainers";
 import { HELP_AUDIENCE_LABELS } from "@/features/help/types";
-import { helpVideo } from "@/features/help/videos";
+import { helpVideo, isoDuration } from "@/features/help/videos";
 import { SITE_URL } from "@/lib/site";
 
 export function generateStaticParams() {
@@ -70,7 +70,7 @@ export default async function HowToGuidePage({ params }: { params: Promise<{ id:
               thumbnailUrl: video.posterSrc,
               contentUrl: video.src,
               uploadDate: video.recordedAt,
-              duration: `PT${Math.floor(video.durationSec / 60)}M${Math.round(video.durationSec % 60)}S`,
+              duration: isoDuration(video.durationSec),
               url: `${SITE_URL}/how-to/${guide.id}`,
             }).replace(/</g, "\\u003c"),
           }}

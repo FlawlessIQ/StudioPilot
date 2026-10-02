@@ -37,7 +37,7 @@ export default function FeaturesPage() {
           },
           {
             title: "It keeps working when a provider does not",
-            text: "No signing account? Send your own agreement and record the signature. Payments not set up? Record the transfer when it lands. The job books either way, and the record says a person vouched for it rather than pretending a provider confirmed it.",
+            text: "Agreement signed on paper, or somewhere else? Record the signature. Payments not set up? Record the transfer when it lands. The job books either way, and the record says a person vouched for it rather than pretending a provider confirmed it.",
             points: [
               "Signature recorded by the studio",
               "Retainer recorded by the studio",

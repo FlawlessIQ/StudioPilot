@@ -23,7 +23,7 @@ import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { todayLocalIso } from "@/lib/format/event-date";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import { useSetupState } from "@/components/setup/use-setup-state";
-import { nextSetupStep, type SetupGapKey } from "@/features/today/setup-gaps";
+import { nextSetupStep, SETUP_ORDER, type SetupGapKey } from "@/features/today/setup-gaps";
 import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics";
 import {
   bookedValueCents,
@@ -81,6 +81,8 @@ export function useTodayInbox(): {
   setup: {
     complete: boolean;
     answered: number;
+    /** How many questions setup asks (SETUP_ORDER). */
+    total: number;
     /** The next unanswered setup question, in setup's order. */
     next: SetupGapKey | null;
     brandNew: boolean;
@@ -371,7 +373,7 @@ export function useTodayInbox(): {
     aiActions: aiActions.records ?? [],
     automationApprovals: automationApprovals.records ?? [],
     /**
-     * How far through the four setup questions this studio is, and whether it
+     * How far through the setup questions this studio is, and whether it
      * has any real work yet.
      *
      * Today replaced the old dashboard, and the dashboard was the only place
@@ -386,13 +388,11 @@ export function useTodayInbox(): {
     setup: {
       complete: setup.complete,
       next: nextSetupStep(setup.gaps),
-      answered: [
-        setup.state.hasInquiryCapture !== false,
-        setup.state.hasActivePackage,
-        setup.state.hasAgreementTemplate,
-        setup.state.hasQuestionnaireTemplate,
-        setup.state.hasConsultationAvailability,
-      ].filter(Boolean).length,
+      // Counted over setup's own questions, as the setup page and Help's
+      // checklist count them. This was a private list of five, so Today said
+      // "2 of 5 answered" beside a setup page saying "2 of 7".
+      answered: SETUP_ORDER.filter((key) => !setup.gaps.some((gap) => gap.key === key)).length,
+      total: SETUP_ORDER.length,
       // Genuinely new, as opposed to quiet: no jobs and no inquiries at all.
       brandNew:
         (projects.records ?? []).length === 0 &&

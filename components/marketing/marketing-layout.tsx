@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CircleCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { JOURNEY_PAGE } from "@/features/journey/expected-timeline";
 
 export function MarketingLayout({
   eyebrow,
@@ -54,7 +55,7 @@ export function MarketingLayout({
         <Logo />
         <p>Calm operations for remarkable photography teams.</p>
         <div>
-          <Link href="/studio-preview">Product tour</Link>
+          <Link href={JOURNEY_PAGE}>A wedding, start to finish</Link>
           <Link href="/for-crew">For crew</Link>
           <Link href="/for-clients">For clients</Link>
           <Link href="/wedding-photographers">Weddings</Link>

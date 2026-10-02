@@ -14,6 +14,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { JourneySetupBanner } from "@/components/help/journey-film";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
 import { fromSetup } from "@/components/setup/back-to-setup";
@@ -21,7 +22,7 @@ import { setSignatureMode, startProviderConnect } from "@/lib/integrations/comma
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { SETUP_ORDER, type SetupGap, type SetupGapKey } from "@/features/today/setup-gaps";
+import { SETUP_ORDER, setupQuestionCount, type SetupGap, type SetupGapKey } from "@/features/today/setup-gaps";
 import { JOB_KIND_LABELS, JOB_KINDS, type JobKind } from "@/features/job-kinds/job-kinds";
 import { defaultInquiryFormConfig } from "@/features/leads/inquiry-form-config";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -221,6 +222,8 @@ export function SetupConversation() {
   return (
     <AppShell active="Studio settings">
       <div className="setup-conversation">
+        {/* Weddings only, like every way into the journey film. */}
+        {shootsWeddings ? <JourneySetupBanner /> : null}
         <header>
           <p className="eyebrow">Getting started</p>
           <h1>
@@ -235,7 +238,7 @@ export function SetupConversation() {
               ? "Everything StudioCue needs is in place. Change any of it whenever your studio does."
               : complete
                 ? "Everything a booking needs is in place. What's left below only matters if venues ask for it."
-                : "Seven questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
+                : `${setupQuestionCount().replace(/^./, (first) => first.toUpperCase())} questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it.`}
           </p>
           {!loading ? (
             <p className="setup-progress">

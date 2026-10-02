@@ -102,9 +102,10 @@ test("no kind tone collides with the live theme's primary accent", () => {
 
 test("the preview-only themes are on record as unsafe for kind tones", () => {
   // ivory, rose and coral all put at least one kind tone within 30° of
-  // their primary — coral puts three there. They are reachable only from
-  // /studio-preview today, so this is a documented constraint rather than
-  // a bug: making one of them selectable means rotating the colliding
+  // their primary — coral puts three there. They were reachable only from
+  // /studio-preview's theme switcher, and that page and switcher were
+  // retired on 2026-10-02, so nothing selects them today. This is a
+  // documented constraint rather than a bug: making one selectable means rotating the colliding
   // tones for that theme first. This test fails if that stops being true,
   // which is the moment the note would otherwise go stale.
   const unsafe = ["ivory", "rose", "coral"].filter((theme) => {
