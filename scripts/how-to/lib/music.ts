@@ -4,8 +4,10 @@
  * Conor asked (2026-10-02) for light, low background music, free. A track
  * downloaded from a "free" library brings a licence to read and keep; one
  * written by this file has none. It is deliberately simple — a warm pad, a
- * soft felt-piano arpeggio and a low root, around I–V–vi–IV in D at 70 bpm —
- * because it sits far under the narration and must never compete with it.
+ * soft felt-piano arpeggio and a plucked bass, around I–V–vi–IV in D —
+ * because it sits under the narration and must never compete with it. Made
+ * brighter and a little louder at Conor's ask (2026-10-02): 96 bpm, a
+ * bouncing bass and a soft off-beat shaker.
  * Deterministic: the same length gives the same music, so re-cuts match.
  *
  *   makeMusicBed(seconds, "bed.wav")  → 44.1 kHz stereo 16-bit WAV
@@ -17,7 +19,7 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 const RATE = 44100;
-const BPM = 70;
+const BPM = 96;
 const BEAT = 60 / BPM;
 const CHORD = 8 * BEAT; // two bars a chord
 
@@ -80,15 +82,19 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
   const length = Math.ceil((seconds + 2) * RATE);
   const left = new Float32Array(length);
   const right = new Float32Array(length);
+  // The shaker is kept apart and added after the low-pass, which would
+  // otherwise take away all it is.
+  const hatL = new Float32Array(length);
+  const hatR = new Float32Array(length);
   const rand = seeded(seed);
   const chords = Math.ceil(seconds / CHORD) + 1;
 
   for (let c = 0; c < chords; c++) {
     const notes = PROGRESSION[c % PROGRESSION.length]!;
     const start = c * CHORD;
-    // Every fourth pass round the progression is pad alone: room to breathe.
+    // Every fourth pass round the progression drops the shaker: room to breathe.
     const cycle = Math.floor(c / PROGRESSION.length);
-    const withArp = c >= 2 && cycle % 4 !== 3;
+    const withArp = c >= 1;
 
     // The pad: upper voices, soft harmonics, two slightly detuned copies,
     // a slow swell in and a long overlap into the next chord.
@@ -101,7 +107,7 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
         const pan = detune < 0 ? 0.42 : 0.58;
         for (let k = 0; k < padLen && padFrom + k < length; k++) {
           const t = k / RATE;
-          const env = Math.min(1, t / 1.6) * Math.min(1, Math.max(0, (CHORD + 2.2 - t) / 2.2));
+          const env = Math.min(1, t / 0.7) * Math.min(1, Math.max(0, (CHORD + 2.2 - t) / 2.2));
           const v = PAD_WAVE[Math.floor(((fd * t) % 1) * TABLE)]! * env * 0.022;
           left[padFrom + k]! += v * (1 - pan);
           right[padFrom + k]! += v * pan;
@@ -109,14 +115,43 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
       }
     }
 
-    // The bass: the root, an octave of warmth, nothing more.
-    const fb = freq(notes[0]!);
-    for (let k = 0; k < padLen && padFrom + k < length; k++) {
-      const t = k / RATE;
-      const env = Math.min(1, t / 0.8) * Math.min(1, Math.max(0, (CHORD + 2.2 - t) / 2.2));
-      const v = (Math.sin(2 * Math.PI * fb * t) + 0.25 * Math.sin(4 * Math.PI * fb * t)) * env * 0.05;
-      left[padFrom + k]! += v;
-      right[padFrom + k]! += v;
+    // The bass: a plucked line that bounces on the beat — root, root, fifth,
+    // root, octave in each bar — an octave up from a true bass, so the 120 Hz
+    // high-pass under the voice leaves it audible.
+    const root = notes[0]! + 12;
+    const bassLine: Array<[number, number]> = [[0, root], [1.5, root], [2, root + 7], [3, root], [3.5, root + 12]];
+    for (let bar = 0; bar < 2; bar++) {
+      for (const [beat, note] of bassLine) {
+        const f = freq(note);
+        const from = Math.floor((start + (bar * 4 + beat) * BEAT) * RATE);
+        const len = Math.floor(0.9 * RATE);
+        for (let k = 0; k < len && from + k < length; k++) {
+          const t = k / RATE;
+          const env = Math.min(1, t / 0.004) * Math.exp(-t / 0.28);
+          const v = (Math.sin(2 * Math.PI * f * t) + 0.35 * Math.sin(4 * Math.PI * f * t) * Math.exp(-t / 0.12)) * env * 0.05;
+          left[from + k]! += v;
+          right[from + k]! += v;
+        }
+      }
+    }
+
+    // A soft shaker on the off-beats: filtered noise, a few milliseconds long.
+    if (c >= 1 && cycle % 4 !== 3) {
+      for (let beat = 0; beat < 8; beat++) {
+        const from = Math.floor((start + (beat + 0.5) * BEAT + (rand() - 0.5) * 0.008) * RATE);
+        const len = Math.floor(0.09 * RATE);
+        const pan = 0.6 + rand() * 0.15;
+        let previous = 0;
+        for (let k = 0; k < len && from + k < length; k++) {
+          const t = k / RATE;
+          const noise = rand() * 2 - 1;
+          const high = noise - previous; // a first difference: only the hiss
+          previous = noise;
+          const v = high * Math.exp(-t / 0.022) * 0.02;
+          hatL[from + k]! += v * (1 - pan);
+          hatR[from + k]! += v * pan;
+        }
+      }
     }
 
     // The arpeggio: felt-piano eighths over the chord, an octave up, with a
@@ -125,7 +160,7 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
       const tones = notes.slice(2).map((n) => n + 12);
       const pattern = [0, 1, 2, 1, 0, 2, 1, 2, 0, 1, 2, 1, 2, 1, 0, 1];
       for (let step = 0; step < 16; step++) {
-        if (rand() < 0.22) continue;
+        if (rand() < 0.12) continue;
         const note = tones[pattern[step]! % tones.length]!;
         const f = freq(note);
         const at = start + step * (BEAT / 2) + (rand() - 0.5) * 0.02;
@@ -161,8 +196,8 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
   for (let n = 0; n < total; n++) {
     const t = n / RATE;
     const fade = Math.min(1, t / 3) * Math.min(1, Math.max(0, (seconds - t) / 4));
-    left[n] = (left[n]! * 0.8 + wetL[n]! * 0.35) * fade;
-    right[n] = (right[n]! * 0.8 + wetR[n]! * 0.35) * fade;
+    left[n] = (left[n]! * 0.8 + wetL[n]! * 0.35 + hatL[n]!) * fade;
+    right[n] = (right[n]! * 0.8 + wetR[n]! * 0.35 + hatR[n]!) * fade;
     peak = Math.max(peak, Math.abs(left[n]!), Math.abs(right[n]!));
   }
 
@@ -191,7 +226,7 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
 
 /**
  * Lays `length` seconds of the bed, from `from`, under a video's voice: the
- * bed sits low (about 15 dB under the voice alone, about 22 dB under it while
+ * bed sits low (about 11 dB under the voice alone, about 15 dB under it while
  * anyone speaks; nothing below 120 Hz to muddy it) and ducks further while anyone
  * speaks; the voice keeps its own -16 LUFS, in stereo. The picture is
  * copied untouched.
@@ -208,8 +243,8 @@ export function withMusic(voiceMp4: string, bedWav: string, from: number, length
       [
         // Mono voice to both sides at full level (a plain stereo upmix drops it 3 dB).
         "[0:a]pan=stereo|c0=c0|c1=c0,aresample=44100,asplit=2[voice][key]",
-        `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,highpass=f=120,volume=0.26,afade=t=in:d=1.2,afade=t=out:st=${fadeOut.toFixed(3)}:d=1.5[bed]`,
-        "[bed][key]sidechaincompress=threshold=0.02:ratio=6:attack=25:release=650[ducked]",
+        `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,highpass=f=120,volume=0.42,afade=t=in:d=1.2,afade=t=out:st=${fadeOut.toFixed(3)}:d=1.5[bed]`,
+        "[bed][key]sidechaincompress=threshold=0.03:ratio=3.5:attack=25:release=500[ducked]",
         // No loudnorm here: the voice is already at -16 LUFS (compose.ts), and a
         // one-pass loudnorm lifts the quiet stretches — it brought the bed up
         // to the voice's level under every title card. A limiter catches peaks.
