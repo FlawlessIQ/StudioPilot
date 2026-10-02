@@ -19,6 +19,29 @@ on kind (`if (kind === "wedding")`). They look things up — `vocab(kind).event`
 `profile.steps.finalDetailsLock`. Everything wedding-only lives in the wedding
 row of those tables, not in the screens.
 
+## Status (2026-10-02)
+
+Built on branch `job-kinds`, phases 0–3:
+
+| Phase | State |
+|---|---|
+| 0 — every job knows its kind | built: every job-creating path writes `eventKind`; unknown is `other`, never wedding |
+| 1 — words | built, client-facing first: emails (incl. the week-of note), portal, `/i/`, Schedule A, run of show, Today, journey, job page, Cue and AI prompts, crew. Guard: `tests/job-kind-copy.test.ts` (pins only come down) |
+| 2 — steps, timings, light path | built: gate per profile, `bookWithoutAgreement`, one bill for on-the-day / invoiced-after (offered on Today, never auto-raised), balance at 28 days, sessions share a date |
+| 3 — starter kits + onboarding | built: example packages (no prices), corporate + sports moments, "What do you shoot?" first in setup, "Add a kind of work" in Settings → Job types |
+| 4 — walk each kind on prod | owed after deploy |
+| 5 — group events | design doc only |
+
+**Still owed, by a person:**
+- A corporate agreement template: legal text, so it goes to counsel with the
+  e-sign review. Corporate jobs use the studio's own agreement until then.
+- Help explainers stay wedding-led: they name buttons that still say
+  "couple". Sweep them with the buttons.
+- Cue's prompt changed: re-run A2/A4 and a family-job turn from
+  `docs/cue-scenarios.md` on production.
+- Today at volume (grouping same-day sports jobs) is not built; revisit
+  once a studio has real volume.
+
 ---
 
 ## Gabe's answers (GR Productions, 2026-10-02)

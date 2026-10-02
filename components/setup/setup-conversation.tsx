@@ -21,12 +21,15 @@ import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { SETUP_ORDER, type SetupGap, type SetupGapKey } from "@/features/today/setup-gaps";
+import { JOB_KIND_LABELS, JOB_KINDS, type JobKind } from "@/features/job-kinds/job-kinds";
+import { defaultInquiryFormConfig } from "@/features/leads/inquiry-form-config";
+import { runCrmCommand } from "@/lib/crm/command-client";
 
 /**
  * Setup as a conversation.
  *
  * Phase 3 of "Today & Jobs". A new studio's assets already exist somewhere —
- * a price list, a contract, a questionnaire — so setup asks six questions
+ * a price list, a contract, a questionnaire — so setup asks seven questions
  * and hands each answer to the import machinery, rather than presenting a
  * library of tools to discover. Most are answered right on this page: the
  * inquiry routes open their sheets here, hours take one tap, the agreement
@@ -47,6 +50,17 @@ type Question = {
  * (docs/onboarding-assessment-2026-09-26.md, "setup v2").
  */
 const QUESTIONS: Question[] = [
+  {
+    /**
+     * What the studio shoots decides its inquiry form's types and the words
+     * every client reads (docs/job-types-plan-2026-10-02.md). Asked once; an
+     * established studio changes it in Settings → Job types.
+     */
+    key: "work",
+    ask: "What do you shoot?",
+    why: "Tick everything you take on. Your inquiry form offers just these, and each kind gets its own steps and words — a family session books on payment alone, with no contract.",
+    doneLabel: "StudioCue knows what you shoot.",
+  },
   {
     /**
      * First, because until inquiries arrive StudioCue has nothing to do. It
@@ -132,6 +146,8 @@ export function SetupConversation() {
   /** What a question offers when it isn't answered yet. */
   const answer = (question: Question, gap: SetupGap): ReactNode => {
     switch (question.key) {
+      case "work":
+        return <WorkAnswer onAnswered={refresh} />;
       case "inquiries":
         // Answered in place: the three routes open their sheets here.
         return <LeadCaptureRoutes />;
@@ -217,7 +233,7 @@ export function SetupConversation() {
               ? "Everything StudioCue needs is in place. Change any of it whenever your studio does."
               : complete
                 ? "Everything a booking needs is in place. What's left below only matters if venues ask for it."
-                : "Six questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
+                : "Seven questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it."}
           </p>
           {!loading ? (
             <p className="setup-progress">
@@ -328,6 +344,56 @@ function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
       <Link className="setup-answer-link" href={fromSetup("/studio/settings/consultation-availability")}>
         Choose my own hours
       </Link>
+      {notice ? <small className="setup-answer-notice" role="status">{notice}</small> : null}
+    </div>
+  );
+}
+
+/**
+ * "What do you shoot?", answered in place: the inquiry form keeps the types of
+ * the kinds ticked (and "General question"), saved through the same command as
+ * the form editor. Weddings start ticked; nothing is saved until Save.
+ */
+function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
+  // The first kind (weddings) starts ticked.
+  const [chosen, setChosen] = useState<JobKind[]>([JOB_KINDS[0]]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const toggle = (kind: JobKind) =>
+    setChosen((current) => (current.includes(kind) ? current.filter((entry) => entry !== kind) : [...current, kind]));
+  return (
+    <div className="setup-answer-row setup-kinds">
+      <div className="setup-kind-options" role="group" aria-label="What you shoot">
+        {JOB_KINDS.map((kind) => (
+          <label className="form-checkbox" key={kind}>
+            <input checked={chosen.includes(kind)} onChange={() => toggle(kind)} type="checkbox" />
+            <span>{JOB_KIND_LABELS[kind]}</span>
+          </label>
+        ))}
+      </div>
+      <button
+        className="button button-dark"
+        disabled={busy || chosen.length === 0}
+        onClick={() => {
+          setBusy(true);
+          setNotice(null);
+          const base = defaultInquiryFormConfig();
+          const config = {
+            ...base,
+            eventTypes: base.eventTypes.filter(
+              (type) => type.kind === "general" || chosen.includes(type.kind as JobKind),
+            ),
+          };
+          runCrmCommand("setInquiryForm", { config })
+            .then(() => onAnswered())
+            .catch((caught: unknown) => setNotice(friendlyError(caught, "That couldn't be saved. Try again.")))
+            .finally(() => setBusy(false));
+        }}
+        type="button"
+      >
+        {busy ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}
+        Save
+      </button>
       {notice ? <small className="setup-answer-notice" role="status">{notice}</small> : null}
     </div>
   );

@@ -15,6 +15,7 @@
  */
 
 export type SetupGapKey =
+  | "work"
   | "inquiries"
   | "packages"
   | "agreement"
@@ -28,6 +29,9 @@ export type SetupGapKey =
  * and setup's order can't disagree.
  */
 export const SETUP_ORDER: ReadonlyArray<SetupGapKey> = [
+  // First: it decides the types on the inquiry form and the words clients
+  // read (docs/job-types-plan-2026-10-02.md). Never blocking.
+  "work",
   "inquiries",
   "availability",
   "packages",
@@ -38,6 +42,7 @@ export const SETUP_ORDER: ReadonlyArray<SetupGapKey> = [
 ];
 
 export const SETUP_STEP_NAME: Record<SetupGapKey, string> = {
+  work: "what you shoot",
   inquiries: "how inquiries reach you",
   availability: "when clients can book a call",
   packages: "what you charge",
@@ -90,6 +95,12 @@ export type SetupState = {
    * "setup complete": only an explicit `false` asks the question.
    */
   hasCoiSettings?: boolean;
+  /**
+   * The studio has said what it shoots — weddings, family sessions,
+   * corporate, sports (job kinds). Optional and never part of "setup
+   * complete": only an explicit `false` asks.
+   */
+  hasChosenWork?: boolean;
 };
 
 export type SetupSignals = {
@@ -108,6 +119,18 @@ export function setupGaps(
   signals: SetupSignals,
 ): SetupGap[] {
   const gaps: SetupGap[] = [];
+
+  if (state.hasChosenWork === false) {
+    gaps.push({
+      key: "work",
+      title: "Say what you shoot",
+      detail: "Weddings, family sessions, corporate, sports — your inquiry form and every client's words follow it.",
+      actionLabel: "Choose",
+      href: "/studio/settings/job-types",
+      blocking: false,
+      blockedProjectName: null,
+    });
+  }
 
   // First, because it's what a new studio feels on day one: until inquiries
   // arrive here, StudioCue has nothing to do. Never blocking — no job waits

@@ -39,7 +39,10 @@ import {
 import {
   WEDDING_STANDARD_MOMENTS,
   isWeddingJob,
+  kindMomentsFor,
+  placeKindMoment,
   placeStandardMoment,
+  type KindMoment,
   type StandardMomentKey,
 } from "@/features/schedules/standard-moments";
 import { scheduleCrewOptions } from "@/features/schedules/crew-options";
@@ -808,6 +811,24 @@ export function AiScheduleGenerator({
     });
   }
 
+  /** A corporate or sports moment, after the last item: the studio sets its time. */
+  function addKindMoment(moment: KindMoment) {
+    setDraft((current) => {
+      if (!current) return current;
+      const placed = placeKindMoment(moment, current.items, coverageStartsAt || null);
+      const item = {
+        ...manualScheduleItem(crypto.randomUUID(), placed.startAt, placed.title),
+        endAt: placed.endAt,
+        location:
+          locations
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)[0] ?? null,
+      } as ScheduleItem;
+      return { ...current, items: sortScheduleItems([...current.items, item]) };
+    });
+  }
+
   /**
    * Back into time order once a time has been changed.
    *
@@ -1257,6 +1278,21 @@ export function AiScheduleGenerator({
                   </button>
                 ))}
               </div>
+            ) : kindMomentsFor(selectedProject).length ? (
+              // A corporate event's or a sports day's usual moments (job-kinds).
+              <div className="schedule-moments" role="group" aria-label="Add a moment">
+                <span>Add a moment</span>
+                {kindMomentsFor(selectedProject).map((moment) => (
+                  <button
+                    className="schedule-moment-chip"
+                    key={moment.title}
+                    onClick={() => addKindMoment(moment)}
+                    type="button"
+                  >
+                    <Plus aria-hidden size={13} /> {moment.label}
+                  </button>
+                ))}
+              </div>
             ) : null}
             <button
               className="button button-light schedule-add-item"
@@ -1282,8 +1318,7 @@ export function AiScheduleGenerator({
             </summary>
             {ungrounded ? (
               <p className="schedule-basis-empty">
-                Nothing yet — every time below is a typical wedding day, not
-                yours. Ask {clientName}{" "} the questions below, or add your own
+                {`Nothing yet — every time below is a typical ${isWeddingJob(selectedProject) ? "wedding day" : "day"}, not yours.`} Ask {clientName}{" "} the questions below, or add your own
                 timing rules, and the next draft will be built from real
                 answers instead.
               </p>

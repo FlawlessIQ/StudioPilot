@@ -346,7 +346,7 @@ export function InquiryFormEditor({
             ))}
             {draft.eventTypes.length < INQUIRY_FORM_LIMITS.eventTypes ? (
               <button className="button button-light button-sm" onClick={addType} type="button">
-                <Plus aria-hidden="true" size={14} /> Add a kind of inquiry
+                <Plus aria-hidden="true" size={14} /> {typesOnly ? "Add a kind of work" : "Add a kind of inquiry"}
               </button>
             ) : null}
           </fieldset>

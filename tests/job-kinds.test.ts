@@ -304,3 +304,60 @@ test("Cue and the Booking tab say what this kind needs to book", () => {
   assert.equal(bookedOnceClause(journeyProfile("sports")), "the date and client details check out");
   assert.equal(bookedOnceClause(journeyProfile("corporate", { payment: "invoice_after" })), "the agreement is signed");
 });
+
+test("corporate and sports days get their own moments, never a wedding's", async () => {
+  const editor = await import("../features/schedules/standard-moments.ts");
+  const server = await import("../functions/src/ai/schedule-moments.ts");
+  for (const kind of ["corporate", "sports"]) {
+    assert.deepEqual(
+      (editor.KIND_STANDARD_MOMENTS[kind] ?? []).map(({ title, minutes }) => ({ title, minutes })),
+      server.KIND_STANDARD_MOMENTS[kind],
+      `${kind}: the editor's chips and the AI draft's list match`,
+    );
+    assert.ok(editor.kindMomentsFor({ eventKind: kind }).length > 0);
+    assert.doesNotMatch(server.momentsInstructionFor({ eventKind: kind }), /ceremony|first look|cake/i);
+  }
+  assert.deepEqual(editor.kindMomentsFor({ eventKind: "portraits" }), []);
+  assert.equal(server.momentsInstructionFor({ eventKind: "portraits" }), "");
+  assert.match(server.momentsInstructionFor({ eventKind: "wedding" }), /Ceremony/);
+  const placed = editor.placeKindMoment(
+    { label: "Keynote", title: "Keynote", minutes: 45 },
+    [{ title: "Arrivals", startAt: "2027-03-01T09:00:00.000Z", endAt: "2027-03-01T09:30:00.000Z" }],
+    "2027-03-01T09:00:00.000Z",
+  );
+  assert.equal(placed.title, "Keynote");
+  assert.ok(placed.startAt >= "2027-03-01T09:30:00.000Z", "after the last item");
+});
+
+test("every kind has example packages, and none of them names a price", async () => {
+  const { EXAMPLE_PACKAGES } = await import("../features/job-kinds/example-packages.ts");
+  for (const kind of JOB_KINDS) {
+    const examples = EXAMPLE_PACKAGES[kind];
+    assert.ok(examples.length > 0, kind);
+    for (const example of examples) {
+      assert.ok(!/price|cents|\$/i.test(JSON.stringify(Object.keys(example))), `${kind}: ${example.name} carries no price field`);
+      assert.doesNotMatch(JSON.stringify(example), /\$\d/, `${kind}: ${example.name} names no price`);
+      assert.ok(example.coverageHours >= 0.5 && example.photographers + example.videographers >= 1, example.name);
+      if (kind !== "wedding") assert.doesNotMatch(JSON.stringify(example), /wedding|couple|ceremony|bride|groom/i, example.name);
+    }
+  }
+});
+
+test("setup asks what the studio shoots, first, and never nags an established studio", async () => {
+  const { setupGaps, SETUP_ORDER } = await import("../features/today/setup-gaps.ts");
+  const ready = {
+    hasActivePackage: true,
+    hasAgreementTemplate: true,
+    hasQuestionnaireTemplate: true,
+    hasConsultationAvailability: true,
+  };
+  const signals = { projectsNeedingPackage: [], projectsNeedingAgreement: [], projectsNeedingForm: [], openInquiries: 0 };
+  assert.equal(SETUP_ORDER[0], "work");
+  assert.ok(setupGaps({ ...ready, hasChosenWork: false }, signals).some((gap) => gap.key === "work" && !gap.blocking));
+  assert.ok(!setupGaps({ ...ready, hasChosenWork: true }, signals).some((gap) => gap.key === "work"));
+  assert.ok(!setupGaps(ready, signals).some((gap) => gap.key === "work"), "unknown is not asked");
+  const hook = readFileSync("components/setup/use-setup-state.ts", "utf8");
+  assert.match(hook, /tenantDocs\.work \|\| \(projects\.records \?\? \[\]\)\.length > 0/);
+  const conversation = readFileSync("components/setup/setup-conversation.tsx", "utf8");
+  assert.match(conversation, /runCrmCommand\("setInquiryForm", \{ config \}\)/);
+});

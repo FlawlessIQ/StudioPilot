@@ -169,3 +169,49 @@ export function placeStandardMoment(
 export function isWeddingJob(project: Record<string, unknown> | null | undefined): boolean {
   return jobKindOf(project) === "wedding";
 }
+
+/**
+ * The usual moments of a corporate event or a sports day, one tap each
+ * (docs/job-types-plan-2026-10-02.md, starter kits). A wedding has its own
+ * list above, placed from the ceremony; these have no single anchor, so each
+ * goes after the last item and the studio sets the time. Duplicated in
+ * functions/src/ai/schedule-moments.ts for the AI draft.
+ */
+export type KindMoment = { label: string; title: string; minutes: number };
+
+export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, readonly KindMoment[]>>> = {
+  corporate: [
+    { label: "Arrivals", title: "Guest arrivals and registration", minutes: 30 },
+    { label: "Keynote", title: "Keynote", minutes: 45 },
+    { label: "Breakout sessions", title: "Breakout sessions", minutes: 60 },
+    { label: "Headshots", title: "Headshot station", minutes: 60 },
+    { label: "Awards", title: "Awards", minutes: 30 },
+    { label: "Networking", title: "Networking reception", minutes: 60 },
+  ],
+  sports: [
+    { label: "Warm-ups", title: "Warm-ups", minutes: 30 },
+    { label: "Team photo", title: "Team photo", minutes: 15 },
+    { label: "Individual photos", title: "Individual photos", minutes: 45 },
+    { label: "Game play", title: "Game play", minutes: 90 },
+    { label: "Awards", title: "Awards and celebrations", minutes: 20 },
+  ],
+};
+
+/** The moments offered for a job of this kind, or none. Weddings use WEDDING_STANDARD_MOMENTS. */
+export function kindMomentsFor(project: Record<string, unknown> | null | undefined): readonly KindMoment[] {
+  return KIND_STANDARD_MOMENTS[jobKindOf(project)] ?? [];
+}
+
+/** A kind moment, after the last item (or at coverage start): the studio sets the real time. */
+export function placeKindMoment(
+  moment: KindMoment,
+  items: readonly { title?: string; startAt: string; endAt: string }[],
+  coverageStartsAt: string | null,
+): { title: string; startAt: string; endAt: string } {
+  const startMs = Date.parse(nextItemStart(items, coverageStartsAt));
+  return {
+    title: moment.title,
+    startAt: new Date(startMs).toISOString(),
+    endAt: new Date(startMs + moment.minutes * MINUTE).toISOString(),
+  };
+}

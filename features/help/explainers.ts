@@ -168,13 +168,13 @@ export const EXPLAINERS: readonly Explainer[] = [
   {
     id: "setup",
     title: "Set up your studio",
-    summary: "Six questions that get StudioCue ready for your first real inquiry.",
+    summary: "Seven questions that get StudioCue ready for your first real inquiry.",
     audience: "studio",
     stage: "getting-started",
     routes: ["/studio/setup", "/studio/settings", "/studio/settings/*"],
     video: "setup",
     purpose:
-      "Setup asks six questions: how inquiries reach you, when couples can book a call, what you charge, how clients sign, what you ask couples, and who sends your insurance certificates. Most are answered right on the page.",
+      "Setup asks seven questions: what you shoot, how inquiries reach you, when couples can book a call, what you charge, how clients sign, what you ask couples, and who sends your insurance certificates. Most are answered right on the page.",
     steps: [
       "On Today, tap **Continue setup**. Each question says why it matters.",
       "**How do inquiries reach you?** Pick a route, from **On your website** to **Inbox rules**.",

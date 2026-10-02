@@ -20,8 +20,7 @@ import {
   scheduleCrewInstruction,
 } from "./schedule-crew.js";
 import {
-  isWeddingEventType,
-  standardMomentsInstruction,
+  momentsInstructionFor,
 } from "./schedule-moments.js";
 import { sortScheduleItems } from "../planning/item-order.js";
 
@@ -538,9 +537,7 @@ export const aiScheduleCommand = onRequest(
         packageFact,
         videoCoverage,
         crewFacts,
-      }, standardMomentsInstruction(
-        isWeddingEventType(project.data()),
-      ));
+      }, momentsInstructionFor(project.data()));
       const start = Date.parse(input.coverageStartsAt);
       const end = Date.parse(input.coverageEndsAt);
       // In start order, by the same rule the editor and publish keep.

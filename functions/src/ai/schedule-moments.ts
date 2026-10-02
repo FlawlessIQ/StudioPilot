@@ -49,3 +49,38 @@ export function standardMomentsInstruction(isWedding: boolean): string {
     "Return items in start-time order."
   );
 }
+
+/**
+ * The usual moments of a corporate event or a sports day — the same lists the
+ * editor offers (features/schedules/standard-moments.ts, KIND_STANDARD_MOMENTS).
+ */
+export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, ReadonlyArray<{ title: string; minutes: number }>>>> = {
+  corporate: [
+    { title: "Guest arrivals and registration", minutes: 30 },
+    { title: "Keynote", minutes: 45 },
+    { title: "Breakout sessions", minutes: 60 },
+    { title: "Headshot station", minutes: 60 },
+    { title: "Awards", minutes: 30 },
+    { title: "Networking reception", minutes: 60 },
+  ],
+  sports: [
+    { title: "Warm-ups", minutes: 30 },
+    { title: "Team photo", minutes: 15 },
+    { title: "Individual photos", minutes: 45 },
+    { title: "Game play", minutes: 90 },
+    { title: "Awards and celebrations", minutes: 20 },
+  ],
+};
+
+/** The moments instruction for any job: the wedding spine, a kind's list, or nothing. */
+export function momentsInstructionFor(project: unknown): string {
+  if (isWeddingEventType(project)) return standardMomentsInstruction(true);
+  const moments = KIND_STANDARD_MOMENTS[jobKindOf(project)];
+  if (!moments?.length) return "";
+  const list = moments.map((moment) => `${moment.title} (about ${moment.minutes} min)`).join(", ");
+  return (
+    ` Usual moments for this kind of job: where the client's answers or a timing rule support it, include these as their own items: ${list}. ` +
+    "Leave out any the answers do not support, never invent a time without citing it as an assumption, and never add wedding moments. " +
+    "Return items in start-time order."
+  );
+}

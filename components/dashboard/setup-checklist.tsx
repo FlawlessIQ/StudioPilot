@@ -11,6 +11,7 @@ import {
   Package,
   PenLine,
   ShieldCheck,
+  Camera,
 } from "lucide-react";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import {
@@ -20,7 +21,7 @@ import {
 } from "@/features/today/setup-gaps";
 
 /**
- * Help's "Set up your studio": the same six questions as /studio/setup, in
+ * Help's "Set up your studio": the same seven questions as /studio/setup, in
  * the same order, read from the same state.
  *
  * It used to be its own list of five different steps (preview the form,
@@ -30,6 +31,7 @@ import {
  * where it's answered.
  */
 const ICONS: Record<SetupGapKey, ComponentType<{ size?: number }>> = {
+  work: Camera,
   inquiries: Inbox,
   availability: CalendarClock,
   packages: Package,
@@ -52,7 +54,7 @@ export function SetupChecklist() {
         <div>
           <span className="ds-eyebrow">Get started</span>
           <h2>Set up your studio workspace</h2>
-          <p>Six questions, most answered in a tap. Skip anything and come back when you need it.</p>
+          <p>Seven questions, most answered in a tap. Skip anything and come back when you need it.</p>
         </div>
         {!loading ? (
           <span className="ds-badge ds-badge-brass">{`${completed} of ${total} complete`}</span>

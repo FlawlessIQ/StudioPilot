@@ -5,6 +5,7 @@ import {
   coverageFrom,
 } from "@/components/crm/package-coverage-fields";
 import { useState } from "react";
+import { EXAMPLE_PACKAGES, type ExamplePackage } from "@/features/job-kinds/example-packages";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -140,6 +141,17 @@ export function CreatePackageForm({
     defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
   const retainerMode = watch("retainerMode");
+  const kind = watch("eventType");
+  /** An example's shape, never its price: the studio sets that (example-packages.ts). */
+  function startFrom(example: ExamplePackage) {
+    setValue("name", example.name);
+    setValue("description", example.description);
+    setValue("coverageHours", example.coverageHours);
+    setValue("photographers", example.photographers);
+    setValue("videographers", example.videographers);
+    setValue("deliverables", example.deliverables);
+    setValue("terms", journeyProfile(kind).agreement ? "Subject to the completed studio agreement." : "Subject to the studio's terms.");
+  }
   const paymentShape = watch("paymentShape");
   // Only a deposit has a retainer to set: paid in full takes the whole price
   // to book, and "on the day" or "invoiced after" take nothing up front.
@@ -220,6 +232,15 @@ export function CreatePackageForm({
           all of them too: only three had a slot to appear in, so a rejection
           on any of the other eight showed nothing at all. */}
       <div className="form-grid">
+        <div className="form-span package-examples" role="group" aria-label="Start from an example">
+          <span>Start from an example</span>
+          {EXAMPLE_PACKAGES[kind].map((example) => (
+            <button className="schedule-moment-chip" key={example.name} onClick={() => startFrom(example)} type="button">
+              {example.name}
+            </button>
+          ))}
+          <small>Fills in the shape. The price is always yours to set.</small>
+        </div>
         <label className="form-span">
           Package name <span className="required-mark">Required</span>
           <input {...register("name")} />

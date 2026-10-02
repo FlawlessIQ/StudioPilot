@@ -2712,3 +2712,19 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* "Start from an example" on the new-package form (job kinds, starter kits). */
+.ds-root .package-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ds-root .package-examples > span {
+  font-weight: 600;
+  margin-right: 4px;
+}
+.ds-root .package-examples > small {
+  flex-basis: 100%;
+  color: var(--ds-muted);
+}

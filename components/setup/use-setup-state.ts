@@ -52,6 +52,8 @@ export function useSetupState(): {
     availability: boolean;
     captured: boolean;
     coi: boolean;
+    /** The inquiry form has been saved; undefined when it can't be read. */
+    work: boolean | undefined;
   } | null>(null);
 
   const [reads, setReads] = useState(0);
@@ -96,6 +98,7 @@ export function useSetupState(): {
           Boolean(text(capture?.get("lastCaptureAt"))) ||
           Boolean(text(capture?.get("lastTestCaptureAt"))),
         coi: Boolean(coi?.exists()),
+        work: capture ? Boolean(capture.get("inquiryForm")) : undefined,
       });
     });
     return () => {
@@ -133,6 +136,12 @@ export function useSetupState(): {
     // Inquiries reach StudioCue: captured (forwarded, or the form emailing
     // StudioCue directly), a passed test, or StudioCue's own inquiry form.
     hasCoiSettings: tenantDocs ? tenantDocs.coi : undefined,
+    // Said by saving the form's types, or long since shown by the jobs a
+    // studio already has — an established studio isn't asked again.
+    hasChosenWork:
+      tenantDocs?.work === undefined
+        ? undefined
+        : tenantDocs.work || (projects.records ?? []).length > 0,
     hasInquiryCapture:
       Boolean(tenantDocs?.captured) ||
       (leads.records ?? []).some(

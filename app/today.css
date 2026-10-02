@@ -1863,3 +1863,14 @@
     grid-column: 2 / -1;
   }
 }
+
+/* "What do you shoot?" in setup (job kinds). */
+.setup-kinds {
+  flex-wrap: wrap;
+}
+.setup-kind-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  flex-basis: 100%;
+}
