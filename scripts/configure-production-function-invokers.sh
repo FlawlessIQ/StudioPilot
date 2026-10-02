@@ -161,6 +161,10 @@ scheduler_services=(
   contractreminderscheduler
   crewcascadeexpiryscheduler
   domaineventoutboxscheduler
+  # The couple's week-of reminder and each accepted crew member's call-time
+  # reminder (communications/event-reminders.ts). Missing here, it 403s after
+  # the next invoker reset and both go quiet again.
+  eventreminderscheduler
   # Asks SendGrid what became of the mail we sent, because StudioCue has no
   # Event Webhook slot to be told. Missing from this list, it would 403 after
   # the org's next invoker-IAM reset and delivery status would silently stop

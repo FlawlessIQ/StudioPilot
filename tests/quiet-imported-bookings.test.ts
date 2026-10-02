@@ -92,6 +92,13 @@ const guarded: Array<[string, string, RegExp]> = [
     /return stop === null \? "requested" : "needs_studio";/,
   ],
   [
+    "the week-of reminder never writes to a quiet booking",
+    "functions/src/communications/event-reminders-core.ts",
+    // clientOutreachStop returns "automations_paused" for a quiet booking;
+    // tests/event-reminders.test.ts holds the behaviour.
+    /const stop = clientOutreachStop\(project\);\n  if \(stop\) return \{ send: false, reason: stop \};/,
+  ],
+  [
     "the email sender holds automated mail for a quiet booking",
     "functions/src/operations/jobs.ts",
     /clientAutomationEmailTypes\.includes\(type\)/,

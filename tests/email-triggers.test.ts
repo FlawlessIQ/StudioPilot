@@ -61,9 +61,11 @@ test("scheduleConsultation enqueues consultation_confirmation (P14)", () => {
 
 /**
  * Templates that exist with no direct command trigger, documented so the gap
- * stays visible rather than being rediscovered by a walk. Reminders
- * (consultation_reminder, crew_reminder, event_reminder, questionnaire_reminder,
- * package_follow_up) are drafted by the daily lifecycle scheduler; auth mail
+ * stays visible rather than being rediscovered by a walk. Reminders are
+ * scheduler-sent: event_reminder (the couple, a week out) and crew_reminder
+ * (accepted crew, two days before their call) by eventReminderScheduler
+ * (tests/event-reminders.test.ts); questionnaire_reminder by its own
+ * scheduler; auth mail
  * (email_verification, password_reset) goes through authEmailCommand; final
  * mail (final_invoice, thank_you) is scheduler/date-gated. The two below are
  * genuinely untriggered per CLAUDE.md and are the standing backlog items.

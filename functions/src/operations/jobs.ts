@@ -34,6 +34,10 @@ import {
 } from "../communications/conversation.js";
 import { replyAddressFor } from "../communications/reply-address.js";
 import { emailHeldBack } from "../communications/undo-send.js";
+import {
+  crewReminderPlanFor,
+  eventReminderHoldFor,
+} from "../communications/event-reminders.js";
 import { captureOperationalError } from "./observability.js";
 import { productEvent } from "./product-events.js";
 import {
@@ -876,6 +880,22 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     )
       return { held: "review_request_closed", type };
   }
+  // The week-of reminder and the crew call-time reminder are read against the
+  // job as they go (communications/event-reminders-core.ts): a wedding whose
+  // date moved, or an assignment no longer accepted, is held — and the crew
+  // email says the call time the assignment says now, not when it was queued.
+  // Only the scheduler's own jobs carry these fields; a studio's workflow rule
+  // that sends `event_reminder` is its own choice and is not second-guessed.
+  let reminderValues: Record<string, unknown> = {};
+  if (type === "event_reminder" && document.get("eventDate")) {
+    const hold = await eventReminderHoldFor(getFirestore(), document);
+    if (hold) return { held: hold, type };
+  }
+  if (type === "crew_reminder" && document.get("callDate") && document.get("assignmentId")) {
+    const plan = await crewReminderPlanFor(getFirestore(), document);
+    if ("hold" in plan) return { held: plan.hold, type };
+    reminderValues = plan.values;
+  }
   // A consultation email is rendered from the consultation as it is now
   // (booking/consultation-email.ts): the Zoom link the provider worker made
   // after booking, the time after a move — and nothing at all for a meeting
@@ -902,7 +922,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     brand: context.brand,
     recipientName: context.recipientName,
     projectName: context.projectName,
-    values: { ...context.values, ...consultationValues },
+    values: { ...context.values, ...consultationValues, ...reminderValues },
     template: context.template,
   });
 

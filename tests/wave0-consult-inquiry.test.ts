@@ -162,7 +162,8 @@ test("the email worker plans consultation emails before it renders them", () => 
   const planned = jobs.indexOf("consultationEmailPlanFor(");
   const rendered = jobs.indexOf("renderEmailTemplate({", planned);
   assert.ok(planned > 0 && rendered > planned, "the plan is read before the render");
-  assert.match(jobs, /values: \{ \.\.\.context\.values, \.\.\.consultationValues \}/);
+  // The consultation's values win over the job's (a reminder's may follow; they never overlap).
+  assert.match(jobs, /values: \{ \.\.\.context\.values, \.\.\.consultationValues[ ,]/);
   // Every path that queues a confirmation names the consultation.
   for (const path of ["functions/src/booking/commands.ts", "functions/src/booking/public-scheduling.ts"]) {
     const source = read(path);

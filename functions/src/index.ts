@@ -101,6 +101,7 @@ export { aiActionCommand } from "./ai/actions.js";
 export { aiMessageDraftCommand } from "./ai/message-draft.js";
 export { aiTimingRulesCommand } from "./ai/timing-rules.js";
 export { lifecycleMessageScheduler } from "./communications/lifecycle-scheduler.js";
+export { eventReminderScheduler } from "./communications/event-reminders.js";
 export { lifecycleSettingsCommand } from "./communications/lifecycle-settings.js";
 export { authEmailCommand } from "./auth/emails.js";
 export {

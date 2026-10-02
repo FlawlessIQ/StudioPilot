@@ -58,9 +58,9 @@ The shared catalog covers:
 - booking confirmation
 - questionnaire request and reminder
 - COI request, correction, and venue delivery
-- crew reminder
+- crew reminder (two days before the call; see "Before the day" below)
 - schedule review and final publication
-- event reminder and thank-you
+- event reminder (a week before) and thank-you
 - delivery and review request
 
 Proposal delivery is approval-gated. The email worker attaches the exact
@@ -149,3 +149,43 @@ A call booked later than that gets it within the hour.
 Settings saved before this existed still parse: `consultation_prep` is optional
 with a default, and the wedding-date engine (`lifecycleTriggers`) never
 schedules it. Walk it with `scripts/uat/consultation-prep-walk.mts`.
+
+## Before the day — the couple's week-of note and the crew's call time (2026-10-02)
+
+Both templates existed and nothing queued them: `event_reminder` was sent only
+by a studio's own optional workflow rule (the day before), and `crew_reminder`
+never. `eventReminderScheduler` (hourly,
+`functions/src/communications/event-reminders.ts`; rules in
+`event-reminders-core.ts`, pure with an explicit `now`) now sends both.
+
+- **The couple, a week out.** From 9 AM in the wedding's own zone seven days
+  before, until two days before (closer than that the day-before checklist is
+  the note). Booked, Planning or Ready only; never for a quiet job (imported,
+  paused, cancelled, lost, on hold, archived). The button is their timeline
+  (`/client/schedule`) when a schedule is published with anything on it for
+  them, else their portal; the portal is the second link. Both partners get it.
+- **Each accepted crew member, two days before their call.** From 9 AM in the
+  wedding's zone two days before the call date (the assignment's `arrivalAt`
+  read in that zone, else the event date), until the call time. The email gives
+  the role, the call time and finish in the wedding's clock (named), the place
+  from the assignment (else the job's venue), whether the run of show is out,
+  and the button to that job's day sheet (`/crew/schedule?assignment=…`).
+  Accepted assignments only. A job put away, cancelled or on hold reminds
+  nobody; a *quiet* job still reminds its crew — quiet is about the couple
+  (ADR 0005), and crew who accepted through StudioCue already hear from it.
+- **Zone:** the project's `timezone`, else the studio's, else UTC; put on the
+  job so the renderer formats every time in it.
+- **One each:** `emailJobs/event_reminder_{tenant}_{project}_{eventDate}` and
+  `emailJobs/crew_reminder_{tenant}_{assignment}_{callDate}`, created once. A
+  wedding or call that moves to another day gets the new day's reminder.
+- **Read again as it sends** (`operations/jobs.ts`): the couple's is held if
+  the job stopped (`clientOutreachGuard`), left Booked/Planning/Ready, changed
+  date, or the day came; it is also on the quiet-booking held list. The crew's
+  is held if the assignment is no longer accepted, the job stopped or the call
+  moved to another day — and renders the call time and place the assignment
+  has *now*.
+- **Not on the "Review each time" dial.** The lifecycle drafts carry words
+  StudioCue wrote (a balance, a checklist) that a person should read first.
+  These carry nothing to check — a fixed note and a link, or the times the crew
+  member already accepted — so they send like the review, album and
+  final-details reminders. A studio rewords either in the template studio.

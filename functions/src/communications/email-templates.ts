@@ -287,6 +287,37 @@ const humanDate = (value: string, timeZone?: string | null): string => {
   }
 };
 
+/** The calendar day of a timestamp, in the event's zone: "June 12, 2027". */
+const humanDay = (value: string, timeZone?: string | null): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  const format = (zone: string) =>
+    new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: zone }).format(date);
+  try {
+    return format(timeZone ?? "UTC");
+  } catch {
+    return format("UTC");
+  }
+};
+
+/** The clock of a timestamp, in the event's zone and naming it: "11:30 PM EDT". */
+const humanClock = (value: string, timeZone?: string | null): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  const format = (zone: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+      timeZone: zone,
+    }).format(date);
+  try {
+    return format(timeZone ?? "UTC");
+  } catch {
+    return format("UTC");
+  }
+};
+
 const projectReference = (
   projectName: string | null | undefined,
 ): string => (projectName ? ` for ${projectName}` : "");
@@ -1046,20 +1077,56 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           `We reviewed and approved the attached certificate of insurance for ${stringValue(values, "venueName") || "your venue"}${stringValue(values, "eventDate") ? `, for the event on ${humanDate(stringValue(values, "eventDate"))}` : ""}.`,
         ],
       };
-    case "crew_reminder":
+    case "crew_reminder": {
+      /**
+       * Two days before their call (communications/event-reminders.ts), to
+       * each crew member who accepted: when, where, and the day sheet, which
+       * is the point. The call time and place are the assignment's as the
+       * email sends. This was once an "action needed" nudge nothing queued.
+       */
+      const role = stringValue(values, "role");
+      const arrivalAt = stringValue(values, "arrivalAt");
+      const departureAt = stringValue(values, "departureAt");
+      const callDate = stringValue(values, "callDate");
+      const locationName = stringValue(values, "locationName");
+      const locationAddress = stringValue(values, "locationAddress");
+      const destination = scheduleUrl || actionUrl;
+      const day = arrivalAt
+        ? humanDay(arrivalAt, zone)
+        : callDate
+          ? humanDate(callDate, zone)
+          : "";
       return {
-        subject: `Action needed for your ${brand.studioName} assignment`,
-        preheader: "Review the remaining assignment requirement.",
+        subject: `Reminder: your ${brand.studioName} job${project}${day ? ` on ${day}` : ""}`,
+        preheader: arrivalAt
+          ? `Call time ${humanDate(arrivalAt, zone)}.`
+          : "Your day sheet for the job.",
         eyebrow: "Crew reminder",
-        heading: "Your assignment needs attention",
+        heading: "Your job is coming up",
         paragraphs: [
           greeting,
-          `We're waiting for an assignment response, document, or schedule acknowledgement${project}.`,
+          `A reminder that you're working${project}${day ? ` on ${day}` : ""}.`,
+          ...[
+            role ? `Role: ${role}` : "",
+            arrivalAt
+              ? `Call time: ${humanDate(arrivalAt, zone)}${departureAt ? `, until ${humanClock(departureAt, zone)}` : ""}`
+              : "",
+            locationName
+              ? `Where: ${locationName}${locationAddress ? ` — ${locationAddress}` : ""}`
+              : "",
+          ].filter(Boolean),
+          values.runOfShowShared === true
+            ? "The run of show, who to call and your part in the day are on your day sheet. It saves to your phone, so it opens with no signal."
+            : "The studio hasn't published the run of show yet. It will be on your day sheet as soon as they do — message them from the job if you need it sooner.",
         ],
-        action: actionUrl
-          ? { label: "Open job brief", url: actionUrl }
+        action: destination
+          ? { label: "Open your day sheet", url: destination }
           : undefined,
+        note: destination
+          ? undefined
+          : `Sign in to your ${brand.studioName} crew account to see your day sheet.`,
       };
+    }
     case "project_cancelled": {
       /**
        * Written by the studio on the cancel form, or this default. Says the
@@ -1153,21 +1220,44 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : undefined,
       };
     }
-    case "event_reminder":
+    case "event_reminder": {
+      /**
+       * The week-of note (communications/event-reminders.ts); a studio's own
+       * workflow rule may also send it the day before. The link is the point:
+       * their timeline when one is published for them, else their portal.
+       */
+      const eventDate = stringValue(values, "eventDate");
+      const primary = scheduleUrl
+        ? { label: "See your timeline", url: scheduleUrl }
+        : portalUrl
+          ? { label: "Open your portal", url: portalUrl }
+          : undefined;
       return {
         subject: `Your event with ${brand.studioName} is coming up`,
-        preheader: "Review the final event details and schedule.",
+        preheader: scheduleUrl
+          ? "Your timeline and the last few details, in one place."
+          : "The last few details for your day, in your portal.",
         eyebrow: "Event reminder",
         heading: "We’re ready for your event",
         paragraphs: [
           greeting,
-          `We're looking forward to your event${project}. Review the current schedule, arrival details, and any remaining next action in your portal.`,
+          `We're looking forward to your event${project}${eventDate ? ` on ${humanDate(eventDate, zone)}` : ""}. ${
+            scheduleUrl
+              ? "Your timeline is ready: please check the times and places"
+              : "Your portal has everything we have for the day: please check it"
+          }, and reply to this email if anything has changed.`,
           "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive.",
         ],
-        action: portalUrl
-          ? { label: "Open project portal", url: portalUrl }
-          : undefined,
+        action: primary,
+        secondaryAction:
+          scheduleUrl && portalUrl
+            ? { label: "Your project portal", url: portalUrl }
+            : undefined,
+        note: primary
+          ? undefined
+          : `Sign in to your ${brand.studioName} client portal to see the details.`,
       };
+    }
     case "thank_you":
       return {
         subject: `Thank you from ${brand.studioName}`,

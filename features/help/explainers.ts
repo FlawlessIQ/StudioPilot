@@ -796,7 +796,10 @@ export const EXPLAINERS: readonly Explainer[] = [
       "**Files** keeps everything shared with you, plus your signed agreement and your invoices.",
     ],
     next: "Your photographer and crew plan the day from the version you approve. If it changes, you'll get a new version to check.",
-    goodToKnow: ["Times are shown in the wedding's time zone."],
+    goodToKnow: [
+      "Times are shown in the wedding's time zone.",
+      "A week before the wedding you'll get an email with a link straight to your timeline.",
+    ],
     terms: ["couple-timeline"],
   },
   {
@@ -880,6 +883,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     ],
     next: "If the studio changes the run of show, the version number goes up and you'll be asked to confirm again.",
     goodToKnow: [
+      "Two days before, you'll get an email with your call time, where to be and a link to the day sheet.",
       "The day sheet is saved on your phone, so it opens with no signal.",
       "Only your own paperwork is here. You never see the couple's contract, invoices or photos.",
     ],
