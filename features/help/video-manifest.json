@@ -264,6 +264,187 @@
     "recordedAt": "2026-09-30",
     "recordedCommit": "acfa740"
   },
+  "journey": {
+    "version": 1,
+    "durationSec": 368.1,
+    "orientation": "landscape",
+    "file": "journey.v1.mp4",
+    "poster": "journey.v1.jpg",
+    "captions": "journey.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "The inquiry"
+      },
+      {
+        "at": 51,
+        "title": "The consultation"
+      },
+      {
+        "at": 80.3,
+        "title": "Booking"
+      },
+      {
+        "at": 146.6,
+        "title": "Your crew"
+      },
+      {
+        "at": 183.6,
+        "title": "The quiet months"
+      },
+      {
+        "at": 199,
+        "title": "Planning"
+      },
+      {
+        "at": 262.2,
+        "title": "The wedding week"
+      },
+      {
+        "at": 303.4,
+        "title": "After the wedding"
+      }
+    ],
+    "transcript": "A wedding takes a year or more to arrive. Let's follow one, from the first email to the album. It starts when Ella fills in the inquiry form on your website. She tells you the date and the venue, and what matters most to them. Then she sends it. On your side, the inquiry lands on your Today screen, with a reply already written, in your voice, with a link for her to tell you more and book a call. Read it, change anything you like, and send. Ella gets it within minutes. And if she goes quiet, StudioCue drafts a follow-up on day three and day seven, for you to send the same way. Ella's link opens a page of her own. She adds a few details, then picks a time to talk, from the hours you've opened. She gets a confirmation with the video link, and the call is in your calendar. The day before, StudioCue prepares a note for Ella: what she's told you so far, and what you'd like to talk about. One tap sends it. So by the time you talk, you both know what the call is for. After the call, open their job. The green card says what's next: the proposal. Pick the package they want. The price, the retainer and the dates fill in from your settings. Approve it, and send. Ella gets your proposal by email, and opens it in her own wedding portal. She sees exactly what's included, the payment plan, and any extras she could add. When she's happy, she accepts. The moment she accepts, the agreement goes out: written from that proposal, and already signed for you. She reads it, and signs on her phone. Next comes the retainer, which holds her date. She pays it online, in a minute. Back on your side, the agreement is signed and the retainer is paid, so the booking is confirmed: her portal, the planning checklist and the calendar are set up for you. Booked, without a single chase. Their package has two photographers, so the next job is your second shooter. Open the Plan tab, then Crew for this job. StudioCue ranks the people you work with, by availability, clashes, travel and paperwork. Approve the plan, and the offer goes to your first choice. Jordan, your second shooter, gets the offer on their phone: the date, the times, the place and the fee. One tap to accept. And on the job, the role is filled. If they'd said no, or not answered within a day, the offer would have moved to the next name by itself. Then come the quiet months. Ella's portal counts down to the day, and shows her what comes next, and when. And on your side, there's nothing to do. StudioCue knows what's coming, and brings each thing to your Today screen on the day it's due. Six months out, planning begins. Your next move on the job is the planning form. One tap sends it. Ella's form arrives already filled in with what you know: their names, the venue, the ceremony time. She adds the rest, over a few evenings. When her answers are in, StudioCue drafts the run of show from them, and shows where every time came from. Change anything you like, then publish it. Ella checks the timeline on her phone, and approves it, and Jordan gets the day sheet: where to be, and when. Four weeks out, the details lock. Ella sees everything for the day in one place, and confirms it. After that, a change to where or when comes to you to agree. The final balance invoice has already gone out by itself. She can pay it now, or let a saved card pay it on the due date. The week of the wedding, Ella gets a note from you: her timeline, and what to have ready when you arrive. Two days out, Jordan gets their call time and the day sheet, which saves to their phone and opens with no signal. It has everything for the day, including what to handle carefully. They read it, and confirm. On your side, anything still open is your next move. This venue doesn't need an insurance certificate, so that's one tap. The day before, the last note to the couple is ready on Today. Approve it, and on the day, the event screen holds the whole brief: the run of show, your crew, and the venue. The day after, the job asks one question: did it go ahead? One tap, and it moves on. Jordan sends their hours and any expenses from their phone, for you to approve and pay. When the edit is done, open the Delivery tab, paste the link to the gallery, and release it. Ella gets one email, and her gallery is waiting in her portal. She downloads everything, and a few days later, she's asked for a review, then once more by email if she hasn't left one. Last, Wrap up checks everything is settled: the agreement, the balance, the gallery, the review and the crew. Anything StudioCue can't see, you vouch for. Close it, and the wedding is done: from the first email to the last photo, in one place.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-1": {
+    "version": 1,
+    "durationSec": 51,
+    "orientation": "landscape",
+    "file": "journey-1.v1.mp4",
+    "poster": "journey-1.v1.jpg",
+    "captions": "journey-1.v1.vtt",
+    "chapters": [
+      {
+        "at": 4,
+        "title": "The inquiry"
+      }
+    ],
+    "transcript": "A wedding takes a year or more to arrive. Let's follow one, from the first email to the album. It starts when Ella fills in the inquiry form on your website. She tells you the date and the venue, and what matters most to them. Then she sends it. On your side, the inquiry lands on your Today screen, with a reply already written, in your voice, with a link for her to tell you more and book a call. Read it, change anything you like, and send. Ella gets it within minutes. And if she goes quiet, StudioCue drafts a follow-up on day three and day seven, for you to send the same way.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-2": {
+    "version": 1,
+    "durationSec": 29.3,
+    "orientation": "landscape",
+    "file": "journey-2.v1.mp4",
+    "poster": "journey-2.v1.jpg",
+    "captions": "journey-2.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "The consultation"
+      }
+    ],
+    "transcript": "Ella's link opens a page of her own. She adds a few details, then picks a time to talk, from the hours you've opened. She gets a confirmation with the video link, and the call is in your calendar. The day before, StudioCue prepares a note for Ella: what she's told you so far, and what you'd like to talk about. One tap sends it. So by the time you talk, you both know what the call is for.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-3": {
+    "version": 1,
+    "durationSec": 66.3,
+    "orientation": "landscape",
+    "file": "journey-3.v1.mp4",
+    "poster": "journey-3.v1.jpg",
+    "captions": "journey-3.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "Booking"
+      }
+    ],
+    "transcript": "After the call, open their job. The green card says what's next: the proposal. Pick the package they want. The price, the retainer and the dates fill in from your settings. Approve it, and send. Ella gets your proposal by email, and opens it in her own wedding portal. She sees exactly what's included, the payment plan, and any extras she could add. When she's happy, she accepts. The moment she accepts, the agreement goes out: written from that proposal, and already signed for you. She reads it, and signs on her phone. Next comes the retainer, which holds her date. She pays it online, in a minute. Back on your side, the agreement is signed and the retainer is paid, so the booking is confirmed: her portal, the planning checklist and the calendar are set up for you. Booked, without a single chase.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-4": {
+    "version": 1,
+    "durationSec": 37,
+    "orientation": "landscape",
+    "file": "journey-4.v1.mp4",
+    "poster": "journey-4.v1.jpg",
+    "captions": "journey-4.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "Your crew"
+      }
+    ],
+    "transcript": "Their package has two photographers, so the next job is your second shooter. Open the Plan tab, then Crew for this job. StudioCue ranks the people you work with, by availability, clashes, travel and paperwork. Approve the plan, and the offer goes to your first choice. Jordan, your second shooter, gets the offer on their phone: the date, the times, the place and the fee. One tap to accept. And on the job, the role is filled. If they'd said no, or not answered within a day, the offer would have moved to the next name by itself.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-5": {
+    "version": 1,
+    "durationSec": 15.4,
+    "orientation": "landscape",
+    "file": "journey-5.v1.mp4",
+    "poster": "journey-5.v1.jpg",
+    "captions": "journey-5.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "The quiet months"
+      }
+    ],
+    "transcript": "Then come the quiet months. Ella's portal counts down to the day, and shows her what comes next, and when. And on your side, there's nothing to do. StudioCue knows what's coming, and brings each thing to your Today screen on the day it's due.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-6": {
+    "version": 1,
+    "durationSec": 63.2,
+    "orientation": "landscape",
+    "file": "journey-6.v1.mp4",
+    "poster": "journey-6.v1.jpg",
+    "captions": "journey-6.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "Planning"
+      }
+    ],
+    "transcript": "Six months out, planning begins. Your next move on the job is the planning form. One tap sends it. Ella's form arrives already filled in with what you know: their names, the venue, the ceremony time. She adds the rest, over a few evenings. When her answers are in, StudioCue drafts the run of show from them, and shows where every time came from. Change anything you like, then publish it. Ella checks the timeline on her phone, and approves it, and Jordan gets the day sheet: where to be, and when. Four weeks out, the details lock. Ella sees everything for the day in one place, and confirms it. After that, a change to where or when comes to you to agree. The final balance invoice has already gone out by itself. She can pay it now, or let a saved card pay it on the due date.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-7": {
+    "version": 1,
+    "durationSec": 41.2,
+    "orientation": "landscape",
+    "file": "journey-7.v1.mp4",
+    "poster": "journey-7.v1.jpg",
+    "captions": "journey-7.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "The wedding week"
+      }
+    ],
+    "transcript": "The week of the wedding, Ella gets a note from you: her timeline, and what to have ready when you arrive. Two days out, Jordan gets their call time and the day sheet, which saves to their phone and opens with no signal. It has everything for the day, including what to handle carefully. They read it, and confirm. On your side, anything still open is your next move. This venue doesn't need an insurance certificate, so that's one tap. The day before, the last note to the couple is ready on Today. Approve it, and on the day, the event screen holds the whole brief: the run of show, your crew, and the venue.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
+  "journey-8": {
+    "version": 1,
+    "durationSec": 64.7,
+    "orientation": "landscape",
+    "file": "journey-8.v1.mp4",
+    "poster": "journey-8.v1.jpg",
+    "captions": "journey-8.v1.vtt",
+    "chapters": [
+      {
+        "at": 0,
+        "title": "After the wedding"
+      }
+    ],
+    "transcript": "The day after, the job asks one question: did it go ahead? One tap, and it moves on. Jordan sends their hours and any expenses from their phone, for you to approve and pay. When the edit is done, open the Delivery tab, paste the link to the gallery, and release it. Ella gets one email, and her gallery is waiting in her portal. She downloads everything, and a few days later, she's asked for a review, then once more by email if she hasn't left one. Last, Wrap up checks everything is settled: the agreement, the balance, the gallery, the review and the crew. Anything StudioCue can't see, you vouch for. Close it, and the wedding is done: from the first email to the last photo, in one place.",
+    "recordedAt": "2026-10-02",
+    "recordedCommit": "ad9b727"
+  },
   "proposal": {
     "version": 1,
     "durationSec": 87.3,
