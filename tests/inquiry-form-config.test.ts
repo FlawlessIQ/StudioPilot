@@ -60,8 +60,8 @@ test("the default form keeps every studio's current behaviour and adds the commo
       ["general", "General question", "general"],
     ],
   );
-  // Budget and referral were always asked; existing studios keep them until they turn them off.
-  assert.equal(config.askBudget, true);
+  // Referral was always asked and still is; budget is off unless the studio turns it on.
+  assert.equal(config.askBudget, false);
   assert.equal(config.askReferral, true);
   assert.deepEqual(config.questions, []);
   assert.equal(config.buttonColor, null);

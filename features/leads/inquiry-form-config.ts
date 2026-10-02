@@ -138,8 +138,11 @@ export function defaultInquiryFormConfig(): InquiryFormConfig {
       defaultType("other", "Other", "other"),
       defaultType("general", "General question", "general"),
     ],
-    // On by default: every studio's form asked both before this existed.
-    askBudget: true,
+    // Referral stays on: every studio's form asked it before this existed.
+    // Budget is off unless a studio turns it on — a price question on first
+    // contact puts couples off before the studio has said a word (Conor,
+    // 2026-10-02). No studio had saved a form yet, so none had chosen it.
+    askBudget: false,
     askReferral: true,
     questions: [],
     buttonColor: null,
