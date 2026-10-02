@@ -1,0 +1,86 @@
+import { defineHowTo } from "../lib/define";
+
+/** The journey film, chapter 7: the wedding week (docs/wedding-journey-video-plan-2026-10-02.md §3). */
+export default defineHowTo({
+  id: "journey-7",
+  title: "One wedding, start to finish: the wedding week",
+  start: { as: "owner", viewport: "desktop" },
+  cast: { studio: "owner", couple: "ella.hart@studiohub.test", crew: "crew" },
+  steps: [
+    { do: [{ story: "wedding-in:6" }, { story: "scheduler:communications/event-reminders.ts#eventReminderScheduler" }, { story: "retainer-paid:final" }, { story: "crew-paperwork" }] },
+    {
+      chapter: "The wedding week",
+      on: "couple",
+      layout: "phone",
+      when: { at: 0.58, label: "1 week to go" },
+      caption: { title: "What Ella sees", detail: "The week of the wedding." },
+      say: "The week of the wedding, Ella gets a note from you: her timeline, and what to have ready when you arrive.",
+      do: [{ email: { subject: /coming up/i, to: "ella.hart@studiohub.test" } }, { wait: 1500 }, { spotlight: { text: "See your timeline" }, holdMs: 2000 }],
+    },
+    { do: [{ story: "wedding-in:2" }, { story: "scheduler:communications/event-reminders.ts#eventReminderScheduler" }] },
+    {
+      on: "crew",
+      layout: "phone",
+      when: { at: 0.59, label: "2 days to go" },
+      caption: { title: "What Jordan sees", detail: "Call time, place, and the day sheet." },
+      say: "Two days out, Jordan gets their call time and the day sheet, which saves to their phone and opens with no signal.",
+      do: [{ email: { subject: /Reminder/i, to: "crew@studiohub.test" } }, { wait: 2200 }],
+    },
+    {
+      on: "crew",
+      say: "It has everything for the day, including what to handle carefully. They read it, and confirm.",
+      do: [
+        { goto: "/crew/jobs" },
+        { waitFor: { css: "h1.kit-title" } },
+        { click: { text: "Ella Hart Wedding" } },
+        { waitFor: { text: "Read and confirm", exact: true } },
+        { scrollTo: { text: "Read and confirm", exact: true } },
+        { click: { text: "Read and confirm", exact: true } },
+        { waitFor: { role: "button", name: /I.ve read version/ } },
+        { wait: 1200 },
+        { spotlight: { text: "READ BEFORE YOU SHOOT" }, holdMs: 1800 },
+        { click: { role: "button", name: /I.ve read version/ } },
+        { wait: 2000 },
+      ],
+    },
+    { do: [{ story: "drain" }] },
+    {
+      on: "studio",
+      layout: "studio",
+      say: "On your side, anything still open is your next move. This venue doesn't need an insurance certificate, so that's one tap.",
+      do: [
+        { goto: "/studio/projects/{job}" },
+        { waitFor: { css: ".thread-next" } },
+        { wait: 800 },
+        { spotlight: { css: ".thread-next" }, holdMs: 2400 },
+        { click: { css: ".thread-next button:has-text('Not required')" } },
+        { wait: 2500 },
+      ],
+    },
+    { do: [{ story: "wedding-in:1" }, { story: "scheduler:communications/lifecycle-scheduler.ts#lifecycleMessageScheduler" }] },
+    {
+      on: "studio",
+      when: { at: 0.6, label: "Tomorrow" },
+      say: "The day before, the last note to the couple is ready on Today. Approve it,",
+      do: [
+        { goto: "/studio" },
+        { waitFor: { css: ".today-hero-go" } },
+        { scrollTo: { css: ".today-card:has-text('day before checklist'):has-text('Ella Hart')" } },
+        { spotlight: { css: ".today-card:has-text('day before checklist'):has-text('Ella Hart')" }, holdMs: 2200 },
+        { click: { css: ".today-card:has-text('day before checklist'):has-text('Ella Hart') button:has-text('Approve')" } },
+        { wait: 1500 },
+      ],
+    },
+    {
+      on: "studio",
+      say: "and on the day, the event screen holds the whole brief: the run of show, your crew, and the venue.",
+      do: [
+        { goto: "/studio/event-day" },
+        { waitFor: { text: "Run of show" } },
+        { wait: 800 },
+        { scrollTo: { text: "Run of show" } },
+        { spotlight: { css: "section:has-text('Current published plan'), .panel:has-text('Current published plan')" }, holdMs: 3000 },
+      ],
+    },
+  ],
+});

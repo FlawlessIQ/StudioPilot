@@ -19,7 +19,7 @@ import type { Action, HowToScript, Target } from "./define";
 
 export const APP = process.env.HOW_TO_APP ?? "http://localhost:3100";
 
-const ACCOUNTS = {
+export const ACCOUNTS = {
   owner: "owner@studiohub.test",
   client: "client@studiohub.test",
   crew: "crew@studiohub.test",
@@ -35,7 +35,7 @@ export type Mark = { step: number; t: number };
 export type Cut = { from: number; to: number };
 export type Recording = { frames: Frame[]; marks: Mark[]; cuts: Cut[]; endT: number };
 
-const overlay = (touch: boolean) => `
+export const overlay = (touch: boolean) => `
 (() => {
   const TOUCH = ${touch};
   // Cue asks a morning brief on its first visit; in mock mode the answer is a
@@ -104,7 +104,7 @@ export function locate(page: Page, target: Target): Locator {
   return base.nth(target.nth ?? 0);
 }
 
-class Pointer {
+export class Pointer {
   x: number;
   y: number;
   constructor(private page: Page, width: number, height: number) {
@@ -132,7 +132,7 @@ async function center(locator: Locator) {
   return { box, x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-async function run(
+export async function run(
   page: Page,
   pointer: Pointer,
   action: Action,
@@ -167,6 +167,10 @@ async function run(
     await page.mouse.down();
     await page.mouse.up();
     await page.waitForTimeout(350);
+  } else if ("clickIfShown" in action) {
+    const target = locate(page, action.clickIfShown);
+    const shown = await target.waitFor({ state: "visible", timeout: action.withinMs ?? 4000 }).then(() => true, () => false);
+    if (shown) await run(page, pointer, { click: action.clickIfShown }, still, cut);
   } else if ("hover" in action) {
     const { x, y } = await center(locate(page, action.hover));
     await pointer.glide(x, y);
@@ -207,7 +211,7 @@ async function run(
   }
 }
 
-async function signIn(page: Page, as: string) {
+export async function signIn(page: Page, as: string) {
   const password = process.env.SEED_DEMO_PASSWORD;
   if (!password) throw new Error("SEED_DEMO_PASSWORD is not set (it's in .env.local).");
   await page.goto(`${APP}/auth/login`);

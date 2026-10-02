@@ -14,6 +14,8 @@
 #
 #   scripts/how-to/stack.sh up        # build if needed, start, seed once
 #   scripts/how-to/stack.sh reset     # restart the emulators from the snapshot
+#   scripts/how-to/stack.sh reset DIR # …or from another snapshot (a journey chapter's)
+#   scripts/how-to/stack.sh export DIR
 #   scripts/how-to/stack.sh reseed    # throw the snapshot away and seed again
 #   scripts/how-to/stack.sh down
 #
@@ -57,7 +59,7 @@ prepare() {
   sed -E "s#^(NEXT_PUBLIC_APP_URL)=.*#\1=http://localhost:$PORT#" $ROOT/functions/.env.local > $APP/functions/.env.local
   # Inbound mail, so the studio's forwarding address exists to be shown. Local
   # only: nothing reaches this stack from the real inbound domain.
-  { echo "SENDGRID_INBOUND_DOMAIN=inbound.studio-cue.com"; echo "INBOUND_REPLY_SIGNING_SECRET=how-to-stack-local-only"; echo "FEEDBACK_INBOX=team@studiohub.test"; } >> $APP/functions/.env.local
+  { echo "SENDGRID_INBOUND_DOMAIN=inbound.studio-cue.com"; echo "INBOUND_REPLY_SIGNING_SECRET=how-to-stack-local-only"; echo "FEEDBACK_INBOX=team@studiohub.test"; echo "HOW_TO_EMAIL_DIR=$H/journey-emails"; } >> $APP/functions/.env.local
 
   node -e '
     const fs = require("fs"); const f = process.argv[1]; const c = JSON.parse(fs.readFileSync(f, "utf8"));
@@ -76,8 +78,8 @@ prepare() {
 }
 
 emulators_up() {
-  local import=()
-  [ -d $SNAP ] && import=(--import $SNAP)
+  local import=() from=${1:-$SNAP}
+  [ -d $from ] && import=(--import $from)
   (cd $APP && nohup firebase emulators:start --project studiohub-dev --only auth,firestore,functions,storage $import > $LOGS/emulators.log 2>&1 &)
   for i in $(seq 1 120); do grep -q "All emulators ready" $LOGS/emulators.log && return 0; sleep 2; done
   echo "Emulators did not start; see $LOGS/emulators.log" && return 1
@@ -88,6 +90,19 @@ emulators_down() {
   for i in $(seq 1 30); do lsof -ti :$FIRESTORE >/dev/null 2>&1 || return 0; sleep 1; done
 }
 
+# Through this stack's own hub, always. Every emulator here runs as project
+# studiohub-dev, and `firebase emulators:export` finds whichever hub
+# registered last — on 2026-10-02 another session's emulators on :4400 — so
+# the demo and journey snapshots silently held that session's data. Neither
+# --project nor FIREBASE_EMULATOR_HUB changes which hub it picks; the hub's
+# own export endpoint can't go anywhere else.
+export_to() {
+  rm -rf $1 && mkdir -p $(dirname $1)
+  curl -sf -X POST http://127.0.0.1:14400/_admin/export -H 'Content-Type: application/json' \
+    -d "{\"path\":\"$1\",\"initiatedBy\":\"export\"}" > $LOGS/export.log 2>&1 \
+    || { echo "Export failed; see $LOGS/export.log" && return 1; }
+}
+
 seed() {
   echo "Seeding the demo studio…"
   (cd $APP && set -a && . ./.env.local && set +a && \
@@ -96,7 +111,7 @@ seed() {
     TENANT=$(grep -o '"tenantId": "[^"]*"' $LOGS/seed.log | head -1 | cut -d'"' -f4) && \
     npx tsx scripts/uat/fixture.mts $TENANT > $LOGS/fixture.log && \
     npx tsx $ROOT/scripts/how-to/fixture-tidy.mts $TENANT >> $LOGS/fixture.log)
-  (cd $APP && firebase emulators:export $SNAP --project studiohub-dev --force > $LOGS/export.log 2>&1)
+  export_to $SNAP
 }
 
 # The PDF service (cloud-run/pdf) on :8090, where functions/.env.local points
@@ -126,7 +141,13 @@ case ${1:-up} in
     echo "How-to stack ready: http://localhost:$PORT (owner@studiohub.test)"
     ;;
   reset)
-    emulators_down; emulators_up; echo "Emulators restored from the snapshot."
+    # A journey film's chapter starts where the one before it ended: pass
+    # that chapter's snapshot (make.ts keeps them under journey-snapshots/).
+    emulators_down; emulators_up ${2:-}; echo "Emulators restored from ${2:-the snapshot}."
+    ;;
+  export)
+    export_to ${2:?usage: stack.sh export <dir>}
+    echo "Exported to $2."
     ;;
   reseed)
     emulators_down; rm -rf $SNAP; emulators_up; seed; echo "Reseeded."
@@ -137,5 +158,5 @@ case ${1:-up} in
     kill $(lsof -ti :8090) 2>/dev/null || true
     echo "Stopped."
     ;;
-  *) echo "usage: $0 up|reset|reseed|down" && exit 2 ;;
+  *) echo "usage: $0 up|reset [snapshot]|export <dir>|reseed|down" && exit 2 ;;
 esac

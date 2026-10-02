@@ -12,6 +12,8 @@ import {
   getFirestore,
   type DocumentSnapshot,
 } from "firebase-admin/firestore";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { getStorage } from "firebase-admin/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
@@ -935,6 +937,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
 
   if (process.env.EMAIL_DELIVERY_MODE !== "live") {
     const messageId = `mock_email_${document.id}`;
+    if (process.env.HOW_TO_EMAIL_DIR) captureForHowTo(document.id, type, recipient, context.brand.studioName, rendered);
     await saveMessage(
       document,
       recipient,
@@ -1291,6 +1294,27 @@ function threadIdForSend(
     leadId: scope ? scope.leadId : ((document.get("leadId") as string | null) ?? null),
     participant: { email: recipient },
   });
+}
+
+/**
+ * The how-to films show a couple's or crew member's email as it really
+ * arrives, so in mock delivery — the emulator only — the rendered email is
+ * also written to HOW_TO_EMAIL_DIR (scripts/how-to/journey/emails.ts reads
+ * it). Unset everywhere else, so this never runs on a deployed function.
+ */
+function captureForHowTo(
+  jobId: string,
+  type: string,
+  recipient: string,
+  from: string,
+  rendered: { subject: string; html: string },
+) {
+  const dir = String(process.env.HOW_TO_EMAIL_DIR);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, `${Date.now()}-${jobId.replace(/[^\w-]/g, "_")}.json`),
+    JSON.stringify({ jobId, type, to: recipient, from, subject: rendered.subject, html: rendered.html }),
+  );
 }
 
 async function saveMessage(
