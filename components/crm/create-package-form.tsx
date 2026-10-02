@@ -232,15 +232,6 @@ export function CreatePackageForm({
           all of them too: only three had a slot to appear in, so a rejection
           on any of the other eight showed nothing at all. */}
       <div className="form-grid">
-        <div className="form-span package-examples" role="group" aria-label="Start from an example">
-          <span>Start from an example</span>
-          {EXAMPLE_PACKAGES[kind].map((example) => (
-            <button className="schedule-moment-chip" key={example.name} onClick={() => startFrom(example)} type="button">
-              {example.name}
-            </button>
-          ))}
-          <small>Fills in the shape. The price is always yours to set.</small>
-        </div>
         <label className="form-span">
           Package name <span className="required-mark">Required</span>
           <input {...register("name")} />
@@ -278,6 +269,16 @@ export function CreatePackageForm({
             ))}
           </select>
         </label>
+        {/* After the kind it follows: the examples change with it. */}
+        <div className="form-span package-examples" role="group" aria-label="Start from an example">
+          <span>Start from an example</span>
+          {EXAMPLE_PACKAGES[kind].map((example) => (
+            <button className="schedule-moment-chip" key={example.name} onClick={() => startFrom(example)} type="button">
+              {example.name}
+            </button>
+          ))}
+          <small>Fills in the shape. The price is always yours to set.</small>
+        </div>
         <label>
           Base price (USD) <span className="required-mark">Required</span>
           <input {...register("basePrice")} min="0.01" step="0.01" type="number" />
