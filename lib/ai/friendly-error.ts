@@ -394,6 +394,16 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Your workspace has used its included AI drafts for this period. Review your plan to add more.",
   INVALID_REQUEST:
     "Something about this request didn't look right. Refresh and try again.",
+  // A command endpoint's unexpected failure (functions/src/security/
+  // command-errors.ts): logged server-side with its stack, never described to
+  // the browser. Nothing the studio did caused it.
+  INTERNAL:
+    "Something went wrong on our side. It's been logged — please try again in a minute.",
+  // The command endpoints' own identity refusals (functions/src/crm/
+  // security.ts). Onboarding showed these raw (launch plan 2.5).
+  AUTHENTICATION_REQUIRED: "Your session ended — sign in again, then try once more.",
+  VERIFIED_EMAIL_REQUIRED: "Verify your email first — open the link we emailed you, then try again.",
+  RATE_LIMITED: "That's a lot of tries in a short time. Wait a minute, then try again.",
   INVALID_COVERAGE_RANGE: "Coverage must end after it starts.",
   // A role refusal: every crmCommand FORBIDDEN is about who the person is in
   // the studio, not about a job — this used to say "for the selected project"
@@ -798,6 +808,13 @@ const FRIENDLY_BY_PHRASE: Array<[RegExp, string]> = [
   // Firestore security-rules evaluation dumps ("evaluation error at L386:22
   // for 'get' … Null value error.") read as prose to looksHumanWritten but
   // are plumbing, never something a photographer can act on.
+  // A reply that wasn't JSON — usually an HTML error page from in front of
+  // the function (an invoker 403, a timeout). The parser's own sentence
+  // ("Unexpected token '<', \"<!DOCTYPE \"...") reads as prose but says nothing.
+  [
+    /unexpected token|is not valid json|unexpected end of json/i,
+    "Something went wrong on our side. It's been logged — please try again in a minute.",
+  ],
   [
     /evaluation error at L\d+|null value error/i,
     "Some records couldn't be loaded. Refresh to try again — if this keeps happening, contact support.",
@@ -807,6 +824,12 @@ const FRIENDLY_BY_PHRASE: Array<[RegExp, string]> = [
 const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
   [/^VERTEX_AI_/, "We couldn't draft this. Try again."],
   [/^AI_/, "We couldn't draft this. Try again."],
+  // APP_CHECK_REQUIRED and friends: the browser couldn't prove it is ours,
+  // most often a content blocker or a stale tab.
+  [
+    /^APP_CHECK_/,
+    "We couldn't verify this browser. Refresh the page and try again — if it keeps happening, pause any ad or content blocker for this site.",
+  ],
 ];
 
 /**

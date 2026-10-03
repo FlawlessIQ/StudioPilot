@@ -4,6 +4,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { commandTypeOf, respondToCommandError } from "../security/command-errors.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
@@ -3289,11 +3290,11 @@ export const bookingCommand = onRequest(
       });
       response.status(200).json(result);
     } catch (caught: unknown) {
-      const message =
-        caught instanceof Error ? caught.message : "BOOKING_COMMAND_FAILED";
-      response
-        .status(message === "FORBIDDEN" ? 403 : 400)
-        .json({ error: message });
+      respondToCommandError(response, caught, {
+        name: "bookingCommand",
+        commandType: commandTypeOf(request.body),
+        status: (message) => (message === "FORBIDDEN" ? 403 : 400),
+      });
     }
   },
 );

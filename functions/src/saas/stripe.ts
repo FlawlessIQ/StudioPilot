@@ -8,6 +8,7 @@ import {
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { commandTypeOf, respondToCommandError } from "../security/command-errors.js";
 import { studioHubCors } from "../security/cors.js";
 import {
   buildStripeCheckoutParams,
@@ -365,11 +366,11 @@ export const billingCommand = onRequest(
         throw new Error(payload.error?.message ?? "STRIPE_REQUEST_FAILED");
       response.status(200).json({ url: payload.url });
     } catch (caught: unknown) {
-      const message =
-        caught instanceof Error ? caught.message : "BILLING_COMMAND_FAILED";
-      response
-        .status(message === "FORBIDDEN" ? 403 : 400)
-        .json({ error: message });
+      respondToCommandError(response, caught, {
+        name: "billingCommand",
+        commandType: commandTypeOf(request.body),
+        status: (message) => (message === "FORBIDDEN" ? 403 : 400),
+      });
     }
   },
 );

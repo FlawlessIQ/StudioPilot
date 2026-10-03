@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { respondToCommandError } from "../security/command-errors.js";
 import { studioHubCors } from "../security/cors.js";
 import { starterTemplates } from "../workflow/starter-templates.js";
 import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
@@ -315,11 +316,10 @@ export const tenantOnboardingCommand = onRequest(
       });
       response.status(200).json(result);
     } catch (caught: unknown) {
-      const message =
-        caught instanceof Error ? caught.message : "ONBOARDING_FAILED";
-      response
-        .status(message === "VERIFIED_EMAIL_REQUIRED" ? 403 : 400)
-        .json({ error: message });
+      respondToCommandError(response, caught, {
+        name: "tenantOnboardingCommand",
+        status: (message) => (message === "VERIFIED_EMAIL_REQUIRED" ? 403 : 400),
+      });
     }
   },
 );
