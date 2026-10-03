@@ -23,7 +23,7 @@ version a studio accepted.
 
 ## 0 · Decisions (Conor, today)
 
-**Decided 2026-10-03:** 0.1 **FlawlessIQ LLC** (postal address still needed) · 0.2 **New Jersey** law, NJ courts, small claims allowed · 0.3 **no partial refunds; annual plans refundable within 14 days of the first annual charge** · 0.4 **GR pays full price**, so no FTC disclosure, but get Gabe's written OK. 0.5–0.8 follow the recommendations unless Conor says otherwise.
+**Decided 2026-10-03:** 0.1 **FlawlessIQ LLC, 2 Green Village Rd Suite 209, Madison, NJ 07940** (GR Productions' studio address, used with Gabe's agreement as the business address) · 0.2 **New Jersey** law, NJ courts, small claims allowed · 0.3 **no partial refunds; annual plans refundable within 14 days of the first annual charge** · 0.4 **GR pays full price**, so no FTC disclosure, but get Gabe's written OK. 0.5–0.8 follow the recommendations unless Conor says otherwise.
 
 | # | Decision | Recommendation |
 |---|---|---|
