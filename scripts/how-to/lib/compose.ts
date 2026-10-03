@@ -165,6 +165,22 @@ export async function compose(
     if (streamVideo(frames, t0, duration, size, file, work, persona)) streamFile[persona] = file;
   }
 
+  // With HOW_TO_KEEP_STREAMS, each screen is also kept at full size, on the
+  // chapter's own timeline, for cuts that frame one screen alone — the
+  // vertical social clips are a phone filling the frame (lib/cutdowns.ts).
+  if (process.env.HOW_TO_KEEP_STREAMS) {
+    const keep = path.join(outDir, "streams");
+    mkdirSync(keep, { recursive: true });
+    for (const [persona, frames] of Object.entries(rec.streams) as Array<[Persona, Frame[]]>) {
+      const size = persona === "studio" ? { w: 1920, h: 1080 } : { w: 1080, h: 2338 };
+      streamVideo(frames, t0, duration, size, path.join(keep, `${persona}.mp4`), work, `${persona}-full`);
+    }
+    writeFileSync(
+      path.join(keep, "marks.json"),
+      JSON.stringify(rec.marks.map((m) => ({ step: m.step, at: m.t - t0, on: m.on, layout: m.layout })), null, 2),
+    );
+  }
+
   // The frames and masks, drawn once each.
   const browser = await chromium.launch({ channel: "chrome" });
   const page = await browser.newPage({ viewport: { width: W, height: H } });

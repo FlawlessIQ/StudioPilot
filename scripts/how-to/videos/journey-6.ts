@@ -26,7 +26,7 @@ export default defineHowTo({
         { wait: 2000 },
       ],
     },
-    { do: [{ story: "drain" }] },
+    { do: [{ story: "drain:undo" }] },
     {
       on: "couple",
       layout: "phone",

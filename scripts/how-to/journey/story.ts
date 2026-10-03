@@ -87,7 +87,15 @@ function boot() {
 }
 
 const iso = () => new Date().toISOString();
-const dayOffset = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+/**
+ * A date `days` from today in the studio's zone (New York), not UTC: after
+ * 8 pm there UTC is already tomorrow, and "two days out" landed on three —
+ * outside the crew reminder's window.
+ */
+const dayOffset = (days: number) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(Date.now() + days * 86_400_000),
+  );
 
 /** Sends whatever is queued — email, AI drafts, PDFs — as the scheduler would every minute. */
 async function drain() {
@@ -339,6 +347,29 @@ Object.assign(beats, {
   },
 } satisfies Record<string, (arg?: string) => Promise<void>>);
 
+/** Runs `fn` with the clock at 12:00 today in New York, then puts it back. */
+async function atStudioNoon<T>(fn: () => Promise<T>): Promise<T> {
+  const RealDate = Date;
+  const guess = RealDate.parse(`${dayOffset(0)}T12:00:00Z`);
+  const hourThere = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }).format(new RealDate(guess)));
+  const shift = guess + (12 - hourThere) * 3_600_000 - RealDate.now();
+  class ShiftedDate extends RealDate {
+    constructor(...args: unknown[]) {
+      if (args.length) super(...(args as [string]));
+      else super(RealDate.now() + shift);
+    }
+    static now() {
+      return RealDate.now() + shift;
+    }
+  }
+  globalThis.Date = ShiftedDate as DateConstructor;
+  try {
+    return await fn();
+  } finally {
+    globalThis.Date = RealDate;
+  }
+}
+
 /** Where a wedding's date lives besides the job, so moving it moves everything that hangs off it. */
 const DATED = ["crewAssignments", "crewCalendarEvents", "crewCascades", "crewStaffingPlans", "schedules", "scheduleVersions", "crewScheduleViews", "events"];
 
@@ -408,10 +439,26 @@ Object.assign(beats, {
     const { projectId } = await hartsJob();
     const owner = await auth.getUserByEmail("owner@studiohub.test");
     const done = (days: number) => ({ complete: true, completedAt: new Date(Date.now() - days * 86_400_000).toISOString(), completedBy: owner.uid, evidenceId: null, notes: null });
-    await db.doc(`postProductionRecords/${projectId}`).set(
-      { steps: { backup_complete: done(30), cull_complete: done(24), editing_started: done(22), editing_complete: done(3), gallery_ready: done(1) }, currentStep: "delivery_sent", updatedAt: iso() },
-      { merge: true },
-    );
+    // The record is the app's to create (post-event/post-production-start.ts,
+    // on entering POST_PRODUCTION). Writing first raced it: the trigger then
+    // saw a record and left it without its tenant, and Delivery couldn't read it.
+    const record = db.doc(`postProductionRecords/${projectId}`);
+    for (let i = 0; i < 40 && !(await record.get()).exists; i++) await new Promise((resolve) => setTimeout(resolve, 500));
+    if (!(await record.get()).exists) {
+      // The emulator's trigger is sometimes slow to wake; open the record
+      // exactly as post-event/post-production-start.ts does.
+      const { tenantId } = await boot();
+      const keys = ["backup_complete", "cull_complete", "editing_started", "editing_complete", "gallery_ready", "album_proof_ready", "delivery_sent", "client_downloaded", "project_archived"];
+      const empty = { complete: false, completedAt: null, completedBy: null, evidenceId: null, notes: null };
+      await record.create({
+        id: projectId, tenantId, projectId, steps: Object.fromEntries(keys.map((k) => [k, empty])), currentStep: keys[0],
+        targetDeliveryDate: null, createdAt: iso(), updatedAt: iso(), createdBy: "post-production-opener", updatedBy: "post-production-opener", archivedAt: null,
+      }).catch(() => undefined);
+    }
+    await record.update({
+      "steps.backup_complete": done(30), "steps.cull_complete": done(24), "steps.editing_started": done(22),
+      "steps.editing_complete": done(3), "steps.gallery_ready": done(1), currentStep: "delivery_sent", updatedAt: iso(),
+    });
   },
   /**
    * `review-due:1` — the first review ask (in the portal, three days after
@@ -449,7 +496,9 @@ Object.assign(beats, {
     const { fns } = await boot();
     const [file, name] = String(arg).split("#");
     const scheduled = await fns(file!);
-    await scheduled[name!].run({} as never);
+    // As in production, at midday in the studio's zone: some schedulers read
+    // the UTC date, which an evening recording puts a day ahead.
+    await atStudioNoon(() => scheduled[name!].run({} as never));
     await drain();
   },
 } satisfies Record<string, (arg?: string) => Promise<void>>);

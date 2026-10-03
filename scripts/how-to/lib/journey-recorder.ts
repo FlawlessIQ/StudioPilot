@@ -104,7 +104,16 @@ export async function recordJourney(
       });
       await context.addInitScript(overlay(view.mobile));
       const page = await context.newPage();
-      if (account !== "guest") await signIn(page, account);
+      // Freshly restored emulators sometimes miss the first sign-in.
+      for (let attempt = 1; account !== "guest"; attempt++) {
+        try {
+          await signIn(page, account);
+          break;
+        } catch (error) {
+          if (attempt >= 3) throw error;
+          await page.waitForTimeout(3000);
+        }
+      }
       screens.set(persona, { persona, context, page, pointer: new Pointer(page, view.width, view.height), cdp: null, frames: [] });
     }
 
