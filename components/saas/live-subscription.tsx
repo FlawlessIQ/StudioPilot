@@ -15,6 +15,7 @@ import { chosenPlan } from "@/features/subscriptions/chosen-plan";
 import { rememberedPromotionCode } from "@/features/subscriptions/promotion-code";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { activeMembership } from "@/lib/firebase/active-membership";
+import { TrialTeaser } from "@/components/marketing/trial-teaser";
 
 const noSubscribe = () => () => undefined;
 
@@ -177,6 +178,9 @@ export function LiveSubscription() {
           ) : null}
         </div>
       </header>
+      {/* Plan A1: what's on the other side of the card wall. Hides itself
+          without a media base, or if the teaser fails to load. */}
+      {preTrial && checkoutOutcome !== "success" ? <TrialTeaser /> : null}
       {!trialActive && status !== "loading" ? (
         <section
           className="panel"
@@ -258,7 +262,8 @@ export function LiveSubscription() {
             >
               <div>
                 <span>
-                  <small>{card.key === "studio" ? "Most popular" : "StudioCue plan"}</small>
+                  {/* No "Most popular": no studio has bought either plan yet (config/saas-plans.ts). */}
+                  <small>StudioCue plan</small>
                   <h2>{card.name}</h2>
                 </span>
                 {preTrial ? (

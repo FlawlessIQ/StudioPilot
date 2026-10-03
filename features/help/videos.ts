@@ -30,6 +30,19 @@ export function helpVideoIds(): string[] {
   return Object.keys(VIDEOS);
 }
 
+/**
+ * A file's public URL under the media base: either a folder URL the file is
+ * appended to, or a template with {file} in it — Firebase Storage's public URL
+ * puts the name mid-path: …/o/public%2Fhow-to%2F{file}?alt=media. Shared with
+ * the website's own clips (features/marketing/media.ts), which live in the
+ * same folder.
+ */
+export function mediaUrl(base: string, file: string): string {
+  return base.includes("{file}")
+    ? base.replace("{file}", encodeURIComponent(file))
+    : `${base.replace(/\/+$/, "")}/${encodeURIComponent(file)}`;
+}
+
 /** A playable video, with absolute URLs, or null when there isn't one to show. */
 export function helpVideo(
   id: string | undefined,
@@ -38,13 +51,7 @@ export function helpVideo(
   if (!id || !base) return null;
   const entry = VIDEOS[id];
   if (!entry) return null;
-  // Either a folder URL the file is appended to, or a template with {file}
-  // in it — Firebase Storage's public URL puts the name mid-path:
-  // …/o/public%2Fhow-to%2F{file}?alt=media
-  const url = (file: string) =>
-    base.includes("{file}")
-      ? base.replace("{file}", encodeURIComponent(file))
-      : `${base.replace(/\/+$/, "")}/${encodeURIComponent(file)}`;
+  const url = (file: string) => mediaUrl(base, file);
   return {
     id,
     ...entry,

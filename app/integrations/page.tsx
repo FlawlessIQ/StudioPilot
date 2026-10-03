@@ -1,12 +1,13 @@
-import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Integrations",
   description:
-    "StudioCue connects to QuickBooks Online, Google Calendar, Zoom and Dropbox. Agreements are signed online in StudioCue, and email is built in.",
-  alternates: { canonical: "/integrations" },
-};
+    "StudioCue connects to QuickBooks Online, Google Calendar, Apple Calendar, Zoom and Dropbox. Agreements are signed online in StudioCue, and email is built in.",
+  path: "/integrations",
+  og: "integrations",
+});
 
 /**
  * Only what a studio can actually connect, or actually use.
@@ -49,11 +50,15 @@ export default function IntegrationsPage() {
             ],
           },
           {
-            title: "Google Calendar",
+            // Apple is busy time only (features/integrations/schema.ts
+            // providerCapabilities); events are written to Google alone.
+            // Outlook is built but waits on Microsoft's app approval, so it
+            // is not named until it can be connected.
+            title: "Google Calendar and Apple Calendar",
             text: "Real availability, so a consultation is never offered on a date you are already working.",
             points: [
-              "Free/busy availability checks",
-              "Consultation and production events",
+              "Busy times from Google or iCloud",
+              "Consultation and production events on Google Calendar",
               "Duplicate-safe writes",
             ],
           },

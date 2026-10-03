@@ -1,19 +1,20 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CircleCheck } from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/marketing-layout";
 import { planCards } from "@/config/saas-plans";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Pricing",
   description:
     `StudioCue plans from ${planCards[0].monthly} a month, with unlimited clients and projects, a 14-day trial, and no percentage taken from client payments.`,
-  alternates: { canonical: "/pricing" },
-};
+  path: "/pricing",
+  og: "pricing",
+});
 
 export default function PricingPage() {
   return (
-    <MarketingLayout eyebrow="Simple, serious software" title="Price the operation—not every client." description="Unlimited clients and projects on every plan, with clear team, AI, workflow, and brand entitlements.">
+    <MarketingLayout eyebrow="Simple, serious software" pricingLink={false} title="Price the operation—not every client." description="Unlimited clients and projects on every plan, with clear team, AI, workflow, and brand entitlements.">
       <section className="marketing-pricing-grid marketing-pricing-page">
         {planCards.map((plan) => (
           <article className={`marketing-price-card ${plan.highlight ? "is-featured" : ""}`} key={plan.key}>

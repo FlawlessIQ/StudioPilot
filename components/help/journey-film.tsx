@@ -32,13 +32,16 @@ function JourneyFilmDialog({
   open,
   onClose,
   pageHref,
+  startAt,
 }: {
   open: boolean;
   onClose: () => void;
   pageHref: string;
+  startAt?: number;
 }) {
   const film = journeyFilm();
-  if (!film) return null;
+  // Mounted only while open, so each opening starts where its button says.
+  if (!film || !open) return null;
   return (
     <SheetDialog label={FILM_TITLE} onClose={onClose} open={open} width="film">
       <div className="journey-film-sheet">
@@ -48,7 +51,7 @@ function JourneyFilmDialog({
             {`${formatMinutes(film.durationSec)} · from the first inquiry to the album, with your couple’s and your crew’s screens.`}
           </small>
         </header>
-        <HelpVideoPlayer autoPlay id={JOURNEY_FILM_ID} />
+        <HelpVideoPlayer autoPlay id={JOURNEY_FILM_ID} startAt={startAt} />
         <Link className="journey-film-page-link" href={pageHref}>
           Read it stage by stage <ArrowRight aria-hidden="true" size={14} />
         </Link>
@@ -72,16 +75,23 @@ export function JourneyFilmButton({
   children,
   className,
   href,
+  startAt,
+  label,
 }: {
   children: ReactNode;
   className?: string;
   href: string;
+  /** Seconds into the film to open at: a chapter's start (features/help/video-manifest.json). */
+  startAt?: number;
+  /** An accessible name, for a button whose children are a picture. */
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const film = journeyFilm();
   return (
     <>
       <Link
+        aria-label={label}
         className={className}
         href={href}
         onClick={(event) => {
@@ -92,7 +102,7 @@ export function JourneyFilmButton({
       >
         {children}
       </Link>
-      <JourneyFilmDialog onClose={() => setOpen(false)} open={open} pageHref={href} />
+      <JourneyFilmDialog onClose={() => setOpen(false)} open={open} pageHref={href} startAt={startAt} />
     </>
   );
 }

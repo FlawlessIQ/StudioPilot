@@ -21,10 +21,16 @@ export function HelpVideoPlayer({
   id,
   autoPlay = false,
   startFromQuery = false,
+  startAt,
 }: {
   id: string | undefined;
   autoPlay?: boolean;
   startFromQuery?: boolean;
+  /**
+   * Seconds in: the homepage's "One wedding, start to finish" stops open the
+   * film at their chapter. Same mechanism as `?t=`.
+   */
+  startAt?: number;
 }) {
   const video = helpVideo(id);
   const element = useRef<HTMLVideoElement>(null);
@@ -33,16 +39,20 @@ export function HelpVideoPlayer({
   useEffect(() => {
     const player = element.current;
     if (!player || !src) return;
-    if (startFromQuery) {
+    const cue = (at: number) => {
+      // A media fragment cues the start without loading the whole file first.
+      player.src = `${src}#t=${Math.floor(at)}`;
+    };
+    if (startAt && startAt > 0) cue(startAt);
+    else if (startFromQuery) {
       const at = Number(new URLSearchParams(window.location.search).get("t"));
       if (Number.isFinite(at) && at > 0) {
-        // A media fragment cues the start without loading the whole file first.
-        player.src = `${src}#t=${Math.floor(at)}`;
+        cue(at);
         player.scrollIntoView({ block: "center" });
       }
     }
     if (autoPlay) void player.play().catch(() => undefined);
-  }, [autoPlay, startFromQuery, src]);
+  }, [autoPlay, startFromQuery, startAt, src]);
 
   if (!video) return null;
   return (

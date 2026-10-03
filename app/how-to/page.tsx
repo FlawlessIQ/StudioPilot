@@ -1,17 +1,18 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/marketing-layout";
 import { GuideLibrary } from "@/components/help/guide-library";
 import { EXPLAINERS } from "@/features/help/explainers";
 import { HELP_AUDIENCE_LABELS, type HelpAudience } from "@/features/help/types";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "How to use StudioCue",
   description:
     "Short guides to every step in StudioCue — for studios running their weddings, for couples in their portal, and for crew on the day.",
-  alternates: { canonical: "/how-to" },
-};
+  path: "/how-to",
+  og: "how-to",
+});
 
 const AUDIENCES: Array<{ audience: HelpAudience; intro: string }> = [
   { audience: "studio", intro: "Running your studio, from the first inquiry to the final gallery." },

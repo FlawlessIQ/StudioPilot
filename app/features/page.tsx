@@ -1,11 +1,20 @@
-import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
+import { LoopVideo } from "@/components/marketing/loop-video";
+import { helpVideo } from "@/features/help/videos";
+import { marketingMedia } from "@/features/marketing/media";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
-export const metadata: Metadata = {
+const posterOf = (id: string) => helpVideo(id)?.posterSrc ?? null;
+/** One media base serves every clip: without it there's nothing to show. */
+const hasClips = Boolean(marketingMedia("sign"));
+
+export const metadata = marketingMetadata({
   title: "Features",
   description:
     "StudioCue refuses to mark a wedding booked on evidence it has not seen, and keeps working when a provider does not. What it will not do is the product.",
-};
+  path: "/features",
+  og: "features",
+});
 
 /**
  * Features, organised around what the system refuses.
@@ -82,6 +91,18 @@ export default function FeaturesPage() {
           },
         ]}
       />
+      {hasClips ? (
+        <section aria-label="Evidence, not clicks, in the product" className="mk-page-media mk-page-media--loops">
+          <figure>
+            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-3")} id="sign" />
+            <figcaption>Booked on evidence: the agreement signed online, then the retainer paid.</figcaption>
+          </figure>
+          <figure>
+            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-6")} id="timeline" />
+            <figcaption>A run of show approved and published as a version, never written over.</figcaption>
+          </figure>
+        </section>
+      ) : null}
       <CapabilityGrid
         items={[
           {
@@ -104,6 +125,18 @@ export default function FeaturesPage() {
           },
         ]}
       />
+      {hasClips ? (
+        <section aria-label="Drafted for you, sent by you" className="mk-page-media mk-page-media--loops">
+          <figure>
+            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("proposal")} id="proposal" />
+            <figcaption>A proposal drafted from your package. It goes when you send it.</figcaption>
+          </figure>
+          <figure>
+            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-4")} id="crew" />
+            <figcaption>Crew offers answered on their phones, and passed to the next name if someone says no.</figcaption>
+          </figure>
+        </section>
+      ) : null}
     </MarketingLayout>
   );
 }

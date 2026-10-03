@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/marketing-layout";
@@ -7,15 +6,17 @@ import { helpVideo, isoDuration } from "@/features/help/videos";
 import { JOURNEY_FILM_ID, JOURNEY_PAGE } from "@/features/journey/expected-timeline";
 import { setupQuestionCount } from "@/features/today/setup-gaps";
 import { SITE_URL } from "@/lib/site";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
 const DESCRIPTION =
   "One wedding from the first inquiry to the final gallery: what StudioCue does by itself, what the studio approves, and what the couple and crew see at each stage.";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "A wedding, start to finish · How to",
   description: DESCRIPTION,
-  alternates: { canonical: JOURNEY_PAGE },
-};
+  path: JOURNEY_PAGE,
+  og: "wedding-journey",
+});
 
 const PAGE_URL = `${SITE_URL}${JOURNEY_PAGE}`;
 

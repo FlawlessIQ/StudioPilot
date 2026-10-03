@@ -103,3 +103,147 @@ test("every link to a stage of the journey page names a real stage", async () =>
   assert.ok(linked.length > 0, "no stage links left — drop this check");
   for (const { path, id } of linked) assert.ok(ids.has(id), `${path} links to #stage-${id}, which the page doesn't have`);
 });
+
+// ── The homepage rebuild and the clips (plan §4, phase 2) ────────────────
+
+const HOME_PARTS = [
+  "app/page.tsx",
+  "components/marketing/home-faq.tsx",
+  "components/marketing/home-journey.tsx",
+  "components/marketing/three-people.tsx",
+  "components/marketing/film-moment.tsx",
+  "components/marketing/trial-teaser.tsx",
+];
+
+test("the new marketing pieces offer no Stripe payments, SMS, or popularity", () => {
+  // The public journey page reads its words from expected-timeline.ts; it
+  // said "QuickBooks or Stripe" for client invoices, which no studio can use.
+  for (const path of [...HOME_PARTS, "features/journey/expected-timeline.ts"]) {
+    if (!isOfferedProvider("stripe")) assert.doesNotMatch(copy(path), /\bstripe\b/i, path);
+    assert.doesNotMatch(copy(path), /\bSMS\b|Most popular/, path);
+  }
+  assert.doesNotMatch(copy("components/saas/live-subscription.tsx"), /Most popular/);
+});
+
+test("FAQ: couples need nothing installed — the portal is a web link with an emailed sign-in", async () => {
+  const { HOME_FAQ } = await import("@/components/marketing/home-faq");
+  const answer = HOME_FAQ.find((item) => /download/i.test(item.question))?.answer ?? "";
+  assert.match(answer, /web page/);
+  assert.match(answer, /no password/);
+  assert.match(read("features/auth/email-link-action.tsx"), /signInWithEmailLink\(auth, address, window\.location\.href\)/);
+  for (const path of HOME_PARTS) assert.doesNotMatch(copy(path), /App Store|Google Play/, path);
+});
+
+test("FAQ: imports exist for booked weddings and for the studio's own documents, and arrive quiet", async () => {
+  const { HOME_FAQ } = await import("@/components/marketing/home-faq");
+  const faq = HOME_FAQ.map((item) => `${item.question} ${item.answer}`).join(" ");
+  // Booked clients: the CSV import names these tools; anything else is "a spreadsheet".
+  const sheet = read("features/imports/spreadsheet.ts");
+  for (const tool of ["HoneyBook", "Dubsado", "17hats", "Studio Ninja", "Táve", "Tave"]) {
+    if (faq.includes(tool)) assert.ok(sheet.includes(tool), `the FAQ names ${tool}, which the import never claims to read`);
+  }
+  // Documents: agreement, packages, questionnaires, email templates.
+  const studio = read("components/ai/template-import-studio.tsx");
+  for (const kind of ['"Email journey": {', "Contract: {", "Questionnaire: {", "Package: {"]) assert.ok(studio.includes(kind), kind);
+  // Quiet: an imported booking pauses every automated client email.
+  assert.match(read("features/imports/existing-booking.ts"), /clientAutomationsPausedAt: now,/);
+  assert.match(faq, /arrive quietly/);
+});
+
+test("FAQ: the AI only drafts, and the write boundary that makes it so is in the suite", async () => {
+  const { HOME_FAQ } = await import("@/components/marketing/home-faq");
+  const answer = HOME_FAQ.find((item) => /AI/.test(item.question))?.answer ?? "";
+  assert.match(answer, /never records a payment, a signature or a permission/);
+  assert.ok(existsSync("tests/ai-write-boundary.test.ts"));
+  assert.match(read("package.json"), /tests\/ai-write-boundary\.test\.ts/, "the AI boundary test must run in npm test");
+});
+
+test("FAQ and hero: the trial is 14 days and the card isn't charged during it", async () => {
+  const { HOME_FAQ } = await import("@/components/marketing/home-faq");
+  assert.match(read("functions/src/saas/stripe-checkout.ts"), /export const STRIPE_TRIAL_PERIOD_DAYS = 14;/);
+  const answer = HOME_FAQ.find((item) => /trial/.test(item.question))?.answer ?? "";
+  assert.match(answer, /nothing is charged for 14 days/);
+});
+
+test("Getting paid: through QuickBooks, with QuickBooks Payments autopay, and no cut", async () => {
+  const { QUICKBOOKS_PAYMENTS_SCOPE } = await import("@/features/billing/autopay");
+  assert.equal(QUICKBOOKS_PAYMENTS_SCOPE, "com.intuit.quickbooks.payment");
+  assert.ok(isOfferedProvider("quickbooks"));
+  const home = copy("app/page.tsx");
+  assert.match(home, /QuickBooks Payments/);
+  assert.match(home, /never takes a cut of client payments/);
+  // The final balance timing is read from the schedule, not typed in.
+  assert.match(home, /SCHEDULE\.finalInvoiceRaisedDaysBefore \/ 7/);
+});
+
+test("the homepage names only integrations a studio can connect today", () => {
+  const home = copy("app/page.tsx");
+  const enabledOAuth = (/NEXT_PUBLIC_ENABLED_OAUTH_PROVIDERS[\s\S]*?value: ([^\n]+)/.exec(read("apphosting.yaml"))?.[1] ?? "")
+    .split(",")
+    .map((provider) => provider.trim());
+  const names = [
+    ["QuickBooks", "quickbooks", true],
+    ["Google Calendar", "google_calendar", true],
+    ["Zoom", "zoom", true],
+    ["Dropbox", "dropbox", true],
+    ["Outlook", "outlook_calendar", true],
+    // iCloud has no OAuth; it connects with an app-specific password.
+    ["Apple Calendar", "apple_calendar", false],
+  ] as const;
+  for (const [name, provider, oauth] of names) {
+    if (!home.includes(`"${name}"`)) continue;
+    assert.ok(isOfferedProvider(provider), `${name} is on the homepage but not offered`);
+    if (oauth) assert.ok(enabledOAuth.includes(provider), `${name} can't start its OAuth flow in production`);
+  }
+  assert.ok(home.includes('"Apple Calendar"'));
+});
+
+test("Not just weddings: each kind's line matches how that kind books", async () => {
+  const { journeyProfile } = await import("@/features/job-kinds/job-kinds");
+  const home = copy("app/page.tsx");
+  const portraits = journeyProfile("portraits");
+  assert.equal(portraits.agreement, false);
+  assert.equal(portraits.payment, "paid_in_full");
+  assert.equal(portraits.detailsFormDaysBefore, 14);
+  assert.match(home, /Paid in full to book, no agreement unless you add one, and a short details form two weeks out/);
+  const sports = journeyProfile("sports");
+  assert.equal(sports.payment, "on_the_day");
+  assert.ok(sports.runOfShow && sports.crew);
+  assert.match(home, /Paid on the day, a game-day plan/);
+  const corporate = journeyProfile("corporate");
+  assert.ok(corporate.runOfShow && corporate.crew);
+});
+
+test("the website's clips are named as the cutting pipeline uploads them, and never show a broken box", async () => {
+  const { MARKETING_MEDIA } = await import("@/features/marketing/media");
+  for (const [id, entry] of Object.entries(MARKETING_MEDIA)) {
+    assert.match(entry.file, /^mk-[a-z-]+\.v\d+\.mp4$/, id);
+    assert.equal(entry.poster, entry.file.replace(/\.mp4$/, ".jpg"), id);
+  }
+  assert.deepEqual(
+    Object.values(MARKETING_MEDIA).map((entry) => entry.file.replace(/\.v\d+\.mp4$/, "")),
+    ["mk-hero-loop", "mk-loop-today", "mk-loop-proposal", "mk-loop-sign", "mk-loop-crew", "mk-loop-timeline", "mk-loop-gallery", "mk-teaser"],
+  );
+  // Each player gives up quietly when its file is missing.
+  for (const path of ["components/marketing/loop-video.tsx", "components/marketing/trial-teaser.tsx"]) {
+    const source = read(path);
+    assert.ok((source.match(/onError=/g) ?? []).length >= 2, `${path} handles a missing poster and video`);
+    assert.match(source, /complete && element\.naturalWidth === 0/, `${path} catches a poster that failed before hydration`);
+  }
+});
+
+test("every marketing page has its own 1200×630 social card under 300 KB", async () => {
+  const { OG_IMAGES } = await import("@/features/marketing/metadata");
+  for (const name of OG_IMAGES) {
+    const file = `public/og/${name}.png`;
+    assert.ok(existsSync(file), `${file} is missing: run npx tsx scripts/marketing/og-images.ts ${name}`);
+    const png = readFileSync(file);
+    assert.equal(png.readUInt32BE(16), 1200, `${file} width`);
+    assert.equal(png.readUInt32BE(20), 630, `${file} height`);
+    assert.ok(png.length < 300_000, `${file} is ${png.length} bytes`);
+  }
+  const used = [...MARKETING, "app/how-to/page.tsx", "app/how-to/wedding-journey/page.tsx", "app/page.tsx"]
+    .filter((path, index, all) => path.startsWith("app/") && all.indexOf(path) === index)
+    .map((path) => /og: "([a-z-]+)"/.exec(read(path))?.[1]);
+  assert.deepEqual([...used].sort(), [...OG_IMAGES].sort(), "each page names its own card, and each card is used once");
+});

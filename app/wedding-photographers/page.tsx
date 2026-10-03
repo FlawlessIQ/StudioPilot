@@ -1,15 +1,18 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
 import { StudioProof } from "@/components/marketing/studio-proof";
+import { ThreePeople } from "@/components/marketing/three-people";
 import { HelpVideoPlayer } from "@/components/help/video-player";
 import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "For Wedding Photographers",
   description:
     "StudioCue runs the whole wedding — inquiry to delivered gallery — and Cue drafts each next step for you to approve.",
-};
+  path: "/wedding-photographers",
+  og: "wedding-photographers",
+});
 
 export default function WeddingPhotographersPage() {
   return (
@@ -23,6 +26,7 @@ export default function WeddingPhotographersPage() {
       <section aria-label="A wedding, start to finish" className="marketing-film">
         <HelpVideoPlayer id={JOURNEY_FILM_ID} />
       </section>
+      <ThreePeople titleId="studio-people-title" />
       <CapabilityGrid
         items={[
           {

@@ -16,3 +16,6 @@ import "./contracts.css";
 // The mobile kit (couple and crew). Scoped to `.kit`; see app/kit.css.
 import "./kit-tokens.css";
 import "./kit.css";
+// The website's clips and homepage (and the trial teaser); last, so it wins
+// over the older marketing rules at equal specificity.
+import "./marketing.css";

@@ -1,0 +1,752 @@
+/* ============================================================
+   The website's clips and the 2026-10-02 homepage rebuild
+   (docs/marketing-video-onboarding-plan-2026-10-02.md §4).
+   Loaded last (app/app-styles.ts), so these win over the older
+   marketing rules in globals.css and legacy-bridge.css at equal
+   specificity. Classes are `mk-`; the older names they touch are
+   scoped under `.marketing-page`.
+   ============================================================ */
+
+/* --- A silent loop (components/marketing/loop-video.tsx) --- */
+.mk-loop {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  background: #0f1411;
+}
+.mk-loop > img,
+.mk-loop > video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* The loop fades in over its poster once it is actually playing. */
+.mk-loop > video {
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.mk-loop[data-playing="true"] > video {
+  opacity: 1;
+}
+
+/* A laptop-window outline: a slim bar of three dots above the screen. */
+.mk-frame-screen {
+  border: 1px solid #d9ded9;
+  border-top-width: 26px;
+  border-radius: 14px;
+  box-shadow: 0 30px 60px -28px rgb(20 32 27 / 38%), 0 2px 6px rgb(20 32 27 / 8%);
+  background-clip: padding-box;
+  /* The dots sit in the border, outside the padding box overflow would clip to. */
+  overflow: visible;
+}
+.mk-frame-screen::before {
+  position: absolute;
+  top: -17px;
+  left: 12px;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c9cfca;
+  box-shadow: 13px 0 0 #c9cfca, 26px 0 0 #c9cfca;
+  content: "";
+}
+.mk-frame-screen > img,
+.mk-frame-screen > video {
+  border-radius: 0 0 13px 13px;
+}
+
+/* A phone outline around a portrait how-to video (components/marketing/phone-video.tsx). */
+.mk-phone {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  margin: 0;
+}
+.mk-phone-body {
+  width: min(100%, 250px);
+  padding: 9px;
+  border-radius: 36px;
+  background: #121a16;
+  box-shadow: 0 26px 50px -24px rgb(20 32 27 / 45%);
+}
+.mk-phone-body .help-video {
+  gap: 0;
+}
+/* A minute-long phone video doesn't need its chapter chips; in the phone's
+   dark body they read as empty pills. */
+.mk-phone-body .help-video-chapters {
+  display: none;
+}
+.mk-phone-body .help-video video,
+.mk-phone-body .help-video[data-orientation="portrait"] video {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  border-radius: 28px;
+}
+.mk-phone > figcaption {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* --- Hero --- */
+.marketing-page .mk-hero {
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 64px;
+  min-height: 640px;
+}
+.marketing-page .mk-hero .hero-copy h1 {
+  max-width: 15ch;
+  font-size: clamp(44px, 4.7vw, 66px);
+  letter-spacing: -0.05em;
+  line-height: 1.02;
+}
+.mk-hero-media {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.mk-hero-play {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px 7px 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 6px 18px rgb(10 18 12 / 22%);
+  color: #14201b;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.mk-hero-play:hover {
+  background: #fff;
+}
+.mk-hero-play-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #14201b;
+  color: #fff;
+}
+.mk-hero-play-icon svg {
+  margin-left: 2px;
+}
+
+/* --- Sections --- */
+.mk-section {
+  max-width: 1180px;
+  margin: 96px auto 112px;
+  padding: 0 24px;
+}
+
+/* Two plans, centred, rather than two thirds of a three-column grid. */
+.marketing-page .marketing-pricing-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 380px));
+  justify-content: center;
+}
+.mk-section-head {
+  display: grid;
+  gap: 14px;
+  max-width: 720px;
+  margin: 0 auto 40px;
+  text-align: center;
+  justify-items: center;
+}
+.mk-section-head--left {
+  margin: 0 0 28px;
+  text-align: left;
+  justify-items: start;
+}
+.mk-section-head h2 {
+  margin: 0;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: clamp(32px, 3.6vw, 48px);
+  font-weight: 460;
+  letter-spacing: -0.02em;
+  line-height: 1.06;
+}
+.mk-section-head p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 17px;
+  line-height: 1.6;
+}
+.mk-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 36px;
+}
+
+/* --- One wedding, start to finish: the film's ribbon --- */
+.mk-stops {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mk-stop {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+.mk-stop > p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.mk-stop-link {
+  display: grid;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.mk-stop-still {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid #dadfda;
+  border-radius: 10px;
+  background: #0f1411;
+}
+.mk-stop-still img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 200ms ease;
+}
+.mk-stop-link:hover .mk-stop-still img {
+  transform: scale(1.04);
+}
+.mk-stop-still .journey-film-play {
+  width: 34px;
+  height: 34px;
+}
+.mk-stop-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+}
+.mk-stop-num {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #14201b;
+  color: #fff;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Three people, one wedding --- */
+.mk-people-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.mk-person {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface, #fff);
+}
+.mk-person h3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 680;
+}
+.mk-person h3 svg {
+  color: #50725c;
+}
+.mk-person > p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.mk-person .journey-film-page-link {
+  justify-self: center;
+}
+/* The studio's screen sits in the middle of its card, level with the phones. */
+.mk-people-grid {
+  align-items: stretch;
+}
+.mk-person-you {
+  grid-template-rows: auto auto 1fr;
+}
+.mk-person-you > .mk-loop {
+  align-self: center;
+}
+
+/* --- Story bands (Meet Cue, readiness) with a clip --- */
+.marketing-page .mk-story {
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+}
+.mk-story-media {
+  min-width: 0;
+}
+.readiness-story--dark .mk-frame-screen {
+  border-color: #2a3a32;
+}
+.readiness-story--dark .mk-frame-screen::before {
+  background: #4a5b52;
+  box-shadow: 13px 0 0 #4a5b52, 26px 0 0 #4a5b52;
+}
+.marketing-page .mk-stat {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 16px 18px;
+  border-left: 3px solid #cdb98a;
+  background: rgb(255 255 255 / 5%);
+  border-radius: 0 12px 12px 0;
+}
+.marketing-page .mk-stat strong {
+  color: #fff;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 20px;
+  font-weight: 460;
+  line-height: 1.3;
+}
+.marketing-page .mk-stat small {
+  color: #9fb0a6;
+  font-size: 12.5px;
+}
+
+/* --- Getting paid --- */
+.mk-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 56px;
+  align-items: center;
+}
+.mk-paid-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+.mk-paid-steps li {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 0 0 18px;
+}
+/* The thread that joins one step to the next. */
+.mk-paid-steps li:not(:last-child)::after {
+  position: absolute;
+  top: 34px;
+  bottom: 2px;
+  left: 16px;
+  width: 1px;
+  background: var(--line);
+  content: "";
+}
+.mk-paid-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  border: 1px solid #cfdcd2;
+  border-radius: 50%;
+  background: #eef4ef;
+  color: #2f5a40;
+}
+.mk-paid-steps li > span:last-child {
+  display: grid;
+  gap: 2px;
+  padding-top: 5px;
+}
+.mk-paid-steps strong {
+  font-size: 15px;
+  font-weight: 680;
+}
+.mk-paid-steps small {
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* --- Not just weddings --- */
+.mk-other-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.mk-other-grid article {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--cream, #f7f3ea);
+}
+.mk-other-grid h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 680;
+}
+.mk-other-grid p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.mk-other-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #fff;
+  color: #2f5a40;
+}
+
+/* --- Integrations band: a link under the names --- */
+.marketing-page .integration-band > .journey-film-page-link {
+  margin-top: 26px;
+}
+
+/* --- FAQ --- */
+.mk-faq {
+  max-width: 820px;
+  margin: 0 auto 112px;
+  padding: 0 24px;
+}
+.mk-faq > header {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  margin-bottom: 28px;
+  text-align: center;
+}
+.mk-faq > header h2 {
+  margin: 0;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: clamp(30px, 3.4vw, 44px);
+  font-weight: 460;
+  letter-spacing: -0.02em;
+}
+.mk-faq-list {
+  border-top: 1px solid var(--line);
+}
+.mk-faq details {
+  border-bottom: 1px solid var(--line);
+}
+.mk-faq summary {
+  position: relative;
+  padding: 20px 40px 20px 0;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 640;
+  list-style: none;
+}
+.mk-faq summary::-webkit-details-marker {
+  display: none;
+}
+.mk-faq summary::after {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  transform: translateY(-50%);
+  content: "+";
+}
+.mk-faq details[open] summary::after {
+  content: "–";
+}
+.mk-faq details p {
+  margin: 0 0 22px;
+  max-width: 68ch;
+  color: var(--ink-soft);
+  font-size: 15.5px;
+  line-height: 1.65;
+}
+
+/* --- Footer: the tagline and the links in their own columns --- */
+.marketing-page .marketing-footer {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 24px 48px;
+  align-items: start;
+}
+.marketing-page .marketing-footer > .marketing-footer-brand {
+  display: grid;
+  gap: 10px;
+  justify-self: start;
+}
+.marketing-footer-brand p {
+  margin: 0;
+}
+.marketing-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* --- Marketing pages: a clip beside or under a section (for-clients, for-crew, features) --- */
+.mk-page-media {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 28px;
+  align-items: start;
+  max-width: 1040px;
+  margin: 0 auto 72px;
+  padding: 0 32px;
+}
+.mk-page-media--loops {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+.mk-page-media > figure {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  min-width: 0;
+}
+.mk-page-media > figure > figcaption {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+.mk-film-moment {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  min-width: 0;
+}
+.mk-film-moment figcaption {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+.mk-page-media-title {
+  max-width: 1040px;
+  margin: 0 auto 18px;
+  padding: 0 32px;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 460;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+/* --- Trial checkout: the teaser beside "Start your 14-day trial" --- */
+.trial-teaser {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  margin: 0 0 20px;
+  padding: 18px;
+}
+.trial-teaser-media {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: #0f1411;
+}
+.trial-teaser-media > img,
+.trial-teaser-media > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.trial-teaser-media > video {
+  object-fit: contain;
+  background: #0f1411;
+}
+.trial-teaser-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: linear-gradient(180deg, rgb(15 20 17 / 0%) 55%, rgb(15 20 17 / 45%));
+  cursor: pointer;
+}
+.trial-teaser-play .journey-film-play {
+  width: 52px;
+  height: 52px;
+}
+.trial-teaser-copy {
+  display: grid;
+  gap: 8px;
+}
+.trial-teaser-copy h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.trial-teaser-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+/* --- Phones and narrow screens --- */
+@media (max-width: 1100px) {
+  .mk-stops {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 28px;
+  }
+  .mk-people-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mk-person-you {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .marketing-page .mk-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+  .marketing-page .mk-story,
+  .mk-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+  .mk-other-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .trial-teaser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .mk-section {
+    margin-top: 64px;
+    margin-bottom: 78px;
+    padding: 0 16px;
+  }
+  .mk-section-head {
+    margin-bottom: 28px;
+  }
+  .mk-section-head p {
+    font-size: 16px;
+  }
+  .mk-people-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mk-person {
+    padding: 18px;
+  }
+  .mk-faq {
+    margin-bottom: 78px;
+    padding: 0 16px;
+  }
+  .mk-page-media,
+  .mk-page-media-title {
+    padding: 0 16px;
+  }
+  .marketing-page .marketing-footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .marketing-footer-links {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .marketing-page .mk-hero .hero-copy h1 {
+    font-size: 40px;
+  }
+  /* A still with a big play button: the film opens instead of a loop playing. */
+  .mk-hero-play {
+    inset: 20px 0 0;
+    justify-content: center;
+    padding: 0;
+    border-radius: 0 0 13px 13px;
+    background: rgb(15 20 17 / 18%);
+    box-shadow: none;
+    color: transparent;
+    font-size: 0;
+  }
+  .mk-hero-play:hover {
+    background: rgb(15 20 17 / 24%);
+  }
+  .mk-hero-play-icon {
+    width: 58px;
+    height: 58px;
+    background: rgb(255 255 255 / 94%);
+    color: #14201b;
+    box-shadow: 0 6px 18px rgb(10 18 12 / 28%);
+  }
+  .mk-stops {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 14px;
+  }
+  .mk-stop > p {
+    font-size: 13px;
+  }
+  .mk-frame-screen {
+    border-top-width: 20px;
+    border-radius: 11px;
+  }
+  .mk-frame-screen::before {
+    top: -13px;
+    left: 10px;
+    width: 6px;
+    height: 6px;
+    box-shadow: 10px 0 0 #c9cfca, 20px 0 0 #c9cfca;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-loop > video,
+  .mk-stop-still img {
+    transition: none;
+  }
+}

@@ -1,11 +1,13 @@
-import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "For Corporate Photographers",
   description:
     "The brief asks who signs off, how you get in, where the images will run and who must not appear — before the day, not on it.",
-};
+  path: "/corporate-photographers",
+  og: "corporate",
+});
 
 /**
  * Corporate, claimed only as far as the product goes.

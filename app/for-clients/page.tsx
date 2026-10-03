@@ -1,11 +1,17 @@
-import type { Metadata } from "next";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
+import { FilmMoment } from "@/components/marketing/film-moment";
+import { PhoneVideo } from "@/components/marketing/phone-video";
+import { helpVideo } from "@/features/help/videos";
+import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
+import { marketingMetadata } from "@/features/marketing/metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "For your clients",
   description:
     "Your couples get one link: the proposal, the agreement, what they have paid, the run of show, and the gallery — instead of hunting through eleven months of email.",
-};
+  path: "/for-clients",
+  og: "for-clients",
+});
 
 /**
  * The client portal, which the site had never mentioned either.
@@ -22,6 +28,27 @@ export default function ForClientsPage() {
       title="One link, for the eleven months between booking and the gallery."
       description="A wedding is booked a year out and discussed in forty emails. Your clients get a single place with the proposal they accepted, what they have paid, the schedule for the day, and the photographs at the end of it."
     >
+      {/* What the page had never shown: the portal itself, on a phone. Each
+          piece renders nothing where its video isn't published. */}
+      {helpVideo(JOURNEY_FILM_ID) ? (
+        <>
+          <h2 className="mk-page-media-title">What your clients see, on their phone.</h2>
+          <section aria-label="The client portal, on a phone" className="mk-page-media">
+            <PhoneVideo
+              caption="A tour of their portal: the countdown, the one next step, and everything else in one place."
+              id="couple-tour"
+            />
+            <PhoneVideo
+              caption="Signing the agreement, written from the proposal they accepted. Nothing to download or print."
+              id="couple-sign"
+            />
+            <FilmMoment
+              caption="Booking, from both sides: your proposal arrives and is accepted in their portal."
+              chapterId="journey-3"
+            />
+          </section>
+        </>
+      ) : null}
       <CapabilityGrid
         items={[
           {
