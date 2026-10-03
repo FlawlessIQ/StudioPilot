@@ -41,3 +41,20 @@ export function retainerFromSchedule(
   // so only a missing or nonsensical figure falls back to the package.
   return Number.isInteger(agreed) && agreed >= 0 ? agreed : fallbackCents;
 }
+
+/**
+ * What a job paid in full to book takes: every line the client agreed to,
+ * added up. A family proposal written before payment lines followed the kind
+ * (2026-10-03) split the price into a "Retainer" and a "Final balance" — and
+ * a paid-in-full job never bills a balance, so taking only the retainer would
+ * leave the rest unbilled.
+ */
+export function paidInFullFromSchedule(schedule: unknown, fallbackCents: number): number {
+  if (!Array.isArray(schedule) || !schedule.length) return fallbackCents;
+  const total = schedule.reduce(
+    (sum: number, entry: unknown) =>
+      sum + Number((entry as { amountCents?: unknown } | null)?.amountCents ?? 0),
+    0,
+  );
+  return Number.isInteger(total) && total > 0 ? total : fallbackCents;
+}

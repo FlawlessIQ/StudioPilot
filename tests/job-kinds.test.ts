@@ -433,3 +433,18 @@ test("the first reply's link line says what happens next for the kind", async ()
   assert.match(family, /send your price/);
   assert.match(inquiryLinkLine(url, false, "corporate"), /about your event and pick a time to talk/);
 });
+
+test("a job paid in full takes the whole agreed price, whatever split an older proposal wrote", async () => {
+  const { paidInFullFromSchedule } = await import("../features/booking/agreed-retainer");
+  const { paidInFullFromSchedule: functionsCopy } = await import("../functions/src/booking/agreed-retainer");
+  const legacy = [{ label: "Retainer", amountCents: 13_500 }, { label: "Final balance", amountCents: 31_500 }];
+  assert.equal(paidInFullFromSchedule(legacy, 1), 45_000);
+  assert.equal(paidInFullFromSchedule([{ label: "Payment in full", amountCents: 45_000 }], 1), 45_000);
+  assert.equal(paidInFullFromSchedule([], 45_000), 45_000);
+  assert.equal(functionsCopy(legacy, 1), 45_000);
+});
+
+test("readiness reasons speak of the client, not the couple", () => {
+  const source = readFileSync("features/readiness/checkpoint-resolution.ts", "utf8");
+  assert.doesNotMatch(source, /return "[^"]*couple[^"]*"/);
+});

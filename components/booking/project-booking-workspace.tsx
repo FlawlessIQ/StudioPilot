@@ -45,7 +45,7 @@ import {
   bookingAutomationDrivesContract,
 } from "@/features/booking/orchestration";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
-import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
+import { paidInFullFromSchedule, retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { CorrectPayment, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
 import { ProviderInvoiceLines } from "@/components/booking/provider-invoice-lines";
 import { HeldInvoiceReview } from "@/components/booking/held-invoice-review";
@@ -535,11 +535,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    */
   const agreedRetainerCents = useMemo(
     () =>
-      retainerFromSchedule(
-        proposal?.paymentSchedule,
-        Number(packageSnapshot?.retainerCents ?? 0),
-      ),
-    [proposal, packageSnapshot],
+      // Paid in full to book: the whole agreed price, whatever split an
+      // older proposal wrote (agreed-retainer.ts).
+      projectProfile(project).payment === "paid_in_full"
+        ? paidInFullFromSchedule(proposal?.paymentSchedule, Number(packageSnapshot?.totalCents ?? 0))
+        : retainerFromSchedule(
+            proposal?.paymentSchedule,
+            Number(packageSnapshot?.retainerCents ?? 0),
+          ),
+    [project, proposal, packageSnapshot],
   );
   /**
    * Whether there is a signing app to send through at all.
@@ -946,7 +950,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         </aside>
       ) : null}
       {/* Where they are billed, and whether the couple confirmed it at signing. */}
-      <BillingAddressSummary contact={contact} showMissing={invoicingProvider === "quickbooks"} />
+      <BillingAddressSummary
+        contact={contact}
+        showMissing={invoicingProvider === "quickbooks" && kindProfile.billingAddressRequest}
+        signsAgreement={kindNeeds.agreement}
+      />
       {/* One step at a time.
 
           Three equal columns gave the same weight to the step you can act on

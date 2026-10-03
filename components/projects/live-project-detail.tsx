@@ -1398,6 +1398,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         />
       </aside>
     ) : null;
+  // A kind with no consultation (job-kinds.ts) goes from the inquiry to its
+  // proposal: "Confirm we've spoken" at Lead is a step it doesn't have.
+  const hideLeadStageControl = state === "LEAD" && !projectProfile(project).consultation;
   const stageControlEl = (
     <ProjectStageControl
       bookingAgreementOut={related.contracts.some(
@@ -1673,7 +1676,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             projectId={projectId}
           />
           {leadInviteEl}
-          {stageControlEl}
+          {hideLeadStageControl ? null : stageControlEl}
           {interruptionEl}
           {threadEl}
         </div>
@@ -1715,7 +1718,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <div className="job-rail">
             <ThreadMinimap steps={journey.steps} />
             {leadInviteEl}
-            {stageControlEl}
+            {hideLeadStageControl ? null : stageControlEl}
             {interruptionEl}
           </div>
         </div>

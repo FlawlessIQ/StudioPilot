@@ -44,7 +44,6 @@
   "components/client/kit/client-schedule.tsx": 1,
   "components/client/kit/role-chooser.tsx": 6,
   "components/client/live-client-views.tsx": 9,
-  "components/clients/billing-address-summary.tsx": 2,
   "components/clients/client-record-actions.tsx": 2,
   "components/communications/lifecycle-pack-panel.tsx": 2,
   "components/console/pages/jobs-page.tsx": 1,

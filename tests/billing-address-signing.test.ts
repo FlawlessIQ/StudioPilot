@@ -583,7 +583,7 @@ test("a studio edit takes the couple's mark off a changed address, and only a ch
 
 test("the studio sees where the address came from", () => {
   const summary = read("components/clients/billing-address-summary.tsx");
-  assert.match(summary, /Billing address · confirmed by the couple at signing/);
+  assert.match(summary, /Billing address · confirmed by the client at signing/);
   assert.match(read("components/booking/project-booking-workspace.tsx"), /<BillingAddressSummary/);
   assert.match(read("components/live/tenant-records.tsx"), /confirmed by the couple at signing/);
 });

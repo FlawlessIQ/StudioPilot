@@ -41,9 +41,28 @@ All P0 and P1 findings, and most of P2, fixed the same day (this commit):
   one-off placeholder, planning-timeline subtitle, "Review" for no-album kinds,
   empty wedding fields out of the reply context (F20).
 
-Still open: the proposal email footer wording (F17), sports readiness
-checkpoint copy (F21), AI invention (F7/F15), and a re-walk of family end to
-end on a studio whose QuickBooks works.
+Re-walked on production after the deploy: a new family inquiry (Lena Marsh)
+went inquiry → proposal from Lead → "Payment in full $450" → accepted →
+recorded by hand (Venmo) → **Booked**, with no consultation and no agreement.
+
+**Second pass, same day** — the rest:
+
+- The first reply's AI gets the job's kind and only the facts the inquiry
+  holds; its "check" list is filtered to what the studio's form asked that kind
+  (no "Check BudgetRange, Venue" on a family session), and it must not add a
+  partner or children nobody mentioned (F7, F20). The proposal intro drafter
+  writes as the studio ("your family of four", never "the four of us") (F15).
+- The proposal email's footer says what accepting does for the kind (F17).
+- Readiness reasons say "the client" (F21). The billing-address card speaks
+  of the client and, for a kind with no agreement, says where to add it.
+- A job paid in full takes the whole agreed price on the hand-payment form,
+  the Booking screen and a retried invoice, even from an older proposal that
+  split it into a retainer and balance (Maya's).
+- No "Confirm we've spoken" stage control at Lead for a kind with no
+  consultation.
+
+Still not walkable today: event day, delivery and review (the test dates are
+in the future).
 
 ## What works
 

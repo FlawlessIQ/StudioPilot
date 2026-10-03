@@ -787,6 +787,8 @@ async function emailContext(
       eventKind:
         firstString(document.get("eventKind")) ??
         (project?.exists ? jobKindOf(project.data()) : null),
+      // How the job is paid, when its package said (job-kinds.ts).
+      paymentShape: firstString(document.get("paymentShape"), project?.get("paymentShape")) ?? null,
       portalUrl:
         firstString(document.get("portalUrl")) ??
         (projectId

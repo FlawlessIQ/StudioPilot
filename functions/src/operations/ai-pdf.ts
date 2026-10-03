@@ -18,6 +18,7 @@ import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
 import { inquiryReplySystemInstruction } from "../ai/studio-voice.js";
+import { dayFieldsFor, normaliseInquiryFormConfig, resolveInquiryEventType } from "../intake/inquiry-form-config.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { proposalTermsFor } from "../proposals/default-terms.js";
 import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
@@ -42,6 +43,23 @@ async function cloudAccessToken(){const value=await metadataToken("token");const
 async function cloudRunIdentityToken(audience:string){const response=await fetch(`http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}&format=full`,{headers:{"Metadata-Flavor":"Google"}});if(!response.ok)throw new Error("PDF_SERVICE_IDENTITY_UNAVAILABLE");return response.text()}
 const money=(value:unknown,currency:string)=>new Intl.NumberFormat("en-US",{style:"currency",currency}).format(Number(value)/100);
 
+/** Which "missing" items the studio's form actually asked this inquiry. */
+async function inquiryAskedFor(db:FirebaseFirestore.Firestore,lead:DocumentSnapshot):Promise<{matches:(item:string)=>boolean}>{
+  const settings=await db.doc(`leadCaptureSettings/${string(lead.get("tenantId"))}`).get().catch(()=>null);
+  const config=normaliseInquiryFormConfig(settings?.get("inquiryForm"));
+  const {type}=resolveInquiryEventType(config,{eventTypeKey:lead.get("eventTypeKey"),eventType:lead.get("eventTypeLabel")});
+  const day=dayFieldsFor(type);
+  return{
+    matches:(item:string)=>{
+      if(!day.venue&&/venue/i.test(item))return false;
+      if(!day.guests&&/guest/i.test(item))return false;
+      if(!config.askBudget&&/budget/i.test(item))return false;
+      if(day.eventDate==="hidden"&&/\bdate\b/i.test(item))return false;
+      return true;
+    },
+  };
+}
+
 async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   const db=getFirestore();
   const leadId=string(job.get("leadId"))||job.id.replace(/^lead_intake_/,"");
@@ -62,6 +80,9 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   // Read before drafting: the studio's voice and its "how your first reply
   // should go" shape the reply (ai/studio-voice.ts), and its name signs it.
   const tenant=await db.doc(`tenants/${string(lead.get("tenantId"))}`).get();
+  // What the studio's form asked this kind of inquiry: a gap it never asked
+  // about is not something to chase (inquiry-form-config.ts).
+  const askedFor=await inquiryAskedFor(db,lead);
   let analysis:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){
     analysis={
@@ -76,7 +97,12 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     const model=process.env.VERTEX_AI_EXTRACTION_MODEL;
     if(!project||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
     const token=await cloudAccessToken();
-    const facts={
+    // Only what the inquiry holds: empty wedding fields went in as nulls and
+    // came back as "Check BudgetRange, Venue" on a family session, and a
+    // null partner became "you, your partner, and your two kids" (walk,
+    // 2026-10-03). `kindOfWork` says what the job is.
+    const facts=Object.fromEntries(Object.entries({
+      kindOfWork:lead.get("eventKind")??null,
       clientFirstName:lead.get("firstName"),
       clientPartnerName:lead.get("partnerName"),
       eventType:lead.get("eventTypeLabel"),
@@ -92,7 +118,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       message:lead.get("message"),
       availabilityStatus:lead.get("availabilityStatus"),
       knownMissingInformation:missing,
-    };
+    }).filter(([,value])=>value!==null&&value!==undefined&&value!==""&&!(Array.isArray(value)&&value.length===0)));
     const response=await fetch(vertexEndpoint(project, model),{
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
@@ -128,7 +154,9 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     analysis=record(JSON.parse(output));
   }
   const summary=string(analysis.summary);
-  const missingInformation=Array.isArray(analysis.missingInformation)?analysis.missingInformation.map(String).filter(Boolean).slice(0,12):missing.map(String);
+  const missingInformation=(Array.isArray(analysis.missingInformation)?analysis.missingInformation.map(String).filter(Boolean).slice(0,12):missing.map(String))
+    .filter((item)=>askedFor.matches(item))
+    .map((item)=>item.replace(/([a-z])([A-Z])/g,(_,a:string,b:string)=>`${a} ${b.toLowerCase()}`));
   const suggestedConsultationQuestions=Array.isArray(analysis.suggestedConsultationQuestions)?analysis.suggestedConsultationQuestions.map(String).filter(Boolean).slice(0,8):[];
   const now=new Date().toISOString();
   const replySubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`;

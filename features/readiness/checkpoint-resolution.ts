@@ -85,14 +85,14 @@ export function checkpointWaitingReason(
     case "invoice_paid":
       return "Completes when the invoice is paid.";
     case "form_submitted":
-      return "Completes when the couple submits the form with answers.";
+      return "Completes when the client submits the form with answers.";
     case "schedule_approved":
       // Completion is driven by the studio publishing a usable, client-visible
       // run of show (scheduleIsUsable), not by a couple approval step — there is
       // no couple approval flow in the portal. Saying "when the couple approves"
       // stranded this as the couple's next action for something they cannot do
       // (audit-2 N5).
-      return "Completes when you publish a run of show the couple can see.";
+      return "Completes when you publish a run of show the client can see.";
     case "assignment_accepted":
       return "Completes when the crew accept and acknowledge the schedule.";
     case "system_rule":

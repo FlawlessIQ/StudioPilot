@@ -1,5 +1,5 @@
 import { releaseHeadline } from "../post-event/deliverables.js";
-import { jobKindOf, vocab } from "../job-kinds/job-kinds.js";
+import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
 
 /**
@@ -801,8 +801,21 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         action: actionUrl
           ? { label: "Review proposal", url: actionUrl }
           : undefined,
-        note:
-          "Accepting a proposal does not sign a contract or collect a payment. Those steps remain separate.",
+        // What accepting does depends on the kind of job (job-kinds.ts): a
+        // family session pays to book, a sports day just books — "those
+        // steps remain separate" told them about a contract that never comes.
+        note: (() => {
+          const kindValue = stringValue(values, "eventKind");
+          if (!kindValue) return "Accepting a proposal does not sign a contract or collect a payment. Those steps remain separate.";
+          const needs = bookingGateNeeds(
+            journeyProfile(jobKindOf({ eventKind: kindValue }), { payment: stringValue(values, "paymentShape") || undefined }),
+          );
+          return needs.agreement
+            ? "Accepting a proposal does not sign a contract or collect a payment. Those steps remain separate."
+            : needs.payment
+              ? "Accepting the proposal sends your invoice, and paying it books your date."
+              : "Accepting the proposal books your date.";
+        })(),
       };
     case "contract_sent":
       return {

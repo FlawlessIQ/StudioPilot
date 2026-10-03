@@ -498,3 +498,14 @@ test("a couple writing again through the form is a new message on their job", ()
   assert.match(rendered.text, /Gabriel Rhodes wrote again/);
   assert.match(rendered.text, /Their message:/);
 });
+
+test("the proposal email says what accepting does for this kind of job", () => {
+  const render = (values: Record<string, unknown>) =>
+    renderEmailTemplate({ key: "proposal_sent", brand, recipientName: "Lena Marsh", projectName: "Lena Marsh Portraits", values: { actionUrl: "https://studio-cue.com/client", ...values } }).text;
+  assert.match(render({ eventKind: "wedding" }), /does not sign a contract or collect a payment/);
+  assert.match(render({}), /does not sign a contract or collect a payment/);
+  // A family session pays to book; a sports day just books (job-kinds.ts).
+  assert.match(render({ eventKind: "portraits" }), /sends your invoice, and paying it books your date/);
+  assert.match(render({ eventKind: "sports" }), /Accepting the proposal books your date\./);
+  assert.doesNotMatch(render({ eventKind: "portraits" }), /contract/);
+});

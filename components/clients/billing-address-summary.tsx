@@ -15,8 +15,11 @@ import { billingAddressOf } from "@/components/clients/client-record-actions";
 export function BillingAddressSummary({
   contact,
   showMissing,
+  signsAgreement = true,
 }: {
   contact: Record<string, unknown> | null;
+  /** Whether this kind of job has an agreement to sign (job-kinds.ts): the address is asked there. */
+  signsAgreement?: boolean;
   /** Say "none yet" only where it matters — a studio invoicing through QuickBooks. */
   showMissing: boolean;
 }) {
@@ -37,7 +40,7 @@ export function BillingAddressSummary({
         <span>
           <small>
             {byCouple
-              ? "Billing address · confirmed by the couple at signing"
+              ? "Billing address · confirmed by the client at signing"
               : "Billing address · added by the studio"}
           </small>
           <strong>{formatBillingAddress(address)}</strong>
@@ -46,8 +49,9 @@ export function BillingAddressSummary({
         <span>
           <strong>No billing address yet</strong>
           <small>
-            QuickBooks works out sales tax from it. The couple is asked for it
-            when they sign.
+            {signsAgreement
+              ? "QuickBooks works out sales tax from it. The client is asked for it when they sign."
+              : "QuickBooks works out sales tax from it. This kind of job has no agreement to ask it on — add it here if you charge tax."}
           </small>
         </span>
       )}
