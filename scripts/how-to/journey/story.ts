@@ -48,7 +48,7 @@ const STACK = {
 };
 
 type Db = {
-  doc(path: string): { get(): Promise<Snap>; set(data: object, options?: object): Promise<unknown>; update(data: object): Promise<unknown> };
+  doc(path: string): { get(): Promise<Snap>; set(data: object, options?: object): Promise<unknown>; create(data: object): Promise<unknown>; update(data: object): Promise<unknown> };
   collection(path: string): Query;
 };
 type Query = { where(field: string, op: string, value: unknown): Query; get(): Promise<{ docs: Snap[]; size: number }> };
