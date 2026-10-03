@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
         has: [{ type: "host", value: "(?<host>.*\\.hosted\\.app)" }],
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
+      // Behind App Hosting's proxy the address the visitor used arrives as
+      // x-forwarded-host, not Host.
+      {
+        source: "/:path*",
+        has: [{ type: "header", key: "x-forwarded-host", value: "(?<fwd>.*\\.hosted\\.app)" }],
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
     ];
   },
   async redirects() {
