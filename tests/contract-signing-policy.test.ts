@@ -177,8 +177,9 @@ test("consent v2 carries every disclosure element", () => {
 });
 
 test("the privacy policy describes what signing records", () => {
-  const privacy = readFileSync("app/privacy/page.tsx", "utf8");
-  assert.match(privacy, /<h2>Electronic signatures<\/h2>/);
+  // The policy is document data rendered by components/legal/legal-document.tsx.
+  const privacy = readFileSync("features/legal/documents/privacy.ts", "utf8");
+  assert.match(privacy, /title: "6\. Electronic signatures"/);
   assert.match(privacy, /IP address, and the device and browser used/);
 });
 

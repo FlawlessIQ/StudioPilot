@@ -1,17 +1,12 @@
 /**
- * Who operates StudioCue, which version of each legal text is live, and the
- * services that process data for it.
- *
- * One source so the Terms, the Privacy Policy, the subprocessors page, the
- * signup consent record and the email footer can never disagree. Version 1.0
- * of the Terms and 1.1 of the Privacy Policy were signed off by the owner on
- * 2026-10-03 for the 2026-10-05 launch, with counsel's review to follow
- * (docs/launch-build-plan-2026-10-05.md §1, §6). A change counsel makes ships
- * as a new version here; the signup record names the version accepted.
+ * Who operates StudioCue, the version and effective date of each legal
+ * document, and the services that process data for it — one source for the
+ * legal pages, the signup consent record and the email footer.
  *
  * functions/src/communications/email-templates.ts repeats LEGAL_ENTITY's
- * name and address for the email footer (functions/ cannot import features/);
- * tests/legal-pages.test.ts compares the two.
+ * name and address for the email footer, and functions/src/legal/versions.ts
+ * repeats the versions recorded at signup (functions/ cannot import
+ * features/); tests/legal-pages.test.ts compares them.
  */
 
 export const LEGAL_ENTITY = {
@@ -26,8 +21,22 @@ export const LEGAL_ENTITY = {
 
 export const TERMS_VERSION = "1.0";
 export const TERMS_EFFECTIVE = "2026-10-05";
-export const PRIVACY_VERSION = "1.1";
+export const PRIVACY_VERSION = "2.0";
 export const PRIVACY_EFFECTIVE = "2026-10-05";
+export const DPA_VERSION = "1.0";
+export const DPA_EFFECTIVE = "2026-10-05";
+export const AUP_VERSION = "1.0";
+export const AUP_EFFECTIVE = "2026-10-05";
+export const COOKIES_VERSION = "1.0";
+export const COOKIES_EFFECTIVE = "2026-10-05";
+export const CLIENT_TERMS_VERSION = "1.0";
+export const CLIENT_TERMS_EFFECTIVE = "2026-10-05";
+export const COPYRIGHT_VERSION = "1.0";
+export const COPYRIGHT_EFFECTIVE = "2026-10-05";
+export const SUBPROCESSORS_VERSION = "1.0";
+export const SUBPROCESSORS_EFFECTIVE = "2026-10-05";
+/** The e-signature page publishes the consent's own version id; this is the page's date. */
+export const ESIGN_PAGE_EFFECTIVE = "2026-10-05";
 
 /** "October 5, 2026". */
 export function legalDate(iso: string): string {
@@ -61,6 +70,13 @@ export const CORE_SUBPROCESSORS: readonly Subprocessor[] = [
     service: "Vertex AI (Gemini models)",
     purpose: "AI-assisted drafting and review inside StudioCue's own Google Cloud project",
     data: "The workspace records a feature works from, such as an inquiry, a package or a questionnaire",
+    location: "United States",
+  },
+  {
+    name: "Google LLC",
+    service: "reCAPTCHA Enterprise (Firebase App Check)",
+    purpose: "Verifying that requests come from the genuine StudioCue app and a real person, to protect forms and sign-in from automated abuse",
+    data: "Device and browser signals, IP address and interaction data",
     location: "United States",
   },
   {

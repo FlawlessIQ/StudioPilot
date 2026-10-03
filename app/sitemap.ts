@@ -29,6 +29,13 @@ const publicRoutes: Array<{
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
   { path: "/subprocessors", changeFrequency: "yearly", priority: 0.2 },
+  { path: "/legal", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/legal/dpa", changeFrequency: "yearly", priority: 0.2 },
+  { path: "/legal/acceptable-use", changeFrequency: "yearly", priority: 0.2 },
+  { path: "/legal/cookies", changeFrequency: "yearly", priority: 0.2 },
+  { path: "/legal/client-terms", changeFrequency: "yearly", priority: 0.2 },
+  { path: "/legal/esign", changeFrequency: "yearly", priority: 0.2 },
+  { path: "/legal/copyright", changeFrequency: "yearly", priority: 0.2 },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
