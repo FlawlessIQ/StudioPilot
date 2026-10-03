@@ -490,6 +490,18 @@ export function TabBar({ tabs, active }: { tabs: readonly Tab[]; active: string 
   );
 }
 
+/**
+ * The footer every client, crew and couple screen carries. The privacy link
+ * is the one place people who never signed up to StudioCue can find how it
+ * handles their details (launch plan §1.5).
+ */
 export function PoweredBy() {
-  return <p className="kit-powered">Powered by StudioCue</p>;
+  return (
+    <p className="kit-powered">
+      Powered by StudioCue{" · "}
+      <a href="/privacy" rel="noopener" target="_blank">
+        Privacy
+      </a>
+    </p>
+  );
 }

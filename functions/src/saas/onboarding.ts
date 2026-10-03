@@ -4,6 +4,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
+import { legalAcceptance } from "../legal/versions.js";
 import { starterTemplates } from "../workflow/starter-templates.js";
 import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
 
@@ -121,6 +122,8 @@ export const tenantOnboardingCommand = onRequest(
             photoUrl: identity.picture ?? null,
             phone: null,
             lastLoginAt: now,
+            // Which Terms and Privacy Policy this person accepted at signup.
+            legalAcceptance: legalAcceptance(identity.uid, now),
             createdAt: now,
             updatedAt: now,
             createdBy: identity.uid,
@@ -158,6 +161,7 @@ export const tenantOnboardingCommand = onRequest(
           status: "trial",
           subscriptionPlan: "studio",
           trialEndAt,
+          legalAcceptance: legalAcceptance(identity.uid, now),
           createdAt: now,
           updatedAt: now,
           createdBy: identity.uid,

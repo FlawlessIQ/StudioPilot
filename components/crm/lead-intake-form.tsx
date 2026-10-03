@@ -758,6 +758,14 @@ export function LeadIntakeForm({
                     <input {...register("consent")} type="checkbox" />
                     <span>I agree that {brand.name} may contact me about this inquiry.</span>
                   </label>
+                  {/* Couples never sign up to StudioCue, so this is where they
+                      learn it handles their details (launch plan §1.5). */}
+                  <p className="kit-caption">
+                    {brand.name} uses StudioCue to manage inquiries.{" "}
+                    <a href="/privacy" rel="noopener" target="_blank">
+                      StudioCue privacy policy
+                    </a>
+                  </p>
                   {errors.consent ? (
                     <p className="kit-error" role="alert">
                       {errors.consent.message}
@@ -781,7 +789,7 @@ export function LeadIntakeForm({
             <PoweredBy />
           </Main>
 
-          <Actions note={stepIndex === 0 ? `Your details stay with ${brand.name}.` : undefined}>
+          <Actions note={stepIndex === 0 ? `${brand.name} uses your details only to reply to your inquiry.` : undefined}>
             {stepIndex === steps.length - 1 ? (
               <ButtonRow>
                 <Button icon={ArrowLeft} onClick={() => goTo(stepIndex - 1)} size="compact" variant="secondary">

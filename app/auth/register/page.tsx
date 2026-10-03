@@ -80,8 +80,18 @@ export default async function RegisterPage({
           />
         </div>
         <p className="auth-legal">
-          By continuing, you agree to our <Link href="/terms">Terms</Link> and{" "}
-          <Link href="/privacy">Privacy Policy</Link>.
+          {isClientInvite ? (
+            <>
+              By continuing, you agree to StudioCue&apos;s <Link href="/terms">Terms of Service</Link> and{" "}
+              <Link href="/privacy">Privacy Policy</Link>.
+            </>
+          ) : (
+            <>
+              By creating an account, you agree to the <Link href="/terms">Terms of Service</Link> and{" "}
+              <Link href="/privacy">Privacy Policy</Link>. Your 14-day trial needs a card; nothing is charged
+              until it ends, then your plan renews automatically until you cancel.
+            </>
+          )}
         </p>
       </section>
     </main>

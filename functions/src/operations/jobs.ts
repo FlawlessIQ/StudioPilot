@@ -758,6 +758,7 @@ async function emailContext(
           ),
         ),
         contactEmail,
+        postalAddress: firstString(emailBranding.postalAddress) ?? null,
       };
   return {
     brand,

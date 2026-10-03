@@ -51,7 +51,8 @@ export function MarketingFooter() {
         <Link href="/support">Support</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
-        <span>© 2026 StudioCue</span>
+        <Link href="/subprocessors">Subprocessors</Link>
+        <span>© 2026 FlawlessIQ LLC · StudioCue</span>
       </nav>
     </footer>
   );

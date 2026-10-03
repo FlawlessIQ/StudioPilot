@@ -7,6 +7,7 @@ import {
   isAuthEmailType,
   isPlatformEmailType,
   renderEmailTemplate,
+  OPERATOR_FOOTER,
 } from "../functions/src/communications/email-templates.ts";
 import {
   FEEDBACK_KINDS,
@@ -127,7 +128,9 @@ test("the studio's emails are signed by the team, never by a person", () => {
   ];
   for (const text of all) {
     assert.ok(text.includes("The StudioCue team"), text);
-    assert.doesNotMatch(text, /conor|flawlessiq/i);
+    // The legal footer names the operating company (FlawlessIQ LLC) by law
+    // (CAN-SPAM); the sign-off itself never names a person.
+    assert.doesNotMatch(text.replace(OPERATOR_FOOTER, ""), /conor|flawlessiq/i);
   }
   assert.ok(all[0]!.includes("“Dark mode please”"));
   assert.ok(all[0]!.includes("We'll let you know if it makes it onto the plan."));

@@ -43,8 +43,6 @@ export const planCards = [
     features: [
       "Everything in Studio, up to 100 crew",
       "3 separately branded businesses",
-      "Advanced permissions and portfolio reporting",
-      "API access and priority onboarding",
     ],
   },
 ] as const;

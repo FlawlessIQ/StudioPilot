@@ -109,7 +109,7 @@ export default async function LoginPage({
           ) : null}
         </div>
         <p className="auth-legal">
-          By continuing, you agree to our <Link href="/terms">Terms</Link> and{" "}
+          By continuing, you agree to our <Link href="/terms">Terms of Service</Link> and{" "}
           <Link href="/privacy">Privacy Policy</Link>.
         </p>
       </section>
