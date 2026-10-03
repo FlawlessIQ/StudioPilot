@@ -118,8 +118,9 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
    * six weeks out. A wrong date on a certificate is the most expensive
    * mistake available on this page, and it looked pre-filled.
    *
-   * The due date leads the event by two weeks so there is room to correct a
-   * certificate that comes back wrong, and never lands in the past.
+   * The due date leads the event by three weeks, the day the readiness
+   * checkpoint is due, so there is room to correct a certificate that comes
+   * back wrong, and it never lands in the past.
    */
   const chosen = projects?.find((item) => item.id === selectedProject);
   const chosenEventDate = String(chosen?.eventDate ?? "").slice(0, 10);
@@ -130,7 +131,8 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
     if (!Number.isFinite(event)) return "";
     // `todayLocalIso` takes the date to convert, so it doubles as the
     // local-ISO formatter and saves a second implementation of it.
-    const lead = todayLocalIso(new Date(event - 14 * 86_400_000));
+    // Three weeks before, as automatic requests ask (coi/automation.ts coiDue).
+    const lead = todayLocalIso(new Date(event - 21 * 86_400_000));
     const today = todayLocalIso();
     return lead < today ? today : lead;
   }, [chosenEventDate]);

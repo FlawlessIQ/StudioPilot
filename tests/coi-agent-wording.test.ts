@@ -319,3 +319,21 @@ test("the guide describes the certificate flow as it now runs", () => {
   const words = all.replace(/\*\*/g, "").split(/\s+/).length;
   assert.ok(words >= 120 && words <= 250, `${words} words`);
 });
+
+test("every follow-up says which one it is, for a request and for a correction", () => {
+  const requirement = { venueLegalName: "Willow Creek Barn LLC", certificateHolder: "Willow Creek Barn LLC", eventDate: "2027-06-12", dueDate: "2027-05-22" };
+  const render = (key: string, chaseNumber: number) =>
+    renderEmailTemplate({ key, brand, values: { requirement, chaseNumber, reason: "The venue needs $1,000,000 each occurrence." } });
+  const first = render("coi_request", 0);
+  assert.match(first.subject, /^Certificate of insurance request/);
+  const second = render("coi_request", 2);
+  assert.match(second.subject, /^Second follow-up: certificate for Willow Creek Barn LLC/);
+  assert.match(second.text, /Second follow-up on our certificate request/);
+  assert.notEqual(render("coi_request", 1).subject, second.subject);
+  const correction = render("coi_correction", 0);
+  assert.match(correction.subject, /^Certificate correction requested/);
+  const correctionChase = render("coi_correction", 3);
+  assert.match(correctionChase.subject, /^Third follow-up: corrected certificate for Willow Creek Barn LLC/);
+  assert.match(correctionChase.text, /\$1,000,000 each occurrence/);
+  assert.notEqual(correctionChase.text, correction.text);
+});

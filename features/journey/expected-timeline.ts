@@ -44,8 +44,8 @@ export const SCHEDULE = {
   crewOfferWindowHours: 24,
   /** functions/src/coi/automation.ts COI_DEFAULTS.leadDays */
   coiAskDaysBefore: 60,
-  /** functions/src/coi/automation.ts coiDue: `event - 14 * DAY_MS` */
-  coiDueDaysBefore: 14,
+  /** functions/src/coi/automation.ts coiDue: `event - 21 * DAY_MS` */
+  coiDueDaysBefore: 21,
   /** functions/src/coi/automation.ts COI_DEFAULTS.chaseEveryDays */
   coiChaseEveryDays: 3,
   /** functions/src/billing/billing-address-request.ts BILLING_ADDRESS_REQUEST_WINDOW_DAYS */

@@ -1035,11 +1035,14 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const chaseNumber = Number(values.chaseNumber ?? 0);
       if (chaseNumber > 0) {
         const due = requirement.dueDate ? humanDate(String(requirement.dueDate)) : null;
+        // Which follow-up this is, in so many words: an agent with three of
+        // these in their inbox should know which is newest at a glance.
+        const which = followUpOrdinal(chaseNumber);
         return {
-          subject: `Following up: certificate for ${String(requirement.venueLegalName ?? "an upcoming event")}${due ? `, due ${due}` : ""}`,
-          preheader: "Still needed — a certificate of insurance for an upcoming event.",
+          subject: `${which}: certificate for ${String(requirement.venueLegalName ?? "an upcoming event")}${due ? `, due ${due}` : ""}`,
+          preheader: `${which} — a certificate of insurance is still needed.`,
           eyebrow: "Insurance document request",
-          heading: "Following up on our certificate request",
+          heading: `${which} on our certificate request`,
           paragraphs: [
             "Hello,",
             `Following up on the certificate of insurance for ${String(requirement.venueLegalName ?? "the venue")} on ${requirement.eventDate ? humanDate(String(requirement.eventDate)) : "the event date"}${due ? ` — we need it by ${due}` : ""}.`,
@@ -1064,7 +1067,26 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         ],
       };
     }
-    case "coi_correction":
+    case "coi_correction": {
+      // A chase of a correction (planning/coi-chase-scheduler.ts) carries its
+      // number; it used to resend the first correction word for word.
+      const chaseNumber = Number(values.chaseNumber ?? 0);
+      if (chaseNumber > 0) {
+        const which = followUpOrdinal(chaseNumber);
+        const due = requirement.dueDate ? humanDate(String(requirement.dueDate)) : null;
+        return {
+          subject: `${which}: corrected certificate for ${String(requirement.venueLegalName ?? "an upcoming event")}${due ? `, due ${due}` : ""}`,
+          preheader: `${which} — the corrected certificate is still needed.`,
+          eyebrow: "Correction requested",
+          heading: `${which} on the corrected certificate`,
+          paragraphs: [
+            "Hello,",
+            `We're still waiting on the corrected certificate${requirement.venueLegalName ? ` for ${String(requirement.venueLegalName)}` : ""}${requirement.eventDate ? ` on ${humanDate(String(requirement.eventDate))}` : ""}${due ? ` — we need it by ${due}` : ""}.`,
+            `What needs correcting: ${stringValue(values, "reason") || "please contact the studio."}`,
+            "Reply to this email with one corrected PDF attachment and it reaches us directly.",
+          ],
+        };
+      }
       return {
         subject: `Certificate correction requested by ${brand.studioName}`,
         preheader: "The studio needs a corrected insurance certificate.",
@@ -1079,6 +1101,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "Reply to this email with one corrected PDF attachment.",
         ],
       };
+    }
     case "coi_venue_delivery":
       return {
         subject: `Approved certificate from ${brand.studioName}`,
@@ -1898,6 +1921,12 @@ function feedbackKindLabel(kind: string): string {
 function clip(value: string, length: number): string {
   const flat = value.replace(/\s+/g, " ").trim();
   return flat.length > length ? `${flat.slice(0, length - 1).trimEnd()}\u2026` : flat;
+}
+
+/** "First", "Second", … for a follow-up's number; "Follow-up 6" past the words. */
+export function followUpOrdinal(n: number): string {
+  const words = ["First", "Second", "Third", "Fourth", "Fifth"];
+  return words[n - 1] ? `${words[n - 1]} follow-up` : `Follow-up ${n}`;
 }
 
 export function firstNameOf(value: string): string {

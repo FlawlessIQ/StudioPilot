@@ -16,11 +16,11 @@ import { fillsFor, type InquiryExtraction } from "../functions/src/intake/enrich
 const DAY = 86_400_000;
 const NOW = Date.parse("2027-04-01T14:00:00.000Z");
 
-test("a certificate is asked for no earlier than the lead time, due two weeks out", () => {
+test("a certificate is asked for no earlier than the lead time, due three weeks out (the readiness checkpoint's day)", () => {
   const early = coiDue("2027-09-18", 60, "2027-04-01T14:00:00.000Z");
   assert.equal(early.askFrom, "2027-07-20");
   assert.equal(early.timeToAsk, false, "a year out, a certificate can show a policy that renews first");
-  assert.equal(early.dueDate, "2027-09-04");
+  assert.equal(early.dueDate, "2027-08-28");
 
   const onTime = coiDue("2027-09-18", 60, "2027-07-20T14:00:00.000Z");
   assert.equal(onTime.timeToAsk, true);

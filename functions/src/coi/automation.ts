@@ -240,9 +240,12 @@ export function coiDue(eventDate: string, leadDays: number, now: string): {
 } {
   const event = Date.parse(`${eventDate}T12:00:00.000Z`);
   const askFrom = new Date(event - leadDays * DAY_MS).toISOString().slice(0, 10);
-  // Two weeks ahead of the event leaves room to correct a certificate that
-  // comes back wrong, and never lands before tomorrow.
-  const due = Math.max(event - 14 * DAY_MS, Date.parse(now) + 2 * DAY_MS);
+  // Three weeks ahead of the event: the same day the readiness checkpoint
+  // "COI approved and sent" is due (workflow/starter-templates.ts, -21), so
+  // the agent is never told a later date than the studio is held to, and a
+  // certificate that comes back wrong still has time to be corrected. Never
+  // before the day after tomorrow.
+  const due = Math.max(event - 21 * DAY_MS, Date.parse(now) + 2 * DAY_MS);
   return {
     askFrom,
     dueDate: new Date(due).toISOString().slice(0, 10),
