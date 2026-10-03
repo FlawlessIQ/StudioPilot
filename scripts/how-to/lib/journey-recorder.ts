@@ -45,7 +45,7 @@ type Screen = { persona: Persona; context: BrowserContext; page: Page; pointer: 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 /** A plain phone inbox, opened on one message. Generic on purpose: no real mail app's look. */
-function inbox(email: { subject: string; from: string; html: string }): string {
+export function inbox(email: { subject: string; from: string; html: string }): string {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>
     html,body{margin:0;background:#fff;font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;color:#1d1d1f}
     .bar{position:sticky;top:0;background:#f7f7f8;border-bottom:1px solid #e5e5ea;padding:14px 16px 12px;z-index:2}

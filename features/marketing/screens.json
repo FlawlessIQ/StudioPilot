@@ -1,0 +1,58 @@
+{
+  "today-prepared": {
+    "alt": "Today in StudioCue: the day-before checklist, final invoice notice and schedule confirmation for Ella & Marcus's wedding, each drafted and waiting for one tap to approve.",
+    "phone": false
+  },
+  "job-page": {
+    "alt": "Ella & Marcus's wedding in StudioCue: where it is in the journey, the next move, and every step ticked off so far.",
+    "phone": false
+  },
+  "booking-gate": {
+    "alt": "The booking check: contract signed, retainer paid, booking confirmed — StudioCue books a wedding only on real evidence.",
+    "phone": false
+  },
+  "wedding-week": {
+    "alt": "The event-day brief for Ella & Marcus's wedding: venue, schedule version, accepted crew, readiness, and the run of show.",
+    "phone": false
+  },
+  "portal-home": {
+    "alt": "Ella's wedding portal on her phone: the countdown to the day and what comes next.",
+    "phone": true
+  },
+  "portal-proposal": {
+    "alt": "Ella's proposal on her phone: The Signature Collection, what's included, and the payment plan.",
+    "phone": true
+  },
+  "portal-agreement": {
+    "alt": "Ella's signed wedding photography agreement on her phone.",
+    "phone": true
+  },
+  "portal-payment": {
+    "alt": "Ella's next payment on her phone: the final balance, its due date, and the retainer already paid.",
+    "phone": true
+  },
+  "portal-timeline": {
+    "alt": "Ella's wedding-day timeline on her phone, hour by hour, with where each moment happens.",
+    "phone": true
+  },
+  "portal-photos": {
+    "alt": "Ella's photos on her phone: the gallery to open, and when access closes.",
+    "phone": true
+  },
+  "crew-offer": {
+    "alt": "The offer Jordan gets on their phone for Ella & Marcus's wedding: date, times, place, fee, what they'd do, and Accept.",
+    "phone": true
+  },
+  "crew-day-sheet": {
+    "alt": "Jordan's day sheet on their phone: first up, where to be, who to call, and what to handle carefully.",
+    "phone": true
+  },
+  "crew-reminder": {
+    "alt": "The call-time reminder Jordan gets two days before the wedding, with a link to the day sheet.",
+    "phone": true
+  },
+  "crew-hours": {
+    "alt": "Jordan's hours and expenses after the wedding, sent to the studio from their phone.",
+    "phone": true
+  }
+}

@@ -125,7 +125,13 @@ pdf_up() {
 }
 
 app_up() {
-  lsof -ti :$PORT >/dev/null 2>&1 && return 0
+  # A server started before the last build serves chunks that no longer
+  # exist (500s, "Opening your workspace" forever): restart it after a build.
+  if lsof -ti :$PORT >/dev/null 2>&1; then
+    [ -f $H/served-at ] && [ "$(cat $H/served-at)" = "$(cat $H/built-at)" ] && return 0
+    kill $(lsof -ti :$PORT) 2>/dev/null; sleep 2
+  fi
+  cp $H/built-at $H/served-at
   (cd $APP && nohup npx next start -p $PORT > $LOGS/app.log 2>&1 &)
   for i in $(seq 1 60); do curl -s -o /dev/null -w "%{http_code}" localhost:$PORT/auth/login | grep -q 200 && return 0; sleep 1; done
   echo "App did not start; see $LOGS/app.log" && return 1
