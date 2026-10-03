@@ -4,6 +4,7 @@ import { isJobKind, journeyProfile, projectProfile } from "../job-kinds/job-kind
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { commandTypeOf, respondToCommandError } from "../security/command-errors.js";
 import { getCalendarBusyIntervals } from "../operations/provider-runtime.js";
 import { studioHubCors } from "../security/cors.js";
 import { generateConsultationSlots, getConsultationSettings } from "./availability.js";
@@ -457,11 +458,12 @@ export const publicConsultationScheduling = onRequest(
         status: "scheduled",
       });
     } catch (caught: unknown) {
-      const message =
-        caught instanceof Error ? caught.message : "SCHEDULING_FAILED";
-      response
-        .status(message === "FORBIDDEN" ? 403 : message === "RATE_LIMITED" ? 429 : 400)
-        .json({ error: message });
+      respondToCommandError(response, caught, {
+        name: "publicConsultationScheduling",
+        commandType: commandTypeOf(request.body),
+        status: (message) =>
+          message === "FORBIDDEN" ? 403 : message === "RATE_LIMITED" ? 429 : 400,
+      });
     }
   },
 );

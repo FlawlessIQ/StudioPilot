@@ -8,6 +8,7 @@ import { z } from "zod";
 import { mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { commandTypeOf, respondToCommandError } from "../security/command-errors.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import {
@@ -1820,16 +1821,16 @@ export const proposalCommand = onRequest(
 
       response.status(200).json(result);
     } catch (caught: unknown) {
-      const message =
-        caught instanceof Error ? caught.message : "PROPOSAL_COMMAND_FAILED";
-      const status =
-        message === "FORBIDDEN" ||
-        message.endsWith("_PERMISSION_REQUIRED")
-          ? 403
-          : message.endsWith("_NOT_FOUND")
-            ? 404
-            : 400;
-      response.status(status).json({ error: message });
+      respondToCommandError(response, caught, {
+        name: "proposalCommand",
+        commandType: commandTypeOf(request.body),
+        status: (message) =>
+          message === "FORBIDDEN" || message.endsWith("_PERMISSION_REQUIRED")
+            ? 403
+            : message.endsWith("_NOT_FOUND")
+              ? 404
+              : 400,
+      });
     }
   },
 );

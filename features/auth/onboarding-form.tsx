@@ -5,6 +5,7 @@ import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { invalidateMembershipCache } from "@/lib/firebase/membership-cache";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
+import { friendlyError } from "@/lib/ai/friendly-error";
 
 // P-note (timezone parity): the same list the Studio-settings identity form
 // offers, so an owner picks the same zone at signup as they'd see in settings.
@@ -179,7 +180,7 @@ export function OnboardingForm() {
         // plan picker and open the workspace directly.
         checkoutRequired?: boolean;
       };
-      if (!response.ok) throw new Error(result.error ?? "Studio setup failed.");
+      if (!response.ok) throw new Error(result.error ?? "INTERNAL");
       if (result.tenantId)
         window.localStorage.setItem(
           "studiohub.activeTenantId",
@@ -213,8 +214,10 @@ export function OnboardingForm() {
         result.checkoutRequired === false ? "/studio/setup" : "/studio/subscription",
       );
     } catch (caught: unknown) {
+      // The server's code (or a Zod field list, or an APP_CHECK_ refusal) in
+      // words a new studio can act on; never the raw string.
       setNotice(
-        caught instanceof Error ? caught.message : "Studio setup failed.",
+        friendlyError(caught, "We couldn't create your studio. Try again in a minute."),
       );
       setBusy(false);
     }
@@ -273,6 +276,7 @@ export function OnboardingForm() {
           name="businessName"
           required
           minLength={2}
+          maxLength={120}
           placeholder="Alder & Muse Photography"
         />
         <small>Your legal business name for agreements can be changed any time in Studio details.</small>
