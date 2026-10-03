@@ -43,7 +43,9 @@ with our name, logo and pages.
 3. ~~**Fix `www`**~~ — done 2026-10-03: proxied `CNAME www → studio-cue.com`
    + redirect rule `*://www.studio-cue.com/*` → `https://studio-cue.com/${2}`
    (301, query kept). Verified with curl.
-4. **`studiocue.com`** — if it isn't yours, try to buy it (Dynadot for-sale lander). Point it at studio-cue.com with a 301. People will type it; today it lands on a stranger's parking page.
+4. ~~**`studiocue.com`**~~ — deferred 2026-10-03: listed at ~$3k on
+   GoDaddy; not worth it before revenue. Revisit once paying. Search for the
+   name doesn't depend on it; only people typing the address do.
 5. **Profiles that say "StudioCue" and link to studio-cue.com** — each one is a vote for the entity. Then send me the URLs and I'll add them to `BRAND_SAME_AS`:
    - **YouTube channel "StudioCue"**: upload the 6-minute film, the COI video and the how-to videos (titles start with "StudioCue — …", description links to studio-cue.com). YouTube results show up for brand searches.
    - **LinkedIn company page**, **Instagram** (post the vertical clips), **Facebook page**, **X**.
