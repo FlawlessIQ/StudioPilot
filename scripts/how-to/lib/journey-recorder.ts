@@ -197,10 +197,14 @@ export async function recordJourney(
           } else if ("email" in action) {
             const email = latestEmail(action.email.subject, action.email.to);
             if (!email) throw new Error(`No email captured matching ${action.email.subject}${action.email.to ? ` to ${action.email.to}` : ""}.`);
+            // The blank page between whatever was there and the email is
+            // cut, so the phone goes straight to the open message.
+            const from = Date.now() / 1000;
             await screen!.page.goto("about:blank");
             await screen!.page.setContent(inbox(email));
             await screen!.page.waitForTimeout(500);
             await still(screen!)(screen!.page);
+            cut(from, Date.now() / 1000 - 0.05);
           } else if ("respond" in action) {
             const body = JSON.stringify(await respond(action.respond.with));
             await screen!.page.route(action.respond.url, (route) => route.fulfill({ status: 200, contentType: "application/json", body }), { times: 1 });

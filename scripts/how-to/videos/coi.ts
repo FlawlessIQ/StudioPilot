@@ -127,8 +127,7 @@ export default defineHowTo({
       on: "studio",
       say: "The corrected certificate comes back the same way. Nothing flagged this time, but you still read it yourself: StudioCue never decides a certificate is good enough. Approve it,",
       do: [
-        { reload: true },
-        { waitFor: { text: "Nothing flagged" }, timeoutMs: 20000 },
+        { cut: [{ reload: true }, { waitFor: { text: "Nothing flagged" }, timeoutMs: 20000 }, { wait: 600 }] },
         { scrollTo: { text: "Nothing flagged" } },
         { spotlight: { text: "Nothing flagged" }, holdMs: 2600 },
         { type: { into: { css: "textarea" }, text: "Checked against the venue's contract. All good." } },
