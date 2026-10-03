@@ -1,12 +1,7 @@
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
-import { LoopVideo } from "@/components/marketing/loop-video";
-import { helpVideo } from "@/features/help/videos";
-import { marketingMedia } from "@/features/marketing/media";
+import { CueDoesCueNever } from "@/components/marketing/cue-does-cue-never";
+import { AnnotatedShot } from "@/components/marketing/screen-shot";
 import { marketingMetadata } from "@/features/marketing/metadata";
-
-const posterOf = (id: string) => helpVideo(id)?.posterSrc ?? null;
-/** One media base serves every clip: without it there's nothing to show. */
-const hasClips = Boolean(marketingMedia("sign"));
 
 export const metadata = marketingMetadata({
   title: "Features",
@@ -25,6 +20,10 @@ export const metadata = marketingMetadata({
  * that a missing provider degrades instead of stopping the job, and that the
  * browser cannot write the records that matter. Every claim below is a
  * behaviour with a mechanism behind it, not a category.
+ *
+ * No clips (docs/marketing-visuals-plan-2026-10-03.md): two stills carry the
+ * two claims a picture proves — the booking gate, and what Cue may and may
+ * not do — and the rest is words.
  */
 export default function FeaturesPage() {
   return (
@@ -43,6 +42,20 @@ export default function FeaturesPage() {
               "Overrides exist, are permissioned, and are labelled as overrides",
               "Every check recorded with its result",
             ],
+            visual: {
+              layout: "below",
+              node: (
+                <AnnotatedShot
+                  caption="A real booking: the contract signed, the retainer paid, then the final check books it."
+                  pins={[
+                    { x: 15.5, y: 13.5, label: "Signed", text: "The agreement, signed online or recorded by you." },
+                    { x: 46.5, y: 13.5, label: "Paid", text: "The retainer, cleared in QuickBooks or recorded by you." },
+                    { x: 89, y: 38.5, label: "Booked", text: "Only once both are true, and the date is free." },
+                  ]}
+                  screen="booking-gate"
+                />
+              ),
+            },
           },
           {
             title: "It keeps working when a provider does not",
@@ -62,6 +75,23 @@ export default function FeaturesPage() {
               "Superseded, never deleted",
             ],
           },
+        ]}
+      />
+      <section aria-labelledby="cue-title" className="mk-section mk-cue-section">
+        <header className="mk-section-head">
+          <span className="section-kicker">Cue, the assistant</span>
+          <h2 id="cue-title">Cue drafts. You decide.</h2>
+          <p>
+            Cue writes the schedule, reads the insurance certificate, and tells you what looks wrong.
+            Four things it is structurally prevented from touching: payments, signatures,
+            permissions and readiness. Every AI task is charged against your plan before it runs,
+            and recorded after.
+          </p>
+        </header>
+        <CueDoesCueNever />
+      </section>
+      <CapabilityGrid
+        items={[
           {
             title: "The browser is never the authority",
             text: "Nothing important is decided in the page you are looking at. Bookings, invoices, permissions and the audit trail are written by the server after it checks who you are, what you are allowed to do, and whether the business rules hold.",
@@ -89,31 +119,6 @@ export default function FeaturesPage() {
               "Failed work never counts as done",
             ],
           },
-        ]}
-      />
-      {hasClips ? (
-        <section aria-label="Evidence, not clicks, in the product" className="mk-page-media mk-page-media--loops">
-          <figure>
-            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-3")} id="sign" />
-            <figcaption>Booked on evidence: the agreement signed online, then the retainer paid.</figcaption>
-          </figure>
-          <figure>
-            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-6")} id="timeline" />
-            <figcaption>A run of show approved and published as a version, never written over.</figcaption>
-          </figure>
-        </section>
-      ) : null}
-      <CapabilityGrid
-        items={[
-          {
-            title: "Cue drafts. You decide.",
-            text: "Cue — StudioCue's assistant — will write the schedule, read the insurance certificate, and tell you what looks wrong. It will never record a payment, complete a signature, grant a permission or mark a readiness check passed — those are the four things it is structurally prevented from touching.",
-            points: [
-              "Extraction always leaves a human decision pending",
-              "Drafts are proposals until you send them",
-              "Charged against your plan before it runs, audited after",
-            ],
-          },
           {
             title: "Twelve things happen without you",
             text: "Album reminders, insurance chasing, crew offers expiring, final invoices, review requests, retries on anything a provider dropped. The work that gets forgotten in a busy season is the work nobody has to remember.",
@@ -125,18 +130,6 @@ export default function FeaturesPage() {
           },
         ]}
       />
-      {hasClips ? (
-        <section aria-label="Drafted for you, sent by you" className="mk-page-media mk-page-media--loops">
-          <figure>
-            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("proposal")} id="proposal" />
-            <figcaption>A proposal drafted from your package. It goes when you send it.</figcaption>
-          </figure>
-          <figure>
-            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-4")} id="crew" />
-            <figcaption>Crew offers answered on their phones, and passed to the next name if someone says no.</figcaption>
-          </figure>
-        </section>
-      ) : null}
     </MarketingLayout>
   );
 }

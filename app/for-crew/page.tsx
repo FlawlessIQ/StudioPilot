@@ -1,7 +1,6 @@
+import { TourLink } from "@/components/help/journey-film";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
-import { FilmMoment } from "@/components/marketing/film-moment";
-import { PhoneVideo } from "@/components/marketing/phone-video";
-import { helpVideo } from "@/features/help/videos";
+import { PhoneScreens } from "@/components/marketing/phone-screens";
 import { marketingMetadata } from "@/features/marketing/metadata";
 
 export const metadata = marketingMetadata({
@@ -20,6 +19,10 @@ export const metadata = marketingMetadata({
  * marketing page without learning it existed. Claims here are drawn from what
  * the portal actually does, including the privacy line, which is the product's
  * own copy.
+ *
+ * Shown as stills of Jordan's phone on the Harts' wedding
+ * (docs/marketing-visuals-plan-2026-10-03.md), with the one-minute tour as a
+ * link, not a player.
  */
 export default function ForCrewPage() {
   return (
@@ -28,23 +31,30 @@ export default function ForCrewPage() {
       title="Your crew stop asking you what time to be there."
       description="Everyone you hire gets their own workspace: the offer with the rate on it, the call time, the addresses, what they are covering, and where to send their hours afterwards. You stop being the group chat."
     >
-      {/* Their side, on a phone. Each piece renders nothing where its video
-          isn't published. */}
-      {helpVideo("crew-offer-accept") ? (
-        <>
-          <h2 className="mk-page-media-title">What your crew sees, on their phone.</h2>
-          <section aria-label="The crew workspace, on a phone" className="mk-page-media">
-            <PhoneVideo
-              caption="An offer arrives with the date, the place and the fee. One tap to accept."
-              id="crew-offer-accept"
-            />
-            <FilmMoment
-              caption="The week of, in the film: the client's note, then your crew's call time and day sheet, saved to their phones and readable with no signal."
-              chapterId="journey-7"
-            />
-          </section>
-        </>
-      ) : null}
+      <section aria-labelledby="crew-phone-title" className="mk-section mk-section--first">
+        <header className="mk-section-head">
+          <h2 id="crew-phone-title">What your crew sees, on their phone.</h2>
+          <p>Jordan, second photographer for Ella and Marcus: from the offer to sending their hours.</p>
+        </header>
+        <PhoneScreens
+          label="The crew workspace, on a phone"
+          screens={[
+            { screen: "crew-offer", caption: "The offer: the date, the place, the fee. One tap to accept." },
+            { screen: "crew-day-sheet", caption: "The day sheet, with what to handle carefully. It works with no signal." },
+            { screen: "crew-reminder", caption: "The call-time reminder, two days before." },
+            { screen: "crew-hours", caption: "Hours and expenses, sent from their phone." },
+          ]}
+        />
+        <div className="mk-section-actions">
+          <TourLink
+            blurb="an offer arrives with the date, the place and the fee, and one tap accepts it."
+            className="button button-light"
+            title="The crew's side"
+            videoId="crew-offer-accept"
+            tour={{ watch: "Watch the {min}-minute crew tour", see: "See the crew tour" }}
+          />
+        </div>
+      </section>
       <CapabilityGrid
         items={[
           {

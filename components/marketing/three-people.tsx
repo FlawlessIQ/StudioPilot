@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { ArrowRight, Camera, Heart, Store } from "lucide-react";
-import { LoopVideo } from "@/components/marketing/loop-video";
-import { PhoneVideo } from "@/components/marketing/phone-video";
-import { helpVideo } from "@/features/help/videos";
+import { TourLink } from "@/components/help/journey-film";
+import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
 
 /**
- * "Three people, one wedding": the studio on Today, the couple's portal and
- * the crew's phone, side by side. The two things that most set StudioCue apart
- * from a CRM, and the homepage never showed either (plan §0). Shared by the
- * homepage and /wedding-photographers.
+ * "Three people, one wedding": the same job from three sides, as stills — the
+ * studio's job page in the middle, Ella's portal on one side and Jordan's day
+ * sheet on the other (docs/marketing-visuals-plan-2026-10-03.md §3). The two
+ * things that most set StudioCue apart from a CRM. Shared by the homepage and
+ * /wedding-photographers. The phone tours are links that open in the film's
+ * dialog, never players on the page.
  */
 export function ThreePeople({ titleId }: { titleId: string }) {
   return (
@@ -21,39 +22,51 @@ export function ThreePeople({ titleId }: { titleId: string }) {
           what time to be there.
         </p>
       </header>
-      <div className="mk-people-grid">
-        <article className="mk-person mk-person-you">
-          <h3>
+      <div className="mk-people">
+        <article className="mk-people-you">
+          <h3 className="mk-people-label">
             <Store aria-hidden="true" size={16} /> You
           </h3>
-          <p>Today: every job&rsquo;s next step, prepared and waiting for your yes.</p>
-          <LoopVideo className="mk-frame-screen" fallbackPoster={helpVideo("today")?.posterSrc ?? null} id="today" />
+          <p>The whole job: where it is, the next move, and every step ticked off.</p>
+          <AnnotatedShot crop={{ bottom: 0.58 }} screen="job-page" />
         </article>
-        <article className="mk-person">
-          <h3>
+        <article className="mk-people-couple">
+          <h3 className="mk-people-label">
             <Heart aria-hidden="true" size={16} /> Your couple
           </h3>
-          <p>
-            Their own portal in your studio&rsquo;s name: proposal, agreement, payments, the plan for
-            the day, then the gallery. Nothing to download.
-          </p>
-          <PhoneVideo id="couple-tour" />
-          <Link className="journey-film-page-link" href="/for-clients">
-            What your couple sees <ArrowRight aria-hidden="true" size={14} />
-          </Link>
+          <p>Their own portal, in your studio&rsquo;s name. Nothing to download.</p>
+          <PhoneShot screen="portal-home" />
+          <div className="mk-people-links">
+            <TourLink
+              arrow={false}
+              blurb="the countdown, the one next step, and everything else in one place."
+              title="The client portal"
+              videoId="couple-tour"
+              tour={{ watch: "Watch the couple's {min}-minute tour", see: "See the couple's tour" }}
+            />
+            <Link className="journey-film-page-link" href="/for-clients">
+              What your couple sees <ArrowRight aria-hidden="true" size={14} />
+            </Link>
+          </div>
         </article>
-        <article className="mk-person">
-          <h3>
+        <article className="mk-people-crew">
+          <h3 className="mk-people-label">
             <Camera aria-hidden="true" size={16} /> Your crew
           </h3>
-          <p>
-            The offer with the rate on it, one tap to accept, then call times and the day sheet on
-            their phone.
-          </p>
-          <PhoneVideo id="crew-offer-accept" />
-          <Link className="journey-film-page-link" href="/for-crew">
-            What your crew sees <ArrowRight aria-hidden="true" size={14} />
-          </Link>
+          <p>The offer, the call time and the day sheet, on their phone.</p>
+          <PhoneShot screen="crew-day-sheet" />
+          <div className="mk-people-links">
+            <TourLink
+              arrow={false}
+              blurb="an offer arrives with the date, the place and the fee, and one tap accepts it."
+              title="The crew's side"
+              videoId="crew-offer-accept"
+              tour={{ watch: "Watch the crew's {min}-minute tour", see: "See the crew's tour" }}
+            />
+            <Link className="journey-film-page-link" href="/for-crew">
+              What your crew sees <ArrowRight aria-hidden="true" size={14} />
+            </Link>
+          </div>
         </article>
       </div>
     </section>

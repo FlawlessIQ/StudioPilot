@@ -1,8 +1,7 @@
+import { TourLink } from "@/components/help/journey-film";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
-import { FilmMoment } from "@/components/marketing/film-moment";
-import { PhoneVideo } from "@/components/marketing/phone-video";
-import { helpVideo } from "@/features/help/videos";
-import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
+import { PhoneScreens } from "@/components/marketing/phone-screens";
+import { PhoneShot } from "@/components/marketing/screen-shot";
 import { marketingMetadata } from "@/features/marketing/metadata";
 
 export const metadata = marketingMetadata({
@@ -20,6 +19,9 @@ export const metadata = marketingMetadata({
  * schedule, questionnaire, documents, delivery, reviews, messages — and the
  * marketing described it as "client portal and standard integrations" in a
  * bullet on the pricing page.
+ *
+ * Shown as stills of Ella's portal (docs/marketing-visuals-plan-2026-10-03.md):
+ * five screens to swipe, and the one-minute tour as a link, not a player.
  */
 export default function ForClientsPage() {
   return (
@@ -28,27 +30,31 @@ export default function ForClientsPage() {
       title="One link, for the eleven months between booking and the gallery."
       description="A wedding is booked a year out and discussed in forty emails. Your clients get a single place with the proposal they accepted, what they have paid, the schedule for the day, and the photographs at the end of it."
     >
-      {/* What the page had never shown: the portal itself, on a phone. Each
-          piece renders nothing where its video isn't published. */}
-      {helpVideo(JOURNEY_FILM_ID) ? (
-        <>
-          <h2 className="mk-page-media-title">What your clients see, on their phone.</h2>
-          <section aria-label="The client portal, on a phone" className="mk-page-media">
-            <PhoneVideo
-              caption="A tour of their portal: the countdown, the one next step, and everything else in one place."
-              id="couple-tour"
-            />
-            <PhoneVideo
-              caption="Signing the agreement, written from the proposal they accepted. Nothing to download or print."
-              id="couple-sign"
-            />
-            <FilmMoment
-              caption="Booking, from both sides: your proposal arrives and is accepted in their portal."
-              chapterId="journey-3"
-            />
-          </section>
-        </>
-      ) : null}
+      <section aria-labelledby="portal-title" className="mk-section mk-section--first">
+        <header className="mk-section-head">
+          <h2 id="portal-title">What your clients see, on their phone.</h2>
+          <p>Ella and Marcus&rsquo;s portal: the same screens every client gets, in your studio&rsquo;s name.</p>
+        </header>
+        <PhoneScreens
+          label="The client portal, on a phone"
+          screens={[
+            { screen: "portal-home", caption: "Home: the countdown, and the one next step." },
+            { screen: "portal-proposal", caption: "The proposal: what's included, and the total." },
+            { screen: "portal-agreement", caption: "The agreement, signed online. Nothing to print." },
+            { screen: "portal-timeline", caption: "The plan for the day, to check and approve." },
+            { screen: "portal-photos", caption: "The gallery, and when access closes." },
+          ]}
+        />
+        <div className="mk-section-actions">
+          <TourLink
+            blurb="the countdown, the one next step, and everything else in one place."
+            className="button button-light"
+            title="The client portal"
+            videoId="couple-tour"
+            tour={{ watch: "Watch the {min}-minute portal tour", see: "See the portal tour" }}
+          />
+        </div>
+      </section>
       <CapabilityGrid
         items={[
           {
@@ -61,15 +67,6 @@ export default function ForClientsPage() {
             ],
           },
           {
-            title: "Pay without handling card details",
-            text: "Retainer and balance are paid on your accounting provider's own secure page. StudioCue tracks that it happened and never touches a card number.",
-            points: [
-              "Provider-hosted payment page",
-              "Retainer and final balance",
-              "Receipts stay with your accounts",
-            ],
-          },
-          {
             title: "The day, as agreed",
             text: "The run of show they need — times, locations, who is where — published when you are ready and not before.",
             points: [
@@ -77,6 +74,24 @@ export default function ForClientsPage() {
               "Locations and access notes",
               "Changes are versioned, not overwritten",
             ],
+          },
+          {
+            title: "Pay without handling card details",
+            text: "Retainer and balance are paid on your accounting provider's own secure page. StudioCue tracks that it happened and never touches a card number.",
+            points: [
+              "Provider-hosted payment page",
+              "Retainer and final balance",
+              "Receipts stay with your accounts",
+            ],
+            visual: {
+              layout: "side",
+              node: (
+                <PhoneShot
+                  caption="Ella's next payment: the balance, when it's due, and the retainer already paid."
+                  screen="portal-payment"
+                />
+              ),
+            },
           },
           {
             title: "Everything you asked them for",
@@ -104,6 +119,7 @@ export default function ForClientsPage() {
               "Album status they can follow",
               "Review requested at the right moment",
             ],
+            wide: true,
           },
         ]}
       />

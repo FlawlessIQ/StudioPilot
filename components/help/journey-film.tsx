@@ -28,6 +28,51 @@ function journeyFilm() {
   return helpVideo(JOURNEY_FILM_ID);
 }
 
+/**
+ * One dialog and one player for every video a page offers instead of playing
+ * it inline: the film (from any chapter) and the one-minute phone tours the
+ * website links to (docs/marketing-visuals-plan-2026-10-03.md §2.3).
+ */
+function VideoDialog({
+  open,
+  onClose,
+  videoId,
+  title,
+  blurb,
+  pageHref,
+  linkLabel,
+  startAt,
+}: {
+  open: boolean;
+  onClose: () => void;
+  videoId: string;
+  title: string;
+  blurb: string;
+  pageHref: string;
+  linkLabel: string;
+  startAt?: number;
+}) {
+  const video = helpVideo(videoId);
+  // Mounted only while open, so each opening starts where its button says.
+  if (!video || !open) return null;
+  // A portrait phone tour sits in the narrower sheet; the film needs the width.
+  const width = video.orientation === "portrait" ? "default" : "film";
+  return (
+    <SheetDialog label={title} onClose={onClose} open={open} width={width}>
+      <div className="journey-film-sheet">
+        <header>
+          <strong>{title}</strong>
+          <small>{`${formatMinutes(video.durationSec)} · ${blurb}`}</small>
+        </header>
+        <HelpVideoPlayer autoPlay id={videoId} startAt={startAt} />
+        <Link className="journey-film-page-link" href={pageHref}>
+          {linkLabel} <ArrowRight aria-hidden="true" size={14} />
+        </Link>
+      </div>
+    </SheetDialog>
+  );
+}
+
 function JourneyFilmDialog({
   open,
   onClose,
@@ -39,24 +84,17 @@ function JourneyFilmDialog({
   pageHref: string;
   startAt?: number;
 }) {
-  const film = journeyFilm();
-  // Mounted only while open, so each opening starts where its button says.
-  if (!film || !open) return null;
   return (
-    <SheetDialog label={FILM_TITLE} onClose={onClose} open={open} width="film">
-      <div className="journey-film-sheet">
-        <header>
-          <strong>{FILM_TITLE}</strong>
-          <small>
-            {`${formatMinutes(film.durationSec)} · from the first inquiry to the album, with your couple’s and your crew’s screens.`}
-          </small>
-        </header>
-        <HelpVideoPlayer autoPlay id={JOURNEY_FILM_ID} startAt={startAt} />
-        <Link className="journey-film-page-link" href={pageHref}>
-          Read it stage by stage <ArrowRight aria-hidden="true" size={14} />
-        </Link>
-      </div>
-    </SheetDialog>
+    <VideoDialog
+      blurb="from the first inquiry to the album, with your couple’s and your crew’s screens."
+      linkLabel="Read it stage by stage"
+      onClose={onClose}
+      open={open}
+      pageHref={pageHref}
+      startAt={startAt}
+      title={FILM_TITLE}
+      videoId={JOURNEY_FILM_ID}
+    />
   );
 }
 
@@ -103,6 +141,67 @@ export function JourneyFilmButton({
         {children}
       </Link>
       <JourneyFilmDialog onClose={() => setOpen(false)} open={open} pageHref={href} startAt={startAt} />
+    </>
+  );
+}
+
+/**
+ * "Watch the couple's 1-minute tour →": a how-to video offered as a link, not
+ * a player on the page. Opens in the film's dialog; a new-tab click, or a page
+ * without JavaScript, goes to the written guide at /how-to/<id>. Without the
+ * video published here it is a plain link to that guide and says "See".
+ */
+export function TourLink({
+  videoId,
+  tour,
+  title,
+  blurb,
+  className = "journey-film-page-link",
+  arrow = true,
+}: {
+  /** A how-to video id (features/help/video-manifest.json), also its guide's id. */
+  videoId: string;
+  /**
+   * The link's words, with {min} for the length: "Watch the couple's
+   * {min}-minute tour". Without the video it reads "See …" with no length.
+   */
+  tour: { watch: string; see: string };
+  /** The dialog's heading. */
+  title: string;
+  /** The dialog's one line under the heading, after the length. */
+  blurb: string;
+  className?: string;
+  /** False where the line is narrow: the play icon already says where it goes. */
+  arrow?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const video = helpVideo(videoId);
+  const href = `/how-to/${videoId}`;
+  const minutes = video ? Math.max(1, Math.round(video.durationSec / 60)) : null;
+  return (
+    <>
+      <Link
+        className={className}
+        href={href}
+        onClick={(event) => {
+          if (!video || !opensHere(event)) return;
+          event.preventDefault();
+          setOpen(true);
+        }}
+      >
+        {video ? <Play aria-hidden="true" size={14} /> : null}
+        {minutes ? tour.watch.replace("{min}", String(minutes)) : tour.see}
+        {arrow ? <ArrowRight aria-hidden="true" size={14} /> : null}
+      </Link>
+      <VideoDialog
+        blurb={blurb}
+        linkLabel="Read the guide"
+        onClose={() => setOpen(false)}
+        open={open}
+        pageHref={href}
+        title={title}
+        videoId={videoId}
+      />
     </>
   );
 }

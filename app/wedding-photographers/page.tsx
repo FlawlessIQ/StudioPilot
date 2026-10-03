@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
+import { AnnotatedShot } from "@/components/marketing/screen-shot";
 import { StudioProof } from "@/components/marketing/studio-proof";
 import { ThreePeople } from "@/components/marketing/three-people";
 import { HelpVideoPlayer } from "@/components/help/video-player";
@@ -14,6 +15,12 @@ export const metadata = marketingMetadata({
   og: "wedding-photographers",
 });
 
+/**
+ * The wedding page: the film is its one moving thing (decision D1,
+ * docs/marketing-visuals-plan-2026-10-03.md), then three people as stills,
+ * then the six stages — two of them with a real screen, the rest text, so
+ * picture and words alternate rather than stack.
+ */
 export default function WeddingPhotographersPage() {
   return (
     <MarketingLayout
@@ -37,6 +44,7 @@ export default function WeddingPhotographersPage() {
               "Consultations booked against live availability",
               "Reply drafted for you to send",
             ],
+            wide: true,
           },
           {
             title: "Proposal → booked",
@@ -46,6 +54,15 @@ export default function WeddingPhotographersPage() {
               "Agreement written from the proposal, signed online",
               "Signed another way? Record it yourself",
             ],
+            visual: {
+              layout: "below",
+              node: (
+                <AnnotatedShot
+                  caption="The Harts' booking: contract signed, retainer paid, then — and only then — booked."
+                  screen="booking-gate"
+                />
+              ),
+            },
           },
           {
             title: "Planning that converges",
@@ -73,6 +90,17 @@ export default function WeddingPhotographersPage() {
               "A clear owner for every blocker",
               "Offline event-day brief for the crew",
             ],
+            visual: {
+              layout: "side",
+              flip: true,
+              node: (
+                <AnnotatedShot
+                  caption="The Harts' brief, the week of: the venue, the crew who accepted, readiness, and the run of show."
+                  crop={{ top: 0.03, bottom: 0.62 }}
+                  screen="wedding-week"
+                />
+              ),
+            },
           },
           {
             title: "Delivery → review → closeout",
@@ -82,6 +110,7 @@ export default function WeddingPhotographersPage() {
               "Review requested automatically",
               "Closeout without the chase",
             ],
+            wide: true,
           },
         ]}
       />

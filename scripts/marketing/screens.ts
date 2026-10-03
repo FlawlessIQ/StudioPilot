@@ -23,6 +23,7 @@ import { inbox } from "../how-to/lib/journey-recorder";
 import { APP, locate, Pointer, run, signIn } from "../how-to/lib/recorder";
 import { HOW_TO_HOME } from "../how-to/lib/voice";
 import { latestEmail } from "../how-to/journey/emails";
+import { webpSize } from "../../features/marketing/webp-size";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..", "..");
@@ -283,8 +284,12 @@ try {
 }
 
 // The list the site reads: name, size, alt — so alt text lives with the shot.
+// The size is the 1× file's, so every <img> carries its width and height.
 const manifest = Object.fromEntries(
-  SHOTS.map((s) => [s.name, { alt: s.alt, phone: Boolean(s.phone) }]),
+  SHOTS.map((s) => [
+    s.name,
+    { alt: s.alt, phone: Boolean(s.phone), ...webpSize(readFileSync(path.join(OUT, `${s.name}.webp`))) },
+  ]),
 );
 writeFileSync(path.join(ROOT, "features", "marketing", "screens.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 

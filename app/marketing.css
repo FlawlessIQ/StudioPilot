@@ -1,6 +1,7 @@
 /* ============================================================
-   The website's clips and the 2026-10-02 homepage rebuild
-   (docs/marketing-video-onboarding-plan-2026-10-02.md §4).
+   The website's hero clip, its stills and the 2026-10-02 homepage
+   rebuild (docs/marketing-video-onboarding-plan-2026-10-02.md §4,
+   docs/marketing-visuals-plan-2026-10-03.md).
    Loaded last (app/app-styles.ts), so these win over the older
    marketing rules in globals.css and legacy-bridge.css at equal
    specificity. Classes are `mk-`; the older names they touch are
@@ -58,42 +59,6 @@
 .mk-frame-screen > img,
 .mk-frame-screen > video {
   border-radius: 0 0 13px 13px;
-}
-
-/* A phone outline around a portrait how-to video (components/marketing/phone-video.tsx). */
-.mk-phone {
-  display: grid;
-  gap: 10px;
-  justify-items: center;
-  margin: 0;
-}
-.mk-phone-body {
-  width: min(100%, 250px);
-  padding: 9px;
-  border-radius: 36px;
-  background: #121a16;
-  box-shadow: 0 26px 50px -24px rgb(20 32 27 / 45%);
-}
-.mk-phone-body .help-video {
-  gap: 0;
-}
-/* A minute-long phone video doesn't need its chapter chips; in the phone's
-   dark body they read as empty pills. */
-.mk-phone-body .help-video-chapters {
-  display: none;
-}
-.mk-phone-body .help-video video,
-.mk-phone-body .help-video[data-orientation="portrait"] video {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: none;
-  border-radius: 28px;
-}
-.mk-phone > figcaption {
-  color: var(--muted);
-  font-size: 13px;
-  text-align: center;
 }
 
 /* --- Hero --- */
@@ -266,67 +231,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* --- Three people, one wedding --- */
-.mk-people-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 22px;
-  align-items: start;
-}
-.mk-person {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  min-width: 0;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: var(--surface, #fff);
-}
-.mk-person h3 {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin: 0;
-  font-size: 17px;
-  font-weight: 680;
-}
-.mk-person h3 svg {
-  color: #50725c;
-}
-.mk-person > p {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 14.5px;
-  line-height: 1.55;
-}
-.mk-person .journey-film-page-link {
-  justify-self: center;
-}
-/* The studio's screen sits in the middle of its card, level with the phones. */
-.mk-people-grid {
-  align-items: stretch;
-}
-.mk-person-you {
-  grid-template-rows: auto auto 1fr;
-}
-.mk-person-you > .mk-loop {
-  align-self: center;
-}
-
-/* --- Story bands (Meet Cue, readiness) with a clip --- */
+/* --- Story bands (Meet Cue, readiness) with a still --- */
 .marketing-page .mk-story {
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 56px;
+  padding: 72px 64px;
 }
 .mk-story-media {
   min-width: 0;
-}
-.readiness-story--dark .mk-frame-screen {
-  border-color: #2a3a32;
-}
-.readiness-story--dark .mk-frame-screen::before {
-  background: #4a5b52;
-  box-shadow: 13px 0 0 #4a5b52, 26px 0 0 #4a5b52;
 }
 .marketing-page .mk-stat {
   display: grid;
@@ -355,56 +267,6 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   gap: 56px;
   align-items: center;
-}
-.mk-paid-steps {
-  display: grid;
-  gap: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: none;
-}
-.mk-paid-steps li {
-  position: relative;
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  padding: 0 0 18px;
-}
-/* The thread that joins one step to the next. */
-.mk-paid-steps li:not(:last-child)::after {
-  position: absolute;
-  top: 34px;
-  bottom: 2px;
-  left: 16px;
-  width: 1px;
-  background: var(--line);
-  content: "";
-}
-.mk-paid-icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 33px;
-  height: 33px;
-  border: 1px solid #cfdcd2;
-  border-radius: 50%;
-  background: #eef4ef;
-  color: #2f5a40;
-}
-.mk-paid-steps li > span:last-child {
-  display: grid;
-  gap: 2px;
-  padding-top: 5px;
-}
-.mk-paid-steps strong {
-  font-size: 15px;
-  font-weight: 680;
-}
-.mk-paid-steps small {
-  color: var(--ink-soft);
-  font-size: 14px;
-  line-height: 1.5;
 }
 
 /* --- Not just weddings --- */
@@ -529,52 +391,509 @@
   min-width: 0;
 }
 
-/* --- Marketing pages: a clip beside or under a section (for-clients, for-crew, features) --- */
-.mk-page-media {
+/* ============================================================
+   The stills kit (docs/marketing-visuals-plan-2026-10-03.md §3):
+   components/marketing/screen-shot.tsx, phone-screens.tsx,
+   three-people.tsx, payment-track.tsx, cue-does-cue-never.tsx.
+   ============================================================ */
+
+/* --- A studio screen in the film's laptop window, with pins --- */
+.mk-shot {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 28px;
+  gap: 16px;
+  margin: 0;
+  min-width: 0;
+}
+.mk-shot-window {
+  position: relative;
+  border: 1px solid #d9ded9;
+  border-top-width: 26px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 30px 60px -28px rgb(20 32 27 / 38%), 0 2px 6px rgb(20 32 27 / 8%);
+}
+/* Three dots in the window's top bar. */
+.mk-shot-window::before {
+  position: absolute;
+  top: -17px;
+  left: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c9cfca;
+  box-shadow: 13px 0 0 #c9cfca, 26px 0 0 #c9cfca;
+  content: "";
+}
+.mk-shot-view {
+  position: relative;
+  border-radius: 0 0 13px 13px;
+  overflow: hidden;
+}
+.mk-shot-view > img,
+.mk-device-screen > img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* A crop is a window onto the whole image (screen-shot.tsx sets its size). */
+.mk-shot-view[data-cropped="true"] > img,
+.mk-device-screen[data-cropped="true"] > img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  transform-origin: 0 0;
+}
+.mk-pin,
+.mk-pin-num {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #b0862f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.mk-pin {
+  position: absolute;
+  z-index: 1;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgb(176 134 47 / 22%), 0 4px 10px rgb(20 32 27 / 28%);
+  transform: translate(-50%, -50%);
+}
+.mk-shot-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 14px 20px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mk-shot-legend li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  /* Not the story bands' bullet style (.readiness-story li). */
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+}
+.mk-shot-legend li > span:last-child {
+  display: grid;
+  gap: 2px;
+  padding-top: 3px;
+}
+.mk-shot-legend strong {
+  font-size: 14.5px;
+  font-weight: 680;
+  line-height: 1.3;
+}
+.mk-shot-legend small {
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.mk-shot > figcaption,
+.mk-device > figcaption {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+/* On the dark Meet Cue band. */
+.readiness-story--dark .mk-shot-window {
+  border-color: #2a3a32;
+}
+.readiness-story--dark .mk-shot-window::before {
+  background: #4a5b52;
+  box-shadow: 13px 0 0 #4a5b52, 26px 0 0 #4a5b52;
+}
+.readiness-story--dark .mk-shot-legend strong {
+  color: #fff;
+}
+.readiness-story--dark .mk-shot-legend small {
+  color: #b9c4bc;
+}
+.readiness-story--dark .mk-pin-num {
+  background: #cdb98a;
+  color: #14201b;
+}
+
+/* --- A phone screen in the film's bezel --- */
+.mk-device {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  margin: 0;
+  min-width: 0;
+}
+.mk-device-body {
+  width: 100%;
+  max-width: 250px;
+  padding: 8px;
+  border-radius: 34px;
+  background: #121a16;
+  box-shadow: 0 26px 50px -24px rgb(20 32 27 / 45%);
+}
+.mk-device-screen {
+  position: relative;
+  border-radius: 27px;
+  overflow: hidden;
+  background: #f6f2ea;
+}
+.mk-device > figcaption {
+  max-width: 250px;
+}
+
+/* --- Phone screens, side by side; a swipeable row on a phone --- */
+.mk-phones {
+  display: grid;
+  gap: 18px;
+}
+.mk-phones-row {
+  display: grid;
+  grid-template-columns: repeat(var(--mk-phones, 4), minmax(0, 1fr));
+  gap: 24px;
   align-items: start;
-  max-width: 1040px;
-  margin: 0 auto 72px;
-  padding: 0 32px;
+  margin: 0 auto;
+  padding: 0;
+  max-width: calc(var(--mk-phones, 4) * 230px);
+  width: 100%;
+  list-style: none;
 }
-.mk-page-media--loops {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+/* Slightly staggered, like phones laid on a table. */
+.mk-phones-row > li:nth-child(even) {
+  margin-top: 36px;
 }
-.mk-page-media > figure {
+.mk-phones-dots {
+  display: none;
+}
+
+/* --- You, your couple and your crew --- */
+.mk-people {
   display: grid;
-  gap: 10px;
-  margin: 0;
+  grid-template-areas: "couple you crew";
+  grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.5fr) minmax(0, 0.62fr);
+  gap: 32px;
+  align-items: start;
+}
+.mk-people > article {
+  display: grid;
+  align-content: start;
+  gap: 12px;
   min-width: 0;
 }
-.mk-page-media > figure > figcaption {
-  color: var(--muted);
-  font-size: 13.5px;
-  line-height: 1.5;
-  text-align: center;
+.mk-people-you {
+  grid-area: you;
+  align-self: center;
 }
-.mk-film-moment {
-  display: grid;
-  gap: 10px;
+.mk-people-couple {
+  grid-area: couple;
+  margin-top: 48px;
+}
+.mk-people-crew {
+  grid-area: crew;
+  margin-top: 48px;
+}
+.mk-people-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   margin: 0;
-  min-width: 0;
+  font-size: 17px;
+  font-weight: 680;
 }
-.mk-film-moment figcaption {
-  color: var(--muted);
-  font-size: 13.5px;
-  line-height: 1.5;
+.mk-people-label svg {
+  color: #50725c;
+}
+.mk-people > article > p {
+  margin: 0 0 6px;
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.mk-people-couple,
+.mk-people-crew {
+  justify-items: center;
   text-align: center;
 }
-.mk-page-media-title {
-  max-width: 1040px;
-  margin: 0 auto 18px;
-  padding: 0 32px;
+.mk-people-couple .mk-people-label,
+.mk-people-crew .mk-people-label {
+  justify-content: center;
+}
+.mk-people-links {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  margin-top: 4px;
+}
+/* Wrapping words, not a wrapping flex row: the arrow stays with the text. */
+.mk-people-links .journey-film-page-link {
+  display: inline;
+  justify-self: center;
+  text-align: center;
+}
+.mk-people-links .journey-film-page-link svg {
+  display: inline-block;
+  margin: 0 4px;
+  vertical-align: -2px;
+}
+
+/* --- Getting paid: the track and Ella's phone --- */
+.mk-track {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+}
+.mk-track ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mk-track li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 0 0 18px;
+}
+/* The thread from one step to the next. */
+.mk-track li:not(:last-child)::after {
+  position: absolute;
+  top: 36px;
+  bottom: 2px;
+  left: 16.5px;
+  width: 2px;
+  border-radius: 2px;
+  background: #cfdcd2;
+  content: "";
+}
+.mk-track-node {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #1f4d36;
+  color: #fff;
+}
+.mk-track li:last-child .mk-track-node {
+  border: 2px dashed #1f4d36;
+  background: #eef4ef;
+  color: #1f4d36;
+}
+.mk-track-copy {
+  display: grid;
+  gap: 2px;
+  padding-top: 5px;
+}
+.mk-track-copy strong {
+  font-size: 15px;
+  font-weight: 680;
+}
+.mk-track-copy small {
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.mk-track-amount {
+  margin-top: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef4ef;
+  color: #1f4d36;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mk-track-amount[data-status="true"] {
+  background: transparent;
+  border: 1px solid #cfdcd2;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.mk-track > figcaption {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 14px;
+  align-items: baseline;
+  padding: 14px 18px;
+  border: 1px solid #e3dccb;
+  border-radius: 14px;
+  background: var(--cream, #f7f3ea);
+}
+.mk-track > figcaption span {
+  color: #8a6a26;
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mk-track > figcaption strong {
   font-family: var(--font-fraunces), Georgia, serif;
-  font-size: clamp(26px, 3vw, 36px);
-  font-weight: 460;
-  letter-spacing: -0.02em;
+  font-size: 20px;
+  font-weight: 480;
+  font-variant-numeric: tabular-nums;
+}
+.mk-track > figcaption small {
+  grid-column: 1 / -1;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
+.mk-paid-phone {
+  justify-self: center;
+}
+.mk-paid-phone .mk-device-body {
+  max-width: 280px;
+}
+.mk-paid-phone > figcaption {
+  max-width: 280px;
+}
+
+/* --- Cue prepares / Cue never --- */
+.mk-cue {
+  display: grid;
+  gap: 16px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+.mk-cue-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.mk-cue-col {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 28px;
+  border: 1px solid #cfdcd2;
+  border-radius: 20px;
+  background: #eef4ef;
+}
+.mk-cue-col--never {
+  border-color: #2a3a32;
+  background: #14201b;
+  color: #eef2ee;
+}
+.mk-cue-col h3 {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 0;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 24px;
+  font-weight: 480;
+}
+.mk-cue-col h3 svg {
+  color: #2f5a40;
+}
+.mk-cue-col--never h3 svg {
+  color: #cdb98a;
+}
+.mk-cue-col ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mk-cue-col li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.mk-cue-col li > svg {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  color: #2f5a40;
+}
+.mk-cue-col--never li > svg {
+  color: #e2a17a;
+}
+.mk-cue-col li > span {
+  display: grid;
+  gap: 1px;
+}
+.mk-cue-col--never strong {
+  color: #fff;
+  font-weight: 650;
+}
+.mk-cue-col--never small {
+  color: #b9c4bc;
+  font-size: 13.5px;
+}
+.mk-cue > figcaption {
+  color: var(--muted);
+  font-size: 13.5px;
   text-align: center;
+}
+
+/* --- Sub-page sections: the first one under the hero, and Cue's --- */
+.mk-section--first {
+  margin-top: 8px;
+}
+.mk-cue-section {
+  margin-top: 0;
+  margin-bottom: 100px;
+}
+
+/* --- A capability card with one still, or spanning the row --- */
+.marketing-capability-grid > .capability-feature,
+.marketing-capability-grid > .capability-wide {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px 48px;
+  align-items: center;
+}
+.marketing-capability-grid > .capability-feature {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+.marketing-capability-grid > .capability-feature[data-flip="true"] {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+}
+.marketing-capability-grid > .capability-feature[data-flip="true"] > .capability-visual {
+  order: -1;
+}
+/* A phone needs a narrow column, not half the card (side by side only above 900px). */
+@media (min-width: 901px) {
+  .marketing-capability-grid > .capability-feature:has(> .capability-visual > .mk-device) {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.6fr);
+  }
+}
+.capability-visual > .mk-device .mk-device-body {
+  max-width: 230px;
+}
+.capability-copy {
+  min-width: 0;
+}
+.capability-visual {
+  min-width: 0;
+}
+/* Beside the copy, the points need no rule above them. */
+.marketing-capability-grid > .capability-wide > ul {
+  align-self: center;
+  margin: 0;
+  padding: 0 0 0 28px;
+  border-top: 0;
+  border-left: 1px solid var(--line);
+}
+.marketing-capability-grid > .capability-wide > .capability-visual {
+  grid-column: 1 / -1;
+  margin-top: 8px;
 }
 
 /* --- Trial checkout: the teaser beside "Start your 14-day trial" --- */
@@ -639,12 +958,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     row-gap: 28px;
   }
-  .mk-people-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mk-person-you {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 900px) {
@@ -677,18 +990,8 @@
   .mk-section-head p {
     font-size: 16px;
   }
-  .mk-people-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .mk-person {
-    padding: 18px;
-  }
   .mk-faq {
     margin-bottom: 78px;
-    padding: 0 16px;
-  }
-  .mk-page-media,
-  .mk-page-media-title {
     padding: 0 16px;
   }
   .marketing-page .marketing-footer {
@@ -744,9 +1047,172 @@
   }
 }
 
+@media (max-width: 1100px) {
+  .mk-people {
+    grid-template-areas:
+      "you you"
+      "couple crew";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 36px 24px;
+  }
+  .mk-people-couple,
+  .mk-people-crew {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .marketing-page .mk-story {
+    padding: 56px 32px;
+  }
+  .marketing-capability-grid > .capability-feature,
+  .marketing-capability-grid > .capability-feature[data-flip="true"],
+  .marketing-capability-grid > .capability-wide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* On a phone the picture always follows its words. */
+  .marketing-capability-grid > .capability-feature[data-flip="true"] > .capability-visual {
+    order: 0;
+  }
+  .marketing-capability-grid > .capability-wide > ul {
+    padding: 18px 0 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+  .mk-cue-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .mk-phones-row {
+    display: flex;
+    gap: 16px;
+    width: auto;
+    max-width: none;
+    margin: 0 -16px;
+    padding: 4px 16px 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 16px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .mk-phones-row::-webkit-scrollbar {
+    display: none;
+  }
+  /* One screen and the edge of the next. */
+  .mk-phones-row > li {
+    flex: 0 0 68%;
+    scroll-snap-align: start;
+  }
+  .mk-phones-row > li:nth-child(even) {
+    margin-top: 0;
+  }
+  .mk-phones-dots {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .mk-phones-dots span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #cdd5cf;
+    transition: background 200ms ease, transform 200ms ease;
+  }
+  .mk-phones-dots span[data-active="true"] {
+    background: #1f4d36;
+    transform: scale(1.25);
+  }
+  .marketing-page .mk-story {
+    padding: 44px 20px;
+    border-radius: 20px;
+  }
+  .mk-people {
+    gap: 32px 14px;
+  }
+  .mk-people > article > p {
+    font-size: 13.5px;
+  }
+  .mk-people-links {
+    gap: 10px;
+  }
+  .mk-people-links .journey-film-page-link {
+    font-size: 13px;
+    text-align: center;
+  }
+  .mk-shot-legend {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .mk-cue-col {
+    padding: 22px 20px;
+  }
+  /* A studio screen in a card takes the card's full width on a phone. */
+  .capability-visual > .mk-shot > .mk-shot-window {
+    margin-inline: -22px;
+  }
+}
+
+@media (max-width: 640px) {
+  .mk-shot-window {
+    border-top-width: 20px;
+    border-radius: 11px;
+  }
+  .mk-shot-window::before {
+    top: -13px;
+    left: 10px;
+    width: 6px;
+    height: 6px;
+    box-shadow: 10px 0 0 #c9cfca, 20px 0 0 #c9cfca;
+  }
+  .mk-shot-view {
+    border-radius: 0 0 10px 10px;
+  }
+  .mk-pin {
+    width: 22px;
+    height: 22px;
+    font-size: 11.5px;
+  }
+  .mk-device-body {
+    padding: 6px;
+    border-radius: 26px;
+  }
+  .mk-device-screen {
+    border-radius: 21px;
+  }
+  .mk-track li {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 4px 12px;
+  }
+  .mk-track-node {
+    width: 30px;
+    height: 30px;
+  }
+  .mk-track li:not(:last-child)::after {
+    top: 32px;
+    left: 14.5px;
+  }
+  .mk-track-amount {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 2px;
+  }
+  .mk-track > figcaption {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* After the track, Ella's phone is a supporting picture, not a second hero. */
+  .mk-paid-phone .mk-device-body,
+  .mk-paid-phone > figcaption {
+    max-width: 220px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mk-loop > video,
-  .mk-stop-still img {
+  .mk-stop-still img,
+  .mk-phones-dots span {
     transition: none;
   }
 }

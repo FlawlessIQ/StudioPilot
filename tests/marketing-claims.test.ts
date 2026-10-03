@@ -111,7 +111,8 @@ const HOME_PARTS = [
   "components/marketing/home-faq.tsx",
   "components/marketing/home-journey.tsx",
   "components/marketing/three-people.tsx",
-  "components/marketing/film-moment.tsx",
+  "components/marketing/payment-track.tsx",
+  "components/marketing/cue-does-cue-never.tsx",
   "components/marketing/trial-teaser.tsx",
 ];
 
@@ -170,10 +171,36 @@ test("Getting paid: through QuickBooks, with QuickBooks Payments autopay, and no
   assert.equal(QUICKBOOKS_PAYMENTS_SCOPE, "com.intuit.quickbooks.payment");
   assert.ok(isOfferedProvider("quickbooks"));
   const home = copy("app/page.tsx");
-  assert.match(home, /QuickBooks Payments/);
   assert.match(home, /never takes a cut of client payments/);
-  // The final balance timing is read from the schedule, not typed in.
-  assert.match(home, /SCHEDULE\.finalInvoiceRaisedDaysBefore \/ 7/);
+  assert.match(home, /<PaymentTrack \/>/);
+  // The track on the homepage: QuickBooks only, and the final balance timing
+  // read from the schedule, not typed in.
+  const track = copy("components/marketing/payment-track.tsx");
+  assert.match(track, /QuickBooks Payments/);
+  assert.match(track, /SCHEDULE\.finalInvoiceRaisedDaysBefore \/ 7/);
+  assert.match(track, /SCHEDULE\.finalInvoiceDueDaysBefore \/ 7/);
+});
+
+test("Getting paid: the track's numbers are the Harts' — the ones on Ella's payment screen", () => {
+  const track = read("components/marketing/payment-track.tsx");
+  const cents = (name: string) => Number(new RegExp(`${name} = ([\\d_]+);`).exec(track)?.[1]?.replace(/_/g, ""));
+  const total = cents("HARTS_TOTAL_CENTS");
+  const retainer = cents("HARTS_RETAINER_CENTS");
+  assert.equal(total, 650_000, "the Harts' proposal is $6,500 (public/marketing/portal-proposal.webp)");
+  assert.equal(retainer, 195_000, "the Harts' retainer is $1,950 (public/marketing/portal-payment.webp)");
+  assert.match(track, /HARTS_FINAL_CENTS = HARTS_TOTAL_CENTS - HARTS_RETAINER_CENTS/, "the balance is what's left: $4,550");
+  const screens = read("features/marketing/screens.json");
+  assert.match(screens, /the final balance, its due date, and the retainer already paid/, "portal-payment still shows the balance and the retainer");
+});
+
+test("Cue never: the boundary the site states is the one the code keeps", () => {
+  const cue = copy("components/marketing/cue-does-cue-never.tsx");
+  for (const never of [/Records a payment/, /Signs anything/, /Changes who can see what/, /Marks a job ready/, /Sends without your yes/])
+    assert.match(cue, never);
+  // Routine reminders can auto-send once switched on, so the column says so.
+  assert.match(read("features/messaging/trust-dial.ts"), /Money, signatures and model-written drafts stay on\s+\* approval/);
+  assert.match(cue, /Routine reminders can send on their own, but only the ones you switch on in Settings/);
+  assert.match(read("package.json"), /tests\/ai-write-boundary\.test\.ts/, "the AI boundary test must run in npm test");
 });
 
 test("the homepage names only integrations a studio can connect today", () => {

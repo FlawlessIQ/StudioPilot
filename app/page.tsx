@@ -6,15 +6,9 @@ import {
   CalendarCheck2,
   Check,
   CircleCheck,
-  FileCheck2,
-  FileSignature,
-  HandCoins,
   Heart,
   Play,
-  Receipt,
-  RefreshCw,
   ShieldCheck,
-  Sparkles,
   Trophy,
   Users,
 } from "lucide-react";
@@ -24,10 +18,12 @@ import { HomeFaq } from "@/components/marketing/home-faq";
 import { HomeJourney } from "@/components/marketing/home-journey";
 import { LoopVideo } from "@/components/marketing/loop-video";
 import { MarketingFooter, MarketingNav } from "@/components/marketing/marketing-layout";
+import { PaymentTrack } from "@/components/marketing/payment-track";
+import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
 import { StudioProof } from "@/components/marketing/studio-proof";
 import { ThreePeople } from "@/components/marketing/three-people";
 import { helpVideo, helpVideoLength } from "@/features/help/videos";
-import { JOURNEY_FILM_ID, JOURNEY_PAGE, SCHEDULE, journeyStageHref } from "@/features/journey/expected-timeline";
+import { JOURNEY_FILM_ID, JOURNEY_PAGE, journeyStageHref } from "@/features/journey/expected-timeline";
 import { marketingMetadata } from "@/features/marketing/metadata";
 import { setupQuestionCount } from "@/features/today/setup-gaps";
 
@@ -38,10 +34,13 @@ import { setupQuestionCount } from "@/features/today/setup-gaps";
  * with the couple's and the crew's side shown, and a band for the other kinds
  * of work StudioCue now runs.
  *
- * Every claim sits next to a clip or a real screen, and the ones that depend
- * on the code are held to it by tests/marketing-claims.test.ts. Clips come
- * from features/marketing/media.ts; each one falls back to a still of the
- * film, or to nothing, if it hasn't been uploaded.
+ * One moving thing, up front: the hero loop and the film it opens. The six
+ * chapter stops are its index — stills that open the film, never players.
+ * Every other section makes its claim with one still: a real screen of the
+ * same wedding with numbered pins, phone screens, or a diagram built in the
+ * page (docs/marketing-visuals-plan-2026-10-03.md; held there by
+ * tests/marketing-media-budget.test.ts). Claims that depend on the code are
+ * held to it by tests/marketing-claims.test.ts.
  */
 export const metadata = marketingMetadata({
   title: "StudioCue · Every wedding, inquiry to album, already prepared",
@@ -54,18 +53,6 @@ export const metadata = marketingMetadata({
 });
 
 const posterOf = (id: string) => helpVideo(id)?.posterSrc ?? null;
-
-const paidSteps = [
-  { icon: FileCheck2, title: "Proposal", text: "Priced from your packages. They accept it online." },
-  { icon: FileSignature, title: "Agreement", text: "Written from the proposal and signed online in StudioCue." },
-  { icon: Receipt, title: "Retainer", text: "Invoiced from your QuickBooks the moment they sign." },
-  {
-    icon: HandCoins,
-    title: "Final balance",
-    text: `Invoiced ${SCHEDULE.finalInvoiceRaisedDaysBefore / 7} weeks before the wedding, due ${SCHEDULE.finalInvoiceDueDaysBefore / 7} weeks before.`,
-  },
-  { icon: RefreshCw, title: "Autopay", text: "With QuickBooks Payments, a saved card pays the balance when it's due." },
-];
 
 const otherWork = [
   {
@@ -188,25 +175,31 @@ export default function MarketingHome() {
               couple&rsquo;s answers into a run of show, and tells you plainly what isn&rsquo;t
               ready and why. Ask it about any job.
             </p>
-            <ul>
-              <li>
-                <Sparkles size={18} /> Drafts your next step, in your voice
-              </li>
-              <li>
-                <ShieldCheck size={18} /> Never records a payment, signature, permission, or
-                readiness check
-              </li>
-              <li>
-                <Check size={18} /> Nothing it writes sends until you approve
-              </li>
-            </ul>
             <p className="mk-stat">
               <strong>17 emails to Ella and Jordan. StudioCue wrote every one.</strong>
               <small>The wedding in the film, start to finish.</small>
             </p>
           </div>
           <div className="mk-story-media">
-            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("proposal")} id="proposal" />
+            {/* Today, the week of the Harts' wedding: what Cue has prepared. */}
+            <AnnotatedShot
+              pins={[
+                {
+                  x: 53,
+                  y: 37,
+                  label: "Drafted in your voice",
+                  text: "Ella's day-before note, her final invoice notice, the schedule confirmation.",
+                },
+                { x: 66, y: 42, label: "One tap to send", text: "Or open it and change a word first." },
+                {
+                  x: 40.5,
+                  y: 70,
+                  label: "Waits for you",
+                  text: "It never records a payment, a signature or a permission.",
+                },
+              ]}
+              screen="today-prepared"
+            />
           </div>
         </section>
 
@@ -221,24 +214,13 @@ export default function MarketingHome() {
                   StudioCue never takes a cut of client payments.
                 </p>
               </header>
-              <ol className="mk-paid-steps">
-                {paidSteps.map((step) => {
-                  const Icon = step.icon;
-                  return (
-                    <li key={step.title}>
-                      <span aria-hidden="true" className="mk-paid-icon">
-                        <Icon size={17} />
-                      </span>
-                      <span>
-                        <strong>{step.title}</strong>
-                        <small>{step.text}</small>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
+              <PaymentTrack />
             </div>
-            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-3")} id="sign" />
+            <PhoneShot
+              caption="What Ella sees: her next payment, the retainer already paid, and Pay securely in QuickBooks."
+              className="mk-paid-phone"
+              screen="portal-payment"
+            />
           </div>
         </section>
 
@@ -267,7 +249,16 @@ export default function MarketingHome() {
             </Link>
           </div>
           <div className="mk-story-media">
-            <LoopVideo className="mk-frame-screen" fallbackPoster={posterOf("journey-7")} id="timeline" />
+            {/* The event-day brief for the Harts' wedding, the week of. */}
+            <AnnotatedShot
+              crop={{ top: 0.03, bottom: 0.7 }}
+              pins={[
+                { x: 22.5, y: 7, label: "Where and when", text: "Willow Creek Barn, and what's next on the day." },
+                { x: 41, y: 7, label: "The run of show, version 1", text: "Published, and the same one your crew reads." },
+                { x: 66.5, y: 7, label: "Who's coming", text: "Jordan, accepted." },
+              ]}
+              screen="wedding-week"
+            />
           </div>
         </section>
 

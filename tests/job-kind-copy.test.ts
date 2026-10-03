@@ -48,7 +48,12 @@ function visibleWordCount(file: string): number {
   const visit = (node: ts.Node) => {
     // Not read by anyone: module paths, class names, keys and ids.
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
-    if (ts.isJsxAttribute(node) && ["className", "id", "key", "htmlFor", "name", "data-testid"].includes(node.name.getText()))
+    // `videoId` and `screen` name a how-to video and a marketing still
+    // (features/marketing/screens.json): ids, like `id`, never shown.
+    if (
+      ts.isJsxAttribute(node) &&
+      ["className", "id", "key", "htmlFor", "name", "data-testid", "videoId", "screen"].includes(node.name.getText())
+    )
       return;
     if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && ["id", "key", "kind", "type"].includes(node.name.text))
       return;

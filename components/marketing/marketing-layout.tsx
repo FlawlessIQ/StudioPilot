@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, CircleCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -96,6 +97,22 @@ export function MarketingLayout({
   );
 }
 
+type Capability = {
+  title: string;
+  text: string;
+  points: string[];
+  badge?: string;
+  /**
+   * One still for this card (docs/marketing-visuals-plan-2026-10-03.md §2):
+   * the card then spans the row, its copy beside the picture ("side") or
+   * above it ("below", for a wide screen). Give a few cards one, never two
+   * in a row.
+   */
+  visual?: { node: ReactNode; layout: "side" | "below"; flip?: boolean };
+  /** A card that spans the row with no picture: its points sit beside the copy. */
+  wide?: boolean;
+};
+
 export function CapabilityGrid({
   items,
 }: {
@@ -104,24 +121,59 @@ export function CapabilityGrid({
    * integrations page listed three of those as though a studio could use
    * them today, which is a promise the product cannot keep at signup.
    */
-  items: Array<{ title: string; text: string; points: string[]; badge?: string }>;
+  items: Capability[];
 }) {
   return (
     <section className="marketing-capability-grid">
-      {items.map((item) => (
-        <article key={item.title} data-pending={item.badge ? "true" : undefined}>
+      {items.map((item) => {
+        const heading = (
           <h2>
             {item.title}
             {item.badge ? <span className="capability-badge">{item.badge}</span> : null}
           </h2>
-          <p>{item.text}</p>
+        );
+        const points = (
           <ul>
             {item.points.map((point) => (
               <li key={point}><CircleCheck /> {point}</li>
             ))}
           </ul>
-        </article>
-      ))}
+        );
+        if (item.visual?.layout === "side")
+          return (
+            <article
+              className="capability-feature"
+              data-flip={item.visual.flip ? "true" : undefined}
+              data-pending={item.badge ? "true" : undefined}
+              key={item.title}
+            >
+              <div className="capability-copy">
+                {heading}
+                <p>{item.text}</p>
+                {points}
+              </div>
+              <div className="capability-visual">{item.visual.node}</div>
+            </article>
+          );
+        if (item.visual || item.wide)
+          return (
+            <article className="capability-wide" data-pending={item.badge ? "true" : undefined} key={item.title}>
+              <div className="capability-copy">
+                {heading}
+                <p>{item.text}</p>
+              </div>
+              {points}
+              {item.visual ? <div className="capability-visual">{item.visual.node}</div> : null}
+            </article>
+          );
+        return (
+          <article key={item.title} data-pending={item.badge ? "true" : undefined}>
+            {heading}
+            <p>{item.text}</p>
+            {points}
+          </article>
+        );
+      })}
     </section>
   );
 }
