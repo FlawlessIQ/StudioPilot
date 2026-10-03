@@ -120,7 +120,7 @@ test("Today: Not now, Add over a sent proposal and the final bill all confirm", 
 test("the retainer invoice shows its amount and confirms who gets it", () => {
   const workspace = source("components/booking/project-booking-workspace.tsx");
   assert.doesNotMatch(workspace, /onClick=\{\(\) => void createRetainer\(\)\}/);
-  assert.match(workspace, /`Create retainer invoice · \$\{currency\(agreedRetainerCents/);
+  assert.match(workspace, /"Create retainer invoice"\} · \$\{currency\(agreedRetainerCents/);
   assert.match(workspace, /`Try again · \$\{currency\(agreedRetainerCents/);
   assert.match(workspace, /can only be voided, not unsent/);
 });

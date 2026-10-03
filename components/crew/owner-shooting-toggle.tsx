@@ -25,9 +25,12 @@ export async function setOwnerShooting(projectId: string, ownerShooting: boolean
 export function OwnerShootingToggle({
   projectId,
   ownerShooting,
+  crewByDefault = true,
 }: {
   projectId: string;
   ownerShooting: boolean;
+  /** Whether this kind of job is crewed (job-kinds.ts): a family session is usually just you. */
+  crewByDefault?: boolean;
 }) {
   const workspace = useWorkspace();
   const canChange = ["studio_owner", "studio_admin"].includes(String(workspace.role ?? ""));
@@ -52,7 +55,9 @@ export function OwnerShootingToggle({
     <div className="owner-shooting">
       <p>
         {shooting
-          ? "You're shooting this one — StudioCue books the rest of the crew."
+          ? crewByDefault
+            ? "You're shooting this one — StudioCue books the rest of the crew."
+            : "You're shooting this one."
           : "Not you this time — every role is booked from your crew."}
       </p>
       {canChange ? (

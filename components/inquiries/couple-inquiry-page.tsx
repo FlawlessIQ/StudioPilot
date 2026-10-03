@@ -35,6 +35,7 @@ import {
   visibleQuestionnaireSections,
 } from "@/features/questionnaires/client-form";
 import { outstandingRequired } from "@/features/questionnaires/outstanding";
+import { isJobKind, vocab } from "@/features/job-kinds/job-kinds";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 
 /**
@@ -70,6 +71,17 @@ type Preview = {
   inPersonLocation: string | null;
   durationMinutes: number;
   takesBookings: boolean;
+  /**
+   * Whether this kind of job has a consultation call (job-kinds.ts). False
+   * for a family session or a sports day: the page takes the details and
+   * says the price is on its way. Absent from an older build (reads as true).
+   */
+  offersConsultation?: boolean;
+  /** Whether booking needs an agreement, and how it is paid. Absent from an older build. */
+  agreement?: boolean;
+  payment?: "deposit_and_balance" | "paid_in_full" | "on_the_day" | "invoice_after";
+  /** The job's kind, for its words. Absent from an older build. */
+  jobKind?: string | null;
   /** A proposal is out: the call has happened. Absent from an older build. */
   pastConsultation?: boolean;
   /** Where the job is once past the call; names what is in their email. */
@@ -438,21 +450,37 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   }
 
   const studio = preview?.studioName ?? "your photographer";
+  // A kind with no consultation (a family session, a sports day) ends on
+  // "that's everything": there is no call to book.
+  const noCall = preview?.offersConsultation === false;
+  const kindForWords = isJobKind(preview?.jobKind) ? preview?.jobKind : isJobKind(preview?.eventKind) ? preview?.eventKind : null;
+  const words = vocab(kindForWords);
+  // "your day" stays the wedding's phrase (and an inquiry from before kinds);
+  // other kinds name what it is.
+  const aboutYours = !kindForWords || kindForWords === "wedding" ? "your day" : words.yourEvent;
   // Past the call, the page points at whatever is waiting in their email:
   // "your proposal is ready" read wrong to a couple whose agreement was out.
   const movedOn = {
     proposal: {
       heading: "your proposal is ready",
-      lede: `You’ve spoken with ${studio}, and they’ve sent your proposal. It’s in your email — open it there to look it over.`,
+      lede: noCall
+        ? `${studio} has sent your proposal. It’s in your email — open it there to look it over.`
+        : `You’ve spoken with ${studio}, and they’ve sent your proposal. It’s in your email — open it there to look it over.`,
     },
     agreement: {
       heading: "your agreement is ready to sign",
       lede: `${studio} has sent your agreement. It’s in your email — sign it from there.`,
     },
-    retainer: {
-      heading: "one last step: your retainer",
-      lede: `Your agreement is signed. ${studio} has emailed the retainer invoice; paying it holds your date.`,
-    },
+    retainer:
+      preview?.agreement === false
+        ? {
+            heading: "one last step: your payment",
+            lede: `${studio} has emailed your invoice; paying it books ${words.yourEvent}.`,
+          }
+        : {
+            heading: "one last step: your retainer",
+            lede: `Your agreement is signed. ${studio} has emailed the retainer invoice; paying it holds your date.`,
+          },
     booked: {
       heading: "you’re booked",
       lede: `${studio} has your date. Everything from here is in your client portal — the link is in your email.`,
@@ -466,7 +494,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const flow: Array<"details" | "form" | "time"> = [
     ...(!eventForm || detailFields.length || preview?.detailsSubmitted ? (["details"] as const) : []),
     ...(eventForm ? (["form"] as const) : []),
-    "time",
+    ...(noCall ? [] : (["time"] as const)),
   ];
   const stepNumber = flow.indexOf(step as "details" | "form" | "time") + 1;
   // Opened from a booked call ("Fill it in now"), the form isn't a step.
@@ -478,16 +506,18 @@ export function CoupleInquiryPage({ token }: { token: string }) {
         ? preview?.eventKind === "wedding"
           ? "when’s the wedding?"
           : "when’s the day?"
-        : "tell us about your day"
+        : `tell us about ${aboutYours}`
       : step === "form"
         ? formSent
           ? `your ${formName} is with ${studio}`
-          : "tell us about your day"
+          : `tell us about ${aboutYours}`
       : step === "booked"
         ? "you’re booked in"
         : step === "moved_on"
           ? movedOn.heading
-          : `pick a time to talk with ${studio}`;
+          : noCall
+            ? "that’s everything"
+            : `pick a time to talk with ${studio}`;
   // "Hi Sarah — tell us…" once we know them; otherwise the phrase stands alone
   // and starts with a capital.
   const heading = preview?.firstName
@@ -506,21 +536,25 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       ? formName
       : step === "moved_on"
         ? "Your inquiry"
-        : "Your consultation";
+        : noCall
+          ? "Your inquiry"
+          : "Your consultation";
   const lede =
     step === "details"
       ? eventForm
-        ? `So ${studio} can check they’re free. Then a few questions about your day.`
+        ? `So ${studio} can check they’re free. Then a few questions about ${aboutYours}.`
         : "Just what the studio doesn’t know yet. Skip anything you haven’t decided."
       : step === "form"
         ? formSent
           ? `${form?.submittedAt ? `Sent ${new Date(form.submittedAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })}. ` : ""}Here’s what they have. To change an answer, reply to their email.`
-          : `${studio} would love to know about your day before you talk. Your answers save as you go — come back to this link any time to finish.`
+          : `${studio} would love to know about ${aboutYours}${noCall ? "" : " before you talk"}. Your answers save as you go — come back to this link any time to finish.`
       : step === "booked"
         ? "Need a different time? You can move it or cancel it here."
         : step === "moved_on"
           ? movedOn.lede
-        : `A ${preview?.durationMinutes ?? 30}-minute conversation about your plans. Nothing is booked until you confirm.`;
+        : noCall
+          ? `${studio} has what they need and will send your price and how to book.`
+          : `A ${preview?.durationMinutes ?? 30}-minute conversation about your plans. Nothing is booked until you confirm.`;
 
   return (
     <KitRoot studio={brand}>
@@ -694,14 +728,21 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             )
           ) : null}
 
-          {step === "time" && preview && !preview.takesBookings ? (
+          {step === "time" && preview && noCall ? (
+            <Card tone="accent">
+              <h2 className="kit-section">Thank you</h2>
+              <p className="kit-body">{`${studio} will send your proposal by email — choose your package there and pay to book.`}</p>
+            </Card>
+          ) : null}
+
+          {step === "time" && preview && !noCall && !preview.takesBookings ? (
             <Card tone="accent">
               <h2 className="kit-section">Thank you — that’s everything</h2>
               <p className="kit-body">{studio} will be in touch to find a time to talk.</p>
             </Card>
           ) : null}
 
-          {step === "time" && preview && preview.takesBookings ? (
+          {step === "time" && preview && !noCall && preview.takesBookings ? (
             <div className="kit-stack">
               {preview.formats.length > 1 ? (
                 <Choices
@@ -780,7 +821,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
           >
             {formSent ? (
               <Button onClick={() => setStep(preview?.booked ? "booked" : "time")}>
-                {preview?.booked ? "Back to your consultation" : "Pick a time to talk"}
+                {preview?.booked ? "Back to your consultation" : noCall ? "Finish" : "Pick a time to talk"}
               </Button>
             ) : (
               <Button disabled={sending} icon={Send} onClick={sendForm}>
@@ -794,7 +835,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
           </Actions>
         ) : null}
 
-        {step === "time" && preview?.takesBookings ? (
+        {step === "time" && !noCall && preview?.takesBookings ? (
           <Actions note={preview.booked ? "Your current time stays booked until you confirm a new one." : undefined}>
             <Button disabled={!selected || !format || busy || (needsPhone && !phoneUsable)} onClick={() => void book()}>
               {busy

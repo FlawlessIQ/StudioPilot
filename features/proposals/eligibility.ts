@@ -1,5 +1,6 @@
 import { isPutAway } from "../projects/put-away";
 import { stageRank } from "../projects/stage-progress";
+import { projectProfile } from "../job-kinds/job-kinds";
 
 /**
  * Whether a job can take a proposal, and — when it cannot — what to say.
@@ -37,8 +38,15 @@ export type ProposalStageVerdict =
   /** CANCELLED or POSTPONED — not a job anyone should be pricing today. */
   | "not_active";
 
-export function canCreateProposalForProject(state: string): boolean {
-  return state === "CONSULTATION" || state === "PROPOSAL";
+/**
+ * `project`, when given, lets a kind with no consultation (a family session,
+ * a sports day — job-kinds.ts) take its proposal straight from LEAD. The
+ * server steps the job through CONSULTATION as it creates the proposal
+ * (functions/src/booking/proposals.ts).
+ */
+export function canCreateProposalForProject(state: string, project?: unknown): boolean {
+  if (state === "CONSULTATION" || state === "PROPOSAL") return true;
+  return state === "LEAD" && project !== undefined && !projectProfile(project).consultation;
 }
 
 export function proposalStageVerdict(project: unknown): ProposalStageVerdict {
@@ -48,7 +56,7 @@ export function proposalStageVerdict(project: unknown): ProposalStageVerdict {
   // job the studio has filed, and the delivery picker's five archived weddings
   // were the same mistake one dropdown over.
   if (isPutAway(project)) return "put_away";
-  if (canCreateProposalForProject(state)) return "ready";
+  if (canCreateProposalForProject(state, project)) return "ready";
   if (state === "CANCELLED" || state === "POSTPONED") return "not_active";
   if (stageRank(state) < stageRank("CONSULTATION")) return "too_early";
   return "past";

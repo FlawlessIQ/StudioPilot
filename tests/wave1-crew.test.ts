@@ -466,5 +466,5 @@ test("every place that counts crew asks the job whether the owner is shooting", 
   const commands = readFileSync("functions/src/crew/commands.ts", "utf8");
   assert.match(commands, /type: z\.literal\("setOwnerShooting"\)/);
   assert.match(commands, /ownerShooting: parsed\.input\.ownerShooting,/);
-  assert.match(readFileSync("components/projects/live-project-detail.tsx", "utf8"), /<OwnerShootingToggle ownerShooting=\{ownerShooting\} projectId=\{projectId\} \/>/);
+  assert.match(readFileSync("components/projects/live-project-detail.tsx", "utf8"), /<OwnerShootingToggle[^>]*?ownerShooting=\{ownerShooting\}[^>]*?projectId=\{projectId\}[^>]*?\/>/);
 });

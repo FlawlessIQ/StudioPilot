@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LoaderCircle, Plus } from "lucide-react";
+import { PAYMENT_SHAPE_LABELS, PAYMENT_SHAPES } from "@/features/job-kinds/job-kinds";
 import {
   parseOneOffForm,
   type OneOffFormValues,
@@ -107,7 +108,7 @@ export function OneOffPackageForm({
           autoFocus
           maxLength={120}
           onChange={(event) => set("name", event.target.value)}
-          placeholder="Elopement — 4 hours"
+          placeholder="Half day — 4 hours"
           value={values.name}
         />
       </label>
@@ -180,13 +181,29 @@ export function OneOffPackageForm({
         </fieldset>
       ) : null}
       {editing || forBookingChange ? null : (
+        <label className="one-off-package-field one-off-package-wide">
+          <span>How it&apos;s paid</span>
+          <select
+            onChange={(event) => set("paymentShape", event.target.value as OneOffFormValues["paymentShape"])}
+            value={values.paymentShape ?? ""}
+          >
+            <option value="">As this kind of job usually is</option>
+            {PAYMENT_SHAPES.map((shape) => (
+              <option key={shape} value={shape}>
+                {PAYMENT_SHAPE_LABELS[shape]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {editing || forBookingChange ? null : (
         <label className="form-checkbox one-off-package-wide">
           <input
             checked={values.saveToLibrary}
             onChange={(event) => set("saveToLibrary", event.target.checked)}
             type="checkbox"
           />
-          <span>Also save to my Library — for other couples later. Clients only see it if you publish it.</span>
+          <span>Also save to my Library — for other clients later. Clients only see it if you publish it.</span>
         </label>
       )}
       {error ? (

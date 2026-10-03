@@ -27,7 +27,10 @@ export function RecordFinalPayment({
   providerLabel,
   standingInvoice,
   defaultOpen = false,
+  singleBill = false,
 }: {
+  /** The job's one bill (paid on the day, or invoiced after — job-kinds.ts), not a balance after a retainer. */
+  singleBill?: boolean;
   /** Called with the confirmation to show; the parent owns it, because this
    * control is often unmounted by the reload that follows. */
   onRecorded: (message: string) => void;
@@ -80,20 +83,21 @@ export function RecordFinalPayment({
     <details className="record-signed-agreement" open={defaultOpen}>
       <summary>
         <Banknote aria-hidden="true" size={15} />
-        Balance paid outside StudioCue? Record it
+        {singleBill ? "Paid outside StudioCue? Record it" : "Balance paid outside StudioCue? Record it"}
       </summary>
       <form onSubmit={(event) => void submit(event)}>
         <p>
-          StudioCue records this as your attestation, not a confirmed payment.
-          It closes the job on your word, and the audit log will show that you
-          vouched for it.
+          StudioCue records this as your attestation, not a confirmed payment.{" "}
+          {singleBill
+            ? "It settles the bill on your word, and the audit log will show that you vouched for it."
+            : "It closes the job on your word, and the audit log will show that you vouched for it."}
           {" "}{balanceLabel
-            ? ` Records ${balanceLabel} — the balance on what the couple accepted.`
+            ? ` Records ${balanceLabel} — the ${singleBill ? "bill" : "balance"} on what the client accepted.`
             : " The amount comes from the proposal they accepted."}
         </p>
         {standingInvoice ? (
           <p className="record-attestation-caveat">
-            This marks the balance invoice already out with the couple as paid,
+            {`This marks the ${singleBill ? "invoice" : "balance invoice"} already out with the client as paid,`}{" "}
             rather than raising a second one. It does not mark it paid in{" "}
             {providerLabel ?? "your accounting tool"} — do that there too, so the
             two agree.

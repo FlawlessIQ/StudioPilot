@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
+import { isJobKind, journeyProfile, projectProfile } from "../job-kinds/job-kinds.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -602,6 +603,13 @@ async function handleInquiryCommand(
     const missing = detailsAskedFor(allMissing, inquiryType?.kind ?? null, dayFieldsFor(inquiryType));
     const inquiryBrand = resolveTenantBrand(tenant.data(), "Your photography studio");
     const pastConsultation = pastTheCall(context);
+    // How this kind of job runs (job-kinds.ts): a family session or a sports
+    // day has no call to book, so the page takes the details and says the
+    // price is on its way rather than offering a consultation it never has
+    // (walk, 2026-10-03).
+    const kindProfile = context.project?.exists
+      ? projectProfile(context.project.data())
+      : journeyProfile(isJobKind(inquiryType?.kind) ? inquiryType?.kind : null);
     return {
       studioName: inquiryBrand.brandName,
       brandAccentColor: inquiryBrand.primaryColor,
@@ -617,6 +625,10 @@ async function handleInquiryCommand(
       durationMinutes: options.durationMinutes,
       // Without hours set there is nothing to book; the page says so.
       takesBookings: settings.exists,
+      offersConsultation: kindProfile.consultation,
+      agreement: kindProfile.agreement,
+      payment: kindProfile.payment,
+      jobKind: kindProfile.kind,
       // A proposal is out: the call happened, so the link stops offering one.
       pastConsultation,
       // Where the job is, so the page names the next thing in their email.

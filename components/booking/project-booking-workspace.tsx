@@ -641,6 +641,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const kindProfile = projectProfile(project);
   const kindNeeds = bookingGateNeeds(kindProfile);
   const agreementSettled = contractComplete || !kindNeeds.agreement;
+  // A family session paid in full takes the whole price to book: there is no
+  // "retainer" or "deposit" to speak of, and nothing waits for a signature.
+  const paidInFull = kindProfile.payment === "paid_in_full";
   const paymentSettled = invoicePaid || !kindNeeds.payment;
   const activeStep = !agreementSettled ? 1 : !paymentSettled ? 2 : 3;
   const stepState = (step: number) =>
@@ -698,9 +701,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       state: bookingComplete ? "done" : stepState(3),
       note: bookingComplete
         ? "Confirmed"
-        : invoicePaid
+        : invoicePaid || !kindNeeds.payment
           ? "Ready to confirm"
-          : "Waits for the retainer",
+          : paidInFull
+            ? "Waits for the payment"
+            : "Waits for the retainer",
     },
   ];
 
@@ -1025,6 +1030,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <>
                 <NativeContractStep
                   contract={contract}
+                  jobKind={kindProfile.kind}
                   onChanged={(message) => {
                     if (message) setNotice(message);
                     refreshTenantRecords(
@@ -1218,7 +1224,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       was still offered it, and the composer had no way to
                       refuse out loud. */}
                   {openProposal ||
-                  canCreateProposalForProject(projectState) ? (
+                  canCreateProposalForProject(projectState, project) ? (
                     <Link
                       className="button button-dark"
                       href={
@@ -1243,6 +1249,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   String(openProposal.status),
                 ) ? (
                   <RecordProposalAcceptance
+                    next={kindNeeds.agreement ? "the agreement" : kindNeeds.payment ? "payment" : "booking"}
                     onRecorded={(message) => {
                       setNotice(message);
                       refreshTenantRecords(
@@ -1428,8 +1435,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             <div className="booking-step-heading">
               <ReceiptText aria-hidden="true" />
               <span>
-                <small>The deposit</small>
-                <h2>Retainer</h2>
+                <small>{paidInFull ? "Paid in full" : "The deposit"}</small>
+                <h2>{paidInFull ? "Payment" : "Retainer"}</h2>
               </span>
               <StatusBadge
                 tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}
@@ -1472,7 +1479,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     onCancel={() => setConfirmingRetainer(null)}
                     onConfirm={() => void createRetainer().then(() => setConfirmingRetainer(null))}
                   >
-                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} retainer invoice, due ${formatDueDate(dueDate)}, and ${recipient ?? "the couple"} is emailed it. Once it's out it can only be voided, not unsent.`}
+                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} ${paidInFull ? "invoice for the full price" : "retainer invoice"}, due ${formatDueDate(dueDate)}, and ${recipient ?? "the client"} is emailed it. Once it's out it can only be voided, not unsent.`}
                   </ConfirmStep>
                 ) : (
                   <button
@@ -1487,6 +1494,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 )}
                 {packageSnapshot ? (
                   <RecordRetainerPayment
+                    paidInFull={paidInFull}
                     onRecorded={(message) => {
                       // The branch this control lives in unmounts as soon as
                       // the contract exists, taking any notice inside it with
@@ -1642,6 +1650,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   />
                 ) : packageSnapshot && Number(invoice.balanceCents ?? 0) > 0 ? (
                   <RecordRetainerPayment
+                    paidInFull={paidInFull}
                     onRecorded={(message) => {
                       // The branch this control lives in unmounts as soon as
                       // the contract exists, taking any notice inside it with
@@ -1725,21 +1734,23 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 ) : null}
                 <span>
                   <small>
-                    {agreedRetainerDueDate
-                      ? "Retainer due, as the couple agreed"
-                      : "Retainer due"}
+                    {paidInFull
+                      ? "Payment due"
+                      : agreedRetainerDueDate
+                        ? "Retainer due, as the client agreed"
+                        : "Retainer due"}
                   </small>
                   <strong>{formatDueDate(dueDate)}</strong>
                 </span>
                 {/* Moved from the contract step, where it described a step
                     that had not started. */}
                 <CapabilityNote capability="invoicing" />
-                {confirmingRetainer === "create" && projectState === "RETAINER_PENDING" && contractComplete ? (
+                {confirmingRetainer === "create" && projectState === "RETAINER_PENDING" && agreementSettled ? (
                   <ConfirmStep
                     busy={busy === "retainer"}
                     cancelLabel="Not now"
                     confirmLabel={`Send the ${currency(agreedRetainerCents, packageSnapshot?.currency)} invoice`}
-                    label="Send the retainer invoice?"
+                    label={paidInFull ? "Send the invoice?" : "Send the retainer invoice?"}
                     onCancel={() => setConfirmingRetainer(null)}
                     onConfirm={() => void createRetainer().then(() => setConfirmingRetainer(null))}
                   >
@@ -1751,16 +1762,16 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     disabled={
                       busy !== null ||
                       projectState !== "RETAINER_PENDING" ||
-                      !contractComplete
+                      !agreementSettled
                     }
                     onClick={() => setConfirmingRetainer("create")}
                     type="button"
                   >
-                    {`Create retainer invoice · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
+                    {`${paidInFull ? "Send the invoice" : "Create retainer invoice"} · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
                     <ArrowRight size={15} />
                   </button>
                 )}
-                {!contractComplete ? (
+                {!agreementSettled ? (
                   <small>
                     This unlocks once the signature is confirmed.
                   </small>
@@ -1772,8 +1783,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   short of both a created retainer and a paid one — a
                   studio taking bank transfers could not book at all.
                 */}
-                {contractComplete && packageSnapshot ? (
+                {agreementSettled && packageSnapshot ? (
                   <RecordRetainerPayment
+                    paidInFull={paidInFull}
                     onRecorded={(message) => {
                       // The branch this control lives in unmounts as soon as
                       // the contract exists, taking any notice inside it with

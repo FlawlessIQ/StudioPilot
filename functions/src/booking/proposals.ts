@@ -20,6 +20,7 @@ import {
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { isStandingInvoice } from "./invoice-standing.js";
+import { paymentScheduleFor, projectProfile } from "../job-kinds/job-kinds.js";
 import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
 
 const authoringFields = z.object({
@@ -258,11 +259,18 @@ function audit(
   });
 }
 
+/**
+ * The payment lines, by how this job is paid (job-kinds.ts, paymentScheduleFor).
+ * A deposit job keeps "Retainer" then "Final balance"; a family session paid in
+ * full gets one "Payment in full" line, a sports day one "Payment on the day",
+ * so the proposal never shows a retainer and balance nobody will be billed.
+ */
 function paymentSchedule(
   packageData: Record<string, unknown>,
   retainerDueDate: string | null,
   balanceDueDate: string | null,
-  retainerOverrideCents?: number | null,
+  retainerOverrideCents: number | null | undefined,
+  project: unknown,
 ) {
   const totalCents = numberValue(packageData.totalCents);
   // Never more than the total: a deposit larger than the price would make
@@ -271,18 +279,14 @@ function paymentSchedule(
     typeof retainerOverrideCents === "number"
       ? Math.min(retainerOverrideCents, totalCents)
       : numberValue(packageData.retainerCents);
-  return [
-    {
-      label: "Retainer",
-      amountCents: retainerCents,
-      dueDate: retainerDueDate,
-    },
-    {
-      label: "Final balance",
-      amountCents: Math.max(0, totalCents - retainerCents),
-      dueDate: balanceDueDate,
-    },
-  ];
+  const fields = (project && typeof project === "object" ? project : {}) as { eventDate?: unknown };
+  return paymentScheduleFor(projectProfile(project).payment, {
+    totalCents,
+    retainerCents,
+    retainerDueDate,
+    balanceDueDate,
+    eventDate: typeof fields.eventDate === "string" ? fields.eventDate : null,
+  });
 }
 
 function lineItems(packageData: Record<string, unknown>) {
@@ -365,7 +369,19 @@ export const proposalCommand = onRequest(
               throw new Error("PROJECT_NOT_FOUND");
             }
             assertProjectAccess(membership, project.id);
-            if (!canCreateProposalForProject(String(project.get("state")))) {
+            // A kind with no consultation (a family session, a sports day —
+            // job-kinds.ts) goes from the first reply straight to pricing.
+            // It used to be refused here until the studio clicked "Confirm
+            // we've spoken" about a call that was never part of the job
+            // (walk, 2026-10-03). The job steps through CONSULTATION with the
+            // proposal, so the state machine keeps its one path.
+            const skipsConsultation =
+              String(project.get("state")) === "LEAD" &&
+              !projectProfile(project.data()).consultation;
+            if (
+              !canCreateProposalForProject(String(project.get("state"))) &&
+              !skipsConsultation
+            ) {
               throw new Error("PROJECT_NOT_READY_FOR_PROPOSAL");
             }
             const packageSnapshotId = stringValue(
@@ -528,6 +544,7 @@ export const proposalCommand = onRequest(
                 command.input.retainerDueDate,
                 command.input.balanceDueDate,
                 command.input.retainerOverrideCents,
+                project.data(),
               ),
               retainerOverrideCents:
                 typeof command.input.retainerOverrideCents === "number"
@@ -559,6 +576,34 @@ export const proposalCommand = onRequest(
               archivedAt: null,
             };
             transaction.create(proposalReference, proposal);
+            if (skipsConsultation) {
+              const priorStateVersion = numberValue(project.get("stateVersion"));
+              transaction.update(projectReference, {
+                state: "CONSULTATION",
+                stateVersion: priorStateVersion + 1,
+                updatedAt: timestamp,
+                updatedBy: identity.uid,
+              });
+              const stepAuditId = stableId("audit", command.tenantId, `${executionId}:no-consultation`);
+              transaction.create(db.doc(`auditEvents/${stepAuditId}`), {
+                id: stepAuditId,
+                tenantId: command.tenantId,
+                projectId: project.id,
+                actorId: identity.uid,
+                actorType: "user",
+                action: "project.consultation_not_part_of_kind",
+                entityType: "project",
+                entityId: project.id,
+                timestamp,
+                before: { state: "LEAD", stateVersion: priorStateVersion },
+                after: { state: "CONSULTATION", stateVersion: priorStateVersion + 1 },
+                ipAddress: null,
+                userAgent,
+                correlationId,
+                automationRunId: null,
+                providerEventId: null,
+              });
+            }
             audit(transaction, {
               id: stableId("audit", command.tenantId, `${executionId}:created`),
               tenantId: command.tenantId,
@@ -955,6 +1000,7 @@ export const proposalCommand = onRequest(
                   ? storedOverride
                   : null
                 : command.input.retainerOverrideCents;
+            const draftProject = await transaction.get(db.doc(`projects/${projectId}`));
             transaction.update(proposalReference, {
               expiresAt: command.input.expiresAt,
               notes: command.input.notes,
@@ -964,6 +1010,7 @@ export const proposalCommand = onRequest(
                 command.input.retainerDueDate,
                 command.input.balanceDueDate,
                 retainerOverrideCents,
+                draftProject.exists ? draftProject.data() : null,
               ),
               retainerOverrideCents,
               draftRevision: nextRevision,
@@ -1118,6 +1165,7 @@ export const proposalCommand = onRequest(
               typeof priorSchedule[0]?.dueDate === "string" ? String(priorSchedule[0].dueDate) : null,
               typeof priorSchedule[1]?.dueDate === "string" ? String(priorSchedule[1].dueDate) : null,
               retainerOverrideCents,
+              project.data(),
             );
             const priced = {
               packageSnapshotId: primaryId,

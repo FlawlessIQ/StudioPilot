@@ -361,3 +361,75 @@ test("setup asks what the studio shoots, first, and never nags an established st
   const conversation = readFileSync("components/setup/setup-conversation.tsx", "utf8");
   assert.match(conversation, /runCrmCommand\("setInquiryForm", \{ config \}\)/);
 });
+
+// ── Walk fixes, 2026-10-03 (docs/job-kinds-walk-2026-10-03.md) ─────────────
+
+test("a proposal's payment lines follow how the job is paid", async () => {
+  const { paymentScheduleFor } = await import("../features/job-kinds/job-kinds");
+  const base = { totalCents: 45_000, retainerCents: 13_500, retainerDueDate: "2026-10-05", balanceDueDate: "2026-09-26", eventDate: "2026-10-10" };
+  assert.deepEqual(paymentScheduleFor("deposit_and_balance", base), [
+    { label: "Retainer", amountCents: 13_500, dueDate: "2026-10-05" },
+    { label: "Final balance", amountCents: 31_500, dueDate: "2026-09-26" },
+  ]);
+  // F18: a family session paid in full is one line for the whole price.
+  assert.deepEqual(paymentScheduleFor("paid_in_full", base), [
+    { label: "Payment in full", amountCents: 45_000, dueDate: "2026-10-05" },
+  ]);
+  assert.deepEqual(paymentScheduleFor("on_the_day", base), [
+    { label: "Payment on the day", amountCents: 45_000, dueDate: "2026-10-10" },
+  ]);
+  assert.deepEqual(paymentScheduleFor("invoice_after", base), [
+    { label: "Invoice after the event", amountCents: 45_000, dueDate: "2026-11-09" },
+  ]);
+});
+
+test("the agreed retainer and balance read the per-kind lines", async () => {
+  const { retainerFromSchedule } = await import("../features/booking/agreed-retainer");
+  const { finalBalanceFromSchedule } = await import("../features/booking/agreed-final-balance");
+  const inFull = [{ label: "Payment in full", amountCents: 45_000 }];
+  assert.equal(retainerFromSchedule(inFull, 13_500), 45_000);
+  assert.equal(finalBalanceFromSchedule(inFull, 99), 99);
+  const onTheDay = [{ label: "Payment on the day", amountCents: 60_000 }];
+  assert.equal(retainerFromSchedule(onTheDay, 18_000), 0);
+  assert.equal(finalBalanceFromSchedule(onTheDay, 0), 60_000);
+  // Both copies agree.
+  const { retainerFromSchedule: functionsRetainer } = await import("../functions/src/booking/agreed-retainer");
+  assert.equal(functionsRetainer(inFull, 13_500), 45_000);
+  assert.equal(functionsRetainer(onTheDay, 18_000), 0);
+});
+
+test("a kind with no consultation takes its proposal from LEAD", async () => {
+  const { canCreateProposalForProject, proposalStageVerdict } = await import("../features/proposals/eligibility");
+  assert.equal(canCreateProposalForProject("LEAD", { eventKind: "portraits" }), true);
+  assert.equal(canCreateProposalForProject("LEAD", { eventKind: "sports" }), true);
+  assert.equal(canCreateProposalForProject("LEAD", { eventKind: "wedding" }), false);
+  assert.equal(canCreateProposalForProject("LEAD"), false);
+  assert.equal(proposalStageVerdict({ state: "LEAD", eventKind: "portraits" }), "ready");
+  assert.equal(proposalStageVerdict({ state: "LEAD", eventKind: "corporate" }), "too_early");
+});
+
+test("Schedule A promises the lock only when the job has one", async () => {
+  const { eventDetailsFrom, eventDetailsBlocks } = await import("../features/contracts/event-details");
+  const blocksFor = (kind: string, lockDaysBefore?: number | null) =>
+    JSON.stringify(
+      eventDetailsBlocks(
+        eventDetailsFrom({ eventType: kind, eventKind: kind, date: "Saturday, October 24, 2026", venue: null, coverage: null, answers: [], lockDaysBefore }),
+      ),
+    );
+  assert.match(blocksFor("wedding", 28), /four weeks before the date/);
+  assert.match(blocksFor("wedding", 42), /six weeks before the date/);
+  assert.doesNotMatch(blocksFor("corporate", null), /weeks before|in writing/);
+  assert.doesNotMatch(blocksFor("corporate"), /weeks before/);
+});
+
+test("the first reply's link line says what happens next for the kind", async () => {
+  const { inquiryLinkLine } = await import("../functions/src/intake/inquiry-link");
+  const url = "https://studio-cue.com/i/abc";
+  assert.match(inquiryLinkLine(url, false, "wedding"), /about your day and pick a time to talk/);
+  assert.match(inquiryLinkLine(url, false), /about your day and pick a time to talk/);
+  const family = inquiryLinkLine(url, false, "portraits");
+  assert.doesNotMatch(family, /time to talk/);
+  assert.match(family, /your session/);
+  assert.match(family, /send your price/);
+  assert.match(inquiryLinkLine(url, false, "corporate"), /about your event and pick a time to talk/);
+});

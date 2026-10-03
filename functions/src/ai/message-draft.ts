@@ -486,19 +486,26 @@ export const aiMessageDraftCommand = onRequest(
           [text(lead.get("firstName")), text(lead.get("lastName"))]
             .filter(Boolean)
             .join(" ") || null;
-        context.lead = {
-          name: recipientName,
-          // Leads store the label; `eventType` is a project field.
-          eventType: lead.get("eventTypeLabel") ?? lead.get("eventType"),
-          eventDate: lead.get("eventDate"),
-          venue: lead.get("venue"),
-          city: lead.get("city"),
-          estimatedGuestCount: lead.get("estimatedGuestCount"),
-          budgetRange: lead.get("budgetRange"),
-          notes: lead.get("notes") ?? lead.get("message") ?? null,
-          // Their answers to the studio's own inquiry-form questions.
-          answers: Array.isArray(lead.get("customAnswers")) ? lead.get("customAnswers") : [],
-        };
+        // Only what the inquiry actually holds: a sports inquiry's reply was
+        // badged "Check Venue, Estimated Guest Count, Budget Range" because
+        // the empty wedding fields went in as nulls and read as gaps to chase
+        // (walk, 2026-10-03). The kind says what this work is.
+        context.lead = Object.fromEntries(
+          Object.entries({
+            name: recipientName,
+            // Leads store the label; `eventType` is a project field.
+            eventType: lead.get("eventTypeLabel") ?? lead.get("eventType"),
+            eventKind: lead.get("eventKind") ?? null,
+            eventDate: lead.get("eventDate"),
+            venue: lead.get("venue"),
+            city: lead.get("city"),
+            estimatedGuestCount: lead.get("estimatedGuestCount"),
+            budgetRange: lead.get("budgetRange"),
+            notes: lead.get("notes") ?? lead.get("message") ?? null,
+            // Their answers to the studio's own inquiry-form questions.
+            answers: Array.isArray(lead.get("customAnswers")) ? lead.get("customAnswers") : [],
+          }).filter(([, value]) => value !== null && value !== undefined && value !== ""),
+        ) as Json;
         sourceReferences.push({
           entityType: "lead",
           entityId: lead.id,

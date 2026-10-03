@@ -30,6 +30,13 @@ export type EventDetails = {
   rows: EventDetailRow[];
   /** Required parts nobody has given yet: printed "To be confirmed". */
   missing: string[];
+  /**
+   * Days before the date the final details lock, or null when this kind of
+   * job has no lock (job-kinds.ts: only weddings do). Schedule A promises the
+   * lock only when there is one — a corporate agreement promised "four weeks
+   * before the date" for a process that never runs (walk, 2026-10-03).
+   */
+  lockDaysBefore: number | null;
 };
 
 /** Plain content shapes, matching the document module's own. */
@@ -103,6 +110,12 @@ export function eventDetailsFrom(input: {
   venue: string | null;
   coverage: string | null;
   answers: ReadonlyArray<{ question: string; answer: string }>;
+  /**
+   * When the final details lock: the studio's planning timeline for a kind
+   * that locks, null for one that doesn't. Omitted: a wedding locks at 28
+   * days, anything else doesn't.
+   */
+  lockDaysBefore?: number | null;
 }): EventDetails {
   const wedding = input.eventKind ? input.eventKind === "wedding" : /wedding/i.test(input.eventType);
   const sorted = new Map<Category, EventDetailRow[]>();
@@ -143,7 +156,22 @@ export function eventDetailsFrom(input: {
     else for (const entry of entries) rows.push({ label: entry.label, value: entry.value });
   }
   const title = wedding ? "Wedding details" : input.eventKind === "portraits" ? "Session details" : "Event details";
-  return { title, rows: rows.slice(0, 40), missing };
+  const lockDaysBefore = input.lockDaysBefore === undefined ? (wedding ? 28 : null) : input.lockDaysBefore;
+  return { title, rows: rows.slice(0, 40), missing, lockDaysBefore };
+}
+
+/** What Schedule A says about changes: the lock, when this job has one. */
+function lockSentence(lockDaysBefore: number | null | undefined): string {
+  // Undefined: a schedule built before the lock was per kind — the wedding's four weeks.
+  if (lockDaysBefore === undefined) lockDaysBefore = 28;
+  if (lockDaysBefore === null || !Number.isFinite(lockDaysBefore) || lockDaysBefore <= 0) {
+    return "These details form part of this agreement. Anything marked \"To be confirmed\" is added once it is decided.";
+  }
+  const when =
+    lockDaysBefore % 7 === 0
+      ? `${["", "one", "two", "three", "four", "five", "six", "seven", "eight"][lockDaysBefore / 7] || lockDaysBefore / 7} week${lockDaysBefore === 7 ? "" : "s"}`
+      : `${lockDaysBefore} days`;
+  return `These details form part of this agreement. Anything marked "To be confirmed" is added when the final details are confirmed, ${when} before the date. After that, changes to locations or times are agreed with us in writing.`;
 }
 
 /** The schedule as agreement blocks: a heading, what it means, the details. */
@@ -156,8 +184,7 @@ export function eventDetailsBlocks(details: EventDetails): Block[] {
       type: "paragraph",
       content: [
         {
-          text:
-            "These details form part of this agreement. Anything marked \"To be confirmed\" is added when the final details are confirmed, four weeks before the date. After that, changes to locations or times are agreed with us in writing.",
+          text: lockSentence(details.lockDaysBefore),
           field,
         },
       ],

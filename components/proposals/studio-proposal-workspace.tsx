@@ -17,7 +17,8 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { proposalTermsForPackages } from "@/features/booking/autopilot";
+import { proposalTermsForJob } from "@/features/booking/autopilot";
+import { bookingGateNeeds, projectProfile, type JourneyProfile } from "@/features/job-kinds/job-kinds";
 import { detailsForLine, packageDetails, type PackageDetail } from "@/features/packages/inclusions";
 import {
   ArrowLeft,
@@ -120,6 +121,8 @@ type ProjectOption = {
    * through that proposal's Packages panel, which revises it.
    */
   withCoupleProposalId: string | null;
+  /** How this kind of job books and is paid (job-kinds.ts). */
+  profile: JourneyProfile;
 };
 
 /**
@@ -243,6 +246,7 @@ const mockProject: ProjectOption = {
   extraSnapshots: [],
   openProposalId: null,
   withCoupleProposalId: null,
+  profile: projectProfile({ eventKind: "wedding" }),
 };
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -376,8 +380,17 @@ function commandError(error: string): string {
  */
 function projectFields(project: {
   get: (field: string) => unknown;
-}): { state: unknown; archivedAt: unknown } {
-  return { state: project.get("state"), archivedAt: project.get("archivedAt") };
+}): Record<string, unknown> {
+  // The kind's fields too: a family session or a sports day takes its
+  // proposal straight from the inquiry (eligibility.ts, job-kinds.ts).
+  return {
+    state: project.get("state"),
+    archivedAt: project.get("archivedAt"),
+    eventKind: project.get("eventKind"),
+    eventTypeId: project.get("eventTypeId"),
+    eventType: project.get("eventType"),
+    paymentShape: project.get("paymentShape"),
+  };
 }
 
 async function loadProjectOptions(tenantId: string): Promise<{
@@ -479,6 +492,7 @@ async function loadProjectOptions(tenantId: string): Promise<{
           .map((extra): Value => ({ id: extra.id, ...(extra.data() ?? {}) })),
         openProposalId: openByProject.get(project.id) ?? null,
         withCoupleProposalId: proposalWithCouple(byProject.get(project.id) ?? [])?.id ?? null,
+        profile: projectProfile(project.data()),
       };
     }),
   );
@@ -954,7 +968,7 @@ export function StudioProposalComposer() {
           // Not the package description: that now shows under each package, as
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
-          setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(requestedProject)));
+          setTermsSummary(proposalTermsForJob(jobSnapshotsOf(requestedProject), bookingGateNeeds(requestedProject.profile)));
           const event = new Date(`${requestedProject.eventDate}T12:00:00`);
           if (!Number.isNaN(event.valueOf())) {
             setBalanceDueDate(
@@ -1018,6 +1032,10 @@ export function StudioProposalComposer() {
   }, [workspace.loading, workspace.tenantId]);
 
   const selected = projects?.find((project) => project.id === projectId);
+  // How the selected job is paid: a deposit and balance (weddings), or one
+  // payment — in full to book, on the day, or invoiced after (job-kinds.ts).
+  const selectedPayment = selected?.profile.payment ?? "deposit_and_balance";
+  const selectedNeeds = selected ? bookingGateNeeds(selected.profile) : { agreement: true, payment: true };
 
   function selectProject(nextProjectId: string) {
     setProjectId(nextProjectId);
@@ -1028,7 +1046,7 @@ export function StudioProposalComposer() {
     // Not the package description: that now shows under each package, as
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
-    setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(nextProject)));
+    setTermsSummary(proposalTermsForJob(jobSnapshotsOf(nextProject), bookingGateNeeds(nextProject.profile)));
     const event = new Date(`${nextProject.eventDate}T12:00:00`);
     setBalanceDueDate(
       Number.isNaN(event.valueOf())
@@ -1202,7 +1220,7 @@ export function StudioProposalComposer() {
       // Not the package description: that now shows under each package, as
       // bullets, and pasting one package's here left the other out (GR).
       setNotes("");
-      setTermsSummary(proposalTermsForPackages(jobSnapshotsOf(readyProject)));
+      setTermsSummary(proposalTermsForJob(jobSnapshotsOf(readyProject), bookingGateNeeds(readyProject.profile)));
       const event = new Date(`${readyProject.eventDate}T12:00:00`);
       if (!Number.isNaN(event.valueOf())) {
         setBalanceDueDate(dateInput(addDays(event, -14).toISOString()));
@@ -1668,8 +1686,9 @@ export function StudioProposalComposer() {
                   value={termsSummary}
                 />
                 <small>
-                  Keep this concise. The signed agreement is what the couple
-                  is bound by.
+                  {selectedNeeds.agreement
+                    ? "Keep this concise. The signed agreement is what the client is bound by."
+                    : "Keep this concise. This kind of job has no separate agreement, so this is what the client accepts."}
                 </small>
               </label>
             </div>
@@ -1700,27 +1719,44 @@ export function StudioProposalComposer() {
                     value={expiresOn}
                   />
                 </label>
-                <label className="proposal-field">
-                  <span>Retainer due</span>
-                  <input
-                    onChange={(event) =>
-                      setRetainerDueDate(event.target.value)
-                    }
-                    type="date"
-                    value={retainerDueDate}
-                  />
-                  <small>Optional until the agreement is ready.</small>
-                </label>
-                <label className="proposal-field">
-                  <span>Final balance due</span>
-                  <input
-                    onChange={(event) =>
-                      setBalanceDueDate(event.target.value)
-                    }
-                    type="date"
-                    value={balanceDueDate}
-                  />
-                </label>
+                {selectedPayment === "deposit_and_balance" || selectedPayment === "paid_in_full" ? (
+                  <label className="proposal-field">
+                    <span>{selectedPayment === "paid_in_full" ? "Payment due" : "Retainer due"}</span>
+                    <input
+                      onChange={(event) =>
+                        setRetainerDueDate(event.target.value)
+                      }
+                      type="date"
+                      value={retainerDueDate}
+                    />
+                    <small>
+                      {selectedPayment === "paid_in_full"
+                        ? "The whole price, paid to book."
+                        : "Optional until the agreement is ready."}
+                    </small>
+                  </label>
+                ) : (
+                  <p className="proposal-field">
+                    <span>Payment</span>
+                    <small>
+                      {selectedPayment === "on_the_day"
+                        ? "Paid on the day — nothing is paid to book."
+                        : "Invoiced after the event, due in thirty days — nothing is paid to book."}
+                    </small>
+                  </p>
+                )}
+                {selectedPayment === "deposit_and_balance" ? (
+                  <label className="proposal-field">
+                    <span>Final balance due</span>
+                    <input
+                      onChange={(event) =>
+                        setBalanceDueDate(event.target.value)
+                      }
+                      type="date"
+                      value={balanceDueDate}
+                    />
+                  </label>
+                ) : null}
               </div>
             </div>
           </section>
@@ -1815,6 +1851,21 @@ export function StudioProposalComposer() {
               should not have to go and edit the package first. The locked
               snapshot is untouched — this only moves the split between the
               two payments. */}
+          {selectedPayment !== "deposit_and_balance" ? (
+            <div className="proposal-composer-retainer">
+              <CircleDollarSign />
+              <span>
+                <small>
+                  {selectedPayment === "paid_in_full"
+                    ? "Paid in full to book"
+                    : selectedPayment === "on_the_day"
+                      ? "Paid on the day"
+                      : "Invoiced after the event"}
+                </small>
+                <em>No retainer and no final balance for this kind of job.</em>
+              </span>
+            </div>
+          ) : (
           <div className="proposal-composer-retainer">
             <CircleDollarSign />
             <span>
@@ -1842,6 +1893,7 @@ export function StudioProposalComposer() {
               </em>
             </span>
           </div>
+          )}
           {error ? (
             <p className="proposal-command-error" role="alert">
               {error}
@@ -1879,6 +1931,8 @@ export function StudioProposalWorkspace({
   recordAcceptance?: boolean;
 }) {
   const workspace = useWorkspace();
+  // The job, for how its kind books and is paid (job-kinds.ts).
+  const { records: proposalProjects } = useTenantDocuments("projects");
   const contracts = useTenantDocuments("contracts");
   const [proposal, setProposal] = useState<Value | null | undefined>(
     dataIsLive ? undefined : { ...mockProposal, id },
@@ -2139,7 +2193,11 @@ export function StudioProposalWorkspace({
             ? `Proposal emailed again. It's open until ${date(command.result.expiresAt)}.`
             : "Proposal email queued again.",
         record_acceptance:
-          "Acceptance recorded against your name. The agreement is the next step.",
+          jobNeeds.agreement
+            ? "Acceptance recorded against your name. The agreement is the next step."
+            : jobNeeds.payment
+              ? "Acceptance recorded against your name. Their invoice goes out next; paying it books the job."
+              : "Acceptance recorded against your name. The job books on its date and contact details.",
         undo_acceptance:
           command.result.discardedContractDraft === true
             ? "Acceptance undone. The job is back at Proposal, and the unsent agreement draft was discarded."
@@ -2200,6 +2258,23 @@ export function StudioProposalWorkspace({
   }
 
   const status = text(proposal.status, "draft");
+  const scheduleLabels = Array.isArray(proposal.paymentSchedule)
+    ? proposal.paymentSchedule.map((entry) => text(objectValue(entry).label, ""))
+    : [];
+  const proposalJob = proposalProjects?.find((entry) => entry.id === text(proposal.projectId, "")) ?? null;
+  // The job's profile when it is loaded; the schedule's own lines otherwise,
+  // since they are written by the job's payment shape (paymentScheduleFor).
+  const jobProfile = proposalJob ? projectProfile(proposalJob) : null;
+  const jobPayment =
+    jobProfile?.payment ??
+    (scheduleLabels.includes("Payment in full")
+      ? "paid_in_full"
+      : scheduleLabels.includes("Payment on the day")
+        ? "on_the_day"
+        : scheduleLabels.includes("Invoice after the event")
+          ? "invoice_after"
+          : "deposit_and_balance");
+  const jobNeeds = jobProfile ? bookingGateNeeds(jobProfile) : bookingGateNeeds({ agreement: jobPayment === "deposit_and_balance", payment: jobPayment });
 
   /**
    * "They accepted outside StudioCue" — offered wherever it can be true.
@@ -2253,10 +2328,9 @@ export function StudioProposalWorkspace({
           }}
         >
           <p>
-            StudioCue records this as your attestation, not the
-            client&rsquo;s decision. It moves the job on to the
-            agreement, and the audit log will show that you vouched
-            for it.
+            {`StudioCue records this as your attestation, not the client’s decision. It moves the job on to ${
+              jobNeeds.agreement ? "the agreement" : jobNeeds.payment ? "payment" : "booking"
+            }, and the audit log will show that you vouched for it.`}
           </p>
           <label>
             Who accepted
@@ -2521,6 +2595,7 @@ export function StudioProposalWorkspace({
                 {/* The retainer could be set only when the proposal was
                     first made; a couple asking for different packages left
                     the studio no way to change it (GR, 2026-09-30). */}
+                {jobPayment === "deposit_and_balance" ? (
                 <label className="proposal-field">
                   <span>Retainer amount</span>
                   <input
@@ -2537,11 +2612,13 @@ export function StudioProposalWorkspace({
                   <small>
                     {typeof proposal.retainerOverrideCents === "number"
                       ? `Set by you. The packages say ${money(pricing.retainerCents, currency)}.`
-                      : "From the packages. Change it for this couple here."}
+                      : "From the packages. Change it for this client here."}
                   </small>
                 </label>
+                ) : null}
+                {jobPayment === "deposit_and_balance" || jobPayment === "paid_in_full" ? (
                 <label className="proposal-field">
-                  <span>Retainer due</span>
+                  <span>{jobPayment === "paid_in_full" ? "Payment due" : "Retainer due"}</span>
                   <input
                     onChange={(eventValue) =>
                       setRetainerDueDate(eventValue.target.value)
@@ -2550,6 +2627,17 @@ export function StudioProposalWorkspace({
                     value={retainerDueDate}
                   />
                 </label>
+                ) : (
+                  <p className="proposal-field">
+                    <span>Payment</span>
+                    <small>
+                      {jobPayment === "on_the_day"
+                        ? "Paid on the day — nothing is paid to book."
+                        : "Invoiced after the event, due in thirty days."}
+                    </small>
+                  </p>
+                )}
+                {jobPayment === "deposit_and_balance" ? (
                 <label className="proposal-field">
                   <span>Final balance due</span>
                   <input
@@ -2560,6 +2648,7 @@ export function StudioProposalWorkspace({
                     value={balanceDueDate}
                   />
                 </label>
+                ) : null}
               </div>
             ) : (
               <div className="proposal-workspace-payment-cards">
@@ -2682,7 +2771,7 @@ export function StudioProposalWorkspace({
                     leads to a signature request, which provider sends it,
                     or whether that provider is connected — all three of
                     which the system already knew. */}
-                <CapabilityNote capability="signing" />
+                {jobNeeds.agreement ? <CapabilityNote capability="signing" /> : null}
                 <CapabilityNote capability="invoicing" />
               </div>
             ) : null}
@@ -2694,7 +2783,7 @@ export function StudioProposalWorkspace({
                   <span><Check /> Expiration and payment dates are explicit</span>
                   <span><Check /> Contract and payment remain separate</span>
                 </div>
-                <CapabilityNote capability="signing" />
+                {jobNeeds.agreement ? <CapabilityNote capability="signing" /> : null}
                 <CapabilityNote capability="invoicing" />
                 {canApprove ? (
                   <button
@@ -2829,11 +2918,13 @@ export function StudioProposalWorkspace({
                       )}
                       Send proposal
                     </button>
-                    <CombinedAgreementSend
-                      onSent={() => window.location.reload()}
-                      projectId={String(proposal.projectId ?? "")}
-                      proposalId={String(proposal.id)}
-                    />
+                    {jobNeeds.agreement ? (
+                      <CombinedAgreementSend
+                        onSent={() => window.location.reload()}
+                        projectId={String(proposal.projectId ?? "")}
+                        proposalId={String(proposal.id)}
+                      />
+                    ) : null}
                   </>
                 ) : null}
                 <button
@@ -3000,8 +3091,11 @@ export function StudioProposalWorkspace({
                 <CheckCircle2 />
                 <strong>Proposal accepted</strong>
                 <p>
-                  The project can now move into the agreement and retainer
-                  workflow.
+                  {jobNeeds.agreement
+                    ? "The project can now move into the agreement and retainer workflow."
+                    : jobNeeds.payment
+                      ? "Their invoice is next; paying it books the job."
+                      : "The job books on its date and contact details."}
                 </p>
                 <Link
                   className="button button-dark"

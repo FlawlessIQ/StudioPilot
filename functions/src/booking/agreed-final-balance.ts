@@ -24,7 +24,9 @@
  */
 
 /** The label the proposal composer writes for the closing payment. */
-const FINAL_LABELS = ["Final balance", "Balance", "Final payment"];
+// "Payment on the day" and "Invoice after the event" are a job's one bill
+// (job-kinds.ts, paymentScheduleFor): the whole price, owed after booking.
+const FINAL_LABELS = ["Final balance", "Balance", "Final payment", "Payment on the day", "Invoice after the event"];
 
 export function finalBalanceFromSchedule(
   schedule: unknown,

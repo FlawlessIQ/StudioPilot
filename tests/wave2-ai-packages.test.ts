@@ -216,7 +216,7 @@ test("Cue's project detail and proposal drafting carry every package", () => {
 
 test("every place that seeds proposal terms uses every package", () => {
   const composer = source("components/proposals/studio-proposal-workspace.tsx");
-  assert.equal((composer.match(/setTermsSummary\(proposalTermsForPackages\(jobSnapshotsOf\(/g) ?? []).length, 3);
+  assert.equal((composer.match(/setTermsSummary\(proposalTermsForJob\(jobSnapshotsOf\(/g) ?? []).length, 3);
   assert.doesNotMatch(composer, /proposalTermsFor\(/);
   const card = source("components/ai/actions/booking-actions.tsx");
   assert.match(card, /termsSummary: proposalTermsForPackages\(onTheJob\)/);

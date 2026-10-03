@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/panel-state";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { canCreateProposalForProject } from "@/features/proposals/eligibility";
+import { bookingGateNeeds, projectProfile, vocab } from "@/features/job-kinds/job-kinds";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   pastConsultation,
@@ -344,6 +345,22 @@ export function BookingAutopilotWorkspace({
     text(projectRecords?.find((entry) => entry.id === projectId)?.state) ||
     text(project?.state);
   const laterBookingState = pastProposal(liveState);
+  // What booking this kind of job asks for (job-kinds.ts): a family session
+  // has no consultation and no agreement; a sports day pays nothing to book.
+  const kindProfile = projectProfile(
+    projectRecords?.find((entry) => entry.id === projectId) ?? project,
+  );
+  const kindNeeds = bookingGateNeeds(kindProfile);
+  const kindWords = vocab(kindProfile.kind);
+  const nextAfterAcceptance = kindNeeds.agreement
+    ? kindNeeds.payment
+      ? "The agreement and the retainer are"
+      : "The agreement is"
+    : kindNeeds.payment
+      ? kindProfile.payment === "paid_in_full"
+        ? "The payment is"
+        : "The retainer is"
+      : "The booking check is";
   // PROPOSAL is past preparing one, not past the couple's answer.
   const proposalSettled = proposalAccepted(liveState);
   const rerunBlocked = briefRerunBlocked({
@@ -691,8 +708,17 @@ export function BookingAutopilotWorkspace({
                 {/* Promised "the balance" below, and no balance section
                     followed — it lives on Invoices (UI audit, 2026-10-02). */}
                 <p>
-                  The agreement and the retainer are below. The final balance
-                  is on <Link href={`/studio/invoices?project=${projectId}`}>Invoices</Link>.
+                  {`${nextAfterAcceptance} below.`}
+                  {kindProfile.payment === "deposit_and_balance" ? (
+                    <>
+                      {" "}The final balance is on{" "}
+                      <Link href={`/studio/invoices?project=${projectId}`}>Invoices</Link>.
+                    </>
+                  ) : kindProfile.payment === "on_the_day" ? (
+                    " The bill is paid on the day."
+                  ) : kindProfile.payment === "invoice_after" ? (
+                    " The bill goes out after the event."
+                  ) : null}
                 </p>
               </>
             ) : bookingAgreementOut ? (
@@ -707,9 +733,11 @@ export function BookingAutopilotWorkspace({
               <>
                 <h1>The proposal is with the client.</h1>
                 <p>
-                  Once they accept it, the agreement and the retainer are the
-                  next steps. Already have their yes by email or on a call?
-                  Record it in the contract step below.
+                  {kindNeeds.agreement
+                    ? "Once they accept it, the agreement and the retainer are the next steps. Already have their yes by email or on a call? Record it in the contract step below."
+                    : kindNeeds.payment
+                      ? "Once they accept it, the invoice goes to them, and paying it books the job. Already have their yes by email or on a call? Record it on the proposal."
+                      : "Once they accept it, the job books itself. Already have their yes by email or on a call? Record it on the proposal."}
                 </p>
               </>
             )}
@@ -718,17 +746,31 @@ export function BookingAutopilotWorkspace({
       ) : (
         <header className="booking-autopilot-hero">
           <div>
-            <p className="eyebrow"><Sparkles size={14} /> From the consultation</p>
-            <h1>From conversation<br />to a reviewable proposal.</h1>
-            <p>
-              Capture what the couple said once. StudioCue grounds a brief,
-              recommends an existing package, and prepares a proposal without
-              inventing pricing or sending anything.
-            </p>
+            {kindProfile.consultation ? (
+              <>
+                <p className="eyebrow"><Sparkles size={14} /> From the consultation</p>
+                <h1>From conversation<br />to a reviewable proposal.</h1>
+                <p>
+                  Capture what the client said once. StudioCue grounds a brief,
+                  recommends an existing package, and prepares a proposal without
+                  inventing pricing or sending anything.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="eyebrow"><Sparkles size={14} /> From the inquiry</p>
+                <h1>From inquiry<br />to a priced proposal.</h1>
+                <p>
+                  {`A ${kindWords.event} needs no consultation call. Choose a package and send the price — nothing goes out until you approve it.`}
+                </p>
+              </>
+            )}
           </div>
           <aside>
-            <span className={consultation ? "is-complete" : ""}><Check /> Inquiry</span>
-            <span className={consultation?.status === "completed" ? "is-complete" : ""}><MessageSquareText /> Consultation</span>
+            <span className={consultation || !kindProfile.consultation ? "is-complete" : ""}><Check /> Inquiry</span>
+            {kindProfile.consultation ? (
+              <span className={consultation?.status === "completed" ? "is-complete" : ""}><MessageSquareText /> Consultation</span>
+            ) : null}
             <span className={packageAction ? "is-complete" : ""}><PackageCheck /> Package fit</span>
             <span className={proposalId ? "is-complete" : ""}><FileText /> Proposal</span>
           </aside>
@@ -772,7 +814,7 @@ export function BookingAutopilotWorkspace({
             </Link>
           </section>
           ) : null
-        ) : canCreateProposalForProject(liveState) ? (
+        ) : canCreateProposalForProject(liveState, { ...(project ?? {}), state: liveState }) ? (
           <section className="booking-autopilot-empty">
             <Check />
             <span>
@@ -842,6 +884,22 @@ export function BookingAutopilotWorkspace({
             <small>
               You marked it as handled elsewhere. Prepare the proposal
               directly; it will lock a package if one isn&rsquo;t chosen yet.
+            </small>
+          </span>
+          <Link href={`/studio/proposals/new?project=${projectId}`}>
+            Prepare the proposal <ArrowRight />
+          </Link>
+        </section>
+      ) : !consultation && !kindProfile.consultation && !proposalId ? (
+        // A kind with no consultation (job-kinds.ts) prices straight from
+        // the inquiry; it used to be told to schedule a call it never has.
+        <section className="booking-autopilot-empty">
+          <Check />
+          <span>
+            <strong>{`No consultation for a ${kindWords.event}.`}</strong>
+            <small>
+              Prepare the proposal straight away; it will lock a package if
+              one isn&rsquo;t chosen yet.
             </small>
           </span>
           <Link href={`/studio/proposals/new?project=${projectId}`}>

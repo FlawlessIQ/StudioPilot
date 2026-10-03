@@ -1918,8 +1918,11 @@ export const bookingCommand = onRequest(
         // The signature is the step before this one, and the gate requires
         // both. Recording money against a project whose agreement is not
         // signed would produce a booking with paid evidence and no
-        // contract, which is the wrong order to be permissive in.
-        if (contracts.empty) {
+        // contract, which is the wrong order to be permissive in — for a
+        // kind that has an agreement. A family session has none
+        // (job-kinds.ts), and refusing here stranded every one whose client
+        // paid by Venmo or cash, or whose invoice failed (walk, 2026-10-03).
+        if (contracts.empty && projectGateNeeds(project.data()).agreement) {
           throw new Error("SIGNED_CONTRACT_REQUIRED");
         }
         /**
@@ -3038,8 +3041,10 @@ export const bookingCommand = onRequest(
         // The only states the gate books from.
         if (!["RETAINER_PENDING", "POSTPONED"].includes(String(project.get("state"))))
           throw new Error("RETAINER_EXCEPTION_NOT_READY");
-        // Waiving the retainer is not waiving the contract.
-        if (completedContracts.empty) throw new Error("SIGNED_CONTRACT_REQUIRED");
+        // Waiving the retainer is not waiving the contract — when the kind
+        // has one (job-kinds.ts).
+        if (completedContracts.empty && projectGateNeeds(project.data()).agreement)
+          throw new Error("SIGNED_CONTRACT_REQUIRED");
         const exceptionAuditId = stableId(
           "audit_retainer_exception",
           command.tenantId,

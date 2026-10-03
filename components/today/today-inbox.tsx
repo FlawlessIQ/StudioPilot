@@ -786,15 +786,20 @@ export function TodayInbox() {
           />
         ) : null}
       </SheetDialog>
-      <SheetDialog label="Record the final balance" onClose={() => setSettling(null)} open={settling != null}>
+      <SheetDialog label={settling?.singleBill ? "Record the payment" : "Record the final balance"} onClose={() => setSettling(null)} open={settling != null}>
         {settling && settling.packageSnapshotId ? (
           <div className="record-sheet">
             <header>
-              <p className="eyebrow">Final balance</p>
+              <p className="eyebrow">{settling.singleBill ? "The bill" : "Final balance"}</p>
               <h3>Paid another way</h3>
-              <p>For a balance that arrived by transfer, cheque or cash. The amount is the one they agreed to.</p>
+              <p>
+                {settling.singleBill
+                  ? "For a payment taken on the day, or by transfer, cheque or cash. The amount is the one they agreed to."
+                  : "For a balance that arrived by transfer, cheque or cash. The amount is the one they agreed to."}
+              </p>
             </header>
             <RecordFinalPayment
+              singleBill={Boolean(settling.singleBill)}
               balanceLabel={settling.balanceCents ? formatCents(settling.balanceCents) : null}
               onRecorded={(message) => {
                 setSettledNotice(message);

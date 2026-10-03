@@ -20,10 +20,13 @@ import { todayLocalIso } from "@/lib/format/event-date";
 export function RecordProposalAcceptance({
   onRecorded,
   proposalId,
+  next = "the agreement",
 }: {
   /** The parent owns the confirmation: the reload that follows unmounts this. */
   onRecorded: (message: string) => void;
   proposalId: string;
+  /** What acceptance moves the job on to: "the agreement", or "payment" / "booking" for a kind without one (job-kinds.ts). */
+  next?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -46,7 +49,7 @@ export function RecordProposalAcceptance({
         return;
       }
       onRecorded(
-        "Acceptance recorded against your name. The agreement is the next step.",
+        `Acceptance recorded against your name. ${next.charAt(0).toUpperCase()}${next.slice(1)} is the next step.`,
       );
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "The acceptance could not be recorded."));
@@ -64,7 +67,7 @@ export function RecordProposalAcceptance({
       <form onSubmit={(event) => void submit(event)}>
         <p>
           StudioCue records this as your attestation, not the client&rsquo;s
-          decision. It moves the job on to the agreement, and the audit log
+          decision. It moves the job on to {next}, and the audit log
           shows that you vouched for it.
         </p>
         <label>

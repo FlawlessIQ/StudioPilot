@@ -1,7 +1,7 @@
 "use client";
 
 import { AMENDABLE_STATES, BookingAmendment } from "@/components/booking/booking-amendment";
-import { jobKindOf, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
 import { eventDateLock } from "@/features/projects/event-date-lock";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
@@ -1026,11 +1026,14 @@ function ProjectCrewPanel({
   assignments,
   projectId,
   ownerShooting,
+  crewByDefault = true,
 }: {
   assignments: LifecycleRecord[];
   projectId: string;
   /** See OwnerShootingToggle: whether the owner is one of the crew on this job. */
   ownerShooting: boolean;
+  /** Whether this kind of job is crewed (job-kinds.ts). */
+  crewByDefault?: boolean;
 }) {
   const { records: profiles } = useTenantDocuments("crewProfiles");
   const nameFor = (assignment: LifecycleRecord) =>
@@ -1062,7 +1065,11 @@ function ProjectCrewPanel({
           {live.length ? "Staff another role" : "Staff this job"}
         </Link>
       </header>
-      <OwnerShootingToggle ownerShooting={ownerShooting} projectId={projectId} />
+      <OwnerShootingToggle
+        crewByDefault={crewByDefault}
+        ownerShooting={ownerShooting}
+        projectId={projectId}
+      />
       {live.length ? (
         <ul>
           {live.map((assignment) => {
@@ -1377,8 +1384,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       stateVersion={Number(project.stateVersion ?? 0)}
     />
   );
+  // A kind with no consultation (job-kinds.ts) has no call to invite them to.
   const leadInviteEl =
     state === "LEAD" &&
+    projectProfile(project).consultation &&
     Array.isArray(project.clientContactIds) &&
     typeof project.clientContactIds[0] === "string" ? (
       <aside className="job-rail-card">
@@ -1659,6 +1668,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <ProjectJobPlan steps={journey.steps} projectId={projectId} />
           <ProjectCrewPanel
             assignments={related.crewAssignments}
+            crewByDefault={projectProfile(project).crew}
             ownerShooting={ownerShootsJob(project)}
             projectId={projectId}
           />
@@ -1688,7 +1698,8 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             */}
             <ProjectCrewPanel
               assignments={related.crewAssignments}
-              ownerShooting={ownerShootsJob(project)}
+              crewByDefault={projectProfile(project).crew}
+            ownerShooting={ownerShootsJob(project)}
               projectId={projectId}
             />
             <section className="project-now-next" aria-label="Project work summary">

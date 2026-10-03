@@ -499,3 +499,57 @@ export function bookedOnceClause(profile: Pick<JourneyProfile, "agreement" | "pa
   if (payment) return payment;
   return "the date and client details check out";
 }
+
+/**
+ * The payment lines a proposal carries, by how the job is paid.
+ *
+ * The walk of 2026-10-03 sent a family a proposal reading "Retainer $135,
+ * final balance $315 due Sep 26" for a $450 session paid in full — while the
+ * invoice StudioCue raised was $450. Every reader takes its figure from these
+ * lines (agreed-retainer.ts, agreed-final-balance.ts), so writing them by the
+ * job's payment shape makes the proposal, the booking screen, the hand-payment
+ * form and the invoice say the same number.
+ *
+ * - Deposit and balance: "Retainer" then "Final balance" (unchanged).
+ * - Paid in full: one "Payment in full" line for the whole price, due to book.
+ * - On the day: one "Payment on the day" line, due on the event date.
+ * - Invoiced after: one "Invoice after the event" line, due thirty days after.
+ */
+export const SCHEDULE_LABELS = {
+  retainer: "Retainer",
+  finalBalance: "Final balance",
+  paidInFull: "Payment in full",
+  onTheDay: "Payment on the day",
+  invoiceAfter: "Invoice after the event",
+} as const;
+
+export type ScheduleLine = { label: string; amountCents: number; dueDate: string | null };
+
+export function paymentScheduleFor(
+  payment: PaymentShape,
+  input: {
+    totalCents: number;
+    retainerCents: number;
+    retainerDueDate: string | null;
+    balanceDueDate: string | null;
+    eventDate: string | null | undefined;
+  },
+): ScheduleLine[] {
+  const total = Math.max(0, Math.round(Number(input.totalCents) || 0));
+  const day = String(input.eventDate ?? "").slice(0, 10);
+  const eventDay = /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+  if (payment === "paid_in_full") {
+    return [{ label: SCHEDULE_LABELS.paidInFull, amountCents: total, dueDate: input.retainerDueDate }];
+  }
+  if (payment === "on_the_day") {
+    return [{ label: SCHEDULE_LABELS.onTheDay, amountCents: total, dueDate: eventDay }];
+  }
+  if (payment === "invoice_after") {
+    return [{ label: SCHEDULE_LABELS.invoiceAfter, amountCents: total, dueDate: eventDay ? shiftDay(eventDay, 30) : null }];
+  }
+  const retainer = Math.min(Math.max(0, Math.round(Number(input.retainerCents) || 0)), total);
+  return [
+    { label: SCHEDULE_LABELS.retainer, amountCents: retainer, dueDate: input.retainerDueDate },
+    { label: SCHEDULE_LABELS.finalBalance, amountCents: total - retainer, dueDate: input.balanceDueDate },
+  ];
+}

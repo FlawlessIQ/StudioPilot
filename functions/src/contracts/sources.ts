@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
+import { resolvePlanningTimeline } from "../planning/planning-timeline.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
 import { packageInclusionItems } from "../packages/inclusions.js";
@@ -233,6 +234,11 @@ export async function loadContractSources(
     venue: text(event.venue) || text(project.get("venueName")) || null,
     coverage: coverage || null,
     answers: formAnswers,
+    // The lock is promised only where it runs (job-kinds.ts), at the
+    // studio's own lock day.
+    lockDaysBefore: finalDetailsLockApplies(project.data())
+      ? resolvePlanningTimeline(tenant.get("planningTimeline")).lockDaysBefore
+      : null,
   });
 
   return {

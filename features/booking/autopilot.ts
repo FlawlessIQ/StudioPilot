@@ -95,3 +95,23 @@ export function groundedBookingDraft(input: {
       : null,
   };
 }
+
+/**
+ * The default terms for a job that books without an agreement (job-kinds.ts):
+ * "the signed photography agreement holds the full terms" promised a family
+ * a document that never comes (walk, 2026-10-03).
+ */
+export function noAgreementProposalTerms(paysToBook: boolean): string {
+  return paysToBook
+    ? "Coverage, deliverables and payment dates are as set out in this proposal. Accepting it and paying books the date."
+    : "Coverage, deliverables and payment dates are as set out in this proposal. Accepting it books the date.";
+}
+
+/** proposalTermsForPackages, with the no-agreement wording when the job has no agreement. */
+export function proposalTermsForJob(
+  packages: readonly Record<string, unknown>[],
+  needs: { agreement: boolean; payment: boolean },
+): string {
+  const terms = proposalTermsForPackages(packages);
+  return terms === DEFAULT_PROPOSAL_TERMS && !needs.agreement ? noAgreementProposalTerms(needs.payment) : terms;
+}

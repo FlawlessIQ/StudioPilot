@@ -66,7 +66,10 @@ export function NativeContractStep({
   proposal,
   contract,
   onChanged,
+  jobKind = null,
 }: {
+  /** The job's kind (job-kinds.ts), to catch a wedding agreement on other work. */
+  jobKind?: string | null;
   projectId: string;
   proposal: RecordValue;
   contract: RecordValue | null;
@@ -194,6 +197,15 @@ export function NativeContractStep({
     (field) => !recordOnlyFields.has(field.key) && field.source !== "record",
   );
   const missing = draft?.unresolvedFields ?? [];
+  /**
+   * A wedding agreement about to go out on other work. A studio with one
+   * agreement sent "Wedding Photography & Videography Agreement" to a
+   * corporate client and nothing said so (walk, 2026-10-03). Warned, not
+   * blocked: the wording is the studio's to judge.
+   */
+  const agreementTitle = parsed?.title ?? "";
+  const weddingAgreementOnOtherWork =
+    Boolean(jobKind) && jobKind !== "wedding" && /wedding|bride|groom/i.test(agreementTitle);
   const detailsMissing = draft?.detailsMissing ?? [];
   /**
    * The studio edited its agreement after this draft was prepared. Sending
@@ -499,6 +511,11 @@ export function NativeContractStep({
           Edit your agreement
         </Link>
       </div>
+      {weddingAgreementOnOtherWork ? (
+        <p className="booking-delivery-warning" role="status">
+          {`This agreement is titled “${agreementTitle}”, and this is ${jobKind === "portraits" ? "a family or portrait session" : jobKind === "corporate" ? "corporate work" : jobKind === "sports" ? "a sports job" : "another kind of work"}. Read it through before you send it, or edit your agreement so it fits.`}
+        </p>
+      ) : null}
       {detailsMissing.length ? (
         <p className="booking-delivery-warning" role="status">
           {`Wedding details not given yet: ${detailsMissing.join(", ").toLowerCase()}. They go in Schedule A as "To be confirmed" and are confirmed with the final details four weeks before. Ask the couple now if you'd rather they were in the signed agreement.`}

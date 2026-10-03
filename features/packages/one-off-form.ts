@@ -6,6 +6,7 @@
  */
 import type { CoverageItem } from "@/features/packages/coverage";
 import { oneOffInclusionLines } from "@/features/packages/one-off";
+import { isPaymentShape, type PaymentShape } from "@/features/job-kinds/job-kinds";
 
 export type OneOffFormValues = {
   name: string;
@@ -19,6 +20,8 @@ export type OneOffFormValues = {
   hours: string;
   mode: "add" | "replace";
   saveToLibrary: boolean;
+  /** How it is paid; blank follows the kind of job (job-kinds.ts). */
+  paymentShape?: PaymentShape | "";
 };
 
 /** The command's input, less the job. */
@@ -30,6 +33,7 @@ export type OneOffPackageInput = {
   includedCoverageMinutes?: number;
   mode: "add" | "replace";
   saveToLibrary: boolean;
+  paymentShape?: PaymentShape;
 };
 
 /**
@@ -97,6 +101,7 @@ export function parseOneOffForm(
       ...(includedCoverageMinutes ? { includedCoverageMinutes } : {}),
       mode: values.mode,
       saveToLibrary: values.saveToLibrary,
+      ...(isPaymentShape(values.paymentShape) ? { paymentShape: values.paymentShape } : {}),
     },
   };
 }

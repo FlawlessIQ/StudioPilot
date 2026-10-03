@@ -86,6 +86,8 @@ export type TodayAction =
       projectId: string;
       packageSnapshotId: string | null;
       balanceCents: number | null;
+      /** The job's one bill (paid on the day, or invoiced after), not a balance after a retainer. */
+      singleBill?: boolean;
     }
   | {
       /**
@@ -1764,6 +1766,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         projectId: job.id,
         packageSnapshotId: text(job.packageSnapshotId) || null,
         balanceCents: due.cents,
+        ...(singleBill ? { singleBill: true } : {}),
       },
       jobHref: `/studio/projects/${job.id}`,
       facts: [eventFact(text(job.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),

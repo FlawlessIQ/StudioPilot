@@ -33,6 +33,7 @@ export function RecordRetainerPayment({
   retainerLabel,
   providerLabel,
   standingInvoice,
+  paidInFull = false,
 }: {
   /** Called with the confirmation to show; the parent owns it, because this
    * control is often unmounted by the reload that follows. */
@@ -45,7 +46,10 @@ export function RecordRetainerPayment({
   providerLabel?: string | null;
   /** True when an invoice already stands and this settles it. */
   standingInvoice?: boolean;
+  /** A job paid in full to book (a family session): the whole price, not a retainer. */
+  paidInFull?: boolean;
 }) {
+  const noun = paidInFull ? "payment" : "retainer";
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -74,7 +78,7 @@ export function RecordRetainerPayment({
       // landed — the same gap as record-signed-agreement.tsx. Say it, and say
       // what is left.
       onRecorded(
-        "Retainer recorded against your name. Confirm the booking to finish.",
+        `${paidInFull ? "Payment" : "Retainer"} recorded against your name. Confirm the booking to finish.`,
       );
     } catch (caught: unknown) {
       setNotice(
@@ -89,14 +93,14 @@ export function RecordRetainerPayment({
     <details className="record-signed-agreement">
       <summary>
         <Banknote aria-hidden="true" size={15} />
-        Retainer paid outside StudioCue? Record it
+        {paidInFull ? "Paid outside StudioCue? Record it" : "Retainer paid outside StudioCue? Record it"}
       </summary>
       <form onSubmit={(event) => void submit(event)}>
         <p>
           StudioCue records this as your attestation, not a confirmed payment.
           It books the job on your word, and the audit log will show that you
-          vouched for it. Records {retainerLabel} — the retainer on what the
-          couple accepted.
+          vouched for it.{" "}
+          {`Records ${retainerLabel} — the ${noun} on what the client accepted.`}
         </p>
         {/* Said plainly because it is the one thing this action does not do.
             Marking the invoice paid here settles StudioCue's record of it; the
@@ -104,7 +108,7 @@ export function RecordRetainerPayment({
             in and change them. */}
         {standingInvoice ? (
           <p className="record-attestation-caveat">
-            This marks the retainer invoice already out with the couple as paid,
+            {`This marks the ${paidInFull ? "invoice" : "retainer invoice"} already out with the client as paid,`}{" "}
             rather than raising a second one. It does not mark it paid in{" "}
             {providerLabel ?? "your accounting tool"} — do that there too, so the
             two agree.

@@ -318,7 +318,7 @@ export type JourneyInput = {
   profile?: Pick<
     JourneyProfile,
     "kind" | "consultation" | "agreement" | "payment" | "runOfShow" | "crew" | "coi"
-  >;
+  > & { album?: boolean };
 };
 
 const STATE_RANK: Record<string, number> = {
@@ -392,11 +392,22 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
   if (!profile.coi && !input.coiStatus) drop("coi");
   if (!profile.runOfShow && !input.scheduleStatus) drop("run_of_show");
   if (!profile.crew && !(input.crewRequired ?? 0)) drop("crew");
+  // No album for this kind (sports, corporate): the last step is the review.
+  if (profile.album === false) retitle("album_review", "Review");
   switch (profile.payment) {
-    case "paid_in_full":
+    case "paid_in_full": {
       retitle("retainer", "Paid in full");
       if (!input.finalInvoiceStatus) drop("final_balance");
+      // The whole price, paid to book: no "retainer rule", no signature.
+      const payment = steps.find((candidate) => candidate.key === "retainer");
+      if (payment) {
+        if (payment.detail === "Computed from your retainer rule") payment.detail = "The whole price, paid to book";
+        if (payment.detail === "Starts once the agreement is signed") payment.detail = "Starts once they accept the proposal";
+        if (payment.action?.kind === "link" && payment.action.label === "Create retainer invoice")
+          payment.action = { ...payment.action, label: "Send the invoice" };
+      }
       break;
+    }
     case "on_the_day":
       if (!input.retainerInvoiceStatus) drop("retainer");
       retitle("final_balance", "Paid on the day");
@@ -519,7 +530,10 @@ export function projectJourney(input: JourneyInput): {
   // because it is only offered from LEAD — a dead end on the second step of the
   // lifecycle, with the only remaining action being "Schedule consultation" for
   // a consultation that had already happened.
-  const consulted = input.hasConsultation || stateRank >= 1;
+  // A kind with no consultation (a family session, a sports day) prices
+  // straight from the inquiry: the proposal is the studio's move from the
+  // start (job-kinds.ts; walk, 2026-10-03).
+  const consulted = input.hasConsultation || stateRank >= 1 || input.profile?.consultation === false;
   /**
    * An enquiry whose date has already gone by.
    *
@@ -628,7 +642,12 @@ export function projectJourney(input: JourneyInput): {
           },
   });
 
-  const contractDone = input.contractStatus === "completed" || stateRank >= 4;
+  // No agreement for this kind: accepting the proposal is as far as the
+  // paperwork goes, and payment is next.
+  const contractDone =
+    input.contractStatus === "completed" ||
+    stateRank >= 4 ||
+    (input.profile?.agreement === false && proposalDone);
   const contractInferred = inferred(
     Boolean(input.contractStatus),
     contractDone,
@@ -733,7 +752,9 @@ export function projectJourney(input: JourneyInput): {
           ? "With the client to fill out"
           : input.hasSendableQuestionnaire === false
             ? "No form exists for this job type yet — build one first"
-            : "Prep locations, times, and family names",
+            : words.event === "wedding"
+              ? "Prep locations, times, and family names"
+              : "Locations, times, and anything to know",
     status: formDone
       ? "complete"
       : prepStatus(

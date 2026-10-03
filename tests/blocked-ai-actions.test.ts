@@ -76,7 +76,7 @@ test("a package with no terms written gets the default wording, long enough to s
   assert.equal(proposalTermsFor("  Written terms here.  "), "Written terms here.");
   assert.ok(DEFAULT_PROPOSAL_TERMS.length >= 10 && DEFAULT_PROPOSAL_TERMS.length <= 6000);
   // The composer and the brief both use it.
-  assert.match(readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8"), /setTermsSummary\(proposalTermsForPackages\(jobSnapshotsOf\(/);
+  assert.match(readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8"), /setTermsSummary\(proposalTermsForJob\(jobSnapshotsOf\(/);
   // The brief sets aside what it can't approve rather than failing on it.
   const brief = readFileSync("components/booking/booking-autopilot-workspace.tsx", "utf8");
   assert.match(brief, /blockingIssues\(action, \{ withEdit: true \}\)/);

@@ -807,6 +807,8 @@ const commandSchema = z.discriminatedUnion("type", [
       confirmReplace: z.boolean().optional().default(false),
       /** Keep it in the Library as an ordinary package, hidden from couples. */
       saveToLibrary: z.boolean().optional().default(false),
+      /** How it is paid (job-kinds.ts); absent follows the kind of job. */
+      paymentShape: z.enum(PAYMENT_SHAPES).optional(),
     }),
   }),
   z.object({
@@ -3001,6 +3003,7 @@ export const crmCommand = onRequest(
             addOns: [],
             taxRateBasisPoints,
             terms,
+            paymentShape: command.input.paymentShape ?? null,
             active: true,
             // Never on the couple's portal list; a one-off isn't on any list.
             publicVisible: false,
@@ -3062,6 +3065,9 @@ export const crmCommand = onRequest(
               : {
                   packageSnapshotId,
                   additionalPackageSnapshotIds: [],
+                  // How this job is paid, from the package (job-kinds.ts):
+                  // a corporate job invoiced after the event, say.
+                  paymentShape: command.input.paymentShape ?? null,
                   updatedAt: timestamp,
                   updatedBy: identity.uid,
                 },

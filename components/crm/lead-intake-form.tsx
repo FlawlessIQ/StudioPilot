@@ -583,7 +583,13 @@ export function LeadIntakeForm({
                     hint={day.eventDate === "required" ? "Tap to pick the date." : "Optional — leave it empty if you’re not sure yet."}
                     label={
                       day.eventDate === "required" ? (
-                        <>Event date <span className="required-mark">Required</span></>
+                        chosenType?.kind === "portraits" ? (
+                          <>Session date <span className="required-mark">Required</span></>
+                        ) : (
+                          <>Event date <span className="required-mark">Required</span></>
+                        )
+                      ) : chosenType?.kind === "portraits" ? (
+                        "Session date"
                       ) : (
                         "Event date"
                       )
@@ -726,7 +732,11 @@ export function LeadIntakeForm({
                           shouldDirty: true,
                         });
                       }}
-                      options={REFERRALS.map((label) => ({ value: label, label }))}
+                      // "Our planner" means something at a wedding or an event;
+                      // not for a family session or a sports day.
+                      options={REFERRALS.filter(
+                        (label) => label !== "Our planner" || !["portraits", "sports"].includes(String(chosenType?.kind)),
+                      ).map((label) => ({ value: label, label }))}
                       value={referral}
                     />
                     {referral === "Other" ? (

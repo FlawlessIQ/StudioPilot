@@ -76,7 +76,7 @@ export function PlanningTimelineSettings() {
           <div>
             <p className="eyebrow">Planning</p>
             <h2 id="planning-timeline-title">Planning timeline</h2>
-            <p>When couples get their planning form, and when their final details lock.</p>
+            <p>When couples get their planning form, and when their final details lock. Other kinds of work follow their own timing (Settings → Job types).</p>
           </div>
         </div>
         <div className="crm-form-grid crew-offer-settings-fields">
