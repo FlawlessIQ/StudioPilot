@@ -62,14 +62,19 @@ export function CoiRequestActions({
   }
 
   const copy = (value: string) => void navigator.clipboard?.writeText(value);
+  // Convenience only: approveAndSendCoi and decideCoi refuse anyone else, and
+  // a coordinator was shown buttons that could only fail.
   const ownerOrAdmin = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  // Made in the insurer's portal: no agent to ask (coi/actions.ts
+  // selfServeCorrection reads the same field).
+  const selfServe = !text(request.requestEmail);
 
   // The certificate from the insurer's portal, dropped here. Offered wherever
   // the server takes an upload (coi/actions.ts attachCoiUpload), not only on
   // the self-serve card: a corrected PDF is the usual answer to a correction.
-  const upload = (
+  const uploadButton = (label: string) => (
     <label className="button button-dark coi-upload">
-      <Upload aria-hidden="true" size={15} /> {busy ? "Uploading…" : "Upload the certificate (PDF)"}
+      <Upload aria-hidden="true" size={15} /> {busy ? "Uploading…" : label}
       <input
         accept="application/pdf"
         className="sr-only"
@@ -91,6 +96,7 @@ export function CoiRequestActions({
       />
     </label>
   );
+  const upload = uploadButton("Upload the certificate (PDF)");
   const holder = text(requirement?.certificateHolder) || text(requirement?.venueLegalName);
   const venueAddress = text(requirement?.venueAddress);
   const eventDate = text(requirement?.eventDate);
@@ -141,7 +147,7 @@ export function CoiRequestActions({
         </button>
       </form>
     );
-  } else if (status === "self_serve" || (status === "failed" && text(settings?.source) === "self_serve")) {
+  } else if (status === "self_serve" || (status === "failed" && (selfServe || text(settings?.source) === "self_serve"))) {
     body = (
       <div className="coi-inline-form">
         <p className="coi-status-note">
@@ -176,6 +182,21 @@ export function CoiRequestActions({
           </a>
         ) : null}
         {upload}
+      </div>
+    );
+  } else if ((status === "under_review" || status === "approved") && !ownerOrAdmin) {
+    // The server takes the decision from an owner or admin only. Show the
+    // certificate and say who decides — and, for one the studio made itself,
+    // the corrected upload anyone on the studio may make.
+    body = (
+      <div className="coi-inline-form">
+        <FileLinks files={files} />
+        <p className="coi-status-note">
+          {status === "under_review"
+            ? "Ready for review. Only the studio owner or an admin can approve a certificate and send it to the venue, or send it back."
+            : "Approved. Only the studio owner or an admin can send it to the venue."}
+        </p>
+        {status === "under_review" && selfServe ? uploadButton("Upload a corrected PDF") : null}
       </div>
     );
   } else if (
@@ -229,7 +250,10 @@ export function CoiRequestActions({
               <Send /> Approve &amp; send to venue
             </button>
           </ActionHint>
-          {status === "under_review" ? (
+          {/* Made in the insurer's portal: there is no agent to ask, so the
+              correction is a fixed PDF (decideCoi refuses the send-back). */}
+          {status === "under_review" && selfServe ? uploadButton("Upload a corrected PDF") : null}
+          {status === "under_review" && !selfServe ? (
             <button
               className="button button-danger"
               disabled={busy || reason.trim().length < 5}
@@ -242,6 +266,13 @@ export function CoiRequestActions({
         </footer>
         {status === "correction_required" ? upload : null}
       </div>
+    );
+  } else if (status === "failed" && !ownerOrAdmin) {
+    body = (
+      <p className="coi-status-note">
+        The PDF that came back didn&rsquo;t pass the safety check, so StudioCue won&rsquo;t open or send it. Only the
+        studio owner or an admin can ask your agent to send it again.
+      </p>
     );
   } else if (status === "failed") {
     body = (

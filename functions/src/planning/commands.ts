@@ -1,9 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+  coiAgentRequirement,
   coiSettingsInput,
+  projectVenue,
   readCoiSettings,
   saveCoiSettings,
   venueKey,
+  venueKeyForRequirement,
   venueProfileFrom,
   venueProfileId,
 } from "../coi/automation.js";
@@ -1687,7 +1690,16 @@ export const planningCommand = onRequest(
         result = { shareId, status: "revoked" };
       } else if (parsed.type === "createCoiRequest") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
-        const savedCoiSettings = readCoiSettings(await db.doc(`coiSettings/${parsed.tenantId}`).get());
+        const [savedCoiSettingsDoc, coiProject] = await Promise.all([
+          db.doc(`coiSettings/${parsed.tenantId}`).get(),
+          db.doc(`projects/${parsed.input.projectId}`).get(),
+        ]);
+        if (!coiProject.exists || coiProject.get("tenantId") !== parsed.tenantId) throw new Error("NOT_FOUND");
+        const savedCoiSettings = readCoiSettings(savedCoiSettingsDoc);
+        // The same key the automatic request looks the venue up by: keyed by
+        // the typed legal name, the profile saved when this one is sent was
+        // never found by the next automatic request.
+        const coiVenueKey = venueKey(projectVenue(coiProject)) ?? venueKey({ name: parsed.input.venueLegalName });
         const agentEmail = parsed.input.insuranceAgentEmail ?? savedCoiSettings?.agentEmail ?? null;
         if (!agentEmail) throw new Error("COI_AGENT_EMAIL_REQUIRED");
         const requirementId = stable(
@@ -1722,6 +1734,7 @@ export const planningCommand = onRequest(
           specialInstructions: parsed.input.specialInstructions,
           submissionEmail: parsed.input.submissionEmail,
           dueDate: parsed.input.dueDate,
+          venueKey: coiVenueKey,
           approvedAt: null,
           approvedBy: null,
           createdAt: now,
@@ -1763,22 +1776,25 @@ export const planningCommand = onRequest(
           requestId,
           recipient: agentEmail,
           replyAddress,
-          requirement: {
-            certificateHolder: parsed.input.certificateHolder,
-            venueLegalName: parsed.input.venueLegalName,
-            venueAddress: parsed.input.venueAddress,
-            eventDate: parsed.input.eventDate,
-            coverageTypes: parsed.input.coverageTypes,
-            requiredLimits: parsed.input.requiredLimits,
-            dueDate: parsed.input.dueDate,
-            // Everything the agent needs to issue it without writing back
-            // (walked on prod: the request gave the holder but no address).
-            additionalInsuredWording: parsed.input.additionalInsuredWording,
-            waiverOfSubrogation: parsed.input.waiverOfSubrogation,
-            primaryNoncontributory: parsed.input.primaryNoncontributory,
-            specialInstructions:
-              [parsed.input.specialInstructions, savedCoiSettings?.agentNotes].filter(Boolean).join("\n") || null,
-          },
+          // Everything the agent needs to issue it without writing back
+          // (walked on prod: the request gave the holder but no address),
+          // built as the automatic and prepared requests build it.
+          requirement: coiAgentRequirement(
+            {
+              certificateHolder: parsed.input.certificateHolder,
+              venueLegalName: parsed.input.venueLegalName,
+              venueAddress: parsed.input.venueAddress,
+              eventDate: parsed.input.eventDate,
+              coverageTypes: parsed.input.coverageTypes,
+              requiredLimits: parsed.input.requiredLimits,
+              dueDate: parsed.input.dueDate,
+              additionalInsuredWording: parsed.input.additionalInsuredWording,
+              waiverOfSubrogation: parsed.input.waiverOfSubrogation,
+              primaryNoncontributory: parsed.input.primaryNoncontributory,
+              specialInstructions: parsed.input.specialInstructions,
+            },
+            savedCoiSettings?.agentNotes,
+          ),
           status: "queued",
           attempts: 0,
           createdAt: now,
@@ -1823,6 +1839,10 @@ export const planningCommand = onRequest(
             )
           )
             throw new Error("COI_NOT_REVIEWABLE");
+          // A self-serve certificate has no agent: the correction email had
+          // no recipient. The studio uploads a corrected PDF instead.
+          if (parsed.input.decision === "rejected" && !String(current.get("requestEmail") ?? "").trim())
+            throw new Error("COI_SELF_SERVE_UPLOAD_CORRECTION");
           currentRequest = current.data() ?? null;
           tx.update(reference, {
             status:
@@ -1942,9 +1962,7 @@ export const planningCommand = onRequest(
         // coi+ address, read from the request email.
         const originalRequest = await db.doc(`emailJobs/coi_request_${parsed.input.requestId}`).get();
         const venueReplyAddress = originalRequest.get("replyAddress");
-        const key =
-          (typeof requirement.get("venueKey") === "string" && requirement.get("venueKey")) ||
-          venueKey({ name: requirement.get("venueLegalName") });
+        const key = await venueKeyForRequirement(db, requirement);
         if (key) {
           await db.doc(`venueCoiProfiles/${venueProfileId(parsed.tenantId, String(key))}`).set({
             ...venueProfileFrom(requirement, String(requirement.get("submissionEmail"))),

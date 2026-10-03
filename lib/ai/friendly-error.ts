@@ -613,6 +613,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   COI_NOT_PREPARED: "This request has already gone to your agent. Refresh to see where it is.",
   COI_DETAILS_NOT_NEEDED: "This request already has the venue's details. Refresh to see where it is.",
   COI_NOT_REVIEWABLE: "This certificate has already been decided. Refresh to see where it is.",
+  COI_SELF_SERVE_UPLOAD_CORRECTION:
+    "You make this certificate in your insurer's portal, so there's no agent to send it back to. Upload the corrected PDF instead.",
   NOTHING_DELIVERED_YET: "Nothing has gone to the couple yet, so there's no delivery to complete. Release something first.",
   PROJECT_NOT_IN_POST_PRODUCTION:
     "This job hasn't started post-production yet. Move it on from the job page, then record the gallery.",

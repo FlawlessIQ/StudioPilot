@@ -3,8 +3,9 @@ import { getStorage } from "firebase-admin/storage";
 import { z } from "zod";
 import {
   agentRequestEmail,
+  coiAgentRequirement,
   readCoiSettings,
-  venueKey,
+  venueKeyForRequirement,
   venueProfileFrom,
   venueProfileId,
 } from "./automation.js";
@@ -51,15 +52,8 @@ export async function approvePreparedCoi(
     requestId: input.requestId,
     agentEmail,
     ccEmail: null,
-    requirement: {
-      certificateHolder: requirement.get("certificateHolder"),
-      venueLegalName: requirement.get("venueLegalName"),
-      venueAddress: requirement.get("venueAddress"),
-      eventDate: requirement.get("eventDate"),
-      coverageTypes: requirement.get("coverageTypes"),
-      requiredLimits: requirement.get("requiredLimits"),
-      dueDate: requirement.get("dueDate"),
-    },
+    // The venue's wording and the studio's standing notes, as every path sends.
+    requirement: coiAgentRequirement(requirement.data() ?? {}, settings?.agentNotes),
     now: context.now,
   });
   const batch = db.batch();
@@ -126,6 +120,15 @@ export async function completeCoiDetails(
   return { requestId: input.requestId, status: next };
 }
 
+/**
+ * A self-serve certificate under review has no agent to send it back to: the
+ * studio made it, so the correction is the studio uploading a fixed PDF.
+ * "Ask agent to correct" there queued an email with no recipient.
+ */
+export function selfServeCorrection(status: unknown, requestEmail: unknown): boolean {
+  return status === "under_review" && !text(requestEmail);
+}
+
 export const attachCoiUploadInput = z.object({
   projectId: z.string(),
   requestId: z.string(),
@@ -146,7 +149,10 @@ export async function attachCoiUpload(
 ): Promise<Record<string, unknown>> {
   if (!STUDIO.includes(context.role)) throw new Error("FORBIDDEN");
   const { reference, request } = await loadRequest(db, context, input.projectId, input.requestId);
-  if (!["self_serve", "requested", "correction_required", "failed"].includes(text(request.get("status")))) {
+  if (
+    !["self_serve", "requested", "correction_required", "failed"].includes(text(request.get("status"))) &&
+    !selfServeCorrection(request.get("status"), request.get("requestEmail"))
+  ) {
     throw new Error("COI_REQUEST_NOT_ACCEPTING");
   }
   const folder = `tenants/${context.tenantId}/projects/${input.projectId}/coi/`;
@@ -157,13 +163,16 @@ export async function attachCoiUpload(
   // The safety scan can finish before this call lands, and has then already
   // moved the request on (received, or failed): only a request still waiting
   // is moved here, so a finished scan is never rolled back.
+  const object = `gs://${bucket.name}/${input.storagePath}`;
   const status = await db.runTransaction(async (transaction) => {
     const current = await transaction.get(reference);
-    const waiting = ["self_serve", "requested", "correction_required"].includes(text(current.get("status")));
+    const waiting = ["self_serve", "requested", "correction_required"].includes(text(current.get("status"))) ||
+      // A corrected PDF replacing a self-serve one under review — unless the
+      // scan and review of this very file already finished.
+      (selfServeCorrection(current.get("status"), current.get("requestEmail")) &&
+        text(current.get("temporaryObject")) !== object);
     transaction.update(reference, {
-      ...(waiting
-        ? { status: "received", temporaryObject: `gs://${bucket.name}/${input.storagePath}`, scanStatus: "pending" }
-        : {}),
+      ...(waiting ? { status: "received", temporaryObject: object, scanStatus: "pending" } : {}),
       receivedAt: context.now,
       sourceFilename: input.filename,
       uploadedBy: context.actorId,
@@ -278,7 +287,7 @@ export async function approveAndSendCoi(
     updatedBy: context.actorId,
   });
   // Venue memory: the next wedding here needs no typing.
-  const key = text(requirement.get("venueKey")) || venueKey({ name: requirement.get("venueLegalName") });
+  const key = await venueKeyForRequirement(db, requirement);
   if (key) {
     batch.set(db.doc(`venueCoiProfiles/${venueProfileId(context.tenantId, key)}`), {
       ...venueProfileFrom(requirement, submissionEmail),
@@ -427,7 +436,7 @@ export async function resendCoi(
       updatedBy: context.actorId,
     });
     // Venue memory learns the right address, not the wrong one.
-    const key = text(requirement.get("venueKey")) || venueKey({ name: requirement.get("venueLegalName") });
+    const key = await venueKeyForRequirement(db, requirement);
     if (key) {
       batch.set(
         db.doc(`venueCoiProfiles/${venueProfileId(context.tenantId, key)}`),

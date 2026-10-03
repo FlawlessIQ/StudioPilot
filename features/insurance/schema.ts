@@ -13,8 +13,13 @@ import { auditFieldsSchema } from "@/features/tenants/schema";
  * state — either a request exists for the job or it does not, and the page now
  * says so. Adding a project field the studio must remember to set would have
  * created an "unknown" that stays unknown for ever.
+ *
+ * `prepared`, `needs_details` and `self_serve` are written by the automatic
+ * request (functions/src/coi/automation.ts) and `cancelled` when a job is set
+ * to "not required" (planning/commands.ts) — real states the union lacked.
  */
-export const coiStatusSchema = z.enum(["requested","awaiting_response","received","under_review","correction_required","approved","sent_to_venue","venue_acknowledged","failed"]);
+export const coiStatusSchema = z.enum(["prepared","needs_details","self_serve","requested","awaiting_response","received","under_review","correction_required","approved","sent_to_venue","venue_acknowledged","failed","cancelled"]);
+export type CoiStatus = z.infer<typeof coiStatusSchema>;
 export const insuranceRequirementSchema = auditFieldsSchema.extend({
   id: z.string(), tenantId: z.string(), projectId: z.string(), status: coiStatusSchema,
   certificateHolder: z.string(), venueLegalName: z.string(), venueAddress: z.string(),

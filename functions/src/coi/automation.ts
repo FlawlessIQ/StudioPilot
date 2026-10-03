@@ -163,6 +163,70 @@ export function venueProfileFrom(requirement: DocumentSnapshot, submissionEmail:
   };
 }
 
+/**
+ * The key a requirement's venue is remembered under: the one it was created
+ * with, else the job's venue (as the automatic request keys it), else the
+ * legal name. Manual requests once wrote no key, so the profile saved on
+ * sending was keyed by the typed legal name and the next automatic request —
+ * keyed by the place, or the job's venue name — never found it.
+ */
+export async function venueKeyForRequirement(db: Firestore, requirement: DocumentSnapshot): Promise<string | null> {
+  const stored = text(requirement.get("venueKey"));
+  if (stored) return stored;
+  const projectId = text(requirement.get("projectId"));
+  if (projectId) {
+    const project = await db.doc(`projects/${projectId}`).get();
+    if (project.exists && project.get("tenantId") === requirement.get("tenantId")) {
+      const key = venueKey(projectVenue(project));
+      if (key) return key;
+    }
+  }
+  return venueKey({ name: requirement.get("venueLegalName") });
+}
+
+/**
+ * Every key a venue may have been remembered under, best first: its place,
+ * then its name — a profile saved before requests carried the place's key
+ * (a manual request keyed by name) is still found.
+ */
+export function venueKeyCandidates(venue: { placeId?: unknown; name?: unknown }): string[] {
+  const keys = [venueKey(venue), venueKey({ name: venue.name })];
+  return keys.filter((key, index): key is string => Boolean(key) && keys.indexOf(key) === index);
+}
+
+// ── The agent's email ──────────────────────────────────────────────────
+
+/**
+ * What the agent is asked for, on every path — manual, automatic, prepared.
+ *
+ * The automatic and prepared requests once sent only the holder, address,
+ * cover and dates: the venue's additional-insured wording, waiver and
+ * primary/noncontributory flags stayed on the requirement record, and the
+ * studio's standing notes for its agent never left the settings page. A
+ * certificate issued without the venue's wording comes back wrong.
+ */
+export function coiAgentRequirement(
+  requirement: Record<string, unknown>,
+  studioNotes: string | null | undefined,
+): Record<string, unknown> {
+  const notes = [text(requirement.specialInstructions), text(studioNotes)].filter(Boolean);
+  return {
+    certificateHolder: requirement.certificateHolder ?? null,
+    venueLegalName: requirement.venueLegalName ?? null,
+    venueAddress: requirement.venueAddress ?? null,
+    eventDate: requirement.eventDate ?? null,
+    coverageTypes: requirement.coverageTypes ?? null,
+    requiredLimits: requirement.requiredLimits ?? null,
+    dueDate: requirement.dueDate ?? null,
+    additionalInsuredWording: text(requirement.additionalInsuredWording) || null,
+    waiverOfSubrogation: requirement.waiverOfSubrogation === true,
+    primaryNoncontributory: requirement.primaryNoncontributory === true,
+    // The venue's instructions, then the studio's standing notes — once each:
+    // an older automatic request stored the notes as its instructions.
+    specialInstructions: notes.filter((note, index) => notes.indexOf(note) === index).join("\n") || null,
+  };
+}
+
 // ── The automatic request ───────────────────────────────────────────────
 
 const BOOKED_STATES = ["BOOKED", "PLANNING", "READY"];
@@ -258,11 +322,15 @@ export async function autoRequestForProject(
   const venue = projectVenue(project);
   const key = venueKey(venue);
   const [remembered, venueVendor] = await Promise.all([
-    key ? db.doc(`venueCoiProfiles/${venueProfileId(tenantId, key)}`).get() : Promise.resolve(null),
+    // The venue's own key first, then its name: a profile saved before
+    // requests carried the place's key is still found.
+    Promise.all(
+      venueKeyCandidates(venue).map((candidate) => db.doc(`venueCoiProfiles/${venueProfileId(tenantId, candidate)}`).get()),
+    ).then((found) => found.find((snapshot) => snapshot.exists && snapshot.get("tenantId") === tenantId) ?? null),
     // The coordinator the couple named on their inquiry (intake/convert.ts).
     db.doc(`vendors/vendor_venue_${project.id}`).get(),
   ]);
-  const profile = remembered?.exists ? (remembered.data() as VenueCoiProfile) : null;
+  const profile = remembered ? (remembered.data() as VenueCoiProfile) : null;
   const venueLegalName = profile?.venueLegalName || venue.name;
   const venueAddress = profile?.venueAddress || venue.address;
   const { requestId, requirementId } = coiRequestIds(project.id);
@@ -274,6 +342,14 @@ export async function autoRequestForProject(
     coverageTypes: profile?.coverageTypes?.length ? profile.coverageTypes : ["General liability"],
     requiredLimits: profile?.requiredLimits ?? { generalLiability: 100_000_000 },
     dueDate: due.dueDate,
+    // The venue's wording, from the last certificate sent there.
+    additionalInsuredWording: profile?.additionalInsuredWording ?? null,
+    waiverOfSubrogation: profile?.waiverOfSubrogation ?? false,
+    primaryNoncontributory: profile?.primaryNoncontributory ?? false,
+    // The venue's own instructions. The studio's standing notes join them in
+    // the email as it goes (coiAgentRequirement), so an edit to the notes
+    // made after a request was prepared still reaches the agent.
+    specialInstructions: null,
   };
   const missing = !venueLegalName || venueAddress.length < 5;
   const status = missing
@@ -291,7 +367,7 @@ export async function autoRequestForProject(
           requestId,
           agentEmail: settings.agentEmail!,
           ccEmail: null,
-          requirement,
+          requirement: coiAgentRequirement(requirement, settings.agentNotes),
           now,
         })
       : null;
@@ -302,10 +378,6 @@ export async function autoRequestForProject(
     projectId: project.id,
     status,
     ...requirement,
-    additionalInsuredWording: profile?.additionalInsuredWording ?? null,
-    waiverOfSubrogation: profile?.waiverOfSubrogation ?? false,
-    primaryNoncontributory: profile?.primaryNoncontributory ?? false,
-    specialInstructions: settings.agentNotes,
     submissionEmail:
       profile?.submissionEmail ??
       (venueVendor.exists && venueVendor.get("tenantId") === tenantId ? text(venueVendor.get("email")) || null : null),

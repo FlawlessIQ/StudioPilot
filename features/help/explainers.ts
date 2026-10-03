@@ -489,23 +489,28 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
   {
     id: "coi",
-    title: "Get a venue's insurance certificate",
-    summary: "StudioCue asks your agent for the certificate, chases it, and sends it on once you approve.",
+    // Not "a venue's insurance certificate": it is the studio's own
+    // certificate, naming the venue.
+    title: "Send a venue your insurance certificate",
+    summary: "Your agent issues it, StudioCue asks and chases, and the venue gets it once you approve.",
     audience: "studio",
     stage: "planning",
     routes: ["/studio/insurance"],
     alsoOn: ["/studio/planning"],
     purpose:
-      "Many venues want a certificate of insurance naming them. StudioCue asks your insurance agent, chases it, and sends it on once you've approved it.",
+      "Many venues want a certificate of insurance — proof of your liability cover, naming them — before the day. StudioCue asks your insurance agent for it, chases it, checks it, and sends it on once you've approved it.",
     steps: [
-      "Open the job's **Plan** tab and choose **Venue & insurance**.",
-      "Answer **Does this venue require a certificate?** — **No — not required** settles it.",
-      "Otherwise fill in the **Certificate holder** exactly as the venue's contract writes it, the venue's details and your **Insurance agent email**, then **Create and send request**.",
-      "When the PDF comes back, check it against the venue's requirements.",
-      "Tap **Approve & send to venue**, or **Ask agent to correct**.",
+      "Once, in **Studio settings** → **Insurance**, save your agent's email and choose how far StudioCue goes: **Prepare it**, **Send it** or **Off**.",
+      "Say the venue needs one: the couple answers on your inquiry form, or tap **Yes, it does** under **Venue & insurance** on the job's **Plan** tab.",
+      "60 days before the event, StudioCue asks your agent — or, on **Prepare it**, puts **Send the COI request to your agent** on Today for you.",
+      "Your agent replies with the PDF and it comes straight back to the job. StudioCue checks it against the venue's requirements and flags any differences.",
+      "Read it, then tap **Approve & send to venue** — or **Ask agent to correct**.",
     ],
-    next: "Your agent gets a reply address unique to this request, so the PDF files itself here. StudioCue follows up every 3 days until it arrives. The venue hears nothing until you approve.",
-    goodToKnow: ["StudioCue flags possible problems, but you always decide whether a certificate is right."],
+    next: "StudioCue follows up with your agent every 3 days, up to 4 times, then tells you on Today. Once the venue has the certificate, the readiness checkpoint ticks.",
+    goodToKnow: [
+      "StudioCue flags possible problems, but you always decide whether a certificate is right.",
+      "The venue's wording is remembered: the next wedding there needs no typing.",
+    ],
     terms: ["coi"],
   },
   {

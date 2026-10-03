@@ -23,6 +23,7 @@ import {
   describeDiscrepancy,
   stillDisagrees,
 } from "@/features/insurance/certificate-review";
+import { coiProgress } from "@/features/insurance/progress";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { statusLabel } from "@/features/format/status-label";
 import { AddressField } from "@/components/forms/address-field";
@@ -45,6 +46,8 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const { records: coiSettingsRecords } = useTenantDocuments("coiSettings", { enabled: managerRole });
   const coiSettings = (coiSettingsRecords ?? [])[0];
   const savedAgentEmail = typeof coiSettings?.agentEmail === "string" ? coiSettings.agentEmail : "";
+  const chaseEveryDays = typeof coiSettings?.chaseEveryDays === "number" ? coiSettings.chaseEveryDays : 3;
+  const maxChases = typeof coiSettings?.maxChases === "number" ? coiSettings.maxChases : 4;
   const [requests, setRequests] = useState<RequestRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -455,8 +458,10 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
             <h2>
               {requests.length === 1 ? "This job’s certificate" : "Certificates"}
               <InfoHint label="Chasing your agent">
-                StudioCue follows up with your agent every 3 days, daily in the last week. It stops after 4 follow-ups,
-                or 5 days before the due date.
+                {/* The studio's own numbers (Settings → Insurance). "Daily in
+                    the last week" never happened with the defaults: the last
+                    follow-up goes weeks before then. */}
+                {`StudioCue follows up with your agent every ${chaseEveryDays} day${chaseEveryDays === 1 ? "" : "s"}, up to ${maxChases} time${maxChases === 1 ? "" : "s"}. Then it stops and tells you on Today — or sooner, 5 days before the due date.`}
               </InfoHint>
             </h2>
           </div>
@@ -484,6 +489,9 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
                       : "warning",
                 });
               });
+              // Every status mapped (features/insurance/progress.ts): the
+              // track once stayed empty for a certificate the venue had.
+              const progress = coiProgress(request.status);
               return (
                 <article className="panel" key={request.id}>
                   <header>
@@ -499,42 +507,26 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
                         )}
                       </strong>
                     </span>
-                    <StatusBadge tone={request.status === "approved" ? "success" : "warning"}>
+                    <StatusBadge tone={progress.tone}>
                       {statusLabel(request.status)}
                     </StatusBadge>
                   </header>
                   <div className="coi-status-track" aria-label="COI progress">
-                    {[
-                      ["requested", "Requested"],
-                      ["under_review", "Received"],
-                      ["approved", "Approved"],
-                      ["sent_to_venue", "Delivered"],
-                    ].map(([status, label], index, stages) => {
-                      const currentIndex = stages.findIndex(
-                        ([candidate]) => candidate === request.status,
-                      );
-                      const correction =
-                        request.status === "correction_required";
-                      return (
-                        <span
-                          className={
-                            index <= currentIndex && !correction
-                              ? "is-complete"
-                              : correction && index === 1
-                                ? "needs-action"
-                                : ""
-                          }
-                          key={status}
-                        >
-                          <i />
-                          <small>
-                            {correction && index === 1
-                              ? "Needs correction"
-                              : label}
-                          </small>
-                        </span>
-                      );
-                    })}
+                    {progress.steps.map((step) => (
+                      <span
+                        className={
+                          step.state === "complete"
+                            ? "is-complete"
+                            : step.state === "needs-action"
+                              ? "needs-action"
+                              : ""
+                        }
+                        key={step.key}
+                      >
+                        <i />
+                        <small>{step.label}</small>
+                      </span>
+                    ))}
                   </div>
                   <ul className="coi-discrepancy-list">
                     {discrepancies.map((item, index) => {

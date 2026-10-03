@@ -228,8 +228,11 @@ export function CoiSettings() {
                   type="number"
                   value={value<number>("chaseEveryDays", 3)}
                 />
+                {/* Not "every day in the final week": with the defaults the
+                    last chase goes weeks before then (chaseDecision in
+                    functions/src/planning/coi-chase-scheduler.ts). */}
                 <small>
-                  Every day in the final week before it&rsquo;s due.
+                  Until the certificate is back, or the limit below is reached.
                 </small>
               </label>
               <label>
@@ -243,7 +246,10 @@ export function CoiSettings() {
                   type="number"
                   value={value<number>("maxChases", 4)}
                 />
-                <small>Then StudioCue stops and tells you.</small>
+                <small>
+                  Then StudioCue stops chasing and tells you on Today — as it
+                  does 5 days before the due date, whatever the count.
+                </small>
               </label>
             </>
           ) : null}
