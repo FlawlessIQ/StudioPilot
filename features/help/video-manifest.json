@@ -1,4 +1,37 @@
 {
+  "coi": {
+    "version": 1,
+    "durationSec": 117.1,
+    "orientation": "landscape",
+    "file": "coi.v1.mp4",
+    "poster": "coi.v1.jpg",
+    "captions": "coi.v1.vtt",
+    "chapters": [
+      {
+        "at": 3.7,
+        "title": "Set it up once"
+      },
+      {
+        "at": 24,
+        "title": "The venue needs one"
+      },
+      {
+        "at": 32.4,
+        "title": "Asking your agent"
+      },
+      {
+        "at": 65.4,
+        "title": "Checking it"
+      },
+      {
+        "at": 106.5,
+        "title": "Done"
+      }
+    ],
+    "transcript": "Most venues won't let you shoot without a certificate of insurance naming them. StudioCue gets it for you. First, tell it who sends your certificates. Open Studio settings, then Insurance. Add your agent's email. Then choose how far StudioCue goes: prepare each request for you to approve, or send it as soon as it's time. On the wedding, open Venue and insurance, and say the venue needs a certificate. Couples can tell you this on your inquiry form, too. Eight weeks out, the request is ready on your Today screen, with the venue as certificate holder and the date it's needed by. The first time, it asks for the venue's legal name and address, and remembers them for the next wedding there. Save, and check the request, then send it to your agent. Your agent gets everything the certificate needs, and a reply address of its own, so the PDF comes straight back to this wedding. If they go quiet, StudioCue follows up every few days, and tells you if it gets nowhere. When the certificate comes back, StudioCue reads it and checks it against what the venue asked for. Here, it's caught a problem: the liability limit is half what the venue requires. Say what needs fixing, and ask your agent to correct it. The corrected certificate comes back the same way. Nothing flagged this time, but you still read it yourself: StudioCue never decides a certificate is good enough. Approve it, and it goes to the venue. The venue gets the approved certificate from your studio, with the event date. When they reply to say they have it, that's recorded too. On the wedding, the certificate is ticked off, and it's one less thing to think about before the day.",
+    "recordedAt": "2026-10-03",
+    "recordedCommit": "d38bb7d"
+  },
   "contract-retainer": {
     "version": 1,
     "durationSec": 74.9,

@@ -511,6 +511,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "StudioCue flags possible problems, but you always decide whether a certificate is right.",
       "The venue's wording is remembered: the next wedding there needs no typing.",
     ],
+    video: "coi",
     terms: ["coi"],
   },
   {
