@@ -1216,3 +1216,26 @@
     transition: none;
   }
 }
+
+/* Certificates of insurance (home): three points, then the video link. */
+.mk-coi-points {
+  list-style: none;
+  margin: 22px 0 26px;
+  padding: 0;
+}
+
+.mk-coi-points li {
+  align-items: flex-start;
+  display: flex;
+  font-size: 14px;
+  font-weight: 560;
+  gap: 10px;
+  line-height: 1.45;
+  margin: 12px 0;
+}
+
+.mk-coi-points li svg {
+  color: #50725c;
+  flex: none;
+  margin-top: 2px;
+}

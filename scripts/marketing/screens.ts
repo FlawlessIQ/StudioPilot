@@ -39,8 +39,8 @@ for (const line of readFileSync(path.join(ROOT, ".env.local"), "utf8").split("\n
 type Who = "owner" | "ella.hart@studiohub.test" | "crew";
 type Shot = {
   name: string;
-  /** The chapter whose end state the shot starts from. */
-  after: number;
+  /** The chapter whose end state the shot starts from — or a film's snapshot by name (e.g. "coi"). */
+  after: number | string;
   /** Story beats to move on from there (scripts/how-to/journey/story.ts). */
   beats?: string[];
   as: Who;
@@ -104,6 +104,17 @@ const SHOTS: Shot[] = [
     crop: [":text-is('Venue') >> xpath=ancestor::*[contains(@class,'card') or self::section][1]", ":text('Dancing and send-off')"],
     pad: 28,
     alt: "The event-day brief for Ella & Marcus's wedding: venue, schedule version, accepted crew, readiness, and the run of show.",
+  },
+  {
+    name: "coi-flagged",
+    after: "coi",
+    beats: ["coi-arrives:short"],
+    as: "owner",
+    route: "/studio/insurance?project={job}",
+    actions: [{ waitFor: { text: "General liability limit" } }],
+    crop: ["button:has-text('Ask agent to correct') >> xpath=ancestor::*[self::article or self::li or contains(@class,'card')][1]"],
+    pad: 18,
+    alt: "A certificate of insurance back from the agent for Ella & Marcus's venue, with StudioCue's flag: the liability limit is $500,000 and the venue requires $1,000,000.",
   },
   // ── The couple ──
   { name: "portal-home", after: 5, as: ELLA, phone: true, route: "/client", actions: [{ waitFor: { css: "h1.kit-title" } }], alt: "Ella's wedding portal on her phone: the countdown to the day and what comes next." },
@@ -237,7 +248,7 @@ try {
   }
   for (const group of groups.values()) {
     const { after, beats = [] } = group[0]!;
-    execFileSync(STACK, ["reset", path.join(SNAPSHOTS, `journey-${after}`)], { stdio: "ignore" });
+    execFileSync(STACK, ["reset", path.join(SNAPSHOTS, typeof after === "number" ? `journey-${after}` : after)], { stdio: "ignore" });
     for (const beat of beats) await story(beat);
     for (const shot of group) {
       const context = await browser.newContext({

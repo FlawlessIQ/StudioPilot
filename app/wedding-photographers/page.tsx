@@ -1,3 +1,4 @@
+import { TourLink } from "@/components/help/journey-film";
 import Link from "next/link";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
 import { AnnotatedShot } from "@/components/marketing/screen-shot";
@@ -84,8 +85,9 @@ export default function WeddingPhotographersPage() {
           },
           {
             title: "Ready before the day",
-            text: "Readiness tracks what has to be true before the wedding — contract, deposit, crew accepted, questionnaire complete — and names who owns every open item, so nothing is a surprise on Friday.",
+            text: "Readiness tracks what has to be true before the wedding — contract, deposit, crew accepted, questionnaire complete, the venue's certificate of insurance — and names who owns every open item, so nothing is a surprise on Friday.",
             points: [
+              "The venue's certificate of insurance asked for, checked and sent",
               "Live readiness checklist per wedding",
               "A clear owner for every blocker",
               "Offline event-day brief for the crew",
@@ -94,11 +96,19 @@ export default function WeddingPhotographersPage() {
               layout: "side",
               flip: true,
               node: (
-                <AnnotatedShot
-                  caption="The Harts' brief, the week of: the venue, the crew who accepted, readiness, and the run of show."
-                  crop={{ top: 0.03, bottom: 0.62 }}
-                  screen="wedding-week"
-                />
+                <>
+                  <AnnotatedShot
+                    caption="The Harts' brief, the week of: the venue, the crew who accepted, readiness, and the run of show."
+                    crop={{ top: 0.03, bottom: 0.62 }}
+                    screen="wedding-week"
+                  />
+                  <TourLink
+                    blurb="your agent, the check, the venue, in one place."
+                    title="Certificates of insurance, handled"
+                    tour={{ watch: "Watch: certificates of insurance, handled · {min} min", see: "See how certificates of insurance work" }}
+                    videoId="coi"
+                  />
+                </>
               ),
             },
           },

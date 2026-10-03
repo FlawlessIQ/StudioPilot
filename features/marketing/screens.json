@@ -23,6 +23,12 @@
     "width": 1136,
     "height": 982
   },
+  "coi-flagged": {
+    "alt": "A certificate of insurance back from the agent for Ella & Marcus's venue, with StudioCue's flag: the liability limit is $500,000 and the venue requires $1,000,000.",
+    "phone": false,
+    "width": 575,
+    "height": 471
+  },
   "portal-home": {
     "alt": "Ella's wedding portal on her phone: the countdown to the day and what comes next.",
     "phone": true,

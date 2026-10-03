@@ -20,6 +20,7 @@ import { LoopVideo } from "@/components/marketing/loop-video";
 import { MarketingFooter, MarketingNav } from "@/components/marketing/marketing-layout";
 import { PaymentTrack } from "@/components/marketing/payment-track";
 import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
+import { TourLink } from "@/components/help/journey-film";
 import { StudioProof } from "@/components/marketing/studio-proof";
 import { ThreePeople } from "@/components/marketing/three-people";
 import { helpVideo, helpVideoLength } from "@/features/help/videos";
@@ -220,6 +221,48 @@ export default function MarketingHome() {
               caption="What Ella sees: her next payment, the retainer already paid, and Pay securely in QuickBooks."
               className="mk-paid-phone"
               screen="portal-payment"
+            />
+          </div>
+        </section>
+
+        <section className="mk-section" aria-labelledby="coi-title" id="certificates">
+          <div className="mk-split">
+            <div>
+              <header className="mk-section-head mk-section-head--left">
+                <span className="section-kicker">Certificates of insurance</span>
+                <h2 id="coi-title">The certificate the venue asks for, handled.</h2>
+                <p>
+                  Most venues won&rsquo;t let you shoot without a certificate naming them. StudioCue asks your
+                  agent, chases it, checks what comes back against what the venue requires, and sends it on
+                  once you approve.
+                </p>
+              </header>
+              <ul className="mk-coi-points">
+                <li>
+                  <CalendarCheck2 size={18} /> Asked for 60 days out, chased until it&rsquo;s back
+                </li>
+                <li>
+                  <ShieldCheck size={18} /> Checked against the venue&rsquo;s requirements, problems flagged
+                </li>
+                <li>
+                  <Users size={18} /> You approve it, the venue gets it, and the venue is remembered next time
+                </li>
+              </ul>
+              <TourLink
+                blurb="your agent, the check, the venue, in one place."
+                title="Certificates of insurance, handled"
+                tour={{ watch: "Watch: certificates of insurance, handled · {min} min", see: "See how certificates of insurance work" }}
+                videoId="coi"
+              />
+            </div>
+            {/* A certificate back from the agent for the Harts' venue, caught short. */}
+            <AnnotatedShot
+              pins={[
+                { x: 46, y: 32, label: "Checked for you", text: "$500,000 of cover where the venue requires $1,000,000." },
+                { x: 44, y: 45, label: "Straight from your agent", text: "Their reply comes back to this job by itself." },
+                { x: 49, y: 87, label: "You decide", text: "Send it to the venue, or ask your agent to correct it." },
+              ]}
+              screen="coi-flagged"
             />
           </div>
         </section>
