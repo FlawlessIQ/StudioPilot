@@ -5,8 +5,9 @@ with our name, logo and pages.
 
 ## Where we started
 
-- **Not indexed.** A `site:studio-cue.com` search returned nothing; the
-  site has never been submitted to a search engine.
+- **Barely indexed.** Search Console (property since 2026-08-04, sitemap
+  read 2026-09-26) had 3 pages indexed and 6 "discovered, not indexed";
+  `/about`, `/pricing` and the journey page were unknown to Google.
 - **"studio cue" is taken by audio gear.** Results are recording-studio cue
   systems (Radial Studio-Q, cue mixers). We win that query by being a
   well-defined *entity* named StudioCue, with links and profiles pointing at
@@ -34,12 +35,14 @@ with our name, logo and pages.
 
 ## What needs you (in order of impact)
 
-1. **Google Search Console** — the single biggest step.
-   - Cloudflare dashboard → studio-cue.com → (or search.google.com/search-console → Add property → **Domain** `studio-cue.com` → copy the TXT record → Cloudflare DNS → add TXT).
-   - Then: Sitemaps → submit `https://studio-cue.com/sitemap.xml`.
-   - URL inspection → `https://studio-cue.com/` → **Request indexing**; same for `/about`, `/wedding-photographers`, `/how-to/wedding-journey`.
-2. **Bing Webmaster Tools** — sign in at bing.com/webmasters → **Import from Google Search Console** (one click once step 1 is done). Bing also feeds DuckDuckGo, Yahoo and ChatGPT search.
-3. **Fix `www`** — Cloudflare DNS: add `CNAME www → studio-cue.com` (proxied), then Rules → Redirect Rules → `www.studio-cue.com/*` → `https://studio-cue.com/${1}` (301).
+1. ~~**Google Search Console**~~ — done 2026-10-03: domain property
+   verified, sitemap resubmitted, indexing requested for `/`, `/about`,
+   `/features`, `/pricing`, `/wedding-photographers`,
+   `/how-to/wedding-journey`. Request more (≈10 a day) from URL Inspection.
+2. **Bing Webmaster Tools** — sign in at bing.com/webmasters → **Import from Google Search Console** (one click). Bing also feeds DuckDuckGo, Yahoo and ChatGPT search.
+3. ~~**Fix `www`**~~ — done 2026-10-03: proxied `CNAME www → studio-cue.com`
+   + redirect rule `*://www.studio-cue.com/*` → `https://studio-cue.com/${2}`
+   (301, query kept). Verified with curl.
 4. **`studiocue.com`** — if it isn't yours, try to buy it (Dynadot for-sale lander). Point it at studio-cue.com with a 301. People will type it; today it lands on a stranger's parking page.
 5. **Profiles that say "StudioCue" and link to studio-cue.com** — each one is a vote for the entity. Then send me the URLs and I'll add them to `BRAND_SAME_AS`:
    - **YouTube channel "StudioCue"**: upload the 6-minute film, the COI video and the how-to videos (titles start with "StudioCue — …", description links to studio-cue.com). YouTube results show up for brand searches.
