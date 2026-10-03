@@ -47,6 +47,7 @@ export function MarketingFooter() {
         <Link href="/corporate-photographers">Corporate</Link>
         <Link href="/sports-photographers">Sports</Link>
         <Link href="/how-to">How to use StudioCue</Link>
+        <Link href="/about">About</Link>
         <Link href="/support">Support</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>

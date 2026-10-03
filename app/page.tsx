@@ -18,6 +18,7 @@ import { HomeFaq } from "@/components/marketing/home-faq";
 import { HomeJourney } from "@/components/marketing/home-journey";
 import { LoopVideo } from "@/components/marketing/loop-video";
 import { MarketingFooter, MarketingNav } from "@/components/marketing/marketing-layout";
+import { BrandSchema } from "@/components/seo/brand-schema";
 import { PaymentTrack } from "@/components/marketing/payment-track";
 import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
 import { TourLink } from "@/components/help/journey-film";
@@ -85,6 +86,7 @@ export default function MarketingHome() {
     : "See a wedding, start to finish";
   return (
     <div className="ds-root marketing-page" data-ds-theme="emerald">
+      <BrandSchema />
       <MarketingNav />
 
       <main>

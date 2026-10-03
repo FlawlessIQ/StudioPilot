@@ -11,12 +11,17 @@ export default function robots(): MetadataRoute.Robots {
         "/auth",
         "/client",
         "/crew",
+        // Private token links (a couple's gallery, a vendor's run of show, a
+        // reply approval): never in search, whoever forwards one.
+        "/d/",
         "/i/",
         "/inquiry",
         "/kit",
         "/offline",
         "/platform-admin",
+        "/reply/",
         "/schedule",
+        "/share/",
         "/studio",
       ],
     },

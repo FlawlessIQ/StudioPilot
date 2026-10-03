@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     template: "%s · StudioCue",
   },
   description:
-    "StudioCue coordinates clients, payments, documents, schedules, crew, and event readiness for professional photography teams.",
+    "StudioCue (Studio Cue) runs a photography studio's jobs from inquiry to gallery: proposals, agreements, payments, planning, crew and delivery, prepared for you to approve.",
   applicationName: "StudioCue",
   manifest: "/manifest.webmanifest",
   // Installed to the home screen, StudioCue runs standalone (no browser chrome).

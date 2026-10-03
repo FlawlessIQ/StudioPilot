@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // studio-cue.com is the one address search engines should index. The App
+  // Hosting address (*.hosted.app) serves the same pages; every page already
+  // names studio-cue.com as canonical, and this keeps the duplicate out of the
+  // index outright.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "(?<host>.*\\.hosted\\.app)" }],
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+    ];
+  },
   async redirects() {
     return [
       // A static mock of the product with its old navigation and dead

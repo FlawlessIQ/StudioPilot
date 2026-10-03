@@ -1,4 +1,5 @@
 {
+  "app/about/page.tsx": 9,
   "app/api/client/portal/route.ts": 3,
   "app/auth/email-link/page.tsx": 1,
   "app/corporate-photographers/page.tsx": 1,
@@ -110,6 +111,7 @@
   "components/proposals/proposal-packages-panel.tsx": 4,
   "components/proposals/studio-proposal-workspace.tsx": 20,
   "components/reporting/live-reports.tsx": 5,
+  "components/seo/brand-schema.tsx": 2,
   "components/settings/consultation-availability.tsx": 1,
   "components/settings/first-reply-settings.tsx": 1,
   "components/setup/setup-conversation.tsx": 3,

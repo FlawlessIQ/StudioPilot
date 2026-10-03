@@ -24,6 +24,7 @@ const publicRoutes: Array<{
     changeFrequency: "monthly" as const,
     priority: 0.6,
   })),
+  { path: "/about", changeFrequency: "monthly", priority: 0.6 },
   { path: "/support", changeFrequency: "monthly", priority: 0.5 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },

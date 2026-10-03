@@ -5,7 +5,9 @@ import { Logo } from "@/components/brand/logo";
 
 export const metadata: Metadata = {
   title: "Support",
-  description: "Get help with StudioCue and its connected services.",
+  description:
+    "Get help with StudioCue: step-by-step guides to every screen, how to contact support, and help with QuickBooks, Google Calendar, Zoom and Dropbox.",
+  alternates: { canonical: "/support" },
 };
 
 export default function SupportPage() {
