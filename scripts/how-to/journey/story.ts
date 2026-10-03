@@ -476,6 +476,61 @@ Object.assign(beats, {
     await reviewRequestScheduler.run({} as never);
     await drain();
   },
+  /**
+   * `coi-arrives:short` / `coi-arrives:ok` — the agent's certificate lands on
+   * the Harts' request, read and checked. In production the PDF arrives by
+   * email, is scanned, and a model reads it; the emulator has no inbound
+   * token, scanner or model (docs/wedding-journey-video-plan-2026-10-02.md).
+   * So the sample PDF is put where the inbound handler would put it, already
+   * scanned clean, and the read is written as runAiJob writes it — with the
+   * same comparison against the venue's requirement (ai-pdf.ts). Everything
+   * after this (the review, approval, the venue email) is the real product.
+   */
+  async "coi-arrives"(arg) {
+    const { db, tenantId } = await boot();
+    const { projectId } = await hartsJob();
+    const requests = await db.collection("insuranceRequests").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get();
+    const request = requests.docs.sort((a, b) => String(b.get("createdAt")).localeCompare(String(a.get("createdAt"))))[0];
+    if (!request) throw new Error("The Harts have no certificate request.");
+    const requirement = (await db.doc(`insuranceRequirements/${request.get("requirementId")}`).get()).data() ?? {};
+    const short = arg === "short";
+    const file = short ? "coi-sample-short.pdf" : "coi-sample.pdf";
+    const functionsRequire = createRequire(`${process.cwd()}/functions/package.json`);
+    const bucket = functionsRequire("firebase-admin/storage").getStorage().bucket("studiohub-dev.appspot.com");
+    const objectName = `tenants/${tenantId}/projects/${projectId}/coi/inbound/${request.id}-${short ? "1" : "2"}.pdf`;
+    await bucket.file(objectName).save(readFileSync(path.join(process.cwd(), "scripts", "how-to", "journey", "assets", file)), {
+      contentType: "application/pdf",
+      metadata: { metadata: { scanStatus: "clean", coiRequestId: request.id, tenantId, projectId } },
+    });
+    const generalLiability = short ? 500_000 : 1_000_000;
+    const extraction = {
+      certificateHolder: "Willow Creek Barn LLC",
+      eventDate: String(requirement.eventDate ?? ""),
+      coverageTypes: ["General liability"],
+      limits: { generalLiability, generalAggregate: 2_000_000, damageToPremises: 300_000, medicalExpense: 10_000, personalAdvertisingInjury: generalLiability },
+      additionalInsuredWording: "Willow Creek Barn LLC is included as additional insured with respect to the operations of the named insured.",
+      waiverOfSubrogation: null,
+      primaryNoncontributory: null,
+      confidence: 0.94,
+      missingFields: [],
+    };
+    const required = Number((requirement.requiredLimits ?? {}).generalLiability ?? 0) / 100;
+    const discrepancies = required && generalLiability < required
+      ? [{ field: "requiredLimits.generalLiability", expected: String((requirement.requiredLimits ?? {}).generalLiability), extracted: String(generalLiability), severity: "blocking" }]
+      : [];
+    await request.ref.update({
+      status: "under_review", scanStatus: "clean", temporaryObject: `gs://${bucket.name}/${objectName}`, sourceFilename: file,
+      receivedAt: iso(), extractedData: extraction, aiExtraction: extraction, discrepancies, aiExtractedAt: iso(), humanDecision: "pending",
+      updatedAt: iso(), updatedBy: "vertex-ai-worker",
+    });
+  },
+  /** The venue replies to say they have it — what their reply to the certificate email records. */
+  async "coi-acknowledged"() {
+    const { db, tenantId } = await boot();
+    const { projectId } = await hartsJob();
+    const requests = await db.collection("insuranceRequests").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get();
+    for (const doc of requests.docs) if (doc.get("status") === "sent_to_venue") await doc.ref.update({ status: "venue_acknowledged", venueAcknowledgedAt: iso(), updatedAt: iso() });
+  },
   /** Jordan's W-9 arrives, as the crew paperwork request would bring it. */
   async "crew-paperwork"() {
     const { db, tenantId } = await boot();

@@ -72,7 +72,7 @@ function chromeHtml(mark: JourneyMark): string {
     const title = mark.caption?.title ?? `What ${phoneName.toLowerCase()} sees`;
     body =
       bezel(PHONE_SOLO) +
-      `<div class="caption"><div class="eyebrow">${esc(phoneName)}</div><h2>${esc(title)}</h2>${
+      `<div class="caption"><div class="eyebrow">${esc(mark.caption?.eyebrow ?? phoneName)}</div><h2>${esc(title)}</h2>${
         mark.caption?.detail ? `<p>${esc(mark.caption.detail)}</p>` : ""
       }</div>`;
   }

@@ -61,11 +61,13 @@ for (const id of ids) {
   mkdirSync(outDir, { recursive: true });
 
   const journey = Boolean(script.cast);
+  // A feature film made from the journey (e.g. the COI video) starts from a named chapter's snapshot.
+  const startFrom = journey ? (script.from ? path.join(JOURNEY_SNAPSHOTS, script.from) : chapterBefore(id)) : undefined;
   const storyModule = journey ? await import("./journey/story") : null;
   const story = storyModule ? { story: storyModule.story, resolvePath: storyModule.resolvePath, respond: storyModule.respond } : null;
 
   if (check) {
-    reset(journey ? chapterBefore(id) : undefined);
+    reset(startFrom);
     if (journey) {
       await recordJourney(script, () => 0, outDir, { dryRun: true, ...story! });
       saveChapter(id);
@@ -86,7 +88,7 @@ for (const id of ids) {
     return line ? line.durationSec + pause : 0;
   };
 
-  reset(journey ? chapterBefore(id) : undefined);
+  reset(startFrom);
   console.log(`Recording ${id}…`);
   let result: { durationSec: number; file: string };
   if (journey) {

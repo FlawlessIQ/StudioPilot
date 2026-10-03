@@ -90,7 +90,7 @@ export type Step = {
   /** Journey films: how the step is framed (default: studio for the studio, phone otherwise). */
   layout?: Layout;
   /** Journey films: the phone's caption — "What Ella sees" — and a line under it. */
-  caption?: { title: string; detail?: string };
+  caption?: { title: string; detail?: string; eyebrow?: string };
   /**
    * Journey films: where the timeline bar's marker sits from this step on.
    * `at` is a position from 0 (inquiry) to 1 (closed); `label` is what it says.
@@ -112,6 +112,8 @@ export type HowToScript = {
    * in — a couple on the studio's website before they have an account.
    */
   cast?: Partial<Record<Persona, `${string}@studiohub.test` | "owner" | "client" | "crew" | "guest">>;
+  /** A journey film that isn't a chapter: the journey snapshot it starts from (e.g. "journey-6"). */
+  from?: string;
   /** A journey film: story beats run before the first frame (scripts/how-to/journey/story.ts). */
   before?: string[];
   steps: Step[];
