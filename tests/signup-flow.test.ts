@@ -23,7 +23,7 @@ test("a new studio owner stays signed in, and verifying carries on to setting up
 test("onboarding answers who is here before anything is typed", () => {
   const form = read("features/auth/onboarding-form.tsx");
   assert.match(form, /\/auth\/login\?next=\$\{encodeURIComponent\("\/auth\/onboarding"\)\}/);
-  assert.match(form, /if \(active && !user\.emailVerified\) setPhase\("needs_verification"\)/);
+  assert.match(form, /if \(active && !user\.emailVerified\) \{\s*setPhase\("needs_verification"\);/);
   assert.match(form, /One last step: start your trial/);
 });
 

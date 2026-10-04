@@ -6,6 +6,14 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { invalidateMembershipCache } from "@/lib/firebase/membership-cache";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { pendingInvitations, type PendingInvitation } from "@/lib/auth/pending-invitations";
+
+/** What each kind of invitation lets the person do, in a sentence. */
+const INVITED_TO: Record<PendingInvitation["kind"], string> = {
+  client: "to their client portal",
+  crew: "to join their crew",
+  team: "to join their team",
+};
 
 // P-note (timezone parity): the same list the Studio-settings identity form
 // offers, so an owner picks the same zone at signup as they'd see in settings.
@@ -44,9 +52,14 @@ export function OnboardingForm() {
   const [busy, setBusy] = useState(false);
   // P4/P7: distinct states so the wall can offer a resend, and success stops
   // the form from staying interactive (double-submit) while the redirect lands.
-  const [phase, setPhase] = useState<"form" | "needs_verification" | "done">(
+  const [phase, setPhase] = useState<"form" | "needs_verification" | "invited" | "done">(
     "form",
   );
+  // Studios that have invited this email. Someone a studio invited, signing in
+  // without the invitation link, used to land here and create a studio of
+  // their own; they are asked first now.
+  const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
+  const [invitedEmail, setInvitedEmail] = useState("");
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">(
     "idle",
   );
@@ -72,7 +85,16 @@ export function OnboardingForm() {
         return;
       }
       await user.reload().catch(() => undefined);
-      if (active && !user.emailVerified) setPhase("needs_verification");
+      if (active && !user.emailVerified) {
+        setPhase("needs_verification");
+        return;
+      }
+      const waiting = await pendingInvitations(auth);
+      if (active && waiting.length) {
+        setInvitations(waiting);
+        setInvitedEmail(user.email ?? "");
+        setPhase("invited");
+      }
     });
     return () => {
       active = false;
@@ -90,7 +112,12 @@ export function OnboardingForm() {
       void user.reload().then(async () => {
         if (!user.emailVerified) return;
         await user.getIdToken(true).catch(() => undefined);
-        setPhase("form");
+        const waiting = await pendingInvitations(auth);
+        if (waiting.length) {
+          setInvitations(waiting);
+          setInvitedEmail(user.email ?? "");
+          setPhase("invited");
+        } else setPhase("form");
       });
     }, 4000);
     return () => window.clearInterval(timer);
@@ -229,6 +256,33 @@ export function OnboardingForm() {
         {/* It opened a plan picker, not a workspace: say what's next. */}
         <h2>{checkoutNext ? "One last step: start your trial" : "Your studio is ready"}</h2>
         <p>{checkoutNext ? "Opening the plan picker…" : "Opening your workspace…"}</p>
+      </div>
+    );
+  }
+
+  if (phase === "invited") {
+    const [first, ...others] = invitations;
+    return (
+      <div className="command-success">
+        <h2>
+          {first.studioName} invited you {INVITED_TO[first.kind]}
+        </h2>
+        <p>
+          To join them, open the invitation link in the email sent to{" "}
+          <strong>{invitedEmail || "your inbox"}</strong>. It connects this
+          account to {first.studioName}, and you won&rsquo;t need to set
+          anything up.
+        </p>
+        {others.length ? (
+          <p>
+            Also waiting:{" "}
+            {others.map((item) => `${item.studioName} (${INVITED_TO[item.kind].replace(/^to /, "")})`).join(", ")}.
+          </p>
+        ) : null}
+        <p>Can&rsquo;t find the email? Ask {first.studioName} to send the invitation again.</p>
+        <button className="button button-light" type="button" onClick={() => setPhase("form")}>
+          I&rsquo;m a photographer — set up my own studio
+        </button>
       </div>
     );
   }

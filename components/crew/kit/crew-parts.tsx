@@ -184,6 +184,9 @@ export function StudioMessage({
       query(
         collection(getFirebaseClient().firestore, "crewMessages"),
         where("tenantId", "==", workspace.tenantId),
+        // The rules need the job to check the assignment (firestore.rules,
+        // crewMessages); without it Firestore refused the query outright.
+        where("projectId", "==", String(assignment.projectId ?? "")),
         where("userId", "==", workspace.userId),
         where("assignmentId", "==", assignment.id),
         limit(50),
@@ -201,7 +204,7 @@ export function StudioMessage({
     return () => {
       active = false;
     };
-  }, [assignment.id, open, version, workspace.tenantId, workspace.userId]);
+  }, [assignment.id, assignment.projectId, open, version, workspace.tenantId, workspace.userId]);
 
   async function send() {
     setBusy(true);

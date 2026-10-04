@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { accessAllowsViewing, subscriptionAccess } from "@/features/subscriptions/access";
 import { adminAppCheck, adminAuth, adminFirestore } from "@/server/firebase/admin";
 
 export const runtime = "nodejs";
@@ -60,25 +61,33 @@ export async function POST(request: Request): Promise<Response> {
     );
     if (!membership) return Response.json({ error: "WORKSPACE_ACCESS_DENIED" }, { status: 403 });
 
-    const documents = input.collection === "tenants"
-      ? await adminFirestore.getAll(adminFirestore.doc(`tenants/${input.tenantId}`))
-      : await adminFirestore.collection(input.collection)
-          .where("tenantId", "==", input.tenantId).limit(250).get()
-          .then((result) => result.docs);
+    // A studio whose subscription has closed has no workspace to read from;
+    // read-only (past due, recently cancelled) still reads, and exports.
+    const subscription = await adminFirestore.doc(`subscriptions/${input.tenantId}`).get();
+    if (subscription.exists && !accessAllowsViewing(subscriptionAccess(subscription.data()))) {
+      return Response.json({ error: "ACTIVE_SUBSCRIPTION_REQUIRED" }, { status: 403 });
+    }
+
+    // Filtered in the query, not after it. This took the first 250 of the
+    // studio's records in no particular order and only then kept the job's
+    // own, so on a studio past 250 records a job's contracts, invoices or
+    // messages could simply not be there.
+    const tenantRecords = adminFirestore.collection(input.collection).where("tenantId", "==", input.tenantId);
+    const documents =
+      input.collection === "tenants"
+        ? await adminFirestore.getAll(adminFirestore.doc(`tenants/${input.tenantId}`))
+        : input.projectId && input.projectScoped && input.collection === "projects"
+          ? (await adminFirestore.getAll(adminFirestore.doc(`projects/${input.projectId}`))).filter(
+              (document) => document.get("tenantId") === input.tenantId,
+            )
+          : input.projectId && input.projectScoped
+            ? (await tenantRecords.where("projectId", "==", input.projectId).limit(250).get()).docs
+            : input.projectId && input.vendorScoped
+              ? (await tenantRecords.where("projectIds", "array-contains", input.projectId).limit(250).get()).docs
+              : (await tenantRecords.limit(250).get()).docs;
     const records: StudioRecord[] = documents
       .filter((document) => document.exists)
       .map<StudioRecord>((document) => ({ id: document.id, ...document.data() }))
-      .filter((record) => {
-      if (input.projectId && input.projectScoped) {
-        return input.collection === "projects"
-          ? record.id === input.projectId
-          : record.projectId === input.projectId;
-      }
-      if (input.projectId && input.vendorScoped) {
-        return Array.isArray(record.projectIds) && record.projectIds.includes(input.projectId);
-      }
-        return true;
-      })
       .slice(0, 100);
     const projectIds = Array.from(new Set(records.map((record) => record.projectId).filter((value): value is string => typeof value === "string")));
     const projects = await Promise.all(projectIds.map((projectId) => adminFirestore.doc(`projects/${projectId}`).get()));

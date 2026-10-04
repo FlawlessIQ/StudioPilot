@@ -49,6 +49,7 @@ const APP_API = join(process.cwd(), "app", "api");
  * for the same reason the Cloud Function webhooks are.
  */
 const USER_FACING_API_ROUTES = [
+  "auth/pending-invitations/route.ts",
   "client/portal/route.ts",
   // A browser lands here after granting access; its refusals are read by a
   // studio owner mid-setup, not by a provider.

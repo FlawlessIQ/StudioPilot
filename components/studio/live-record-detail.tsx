@@ -313,6 +313,10 @@ function CrewStudioOperations({
     void getDocs(query(
       collection(getFirebaseClient().firestore, "crewMessages"),
       where("tenantId", "==", String(assignment.tenantId)),
+      // The rules let a coordinator read a crew thread only on a job they are
+      // assigned to, which Firestore can check only when the query names the
+      // job. Without it the whole query was refused and the thread read empty.
+      where("projectId", "==", String(assignment.projectId ?? "")),
       where("assignmentId", "==", assignment.id),
       limit(50),
     )).then((snapshot) => {
@@ -322,7 +326,7 @@ function CrewStudioOperations({
       if (active) setMessages([]);
     });
     return () => { active = false; };
-  }, [assignment.id, assignment.tenantId, messageVersion]);
+  }, [assignment.id, assignment.projectId, assignment.tenantId, messageVersion]);
   const command = async (type: string, input: Record<string, unknown>) => {
     if (busy) return false;
     setBusy(type);
