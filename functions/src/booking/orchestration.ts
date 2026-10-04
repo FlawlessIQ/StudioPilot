@@ -21,6 +21,7 @@ import {
 } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
+import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
 
 function stableId(scope: string, ...parts: string[]) {
   return `${scope}_${createHash("sha256")
@@ -414,9 +415,12 @@ export const bookingContractCompleted = onDocumentWritten(
     }
     const packageSnapshotId = String(project.get("packageSnapshotId") ?? "");
     if (!packageSnapshotId) throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
-    const packageSnapshot = await db.doc(`packageSnapshots/${packageSnapshotId}`).get();
-    if (!packageSnapshot.exists || packageSnapshot.get("tenantId") !== tenantId)
+    // Every package on the job, for the retainer fallback when no proposal
+    // was accepted (packages/combined-snapshot.ts).
+    const jobSnapshots = await readJobSnapshots(db, project.data(), tenantId);
+    if (!jobSnapshots.length || jobSnapshots[0]!.id !== packageSnapshotId)
       throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
+    const packageSnapshot = combinedSnapshot(jobSnapshots);
     const provider = await resolveProviderForTenant(db, tenantId, "invoicing", "quickbooks");
     const now = new Date().toISOString();
     const invoiceId = stableId("invoice_auto", tenantId, projectId, contract.id);
@@ -1006,10 +1010,10 @@ async function bookWithoutAgreement(
       .get();
     if (!existing.docs.some((document) => isStandingInvoice(document.get("status")))) {
       const packageSnapshotId = String(project.get("packageSnapshotId") ?? "");
-      const packageSnapshot = packageSnapshotId
-        ? await db.doc(`packageSnapshots/${packageSnapshotId}`).get()
-        : null;
-      if (!packageSnapshot?.exists || packageSnapshot.get("tenantId") !== tenantId) {
+      const jobSnapshots = packageSnapshotId ? await readJobSnapshots(db, project.data(), tenantId) : [];
+      const packageSnapshot =
+        jobSnapshots.length && jobSnapshots[0]!.id === packageSnapshotId ? combinedSnapshot(jobSnapshots) : null;
+      if (!packageSnapshot) {
         logger.error("bookWithoutAgreementNoPackage", { tenantId, projectId });
         return;
       }

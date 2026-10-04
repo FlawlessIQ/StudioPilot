@@ -12,6 +12,7 @@ import {
 import { isStandingInvoice } from "./invoice-standing.js";
 import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
 import { voidInvoiceTask } from "./stopped-billing.js";
+import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
 
 /**
  * Taking back a bill, and correcting a payment — the server half.
@@ -372,7 +373,11 @@ export async function approveFinalInvoiceIn(
         .where("status", "==", "accepted")
         .limit(5),
     ),
-    snapshotId ? transaction.get(db.doc(`packageSnapshots/${snapshotId}`)) : Promise.resolve(null),
+    snapshotId
+      ? readJobSnapshots(db, project.data(), context.tenantId, (reference) => transaction.get(reference)).then(
+          (snapshots) => (snapshots.length ? combinedSnapshot(snapshots) : null),
+        )
+      : Promise.resolve(null),
   ]);
   const others = invoices.docs.filter(
     (candidate) => candidate.id !== invoice.id && isStandingInvoice(candidate.get("status")),

@@ -2,6 +2,7 @@ import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/fi
 import { retainerFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
+import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
 
 /**
  * Raising the final-balance invoice.
@@ -63,8 +64,11 @@ export async function raiseFinalInvoice(
   if ((await transaction.get(invoiceReference)).exists) return { raised: false, reason: "exists" };
   const snapshotId = String(project.get("packageSnapshotId") ?? "");
   if (!snapshotId) return { raised: false, reason: "no_package" };
-  const packageSnapshot = await transaction.get(db.doc(`packageSnapshots/${snapshotId}`));
-  if (!packageSnapshot.exists) return { raised: false, reason: "no_package" };
+  // Every package on the job, for the fallback below when no proposal was
+  // accepted (packages/combined-snapshot.ts) — the primary alone forgave the rest.
+  const jobSnapshots = await readJobSnapshots(db, project.data(), tenantId, (reference) => transaction.get(reference));
+  if (!jobSnapshots.length) return { raised: false, reason: "no_package" };
+  const packageSnapshot = combinedSnapshot(jobSnapshots);
   const invoices = (
     await transaction.get(
       db

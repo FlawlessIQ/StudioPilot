@@ -20,6 +20,7 @@ import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { finalBalanceFromSchedule } from "@/features/booking/agreed-final-balance";
+import { currentJobSnapshots } from "@/features/packages/job-packages";
 import { formatCents } from "@/lib/format/money";
 import {
   closeoutPendingNote,
@@ -124,9 +125,11 @@ export function DeliveryCloseoutWorkspace({
   const acceptedProposal = (proposals ?? []).find(
     (item) => item.projectId === projectId && item.status === "accepted",
   );
-  const snapshotTotalCents = Number(
-    (packageSnapshots ?? []).find((item) => item.id === packageSnapshotId)
-      ?.totalCents ?? 0,
+  // Every package on the job, as the server reads it when no proposal was
+  // accepted (functions/src/packages/combined-snapshot.ts).
+  const snapshotTotalCents = currentJobSnapshots(packageSnapshots ?? [], project).reduce(
+    (sum, item) => sum + (Number.isFinite(Number(item.totalCents)) ? Number(item.totalCents) : 0),
+    0,
   );
   const finalBalanceCents = finalBalanceFromSchedule(
     acceptedProposal?.paymentSchedule,

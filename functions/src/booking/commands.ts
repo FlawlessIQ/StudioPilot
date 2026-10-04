@@ -110,6 +110,7 @@ import {
   briefJobId,
   briefRunOf,
 } from "./brief-rerun.js";
+import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
 
 const commandSchema = z.discriminatedUnion("type", [
   // StudioCue's own contracts — see ../contracts/commands.ts.
@@ -2363,8 +2364,13 @@ export const bookingCommand = onRequest(
             .where("status", "==", "accepted")
             .limit(1)
             .get();
+          // Every package on the job when no proposal was accepted
+          // (packages/combined-snapshot.ts), not the primary alone.
+          const jobTotal = combinedSnapshot(
+            await readJobSnapshots(firestore, project.data(), command.tenantId),
+          ).get("totalCents");
           const fallback = balanceFromTotals(
-            Number(packageSnapshot.get("totalCents") ?? 0),
+            Number(jobTotal ?? packageSnapshot.get("totalCents") ?? 0),
             retainerPaidCents,
           );
           const amountCents = accepted.empty
