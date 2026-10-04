@@ -20,6 +20,7 @@ the text the site renders (`scripts/legal/export-counsel-package.ts`).
 | `esign-consent.md` | Electronic signature consent (signer-facing) | esign-consent-v2 | — |
 | `agreement-text.md` | Wording StudioCue writes into studios' contracts | — | — |
 | `notices.md` | Signup consent, inquiry notice, email footer | — | — |
+| `corporate-agreement-draft.md` | Corporate event starter agreement (draft, not offered yet) | draft | — |
 
 ## Decisions already made (please confirm or change)
 
@@ -41,6 +42,7 @@ the text the site renders (`scripts/legal/export-counsel-package.ts`).
 6. The nine e-signature questions in `docs/esign-consent-review.md`.
 7. The starter agreement leaves cancellation, copyright and liability for each studio to write. Should StudioCue offer suggested clauses, and with what disclaimer?
 8. DMCA agent registered (DMCA-1081859); anything else needed for the safe harbor?
+9. The corporate starter agreement (`corporate-agreement-draft.md`) and the five questions at its end.
 
 ## How changes ship
 
