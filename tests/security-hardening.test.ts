@@ -70,3 +70,8 @@ test("the Dropbox Sign callback is gone everywhere it was wired", () => {
   const offered = integrations.slice(integrations.indexOf("export const offeredProviders"), integrations.indexOf("]);", integrations.indexOf("export const offeredProviders")));
   assert.doesNotMatch(offered, /dropbox_sign/);
 });
+
+test("the relay skips minting a Google token only for a local emulator in emulator mode", () => {
+  const relay = read("app/api/functions/[functionName]/route.ts");
+  assert.match(relay, /process\.env\.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&\s*\["127\.0\.0\.1", "localhost"\]\.includes\(new URL\(target\)\.hostname\)/);
+});

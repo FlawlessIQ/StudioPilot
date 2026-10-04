@@ -24,7 +24,7 @@ Legend: **Owner** = Conor / Counsel / Code (Claude can do it) / Gabe.
 | 4 | **Make failures visible.** The onboarding, Stripe, booking, proposal and contract commands catch every error and return 400 without logging. A real crash looks like a user mistake, and the "5xx" alert can never fire for them. The browser `NEXT_PUBLIC_SENTRY_DSN` isn't set. There's no `app/error.tsx`, `global-error.tsx` or `not-found.tsx`, so a bad URL shows the default Next 404. | Code | On day one you'd hear about a broken signup from a lost customer, not an alert. |
 | 5 | **Do one real signup with a real card on prod,** then cancel and refund. Check: Stripe is in **live** mode, the 14-day trial starts, $0 is charged, the receipt arrives, the Customer Portal opens, cancel works, and the refund goes through. Only one tenant ("Walk Studio") has a real Stripe subscription today. GR and FlawlessIQ have none. | Conor | It's the one flow that takes money, and no doc records it working end to end. |
 | 6 | **Stripe dashboard settings (10 min):** (a) failed-payment retries end in **cancel**, not "mark unpaid". The code turns `unpaid` into a fresh 14-day trial. (b) Customer emails are on for trial-ending reminders, failed payments and the card-update link. StudioCue sends none of these. (c) The portal allows switching plan. | Conor | These cover the parts of the subscription lifecycle the code doesn't. |
-| 7 | **Account hygiene:** rotate every secret that was ever pasted into chat (`manual-launch-checklist.md` §1, never ticked). Turn on MFA for Google Cloud/Firebase, GitHub, Stripe, SendGrid, Intuit, Zoom and Dropbox. | Conor | Public launch makes StudioCue a target. |
+| 7 | **Account hygiene:** rotate every secret that was ever pasted into chat — step by step in `docs/runbooks/rotate-secrets.md`. Turn on MFA for Google Cloud/Firebase, GitHub, Stripe, SendGrid, Intuit, Zoom and Dropbox. | Conor | Public launch makes StudioCue a target. |
 
 ---
 
@@ -32,13 +32,13 @@ Legend: **Owner** = Conor / Counsel / Code (Claude can do it) / Gabe.
 
 All Code, from the product audit. None of these ever runs before a trial ends or a card fails.
 
-- [ ] **A lapsed or suspended studio keeps emailing and charging its couples.** No scheduler and no `sendEmail` checks subscription status. Reminders, final invoices and autopay charges carry on while the studio is locked out (`operations/jobs.ts`, `billing/autopay.ts:375`, `operations/invoice-scheduler.ts:76`).
-- [ ] **`past_due` locks the whole workspace at once,** while Stripe keeps retrying for weeks. Add a grace banner or read-only access (`features/subscriptions/entitlements.ts:74`).
-- [ ] **`unpaid` / `incomplete_expired` are treated as "incomplete".** That gives a second free trial and a second subscription (`functions/src/saas/stripe.ts:128-145`).
-- [ ] **The Stripe webhook doesn't check event order.** A late `subscription.updated` can resurrect a cancelled studio (`stripe.ts:470`).
-- [ ] **Staff never see the billing gate.** `subscriptions` is readable by the owner only, so staff of a lapsed studio get a workspace where every action fails (`features/auth/workspace-context.tsx:322`).
-- [ ] **A couple or crew member who signs in before accepting their invite** is routed to "Create your workspace", then to a card checkout (`features/auth/workspace-routing.ts`).
-- [ ] **Crew message threads are probably empty for crew.** The `crewMessages` query has no `projectId`, so the rules reject it silently (`components/crew/kit/crew-parts.tsx:183`). Check on prod as a crew member.
+- [x] *(shipped 2026-10-04, b853de7 + 1440d561; proven on prod: held, released on reactivation)* **A lapsed or suspended studio keeps emailing and charging its couples.** No scheduler and no `sendEmail` checks subscription status. Reminders, final invoices and autopay charges carry on while the studio is locked out (`operations/jobs.ts`, `billing/autopay.ts:375`, `operations/invoice-scheduler.ts:76`).
+- [x] *(1b08283: 7-day grace with a banner, then read-only)* **`past_due` locks the whole workspace at once,** while Stripe keeps retrying for weeks. Add a grace banner or read-only access (`features/subscriptions/entitlements.ts:74`).
+- [x] *(1b08283)* **`unpaid` / `incomplete_expired` are treated as "incomplete".** That gives a second free trial and a second subscription (`functions/src/saas/stripe.ts:128-145`).
+- [x] *(1b08283: ordered, cancelled-is-final, one transaction)* **The Stripe webhook doesn't check event order.** A late `subscription.updated` can resurrect a cancelled studio (`stripe.ts:470`).
+- [x] *(1b08283; seen as staff in the emulator)* **Staff never see the billing gate.** `subscriptions` is readable by the owner only, so staff of a lapsed studio get a workspace where every action fails (`features/auth/workspace-context.tsx:322`).
+- [x] *(6689728 + 58d9f36: asked before setup)* **A couple or crew member who signs in before accepting their invite** is routed to "Create your workspace", then to a card checkout (`features/auth/workspace-routing.ts`).
+- [x] *(6689728; rules test proves the query now passes)* **Crew message threads are probably empty for crew.** The `crewMessages` query has no `projectId`, so the rules reject it silently (`components/crew/kit/crew-parts.tsx:183`). Check on prod as a crew member.
 
 ---
 

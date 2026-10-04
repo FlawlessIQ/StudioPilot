@@ -137,6 +137,13 @@ await run("M2-1", I, a, async () => {
   await a.getByLabel(/Last name/).fill("Lane");
   await a.getByLabel(/^Email/).fill("uat-inquiry@studiohub.test");
   await a.getByLabel(/^Phone/).fill("6175550188");
+  // The studio's own inquiry types (features/leads/inquiry-form-config.ts):
+  // a studio with more than one asks which, and Continue refuses until it's chosen.
+  const wedding = a.getByRole("button", { name: "Wedding", exact: true });
+  if (await wedding.count()) {
+    await wedding.click();
+    expect((await wedding.getAttribute("aria-pressed")) === "true", "the chosen inquiry type isn't shown as chosen");
+  }
   expect((await a.getByLabel(/^Email/).getAttribute("type")) === "email", "email field has no email keyboard");
   expect((await a.getByLabel(/^Phone/).getAttribute("type")) === "tel", "phone field has no phone keyboard");
   await fits(a, "Inquiry step 1");
@@ -562,7 +569,8 @@ await run("M6-6", A, c, async () => {
   await w9.locator("input[capture='environment']").setInputFiles(`${REPO}/public/og.png`);
   await w9.getByText(/W-9 sent/).waitFor({ timeout: 30000 });
   await checklist.getByRole("button", { name: "I'll bring it" }).click();
-  await checklist.getByText("Done").waitFor({ timeout: 20000 });
+  // The item just marked, not any "Done" on the list (the W-9 can read done too).
+  await checklist.getByText("Done", { exact: true }).first().waitFor({ timeout: 20000 });
   const d: any = await waitFor(() => docData("crewAssignments/uat-offer-a"), (x: any) => x?.requirements?.find((r: any) => r.id === "equipment")?.status === "complete", "equipment complete");
   const w9Status = d.requirements.find((r: any) => r.id === "w9")?.status;
   return `Photo uploaded through the camera input (W-9 now "${w9Status}"); equipment complete.`;

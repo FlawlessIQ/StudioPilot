@@ -95,9 +95,16 @@ async function proxy(
       : runHostSuffix
         ? `https://${deployedName.toLowerCase()}-${runHostSuffix}`
         : `${origin.replace(/\/$/, "")}/${deployedName}`;
-  const identityClient = await googleAuth.getIdTokenClient(target);
-  const identityHeaders = await identityClient.getRequestHeaders(target);
-  const serviceAuthorization = identityHeaders.get("authorization");
+  // The emulator checks no invoker identity, so locally there is nothing to
+  // mint — and minting needed the developer's Google credentials, which made
+  // every relayed call fail the day they expired (local UAT, 2026-10-04).
+  // Both must hold: emulator mode, and a target on this machine.
+  const localEmulator =
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true" &&
+    ["127.0.0.1", "localhost"].includes(new URL(target).hostname);
+  const serviceAuthorization = localEmulator
+    ? "Bearer emulator"
+    : (await (await googleAuth.getIdTokenClient(target)).getRequestHeaders(target)).get("authorization");
   if (!serviceAuthorization) {
     return Response.json(
       { error: "SERVICE_IDENTITY_UNAVAILABLE" },
