@@ -39,7 +39,9 @@ with our name, logo and pages.
    verified, sitemap resubmitted, indexing requested for `/`, `/about`,
    `/features`, `/pricing`, `/wedding-photographers`,
    `/how-to/wedding-journey`. Request more (≈10 a day) from URL Inspection.
-2. **Bing Webmaster Tools** — sign in at bing.com/webmasters → **Import from Google Search Console** (one click). Bing also feeds DuckDuckGo, Yahoo and ChatGPT search.
+2. ~~**Bing Webmaster Tools**~~ — done 2026-10-04: studio-cue.com imported
+   from Search Console (only that site), sitemap submitted. IndexNow already
+   pushed every URL on 2026-10-03.
 3. ~~**Fix `www`**~~ — done 2026-10-03: proxied `CNAME www → studio-cue.com`
    + redirect rule `*://www.studio-cue.com/*` → `https://studio-cue.com/${2}`
    (301, query kept). Verified with curl.
