@@ -32,7 +32,7 @@ export const HELP_STAGE_LABELS: Record<HelpStage, string> = {
 
 export const HELP_AUDIENCE_LABELS: Record<HelpAudience, string> = {
   studio: "Studios",
-  couple: "Couples",
+  couple: "Clients",
   crew: "Crew",
 };
 

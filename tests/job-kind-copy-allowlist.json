@@ -1,5 +1,5 @@
 {
-  "app/about/page.tsx": 9,
+  "app/about/page.tsx": 8,
   "app/api/client/portal/route.ts": 3,
   "app/auth/email-link/page.tsx": 1,
   "app/corporate-photographers/page.tsx": 1,
@@ -118,6 +118,10 @@
   "components/studio/live-record-detail.tsx": 8,
   "components/today/today-inbox.tsx": 4,
   "components/workflows/create-workflow-form.tsx": 6,
+  "features/help/explainers.ts": 35,
+  "features/help/glossary.ts": 13,
+  "features/help/routes.ts": 2,
+  "features/help/types.ts": 4,
   "functions/src/communications/email-templates.ts": 7,
   "functions/src/communications/lifecycle-core.ts": 1
 }

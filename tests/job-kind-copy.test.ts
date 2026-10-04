@@ -30,6 +30,9 @@ const files = globSync([
   "app/**/*.tsx",
   "app/**/*.ts",
   "functions/src/communications/**/*.ts",
+  // The help on every screen (swept 2026-10-04): what remains is the UI's own
+  // button labels, quoted as the screen shows them, and wedding-only guides.
+  "features/help/**/*.ts",
 ]).sort();
 
 function visibleWordCount(file: string): number {
