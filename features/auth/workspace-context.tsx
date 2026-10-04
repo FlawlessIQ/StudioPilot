@@ -33,6 +33,10 @@ import {
 import { authIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import {
+  subscriptionAccess,
+  type SubscriptionAccess,
+} from "@/features/subscriptions/access";
+import {
   getWorkspaceBootstrap,
   type WorkspaceBootstrap,
 } from "@/lib/firebase/workspace-bootstrap";
@@ -76,6 +80,15 @@ type WorkspaceState = {
    * while loading or in mock mode (which never gates).
    */
   subscriptionStatus: string | null;
+  /**
+   * What the studio may do, from its subscription (features/subscriptions/
+   * access.ts): full, grace, read-only or closed, with the dates that go with
+   * it. Studio area only, for every member — the owner reads it from the
+   * subscription, everyone else from the bootstrap route. `null` while
+   * loading, in mock mode, and where there is no subscription record; null
+   * never gates.
+   */
+  subscriptionAccess?: SubscriptionAccess | null;
   /**
    * The StudioCue team has suspended this studio (Console → Suspend). Studio
    * area only; optional so workspaces built by hand in tests keep compiling.
@@ -126,6 +139,7 @@ const mockWorkspace: WorkspaceState = {
   tenantSlug: "studiocue-demo-studio",
   tenantPlan: "Studio",
   subscriptionStatus: "trialing",
+  subscriptionAccess: null,
   role: "studio_owner",
   projectIds: [],
   projectId: null,
@@ -319,6 +333,17 @@ export function WorkspaceProvider({
           // Billing status for the app gate — studio area only; left null (never
           // gates) for client/crew and on a load failure below.
           let subscriptionStatus: string | null = null;
+          let billing: SubscriptionAccess | null = null;
+          // Only the owner may read the subscription document. Asking for it
+          // as anyone else failed the whole read below, so staff always fell
+          // through to the bootstrap route — which said nothing about billing.
+          const readsSubscription = area === "studio" && membership.role === "studio_owner";
+          const staffBilling =
+            area === "studio" && !readsSubscription
+              ? getWorkspaceBootstrap(area, membership.tenantId)
+                  .then((result) => result.billing ?? null)
+                  .catch(() => null)
+              : Promise.resolve(null);
           try {
             const [
               tenantDocument,
@@ -334,7 +359,7 @@ export function WorkspaceProvider({
                     ? getClientPortalProject(membership.tenantId, projectId)
                     : getDoc(doc(firestore, "projects", projectId))
                   : Promise.resolve(null),
-                area === "studio"
+                readsSubscription
                   ? getDoc(doc(firestore, "subscriptions", membership.tenantId))
                   : Promise.resolve(null),
               ]),
@@ -343,10 +368,12 @@ export function WorkspaceProvider({
             );
             tenant = tenantDocument.data() ?? {};
             profile = userDocument.data() ?? {};
-            subscriptionStatus =
-              subscriptionDocument && "data" in subscriptionDocument
-                ? (String(subscriptionDocument.data()?.status ?? "") || null)
-                : null;
+            if (subscriptionDocument && "data" in subscriptionDocument) {
+              const data = subscriptionDocument.data();
+              billing = data ? subscriptionAccess(data) : null;
+            } else {
+              billing = await staffBilling;
+            }
             project =
               projectDocument && "data" in projectDocument
                 ? projectDocument.data() ?? {}
@@ -361,6 +388,7 @@ export function WorkspaceProvider({
             bootstrap ??= await getWorkspaceBootstrap(area, membership.tenantId);
             tenant = bootstrap.tenant ?? {};
             profile = bootstrap.profile ?? {};
+            billing = area === "studio" ? (bootstrap.billing ?? (await staffBilling)) : null;
             if (area === "client" && projectId) {
               clientProject = await getClientPortalProject(
                 membership.tenantId,
@@ -372,6 +400,7 @@ export function WorkspaceProvider({
             }
           }
           if (!active) return;
+          subscriptionStatus = billing?.status || null;
           void stampActivity(user.uid, profile.lastActiveAt);
           setState({
             loading: false,
@@ -393,6 +422,7 @@ export function WorkspaceProvider({
                 : roleLabel(membership.role),
             ),
             subscriptionStatus,
+            subscriptionAccess: billing,
             tenantSuspended: area === "studio" && tenant.status === "suspended",
             role: membership.role,
             projectIds: membership.projectIds,

@@ -5,7 +5,7 @@ import { auditFieldsSchema } from "@/features/tenants/schema";
 export const subscriptionSchema = auditFieldsSchema.extend({
   id:z.string().min(1),tenantId:z.string().min(1),
   plan:z.enum(["studio","multi_brand"]),cadence:z.enum(["monthly","yearly"]),
-  status:z.enum(["trialing","active","past_due","paused","cancelled","incomplete"]),
+  status:z.enum(["trialing","active","past_due","unpaid","paused","cancelled","incomplete"]),
   stripeCustomerId:z.string().nullable(),stripeSubscriptionId:z.string().nullable(),
   stripePriceId:z.string().nullable(),currentPeriodStart:z.string().datetime().nullable(),
   currentPeriodEnd:z.string().datetime().nullable(),cancelAtPeriodEnd:z.boolean(),

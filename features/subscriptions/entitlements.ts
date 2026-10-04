@@ -49,30 +49,11 @@ export const planEntitlements: Readonly<Record<PlanKey, Entitlements>> = {
 };
 
 /**
- * Every subscription status the platform recognises. `incomplete` is the state
- * a tenant sits in between workspace creation and completing Stripe Checkout —
- * card-required onboarding writes it, and it grants no access. The rest mirror
- * Stripe's own subscription statuses once Checkout has run.
+ * Whether a tenant may use the product is no longer a question of status
+ * alone — a failed payment keeps full access for a grace period, and a
+ * cancelled studio stays readable for 30 days. The rule lives in
+ * ./access.ts (`subscriptionAccess`).
  */
-export type SubscriptionStatus =
-  | "incomplete"
-  | "trialing"
-  | "active"
-  | "past_due"
-  | "paused"
-  | "canceled"
-  | "expired";
-
-/**
- * The single source of truth for "may this tenant use the product right now".
- * Only a live trial or a paying subscription grants access; everything else —
- * incomplete (checkout never finished), past_due, paused, canceled, expired —
- * is refused. Duplicated on the server as `subscriptionGrantsAccess` in
- * functions/src/saas/entitlement-guard.ts (functions/ cannot import @/features).
- */
-export function subscriptionGrantsAccess(status: string): boolean {
-  return status === "trialing" || status === "active";
-}
 
 export function hasEntitlement(
   entitlements: Entitlements,

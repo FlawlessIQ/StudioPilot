@@ -1,4 +1,11 @@
 import type { Firestore } from "firebase-admin/firestore";
+import {
+  SUBSCRIPTION_ACCESS_FIELDS,
+  accessAllowsWork,
+  subscriptionAccess,
+  type SubscriptionAccess,
+  type SubscriptionAccessRecord,
+} from "./subscription-access.js";
 
 /**
  * Capabilities a plan can switch off.
@@ -25,9 +32,9 @@ export type GuardedCapability =
  *
  * The status check is the half that bites today. Outside AI quota, nothing
  * asked whether a tenant was still paying, so a cancelled subscription kept
- * full use of COI workflows and custom automations indefinitely. Trialing
- * and active are the states that may work; everything else — past_due,
- * paused, cancelled, incomplete — is refused.
+ * full use of COI workflows and custom automations indefinitely. The access
+ * rule (subscription-access.ts) decides: full access and grace may work;
+ * read-only and closed are refused.
  *
  * Reads the entitlement snapshot stored on the subscription rather than the
  * plan key, so a tenant keeps exactly what it was sold even if the published
@@ -35,22 +42,41 @@ export type GuardedCapability =
  * plan without changing anyone's capacity.
  */
 /**
- * The single server-side source of truth for "may this tenant use the product".
- * Only a live trial or paying subscription grants access; incomplete (Checkout
- * never finished), past_due, paused, canceled, expired are refused. Mirrors
- * `subscriptionGrantsAccess` in features/subscriptions/entitlements.ts — kept in
- * sync by hand because functions/ cannot import @/features.
+ * The subscription fields the access rule reads, from a snapshot. Field by
+ * field rather than `data()`, so a snapshot that only offers `get` (tests,
+ * transactions) reads the same.
  */
-export function subscriptionGrantsAccess(status: string): boolean {
-  return status === "trialing" || status === "active";
+export function subscriptionAccessRecord(snapshot: {
+  exists: boolean;
+  get(field: string): unknown;
+}): SubscriptionAccessRecord | null {
+  if (!snapshot.exists) return null;
+  return Object.fromEntries(
+    SUBSCRIPTION_ACCESS_FIELDS.map((field) => [field, snapshot.get(field)]),
+  ) as SubscriptionAccessRecord;
+}
+
+/** What the tenant may do now, from its subscription document. */
+export async function readSubscriptionAccess(
+  db: Firestore,
+  tenantId: string,
+): Promise<SubscriptionAccess> {
+  return subscriptionAccess(
+    subscriptionAccessRecord(await db.doc(`subscriptions/${tenantId}`).get()),
+  );
 }
 
 /**
- * Refuse any studio work unless the tenant has a live subscription (trial or
- * paid). Card-required onboarding means every tenant has a subscription, so this
- * is the gate that puts the whole studio product behind billing. Apply it at the
- * top of every studio command endpoint, after identity + membership resolve.
- * NOT for client/crew endpoints or the billing/onboarding commands themselves.
+ * Refuse studio work unless the subscription allows it (subscription-access.ts):
+ * a trial, a paid subscription, or a failed payment still inside its grace
+ * period. Card-required onboarding means every tenant has a subscription, so
+ * this is the gate that puts the whole studio product behind billing. Apply it
+ * at the top of every studio command endpoint, after identity + membership
+ * resolve. NOT for client/crew endpoints or the billing/onboarding commands.
+ *
+ * A read-only studio (past grace, unpaid, or recently cancelled) is refused
+ * with its own code, so the app can say "read-only until billing is updated"
+ * rather than "start your trial".
  */
 export async function requireActiveSubscription(
   db: Firestore,
@@ -63,12 +89,9 @@ export async function requireActiveSubscription(
   if (subscription.exists && subscription.get("suspendedAt")) {
     throw new Error("STUDIO_SUSPENDED");
   }
-  if (
-    !subscription.exists ||
-    !subscriptionGrantsAccess(String(subscription.get("status")))
-  ) {
-    throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
-  }
+  const access = subscriptionAccess(subscriptionAccessRecord(subscription));
+  if (access.level === "read_only") throw new Error("SUBSCRIPTION_READ_ONLY");
+  if (!accessAllowsWork(access)) throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
 }
 
 export async function requireEntitlement(
@@ -80,12 +103,9 @@ export async function requireEntitlement(
   if (subscription.exists && subscription.get("suspendedAt")) {
     throw new Error("STUDIO_SUSPENDED");
   }
-  if (
-    !subscription.exists ||
-    !subscriptionGrantsAccess(String(subscription.get("status")))
-  ) {
-    throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
-  }
+  const access = subscriptionAccess(subscriptionAccessRecord(subscription));
+  if (access.level === "read_only") throw new Error("SUBSCRIPTION_READ_ONLY");
+  if (!accessAllowsWork(access)) throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
   if (subscription.get(`entitlements.${capability}`) !== true) {
     throw new Error(`ENTITLEMENT_REQUIRED:${capability}`);
   }

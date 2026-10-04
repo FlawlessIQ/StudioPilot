@@ -343,6 +343,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   TRIAL_END_TOO_FAR: "Stripe allows a trial of up to two years from today.",
   ACTIVE_SUBSCRIPTION_REQUIRED:
     "Your trial hasn't started yet. Add a card under Studio settings → Subscription to start it, then try again. If your subscription lapsed, update your card there to reactivate.",
+  SUBSCRIPTION_READ_ONLY:
+    "This studio is read-only until billing is updated, so nothing can be sent or changed. The studio owner can update the card under Studio settings → Subscription; everything picks up again once payment goes through.",
   AI_OUTPUT_INVALID:
     "The draft didn't pass our checks, so nothing was saved. Try again — a fresh attempt usually works.",
   AI_SCHEDULE_FAILED: "We couldn't draft this schedule. Try again.",

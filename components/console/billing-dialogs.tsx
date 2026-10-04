@@ -26,7 +26,7 @@ export type BillingDialogState = ReturnType<typeof useBillingDialogs>;
 
 const DAY = 86_400_000;
 const hasStripe = (studio: ConsoleStudio) =>
-  Boolean(studio.stripeSubscriptionId) && ["trialing", "active", "past_due", "paused"].includes(studio.subscriptionStatus ?? "");
+  Boolean(studio.stripeSubscriptionId) && ["trialing", "active", "past_due", "unpaid", "paused"].includes(studio.subscriptionStatus ?? "");
 
 export function useBillingDialogs() {
   const { can } = useConsole();

@@ -2035,6 +2035,46 @@
   color: var(--ds-danger);
 }
 
+/* Billing banner (grace, read-only, trial ending) — components/saas/billing-banner.tsx */
+.ds-billing-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--ds-amber);
+  border-radius: var(--ds-r);
+  background: var(--ds-amber-soft);
+}
+.ds-billing-banner.is-bad {
+  border-color: var(--ds-danger);
+  background: var(--ds-danger-soft);
+}
+.ds-billing-banner .ds-alert-ico {
+  background: transparent;
+}
+.ds-billing-banner.is-bad .ds-alert-ico {
+  color: var(--ds-danger);
+}
+.ds-billing-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .ds-billing-banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .ds-billing-banner .ds-alert-copy {
+    flex-basis: calc(100% - 52px);
+  }
+  .ds-billing-banner-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 /* Crew privacy note (sidebar foot) */
 .ds-crew-privacy {
   display: flex;

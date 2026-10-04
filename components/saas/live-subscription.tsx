@@ -107,6 +107,8 @@ export function LiveSubscription() {
         active: "Active",
         incomplete: "Trial not started",
         past_due: "Payment past due",
+        unpaid: "Unpaid — read-only",
+        cancelled: "Cancelled",
         paused: "Paused",
         canceled: "Canceled",
         loading: "Loading…",

@@ -369,7 +369,7 @@ export async function writeDailyMetrics(db: Firestore, now = new Date()) {
     studios: studios.length,
     paying: status("active"),
     trialing: status("trialing"),
-    pastDue: status("past_due"),
+    pastDue: status("past_due") + status("unpaid"),
     incomplete: status("incomplete"),
     cancelled: status("cancelled"),
     comped: studios.filter((studio) => studio.comped === true).length,

@@ -37,7 +37,16 @@ test("a lapsed subscription loses the capability", async () => {
   // The half that bites today. Outside AI quota nothing asked whether a
   // tenant was still paying, so a cancelled subscription kept chasing
   // certificates and authoring automations indefinitely.
-  for (const status of ["past_due", "paused", "cancelled", "incomplete"]) {
+  // Past grace, unpaid, paused and recently cancelled are read-only; a
+  // studio that never finished checkout (or ended long ago) is closed.
+  for (const status of ["past_due", "unpaid", "paused"]) {
+    await assert.rejects(
+      () => requireEntitlement(db({ status, entitlements: entitled }), "tenant-a", "coiEnabled"),
+      /SUBSCRIPTION_READ_ONLY/,
+      `${status} must not keep the capability`,
+    );
+  }
+  for (const status of ["cancelled", "incomplete"]) {
     await assert.rejects(
       () => requireEntitlement(db({ status, entitlements: entitled }), "tenant-a", "coiEnabled"),
       /ACTIVE_SUBSCRIPTION_REQUIRED/,

@@ -39,7 +39,7 @@ export function HomePage() {
   const monthAgo = metrics.rows?.[0];
   const netNew = monthAgo && metrics.rows && metrics.rows.length > 1 ? mrr - monthAgo.mrrCents : null;
   const trialsEnding = all.filter((studio) => studio.subscriptionStatus === "trialing" && !studio.comped && (daysUntil(studio.trialEndsAt, now) ?? 99) <= 7 && (daysUntil(studio.trialEndsAt, now) ?? -1) >= 0);
-  const pastDue = all.filter((studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "paused");
+  const pastDue = all.filter((studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "unpaid" || studio.subscriptionStatus === "paused");
   const newFeedback = (feedback.rows ?? []).filter((item) => triageOf(item) === "new");
   const deadJobs = (jobs.rows ?? []).filter((job) => !job.dismissedAt);
 

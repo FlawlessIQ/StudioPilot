@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { subscriptionAccess } from "@/features/subscriptions/access";
 import {
   adminAppCheck,
   adminAuth,
@@ -84,11 +85,14 @@ export async function POST(request: Request): Promise<Response> {
           (projectId): projectId is string => typeof projectId === "string",
         )
       : [];
-    const [tenant, profile, project] = await Promise.all([
+    const [tenant, profile, project, subscription] = await Promise.all([
       adminFirestore.doc(`tenants/${membership.tenantId}`).get(),
       adminFirestore.doc(`users/${identity.uid}`).get(),
       input.area !== "client" && projectIds[0]
         ? adminFirestore.doc(`projects/${projectIds[0]}`).get()
+        : Promise.resolve(null),
+      input.area === "studio"
+        ? adminFirestore.doc(`subscriptions/${membership.tenantId}`).get()
         : Promise.resolve(null),
     ]);
 
@@ -100,6 +104,14 @@ export async function POST(request: Request): Promise<Response> {
       project:
         project && project.exists
           ? { id: project.id, ...project.data() }
+          : null,
+      // What the studio may do, for every member. Only the owner can read the
+      // subscription document itself, so staff saw no billing state at all:
+      // the full app, with every command refused. The access summary carries
+      // no Stripe ids or amounts.
+      billing:
+        subscription && subscription.exists
+          ? subscriptionAccess(subscription.data())
           : null,
     });
   } catch (caught: unknown) {

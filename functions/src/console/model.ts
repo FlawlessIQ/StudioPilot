@@ -218,7 +218,7 @@ export function healthScore(
     if (points > 0) reasons.push({ key, label, points });
   };
 
-  if (status === "past_due" || status === "paused") add("paymentFailed", "Payment failed or past due");
+  if (status === "past_due" || status === "unpaid" || status === "paused") add("paymentFailed", "Payment failed or past due");
 
   const idle = daysSince(signals.activity.lastActiveAt ?? signals.tenantCreatedAt, now);
   if (signals.activity.events30d === 0 && idle !== null && idle >= 14) {
@@ -263,7 +263,7 @@ export function lifecycleStage(signals: StudioSignals, healthScoreValue: number,
   if (signals.subscription.suspended) return "suspended";
   if (status === "cancelled") return "churned";
   if (status === "incomplete" || status === null) return "signed_up";
-  if (status === "past_due" || status === "paused") return "at_risk";
+  if (status === "past_due" || status === "unpaid" || status === "paused") return "at_risk";
   if (status === "trialing") {
     const idle = daysSince(signals.activity.lastActiveAt ?? signals.tenantCreatedAt, now);
     if (signals.jobsTotal > 0) return healthScoreValue < 50 ? "at_risk" : "activated";

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 
-import { subscriptionGrantsAccess } from "../features/subscriptions/entitlements.ts";
+import { subscriptionAccess } from "../features/subscriptions/access.ts";
 
 /**
  * Card-required onboarding means every tenant carries a subscription, so studio
@@ -13,26 +13,25 @@ import { subscriptionGrantsAccess } from "../features/subscriptions/entitlements
  *
  * Source assertions (not execution) for the same reason the original billing gap
  * was invisible: nothing exercised the Firebase-heavy command handlers.
+ *
+ * The rule itself (full / grace / read-only / closed) is tested in
+ * tests/subscription-access.test.ts.
  */
 
-// Behaviour of the shared access rule — the truth table both guards share.
-test("subscriptionGrantsAccess: only trialing/active grant access", () => {
-  assert.equal(subscriptionGrantsAccess("trialing"), true);
-  assert.equal(subscriptionGrantsAccess("active"), true);
-  for (const s of ["incomplete", "past_due", "paused", "canceled", "expired", ""]) {
-    assert.equal(subscriptionGrantsAccess(s), false, `${s} must not grant access`);
+test("only a trial or a paid subscription has full access", () => {
+  assert.equal(subscriptionAccess({ status: "trialing" }).level, "full");
+  assert.equal(subscriptionAccess({ status: "active" }).level, "full");
+  for (const status of ["incomplete", "unpaid", "paused", "cancelled", "expired", ""]) {
+    assert.notEqual(subscriptionAccess({ status }).level, "full", `${status} must not have full access`);
   }
 });
 
-// The server guard mirrors the same rule and must refuse everything else.
-test("server entitlement-guard shares the trialing/active rule and exposes the gate", () => {
+// The server guard reads the same rule and must refuse everything it doesn't allow.
+test("server entitlement-guard uses the shared access rule and exposes the gate", () => {
   const src = readFileSync("functions/src/saas/entitlement-guard.ts", "utf8");
   assert.match(src, /export async function requireActiveSubscription\(/);
-  assert.match(
-    src,
-    /status === "trialing" \|\| status === "active"/,
-    "server subscriptionGrantsAccess must match the shared rule",
-  );
+  assert.match(src, /from "\.\/subscription-access\.js"/);
+  assert.match(src, /if \(!accessAllowsWork\(access\)\) throw new Error\("ACTIVE_SUBSCRIPTION_REQUIRED"\);/);
 });
 
 // Studio command endpoints that MUST enforce the gate. Add to this list (and

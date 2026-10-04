@@ -156,6 +156,9 @@ function readableFailure(caught: unknown): string {
   if (raw.includes("FORBIDDEN")) {
     return "You do not have permission to reply on this project.";
   }
+  if (raw.includes("SUBSCRIPTION_READ_ONLY")) {
+    return "This studio is read-only until billing is updated, so replies can't be sent yet.";
+  }
   if (raw.includes("ACTIVE_SUBSCRIPTION_REQUIRED")) {
     return "Your subscription needs attention before messages can be sent.";
   }

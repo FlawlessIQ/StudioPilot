@@ -1,6 +1,7 @@
 "use client";
 
 import type { Role } from "@/features/auth/roles";
+import type { SubscriptionAccess } from "@/features/subscriptions/access";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { withTimeout } from "@/lib/async/with-timeout";
@@ -19,6 +20,8 @@ export type WorkspaceBootstrap = {
   tenant: Record<string, unknown> | null;
   profile: Record<string, unknown> | null;
   project: Record<string, unknown> | null;
+  /** Studio area: what the studio may do, from its subscription. */
+  billing?: SubscriptionAccess | null;
 };
 
 export async function getWorkspaceBootstrap(

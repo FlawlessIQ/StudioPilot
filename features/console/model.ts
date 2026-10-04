@@ -96,6 +96,7 @@ export const SUBSCRIPTION_STATUS: Record<string, { label: string; tone: Tone }> 
   trialing: { label: "Trialing", tone: "info" },
   active: { label: "Active", tone: "ok" },
   past_due: { label: "Past due", tone: "bad" },
+  unpaid: { label: "Unpaid", tone: "bad" },
   paused: { label: "Paused", tone: "warn" },
   cancelled: { label: "Cancelled", tone: "neutral" },
   incomplete: { label: "No card yet", tone: "warn" },

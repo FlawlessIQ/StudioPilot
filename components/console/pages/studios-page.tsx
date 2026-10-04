@@ -49,7 +49,7 @@ export const STUDIO_VIEWS: Array<{ key: View; label: string; test: (studio: Cons
   },
   { key: "risk", label: "At risk", test: (studio) => studio.lifecycle === "at_risk" || studio.lifecycle === "stalled" },
   { key: "setup", label: "Not set up", test: (studio) => studio.setupDone < 3 && !["churned", "suspended"].includes(studio.lifecycle) },
-  { key: "past_due", label: "Past due", test: (studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "paused" },
+  { key: "past_due", label: "Past due", test: (studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "unpaid" || studio.subscriptionStatus === "paused" },
   { key: "comped", label: "Comped", test: (studio) => studio.comped },
   { key: "churned", label: "Churned", test: (studio) => studio.lifecycle === "churned" },
   { key: "suspended", label: "Suspended", test: (studio) => studio.suspended },

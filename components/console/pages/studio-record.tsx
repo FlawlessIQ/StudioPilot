@@ -431,7 +431,7 @@ export function StudioRecord({ tenantId }: { tenantId: string }) {
 function mrrNote(studio: ConsoleStudio): string {
   if (studio.comped) return "Comped";
   if (studio.subscriptionStatus === "trialing") return studio.potentialMrrCents ? `${money(studio.potentialMrrCents)} if they convert` : "Trial";
-  if (studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "paused") return "Not counted while past due";
+  if (studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "unpaid" || studio.subscriptionStatus === "paused") return "Not counted while past due";
   return "—";
 }
 

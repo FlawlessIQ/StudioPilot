@@ -23,7 +23,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { subscriptionGrantsAccess } from "@/features/subscriptions/entitlements";
+import { BillingBanner } from "@/components/saas/billing-banner";
 import { CueMark } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { HowToButton } from "@/components/help/how-to";
@@ -277,15 +277,20 @@ function StudioShell({
     return () => document.removeEventListener("keydown", onKey);
   }, [navigationOpen]);
   const workspace = useWorkspace();
-  // App gate: card-required onboarding leaves a studio `incomplete` until Stripe
-  // Checkout. Until the subscription grants access, replace the workspace with a
-  // "start your trial" panel — except on the subscription page itself (where
+  // App gate (features/subscriptions/access.ts). A closed studio — checkout
+  // never finished, or cancelled beyond its read-only window — sees a panel in
+  // place of the workspace, except on the subscription page itself (where
   // Checkout returns and provisioning lands), so there's no redirect loop.
-  // `subscriptionStatus` is null while loading and in mock mode, so neither gates.
+  // Grace and read-only keep the workspace open under a banner: a read-only
+  // studio can still open its jobs and export, and the server refuses changes.
+  // Access is null while loading and in mock mode, so neither gates.
+  const billingAccess = workspace.subscriptionAccess ?? null;
+  const isOwner = workspace.role === "studio_owner";
   const subscriptionGated =
-    workspace.subscriptionStatus !== null &&
-    !subscriptionGrantsAccess(workspace.subscriptionStatus) &&
+    billingAccess !== null &&
+    billingAccess.level === "closed" &&
     !pathname.startsWith("/studio/subscription");
+  const awaitingTrial = billingAccess?.status === "incomplete" || billingAccess?.status === "";
   const routeSegment = pathname.split("/").filter(Boolean)[1] ?? "";
   const resolvedActive =
     active ?? studioRouteLabels[routeSegment] ?? "Dashboard";
@@ -551,23 +556,30 @@ function StudioShell({
               >
                 <p className="eyebrow">Subscription</p>
                 <h1>
-                  {workspace.subscriptionStatus === "incomplete"
+                  {awaitingTrial
                     ? "Start your trial to open your studio"
                     : "Reactivate your studio to continue"}
                 </h1>
                 <p>
-                  {workspace.subscriptionStatus === "incomplete"
-                    ? "Your studio is set up — add a card to start your 14-day trial and the workspace unlocks right away. You won't be charged until the trial ends."
-                    : "Your subscription needs attention. Update your card to reactivate your studio and pick up where you left off."}
+                  {awaitingTrial
+                    ? isOwner
+                      ? "Your studio is set up — add a card to start your 14-day trial and the workspace unlocks right away. You won't be charged until the trial ends."
+                      : "The studio owner needs to add a card to start the trial. The workspace opens for everyone as soon as they do."
+                    : isOwner
+                      ? "This studio's subscription has ended. Restart your plan to reopen the workspace and pick up where you left off."
+                      : "This studio's subscription has ended. Ask the studio owner to restart the plan to reopen the workspace."}
                 </p>
-                <Link className="button button-dark" href="/studio/subscription">
-                  {workspace.subscriptionStatus === "incomplete"
-                    ? "Start your trial"
-                    : "Manage billing"}
-                </Link>
+                {isOwner ? (
+                  <Link className="button button-dark" href="/studio/subscription">
+                    {awaitingTrial ? "Start your trial" : "Manage billing"}
+                  </Link>
+                ) : null}
               </section>
             ) : (
-              children
+              <>
+                <BillingBanner access={billingAccess} isOwner={isOwner} />
+                {children}
+              </>
             )}
           </main>
         </div>

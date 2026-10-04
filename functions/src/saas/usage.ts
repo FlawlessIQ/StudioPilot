@@ -1,9 +1,15 @@
 import type { Firestore,Transaction } from "firebase-admin/firestore";
+import { subscriptionAccessRecord } from "./entitlement-guard.js";
+import { accessAllowsWork,subscriptionAccess } from "./subscription-access.js";
 
 export async function consumeAiQuota(transaction:Transaction,db:Firestore,tenantId:string,now:string):Promise<void>{
   const subscriptionReference=db.doc(`subscriptions/${tenantId}`);
   const subscription=await transaction.get(subscriptionReference);
-  if(!subscription.exists||!["trialing","active"].includes(String(subscription.get("status"))))throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
+  // The same rule as every studio command: a failed payment inside its grace
+  // period keeps AI; read-only and closed do not.
+  const access=subscriptionAccess(subscriptionAccessRecord(subscription));
+  if(access.level==="read_only")throw new Error("SUBSCRIPTION_READ_ONLY");
+  if(!accessAllowsWork(access))throw new Error("ACTIVE_SUBSCRIPTION_REQUIRED");
   const limit=Number(subscription.get("entitlements.aiActionsMonthly"));
   if(!Number.isInteger(limit)||limit<=0)throw new Error("AI_ENTITLEMENT_REQUIRED");
   /**

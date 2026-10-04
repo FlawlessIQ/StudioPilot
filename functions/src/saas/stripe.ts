@@ -19,6 +19,7 @@ import {
   type ResolvedPromotion,
 } from "./stripe-checkout.js";
 import { STRIPE_ADMIN_API_VERSION, fromUnix } from "../console/stripe-admin.js";
+import { staleStripeEvent } from "./stripe-event-order.js";
 
 const billingCommandSchema = z.object({
   type: z.enum(["createCheckout", "createPortal", "confirmCheckout"]),
@@ -126,22 +127,32 @@ const cadenceForPrice = (priceId: string): "monthly" | "yearly" =>
   )
     ? "yearly"
     : "monthly";
-const normalizeStatus = (
+/**
+ * Stripe's subscription status, as stored. `unpaid` (retries exhausted, if
+ * the account is set to mark rather than cancel) and `incomplete_expired`
+ * (a first payment never completed) used to fall through to `incomplete` —
+ * the state a studio is in before its first Checkout — so a studio that had
+ * failed to pay was offered a fresh 14-day trial. `unpaid` is now its own
+ * read-only state; `incomplete_expired` is a cancellation.
+ */
+export const normalizeStatus = (
   value: unknown,
 ):
   | "trialing"
   | "active"
   | "past_due"
+  | "unpaid"
   | "paused"
   | "cancelled"
   | "incomplete" =>
   value === "trialing" ||
   value === "active" ||
   value === "past_due" ||
+  value === "unpaid" ||
   value === "paused" ||
   value === "incomplete"
     ? value
-    : value === "canceled" || value === "cancelled"
+    : value === "canceled" || value === "cancelled" || value === "incomplete_expired"
       ? "cancelled"
       : "incomplete";
 export const signatureValid = (raw: string, header: string, secret: string) => {
@@ -275,7 +286,7 @@ export const billingCommand = onRequest(
       const existingStatus = subscription.get("status");
       const hasManagedSubscription =
         Boolean(customerId && subscriptionId) &&
-        ["trialing", "active", "past_due", "paused"].includes(
+        ["trialing", "active", "past_due", "unpaid", "paused"].includes(
           String(existingStatus),
         );
       const operation =
@@ -314,12 +325,17 @@ export const billingCommand = onRequest(
                 (subscription.get("trialEndAt") as string | undefined) ??
                 null),
           // First checkout (never subscribed) starts a fresh 14-day trial
-          // anchored at checkout; see buildStripeCheckoutParams. `incomplete`
-          // is exactly the between-onboarding-and-checkout state, and any
-          // trialing/active/past_due/paused subscription was rerouted to the
-          // portal above, so this only ever grants a new trial to a genuine
-          // first-timer (or a cancelled tenant with no live trial to honour).
-          firstCheckout: !comped && !overrideLive && normalizeStatus(existingStatus) === "incomplete",
+          // anchored at checkout; see buildStripeCheckoutParams. Only a studio
+          // that has never had a Stripe subscription qualifies: status alone
+          // was not enough, because records written before `unpaid` and
+          // `incomplete_expired` were mapped say `incomplete` too, and those
+          // studios have had their trial. A returning studio is charged from
+          // checkout (its stored period end is in the past).
+          firstCheckout:
+            !comped &&
+            !overrideLive &&
+            normalizeStatus(existingStatus) === "incomplete" &&
+            !subscriptionId,
           // Beta codes: a code from the signup link is applied up front; with
           // none (or one Stripe won't honour) Checkout offers its own field.
           promotion: await lookupPromotion(secret, parsed.promotionCode),
@@ -444,53 +460,98 @@ export const stripeWebhook = onRequest(
         return;
       }
       const subscriptionReference = db.doc(`subscriptions/${tenantId}`);
-      const current = await subscriptionReference.get();
-      const batch = db.batch();
-      const { status, plan } = await writeSubscriptionFromStripe(
-        batch,
-        subscriptionReference,
-        current,
-        tenantId,
-        object,
-        event.type === "customer.subscription.deleted",
-        now,
-      );
-      batch.create(eventReference, {
-        id: `stripe_${event.id}`,
-        tenantId,
-        provider: "stripe",
-        providerEventId: event.id,
-        type: event.type,
-        status: "processed",
-        createdAt: now,
+      const deleted = event.type === "customer.subscription.deleted";
+      // One transaction: the duplicate check, the ordering check and the
+      // write all see the same record, so two deliveries racing each other
+      // can't both apply.
+      const outcome = await db.runTransaction(async (transaction) => {
+        if ((await transaction.get(eventReference)).exists) return "duplicate" as const;
+        const current = await transaction.get(subscriptionReference);
+        const stale = staleStripeEvent({
+          lastAppliedCreated: current.get("lastStripeEventCreated"),
+          eventCreated: event.created,
+          storedStatus: current.get("status"),
+          storedSubscriptionId: current.get("stripeSubscriptionId"),
+          eventSubscriptionId: object.id,
+          eventStatus: object.status,
+          deleted,
+        });
+        if (stale) {
+          transaction.create(eventReference, {
+            id: `stripe_${event.id}`,
+            tenantId,
+            provider: "stripe",
+            providerEventId: event.id,
+            type: event.type,
+            status: "stale",
+            staleReason: stale,
+            createdAt: now,
+          });
+          return "stale" as const;
+        }
+        const { status, plan } = await writeSubscriptionFromStripe(
+          transaction,
+          subscriptionReference,
+          current,
+          tenantId,
+          object,
+          deleted,
+          now,
+          event.created,
+        );
+        transaction.create(eventReference, {
+          id: `stripe_${event.id}`,
+          tenantId,
+          provider: "stripe",
+          providerEventId: event.id,
+          type: event.type,
+          status: "processed",
+          createdAt: now,
+        });
+        transaction.create(db.doc(`auditEvents/stripe_${event.id}`), {
+          id: `stripe_${event.id}`,
+          tenantId,
+          projectId: null,
+          actorId: "stripe",
+          actorType: "provider",
+          action: "subscription.changed",
+          entityType: "subscription",
+          entityId: tenantId,
+          timestamp: now,
+          before: current.exists
+            ? { status: current.get("status"), plan: current.get("plan") }
+            : null,
+          after: { status, plan },
+          ipAddress: null,
+          userAgent: null,
+          correlationId: event.id,
+          automationRunId: null,
+          providerEventId: event.id,
+        });
+        return "processed" as const;
       });
-      batch.create(db.doc(`auditEvents/stripe_${event.id}`), {
-        id: `stripe_${event.id}`,
-        tenantId,
-        projectId: null,
-        actorId: "stripe",
-        actorType: "provider",
-        action: "subscription.changed",
-        entityType: "subscription",
-        entityId: tenantId,
-        timestamp: now,
-        before: current.exists
-          ? { status: current.get("status"), plan: current.get("plan") }
-          : null,
-        after: { status, plan },
-        ipAddress: null,
-        userAgent: null,
-        correlationId: event.id,
-        automationRunId: null,
-        providerEventId: event.id,
-      });
-      await batch.commit();
+      if (outcome !== "processed") {
+        response.status(200).json({ received: true, [outcome]: true });
+        return;
+      }
       response.status(200).json({ received: true });
     } catch {
       response.status(400).send("WEBHOOK_PROCESSING_FAILED");
     }
   },
 );
+
+/**
+ * A batch or a transaction: the webhook writes inside a transaction so its
+ * ordering check and its write see the same record; confirmCheckout batches.
+ */
+type SubscriptionWriter = {
+  set(
+    reference: DocumentReference,
+    data: Record<string, unknown>,
+    options: { merge: true },
+  ): unknown;
+};
 
 /**
  * The subscription as Stripe reports it, written onto ours.
@@ -502,13 +563,15 @@ export const stripeWebhook = onRequest(
  * arrives first, and a merge makes the second harmless.
  */
 export async function writeSubscriptionFromStripe(
-  batch: WriteBatch,
+  batch: SubscriptionWriter,
   subscriptionReference: DocumentReference,
   current: DocumentSnapshot,
   tenantId: string,
   object: Record<string, unknown>,
   deleted: boolean,
   now: string,
+  /** The webhook event's `created`, so a later, older event can be refused. */
+  eventCreated?: number,
 ): Promise<{ status: string; plan: string }> {
   const items = object.items as
     | {
@@ -540,6 +603,24 @@ export async function writeSubscriptionFromStripe(
   // subscription is how the comp is carried.
   const localComp = current.get("comped") === true && current.get("compMode") !== "stripe_coupon";
   const live = !deleted && ["trialing", "active", "past_due"].includes(status);
+  // When the trouble started, for the access rule's clocks
+  // (subscription-access.ts): grace runs from the first past-due write, the
+  // read-only window from the cancellation. Kept while the status holds,
+  // cleared when it moves on, so a second failure months later gets a fresh
+  // grace period.
+  const previousStatus = current.exists ? String(current.get("status") ?? "") : "";
+  const pastDueSince =
+    status === "past_due"
+      ? previousStatus === "past_due"
+        ? ((current.get("pastDueSince") as string | undefined) ?? now)
+        : now
+      : null;
+  const cancelledAt =
+    status === "cancelled"
+      ? previousStatus === "cancelled"
+        ? ((current.get("cancelledAt") as string | undefined) ?? now)
+        : now
+      : null;
   batch.set(
     subscriptionReference,
     {
@@ -551,6 +632,9 @@ export async function writeSubscriptionFromStripe(
           ? cadenceForPrice(priceId)
           : (current.get("cadence") ?? "monthly"),
       status,
+      pastDueSince,
+      cancelledAt,
+      ...(typeof eventCreated === "number" ? { lastStripeEventCreated: eventCreated } : {}),
       stripeCustomerId: String(
         object.customer ?? current.get("stripeCustomerId") ?? "",
       ),

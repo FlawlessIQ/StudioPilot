@@ -25,7 +25,7 @@ type View = "active" | "trialing" | "past_due" | "cancelling" | "comped" | "inco
 const VIEWS: Array<{ key: View; label: string; test: (studio: ConsoleStudio) => boolean }> = [
   { key: "active", label: "Paying", test: (studio) => studio.subscriptionStatus === "active" && !studio.comped },
   { key: "trialing", label: "Trialing", test: (studio) => studio.subscriptionStatus === "trialing" && !studio.comped },
-  { key: "past_due", label: "Past due", test: (studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "paused" },
+  { key: "past_due", label: "Past due", test: (studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "unpaid" || studio.subscriptionStatus === "paused" },
   { key: "cancelling", label: "Cancelling", test: (studio) => studio.cancelAtPeriodEnd },
   { key: "comped", label: "Comped", test: (studio) => studio.comped },
   { key: "incomplete", label: "No card yet", test: (studio) => studio.subscriptionStatus === "incomplete" && !studio.comped },
@@ -52,7 +52,7 @@ export function SubscriptionsPage() {
     const list = all ?? [];
     const mrr = list.reduce((sum, studio) => sum + studio.mrrCents, 0);
     const pipeline = list.filter((studio) => studio.subscriptionStatus === "trialing" && !studio.comped).reduce((sum, studio) => sum + studio.potentialMrrCents, 0);
-    const atRisk = list.filter((studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "paused").reduce((sum, studio) => sum + studio.potentialMrrCents, 0);
+    const atRisk = list.filter((studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "unpaid" || studio.subscriptionStatus === "paused").reduce((sum, studio) => sum + studio.potentialMrrCents, 0);
     const paying = list.filter((studio) => studio.mrrCents > 0).length;
     return { mrr, arr: mrr * 12, pipeline, atRisk, paying, arpa: paying ? Math.round(mrr / paying) : 0 };
   }, [all]);

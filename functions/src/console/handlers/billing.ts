@@ -34,7 +34,7 @@ async function loadSubscription(db: Firestore, id: string) {
   if (!snapshot.exists) fail("SUBSCRIPTION_NOT_FOUND");
   const stripeId = String(snapshot.get("stripeSubscriptionId") ?? "");
   const status = String(snapshot.get("status") ?? "");
-  const live = Boolean(stripeId) && ["trialing", "active", "past_due", "paused"].includes(status);
+  const live = Boolean(stripeId) && ["trialing", "active", "past_due", "unpaid", "paused"].includes(status);
   return { reference, snapshot, stripeId, status, live, comped: snapshot.get("comped") === true };
 }
 
@@ -77,7 +77,7 @@ export const billingHandlers = {
       if (until > Date.now() + MAX_TRIAL_DAYS * DAY) fail("TRIAL_END_TOO_FAR");
       const sub = await loadSubscription(db, input.tenantId);
       if (sub.comped) fail("STUDIO_IS_COMPED");
-      if (sub.status === "past_due" || sub.status === "cancelled") fail("SUBSCRIPTION_NOT_EXTENDABLE");
+      if (sub.status === "past_due" || sub.status === "unpaid" || sub.status === "cancelled") fail("SUBSCRIPTION_NOT_EXTENDABLE");
       const before = sub.snapshot.get("currentPeriodEnd") ?? null;
       if (sub.live) {
         if (!stripeMock())
