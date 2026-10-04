@@ -1,26 +1,26 @@
 /**
  * The address of whoever sent a request that reached App Hosting.
  *
- * The first `X-Forwarded-For` entry. On 2026-10-04 this briefly took the
- * second entry from the right, on the reading that Google's load balancer
- * appends "<client>, <itself>". App Hosting adds more hops than that: on
- * production the second-from-right entry was 35.219.200.201 — Google's own
- * address — for everyone, which put every visitor in one rate-limit bucket
- * and printed Google's address on audit records. The first entry was the
- * real client (verified against a known address the same day).
+ * Firebase App Hosting sets `x-fah-client-ip` to the connecting client and
+ * overwrites any value a client sends — measured on production on
+ * 2026-10-04: a request carrying a forged `X-Fah-Client-Ip: 6.6.6.6` and a
+ * forged `X-Forwarded-For: 6.6.6.6` arrived with `x-fah-client-ip` set to the
+ * real address. `X-Forwarded-For` is "<anything the client sent>, <client>,
+ * <Google front end>, <Google proxy>", so its first entry can be forged and
+ * its second-from-right is Google's own address for everyone (which briefly
+ * put every visitor in one rate-limit bucket the same morning).
  *
- * The first entry can be forged by a client that sends its own header. That
- * is the lesser problem: a forger can reset their own rate limit, where the
- * wrong hop throttles every studio's inquiries together. Taking the right
- * trusted hop needs the exact hop count App Hosting adds, measured, not
- * assumed — tracked in docs/production-status.md.
+ * Off App Hosting — the emulator, a local `next start` — there is no
+ * `x-fah-client-ip`, and the first forwarded-for entry is the only answer.
  */
-export function clientIpFromForwardedFor(header: string | null | undefined): string | null {
-  const first = (header ?? "").split(",")[0]?.trim();
+export function clientIpFromHeaders(headers: Pick<Headers, "get">): string | null {
+  const appHosting = headers.get("x-fah-client-ip")?.split(",")[0]?.trim();
+  if (appHosting) return appHosting;
+  const first = (headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim();
   return first ? first : null;
 }
 
-/** The same, from a request's headers. */
+/** The same, from a request. */
 export function requestClientIp(request: Request): string | null {
-  return clientIpFromForwardedFor(request.headers.get("x-forwarded-for"));
+  return clientIpFromHeaders(request.headers);
 }

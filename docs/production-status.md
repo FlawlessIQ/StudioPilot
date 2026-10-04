@@ -71,10 +71,10 @@ The delivery-status checker backs off when SendGrid rate-limits it.
 - Browsers write nothing directly except a person's own activity stamp; every
   change goes through a command that checks identity, membership, role, the
   subscription and the request, and is audited.
-- Rate limits and signing evidence use the first `X-Forwarded-For` entry,
-  which production showed to be the real client. A client can forge it to
-  reset its own limit; taking a trusted hop instead needs App Hosting's hop
-  count measured (the second-from-right entry was Google's own address).
+- Rate limits and signing evidence use `x-fah-client-ip`, which App Hosting
+  sets to the connecting client and overwrites whatever a client sends
+  (measured 2026-10-04); `X-Forwarded-For` can be forged in front and ends
+  in Google's own addresses.
 - Functions are private (invoker IAM, re-applied after every deploy by
   `scripts/configure-production-function-invokers.sh`) and accept browser
   origins only from StudioCue's own domains.
@@ -98,4 +98,3 @@ verified by commit. GitHub Actions runs the same checks on every push
 - DMARC reporting, then `p=quarantine`.
 - The Dropbox production app.
 - A project-level daily quota on the Places API.
-- Measure App Hosting's `X-Forwarded-For` hops and take the trusted client hop.

@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-import { clientIpFromForwardedFor } from "../lib/security/client-ip.ts";
+import { clientIpFromHeaders } from "../lib/security/client-ip.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -16,13 +16,20 @@ function filesUnder(directory: string): string[] {
 
 // ── Client address ──
 
-test("the client is the first forwarded-for entry, the one production showed to be real", () => {
-  // Second-from-right was Google's own address for everyone on production
-  // (2026-10-04), so every visitor shared one rate-limit bucket.
-  assert.equal(clientIpFromForwardedFor("100.1.29.148, 35.219.200.201, 169.254.1.1"), "100.1.29.148");
-  assert.equal(clientIpFromForwardedFor("203.0.113.9"), "203.0.113.9");
-  assert.equal(clientIpFromForwardedFor(""), null);
-  assert.equal(clientIpFromForwardedFor(null), null);
+test("the client is App Hosting's own header, which no client can forge", () => {
+  const headers = (values: Record<string, string>) => new Headers(values);
+  // As measured on production: forged entries in front, the real client,
+  // then Google's front end and proxy.
+  assert.equal(
+    clientIpFromHeaders(headers({
+      "x-fah-client-ip": "100.1.29.148",
+      "x-forwarded-for": "6.6.6.6, 100.1.29.148, 35.219.200.201, 192.178.13.1",
+    })),
+    "100.1.29.148",
+  );
+  // Off App Hosting (emulator, local start) the first forwarded-for entry.
+  assert.equal(clientIpFromHeaders(headers({ "x-forwarded-for": "203.0.113.9, 10.0.0.1" })), "203.0.113.9");
+  assert.equal(clientIpFromHeaders(headers({})), null);
 });
 
 test("every route reads the address through the one helper", () => {
