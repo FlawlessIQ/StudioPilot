@@ -1,5 +1,9 @@
 # StudioCue Manual Launch Checklist
 
+> **History, not current status.** The live picture — what is offered,
+> held, monitored and still open — is [`production-status.md`](./production-status.md)
+> (October 4, 2026). Where this page disagrees with it, that page is right.
+
 Everything in this list requires an external account decision, provider console
 approval, legal/business judgment, or a real-world acceptance test. The
 application should remain in its safe mock state until the applicable section is

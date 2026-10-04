@@ -1,5 +1,9 @@
 # Production Readiness
 
+> **History, not current status.** The live picture — what is offered,
+> held, monitored and still open — is [`production-status.md`](./production-status.md)
+> (October 4, 2026). Where this page disagrees with it, that page is right.
+
 This repository includes a deployable pilot architecture, but production
 activation is an operational release process—not a source-code flag. The
 production runtime now uses live provider adapters; an individual integration
@@ -24,7 +28,7 @@ acceptance path. Local development remains mock by default.
 - tenant export with paginated collection reads and expiring signed download links
 - deletion cooling-off, cancellation, completed-export prerequisite, and platform approval
 - time-bounded audited support summary access
-- web and function Sentry envelopes containing operational codes/tags rather than business document payloads
+- browser errors reported to StudioCue's own `/api/client-errors` (no third-party tracker) and unexpected command failures logged and alerted
 - PWA manifest, service worker, offline fallback, and cached event-day schedules
 - role-scoped crew schedule projections and sanitized event-day offline cache
 - measured product events, AI decision/correction outcomes, automation receipts,

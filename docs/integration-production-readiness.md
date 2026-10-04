@@ -1,5 +1,9 @@
 # Integration production readiness
 
+> **History, not current status.** The live picture — what is offered,
+> held, monitored and still open — is [`production-status.md`](./production-status.md)
+> (October 4, 2026). Where this page disagrees with it, that page is right.
+
 Last audited: August 18, 2026
 
 This document is the launch source of truth for StudioCue's external providers.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-StudioCue (package name `studiohub`) is a multi-tenant photography operations OS. It coordinates the full client and event lifecycle — inquiry, booking, readiness, event-day execution, delivery, review, and closeout — across studio, client, crew, and platform-admin workspaces. The product spans Milestones 1–8; see `docs/build-progress.md` for history and `docs/production-readiness.md` before enabling live integrations.
+StudioCue (package name `studiohub`) is a multi-tenant photography operations OS. It coordinates the full client and event lifecycle — inquiry, booking, readiness, event-day execution, delivery, review, and closeout — across studio, client, crew, and platform-admin workspaces. The product spans Milestones 1–8; see `docs/build-progress.md` for history and `docs/production-status.md` for what is live, held and open.
 
 ## Commands
 
