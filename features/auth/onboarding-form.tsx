@@ -35,7 +35,31 @@ const TIMEZONES: ReadonlyArray<{ value: string; label: string }> = [
 
 const noSubscribe = () => () => undefined;
 
+/**
+ * The page's heading, set by the form so it can change with what the form
+ * is doing: an invited client is not told "You'll be the owner of this
+ * studio" above a note saying they were invited somewhere else.
+ */
+function SetupHeading({ invited }: { invited: boolean }) {
+  return invited ? (
+    <>
+      <span className="eyebrow">You&rsquo;ve been invited</span>
+      <h1>Looking for your studio?</h1>
+    </>
+  ) : (
+    <>
+      <span className="eyebrow">Studio setup</span>
+      <h1>Create your workspace</h1>
+      <p>You&rsquo;ll be the owner of this studio.</p>
+    </>
+  );
+}
+
 export function OnboardingForm() {
+  return <OnboardingFlow />;
+}
+
+function OnboardingFlow() {
   // The browser's own timezone, once hydrated; the server renders the old
   // default, so the two never disagree mid-hydration. The selects are keyed on
   // it, so they re-mount with the detected defaults rather than keeping the
@@ -252,17 +276,22 @@ export function OnboardingForm() {
 
   if (phase === "done") {
     return (
+      <>
+      <SetupHeading invited={false} />
       <div className="command-success">
         {/* It opened a plan picker, not a workspace: say what's next. */}
         <h2>{checkoutNext ? "One last step: start your trial" : "Your studio is ready"}</h2>
         <p>{checkoutNext ? "Opening the plan picker…" : "Opening your workspace…"}</p>
       </div>
+      </>
     );
   }
 
   if (phase === "invited") {
     const [first, ...others] = invitations;
     return (
+      <>
+      <SetupHeading invited />
       <div className="command-success">
         <h2>
           {first.studioName} invited you {INVITED_TO[first.kind]}
@@ -280,15 +309,18 @@ export function OnboardingForm() {
           </p>
         ) : null}
         <p>Can&rsquo;t find the email? Ask {first.studioName} to send the invitation again.</p>
-        <button className="button button-light" type="button" onClick={() => setPhase("form")}>
+        <button className="button button-light" style={{ marginTop: 12 }} type="button" onClick={() => setPhase("form")}>
           I&rsquo;m a photographer — set up my own studio
         </button>
       </div>
+      </>
     );
   }
 
   if (phase === "needs_verification") {
     return (
+      <>
+      <SetupHeading invited={false} />
       <div className="command-success">
         <h2>Verify your email first</h2>
         <p>
@@ -319,10 +351,13 @@ export function OnboardingForm() {
           </p>
         ) : null}
       </div>
+      </>
     );
   }
 
   return (
+    <>
+    <SetupHeading invited={false} />
     <form className="sign-in-form" onSubmit={submit}>
       <label>
         Studio name <span className="required-mark">Required</span>
@@ -368,5 +403,6 @@ export function OnboardingForm() {
         {busy ? "Creating your studio…" : "Start 14-day trial"}
       </button>
     </form>
+    </>
   );
 }
