@@ -109,3 +109,10 @@ test("a parked email reads as held, not lost, wherever the studio sees it", () =
   assert.match(readFileSync("components/communications/message-inbox.tsx", "utf8"), /"held_billing"\) return "Held until billing is updated"/);
   assert.match(readFileSync("components/booking/project-booking-workspace.tsx", "utf8"), /invoiceEmailJob\?\.status === "held_billing"/);
 });
+
+test("a hold is decided on a fresh read, so a release is never undone by a stale cache", () => {
+  // Production, 2026-10-04: released at 17:31:44.064, parked again at
+  // 17:31:44.976 by a worker that had cached "read-only" seconds earlier.
+  const hold = readFileSync("functions/src/saas/billing-hold.ts", "utf8");
+  assert.match(hold, /if \(accessAllowsWork\(access\)\) accessCache\.set\(tenantId, \{ at: Date\.now\(\), access \}\);\s*else accessCache\.delete\(tenantId\);/);
+});

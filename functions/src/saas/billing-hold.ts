@@ -80,6 +80,17 @@ export function billingHoldApplies(collection: string, type: string): boolean {
   return false;
 }
 
+/**
+ * Only "may send" is remembered, and only for a minute.
+ *
+ * Remembering "may not" is what broke the release on production
+ * (2026-10-04): the subscription trigger put a parked job back in the queue,
+ * and a worker that had cached "read-only" a few seconds earlier parked it
+ * again — after which nothing would ever release it, because the studio was
+ * already working. A hold is now always decided on a fresh read. The cost is
+ * one read per due job for a lapsed studio; the trade is that a studio that
+ * has just lapsed may still send for up to a minute.
+ */
 const ACCESS_CACHE_MS = 60_000;
 const accessCache = new Map<string, { at: number; access: SubscriptionAccess }>();
 
@@ -89,7 +100,8 @@ async function tenantAccess(db: Firestore, tenantId: string): Promise<Subscripti
   const access = subscriptionAccess(
     subscriptionAccessRecord(await db.doc(`subscriptions/${tenantId}`).get()),
   );
-  accessCache.set(tenantId, { at: Date.now(), access });
+  if (accessAllowsWork(access)) accessCache.set(tenantId, { at: Date.now(), access });
+  else accessCache.delete(tenantId);
   return access;
 }
 
