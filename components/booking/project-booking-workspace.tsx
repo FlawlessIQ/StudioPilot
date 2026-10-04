@@ -1609,6 +1609,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       {`The invoice exists in ${invoicingName} but ${recipient ?? "the client"} hasn't been emailed it`}
                       {invoice.deliveryError === "NO_CLIENT_EMAIL"
                         ? " \u2014 this job has no client email address. Add one to the client, then send it from here."
+                        : invoiceEmailJob?.status === "held_billing"
+                          ? " yet \u2014 it's held until the studio's billing is updated, and goes as soon as it is."
                         : invoiceEmailJob && ["queued", "running", "retry_scheduled"].includes(invoiceEmailJob.status)
                           ? " yet \u2014 the email is on its way."
                           : invoiceEmailJob && ["failed", "dead_letter"].includes(invoiceEmailJob.status)

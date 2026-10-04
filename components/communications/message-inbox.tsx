@@ -94,6 +94,9 @@ function deliveryLabel(status: string | null): string | null {
     return "Waiting to send";
   if (value === "running") return "Sending";
   if (value === "retry_scheduled") return "Retrying";
+  // Parked while the studio's billing is out of date (saas/billing-hold.ts);
+  // it goes once payment does.
+  if (value === "held_billing") return "Held until billing is updated";
   // `blocked` is a refusal by the receiving server (sendgrid-events.ts,
   // delivery-reconciler.ts); it showed no label at all, so a refused email
   // looked like any other.

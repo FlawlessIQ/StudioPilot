@@ -71,6 +71,7 @@ import {
 } from "./quickbooks-held-invoice.js";
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { billingHoldFor, holdJobForBilling } from "../saas/billing-hold.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
 import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
 import {
@@ -1440,6 +1441,20 @@ export async function processJobDocument(
     .get();
   if (!document.exists) return { claimed: false };
   const before = String(document.get("status") ?? "");
+  // A lapsed studio's outbound work waits for billing instead of going
+  // (saas/billing-hold.ts). Asked as the job comes due, not when it was
+  // queued: a reminder scheduled a week ago for a studio that has since
+  // lapsed is caught here.
+  if (
+    (collectionName === "emailJobs" || collectionName === "providerJobs") &&
+    ["queued", "retry_scheduled"].includes(before)
+  ) {
+    const hold = await billingHoldFor(getFirestore(), collectionName, document);
+    if (hold) {
+      await holdJobForBilling(document, hold);
+      return { claimed: false };
+    }
+  }
   if (collectionName === "providerJobs")
     await finish(document, () => providerJob(document));
   if (collectionName === "emailJobs")
