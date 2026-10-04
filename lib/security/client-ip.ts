@@ -1,24 +1,23 @@
 /**
  * The address of whoever sent a request that reached App Hosting.
  *
- * App Hosting sits behind Google's external Application Load Balancer, which
- * appends two entries to `X-Forwarded-For`: the address it accepted the
- * connection from, then its own. Anything before those two was sent by the
- * client and can say anything at all — and every route here read the
- * *first* entry, so a rate limit could be reset, and the address printed on a
- * signing certificate could be chosen, by sending one header.
+ * The first `X-Forwarded-For` entry. On 2026-10-04 this briefly took the
+ * second entry from the right, on the reading that Google's load balancer
+ * appends "<client>, <itself>". App Hosting adds more hops than that: on
+ * production the second-from-right entry was 35.219.200.201 — Google's own
+ * address — for everyone, which put every visitor in one rate-limit bucket
+ * and printed Google's address on audit records. The first entry was the
+ * real client (verified against a known address the same day).
  *
- * So the client is the second entry from the right. A request that arrives
- * with a single entry (straight to the Cloud Run URL, or the emulator) is
- * taken as it is.
+ * The first entry can be forged by a client that sends its own header. That
+ * is the lesser problem: a forger can reset their own rate limit, where the
+ * wrong hop throttles every studio's inquiries together. Taking the right
+ * trusted hop needs the exact hop count App Hosting adds, measured, not
+ * assumed — tracked in docs/production-status.md.
  */
 export function clientIpFromForwardedFor(header: string | null | undefined): string | null {
-  const hops = (header ?? "")
-    .split(",")
-    .map((hop) => hop.trim())
-    .filter(Boolean);
-  if (!hops.length) return null;
-  return hops.length >= 2 ? hops[hops.length - 2] : hops[0];
+  const first = (header ?? "").split(",")[0]?.trim();
+  return first ? first : null;
 }
 
 /** The same, from a request's headers. */

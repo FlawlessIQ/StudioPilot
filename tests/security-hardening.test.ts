@@ -16,17 +16,16 @@ function filesUnder(directory: string): string[] {
 
 // ── Client address ──
 
-test("the client is the entry Google's load balancer added, not one the client sent", () => {
-  // The load balancer appends "<client>, <itself>"; anything before is the client's own claim.
-  assert.equal(clientIpFromForwardedFor("203.0.113.9, 34.120.1.1"), "203.0.113.9");
-  assert.equal(clientIpFromForwardedFor("6.6.6.6, 203.0.113.9, 34.120.1.1"), "203.0.113.9", "a forged leading entry is ignored");
-  assert.equal(clientIpFromForwardedFor("1.1.1.1, 2.2.2.2, 203.0.113.9, 34.120.1.1"), "203.0.113.9");
-  assert.equal(clientIpFromForwardedFor("203.0.113.9"), "203.0.113.9", "straight to Cloud Run, or the emulator");
+test("the client is the first forwarded-for entry, the one production showed to be real", () => {
+  // Second-from-right was Google's own address for everyone on production
+  // (2026-10-04), so every visitor shared one rate-limit bucket.
+  assert.equal(clientIpFromForwardedFor("100.1.29.148, 35.219.200.201, 169.254.1.1"), "100.1.29.148");
+  assert.equal(clientIpFromForwardedFor("203.0.113.9"), "203.0.113.9");
   assert.equal(clientIpFromForwardedFor(""), null);
   assert.equal(clientIpFromForwardedFor(null), null);
 });
 
-test("no route reads the first forwarded-for entry any more", () => {
+test("every route reads the address through the one helper", () => {
   for (const file of filesUnder("app")) {
     assert.doesNotMatch(read(file), /x-forwarded-for"\)\?\.split\(","\)\[0\]/, file);
   }

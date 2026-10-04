@@ -94,8 +94,7 @@ function studioDayAllows(slug: string): boolean {
 }
 
 function fingerprint(request: Request, scope: string): string {
-  // The client as Google's load balancer saw it (lib/security/client-ip.ts);
-  // the leading entries are whatever the client chose to send.
+  // The client's address (lib/security/client-ip.ts).
   const ip = requestClientIp(request) ?? "unknown";
   const agent = request.headers.get("user-agent") ?? "unknown";
   return createHash("sha256").update(`${scope}|${ip}|${agent}`).digest("hex");
