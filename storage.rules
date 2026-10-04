@@ -178,7 +178,9 @@ service firebase.storage {
       allow create, update: if activeMember(tenantId)
         && membership(tenantId).role in ["studio_owner", "studio_admin"]
         && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches("image/png|image/jpeg|image/webp|image/svg\\+xml");
+        // No SVG: an SVG is a document that can carry script, and this path
+        // is readable by anyone. The upload turns a studio's SVG into a PNG.
+        && request.resource.contentType.matches("image/png|image/jpeg|image/webp");
       allow delete: if activeMember(tenantId)
         && membership(tenantId).role in ["studio_owner", "studio_admin"];
     }

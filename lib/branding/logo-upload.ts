@@ -16,13 +16,20 @@ import { getFirebaseClient } from "@/lib/firebase/client";
  * session, and a logo is the least private thing a studio owns.
  */
 
-/** What the storage rule accepts, stated once so the UI and the check agree. */
+/**
+ * What a studio may pick. An SVG is accepted here and stored as a PNG
+ * (`rasterisedSvg` below): the branding path is world-readable, and an SVG is
+ * a document that can carry script, so the storage rule no longer takes one.
+ */
 export const LOGO_CONTENT_TYPES = [
   "image/png",
   "image/jpeg",
   "image/webp",
   "image/svg+xml",
 ] as const;
+
+/** What the storage rule accepts. */
+export const LOGO_STORED_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
 
 export const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -79,7 +86,8 @@ export async function uploadStudioLogo(
    * silently rewrite history. A new name means old documents keep the mark they
    * were sent with.
    */
-  const prepared = (await trimmedLogo(file)) ?? file;
+  const source = file.type === "image/svg+xml" ? await rasterisedSvg(file) : file;
+  const prepared = (await trimmedLogo(source)) ?? source;
   const extension =
     prepared !== file
       ? "png"
@@ -95,6 +103,48 @@ export async function uploadStudioLogo(
 
 /** The longest side a stored logo keeps: sharp in an email header, small to fetch. */
 const LOGO_MAX_SIDE = 1200;
+
+/**
+ * An SVG drawn to a PNG at the stored size. Drawn through an <img>, which
+ * never runs an SVG's scripts. Its size comes from the viewBox, or the
+ * width and height, because an SVG with neither has no natural size to draw.
+ */
+async function rasterisedSvg(file: File): Promise<File> {
+  const unreadable = "We couldn't read that SVG. Save your logo as a PNG and upload that instead.";
+  const text = await file.text();
+  const svg = new DOMParser().parseFromString(text, "image/svg+xml").documentElement;
+  if (!svg || svg.nodeName.toLowerCase() !== "svg") throw new Error(unreadable);
+  const box = (svg.getAttribute("viewBox") ?? "").trim().split(/[\s,]+/).map(Number);
+  const declaredWidth = Number.parseFloat(svg.getAttribute("width") ?? "");
+  const declaredHeight = Number.parseFloat(svg.getAttribute("height") ?? "");
+  const [boxWidth, boxHeight] = box.length === 4 && box[2]! > 0 && box[3]! > 0 ? [box[2]!, box[3]!] : [declaredWidth, declaredHeight];
+  if (!(boxWidth > 0 && boxHeight > 0)) throw new Error(unreadable);
+  const scale = LOGO_MAX_SIDE / Math.max(boxWidth, boxHeight);
+  const width = Math.max(1, Math.round(boxWidth * scale));
+  const height = Math.max(1, Math.round(boxHeight * scale));
+  svg.setAttribute("width", String(width));
+  svg.setAttribute("height", String(height));
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }));
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error(unreadable);
+    context.drawImage(image, 0, 0, width, height);
+    const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!png) throw new Error(unreadable);
+    return new File([png], file.name.replace(/\.svg$/i, "") + ".png", { type: "image/png" });
+  } catch (caught: unknown) {
+    throw caught instanceof Error && caught.message === unreadable ? caught : new Error(unreadable);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 /**
  * The logo without its empty margin, at a sensible size.

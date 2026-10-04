@@ -111,11 +111,15 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isPlatformAdmin() || (signedIn() && request.auth.uid == userId);
-      allow create: if signedIn() && request.auth.uid == userId;
+      // Created by the server (onboarding, invitation acceptance). The one
+      // write a browser makes is the activity heartbeat below; the profile
+      // fields it could also change were never written from the app, and an
+      // open write is a door nobody is watching (launch plan §5.5).
+      allow create: if false;
       allow update: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(["displayName", "photoUrl", "phone", "updatedAt", "updatedBy", "lastActiveAt"])
+          .hasOnly(["lastActiveAt"])
         // The activity heartbeat (features/auth/workspace-context.tsx): a
         // person may stamp when they were last in the app, and nothing else.
         // It is read only by the Console, as a hint, never as authority.
@@ -126,7 +130,10 @@ service cloud.firestore {
     match /tenants/{tenantId} {
       allow read: if isPlatformAdmin() || isActiveMember(tenantId);
       allow create: if false;
-      allow update: if canManageTenant(tenantId) && tenantUnchanged();
+      // Studio settings change through tenantIdentityCommand / tenantBrandingCommand,
+      // which check the subscription and audit the change. A direct write
+      // skipped both.
+      allow update: if false;
       allow delete: if false;
     }
 
@@ -134,11 +141,10 @@ service cloud.firestore {
       allow read: if isPlatformAdmin()
         || (signedIn() && resource.data.userId == request.auth.uid)
         || canManageTenant(resource.data.tenantId);
-      allow create: if canManageTenant(request.resource.data.tenantId)
-        && membershipDocumentId == request.resource.data.tenantId + "_" + request.resource.data.userId;
-      allow update: if canManageTenant(resource.data.tenantId)
-        && tenantUnchanged()
-        && membershipIdentityUnchanged();
+      // Seats, roles and permissions change only through membershipCommand,
+      // which enforces the seat limit and audits who changed what.
+      allow create: if false;
+      allow update: if false;
       allow delete: if false;
     }
 
@@ -164,18 +170,19 @@ service cloud.firestore {
         );
       // salesTaxExempt is set only by bookingCommand setJobSalesTaxExempt
       // (owner/admin, audited): never written straight from a browser.
-      allow create: if canManageProjects(request.resource.data.tenantId)
-        && request.resource.data.projectId == projectId
-        && !("salesTaxExempt" in request.resource.data);
-      allow update: if canManageProject(resource.data.tenantId, projectId) && tenantUnchanged()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["salesTaxExempt"]);
+      // Jobs change only through the CRM and booking commands: the state
+      // machine, optimistic concurrency, the subscription guard and the audit
+      // trail all live there, and a direct write bypassed every one.
+      allow create: if false;
+      allow update: if false;
       allow delete: if false;
     }
 
     match /contacts/{contactId} {
       allow read: if canReadContact(resource.data.tenantId, resource.data.projectIds);
-      allow create: if canManageProjects(request.resource.data.tenantId);
-      allow update: if canManageProjects(resource.data.tenantId) && tenantUnchanged();
+      // Contacts are written by the CRM commands (and the inquiry intake).
+      allow create: if false;
+      allow update: if false;
       allow delete: if false;
     }
 

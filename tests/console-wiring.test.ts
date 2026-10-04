@@ -87,7 +87,7 @@ test("the rules keep the team's records read-only and away from studios", () => 
   assert.match(messages, /resource\.data\.visibleToSender == true/, "an internal note is never shown to the studio");
   assert.match(messages, /resource\.data\.senderUserId == request\.auth\.uid/);
   // The activity heartbeat may stamp one field and nothing else.
-  assert.match(rules, /\.hasOnly\(\["displayName", "photoUrl", "phone", "updatedAt", "updatedBy", "lastActiveAt"\]\)/);
+  assert.match(rules, /\.hasOnly\(\["lastActiveAt"\]\)/);
 });
 
 test("the new scheduler is exported and listed for invoker binding", () => {

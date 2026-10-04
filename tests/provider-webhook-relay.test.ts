@@ -5,10 +5,6 @@ import {
   POST as postDocusign,
 } from "../app/api/webhooks/docusign/route.ts";
 import {
-  GET as getDropboxSign,
-  POST as postDropboxSign,
-} from "../app/api/webhooks/dropbox-sign/route.ts";
-import {
   GET as getQuickBooks,
   POST as postQuickBooks,
 } from "../app/api/webhooks/quickbooks/route.ts";
@@ -21,11 +17,8 @@ import {
   POST as postZoom,
 } from "../app/api/webhooks/zoom/route.ts";
 
-test("provider webhook relays reject non-POST requests except Dropbox Sign verification", async () => {
+test("provider webhook relays reject non-POST requests", async () => {
   assert.equal(getDocusign().status, 405);
-  const dropboxSign = getDropboxSign();
-  assert.equal(dropboxSign.status, 200);
-  assert.equal(await dropboxSign.text(), "Hello API Event Received");
   assert.equal(getQuickBooks().status, 405);
   assert.equal(getStripeConnect().status, 405);
   assert.equal(getZoom().status, 405);
@@ -43,21 +36,6 @@ test("Stripe Connect webhook relay requires its signature header", async () => {
   assert.equal(response.status, 401);
   assert.deepEqual(await response.json(), {
     error: "STRIPE_CONNECT_SIGNATURE_REQUIRED",
-  });
-});
-
-test("Dropbox Sign webhook relay forwards signature verification to the private handler", async () => {
-  const response = await postDropboxSign(
-    new Request("https://studiohub.test/api/webhooks/dropbox-sign", {
-      method: "POST",
-      body: "{}",
-      headers: { "content-type": "multipart/form-data" },
-    }),
-  );
-
-  assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), {
-    error: "FUNCTION_PROXY_NOT_CONFIGURED",
   });
 });
 
@@ -118,17 +96,6 @@ test("provider webhook relays reject oversized payloads", async () => {
       },
     }),
   );
-  const dropboxSign = await postDropboxSign(
-    new Request("https://studiohub.test/api/webhooks/dropbox-sign", {
-      method: "POST",
-      body: "{}",
-      headers: {
-        "content-length": oversized,
-        "content-type": "multipart/form-data",
-        "content-sha256": "invalid",
-      },
-    }),
-  );
   const quickbooks = await postQuickBooks(
     new Request("https://studiohub.test/api/webhooks/quickbooks", {
       method: "POST",
@@ -142,6 +109,5 @@ test("provider webhook relays reject oversized payloads", async () => {
   );
 
   assert.equal(docusign.status, 413);
-  assert.equal(dropboxSign.status, 413);
   assert.equal(quickbooks.status, 413);
 });

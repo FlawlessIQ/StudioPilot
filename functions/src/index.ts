@@ -30,7 +30,7 @@ export { zoomWebhook } from "./booking/zoom-webhook.js";
 export { publicConsultationScheduling } from "./booking/public-scheduling.js";
 export { proposalCommand } from "./booking/proposals.js";
 export { bookingAmendmentSigned } from "./booking/amendment-apply.js";
-export { docusignWebhook, dropboxSignWebhook, quickbooksWebhook, stripeConnectWebhook } from "./booking/webhooks.js";
+export { docusignWebhook, quickbooksWebhook, stripeConnectWebhook } from "./booking/webhooks.js";
 export { planningCommand } from "./planning/commands.js";
 export { sendgridInboundCoi } from "./planning/inbound.js";
 export { sendgridInboundMessage } from "./communications/inbound.js";

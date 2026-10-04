@@ -1,4 +1,5 @@
 import { GoogleAuth } from "google-auth-library";
+import { requestClientIp } from "@/lib/security/client-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -131,7 +132,7 @@ async function proxy(
    * App Hosting, never taken from the browser; the device is what the browser
    * reports about itself, labelled as such where it is shown.
    */
-  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const clientIp = requestClientIp(request);
   if (clientIp) headers.set("x-studiohub-client-ip", clientIp);
   const reportedAgent = request.headers.get("x-studiohub-user-agent");
   if (reportedAgent) headers.set("x-studiohub-user-agent", reportedAgent.slice(0, 400));

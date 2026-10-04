@@ -38,11 +38,6 @@ const RELAYS: ReadonlyArray<{
     route: "app/api/webhooks/docusign/route.ts",
   },
   {
-    fn: "dropboxSignWebhook",
-    source: "functions/src/booking/webhooks.ts",
-    route: "app/api/webhooks/dropbox-sign/route.ts",
-  },
-  {
     fn: "quickbooksWebhook",
     source: "functions/src/booking/webhooks.ts",
     route: "app/api/webhooks/quickbooks/route.ts",

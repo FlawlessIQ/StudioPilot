@@ -47,6 +47,16 @@ test("the storage rule lets the world read a logo and only the studio write one"
   // A logo, not a gallery.
   assert.match(block, /request\.resource\.size < 2 \* 1024 \* 1024/);
   assert.match(block, /image\/png\|image\/jpeg\|image\/webp/);
+  // No SVG on a world-readable path: it is a document that can carry script.
+  assert.doesNotMatch(block, /svg/);
+});
+
+test("a studio's SVG logo is stored as a PNG", () => {
+  const upload = source("lib/branding/logo-upload.ts");
+  assert.match(upload, /const source = file\.type === "image\/svg\+xml" \? await rasterisedSvg\(file\) : file;/);
+  // Drawn through an <img>, which never runs the SVG's scripts.
+  assert.match(upload, /const image = new Image\(\);/);
+  assert.match(upload, /export const LOGO_STORED_TYPES = \["image\/png", "image\/jpeg", "image\/webp"\] as const;/);
 });
 
 test("the proposal carries the logo, and survives one that will not load", () => {

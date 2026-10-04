@@ -193,7 +193,9 @@ test("a coordinator cannot exempt a job from sales tax", async () => {
   );
   const booking = read("functions/src/booking/commands.ts");
   assert.match(booking, /type: z\.literal\("setJobSalesTaxExempt"\)/);
-  assert.match(read("firestore.rules"), /affectedKeys\(\)\.hasAny\(\["salesTaxExempt"\]\)/);
+  // And never straight from a browser: jobs are not writable from the
+  // browser at all now (launch plan §5.5).
+  assert.match(read("firestore.rules"), /match \/projects\/\{projectId\} \{[\s\S]*?allow update: if false;/);
 });
 
 // --- the two StudioCue items -------------------------------------------------

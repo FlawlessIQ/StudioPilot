@@ -202,7 +202,8 @@ test("signing evidence records the person's address and device, not the proxy's"
   const relay = readFileSync("app/api/functions/[functionName]/route.ts", "utf8");
   // The relay derives the client address itself — never forwards one a browser sent.
   assert.match(relay, /headers\.set\("x-studiohub-client-ip", clientIp\)/);
-  assert.match(relay, /request\.headers\.get\("x-forwarded-for"\)/);
+  // The trusted hop, not the first entry a client can forge (lib/security/client-ip.ts).
+  assert.match(relay, /const clientIp = requestClientIp\(request\);/);
   assert.doesNotMatch(relay, /request\.headers\.get\("x-studiohub-client-ip"\)/);
   assert.match(relay, /headers\.set\("x-studiohub-user-agent"/);
   const commands = readFileSync("functions/src/booking/commands.ts", "utf8");

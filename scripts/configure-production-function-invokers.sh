@@ -105,7 +105,6 @@ app_services=(
   crewinvitationpreview
   crmcommand
   feedbackcommand
-  dropboxsignwebhook
   docusignwebhook
   # integrationoauth was retired on August 19, 2026. Leaving it here would be
   # actively harmful, not merely stale: this script runs under `set -e`, so the

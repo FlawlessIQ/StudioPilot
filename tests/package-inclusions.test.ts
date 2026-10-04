@@ -89,7 +89,7 @@ test("the proposal says Packages, lists bullets, and the package editor can chan
   assert.match(editor, /What&apos;s included/);
   assert.match(editor, /\.\.\.\(edits\.terms !== undefined \? \{ terms: terms\.trim\(\) \} : \{\}\)/);
   assert.match(source("functions/src/crm/commands.ts"), /terms: z\.string\(\)\.trim\(\)\.max\(6000\)\.optional\(\),/);
-  assert.match(source("lib/branding/logo-upload.ts"), /const prepared = \(await trimmedLogo\(file\)\) \?\? file;/);
+  assert.match(source("lib/branding/logo-upload.ts"), /const prepared = \(await trimmedLogo\(source\)\) \?\? source;/);
 });
 
 test("a dialog keeps focus in its fields while the reader types", () => {

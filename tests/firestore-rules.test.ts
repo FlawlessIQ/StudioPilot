@@ -533,7 +533,10 @@ test(
       await assertSucceeds(getDoc(doc(coordinatorDb, "galleryInboxes/project-a")));
       await assertSucceeds(getDoc(doc(coordinatorDb, "deliveryDrafts/delivery-draft-a")));
       await assertSucceeds(getDoc(doc(coordinatorDb, "bookingOrchestrations/project-a")));
-      await assertSucceeds(
+      // Jobs change only through the commands now, even an assigned
+      // coordinator's (launch plan §5.5): a direct write skipped the state
+      // machine, the subscription guard and the audit trail.
+      await assertFails(
         updateDoc(doc(coordinatorDb, "projects/project-a"), { updatedAt: "after" }),
       );
       await assertSucceeds(getDoc(doc(coordinatorDb, "billingSettings/tenant-a")));

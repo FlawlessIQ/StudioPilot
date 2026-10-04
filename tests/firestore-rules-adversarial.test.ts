@@ -12,8 +12,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 /**
@@ -205,6 +207,14 @@ before(async () => {
       userId: "crew-other",
       direction: "crew_to_studio",
     });
+    await put("crewMessages/crew-message-a", {
+      tenantId: "tenant-a",
+      projectId: "project-a",
+      assignmentId: "assignment-a",
+      userId: "crew-a",
+      direction: "studio_to_crew",
+    });
+    await put("users/owner-a", { displayName: "Owner A", email: "owner@example.com" });
     await put("insuranceRequests/coi-a", {
       tenantId: "tenant-a",
       projectId: "project-a",
@@ -720,5 +730,75 @@ test(
     await assertSucceeds(getDoc(doc(db, "crewAssignments/assignment-a")));
     await assertSucceeds(getDoc(doc(db, "crewProfiles/profile-a")));
     await assertSucceeds(getDoc(doc(db, "projects/project-a")));
+  },
+);
+
+// ── K · Even an owner writes only through the commands ───────────────
+//
+// The commands hold the state machine, the seat limit, the subscription
+// guard and the audit trail. A direct browser write skipped all four
+// (launch plan §5.5), so the rules refuse them outright.
+
+test(
+  "an owner cannot edit their studio, seats, jobs or contacts directly",
+  { skip },
+  async () => {
+    const db = as("owner-a");
+    await assertFails(updateDoc(doc(db, "tenants/tenant-a"), { name: "Renamed" }));
+    await assertFails(
+      setDoc(doc(db, "memberships/tenant-a_new-user"), {
+        tenantId: "tenant-a",
+        userId: "new-user",
+        role: "studio_admin",
+        status: "active",
+      }),
+    );
+    await assertFails(updateDoc(doc(db, "memberships/tenant-a_photographer-a"), { role: "studio_admin" }));
+    await assertFails(
+      setDoc(doc(db, "projects/project-new"), { tenantId: "tenant-a", projectId: "project-new" }),
+    );
+    await assertFails(updateDoc(doc(db, "projects/project-a"), { state: "BOOKED" }));
+    await assertFails(setDoc(doc(db, "contacts/contact-new"), { tenantId: "tenant-a", projectIds: [] }));
+    await assertFails(updateDoc(doc(db, "contacts/contact-a"), { email: "someone@else.test" }));
+  },
+);
+
+test(
+  "a person stamps their own activity and nothing else on their user record",
+  { skip },
+  async () => {
+    const db = as("owner-a");
+    await assertSucceeds(updateDoc(doc(db, "users/owner-a"), { lastActiveAt: new Date().toISOString() }));
+    await assertFails(updateDoc(doc(db, "users/owner-a"), { displayName: "Someone else" }));
+    await assertFails(setDoc(doc(as("fresh-user"), "users/fresh-user"), { displayName: "New" }));
+  },
+);
+
+test(
+  "a crew member reads their thread when the query names the job, and is refused without it",
+  { skip },
+  async () => {
+    const db = as("crew-a");
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, "crewMessages"),
+          where("tenantId", "==", "tenant-a"),
+          where("projectId", "==", "project-a"),
+          where("userId", "==", "crew-a"),
+          where("assignmentId", "==", "assignment-a"),
+        ),
+      ),
+    );
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, "crewMessages"),
+          where("tenantId", "==", "tenant-a"),
+          where("userId", "==", "crew-a"),
+          where("assignmentId", "==", "assignment-a"),
+        ),
+      ),
+    );
   },
 );

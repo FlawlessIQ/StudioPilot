@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminFirestore } from "@/server/firebase/admin";
 import { placesProvider } from "@/server/integrations/places";
+import { requestClientIp } from "@/lib/security/client-ip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,11 +51,52 @@ const requestSchema = z.discriminatedUnion("action", [
 const HOURLY_LIMIT = 120;
 const WINDOW_MS = 60 * 60 * 1000;
 
+/**
+ * A ceiling per studio per day, whoever is typing. The hourly limit is per
+ * visitor, so a script rotating addresses could still spend the Places key
+ * without end on one studio's slug. Each inquiry is a dozen or so requests;
+ * this is a few hundred inquiries a day, far past any studio's real traffic,
+ * and the field falls back to plain typing past it.
+ *
+ * Not App Check: the inquiry form deliberately keeps Firebase off the page
+ * until submit (lib/places/client.ts), and a reCAPTCHA wait on the first
+ * keystroke is a slower front door for every client to stop a cost that this
+ * bounds anyway. The project-wide Places quota in Google Cloud is the outer cap.
+ */
+const DAILY_STUDIO_LIMIT = 3_000;
+const studioDays = new Map<string, { day: string; count: number; blocked: boolean }>();
+
+function studioDayAllows(slug: string): boolean {
+  const day = new Date().toISOString().slice(0, 10);
+  let entry = studioDays.get(slug);
+  if (!entry || entry.day !== day) {
+    entry = { day, count: 0, blocked: false };
+    studioDays.set(slug, entry);
+  }
+  entry.count += 1;
+  if (studioDays.size > 5_000) studioDays.clear();
+  // Counted across instances off the response path, as the hourly limit is.
+  const reference = adminFirestore.doc(`publicRateLimits/places-day_${slug}_${day}`);
+  void reference
+    .set(
+      { count: FieldValue.increment(1), expiresAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() },
+      { merge: true },
+    )
+    .then(() => reference.get())
+    .then((snapshot) => {
+      if (Number(snapshot.get("count") ?? 0) > DAILY_STUDIO_LIMIT) {
+        const current = studioDays.get(slug);
+        if (current && current.day === day) current.blocked = true;
+      }
+    })
+    .catch(() => undefined);
+  return !entry.blocked && entry.count <= DAILY_STUDIO_LIMIT;
+}
+
 function fingerprint(request: Request, scope: string): string {
-  // The first hop in x-forwarded-for is the client as the load balancer saw
-  // it; the rest are proxies and are attacker-controllable.
-  const forwarded = request.headers.get("x-forwarded-for") ?? "";
-  const ip = forwarded.split(",")[0]?.trim() || "unknown";
+  // The client as Google's load balancer saw it (lib/security/client-ip.ts);
+  // the leading entries are whatever the client chose to send.
+  const ip = requestClientIp(request) ?? "unknown";
   const agent = request.headers.get("user-agent") ?? "unknown";
   return createHash("sha256").update(`${scope}|${ip}|${agent}`).digest("hex");
 }
@@ -160,7 +203,7 @@ export async function POST(request: Request): Promise<Response> {
     // The limit is keyed on the slug the form names, not the tenant id, so it
     // no longer has to wait for the studio lookup: the two run together.
     const id = fingerprint(request, `places:${input.tenantSlug}`);
-    const allowed = allowedNow(id);
+    const allowed = allowedNow(id) && studioDayAllows(input.tenantSlug);
     countShared(id);
     const tenantId = await activeTenantId(input.tenantSlug);
     if (!tenantId) {

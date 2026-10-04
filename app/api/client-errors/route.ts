@@ -2,6 +2,7 @@ import {
   CLIENT_ERROR_LIMITS,
   sanitizeClientErrorReport,
 } from "@/lib/observability/client-error";
+import { requestClientIp } from "@/lib/security/client-ip";
 
 /**
  * Browser errors, recorded at ERROR in Cloud Logging.
@@ -25,7 +26,7 @@ const recent = new Map<string, { count: number; resetAt: number }>();
 
 function clientAddress(request: Request): string {
   return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    requestClientIp(request) ||
     request.headers.get("x-real-ip")?.trim() ||
     "unknown"
   );

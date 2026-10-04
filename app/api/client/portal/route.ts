@@ -39,6 +39,7 @@ import {
   studioNotificationAddress,
   viewContract,
 } from "@/server/contracts/client-signing";
+import { requestClientIp } from "@/lib/security/client-ip";
 import { signCombinedAgreement } from "@/server/contracts/combined-signing";
 import { signingBillingAddressStep } from "@/server/contracts/signing-billing-address";
 import {
@@ -2149,7 +2150,7 @@ export async function POST(request: Request) {
           cardToken: parsed.cardToken,
           idempotencyKey: parsed.idempotencyKey,
           actorId: identity.uid,
-          ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+          ipAddress: requestClientIp(request),
           userAgent: request.headers.get("user-agent"),
         }),
         { status: 201 },
@@ -2199,7 +2200,7 @@ export async function POST(request: Request) {
             authMethod: identity.firebase?.sign_in_provider ?? null,
           },
           evidence: {
-            ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+            ipAddress: requestClientIp(request),
             userAgent: request.headers.get("x-studiohub-user-agent")?.slice(0, 400) ?? request.headers.get("user-agent"),
           },
         }),
@@ -2222,7 +2223,7 @@ export async function POST(request: Request) {
             authMethod: identity.firebase?.sign_in_provider ?? null,
           },
           evidence: {
-            ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+            ipAddress: requestClientIp(request),
             userAgent: request.headers.get("x-studiohub-user-agent")?.slice(0, 400) ?? request.headers.get("user-agent"),
           },
         }),
@@ -2257,7 +2258,7 @@ export async function POST(request: Request) {
       };
       const evidence = {
         ipAddress:
-          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+          requestClientIp(request),
         // App Hosting's proxy replaces the user agent ("Google"); the page
         // reports the device it runs on.
         userAgent:

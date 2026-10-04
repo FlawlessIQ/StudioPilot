@@ -131,7 +131,7 @@ test("an address suggestion does not wait on three lookups in a row", () => {
   assert.match(route, /tenantBySlug = new Map/);
   // The limit answers from memory; the shared Firestore count runs off the
   // response path (it took 137–197 ms of every suggestion on production).
-  assert.match(route, /const allowed = allowedNow\(id\);\s*countShared\(id\);/);
+  assert.match(route, /const allowed = allowedNow\(id\) && studioDayAllows\(input\.tenantSlug\);\s*countShared\(id\);/);
   assert.match(route, /void withinRateLimit\(id\)\.then/);
   assert.doesNotMatch(route, /await (Promise\.all\(\[[^\]]*)?withinRateLimit/);
   assert.match(route, /"server-timing"/);

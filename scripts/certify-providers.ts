@@ -65,34 +65,6 @@ async function post(
   return { status: response.status, text: (await response.text()).slice(0, 200) };
 }
 
-/**
- * Dropbox Sign does not post JSON.
- *
- * It delivers `multipart/form-data` with the event in a field named `json`
- * (developers.hellosign.com/docs/events/walkthrough), which is what the handler
- * parses with busboy. Posting raw JSON at it returns INVALID_PAYLOAD — the
- * first run of this harness did exactly that and the failure was mine, not the
- * product's. A certification harness that does not send the provider's real
- * envelope is only testing itself.
- */
-async function postMultipartJsonField(
-  path: string,
-  json: string,
-): Promise<{ status: number; text: string }> {
-  const boundary = `----certify${Date.now()}`;
-  const body =
-    `--${boundary}\r\n` +
-    `Content-Disposition: form-data; name="json"\r\n\r\n` +
-    `${json}\r\n` +
-    `--${boundary}--\r\n`;
-  const response = await fetch(`${FUNCTIONS}/${path}`, {
-    method: "POST",
-    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
-    body,
-  });
-  return { status: response.status, text: (await response.text()).slice(0, 200) };
-}
-
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
 /**
@@ -259,72 +231,6 @@ async function certifyQuickBooks() {
   check("wrong verifier token refused", wrongKey.status === 401, `HTTP ${wrongKey.status}`);
 }
 
-// ── Dropbox Sign · HMAC-SHA256(eventTime + eventType) hex, inside the body ──
-async function certifyDropboxSign() {
-  process.stdout.write("\nDropbox Sign (signature request callbacks)\n");
-  const apiKey = "cert-dropbox-sign-api-key";
-  const eventTime = `${nowSeconds()}`;
-  await seedDropboxSignContract(`cert-request-${eventTime}`);
-  const eventType = "signature_request_all_signed";
-  const hash = (time: string, type: string, key: string) =>
-    createHmac("sha256", key).update(`${time}${type}`).digest("hex");
-  const body = (eventHash: string) =>
-    JSON.stringify({
-      event: {
-        event_time: eventTime,
-        event_type: eventType,
-        event_hash: eventHash,
-        event_metadata: {
-          related_signature_id: `cert-sig-${eventTime}`,
-          // Required by the normalizer, and sent by Dropbox Sign. Omitting it
-          // was the harness's second mistake — the payload parsed and was then
-          // correctly rejected as incomplete.
-          reported_for_account_id: CERT_ACCOUNT,
-        },
-      },
-      signature_request: {
-        signature_request_id: `cert-request-${eventTime}`,
-        is_complete: true,
-        signatures: [
-          {
-            signature_id: `cert-sig-${eventTime}`,
-            signer_email_address: "iris@example.com",
-            status_code: "signed",
-            signed_at: Number(eventTime),
-          },
-        ],
-      },
-    });
-
-  const good = await postMultipartJsonField("dropboxSignWebhook", body(hash(eventTime, eventType, apiKey)));
-  check("valid event hash accepted", acknowledged(good.status), `HTTP ${good.status} ${good.text}`);
-
-  const replay = await postMultipartJsonField("dropboxSignWebhook", body(hash(eventTime, eventType, apiKey)));
-  check("replayed callback deduped", acknowledged(replay.status), `HTTP ${replay.status}`);
-
-  const wrongKey = await postMultipartJsonField(
-    "dropboxSignWebhook",
-    body(hash(eventTime, eventType, "wrong-api-key")),
-  );
-  check("wrong API key refused", wrongKey.status === 401, `HTTP ${wrongKey.status}`);
-
-  const noHash = await postMultipartJsonField("dropboxSignWebhook", body(""));
-  check("missing event hash refused", noHash.status !== 200, `HTTP ${noHash.status}`);
-
-  const contract = await readDoc("contracts/cert-contract-ds");
-  check(
-    "all-signed request marks the contract completed",
-    contract?.status === "completed",
-    `contract status is ${String(contract?.status)}`,
-  );
-  const project = await readDoc("projects/cert-project-ds");
-  check(
-    "the project advances to awaiting the retainer",
-    project?.state === "RETAINER_PENDING",
-    `project state is ${String(project?.state)}`,
-  );
-}
-
 // ── Stripe · t=<ts>,v1=HMAC-SHA256("<ts>.<raw>") hex, ±300s ──
 const stripeHeader = (raw: string, secret: string, timestamp: number) =>
   `t=${timestamp},v1=${createHmac("sha256", secret)
@@ -451,7 +357,7 @@ async function readDoc(path: string): Promise<Record<string, unknown> | null> {
 }
 
 async function seedFixtures(envelopeId: string) {
-  for (const provider of ["docusign", "zoom", "dropbox_sign", "quickbooks"]) {
+  for (const provider of ["docusign", "zoom", "quickbooks"]) {
     await seed(`integrationConnections/cert-${provider}`, {
       tenantId: CERT_TENANT,
       provider,
@@ -474,37 +380,12 @@ async function seedFixtures(envelopeId: string) {
   });
 }
 
-/**
- * Dropbox Sign's completion path, seeded separately.
- *
- * Both signing handlers carried the same read-after-write fault, and the first
- * run only reached Docusign's because that was the only provider with a
- * matching contract. A harness that exercises one of two identical code paths
- * certifies half of what it claims to.
- */
-async function seedDropboxSignContract(signatureRequestId: string) {
-  await seed("projects/cert-project-ds", {
-    tenantId: CERT_TENANT,
-    projectId: "cert-project-ds",
-    name: "Wren & Ash",
-    state: "CONTRACT_PENDING",
-  });
-  await seed("contracts/cert-contract-ds", {
-    tenantId: CERT_TENANT,
-    projectId: "cert-project-ds",
-    provider: "dropbox_sign",
-    providerEnvelopeId: signatureRequestId,
-    status: "sent",
-  });
-}
-
 async function main() {
   process.stdout.write(`Certifying provider webhooks against ${FUNCTIONS}\n`);
   const envelopeId = `cert-envelope-${Date.now()}`;
   await seedFixtures(envelopeId);
   await certifyDocusign(envelopeId);
   await certifyQuickBooks();
-  await certifyDropboxSign();
   const stripeEvent = (id: string, type: string, data: Record<string, unknown>) =>
     JSON.stringify({
       id,
