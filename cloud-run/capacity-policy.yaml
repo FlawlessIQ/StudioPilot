@@ -4,9 +4,12 @@ services:
     region: us-east4
     minInstances: 0
     maxInstances: 4
-    concurrency: 4
+    # 1Gi at concurrency 4 ran out of memory on production (2026-10-03): a
+    # proposal with a full-size logo and four renders at once is more than a
+    # gigabyte. Twice the memory, half the renders per instance.
+    concurrency: 2
     cpu: 1
-    memory: 1Gi
+    memory: 2Gi
     timeoutSeconds: 600
     monthlyWarningUsd: 75
     monthlyCriticalUsd: 150

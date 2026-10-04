@@ -6,7 +6,7 @@ region="${2:-us-east4}"
 
 gcloud run services update studiohub-pdf \
   --project "$project_id" --region "$region" \
-  --cpu 1 --memory 1Gi --concurrency 4 --timeout 600 \
+  --cpu 1 --memory 2Gi --concurrency 2 --timeout 600 \
   --min-instances 0 --max-instances 4
 
 gcloud run services update studiohub-file-safety \

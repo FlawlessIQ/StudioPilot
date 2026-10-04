@@ -72,6 +72,7 @@ import {
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { billingHoldFor, holdJobForBilling } from "../saas/billing-hold.js";
+import { isReservedTestAddress } from "../communications/test-address.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
 import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
 import {
@@ -985,9 +986,12 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   // one email per client, each with their own link (client/partner-
   // invitations.ts). Copying the others on would hand them a second email
   // with someone else's invitation, which refuses them.
+  // Reserved test domains never receive live mail (communications/test-address.ts).
+  if (isReservedTestAddress(recipient)) return { held: "reserved_test_address", type };
   const partnerRecipients = context.recipientIsClient && document.get("soleRecipient") !== true
     ? [...context.clientContactEmails]
         .filter((email) => email !== recipient.trim().toLowerCase())
+        .filter((email) => !isReservedTestAddress(email))
         .slice(0, 3)
     : [];
 

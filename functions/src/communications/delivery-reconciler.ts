@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
 /**
@@ -84,6 +85,43 @@ export function activityEntriesFromRows(
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
+/** SendGrid said "too many requests". Carries how long it asked us to wait. */
+export class ActivityRateLimited extends Error {
+  constructor(readonly retryAfterSeconds: number | null) {
+    super("ACTIVITY_RATE_LIMITED");
+  }
+}
+
+function rateLimited(response: Response): ActivityRateLimited | null {
+  if (response.status !== 429) return null;
+  const header = Number(response.headers.get("retry-after"));
+  return new ActivityRateLimited(Number.isFinite(header) && header > 0 ? header : null);
+}
+
+const BACKOFF_MIN_MS = 15 * 60 * 1000;
+const BACKOFF_MAX_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * How long to leave SendGrid alone after a 429, and how many in a row.
+ *
+ * The account's Activity API budget is shared with other products, so the
+ * sweep was refused about once an hour (launch checklist, 2026-10-03), and
+ * each refusal threw — an ERROR log and a retry that asked again straight
+ * away. Now a refusal waits: at least what SendGrid asked for, doubling with
+ * each consecutive refusal from fifteen minutes up to two hours, and a
+ * successful sweep starts the count again. Pure, so the schedule is tested.
+ */
+export function nextBackoff(
+  consecutive: number,
+  retryAfterSeconds: number | null,
+  now: number,
+): { until: string; consecutive: number } {
+  const next = consecutive + 1;
+  const doubling = Math.min(BACKOFF_MAX_MS, BACKOFF_MIN_MS * 2 ** (next - 1));
+  const asked = (retryAfterSeconds ?? 0) * 1000;
+  return { until: new Date(now + Math.max(doubling, asked)).toISOString(), consecutive: next };
+}
+
 async function activityForSender(
   apiKey: string,
   fromEmail: string,
@@ -97,6 +135,8 @@ async function activityForSender(
   const response = await fetch(url, {
     headers: { authorization: `Bearer ${apiKey}` },
   });
+  const limited = rateLimited(response);
+  if (limited) throw limited;
   if (!response.ok) throw new Error(`ACTIVITY_QUERY_FAILED:${response.status}`);
   const body = (await response.json()) as { messages?: ActivityRow[] };
   return activityEntriesFromRows(body.messages ?? []);
@@ -116,6 +156,8 @@ async function failureDetail(
     `${ACTIVITY}/${encodeURIComponent(activityId)}`,
     { headers: { authorization: `Bearer ${apiKey}` } },
   );
+  const limited = rateLimited(response);
+  if (limited) throw limited;
   if (!response.ok) throw new Error(`ACTIVITY_DETAIL_FAILED:${response.status}`);
   const body = (await response.json()) as {
     events?: Array<Record<string, unknown>>;
@@ -159,6 +201,11 @@ export const emailDeliveryReconciler = onSchedule(
     }
 
     const db = getFirestore();
+    // Backing off after a 429 (nextBackoff): skip this run quietly.
+    const stateReference = db.doc("systemState/emailDeliveryReconciler");
+    const state = await stateReference.get();
+    const backoffUntil = text(state.get("backoffUntil"));
+    if (backoffUntil && Date.parse(backoffUntil) > Date.now()) return;
     // One equality filter, so this needs no composite index. Everything else
     // is narrowed in memory.
     const snapshot = await db
@@ -177,7 +224,26 @@ export const emailDeliveryReconciler = onSchedule(
     }
     if (!pending.length) return;
 
-    const activity = await activityForSender(apiKey, fromEmail, 1000);
+    let activity: Map<string, ActivityEntry>;
+    try {
+      activity = await activityForSender(apiKey, fromEmail, 1000);
+    } catch (caught: unknown) {
+      if (!(caught instanceof ActivityRateLimited)) throw caught;
+      const backoff = nextBackoff(
+        Number(state.get("consecutiveRateLimits") ?? 0),
+        caught.retryAfterSeconds,
+        Date.now(),
+      );
+      await stateReference.set(
+        { backoffUntil: backoff.until, consecutiveRateLimits: backoff.consecutive, lastRateLimitedAt: new Date().toISOString() },
+        { merge: true },
+      );
+      logger.warn("email_delivery_reconciler_rate_limited", backoff);
+      return;
+    }
+    if (state.get("consecutiveRateLimits")) {
+      await stateReference.set({ backoffUntil: null, consecutiveRateLimits: 0 }, { merge: true });
+    }
 
     // A failure costs one extra request each, against a budget of six per
     // seven seconds. Capped so a backlog of bounces cannot exhaust it and
@@ -206,8 +272,11 @@ export const emailDeliveryReconciler = onSchedule(
           status = detail.event;
           occurredAt = detail.occurredAt;
           reason = detail.reason;
-        } catch {
-          // Leave it pending rather than record a status we could not read.
+        } catch (caught: unknown) {
+          // Refused for rate: stop asking for details this run; the rest are
+          // picked up next time. Anything else: leave it pending rather than
+          // record a status we could not read.
+          if (caught instanceof ActivityRateLimited) detailBudget = 0;
           continue;
         }
       }
