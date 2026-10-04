@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
-import { onRequest, type Request } from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { signatureValid } from "../saas/stripe.js";
 import { providerReportedInvoice } from "./invoice-standing.js";
