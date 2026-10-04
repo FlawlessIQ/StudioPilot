@@ -79,6 +79,9 @@ The delivery-status checker backs off when SendGrid rate-limits it.
   `scripts/configure-production-function-invokers.sh`) and accept browser
   origins only from StudioCue's own domains.
 - Public branding images are PNG, JPEG or WebP only.
+- Places API daily caps (Google Cloud quota overrides, 2026-10-04): 10,000
+  autocomplete and 3,000 place-detail requests a day, on top of the
+  per-visitor and per-studio limits in the app.
 - App Check (reCAPTCHA Enterprise) on studio and portal calls.
 
 ## Deploying
@@ -97,4 +100,3 @@ verified by commit. GitHub Actions runs the same checks on every push
 - Firestore point-in-time recovery (off).
 - DMARC reporting, then `p=quarantine`.
 - The Dropbox production app.
-- A project-level daily quota on the Places API.
