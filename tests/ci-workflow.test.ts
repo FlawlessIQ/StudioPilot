@@ -16,4 +16,5 @@ test("every push to main runs the checks CLAUDE.md asks for", () => {
   // npm test imports functions/src, so the test job installs functions' packages too.
   const appJob = ci.slice(ci.indexOf("app:"), ci.indexOf("functions:\n"));
   assert.match(appJob, /run: npm ci\n\s+working-directory: functions/);
+  assert.match(appJob, /TZ: America\/New_York/);
 });

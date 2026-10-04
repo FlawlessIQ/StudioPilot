@@ -18,6 +18,10 @@ jobs:
     name: Typecheck, tests, lint
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Some date tests describe a reader in Eastern time (late evening that is
+    # already tomorrow in UTC); they assume the machine is there too.
+    env:
+      TZ: America/New_York
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
