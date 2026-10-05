@@ -11,6 +11,12 @@ import { studioHubCors } from "../security/cors.js";
 import { checkProviderConnection } from "../operations/provider-runtime.js";
 import { providerUsesPkce } from "./oauth-strategy.js";
 import { zoomAccountIdFromAccessToken } from "../booking/webhook-normalizers.js";
+import {
+  ZOOM_DEVELOPMENT_APP,
+  zoomDevelopmentClient,
+  zoomOAuthAppFor,
+  type ZoomOAuthApp,
+} from "./zoom-review-app.js";
 import { QUICKBOOKS_PAYMENTS_SCOPE } from "../billing/autopay-core.js";
 import {
   docusignOAuthBaseUrl,
@@ -69,6 +75,8 @@ const startSchema = z.object({
     .regex(/^\/studio\/[A-Za-z0-9/_-]*$/)
     .optional(),
 });
+const oauthAppOf = (value: unknown): ZoomOAuthApp =>
+  value === ZOOM_DEVELOPMENT_APP ? ZOOM_DEVELOPMENT_APP : null;
 type Config = {
   clientId: string;
   clientSecret: string;
@@ -84,7 +92,11 @@ const environment = (provider: Provider, key: "CLIENT_ID" | "CLIENT_SECRET") =>
  * bound at deploy: Outlook's (see platform-secret.ts). Use this wherever a
  * flow starts or a code is exchanged.
  */
-async function configFor(provider: Provider): Promise<Config> {
+async function configFor(provider: Provider, oauthApp: ZoomOAuthApp = null): Promise<Config> {
+  if (provider === "zoom" && oauthApp === ZOOM_DEVELOPMENT_APP) {
+    // The reviewer's test studio only (zoom-review-app.ts).
+    return { ...config(provider), ...(await zoomDevelopmentClient()) };
+  }
   return provider === "outlook_calendar"
     ? config(provider, await platformSecret("MICROSOFT_CLIENT_SECRET"))
     : config(provider);
@@ -335,8 +347,9 @@ async function exchange(
   code: string,
   verifier: string | null,
   redirectUri: string,
+  oauthApp: ZoomOAuthApp = null,
 ) {
-  const current = await configFor(provider);
+  const current = await configFor(provider, oauthApp);
   const params = new URLSearchParams({ grant_type: "authorization_code", code });
   // Stripe Connect's token endpoint doesn't take redirect_uri — the
   // redirect is validated against the Connect app's own settings instead.
@@ -644,7 +657,8 @@ export const integrationOAuth = onRequest(
           // iCloud has no OAuth; its card posts connect_apple instead.
           throw new Error("APPLE_CALENDAR_USES_APP_PASSWORD");
         }
-        const base = await configFor(input.provider);
+        const oauthApp = zoomOAuthAppFor(input.provider, input.tenantId);
+        const base = await configFor(input.provider, oauthApp);
         const current =
           input.provider === "quickbooks" && input.payments
             ? { ...base, scopes: [...base.scopes, QUICKBOOKS_PAYMENTS_SCOPE] }
@@ -668,6 +682,7 @@ export const integrationOAuth = onRequest(
             redirectUri,
             scopes: current.scopes,
             returnTo: input.returnTo ?? null,
+            oauthApp,
             expiresAt: new Date(now.valueOf() + 10 * 60000).toISOString(),
             createdAt: now.toISOString(),
           });
@@ -745,6 +760,7 @@ export const integrationOAuth = onRequest(
           ? String(saved.get("verifier"))
           : null,
         String(saved.get("redirectUri")),
+        oauthAppOf(saved.get("oauthApp")),
       );
       // Stripe Connect (Standard) access tokens don't expire and aren't
       // issued with a refresh_token — token.expires_in is genuinely absent,
@@ -767,6 +783,8 @@ export const integrationOAuth = onRequest(
         accessToken: token.access_token,
         refreshToken: token.refresh_token ?? null,
         expiresAt,
+        // Its refresh must go to the client that issued it.
+        ...(oauthAppOf(saved.get("oauthApp")) ? { oauthApp: ZOOM_DEVELOPMENT_APP } : {}),
       };
       let accountId = String(request.query.realmId ?? "");
       let displayName: string = provider;

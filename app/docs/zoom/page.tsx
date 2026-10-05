@@ -26,7 +26,11 @@ export default function ZoomDocumentationPage() {
         </ol>
 
         <h2>Permissions requested</h2>
-        <p>StudioCue requests only meeting permissions needed to list, create, read, update, and delete meetings for the authorized Zoom user. StudioCue does not request permission to access recordings, chat messages, contacts, or account administration.</p>
+        <p>StudioCue requests only the meeting permissions needed to list, create, read, update, and delete meetings for the authorized Zoom user, and to read the summary of a meeting StudioCue created. StudioCue does not request permission to access recordings, transcripts, chat messages, contacts, or account administration.</p>
+
+        <h2>Meeting summaries</h2>
+        <p>When StudioCue creates a consultation meeting, it turns on Zoom&apos;s meeting summary for that meeting. After the call, Zoom notifies StudioCue that the summary is ready, and StudioCue attaches it to the consultation as the studio&apos;s notes, so nobody retypes them. StudioCue then drafts a consultation brief from those notes for the studio to review; nothing is sent to the client without the studio&apos;s approval.</p>
+        <p>StudioCue reads summaries only for meetings it created for that studio. If you connected Zoom before summaries were available, reconnect Zoom to grant the new permission; until then, everything else keeps working and you can add notes by hand.</p>
 
         <h2>Manage meetings</h2>
         <p>Use the relevant StudioCue project or scheduling workflow to create a Zoom meeting. StudioCue returns the meeting link to the workflow. Authorized users can review, reschedule, or cancel the meeting from StudioCue, and changes are synchronized with Zoom.</p>

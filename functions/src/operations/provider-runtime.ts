@@ -28,6 +28,7 @@ import {
 import { GRAPH_BASE_URL, outlookBusyFromGraph } from "../integrations/outlook-calendar.js";
 import { appleBusyFromCalDav, isIcloudCalDavUrl } from "../integrations/apple-calendar.js";
 import { platformSecret } from "../integrations/platform-secret.js";
+import { ZOOM_DEVELOPMENT_APP, zoomDevelopmentClient } from "../integrations/zoom-review-app.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { autoInstantiateWorkflow } from "../workflow/commands.js";
 import { productEvent } from "./product-events.js";
@@ -69,6 +70,8 @@ export type Credential={
   baseUrl?:string;
   accountId?:string;
   realmId?:string;
+  /** "development": issued by Zoom's review client (integrations/zoom-review-app.ts). */
+  oauthApp?:string;
 };
 type Json=Record<string,unknown>;
 const asRecord=(value:unknown):Json=>typeof value==="object"&&value!==null&&!Array.isArray(value)?value as Json:{};
@@ -115,6 +118,7 @@ async function readSecret(reference:string):Promise<Credential>{
     accountId:text(parsed.accountId)||undefined,
     realmId:text(parsed.realmId)||undefined,
     username:text(parsed.username)||undefined,
+    oauthApp:text(parsed.oauthApp)||undefined,
   };
 }
 async function refreshCredential(reference:string,provider:Provider,current:Credential):Promise<Credential>{
@@ -125,12 +129,14 @@ async function refreshCredential(reference:string,provider:Provider,current:Cred
   const headers:Record<string,string>={"content-type":"application/x-www-form-urlencoded"};
   if(refreshNeedsClientCredentials(provider)){
     const prefix=oauthClientPrefix(provider);
-    const clientId=process.env[`${prefix}_CLIENT_ID`];
+    // A Zoom credential from the review client refreshes against that client.
+    const review=provider==="zoom"&&current.oauthApp===ZOOM_DEVELOPMENT_APP?await zoomDevelopmentClient():null;
+    const clientId=review?.clientId??process.env[`${prefix}_CLIENT_ID`];
     // Outlook's secret is read at run time rather than bound at deploy time;
     // integrations/platform-secret.ts says why.
-    const clientSecret=provider==="outlook_calendar"
+    const clientSecret=review?.clientSecret??(provider==="outlook_calendar"
       ?await platformSecret("MICROSOFT_CLIENT_SECRET")
-      :process.env[`${prefix}_CLIENT_SECRET`];
+      :process.env[`${prefix}_CLIENT_SECRET`]);
     if(!clientId||!clientSecret)throw new Error(`${provider.toUpperCase()}_REFRESH_NOT_CONFIGURED`);
     if(refreshCredentialsInRequestBody(provider)){
       params.set("client_id",clientId);

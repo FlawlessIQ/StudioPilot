@@ -3,6 +3,7 @@
   "app/api/client/portal/route.ts": 3,
   "app/auth/email-link/page.tsx": 1,
   "app/corporate-photographers/page.tsx": 1,
+  "app/docs/zoom/test-plan/page.tsx": 2,
   "app/features/page.tsx": 2,
   "app/for-clients/page.tsx": 4,
   "app/for-crew/page.tsx": 2,
