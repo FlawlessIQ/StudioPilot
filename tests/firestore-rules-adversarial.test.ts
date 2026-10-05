@@ -215,6 +215,14 @@ before(async () => {
       direction: "studio_to_crew",
     });
     await put("users/owner-a", { displayName: "Owner A", email: "owner@example.com" });
+    await put("eventParticipants/participant-a", {
+      tenantId: "tenant-a",
+      projectId: "project-a",
+      parentName: "Dana Reyes",
+      athleteName: "Mia",
+      email: "dana@example.com",
+      status: "unpaid",
+    });
     await put("insuranceRequests/coi-a", {
       tenantId: "tenant-a",
       projectId: "project-a",
@@ -799,6 +807,28 @@ test(
           where("assignmentId", "==", "assignment-a"),
         ),
       ),
+    );
+  },
+);
+
+// ── L · Group-event rosters: the studio's, nobody else's ─────────────
+
+test(
+  "a roster is read by the studio and by no one else, and written by no browser",
+  { skip },
+  async () => {
+    await assertSucceeds(getDoc(doc(as("owner-a"), "eventParticipants/participant-a")));
+    for (const uid of ["owner-b", "crew-a", "client-a", "photographer-a"]) {
+      await assertFails(getDoc(doc(as(uid), "eventParticipants/participant-a")));
+    }
+    await assertFails(getDoc(doc(anonymous(), "eventParticipants/participant-a")));
+    await assertFails(updateDoc(doc(as("owner-a"), "eventParticipants/participant-a"), { status: "paid" }));
+    await assertFails(
+      setDoc(doc(as("owner-a"), "eventParticipants/participant-new"), {
+        tenantId: "tenant-a",
+        projectId: "project-a",
+        athleteName: "Someone",
+      }),
     );
   },
 );

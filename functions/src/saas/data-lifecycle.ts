@@ -53,6 +53,8 @@ const collections = [
   "insuranceRequests",
   "crewProfiles",
   "crewAssignments",
+  // Group events: the parents on an event's roster.
+  "eventParticipants",
   "documents",
   "messages",
   "automationRuns",

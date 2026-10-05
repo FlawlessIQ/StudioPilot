@@ -343,6 +343,12 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   TRIAL_END_TOO_FAR: "Stripe allows a trial of up to two years from today.",
   ACTIVE_SUBSCRIPTION_REQUIRED:
     "Your trial hasn't started yet. Add a card under Studio settings → Subscription to start it, then try again. If your subscription lapsed, update your card there to reactivate.",
+  GROUP_EVENT_NOT_ENABLED: "Turn on the roster for this job first.",
+  PARTICIPANT_NOT_FOUND: "That person isn't on this roster any more. Refresh the page.",
+  PARTICIPANT_PAID: "They've already paid, so they can't be cancelled here. Refund them where you took the payment, then edit their entry.",
+  PARTICIPANT_ALREADY_PAID: "Their payment is already recorded.",
+  PARTICIPANT_CANCELLED: "They're cancelled. Restore them first.",
+  PARTICIPANT_EMAIL_REQUIRED: "Add their email to send a receipt, or record the payment without one.",
   SUBSCRIPTION_READ_ONLY:
     "This studio is read-only until billing is updated, so nothing can be sent or changed. The studio owner can update the card under Studio settings → Subscription; everything picks up again once payment goes through.",
   AI_OUTPUT_INVALID:

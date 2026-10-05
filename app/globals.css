@@ -11596,6 +11596,26 @@ textarea:focus-visible {
 /* What became of the person or package the operator named. Sits between the
    flow's heading and its options, so it is read before anything is chosen. */
 /* Who is working this job, above the fold on the job page. */
+/* Group events: the roster where each parent pays (components/group-events/participant-roster.tsx) */
+.participant-roster{display:grid;gap:12px}
+.participant-roster>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.participant-roster>header h2{margin:0;font-size:18px}
+.ds-root .participant-roster>.form-notice{margin:0}
+.participant-roster-summary{margin:0;color:var(--muted);font-size:13px}
+.participant-roster-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+/* Two rows, always: the job column is narrow even on a desktop, and a third
+   column squeezed the athlete's name to nothing. */
+.participant-roster-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;background:var(--surface)}
+.participant-roster-list li.is-cancelled{opacity:.6}
+.participant-roster-who,.participant-roster-money{display:grid;gap:2px;min-width:0}
+.participant-roster-who strong,.participant-roster-who small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.participant-roster-who small{color:var(--muted)}
+.participant-roster-money{justify-items:end}
+.participant-roster-row-actions{grid-column:1 / -1;display:flex;justify-content:flex-end;gap:6px}
+.participant-roster-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.participant-roster-actions small{color:var(--muted)}
+.record-sheet-fields label.participant-roster-check{display:flex;align-items:center;gap:8px;flex-direction:row}
+.record-sheet-fields label.participant-roster-check input{width:auto}
 .project-crew-panel{display:grid;gap:12px}
 .project-crew-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .project-crew-panel>header h2{margin:0;font-size:18px}

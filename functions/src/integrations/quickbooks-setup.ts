@@ -278,8 +278,9 @@ export const quickbooksSetupCommand = onRequest(
     }
     try {
       await requireActiveSubscription(db, command.tenantId);
-    } catch {
-      response.status(402).json({ error: "ACTIVE_SUBSCRIPTION_REQUIRED" });
+    } catch (caught: unknown) {
+      // The guard's own code: read-only and suspended studios are told so.
+      response.status(402).json({ error: caught instanceof Error ? caught.message : "ACTIVE_SUBSCRIPTION_REQUIRED" });
       return;
     }
 

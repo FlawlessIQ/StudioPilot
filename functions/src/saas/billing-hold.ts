@@ -51,6 +51,8 @@ const DELIVERED_WHILE_LAPSED: readonly string[] = [
   "daily_digest",
   "contract_signed",
   "inquiry_acknowledgement",
+  // A parent's receipt for a payment they just made (group events).
+  "participant_receipt",
 ];
 
 /** Provider work that sends a bill or takes money on the studio's behalf. */

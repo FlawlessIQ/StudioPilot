@@ -55,6 +55,12 @@ const CRM_PROJECT_COMMANDS = [
   // Correcting that one-off, and keeping it for other couples.
   "updateOneOffPackage",
   "saveOneOffToLibrary",
+  // Group events (2026-10-04): the roster where each parent pays.
+  "setGroupEvent",
+  "addParticipant",
+  "updateParticipant",
+  "cancelParticipant",
+  "recordParticipantPayment",
 ];
 
 test("each project-scoped crmCommand branch checks assignment", () => {

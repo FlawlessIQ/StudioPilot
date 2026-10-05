@@ -113,6 +113,9 @@ export const emailTemplateKeys = [
   // Client-facing autopay: the saved card was charged, or declined.
   "autopay_charged",
   "autopay_charge_failed",
+  // A parent's receipt for their athlete's photos on a group event
+  // (features/group-events/participants.ts).
+  "participant_receipt",
   // Studio-facing: inbox capture has gone quiet — the forwarding filter may
   // have broken, and inquiries may be sitting unanswered in the inbox.
   "studio_capture_silent",
@@ -1724,6 +1727,23 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         ],
         action: invoiceUrl ? { label: "Pay the invoice", url: invoiceUrl } : undefined,
       };
+    case "participant_receipt": {
+      const athlete = stringValue(values, "athleteName");
+      const item = stringValue(values, "packageName");
+      const method = stringValue(values, "methodText");
+      const amount = stringValue(values, "amountText") || "your payment";
+      return {
+        subject: `Your receipt from ${brand.studioName}`,
+        preheader: `${amount} received${athlete ? ` for ${athlete}` : ""}. Thank you.`,
+        eyebrow: "Receipt",
+        heading: "Payment received",
+        paragraphs: [
+          greeting,
+          `Thank you. ${brand.studioName} received ${amount}${method ? ` ${method}` : ""}${athlete ? ` for ${athlete}'s photos` : ""}${item ? ` (${item})` : ""}${project}.`,
+          "Keep this email as your receipt. If anything looks wrong, reply and the studio will put it right.",
+        ],
+      };
+    }
     case "studio_booking_confirmed":
       return {
         subject: `You're booked${project}`,

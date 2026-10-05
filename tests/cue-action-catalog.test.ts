@@ -231,6 +231,11 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   refreshQuestionnairePrefill: "runs as a couple opens their form",
   requestDetailChange: "couple", decideDetailChange: "the change-request card on Today",
   setPlanningTimeline: "Settings → Planning timeline",
+  // Group events Phase 1 (2026-10-04): the roster is worked on the job page,
+  // often on the day at the venue. Not offered through Cue yet.
+  setGroupEvent: "group events: the job page roster", addParticipant: "group events: the job page roster",
+  updateParticipant: "group events: the job page roster", cancelParticipant: "group events: the job page roster",
+  recordParticipantPayment: "group events: the job page roster",
   // Not offered: StudioCue has no signing provider (features/integrations/schema.ts offeredProviders).
   createEnvelope: "no signing provider is offered",
 };

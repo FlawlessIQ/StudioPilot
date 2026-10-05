@@ -128,6 +128,7 @@ const LABELS: Record<string, { one: string; many: string }> = {
   crewStaffingPlans: { one: "staffing plan", many: "staffing plans" },
   crewBriefs: { one: "crew brief", many: "crew briefs" },
   crewMessages: { one: "crew message", many: "crew messages" },
+  eventParticipants: { one: "participant", many: "participants" },
   crewCalendarEvents: { one: "crew calendar event", many: "crew calendar events" },
   insuranceRequirements: { one: "insurance requirement", many: "insurance requirements" },
   insuranceRequests: { one: "certificate request", many: "certificate requests" },

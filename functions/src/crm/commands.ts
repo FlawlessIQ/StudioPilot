@@ -164,6 +164,22 @@ function billedCrewCount(
   );
 }
 
+/**
+ * A participant on a group event: the parent (the client) and the athlete's
+ * name. No birthdate and no child's contact details, ever — the parent is
+ * who StudioCue deals with (features/group-events/participants.ts).
+ */
+const participantFields = {
+  parentName: z.string().trim().min(1).max(120),
+  email: z.string().trim().toLowerCase().email().max(254).nullable().default(null),
+  phone: z.string().trim().max(40).nullable().default(null),
+  athleteName: z.string().trim().min(1).max(120),
+  team: z.string().trim().max(80).nullable().default(null),
+  packageName: z.string().trim().max(120).nullable().default(null),
+  amountCents: z.number().int().min(0).max(1_000_000),
+  status: z.enum(["unpaid", "pay_on_day"]).default("unpaid"),
+};
+
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createProject"),
@@ -930,6 +946,58 @@ const commandSchema = z.discriminatedUnion("type", [
       resultProposalId: z.string().min(1).nullable().default(null),
     }),
   }),
+  // ── Group events: one event, many paying clients
+  //    (features/group-events/participants.ts, docs/group-events-design-2026-10-04.md)
+  z.object({
+    type: z.literal("setGroupEvent"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      enabled: z.boolean(),
+    }),
+  }),
+  z.object({
+    type: z.literal("addParticipant"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      ...participantFields,
+    }),
+  }),
+  z.object({
+    type: z.literal("updateParticipant"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      participantId: z.string().min(1),
+      ...participantFields,
+    }),
+  }),
+  z.object({
+    type: z.literal("cancelParticipant"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      participantId: z.string().min(1),
+      restore: z.boolean().default(false),
+    }),
+  }),
+  z.object({
+    type: z.literal("recordParticipantPayment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      participantId: z.string().min(1),
+      amountCents: z.number().int().positive().max(1_000_000),
+      method: z.enum(["cash", "card", "online", "other"]),
+      sendReceipt: z.boolean().default(true),
+    }),
+  }),
 ]);
 
 /**
@@ -1070,6 +1138,71 @@ function hasProjectAccess(
   );
 }
 
+/** The job a group-event command acts on; with `requireRoster`, only once its roster is on. */
+async function groupEventProject(
+  transaction: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+  projectId: string,
+  requireRoster: boolean,
+) {
+  const project = await transaction.get(db.doc(`projects/${projectId}`));
+  if (!project.exists || project.get("tenantId") !== tenantId) throw new Error("PROJECT_NOT_FOUND");
+  if (project.get("archivedAt")) throw new Error("PROJECT_ARCHIVED");
+  if (requireRoster && project.get("groupEvent.enabled") !== true) throw new Error("GROUP_EVENT_NOT_ENABLED");
+  return project;
+}
+
+async function groupEventParticipant(
+  transaction: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+  projectId: string,
+  participantId: string,
+) {
+  const participant = await transaction.get(db.doc(`eventParticipants/${participantId}`));
+  if (!participant.exists || participant.get("tenantId") !== tenantId || participant.get("projectId") !== projectId)
+    throw new Error("PARTICIPANT_NOT_FOUND");
+  return participant;
+}
+
+function participantAudit(
+  transaction: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  event: {
+    tenantId: string;
+    projectId: string;
+    actorId: string;
+    action: string;
+    entityId: string;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown>;
+    timestamp: string;
+    correlationId: string;
+    userAgent: string | null;
+  },
+) {
+  const id = randomUUID();
+  transaction.create(db.doc(`auditEvents/${id}`), {
+    id,
+    tenantId: event.tenantId,
+    projectId: event.projectId,
+    actorId: event.actorId,
+    actorType: "user",
+    action: event.action,
+    entityType: event.action.startsWith("group_event") ? "project" : "eventParticipant",
+    entityId: event.entityId,
+    timestamp: event.timestamp,
+    before: event.before,
+    after: event.after,
+    ipAddress: null,
+    userAgent: event.userAgent,
+    correlationId: event.correlationId,
+    automationRunId: null,
+    providerEventId: null,
+  });
+}
+
 export const crmCommand = onRequest(
   {
     cors: studioHubCors,
@@ -1115,8 +1248,11 @@ export const crmCommand = onRequest(
     // subscription. 402 Payment Required so the client can route to Checkout.
     try {
       await requireActiveSubscription(db, command.tenantId);
-    } catch {
-      response.status(402).json({ error: "ACTIVE_SUBSCRIPTION_REQUIRED" });
+    } catch (caught: unknown) {
+      // The guard's own code, so a read-only or suspended studio is told so
+      // rather than "start your trial" (SUBSCRIPTION_READ_ONLY, STUDIO_SUSPENDED).
+      const code = caught instanceof Error ? caught.message : "ACTIVE_SUBSCRIPTION_REQUIRED";
+      response.status(402).json({ error: code });
       return;
     }
 
@@ -4584,6 +4720,219 @@ export const crmCommand = onRequest(
             contactId: command.input.contactId,
             archived: !command.input.restore,
           };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        // ── Group events (features/group-events/participants.ts) ──────────
+        if (command.type === "setGroupEvent") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          const project = await groupEventProject(transaction, db, command.tenantId, command.input.projectId, false);
+          transaction.update(project.ref, {
+            groupEvent: { enabled: command.input.enabled, updatedAt: timestamp, updatedBy: identity.uid },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: command.input.enabled ? "group_event.enabled" : "group_event.disabled",
+            entityId: command.input.projectId,
+            before: { enabled: project.get("groupEvent.enabled") === true },
+            after: { enabled: command.input.enabled },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { projectId: command.input.projectId, enabled: command.input.enabled };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "addParticipant") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const participantId = randomUUID();
+          const { projectId, ...fields } = command.input;
+          transaction.create(db.doc(`eventParticipants/${participantId}`), {
+            id: participantId,
+            tenantId: command.tenantId,
+            projectId,
+            ...fields,
+            payment: null,
+            receiptQueuedAt: null,
+            source: "studio",
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+          });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId,
+            actorId: identity.uid,
+            action: "participant.added",
+            entityId: participantId,
+            before: null,
+            after: { athleteName: fields.athleteName, amountCents: fields.amountCents, status: fields.status },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { participantId };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "updateParticipant") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const participant = await groupEventParticipant(transaction, db, command.tenantId, command.input.projectId, command.input.participantId);
+          const { projectId, participantId, ...fields } = command.input;
+          if (participant.get("status") === "cancelled") throw new Error("PARTICIPANT_CANCELLED");
+          const paid = participant.get("status") === "paid";
+          // A paid participant keeps what they paid and their status; their
+          // names and contact details can still be corrected.
+          const changes = paid
+            ? { parentName: fields.parentName, email: fields.email, phone: fields.phone, athleteName: fields.athleteName, team: fields.team, packageName: fields.packageName }
+            : fields;
+          transaction.update(participant.ref, { ...changes, updatedAt: timestamp, updatedBy: identity.uid });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId,
+            actorId: identity.uid,
+            action: "participant.updated",
+            entityId: participantId,
+            before: { athleteName: participant.get("athleteName"), amountCents: participant.get("amountCents"), status: participant.get("status") },
+            after: changes,
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { participantId, paidKept: paid };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "cancelParticipant") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const participant = await groupEventParticipant(transaction, db, command.tenantId, command.input.projectId, command.input.participantId);
+          // Money already taken is not undone by a click: the refund happens
+          // where the money is, and StudioCue would only be guessing.
+          if (!command.input.restore && participant.get("status") === "paid") throw new Error("PARTICIPANT_PAID");
+          const status = command.input.restore
+            ? (participant.get("cancelledFromStatus") as string | undefined) ?? "unpaid"
+            : "cancelled";
+          transaction.update(participant.ref, {
+            status,
+            cancelledFromStatus: command.input.restore ? null : participant.get("status"),
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: command.input.restore ? "participant.restored" : "participant.cancelled",
+            entityId: command.input.participantId,
+            before: { status: participant.get("status") },
+            after: { status },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { participantId: command.input.participantId, status };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "recordParticipantPayment") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          const project = await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const participant = await groupEventParticipant(transaction, db, command.tenantId, command.input.projectId, command.input.participantId);
+          if (participant.get("status") === "paid") throw new Error("PARTICIPANT_ALREADY_PAID");
+          if (participant.get("status") === "cancelled") throw new Error("PARTICIPANT_CANCELLED");
+          const email = typeof participant.get("email") === "string" ? String(participant.get("email")) : "";
+          if (command.input.sendReceipt && !email) throw new Error("PARTICIPANT_EMAIL_REQUIRED");
+          const payment = {
+            amountCents: command.input.amountCents,
+            method: command.input.method,
+            paidAt: timestamp,
+            recordedBy: identity.uid,
+          };
+          transaction.update(participant.ref, {
+            status: "paid",
+            payment,
+            receiptQueuedAt: command.input.sendReceipt ? timestamp : null,
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          if (command.input.sendReceipt) {
+            const receiptId = `participant_receipt_${command.input.participantId}`;
+            const currency = String(project.get("currency") ?? "USD") || "USD";
+            transaction.create(db.doc(`emailJobs/${receiptId}`), {
+              id: receiptId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              participantId: command.input.participantId,
+              type: "participant_receipt",
+              recipient: email,
+              recipientName: participant.get("parentName") ?? null,
+              // One email to the parent who paid; nobody else on the job is
+              // copied (the job's own clients are the organiser, not them).
+              soleRecipient: true,
+              athleteName: participant.get("athleteName") ?? null,
+              packageName: participant.get("packageName") ?? null,
+              amountText: new Intl.NumberFormat("en-US", { style: "currency", currency }).format(command.input.amountCents / 100),
+              methodText: ({ cash: "in cash", card: "by card", online: "online", other: "" } as Record<string, string>)[command.input.method] ?? "",
+              eventDate: project.get("eventDate") ?? null,
+              status: "queued",
+              attempts: 0,
+              maxAttempts: 5,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          }
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: "participant.paid",
+            entityId: command.input.participantId,
+            before: { status: participant.get("status") },
+            after: { status: "paid", amountCents: payment.amountCents, method: payment.method },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { participantId: command.input.participantId, paid: true, receiptQueued: command.input.sendReceipt };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

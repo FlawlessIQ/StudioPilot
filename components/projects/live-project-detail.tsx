@@ -81,6 +81,7 @@ import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
 import { ProjectJobPlan } from "@/components/projects/project-job-plan";
+import { ParticipantRoster } from "@/components/group-events/participant-roster";
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -1675,6 +1676,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             ownerShooting={ownerShootsJob(project)}
             projectId={projectId}
           />
+          <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />
           {leadInviteEl}
           {hideLeadStageControl ? null : stageControlEl}
           {interruptionEl}
@@ -1705,6 +1707,9 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             ownerShooting={ownerShootsJob(project)}
               projectId={projectId}
             />
+            {/* Group events: each parent pays (features/group-events). Renders
+                nothing on a job that doesn't offer a roster. */}
+            <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />
             <section className="project-now-next" aria-label="Project work summary">
               <ProjectLifecycleLanes
                 checkpoints={checkpoints}

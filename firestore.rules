@@ -752,6 +752,18 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+    // Group events (features/group-events/participants.ts): the parents on
+    // an event's roster. Read by the studio — owners and admins, and a
+    // coordinator assigned to the job; written only by crmCommand. Never by
+    // the parents themselves, and never by crew in Phase 1.
+    match /eventParticipants/{participantId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+        );
+      allow write: if false;
+    }
     match /crewMessages/{messageId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
