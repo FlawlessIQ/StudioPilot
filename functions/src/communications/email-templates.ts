@@ -41,11 +41,23 @@ export const FEEDBACK_EMAIL_TYPES = [
  */
 export const TEAM_EMAIL_TYPES = ["platform_message", "feedback_reply"] as const;
 
+/**
+ * StudioCue writing to a studio owner about their own subscription
+ * (saas/billing-notices.ts). Platform mail: StudioCue's letterhead, and never
+ * held when a studio's billing lapses — it is how they find out.
+ */
+export const BILLING_EMAIL_TYPES = [
+  "billing_trial_ending",
+  "billing_payment_failed",
+  "billing_payment_recovered",
+] as const;
+
 /** Sent by StudioCue itself rather than by a studio. */
 export const isPlatformEmailType = (type: string): boolean =>
   isAuthEmailType(type) ||
   (FEEDBACK_EMAIL_TYPES as readonly string[]).includes(type) ||
-  (TEAM_EMAIL_TYPES as readonly string[]).includes(type);
+  (TEAM_EMAIL_TYPES as readonly string[]).includes(type) ||
+  (BILLING_EMAIL_TYPES as readonly string[]).includes(type);
 
 export const emailTemplateKeys = [
   "staff_invitation",
@@ -136,6 +148,10 @@ export const emailTemplateKeys = [
   // StudioCue team → studio, from the Console. Platform mail.
   "platform_message",
   "feedback_reply",
+  // StudioCue → studio owner, about their own subscription. Platform mail.
+  "billing_trial_ending",
+  "billing_payment_failed",
+  "billing_payment_recovered",
 ] as const;
 
 export type EmailTemplateKey = (typeof emailTemplateKeys)[number];
@@ -502,6 +518,11 @@ function consultationMeetingDetails(values: Record<string, unknown>): {
     };
   if (location) return { joinUrl: "", line: `Location or meeting details: ${location}` };
   return { joinUrl: "", line: "We'll share any final meeting details before the appointment." };
+}
+
+/** "GR Productions’" and "Alder & Muse’s": a name ending in s takes the apostrophe alone. */
+function possessive(name: string): string {
+  return /s$/i.test(name.trim()) ? `${name.trim()}’` : `${name.trim()}’s`;
 }
 
 function copyFor(input: RenderEmailInput): EmailCopy {
@@ -1727,6 +1748,60 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         ],
         action: invoiceUrl ? { label: "Pay the invoice", url: invoiceUrl } : undefined,
       };
+    case "billing_trial_ending": {
+      const studio = stringValue(values, "studioName") || "your studio";
+      const when = stringValue(values, "trialEndText") || "soon";
+      const plan = stringValue(values, "planName") || "Studio";
+      const price = stringValue(values, "priceText");
+      return {
+        subject: `Your StudioCue trial ends ${when}`,
+        preheader: `Your ${plan} plan starts then${price ? ` at ${price}` : ""}. Nothing to do if you're staying.`,
+        eyebrow: "Your trial",
+        heading: `Your trial ends ${when}`,
+        paragraphs: [
+          greeting,
+          `The free trial for ${studio} ends on ${when}. Your ${plan} plan starts then, and the card you added is charged${price ? ` ${price}` : ""}. It renews automatically until you cancel.`,
+          "If you're staying, there's nothing to do. To change plan or cancel before then, open Plan & billing.",
+        ],
+        action: actionUrl ? { label: "Plan & billing", url: actionUrl } : undefined,
+      };
+    }
+    case "billing_payment_failed": {
+      const studio = stringValue(values, "studioName") || "your studio";
+      const amount = stringValue(values, "amountText");
+      const until = stringValue(values, "graceEndText");
+      return {
+        subject: "Your StudioCue payment didn't go through",
+        preheader: until ? `Update your card by ${until} to keep everything running.` : "Update your card to keep everything running.",
+        eyebrow: "Payment failed",
+        heading: "We couldn't take your payment",
+        paragraphs: [
+          greeting,
+          `Your card was declined${amount ? ` for ${amount}` : ""} for ${possessive(studio)} StudioCue subscription.`,
+          until
+            ? `Everything keeps working until ${until}. After that the studio becomes read-only: you can still open every job and export your data, but nothing can be sent or changed, and messages to your clients are held until payment goes through.`
+            : "Update your card to keep everything running.",
+          "Update your card and the payment is tried again straight away.",
+        ],
+        action: actionUrl ? { label: "Update your card", url: actionUrl } : undefined,
+      };
+    }
+    case "billing_payment_recovered": {
+      const studio = stringValue(values, "studioName") || "your studio";
+      const amount = stringValue(values, "amountText");
+      return {
+        subject: "Your StudioCue payment went through",
+        preheader: "Everything is back to normal.",
+        eyebrow: "Payment received",
+        heading: "You're all set",
+        paragraphs: [
+          greeting,
+          `Thank you — ${amount ? `${amount} was paid` : "your payment went through"} for ${possessive(studio)} StudioCue subscription, and everything is back to normal.`,
+          "Any messages to your clients that were held while the payment was outstanding are on their way.",
+        ],
+        action: actionUrl ? { label: "Open StudioCue", url: actionUrl.replace(/\/studio\/subscription$/, "/studio") } : undefined,
+      };
+    }
     case "participant_receipt": {
       const athlete = stringValue(values, "athleteName");
       const item = stringValue(values, "packageName");

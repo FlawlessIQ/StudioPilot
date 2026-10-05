@@ -149,6 +149,9 @@ app_services=(
 
 scheduler_services=(
   albumreminderscheduler
+  # Tells a studio owner their trial ends in three days (saas/billing-notices.ts).
+  # Missing here, it 403s after the next invoker reset and trials convert unannounced.
+  billingnoticescheduler
   autopayscheduler
   automationretryscheduler
   coichasescheduler

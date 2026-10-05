@@ -20,6 +20,7 @@ import {
 } from "./stripe-checkout.js";
 import { STRIPE_ADMIN_API_VERSION, fromUnix } from "../console/stripe-admin.js";
 import { staleStripeEvent } from "./stripe-event-order.js";
+import { graceEndsAt, longDateIn, queueBillingNotice } from "./billing-notices.js";
 
 const billingCommandSchema = z.object({
   type: z.enum(["createCheckout", "createPortal", "confirmCheckout"]),
@@ -424,6 +425,12 @@ export const stripeWebhook = onRequest(
       // Invoices, for the Console's Revenue page and a studio's health.
       if (event.type === "invoice.paid" || event.type === "invoice.payment_failed" || event.type === "invoice.finalized") {
         const invoiceTenant = await tenantForInvoice(db, object);
+        // The owner hears about it (saas/billing-notices.ts). Queued before the
+        // batch, under an id per invoice and attempt, so a webhook retry after
+        // a failed commit finds it already queued rather than sending twice.
+        if (invoiceTenant && (event.type === "invoice.payment_failed" || event.type === "invoice.paid")) {
+          await queueInvoiceNotice(db, invoiceTenant, object, event.type);
+        }
         const batch = db.batch();
         if (invoiceTenant) recordInvoice(batch, db, invoiceTenant, object, event.type, now);
         batch.create(eventReference, {
@@ -724,6 +731,54 @@ async function discountFromStripe(db: FirebaseFirestore.Firestore, object: Recor
     durationMonths: typeof coupon.duration_in_months === "number" ? coupon.duration_in_months : null,
     endsAt: fromUnix(discount.end),
   };
+}
+
+/**
+ * The billing email an invoice event calls for, if any: every failed attempt,
+ * and the first paid invoice after a failure. A routine renewal sends nothing
+ * (Stripe's own receipts are an account-wide setting shared with the other
+ * products).
+ */
+async function queueInvoiceNotice(
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+  invoice: Record<string, unknown>,
+  type: "invoice.payment_failed" | "invoice.paid",
+) {
+  const invoiceId = String(invoice.id ?? "");
+  if (!invoiceId) return;
+  const [subscription, tenant] = await Promise.all([
+    db.doc(`subscriptions/${tenantId}`).get(),
+    db.doc(`tenants/${tenantId}`).get(),
+  ]);
+  const currency = String(invoice.currency ?? "usd").toUpperCase();
+  const money = (cents: unknown) => {
+    const value = Number(cents);
+    return Number.isFinite(value) && value > 0
+      ? new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value / 100)
+      : null;
+  };
+  const zone = String(tenant.get("timezone") ?? "") || "America/New_York";
+  if (type === "invoice.payment_failed") {
+    await queueBillingNotice(db, {
+      tenantId,
+      type: "billing_payment_failed",
+      dedupeKey: `${invoiceId}_${Number(invoice.attempt_count ?? 0)}`,
+      values: {
+        amountText: money(invoice.amount_due),
+        graceEndText: longDateIn(graceEndsAt(subscription.get("pastDueSince"), Date.now()), zone),
+      },
+    });
+    return;
+  }
+  // Paid: only a recovery, and only once money actually moved.
+  if (!subscription.get("lastPaymentFailedAt") || !(Number(invoice.amount_paid ?? 0) > 0)) return;
+  await queueBillingNotice(db, {
+    tenantId,
+    type: "billing_payment_recovered",
+    dedupeKey: invoiceId,
+    values: { amountText: money(invoice.amount_paid) },
+  });
 }
 
 /** Which studio an invoice belongs to: its subscription's metadata, or its customer. */

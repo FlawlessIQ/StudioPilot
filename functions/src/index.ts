@@ -58,6 +58,7 @@ export {
 } from "./post-event/jobs.js";
 export { billingCommand, stripeWebhook } from "./saas/stripe.js";
 export { subscriptionAccessChanged } from "./saas/billing-hold.js";
+export { billingNoticeScheduler } from "./saas/billing-notices.js";
 export { saasAdminCommand } from "./saas/admin.js";
 export { consoleRollupScheduler } from "./console/scheduler.js";
 export { operationsHealthScheduler } from "./saas/jobs.js";
