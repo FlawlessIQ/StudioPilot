@@ -1145,6 +1145,25 @@
   font-size: 12.5px !important;
 }
 
+/* The same base rule drew a second bordered, 42px field inside the search
+   form's own border — a box in a box on Inquiries (iPhone walk, 2026-10-05).
+   The form is the field; the input inside it is bare. (0,6,1) beats the
+   base rule's (0,5,1). */
+.ds-root .crm-search-form input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+/* The input's own focus ring is gone with its border; the form shows it. */
+.ds-root .crm-search-form:focus-within {
+  border-color: var(--ds-claret);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-claret) 20%, transparent);
+}
+
 /* ---------------------------------------------------------------------------
    Studio home: daily brief (Phase 1)
 

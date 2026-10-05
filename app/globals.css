@@ -17457,6 +17457,14 @@ label {
     gap: 12px;
     margin-bottom: 4px;
   }
+  /* With the title text gone, its accent bar stood alone beside the button
+     ("Preview inquiry form", "Add client") — iPhone walk, 2026-10-05. */
+  .ds-root .crm-page > .dashboard-heading {
+    padding-left: 0;
+  }
+  .ds-root .crm-page > .dashboard-heading::before {
+    display: none;
+  }
 
   /* Clients / Crew / Team / Vendors — one row. */
   .ds-root .section-nav {
