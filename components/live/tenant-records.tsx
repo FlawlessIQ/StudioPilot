@@ -932,8 +932,8 @@ export function LiveProjectRows({
     return (
       <LiveRecordsState
         kind="loading"
-        state="Loading projects…"
-        detail="Reading records from your active studio."
+        state="Loading jobs…"
+        detail="Reading your studio’s jobs."
       />
     );
   }

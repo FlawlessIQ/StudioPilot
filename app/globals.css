@@ -16432,8 +16432,13 @@ label {
   .ds-root .crm-projects-table article > span:nth-child(5) small::before {
     content: " · ";
   }
-  /* The whole row opens the job; the arrow itself isn't needed. */
+  /* The whole row opens the job; the arrow itself isn't needed.
+     grid-area: auto matters: an absolutely positioned grid item measures
+     inset from its grid area, so the link filled only the arrow's 100x44
+     cell and a tap anywhere else on the row did nothing — no job opened
+     from the list on a phone (iPhone walk, 2026-10-05). */
   .ds-root .crm-projects-table article > a {
+    grid-area: auto;
     position: absolute;
     inset: 0;
     border: 0;
