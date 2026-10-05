@@ -7,6 +7,18 @@ ship. The assessment behind it is in the chat of the same day. The short
 version: one regression is ours, two problems are settings, two are product
 gaps, one is a discoverability miss, and one is a new feature.
 
+## Status (2026-10-05, evening)
+
+| Phase | State |
+|---|---|
+| 1 | **Live.** e7f59386: agreement spacing in the portal (app), bold clause labels for new agreements, recommended forms on the job's send screen. The kit-reset sweep found no other casualties. |
+| 2 | **Done on GR's data** (platform_support, audited). Event details form copied; GR's own Final schedule copy reused. Inquiry form set to Event details; planning timeline set to Final schedule, automatic, 6 months, lock 28 days. Old wedding forms archived; corporate and sports kept. Verified the inquiry and planning forms resolve on live data. |
+| 3.1 | **Live.** b9dc403d: signing offers a personal address from the job's forms, only to the job's own contacts, and only with the tick. |
+| 3.2 | **Gabe's action:** Settings → QuickBooks → "Add sales tax" → Save. |
+| 4 | **Live.** 21d084a3: `formAtBooking` and `reviewAtFormDate`, on for GR. 22 functions deployed 17:54–18:01Z; bundles verified. |
+| 5 | Waiting on Gabe's shot-list sample. |
+| 6 | The at-booking send runs on GR's next real or test booking. It isn't walked yet. |
+
 ## Already done (needs Gabe's confirmation, nothing to build)
 
 | Point | State |
