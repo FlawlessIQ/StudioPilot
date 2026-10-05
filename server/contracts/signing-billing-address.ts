@@ -9,6 +9,8 @@ import {
   billingAddressRequirement,
   billingAddressStepFor,
   coupleBillingAddressProvenance,
+  suggestedBillingAddress,
+  type FormForAddress,
   type BillingAddressRequirement,
   type BillingAddressVia,
   type SigningKind,
@@ -174,11 +176,59 @@ export function writeSigningBillingAddress(
   return Boolean(contact);
 }
 
-/** For the signing sheet: what to ask, and the signer's own address to prefill. */
+/**
+ * A personal address the couple already gave on one of this job's forms, when
+ * nothing is on file (features/contacts/billing-address-signing.ts decides
+ * which). Read by tenant and job only; nothing the page sends chooses it.
+ */
+export async function formBillingAddressSuggestion(
+  db: Firestore,
+  input: { tenantId: string; projectId: string; signerEmail: string | null },
+): Promise<{ address: BillingAddress; question: string } | null> {
+  const responses = await db
+    .collection("questionnaireResponses")
+    .where("tenantId", "==", input.tenantId)
+    .where("projectId", "==", input.projectId)
+    .limit(20)
+    .get();
+  const answered = responses.docs.filter((response) => {
+    const answers = response.get("answers");
+    return answers && typeof answers === "object" && Object.keys(answers).length > 0;
+  });
+  if (!answered.length) return null;
+  const templateIds = [...new Set(answered.map((response) => String(response.get("templateId") ?? "")).filter(Boolean))];
+  const templates = await Promise.all(templateIds.map((id) => db.doc(`questionnaireTemplates/${id}`).get()));
+  const fieldsByTemplate = new Map(
+    templates
+      .filter((template) => template.exists && template.get("tenantId") === input.tenantId)
+      .map((template) => {
+        const sections = Array.isArray(template.get("sections")) ? (template.get("sections") as Array<{ fields?: unknown }>) : [];
+        const fields = sections.flatMap((section) => (Array.isArray(section.fields) ? section.fields : [])) as FormForAddress["fields"];
+        return [template.id, fields] as const;
+      }),
+  );
+  const forms: FormForAddress[] = answered.flatMap((response) => {
+    const fields = fieldsByTemplate.get(String(response.get("templateId") ?? ""));
+    return fields ? [{ fields, answers: response.get("answers") as Record<string, unknown> }] : [];
+  });
+  return suggestedBillingAddress({ forms, signerEmail: input.signerEmail });
+}
+
+/** For the signing sheet: what to ask, the signer's own address, or one from their forms to offer. */
 export async function signingBillingAddressStep(
   db: Firestore,
   input: { tenantId: string; projectId: string; signerEmail: string | null; kind: SigningKind },
-): Promise<{ step: BillingAddressRequirement; onFile: BillingAddress | null }> {
+): Promise<{
+  step: BillingAddressRequirement;
+  onFile: BillingAddress | null;
+  suggested: { address: BillingAddress; question: string } | null;
+}> {
   const context = await readSigningBillingAddress(db, (reference) => reference.get(), input);
-  return { step: context.step, onFile: context.step === "hidden" ? null : context.onFile };
+  if (context.step === "hidden") return { step: "hidden", onFile: null, suggested: null };
+  // Offered only to a signer who is one of the job's own contacts, with
+  // nothing on file: anyone else sees no one's address, from a form or not.
+  const suggested = context.onFile || !context.contact
+    ? null
+    : await formBillingAddressSuggestion(db, input).catch(() => null);
+  return { step: context.step, onFile: context.onFile, suggested };
 }

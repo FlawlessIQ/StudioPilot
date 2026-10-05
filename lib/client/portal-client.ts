@@ -418,7 +418,12 @@ export type ClientBookingChange = {
  * own address to prefill (server/contracts/signing-billing-address.ts).
  */
 export function getSigningBillingAddressStep(tenantId: string, projectId: string, kind: SigningKind) {
-  return portalRequest<{ step: BillingAddressRequirement; onFile: BillingAddress | null }>({
+  return portalRequest<{
+    step: BillingAddressRequirement;
+    onFile: BillingAddress | null;
+    /** An address they gave on one of the job's forms, offered when none is on file. */
+    suggested?: { address: BillingAddress; question: string } | null;
+  }>({
     type: "billing_address_step",
     tenantId,
     projectId,

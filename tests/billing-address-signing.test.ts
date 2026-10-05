@@ -444,7 +444,8 @@ test("confirming the address already on file marks it as the couple's", async ()
   const onFile = { ...ADDRESS, region: "NJ" };
   const db = world({ salesTax: "quickbooks", onFile });
   const step = await signingBillingAddressStep(asDb(db), { tenantId: T, projectId: P, signerEmail: COUPLE_EMAIL, kind: "contract" });
-  assert.deepEqual(step, { step: "required", onFile });
+  // On file, so nothing from the forms is offered (billing-address-from-forms.test.ts).
+  assert.deepEqual(step, { step: "required", onFile, suggested: null });
   await sign(db, { billingAddress: step.onFile });
   assert.deepEqual(contact(db, "contact_avery").billingAddress, onFile);
   assert.ok(coupleConfirmed(contact(db, "contact_avery")));
@@ -460,6 +461,7 @@ test("the sheet is only ever shown the signer's own address", async () => {
     kind: "contract",
   });
   assert.equal(partner.onFile, null, "an email that is no contact on the job sees no one's address");
+  assert.equal(partner.suggested, null, "…nor one offered from the job's forms");
   const own = await signingBillingAddressStep(asDb(db), { tenantId: T, projectId: P, signerEmail: COUPLE_EMAIL, kind: "contract" });
   assert.equal(own.onFile?.line1, "12 Main Street");
 });

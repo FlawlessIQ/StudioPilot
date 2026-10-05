@@ -206,3 +206,110 @@ export function sameBillingAddress(a: unknown, b: unknown): boolean {
     (key) => field(a, key) === field(b, key),
   );
 }
+
+/**
+ * An address the couple already gave on a form, offered at signing.
+ *
+ * Gabe, 2026-10-05: a bride typed "140 Briarwood Rd, Florham Park, NJ" into
+ * the studio's event form, then signing asked her for a billing address as if
+ * nobody knew it. So when nothing is on file, a personal address from the
+ * job's forms is offered in the step's "on file" shape — shown, with "This is
+ * my billing address" to tick or "Change it". It is never saved unless the
+ * couple confirms it, and it is never part of what they sign.
+ *
+ * Only a person's own address: venues, ceremony, reception, prep and other
+ * places on the day are never billing addresses. The signer's own wins
+ * (matched by the email answered beside it); with several and no way to tell
+ * whose, nothing is offered rather than a guess.
+ */
+export type FormForAddress = {
+  fields: ReadonlyArray<{ id: string; label?: string | null; type?: string | null }>;
+  answers: Record<string, unknown>;
+};
+
+const PLACE_WORDS =
+  /\b(venue|ceremony|reception|church|chapel|hotel|prep|preparation|getting ready|location|photos?|portraits?|party|rehearsal|event|cocktail|first look|vendor|planner)\b/i;
+const PERSON_WORDS = /\b(home|mailing|billing|postal|current|residential|bride'?s?|groom'?s?|partner'?s?|client'?s?|your|my)\b/i;
+const ROLE = /\b(bride|groom|partner\s*(?:one|two|1|2)|client)\b/i;
+
+/** "140 Briarwood Rd\nFlorham Park, NJ 07932" (or one line, commas) as an address, or null. */
+export function addressFromAnswer(value: unknown): BillingAddress | null {
+  if (typeof value === "object" && value !== null) {
+    const record = value as Record<string, unknown>;
+    const direct = parseSigningBillingAddress({
+      line1: record.line1,
+      line2: record.line2,
+      city: record.city,
+      region: record.region,
+      postalCode: record.postalCode,
+      country: record.country,
+    });
+    if (direct.ok) return direct.address;
+    return typeof record.formatted === "string" ? addressFromAnswer(record.formatted) : null;
+  }
+  if (typeof value !== "string") return null;
+  const parts = value
+    .split(/\n|,/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !/^(usa|us|united states( of america)?)$/i.test(part));
+  if (parts.length < 2) return null;
+  // The last part ends "ST 12345" or "State Name 12345", maybe after the city.
+  const words = parts[parts.length - 1]!.split(/\s+/);
+  const postalCode = words.pop() ?? "";
+  if (!/^\d{5}(-?\d{4})?$/.test(postalCode)) return null;
+  let region: string | null = null;
+  for (let take = Math.min(3, words.length); take >= 1 && !region; take -= 1) {
+    const code = usStateCode(words.slice(-take).join(" "));
+    if (code) {
+      region = code;
+      words.splice(-take, take);
+    }
+  }
+  if (!region) return null;
+  let city = words.join(" ");
+  let rest = parts.slice(0, -1);
+  if (!city) {
+    city = rest[rest.length - 1] ?? "";
+    rest = rest.slice(0, -1);
+  }
+  if (!rest.length || !city) return null;
+  const parsed = parseSigningBillingAddress({
+    line1: rest[0],
+    line2: rest.slice(1).join(", ") || null,
+    city,
+    region,
+    postalCode,
+    country: "US",
+  });
+  return parsed.ok ? parsed.address : null;
+}
+
+export function suggestedBillingAddress(input: {
+  forms: readonly FormForAddress[];
+  signerEmail: string | null;
+}): { address: BillingAddress; question: string } | null {
+  const signer = (input.signerEmail ?? "").trim().toLowerCase();
+  const candidates: Array<{ address: BillingAddress; question: string; mine: boolean }> = [];
+  for (const form of input.forms) {
+    const emailFor = (role: string) =>
+      form.fields
+        .filter((field) => /email/i.test(`${field.label ?? ""} ${field.id}`) && new RegExp(role, "i").test(`${field.label ?? ""} ${field.id}`))
+        .map((field) => String(form.answers[field.id] ?? "").trim().toLowerCase())
+        .find(Boolean) ?? "";
+    for (const field of form.fields) {
+      const words = `${field.label ?? ""} ${field.id.replace(/[-_]/g, " ")}`;
+      if (!/address/i.test(words) || PLACE_WORDS.test(words) || !PERSON_WORDS.test(words)) continue;
+      const address = addressFromAnswer(form.answers[field.id]);
+      if (!address) continue;
+      const role = words.match(ROLE)?.[1] ?? null;
+      const mine = Boolean(signer && role && emailFor(role.split(/\s+/)[0]!) === signer);
+      candidates.push({ address, question: String(field.label || field.id), mine });
+    }
+  }
+  const own = candidates.filter((candidate) => candidate.mine);
+  const pick = own.length ? own : candidates;
+  const distinct = pick.filter((candidate, index) => pick.findIndex((other) => sameBillingAddress(other.address, candidate.address)) === index);
+  if (distinct.length !== 1) return null;
+  return { address: distinct[0]!.address, question: distinct[0]!.question };
+}

@@ -77,6 +77,8 @@ export function useBillingAddressStep(input: {
 }) {
   const [step, setStep] = useState<BillingAddressRequirement | null>(null);
   const [onFile, setOnFile] = useState<BillingAddress | null>(null);
+  /** The form question an offered address came from, when none was on file. */
+  const [fromForm, setFromForm] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -92,8 +94,12 @@ export function useBillingAddressStep(input: {
       .then((result) => {
         if (!live) return;
         setStep(result.step);
-        setOnFile(result.onFile);
-        setFields(fieldsFrom(result.onFile));
+        // None on file, but they gave one on a form: offer it the same way —
+        // shown, ticked to confirm, or changed. Never saved unticked.
+        const offered = result.onFile ?? result.suggested?.address ?? null;
+        setOnFile(offered);
+        setFromForm(!result.onFile && result.suggested ? result.suggested.question : null);
+        setFields(fieldsFrom(offered));
       })
       .catch(() => {
         // Nothing to ask is the safe reading of a failed look-up: if the
@@ -135,6 +141,7 @@ export function useBillingAddressStep(input: {
   return {
     step,
     onFile,
+    fromForm,
     /** False while the sheet is still asking what to show. */
     ready: loaded || !active,
     editing,
@@ -151,7 +158,7 @@ export function useBillingAddressStep(input: {
 }
 
 export function BillingAddressStep({ billing }: { billing: BillingAddressController }) {
-  const { step, onFile, editing, confirmed, fields, problem, adding } = billing;
+  const { step, onFile, fromForm, editing, confirmed, fields, problem, adding } = billing;
   if (!step || step === "hidden") return null;
   const required = step === "required";
   const set = (key: keyof Fields) => (event: { target: { value: string } }) =>
@@ -176,6 +183,9 @@ export function BillingAddressStep({ billing }: { billing: BillingAddressControl
       <section aria-label="Billing address" className="kit-stack-tight">
         {heading}
         <Note icon={MapPin}>{formatBillingAddress(onFile)}</Note>
+        {fromForm ? (
+          <p className="kit-caption">From your answer to “{fromForm}”. Check it’s where your invoices should go.</p>
+        ) : null}
         <label className="kit-check">
           <input
             checked={confirmed}
