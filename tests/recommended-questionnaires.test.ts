@@ -11,6 +11,9 @@ import { parseQuestionnaireSections } from "@/features/questionnaires/client-for
 import { eventDetailCategory, eventDetailsFrom } from "@/features/contracts/event-details";
 import { lockingFieldIds } from "@/features/planning/details-lock";
 import {
+  coupleSourceLabel,
+  jobIsBooked,
+  originLabel,
   coupleRoleChoices,
   coupleRoleField,
   factForField,
@@ -280,4 +283,30 @@ test("the TBD rule is one rule: the functions copy matches", () => {
     readFileSync("features/questionnaires/field-extras.ts", "utf8"),
     readFileSync("functions/src/planning/field-extras.ts", "utf8"),
   );
+});
+
+test("before booking, a prefill says it came from the inquiry, not the booking", () => {
+  // Production walk, 2026-10-05: "Filled in from your booking" on the inquiry page.
+  for (const state of ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", undefined]) {
+    assert.equal(jobIsBooked(state), false, String(state));
+  }
+  for (const state of ["BOOKED", "PLANNING", "READY", "DELIVERED"]) assert.equal(jobIsBooked(state), true, state);
+  assert.equal(originLabel("booking", false), "your inquiry");
+  assert.equal(originLabel("booking", true), "your booking");
+  assert.equal(originLabel("run_of_show", false), "your timeline");
+  // Labels saved by an earlier prefill are read the same way.
+  assert.equal(coupleSourceLabel("your booking", false), "your inquiry");
+  assert.equal(coupleSourceLabel("your booking", true), "your booking");
+  assert.equal(coupleSourceLabel("your earlier answers", false), "your earlier answers");
+  const sheet = jobFactSheet({
+    projectId: "p1",
+    project: { state: "LEAD", eventDate: "2027-09-25" },
+    leadId: null,
+    lead: null,
+    contacts: [],
+    vendors: [],
+    schedule: null,
+    responses: [],
+  });
+  assert.equal(sheet.booked, false);
 });

@@ -95,6 +95,28 @@ const ORIGIN_LABEL: Record<FactOrigin, string> = {
   earlier_answer: "your earlier answers",
 };
 
+/** Before the retainer is paid there is no booking yet (intake/convert.ts, PRE_BOOKING_STATES). */
+const NOT_YET_BOOKED: ReadonlySet<string> = new Set(["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "LOST"]);
+
+/** Whether a job in this state is booked, for the words the couple reads. No job is not booked. */
+export function jobIsBooked(state: unknown): boolean {
+  return typeof state === "string" && state.trim() !== "" && !NOT_YET_BOOKED.has(state.trim());
+}
+
+/**
+ * "Filled in from your booking" was read on the inquiry page by couples who
+ * hadn't booked anything (production walk, 2026-10-05). Before booking, what
+ * the job holds came from their inquiry, and says so.
+ */
+export function originLabel(origin: FactOrigin, booked: boolean): string {
+  return origin === "booking" && !booked ? ORIGIN_LABEL.inquiry : ORIGIN_LABEL[origin];
+}
+
+/** A label saved with an earlier prefill, as the couple should read it now. */
+export function coupleSourceLabel(label: string, booked: boolean): string {
+  return label === ORIGIN_LABEL.booking && !booked ? ORIGIN_LABEL.inquiry : label;
+}
+
 export type JobFact = {
   key: FactKey;
   value: string;
@@ -113,7 +135,12 @@ export type EarlierAnswer = {
   fieldId: string;
 };
 
-export type JobFactSheet = { facts: Partial<Record<FactKey, JobFact>>; earlier: EarlierAnswer[] };
+export type JobFactSheet = {
+  facts: Partial<Record<FactKey, JobFact>>;
+  earlier: EarlierAnswer[];
+  /** The job is past the retainer. Absent (an older caller's sheet) reads as booked. */
+  booked?: boolean;
+};
 
 type Row = Record<string, unknown>;
 const record = (value: unknown): Row =>
@@ -305,7 +332,7 @@ export function jobFactSheet(input: {
       }
     }
   }
-  return { facts, earlier };
+  return { facts, earlier, booked: jobIsBooked(project.state) };
 }
 
 /** Field types a fact can fill. Choices only from their own options. */
@@ -496,7 +523,7 @@ export function prefillFromFacts(input: {
         sourceCollection: fact.sourceCollection,
         sourceField: fact.sourceField,
         fact: fact.key,
-        label: ORIGIN_LABEL[fact.origin],
+        label: originLabel(fact.origin, input.sheet.booked !== false),
         verified: fact.origin !== "inquiry",
       };
     }

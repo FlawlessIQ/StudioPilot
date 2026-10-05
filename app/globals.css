@@ -20935,6 +20935,11 @@ label {
   scroll-margin-top: 88px;
 }
 
+/* Today and setup link here (#inquiry-form); without it the heading landed under the sticky header. */
+#inquiry-form {
+  scroll-margin-top: 88px;
+}
+
 .capture-status {
   align-items: center;
   background: var(--soft);

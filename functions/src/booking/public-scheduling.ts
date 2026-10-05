@@ -39,6 +39,7 @@ import {
   questionnaireAnalysisJobId,
 } from "../intake/inquiry-form.js";
 import { jobPrefill } from "../planning/job-prefill.js";
+import { coupleSourceLabel, jobIsBooked } from "../planning/job-facts.js";
 import { isReturned, statusAfterSave, submittedAtAfterSave } from "../planning/questionnaire-lifecycle.js";
 
 const inquiryToken = z.string().min(32).max(200);
@@ -984,7 +985,9 @@ async function handleInquiryForm(
       sources: Object.fromEntries(
         Object.keys(visibleAnswers).flatMap((fieldId) => {
           const entry = plain(provenance[fieldId]);
-          const source = ["project_fact", "inquiry_fact", "earlier_answer", "suggested_time"].includes(text(entry.sourceType)) ? text(entry.label) : "";
+          const source = ["project_fact", "inquiry_fact", "earlier_answer", "suggested_time"].includes(text(entry.sourceType))
+            ? coupleSourceLabel(text(entry.label), jobIsBooked(project.get("state")))
+            : "";
           return source ? [[fieldId, source]] : [];
         }),
       ),
