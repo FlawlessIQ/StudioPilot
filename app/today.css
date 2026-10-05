@@ -1542,7 +1542,14 @@
   .ds-root .today-card.is-act.has-glyph .today-card-facts {
     grid-column: 2 / -1;
   }
+  /* Two or more facts don't fit beside Approve & send: squeezed into the
+     left column, each pill broke over two lines (walked on an iPhone,
+     2026-10-05). They take the line, and the actions go under them. */
+  .ds-root .today-card.has-glyph:has(.today-card-facts li + li) .today-card-facts {
+    grid-column: 2 / -1;
+  }
   .ds-root .today-card.is-act.has-glyph > .today-card-actions,
+  .ds-root .today-card.has-glyph:has(.today-card-facts li + li) > .today-card-actions,
   .ds-root .today-card.has-glyph:not(:has(.today-card-facts)) > .today-card-actions {
     grid-column: 2 / -1;
     justify-content: flex-start;
@@ -1577,7 +1584,11 @@
     margin-top: 4px;
   }
   .ds-root .today-card-facts li {
+    max-width: 100%;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .ds-root .today-card-actions {
     align-items: center;

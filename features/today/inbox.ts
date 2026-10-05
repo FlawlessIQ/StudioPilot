@@ -31,6 +31,7 @@ import {
   workStillMatters,
 } from "@/features/projects/job-moment";
 import { daysUntilEvent } from "@/lib/format/event-date";
+import { lifecycleTriggerOf } from "@/features/messaging/trust-dial";
 import { kindFromValue, type LibraryKind } from "@/features/library/kinds";
 import {
   describeProviderFailure,
@@ -1999,6 +2000,18 @@ export function todayInbox(input: TodayInput): TodayInbox {
       text(action.capability) === "consultation_prep_draft" &&
       text(asRecord(action.structuredOutput).callStartsAt) &&
       text(asRecord(action.structuredOutput).callStartsAt) <= input.now
+    )
+      continue;
+    // "The day before" once the day itself has gone. Judged by the date, not
+    // the job's state: a studio that never marks the event done still left
+    // Dana Reyes' checklist offering to send the morning after (2026-10-05).
+    if (
+      lifecycleTriggerOf({
+        lifecycleTrigger: action.lifecycleTrigger,
+        instructionVersion: action.instructionVersion,
+        title: action.title,
+      }) === "day_before_checklist" &&
+      (calendarDayDiff(eventFor(action.projectId), now) ?? 0) < 0
     )
       continue;
     // A draft whose whole purpose was the run-up, on a job already shot.

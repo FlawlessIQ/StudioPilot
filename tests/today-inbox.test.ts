@@ -88,6 +88,29 @@ test("AI-prepared work lands in Approve as an in-place decision", () => {
   assert.equal(item?.projectName, "Chen Wedding");
 });
 
+test("a day-before checklist leaves Today once the day has gone, whatever the job's state", () => {
+  const checklist = (eventDate: string) =>
+    todayInbox({
+      ...base,
+      aiActions: [
+        {
+          id: "ai-day-before",
+          status: "review_required",
+          title: "Review day before checklist",
+          lifecycleTrigger: "day_before_checklist",
+          capability: "delivery_message_draft",
+          projectId: "project-1",
+          updatedAt: "2026-08-18T08:00:00.000Z",
+        },
+      ],
+      // Never marked done: still READY after the event.
+      journeys: [journey({ owner: "client", state: "READY", eventDate })],
+    }).approve.length;
+  assert.equal(checklist("2026-08-21"), 1, "the day before: it waits for review");
+  assert.equal(checklist("2026-08-20"), 1, "the day itself: still shown");
+  assert.equal(checklist("2026-08-19"), 0, "the morning after: gone");
+});
+
 test("snoozed AI work stays out of the queue until its time", () => {
   const snoozed = todayInbox({
     ...base,

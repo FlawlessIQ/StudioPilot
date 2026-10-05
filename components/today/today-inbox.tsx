@@ -1028,7 +1028,13 @@ function TodayCard({
           <ul className="today-card-facts">
             {item.facts.map((fact) => (
               <li key={fact}>
-                {/^waiting/.test(fact) ? <Clock3 size={10} /> : null}
+                {/^waiting/.test(fact) ? (
+                  <Clock3 size={10} />
+                ) : /^[A-Z][a-z]{2} \d{1,2}, \d{4}/.test(fact) ? (
+                  // The event's date. Unmarked, "Oct 4, 2026 · 1d ago" beside
+                  // "waiting 2 days" read as when the item was made.
+                  <CalendarDays aria-label="Event date" size={10} />
+                ) : null}
                 {fact}
               </li>
             ))}
