@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SalesTaxQuestion } from "@/components/integrations/sales-tax-question";
 import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
 import { useState } from "react";
 import type { ReactNode } from "react";
@@ -308,6 +309,10 @@ export function SetupConversation() {
             );
           })}
         </ol>
+
+        {/* Not one of the questions: only for a studio whose QuickBooks
+            charges tax and hasn't said whether to add it. */}
+        <SalesTaxQuestion />
 
         {workspace.tenantSlug ? <HostedFormLink slug={workspace.tenantSlug} /> : null}
 

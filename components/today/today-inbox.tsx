@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { TrustDialOffers } from "@/components/communications/trust-dial-offers";
+import { SalesTaxQuestion } from "@/components/integrations/sales-tax-question";
 import {
   ArrowRight,
   CalendarClock,
@@ -480,6 +481,11 @@ export function TodayInbox() {
           </header>
 
           {!loading ? <TrustDialOffers /> : null}
+
+          {/* Renders only for a studio whose QuickBooks charges tax and that
+              hasn't said whether to add it (components/integrations/
+              sales-tax-question.tsx). */}
+          {!loading ? <SalesTaxQuestion /> : null}
 
           {/* A website-form submission held only because its forwarder
               couldn't be confirmed is a couple by its content. Up here, above

@@ -2838,3 +2838,96 @@
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   "Your QuickBooks charges sales tax. Add it on top?" — asked on the
+   QuickBooks page, at the end of setup and on Today
+   (components/integrations/sales-tax-question.tsx).
+   --------------------------------------------------------------------------- */
+.ds-root .sales-tax-question {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--ds-line);
+  border-left: 3px solid #c9a227;
+  border-radius: 14px;
+  background: var(--ds-paper, #fff);
+}
+.ds-root .sales-tax-question.is-compact {
+  padding: 14px 16px;
+}
+.ds-root .sales-tax-question-head {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.ds-root .sales-tax-question-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #fbf3dc;
+  color: #8a6d12;
+}
+.ds-root .sales-tax-question h2 {
+  margin: 2px 0 4px;
+  font-size: 15.5px;
+  line-height: 1.3;
+}
+.ds-root .sales-tax-question-head p {
+  margin: 0;
+  color: var(--ds-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.ds-root .sales-tax-question-head p + p {
+  margin-top: 6px;
+}
+.ds-root .sales-tax-question-note {
+  color: #8a6d12 !important;
+}
+.ds-root .sales-tax-question-rate label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ds-root .sales-tax-question-rate small {
+  color: var(--ds-muted);
+  font-weight: 400;
+}
+.ds-root .sales-tax-question-rate-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 160px;
+}
+.ds-root .sales-tax-question-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+.ds-root .sales-tax-question.is-done {
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  border-left-color: var(--ds-success, #2e7042);
+}
+.ds-root .sales-tax-question.is-done p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.ds-root .sales-tax-question.is-done svg {
+  color: var(--ds-success, #2e7042);
+}
+@media (max-width: 640px) {
+  .ds-root .sales-tax-question-actions > .button {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}

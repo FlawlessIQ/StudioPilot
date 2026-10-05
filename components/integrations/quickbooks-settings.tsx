@@ -18,6 +18,7 @@ import {
   type QuickBooksTestResult,
 } from "@/lib/integrations/quickbooks-setup-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { SalesTaxDecision } from "@/components/integrations/sales-tax-question";
 
 /**
  * Settings → Integrations → QuickBooks: run QuickBooks without leaving
@@ -217,8 +218,11 @@ export function QuickBooksSettings() {
 
           <fieldset className="qb-settings-section">
             <legend>Sales tax on your invoices</legend>
-            {!status.settingsSaved && company && company.salesTax !== "off" ? (
-              <p className="qb-settings-hint">Your QuickBooks charges sales tax, so we&rsquo;ve suggested adding it. Save to confirm.</p>
+            {/* Asked outright, not pre-selected and left unsaved: Gabe's
+                invoices went out with $0 tax because the suggestion was never
+                saved (2026-10-05). */}
+            {status && tenantId && !status.settingsSaved && company && company.salesTax !== "off" ? (
+              <SalesTaxDecision onSaved={() => void load()} status={status} tenantId={tenantId} />
             ) : null}
             <label className="autopay-toggle">
               <input checked={mode === "quickbooks"} name="sales-tax-mode" onChange={() => setMode("quickbooks")} type="radio" />
