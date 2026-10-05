@@ -69,7 +69,7 @@ test("a work record the studio is waiting on is always on the front page", () =>
       rec.arrivalAt === PAST.arrivalAt &&
       !["submitted", "approved", "paid"].includes(rec.closeout?.status ?? "");
     const named = a.closeoutsDue.some((c) => c.assignment.id === rec.id);
-    const inHeadline = /work record/.test(a.headline);
+    const inHeadline = /hours to send in/.test(a.headline);
     if (owed !== named || owed !== inHeadline) {
       failures.push(`${describe(rec)} → owed=${owed} listed=${named} headline="${a.headline}"`);
     }
@@ -128,7 +128,7 @@ test("Jordan's actual records", () => {
     ],
     now,
   );
-  assert.equal(a.headline, "You have 1 work record to send in.");
+  assert.equal(a.headline, "You have hours to send in.");
   assert.equal(a.invitations.length, 0);
   assert.equal(a.acknowledgementDue, null);
   assert.equal(a.behindThem.length, 2);

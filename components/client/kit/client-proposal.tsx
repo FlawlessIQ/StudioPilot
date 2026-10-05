@@ -36,7 +36,7 @@ import {
   text,
   useProjectRecords,
   useBookingNeeds,
-  useReserveYourDate,
+  useBookingStepsView,
 } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { ClientAddPackage } from "@/components/client/kit/client-add-package";
@@ -54,7 +54,8 @@ import { InfoHint } from "@/components/ui/info-hint";
 export function ClientProposal() {
   const workspace = useWorkspace();
   const proposals = useProjectRecords("proposals");
-  const reserve = useReserveYourDate();
+  const bookingView = useBookingStepsView();
+  const reserve = bookingView && !bookingView.booked ? bookingView : null;
   const needs = useBookingNeeds();
   const proposal = useMemo(
     () => [...proposals.value].sort((a, b) => number(b.version) - number(a.version))[0],
@@ -187,22 +188,17 @@ export function ClientProposal() {
             <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
               <BadgeCheck aria-hidden="true" size={14} /> Accepted
             </p>
-            {needs.agreement ? (
+            {/* The same next step as the stepper above. This card used to
+                decide for itself from what the job *needs*, not what was
+                done, and kept saying "Next, sign your agreement" to a couple
+                who had signed (iPhone walk, 2026-10-05). */}
+            {!bookingView ? null : !bookingView.booked ? (
               <>
-                <h2 className="kit-section">Next, sign your agreement</h2>
-                <p className="kit-body">
-                  Your agreement arrives by email with a secure signing link. Once it’s signed, the
-                  retainer is the last step to reserve your date.
-                </p>
-                <Button href="/client/contract">See your agreement</Button>
-              </>
-            ) : needs.payment ? (
-              <>
-                <h2 className="kit-section">Next, your payment</h2>
-                <p className="kit-body">
-                  Your invoice will appear in Payments shortly. Your date is reserved the moment it’s paid.
-                </p>
-                <Button href="/client/payments">See payments</Button>
+                <h2 className="kit-section">{bookingView.next.title}</h2>
+                <p className="kit-body">{bookingView.next.detail}</p>
+                {bookingView.next.href && bookingView.next.actionLabel ? (
+                  <Button href={bookingView.next.href}>{bookingView.next.actionLabel}</Button>
+                ) : null}
               </>
             ) : (
               <>
@@ -350,8 +346,11 @@ export function ClientProposal() {
           <strong>Before you decide:</strong>{" "}
           {needs.agreement
             ? <>
-                {text(proposal.termsSummary, "Your studio will send the full agreement as the next step.")}{" "}
-                The signed agreement, not this summary, governs the photography.
+                {text(proposal.termsSummary, "Your studio will send the full agreement as the next step.")}
+                {/* A studio's own summary often already says this; once is enough. */}
+                {/not this summary/i.test(text(proposal.termsSummary, "")) ? null : (
+                  <> The signed agreement, not this summary, governs the photography.</>
+                )}
               </>
             : text(proposal.termsSummary, "Message your studio with any questions before you accept.")}
         </Note>

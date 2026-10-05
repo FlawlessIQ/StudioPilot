@@ -112,7 +112,10 @@ export function crewAttention<T extends CrewAssignmentRecord>(
   if (acknowledgementDue) parts.push("a schedule to acknowledge");
   if (closeoutsDue.length)
     parts.push(
-      `${closeoutsDue.length} work record${closeoutsDue.length === 1 ? "" : "s"} to send in`,
+      // The card below says "Send in your hours"; "work record" was ours.
+      closeoutsDue.length === 1
+        ? "hours to send in"
+        : `hours to send in for ${closeoutsDue.length} jobs`,
     );
 
   return {

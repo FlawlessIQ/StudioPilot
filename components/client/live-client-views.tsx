@@ -477,6 +477,17 @@ export function useBookingNeeds(): { agreement: boolean; payment: boolean; paidI
  * the couple reloading.
  */
 export function useReserveYourDate(): BookingStepsView | null {
+  const view = useBookingStepsView();
+  if (!view || view.booked) return null;
+  return view;
+}
+
+/**
+ * The booking steps including once booked; null only while there is no
+ * proposal or it is still loading — so a caller can tell "booked" from
+ * "not read yet" (useReserveYourDate can't: both are null there).
+ */
+export function useBookingStepsView(): BookingStepsView | null {
   const needs = useBookingNeeds();
   const proposals = useProjectRecords("proposals");
   const contracts = useProjectRecords("contracts");
@@ -520,7 +531,6 @@ export function useReserveYourDate(): BookingStepsView | null {
     }, 20_000);
     return () => window.clearInterval(timer);
   }, [waiting, refreshContracts, refreshInvoices]);
-  if (!view || view.booked) return null;
   return view;
 }
 

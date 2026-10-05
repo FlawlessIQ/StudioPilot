@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Paperclip, X } from "lucide-react";
 import { Main, PoweredBy } from "@/components/kit/kit";
+import { LinkedText } from "@/components/client/kit/linked-text";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { chatDayLabel, chatSubject, chatThread } from "@/features/messaging/client-chat";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -201,7 +202,7 @@ export function ClientMessages() {
                   <li className="kit-chat-message" data-from={fromStudio ? "studio" : "you"}>
                     <div className="kit-bubble">
                       {message.context ? <span className="kit-bubble-context">{text(message.context)}</span> : null}
-                      {text(message.body ?? message.bodyPreview, "Open the email from your studio for the full message.")}
+                      <LinkedText value={text(message.body ?? message.bodyPreview, "Open the email from your studio for the full message.")} />
                       {files.length ? (
                         <span className="kit-bubble-files">
                           {files.map((file, index) => (

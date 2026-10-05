@@ -1203,6 +1203,14 @@ textarea.kit-input {
 .kit-composer > .kit-bubble-files {
   margin-top: 0;
 }
+/* Addresses in a message are tappable; long ones wrap rather than widen the bubble. */
+.kit-bubble-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
 .kit-bubble-file {
   display: inline-flex;
   gap: 4px;
