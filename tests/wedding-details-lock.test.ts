@@ -37,6 +37,9 @@ test("the timeline: six months and four weeks unless the studio picks", () => {
     formSend: "auto",
     formTemplateId: "t1",
     lockDaysBefore: 21,
+    // Off unless a studio turns them on (final-schedule-timing.test.ts).
+    formAtBooking: false,
+    reviewAtFormDate: false,
   });
   assert.equal(resolvePlanningTimeline({ formMonthsBefore: 30, lockDaysBefore: 2 }).formMonthsBefore, 6);
   assert.equal(resolvePlanningTimeline({ formMonthsBefore: 30, lockDaysBefore: 2 }).lockDaysBefore, 28);

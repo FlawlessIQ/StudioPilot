@@ -23,6 +23,16 @@ export type PlanningTimeline = {
   formTemplateId: string | null;
   /** How many days before the date the final details lock (7–90). */
   lockDaysBefore: number;
+  /**
+   * Also send the form the moment the booking is confirmed (GR, 2026-10-05:
+   * "sent after contract signed, and then again 6 months out").
+   */
+  formAtBooking: boolean;
+  /**
+   * At the form date, a couple who already filled it in is asked to review
+   * and update the same answers rather than sent a second copy.
+   */
+  reviewAtFormDate: boolean;
 };
 
 export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
@@ -30,6 +40,8 @@ export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
   formSend: "remind",
   formTemplateId: null,
   lockDaysBefore: 28,
+  formAtBooking: false,
+  reviewAtFormDate: false,
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -44,6 +56,8 @@ export function resolvePlanningTimeline(raw: unknown): PlanningTimeline {
     formSend: value.formSend === "auto" ? "auto" : "remind",
     formTemplateId: typeof value.formTemplateId === "string" && value.formTemplateId.trim() ? value.formTemplateId.trim() : null,
     lockDaysBefore: Number.isInteger(lock) && lock >= 7 && lock <= 90 ? lock : DEFAULT_PLANNING_TIMELINE.lockDaysBefore,
+    formAtBooking: value.formAtBooking === true,
+    reviewAtFormDate: value.reviewAtFormDate === true,
   };
 }
 

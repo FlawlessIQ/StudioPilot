@@ -2,8 +2,10 @@ import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-ad
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { INQUIRY_FORM_SETTINGS_PATH, resolveInquiryFormTemplate } from "../intake/inquiry-form.js";
-import { liveAssignmentFor } from "./questionnaire-lifecycle.js";
-import { planningFormOpensOn, resolvePlanningTimeline, type PlanningTimeline } from "./planning-timeline.js";
+import { isReturned, liveAssignmentFor } from "./questionnaire-lifecycle.js";
+import { questionnaireLinkFor } from "./questionnaire-link.js";
+import { queuePartnerSends } from "../client/partner-invitations.js";
+import { detailsLocked, planningFormOpensOn, resolvePlanningTimeline, type PlanningTimeline } from "./planning-timeline.js";
 import { sendNewQuestionnaire } from "./send-questionnaire.js";
 import { detailsFormOpensOn, jobKindOf } from "../job-kinds/job-kinds.js";
 
@@ -84,7 +86,7 @@ async function sendOne(db: Firestore, project: DocumentSnapshot, studio: Studio,
     responses.docs.map((response) => ({ id: response.id, ...response.data() })),
     { id: template.id, name: text(template.name) },
   );
-  if (live) return "has_it";
+  if (live) return requestReview(db, project, live as Row & { id?: string }, studio, today, now);
   const templateSnapshot = await db.doc(`questionnaireTemplates/${template.id}`).get();
   await sendNewQuestionnaire(db, {
     tenantId,
@@ -97,6 +99,120 @@ async function sendOne(db: Firestore, project: DocumentSnapshot, studio: Studio,
     now,
     allowAi: false,
   });
+  return "sent";
+}
+
+/**
+ * Pure: whether a couple who already has the form should be asked, today, to
+ * review it. GR (2026-10-05): the final schedule goes out when the contract is
+ * signed and "again 6 months out", and at 6 months they "actively update and
+ * change times" in the same form — so it is a request to look again, never a
+ * second copy. Once per form; only one they have filled in (one still blank
+ * has its own reminders); never after the details lock.
+ */
+export function planningReviewDue(input: {
+  response: Row;
+  timeline: PlanningTimeline;
+  eventDate: string;
+  today: string;
+}): boolean {
+  if (!input.timeline.reviewAtFormDate || input.timeline.formSend !== "auto") return false;
+  if (!isReturned(input.response.status)) return false;
+  if (text(input.response.reviewRequestedAt)) return false;
+  if (detailsLocked(input.eventDate, input.today, input.timeline)) return false;
+  // Asked for at the form date only when it went out before it (at booking).
+  const opensOn = planningFormOpensOn(input.eventDate, input.timeline);
+  return Boolean(opensOn) && text(input.response.createdAt).slice(0, 10) < opensOn!;
+}
+
+async function requestReview(
+  db: Firestore,
+  project: DocumentSnapshot,
+  response: Row & { id?: string },
+  studio: Studio,
+  today: string,
+  now: string,
+): Promise<string> {
+  const data = project.data() ?? {};
+  const eventDate = text(data.eventDate).slice(0, 10);
+  if (!response.id || !planningReviewDue({ response, timeline: studio.timeline, eventDate, today })) return "has_it";
+  const tenantId = text(data.tenantId);
+  const emailJobId = `questionnaire_review_${response.id}`;
+  const link = await questionnaireLinkFor(db, {
+    tenantId,
+    projectId: project.id,
+    clientContactIds: data.clientContactIds,
+    emailJobId,
+    actorId: "planning-form-scheduler",
+    now,
+  });
+  const job = {
+    id: emailJobId,
+    tenantId,
+    projectId: project.id,
+    // The request email, worded as a review (email-templates.ts).
+    type: "questionnaire_request",
+    variant: "review",
+    formName: text(response.templateName) || null,
+    actionUrl: link.actionUrl,
+    soleRecipient: link.partnerSends.length > 0,
+    status: "queued",
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const batch = db.batch();
+  // create, not set: one review per form, however often this runs.
+  batch.create(db.doc(`emailJobs/${emailJobId}`), job);
+  queuePartnerSends(db, batch, job, link.partnerSends);
+  if (link.invitationWrite) batch.set(link.invitationWrite.reference, link.invitationWrite.data, { merge: true });
+  batch.update(db.doc(`questionnaireResponses/${response.id}`), { reviewRequestedAt: now, updatedAt: now });
+  await batch.commit();
+  return "review_requested";
+}
+
+/**
+ * The planning form, the moment a booking is confirmed — when the studio's
+ * timeline says so (`formAtBooking`). Called from the booking side effects
+ * (operations/provider-runtime.ts, completeBookingResources) on every pass:
+ * the same idempotency key as the form-date send, so it goes once, and a job
+ * that already has the form is left alone. Never to a quiet job; never fails
+ * the booking.
+ */
+export async function sendPlanningFormAtBooking(db: Firestore, project: DocumentSnapshot, now: string): Promise<string> {
+  const data = project.data() ?? {};
+  const tenantId = text(data.tenantId);
+  if (!tenantId) return "no_tenant";
+  const studio = await loadStudio(db, tenantId);
+  if (!studio.timeline.formAtBooking) return "off";
+  if (jobKindOf(data) !== "wedding") return "not_wedding";
+  if (data.importedAt || clientOutreachStop(data) !== null) return "quiet";
+  const eventDate = text(data.eventDate).slice(0, 10);
+  if (!eventDate || eventDate <= now.slice(0, 10)) return "no_date";
+  const template = planningFormTemplate(studio, text(data.eventTypeId), true) ?? planningFormTemplate(studio, "wedding", true);
+  if (!template) return "no_form";
+  const responses = await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", project.id).get();
+  if (liveAssignmentFor(responses.docs.map((response) => ({ id: response.id, ...response.data() })), { id: template.id, name: text(template.name) })) {
+    return "has_it";
+  }
+  const templateSnapshot = await db.doc(`questionnaireTemplates/${template.id}`).get();
+  try {
+    await sendNewQuestionnaire(db, {
+      tenantId,
+      projectId: project.id,
+      project,
+      template: templateSnapshot,
+      // The form-date send's key: whichever runs first sends it.
+      idempotencyKey: `planning_form_${project.id}_${template.id}`,
+      actorId: "booking-orchestrator",
+      now,
+      allowAi: false,
+    });
+  } catch (caught) {
+    // ALREADY_EXISTS: a retry, or the form-date send got there first.
+    if ((caught as { code?: unknown })?.code === 6) return "has_it";
+    throw caught;
+  }
   return "sent";
 }
 

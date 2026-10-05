@@ -27,6 +27,8 @@ export function PlanningTimelineSettings() {
   const [send, setSend] = useState<PlanningFormSend | null>(null);
   const [templateId, setTemplateId] = useState<string | null | undefined>(undefined);
   const [lockWeeks, setLockWeeks] = useState<number | null>(null);
+  const [atBooking, setAtBooking] = useState<boolean | null>(null);
+  const [review, setReview] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +37,8 @@ export function PlanningTimelineSettings() {
   const effectiveSend = send ?? stored.formSend;
   const effectiveTemplate = templateId === undefined ? stored.formTemplateId : templateId;
   const effectiveLockWeeks = lockWeeks ?? Math.round(stored.lockDaysBefore / 7);
+  const effectiveAtBooking = atBooking ?? stored.formAtBooking;
+  const effectiveReview = review ?? stored.reviewAtFormDate;
   const forms = (templates ?? [])
     .filter((template) => template.status === "active" && !template.archivedAt)
     .map((template) => ({ id: template.id, name: String(template.name ?? "Questionnaire") }))
@@ -50,6 +54,8 @@ export function PlanningTimelineSettings() {
         formSend: effectiveSend,
         formTemplateId: effectiveTemplate,
         lockDaysBefore: effectiveLockWeeks * 7,
+        formAtBooking: effectiveAtBooking,
+        reviewAtFormDate: effectiveReview,
       });
       setSaved(true);
     } catch (caught: unknown) {
@@ -129,6 +135,38 @@ export function PlanningTimelineSettings() {
             <small>
               On, StudioCue sends the form to every booked couple on that day. Off, Today reminds you to send it then.
               Imported or paused bookings are never sent anything automatically.
+            </small>
+          </label>
+          {/* GR (2026-10-05): the final schedule "sent after contract signed,
+              and then again 6 months out" — the same form, updated. */}
+          <label className="form-checkbox">
+            <input
+              checked={effectiveAtBooking}
+              disabled={!mayEdit}
+              onChange={(event) => {
+                setAtBooking(event.target.checked);
+                touch();
+              }}
+              type="checkbox"
+            />
+            <span>Also send it as soon as they book</span>
+            <small>The moment the agreement is signed and the booking confirmed, so they can start early.</small>
+          </label>
+          <label className="form-checkbox">
+            <input
+              checked={effectiveReview}
+              disabled={!mayEdit || effectiveSend !== "auto"}
+              onChange={(event) => {
+                setReview(event.target.checked);
+                touch();
+              }}
+              type="checkbox"
+            />
+            <span>Then ask them to look it over at that date</span>
+            <small>
+              {effectiveSend === "auto"
+                ? "Anyone who already filled it in gets a note to update anything that changed: the same answers, not a new form."
+                : "Needs “Send it automatically”."}
             </small>
           </label>
           <label>

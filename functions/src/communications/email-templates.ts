@@ -1046,6 +1046,22 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "questionnaire_request":
     case "questionnaire_reminder": {
       const reminder = input.key === "questionnaire_reminder";
+      // A form they already filled in, asked again to look it over at the
+      // studio's form date (planning-form-scheduler.ts, requestReview).
+      if (!reminder && values.variant === "review") {
+        const form = stringValue(values, "formName") || "your planning details";
+        return {
+          subject: `Anything changed? Your ${form.toLowerCase()} with ${brand.studioName}`,
+          preheader: "Look over what you sent us and update anything that's changed.",
+          eyebrow: "Time to check in",
+          heading: "Has anything changed?",
+          paragraphs: [
+            greeting,
+            `Thanks for filling in ${form.toLowerCase()}${project}. Plans move as the day gets closer, so take a minute to look it over and update any times, places or names that have changed. Your answers are saved; just change what's different.`,
+          ],
+          action: actionUrl ? { label: "Review my details", url: actionUrl } : undefined,
+        };
+      }
       return {
         subject: `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
         preheader: "Complete your photography project questionnaire.",

@@ -181,6 +181,9 @@ const command = z.discriminatedUnion("type", [
       formSend: z.enum(["remind", "auto"]),
       formTemplateId: z.string().min(1).max(200).nullable(),
       lockDaysBefore: z.number().int().min(7).max(90),
+      /** Also at booking, and a review (not a second copy) at the form date. */
+      formAtBooking: z.boolean().optional(),
+      reviewAtFormDate: z.boolean().optional(),
     }),
   }),
   z.object({

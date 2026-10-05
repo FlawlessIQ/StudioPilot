@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { prepareCrewStaffing } from "../crew/prepare-staffing.js";
+import { sendPlanningFormAtBooking } from "../planning/planning-form-scheduler.js";
 import { crewCalendarEventName } from "../crew/calendar-ics.js";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 import {
@@ -2084,7 +2085,21 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   } catch (caught: unknown) {
     crewPlan = { skipped: caught instanceof Error ? caught.message : "CREW_PLAN_FAILED" };
   }
-  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow,crewPlan};
+  /**
+   * The planning form at booking, when the studio's timeline says so (GR,
+   * 2026-10-05: "sent after contract signed"). Beside the crew plan and for
+   * the same reasons: before the early return so a retry still sends it,
+   * idempotent on its own (planning-form-scheduler.ts), and never fails the
+   * booking.
+   */
+  let planningForm: string;
+  try {
+    planningForm = await sendPlanningFormAtBooking(db, project, new Date().toISOString());
+  } catch (caught: unknown) {
+    planningForm = `failed:${caught instanceof Error ? caught.message : "PLANNING_FORM_FAILED"}`;
+    console.error(JSON.stringify({ severity: "ERROR", event: "planning_form.at_booking_failed", projectId, reason: planningForm }));
+  }
+  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow,crewPlan,planningForm};
   const date=String(project.get("eventDate"));const name=String(project.get("name"));const eventType=String(project.get("eventType"));const safe=`${date}_${name}_${eventType}`.replace(/[^a-zA-Z0-9_-]+/g,"_");let folderIds:string[]=[];let projectRootPath:string|null=null;const sideEffectSkips:Record<string,string>={};try{const dropbox=await connection(tenantId,"dropbox");const configuredRoot=String(dropbox.document.get("selectedResourceId")??"/StudioCue");const root=configuredRoot.startsWith("/")?configuredRoot:`/${configuredRoot}`;const projectRoot=`${root.replace(/\/$/,"")}/${date.slice(0,4)}/${safe}`;projectRootPath=projectRoot;const paths=[projectRoot,...["01_Contracts","02_Invoices","03_Client_Details","04_Schedule","05_COI","06_Crew","07_Delivery"].map(folder=>`${projectRoot}/${folder}`)];for(const path of paths){if(dropbox.mock){folderIds.push(mockId("dropbox",path));continue}const value=await dropboxFolder(String(dropbox.credential?.accessToken),path);folderIds.push(text(value.id))}}catch(caught:unknown){folderIds=[];projectRootPath=null;sideEffectSkips.dropbox=caught instanceof Error?caught.message:"DROPBOX_UNAVAILABLE"}
   let eventId=String(project.get("calendarEventId")??"");try{const calendar=await connection(tenantId,"google_calendar");if(!eventId)eventId=await putStudioBookingEvent(calendar,project)}catch(caught:unknown){sideEffectSkips.calendar=caught instanceof Error?caught.message:"GOOGLE_CALENDAR_UNAVAILABLE"}
   const now=new Date().toISOString();
@@ -2118,7 +2133,7 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   // An imported booking was booked long before StudioCue, so it never gets
   // "You're booked" — whether this runs while it is quiet or after the studio
   // brings the couple in and asks for the calendar and folders.
-  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow,crewPlan}}
+  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow,crewPlan,planningForm}}
 
 export async function uploadDropboxDocument(job:DocumentSnapshot){
   const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const documentId=String(job.get("documentId"));
