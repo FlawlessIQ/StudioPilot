@@ -98,8 +98,8 @@ Order matters. The inquiry form must switch before the old one is archived.
    Event Details, Wedding Photography Venue Form, and both Wedding Planning
    Questionnaires. Existing responses (Dionne's) keep working, because they
    reference the template id.
-5. **Corporate Shoot Brief and Sports Day Brief:** keep them unless Gabe says
-   otherwise (question 1). He runs about 200 non-wedding jobs a year.
+5. **Corporate Shoot Brief and Sports Day Brief:** keep them (Gabe, answer 1:
+   he hasn't looked at them yet). He runs about 200 non-wedding jobs a year.
 
 - **Check after:** submit a test inquiry on GR's link (with Gabe's
   agreement, or on FlawlessIQ with the same setup). The form shown is the Event
@@ -190,25 +190,31 @@ Gabe: "Final schedule should be sent after contract signed, and then again
   `planningFormScheduler`, `operationsTaskWorker` and the readiness triggers),
   plus the app. Run the freshness script after.
 
-## Phase 5: Photo list milestone (Albert's point, new feature)
+## Phase 5: Shot list milestone (Albert's point, new feature)
 
-Blocked on Gabe's answers (questions 3 to 5). Proposed default, to
-confirm with him:
+Decided by Gabe: its own form ("must take photos"), due 4 weeks out, crew must
+have access. **Waiting on Gabe's sample form** for the questions themselves.
 
-- **What:** a "Photo list" form for the couple: family groupings in order,
-  must-have shots, people to capture (VIPs, who to point out). Built from the
-  Final schedule's family names so they aren't asked twice.
-- **When:** due before the details lock (28 days out). Sent with the Final
-  schedule review at 6 months.
+- **What:** a "Shot list" form for the couple, built from Gabe's sample:
+  must-take photos, family groupings in order, people to capture. Prefill
+  family names from the Final schedule so nothing is asked twice. Ship it as
+  a recommended form other studios can copy too.
+- **When:** due at the details lock (28 days out, matching "4 weeks"). Sent
+  with the Final schedule review at 6 months, so couples have time.
 - **Journey:** a `photo_list` step between `schedule_form` and `run_of_show` in
   `features/journey/steps.ts`, owned by the client, with its own reminder.
-- **Crew:** shown on the crew day sheet beside "From the client's brief", so
-  Albert has it on the day without asking.
-- **Readiness:** a checkpoint that warns rather than blocks, unless Gabe wants
-  it to block.
+- **Crew (required):** shown on the crew day sheet beside "From the client's
+  brief", saved for offline like the day sheet, so Albert has it on the day
+  without asking. Visible only to crew assigned to that job.
+- **Readiness:** a checkpoint that warns, not blocks (default until Gabe says
+  otherwise).
 - **Tests:** journey step ordering, crew day sheet visibility, readiness.
 
 ## Phase 6: prove it on prod, then tell Gabe
+
+(The Phase 4 review request at 6 months reopens the couple's own Final
+schedule for editing, per Gabe's answer 2: no fresh copy.)
+
 
 1. Walk a fresh FlawlessIQ wedding as the couple and as the studio, phone and
    desktop: inquiry → Event details form → consultation → proposal (plus sales
@@ -217,15 +223,17 @@ confirm with him:
 2. Send Gabe one message: what changed, what he needs to switch on, and the
    two or three things to try.
 
-## Questions for Gabe (one message, before Phases 2, 4 and 5)
+## Gabe's answers (2026-10-05)
 
-1. Archive only the old wedding forms, or the corporate and sports briefs too?
-2. At 6 months, should the couple update the **same** Final schedule they
-   filled in after signing, or get a fresh one?
-3. Photo list: its own form, or a section of the Final schedule?
-4. When is it due: with the final details (4 weeks out) or earlier?
-5. Should Albert and the crew see it on their day sheet? Should a missing
-   photo list block "ready for the day" or only warn?
+1. **Archive the old wedding forms only.** He hasn't looked at the corporate and
+   sports briefs yet, so they stay as they are.
+2. **The same Final schedule.** At 6 months the couple updates the response they
+   already filled in. "They can actively update and change times."
+3. **The shot list ("must take photos") is its own form.** Gabe will send a
+   sample. Phase 5 builds from his sample, not our guess.
+4. **Due 4 weeks out** (the details lock). **Crew must have access.**
+5. Not answered: whether a missing shot list blocks "ready for the day". Default:
+   **warn, don't block**. Confirm when the sample arrives.
 
 ## Order and sizes
 
@@ -233,8 +241,8 @@ confirm with him:
 |---|---|---|---|---|
 | 0 | Guardrails | Claude, Conor | none | now |
 | 1 | Agreement spacing and bold labels; kit-reset sweep; recommended forms on the job screen | Claude | small | app only |
-| 2 | Copy forms, set the inquiry form and planning timeline, archive old forms | Gabe or Claude with OK | small | settings and data |
+| 2 | Copy forms, set the inquiry form and planning timeline, archive the old **wedding** forms | Gabe or Claude with OK | small | settings and data |
 | 3 | Address from the form at signing; then sales tax on | Claude; then Gabe | medium | functions and app |
 | 4 | Final schedule at signing and a review at 6 months | Claude | medium | functions and app |
-| 5 | Photo list milestone | Claude, after answers | medium to large | functions and app |
+| 5 | Shot list milestone (own form, 4 weeks out, crew access) | Claude, after Gabe's sample | medium to large | functions and app |
 | 6 | Prod walk, then one message to Gabe | Claude, Conor | small | none |
