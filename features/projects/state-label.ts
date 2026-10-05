@@ -24,7 +24,7 @@ const LABELS: Record<string, string> = {
   DELIVERED: "Delivered",
   REVIEW_REQUESTED: "Review asked",
   CLOSED: "Closed",
-  CANCELLED: "Cancelled",
+  CANCELLED: "Canceled",
   ARCHIVED: "Archived",
   LOST: "Closed inquiry",
 };
@@ -68,7 +68,7 @@ const ADVANCE_ACTIONS: Record<string, string> = {
   DELIVERED: "Confirm the gallery is delivered",
   REVIEW_REQUESTED: "Confirm the review was asked for",
   CLOSED: "Confirm the job is closed",
-  CANCELLED: "Confirm the job is cancelled",
+  CANCELLED: "Confirm the job is canceled",
   ARCHIVED: "Confirm the job is archived",
   LOST: "Close the inquiry",
 };

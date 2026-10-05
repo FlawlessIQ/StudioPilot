@@ -69,7 +69,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     alsoOn: ["/studio"],
     video: "inquiry",
     purpose:
-      "Inquiries holds everyone who's asked about a date but hasn't booked. A confirmed inquiry with a date becomes a job straight away, so nothing slips.",
+      "Inquiries holds everyone who's asked about a date but hasn't booked. A confirmed inquiry with a date becomes a job right away, so nothing slips.",
     steps: [
       "Open **Inquiries**. **Open** shows everyone still in play; the other tabs split them by stage, from **New** to **Signing**. **Your move** marks the ones waiting on you.",
       "Answer from **Today**: StudioCue drafts a reply to each new inquiry. Read it, then **Send reply**. It includes a link where the client can add details and pick a consultation time.",
@@ -79,7 +79,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     ],
     next: "Once they book a consultation the inquiry moves to **Consult**, and a proposal comes next. When they sign and pay the retainer, it leaves Inquiries for **Jobs**.",
     goodToKnow: [
-      "**Preview inquiry form** shows the form clients fill in. Put its link on your website and every submission lands here.",
+      "**Preview inquiry form** shows the form clients fill out. Put its link on your website and every submission lands here.",
       "Inquiries by email, The Knot or WeddingWire can be forwarded in — **Copy address** and forward to it from your inbox.",
       "A closed inquiry reopens by itself if the client writes again.",
     ],
@@ -102,7 +102,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Under **Frame the offer**, tap **Draft from what they told you** for an introduction written from their inquiry, then make it yours.",
       "Set **Proposal expires**, **Retainer due** and **Final balance due**, then **Create draft**. Nothing is sent yet.",
       "Add an album or other extra with **Add from your library**, or **Write one for this couple**.",
-      "Check it over, **Approve this proposal**, tick **Ready to share with the client** and **Send proposal**.",
+      "Check it over, **Approve this proposal**, check **Ready to share with the client** and **Send proposal**.",
     ],
     next: "The client gets a branded email with the proposal and a link to their portal, where they **Accept proposal** or **Request changes**. Once they accept, signing the agreement is their next step.",
     goodToKnow: [
@@ -185,7 +185,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     ],
     next: "Skip anything you like: StudioCue brings it back on Today when a job actually needs it. Change any answer later in **Studio settings**.",
     goodToKnow: [
-      "Your studio's name, logo and email colours are in **Studio settings**, under **Studio details** and **Email branding**.",
+      "Your studio's name, logo and email colors are in **Studio settings**, under **Studio details** and **Email branding**.",
     ],
     terms: ["forwarding-address", "consultation", "agreement"],
   },
@@ -204,7 +204,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "For many, go to **A spreadsheet of bookings**. **Download a template** if you need one, **Choose a CSV file**, check the columns, then import.",
       "When you're ready to work with a client, open their job and tap **Bring this couple into StudioCue**.",
     ],
-    next: "Imported jobs come in quiet: no emails, invoices or reminders reach the client until you bring them in. Inviting them to their portal is a separate tick.",
+    next: "Imported jobs come in quiet: no emails, invoices or reminders reach the client until you bring them in. Inviting them to their portal is a separate checkbox.",
     goodToKnow: [
       "**Fill from QuickBooks** takes what's been paid from QuickBooks, matched by the client's email. Nothing in QuickBooks changes.",
       "Only owners and admins can import.",
@@ -223,7 +223,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Open **Library**, choose **Packages**, then **Create package**.",
       "Set the **Base price (USD)**, the **Retainer type** — a percent, a fixed amount or per crew member — and who you send under **Photographers** and **Videographers**.",
       "Under **What this package delivers**, list the gallery, film or album and when each is due.",
-      "Add extras under **Add-ons** with **New add-on**, and tick the ones a package should suggest.",
+      "Add extras under **Add-ons** with **New add-on**, and check the ones a package should suggest.",
       "Already have a price list? **Open AI import studio** and **Upload files**. Nothing goes live until you activate it.",
     ],
     next: "Proposals are built from your packages. Changing a package never changes the price on a proposal or booking that already has it.",
@@ -379,7 +379,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Once a client has signed, a new date or a change of package is a booking change: they sign an amended agreement, and the job keeps its place.",
     steps: [
       "Open the job and choose **Change the booking**. If the client asked from their portal, Today shows **Write up the change**.",
-      "Set the new **Wedding date**, or add or remove **Packages**. Tick any **Calls with the couple** that should move too.",
+      "Set the new **Wedding date**, or add or remove **Packages**. Check any **Calls with the couple** that should move too.",
       "Add **A note for the couple (optional)** and tap **Write up the change**. Nothing changes yet.",
       "Check the new total, read the amended agreement, sign with your name and tap **Sign & send to the couple**.",
       "Signed on paper? Tap **They signed it another way**, then **Record their signature**.",
@@ -404,7 +404,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     steps: [
       "Most final bills go out by themselves, 28 days before the event, through QuickBooks or Stripe.",
       "When one can't — booked late, date moved, retainer recorded by hand — Today shows it. Tap **Send the final bill**.",
-      "Paid by transfer, cheque or cash? Tap **Paid another way** and record it.",
+      "Paid by transfer, check or cash? Tap **Paid another way** and record it.",
       "See what's owed on **Invoices**. **Final invoice review** shows how each bill was worked out.",
       "Turn on autopay under **Integrations**, on the **Autopay** tab: clients save a card and the balance pays itself on its due date.",
     ],
@@ -450,7 +450,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "The run of show is the day's timeline. You draft it, the client approves it, and crew and vendors work from it.",
     steps: [
       "From the job's **Plan** tab choose **Open the run of show**, or tap **Generate schedule** on Schedules.",
-      "Fill in what you know — **Coverage starts**, **Ceremony time**, the locations — and tap **Generate draft**. Anything left blank is guessed and labelled.",
+      "Fill in what you know — **Coverage starts**, **Ceremony time**, the locations — and tap **Generate draft**. Anything left blank is guessed and labeled.",
       "Adjust the items under **The day**. Check **What we assumed**, and ask the client about anything in **What we still need**.",
       "Tap **Publish reviewed schedule**.",
       "For vendors, open **Share run of show**, tap **Create share link** and send it to them.",
@@ -492,13 +492,13 @@ export const EXPLAINERS: readonly Explainer[] = [
     // Not "a venue's insurance certificate": it is the studio's own
     // certificate, naming the venue.
     title: "Send a venue your insurance certificate",
-    summary: "Your agent issues it, StudioCue asks and chases, and the venue gets it once you approve.",
+    summary: "Your agent issues it, StudioCue asks and follows up, and the venue gets it once you approve.",
     audience: "studio",
     stage: "planning",
     routes: ["/studio/insurance"],
     alsoOn: ["/studio/planning"],
     purpose:
-      "Many venues want a certificate of insurance — proof of your liability cover, naming them — before the day. StudioCue asks your insurance agent for it, chases it, checks it, and sends it on once you've approved it.",
+      "Many venues want a certificate of insurance — proof of your liability cover, naming them — before the day. StudioCue asks your insurance agent for it, follows up, checks it, and sends it on once you've approved it.",
     steps: [
       "Once, in **Studio settings** → **Insurance**, save your agent's email and choose how far StudioCue goes: **Prepare it**, **Send it** or **Off**.",
       "Say the venue needs one: the client answers on your inquiry form, or tap **Yes, it does** under **Venue & insurance** on the job's **Plan** tab.",
@@ -506,7 +506,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Your agent replies with the PDF and it comes straight back to the job. StudioCue checks it against the venue's requirements and flags any differences.",
       "Read it, then tap **Approve & send to venue** — or **Ask agent to correct**.",
     ],
-    next: "StudioCue follows up with your agent every 3 days, up to 4 times, then tells you on Today. Once the venue has the certificate, the readiness checkpoint ticks.",
+    next: "StudioCue follows up with your agent every 3 days, up to 4 times, then tells you on Today. Once the venue has the certificate, the readiness checkpoint is checked off.",
     goodToKnow: [
       "StudioCue flags possible problems, but you always decide whether a certificate is right.",
       "The venue's wording is remembered: the next job there needs no typing.",
@@ -522,11 +522,11 @@ export const EXPLAINERS: readonly Explainer[] = [
     stage: "planning",
     routes: ["/studio/readiness", "/studio/event-day"],
     purpose:
-      "Readiness is the checklist a booked job must clear before the day. Most items tick themselves as records arrive; the judgement calls are yours.",
+      "Readiness is the checklist a booked job must clear before the day. Most items check themselves off as records arrive; the judgment calls are yours.",
     steps: [
       "Open **Event readiness** to see each job's **Score**, what's **Blocking** and what's **Overdue**.",
       "Open a job to see its **Readiness checkpoints**. Items settle themselves when the record arrives: a signature, a payment, an accepted offer.",
-      "For a judgement call, tap **Mark done** and say how you know. To skip one, tap **Waive** and say why.",
+      "For a judgment call, tap **Mark done** and say how you know. To skip one, tap **Waive** and say why.",
       "On the day, open **Event day** for the venue, the run of show and who's working, and **Ask the event brief** anything.",
     ],
     next: "Your reasons are saved to the audit log under your name, and readiness shows them as your call rather than something StudioCue saw.",
@@ -543,7 +543,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     video: "delivery",
     purpose: "Send the finished photos or film to the client, then close the job once everything reconciles.",
     steps: [
-      "Open the job's **Delivery** tab. Tick **Cards backed up** first; nothing is released before it.",
+      "Open the job's **Delivery** tab. Check **Cards backed up** first; nothing is released before it.",
       "Under **This release**, add each item: **What it is**, the **Link**, any **Access code**, and **Downloads until**.",
       "Or forward your gallery host's “ready” email to the job, then **Read the link and code**.",
       "Add your **Review link**, then **Release to the couple**.",
@@ -569,9 +569,9 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Add your review link when you release the final delivery; it's needed then.",
       "StudioCue asks twice: a note in the client's portal 3 days after delivery, then an email at 10 days.",
       "Open **Review requests** to see what's scheduled and what's gone out.",
-      "When the client taps **I've left my review**, or you confirm it, the remaining asks are cancelled.",
+      "When the client taps **I've left my review**, or you confirm it, the remaining asks are canceled.",
     ],
-    next: "Nothing is sent for a job that's been archived, cancelled or kept quiet since delivery.",
+    next: "Nothing is sent for a job that's been archived, canceled or kept quiet since delivery.",
     goodToKnow: ["Want to ask in your own words? Ask Cue to **Draft a review request**."],
   },
   {
@@ -651,7 +651,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     steps: [
       "Open **Library**, choose **Workflow templates**, then **Create workflow**.",
       "Name it, pick the **Event type**, and choose the **Starting checkpoints** — the milestones every job must reach, dated back from the event.",
-      "Review **Starting automations**. Email automations go to the client on schedule without a draft to approve, so untick any you'd rather send yourself.",
+      "Review **Starting automations**. Email automations go to the client on schedule without a draft to approve, so uncheck any you'd rather send yourself.",
       "Set **Availability** to publish it for new jobs, then **Create workflow**.",
       "In **Studio settings**, **Automatic drafts** sets whether each routine email waits for you (**Review each time**) or sends itself (**Send automatically**).",
     ],
@@ -676,7 +676,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Compare plans under **Plans** and switch when you need more room.",
       "Update your card or get your invoices with **Open customer portal**.",
     ],
-    next: "Changes take effect straight away. Payment details stay with Stripe; StudioCue never sees your card.",
+    next: "Changes take effect right away. Payment details stay with Stripe; StudioCue never sees your card.",
     goodToKnow: ["Each AI task, like drafting a message or reading an import, counts as one AI action. There's also a daily cap."],
   },
 
@@ -690,10 +690,10 @@ export const EXPLAINERS: readonly Explainer[] = [
     routes: ["/client", "/client/plan", "/client/project"],
     video: "couple-tour",
     purpose:
-      "This is your portal. Everything between booking and your photos happens here, and your photographer sees what you do straight away.",
+      "This is your portal. Everything between booking and your photos happens here, and your photographer sees what you do right away.",
     steps: [
       "**Home** shows the countdown to your day and **Your next step** — the one thing to do now. Tap its button to do it.",
-      "**Your journey** lists every step from booking to your photos, ticking off as each is done.",
+      "**Your journey** lists every step from booking to your photos, checking off as each is done.",
       "**Plan** keeps everything in one list: your proposal, your agreement, **Payments**, your questionnaire and your timeline.",
       "**Messages** is a chat with your photographer, and **Files** holds anything they've shared with you.",
     ],
@@ -711,7 +711,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     purpose:
       "Your proposal is your photographer's offer: your package, any extras, the total and when each payment is due. Nothing is charged when you accept.",
     steps: [
-      "If you're asked to **Choose your coverage**, tap a package, tick any **Add-ons** you want, then **Confirm**. Your price is fixed from then on.",
+      "If you're asked to **Choose your coverage**, tap a package, check any **Add-ons** you want, then **Confirm**. Your price is fixed from then on.",
       "Open **Your proposal** and read **What's included** and the **Payment plan**.",
       "Happy with it? Tap **Accept proposal**, then **Confirm acceptance**.",
       "Something to change? Tap **Request changes**, say what you'd like, then **Send change request**.",
@@ -737,7 +737,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     steps: [
       "Open **Your agreement** from the email, or from **Plan**.",
       "Read it through. Anything to change? Tap **Something to change? Ask before you sign**.",
-      "Tap **Review & sign**, tick the box to sign electronically, and type your full name.",
+      "Tap **Review & sign**, check the box to sign electronically, and type your full name.",
       "Tap **Sign agreement**. If it comes in two parts — the terms, then your coverage and price — you type your name for each and tap **Sign both parts**.",
     ],
     next: "A signed copy is emailed to you, and **Download signed copy** keeps it here. The retainer invoice comes next; paying it reserves your date.",
@@ -762,7 +762,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "**Schedule** lists every invoice, soonest first, and which are paid.",
       "If you see **Pay your final balance automatically**, tap **Save a card** and your final balance is charged on its due date.",
     ],
-    next: "Your studio sees your payment straight away. Paying the retainer reserves your date.",
+    next: "Your studio sees your payment right away. Paying the retainer reserves your date.",
     goodToKnow: [
       "A declined automatic charge is tried once more 3 days later. You can **Remove card** any time before.",
     ],
@@ -770,7 +770,7 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
   {
     id: "couple-questionnaire",
-    title: "Fill in your questionnaire",
+    title: "Fill out your questionnaire",
     summary: "Tell your photographer what they need to plan your day. Answers save as you go.",
     audience: "couple",
     stage: "planning",
@@ -783,7 +783,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Need a break? **Finish later: your answers are kept.**",
       "On the last step, **Review answers**, then **Send answers**. Required questions need an answer first.",
     ],
-    next: "Your photographer has your answers straight away. To change one after sending, just message them.",
+    next: "Your photographer has your answers right away. To change one after sending, just message them.",
     goodToKnow: ["Some answers may already be filled in from what you told your photographer. You can change them."],
   },
   {

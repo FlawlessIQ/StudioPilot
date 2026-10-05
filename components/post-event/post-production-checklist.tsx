@@ -151,7 +151,7 @@ export function PostProductionChecklist({
       refreshTenantRecords("postProductionRecords");
       onChanged?.();
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "That step could not be unticked."));
+      setNotice(friendlyError(caught, "That step could not be unchecked."));
     } finally {
       setBusy(null);
     }
@@ -270,13 +270,13 @@ export function PostProductionChecklist({
                 className="button button-quiet button-sm"
                 disabled={busy !== null}
                 onClick={() => void undo(row.key)}
-                title="Ticked by mistake? Untick it. Recorded in the audit log."
+                title="Checked by mistake? Uncheck it. Recorded in the audit log."
                 type="button"
               >
                 {busy === row.key ? (
                   <LoaderCircle className="spin" size={14} />
                 ) : null}
-                Untick
+                Uncheck
               </button>
             ) : null}
           </li>

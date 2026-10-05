@@ -287,7 +287,7 @@ export function ConsultationAvailability() {
         throw new Error("Choose at least one way to meet.");
       }
       if (form.meetingFormats.includes("in_person") && !form.inPersonLocation.trim()) {
-        throw new Error("Add where you meet in person, or untick In person.");
+        throw new Error("Add where you meet in person, or uncheck In person.");
       }
       const outcome = await sendBookingCommand({
         type: "setConsultationSettings",
@@ -381,7 +381,7 @@ export function ConsultationAvailability() {
               {zoomConnected
                 ? "A video call sends a Zoom link with the confirmation."
                 : "A video call needs Zoom connected for StudioCue to send the link; until then you send it yourself."}{" "}
-              In person needs the address below; for a phone call, you ring the number they give.
+              In person needs the address below; for a phone call, you call the number they give.
             </InfoHint>
           </p>
           {meetingFormatOptions.map((option) => (

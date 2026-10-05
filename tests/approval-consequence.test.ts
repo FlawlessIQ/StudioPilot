@@ -24,7 +24,7 @@ test("a complete reply with a real address is sent by approving, and says so", (
   assert.equal(dispatchesOnApproval(draft), true);
   assert.equal(
     approvalConsequenceSentence(draft, readable),
-    "Approving emails this to hana.park@example.com straight away.",
+    "Approving emails this to hana.park@example.com right away.",
   );
 });
 

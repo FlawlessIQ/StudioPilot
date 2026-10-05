@@ -292,7 +292,7 @@ test("moved and cancelled consultations have their own emails, with a way to reb
       rescheduleUrl: "https://studio-cue.com/i/token",
     },
   });
-  assert.match(cancelled.subject, /cancelled/);
+  assert.match(cancelled.subject, /canceled/);
   assert.match(cancelled.html, /Pick another time/);
   // No inquiry page (a job made by hand): they are told to reply instead.
   const noLink = renderEmailTemplate({

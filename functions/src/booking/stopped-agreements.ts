@@ -88,7 +88,7 @@ export function writeStoppedAgreements(
     writeContractVoid(db, transaction, contract, {
       tenantId: input.tenantId,
       projectId: input.projectId,
-      reason: "The job was cancelled.",
+      reason: "The job was canceled.",
       actorId: input.actor,
       actorType: "user",
       timestamp: input.now,
@@ -105,7 +105,7 @@ export function writeStoppedAgreements(
       tenantId: input.tenantId,
       projectId: input.projectId,
       title: `Cancel the agreement in ${provider}`,
-      description: `The job was cancelled while its agreement was still out for signature in ${provider}. StudioCue can't withdraw it there — cancel it in ${provider} so the couple can't sign it.`,
+      description: `The job was canceled while its agreement was still out for signature in ${provider}. StudioCue can't withdraw it there — cancel it in ${provider} so the couple can't sign it.`,
       now: input.now,
       actor: input.actor,
     });

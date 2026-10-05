@@ -398,14 +398,14 @@ export const EXPECTED_TIMELINE: readonly ExpectedStage[] = [
         note: `StudioCue's recommended form is due ${distance(D.planningFormDueDaysBefore)} before the wedding.`,
       },
       {
-        text: "Asks your insurance agent for the venue's certificate, and chases it until it arrives.",
+        text: "Asks your insurance agent for the venue's certificate, and follows up until it arrives.",
         at: wedding(-S.coiAskDaysBefore),
-        note: `Only when the venue needs one. Due ${distance(S.coiDueDaysBefore)} before; chased every ${plural(S.coiChaseEveryDays, "day")}.`,
+        note: `Only when the venue needs one. Due ${distance(S.coiDueDaysBefore)} before; followed up every ${plural(S.coiChaseEveryDays, "day")}.`,
       },
       {
         text: "Asks the couple for a billing address, if none is on file.",
         at: wedding(-S.billingAddressDaysBefore),
-        note: "Only with QuickBooks itemised invoices and sales tax.",
+        note: "Only with QuickBooks itemized invoices and sales tax.",
       },
       {
         text: `Raises the final invoice through QuickBooks, due ${distance(S.finalInvoiceDueDaysBefore)} before the wedding.`,

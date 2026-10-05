@@ -109,7 +109,7 @@ export function withdrawAllConsequence(
   const parts: string[] = [];
   if (accepted.length)
     parts.push(
-      `${join(accepted.map(named))} already said yes, so ${accepted.length === 1 ? "they're" : "each of them is"} emailed that they've been released, with a calendar file that takes the day out of their diary.`,
+      `${join(accepted.map(named))} already said yes, so ${accepted.length === 1 ? "they're" : "each of them is"} emailed that they've been released, with a calendar file that takes the day off their calendar.`,
     );
   if (unanswered.length)
     parts.push(

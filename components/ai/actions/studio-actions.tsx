@@ -632,7 +632,7 @@ export function TaskChangeCard({ action }: ActionCardProps) {
     <ActionShell
       detail={
         kind === "cancel_task"
-          ? "It stays on the list as a record, marked cancelled."
+          ? "It stays on the list as a record, marked canceled."
           : kind === "reopen_task"
             ? "It goes back on the list as not started."
             : "Only your team sees tasks."
@@ -641,7 +641,7 @@ export function TaskChangeCard({ action }: ActionCardProps) {
       title={title}
     >
       {!options.length ? (
-        <Done>{kind === "reopen_task" ? "No done or cancelled tasks on this job." : "No open tasks on this job."}</Done>
+        <Done>{kind === "reopen_task" ? "No done or canceled tasks on this job." : "No open tasks on this job."}</Done>
       ) : (
         <SubjectPicker {...choice} noun="task" options={options} subject={action.subject} />
       )}
@@ -695,7 +695,7 @@ export function TaskChangeCard({ action }: ActionCardProps) {
                   return `“${str(task.title)}” is open again.`;
                 }
                 await runWorkflowCommand("cancelTask", { taskId: task.id, reason: reason.trim().slice(0, 500) || null });
-                return `“${str(task.title)}” is cancelled.`;
+                return `“${str(task.title)}” is canceled.`;
               },
               { refresh: ["tasks"] },
             )
@@ -744,8 +744,8 @@ export function DeliveryCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   const details: Record<string, string> = {
     record_delivery: "They're emailed the gallery link now; the review request and album reminders follow on their own.",
-    complete_editing_step: "Tick off each step as it's done. Only the backup has to be done before anything is released.",
-    update_album: "Track the album from selections to fulfilment.",
+    complete_editing_step: "Check off each step as it's done. Only the backup has to be done before anything is released.",
+    update_album: "Track the album from selections to fulfillment.",
     close_job: "Everything owed is checked; anything settled outside StudioCue can be confirmed here before it closes.",
   };
   return (
@@ -885,7 +885,7 @@ export function SkipReviewRequestsCard({ action }: ActionCardProps) {
     <ActionShell
       detail={
         pending
-          ? `${pending} review ${pending === 1 ? "ask hasn't" : "asks haven't"} gone out yet; ${pending === 1 ? "it" : "they"} will be cancelled and none scheduled. Nothing is sent to them.`
+          ? `${pending} review ${pending === 1 ? "ask hasn't" : "asks haven't"} gone out yet; ${pending === 1 ? "it" : "they"} will be canceled and none scheduled. Nothing is sent to them.`
           : "No review asks will be scheduled for this client. Nothing is sent to them."
       }
       icon={<Star size={15} />}
@@ -1058,7 +1058,7 @@ export function SettingsCard({ action }: ActionCardProps) {
     },
     edit_branding: {
       title: "Your studio's name and branding",
-      detail: "The name, logo, colour and contact details on everything the client sees.",
+      detail: "The name, logo, color and contact details on everything the client sees.",
       ownerOnly: true,
       body: (
         <>
@@ -1096,7 +1096,7 @@ export function SettingsCard({ action }: ActionCardProps) {
     },
     set_insurance_settings: {
       title: "Certificates of insurance",
-      detail: "Your agent's details and how StudioCue asks for, chases and sends certificates.",
+      detail: "Your agent's details and how StudioCue asks for, follows up on and sends certificates.",
       body: <CoiSettings />,
       href: "/studio/settings/insurance",
     },

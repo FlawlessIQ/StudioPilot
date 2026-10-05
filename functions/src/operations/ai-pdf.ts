@@ -1,4 +1,5 @@
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
+import { US_ENGLISH_PART } from "../ai/language.js";
 import { enrichCapturedLead } from "../intake/enrich.js";
 import { convertInquiryToJob } from "../intake/convert.js";
 import { withInquiryLink } from "../intake/inquiry-link.js";
@@ -125,7 +126,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       body:JSON.stringify({
         // The rules as they have always been, then the studio's own
         // preferences, quoted — style guidance that cannot override them.
-        systemInstruction:{parts:[{text:inquiryReplySystemInstruction({voice:tenant.get("copilotVoice"),firstReply:tenant.get("firstReplyInstructions")})}]},
+        systemInstruction:{parts:[{text:inquiryReplySystemInstruction({voice:tenant.get("copilotVoice"),firstReply:tenant.get("firstReplyInstructions")})},US_ENGLISH_PART]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{
           temperature:0,
@@ -283,7 +284,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
       body:JSON.stringify({
-        systemInstruction:{parts:[{text:"Analyze photography consultation notes using only supplied project facts and the exact active package catalog. Summarize stated priorities, missing information, and follow-up questions. Recommend only a supplied package id or null. Do not invent pricing, discounts, availability, deliverables, legal terms, or client agreement. Draft a short proposal introduction in the studio's professional voice. All outputs require human review."}]},
+        systemInstruction:{parts:[{text:"Analyze photography consultation notes using only supplied project facts and the exact active package catalog. Summarize stated priorities, missing information, and follow-up questions. Recommend only a supplied package id or null. Do not invent pricing, discounts, availability, deliverables, legal terms, or client agreement. Draft a short proposal introduction in the studio's professional voice. All outputs require human review."},US_ENGLISH_PART]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{
           summary:{type:"STRING"},
@@ -462,7 +463,7 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     if(!projectId||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
     const token=await cloudAccessToken();
     const vertex=await fetch(vertexEndpoint(projectId, model),{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({
-      systemInstruction:{parts:[{text:"Review a photography planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Also draft a concise, warm follow-up email that asks only the necessary supplied follow-up questions; its body must not include a greeting or sign-off. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review."}]},
+      systemInstruction:{parts:[{text:"Review a photography planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Also draft a concise, warm follow-up email that asks only the necessary supplied follow-up questions; its body must not include a greeting or sign-off. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review."},US_ENGLISH_PART]},
       contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
       generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{summary:{type:"STRING"},missingInformation:{type:"ARRAY",items:{type:"STRING"}},contradictions:{type:"ARRAY",items:{type:"STRING"}},planningRisks:{type:"ARRAY",items:{type:"STRING"}},suggestedQuestions:{type:"ARRAY",items:{type:"STRING"}},followupSubject:{type:"STRING"},followupBody:{type:"STRING"}},required:["summary","missingInformation","contradictions","planningRisks","suggestedQuestions","followupSubject","followupBody"]}},
     })});
@@ -654,6 +655,7 @@ async function runInboundReplyDraft(job: DocumentSnapshot) {
               {
                 text: "Draft one reply from a photography studio to its client, answering their most recent message. Use only the supplied facts. Never invent prices, dates, times, links or promises — put anything you would need to guess in missingInformation instead. Do not restate the thread. Never mention AI. Plain text, short paragraphs. A person reviews this before it is sent.",
               },
+              US_ENGLISH_PART,
             ],
           },
           contents: [

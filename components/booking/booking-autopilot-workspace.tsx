@@ -898,7 +898,7 @@ export function BookingAutopilotWorkspace({
           <span>
             <strong>{`No consultation for a ${kindWords.event}.`}</strong>
             <small>
-              Prepare the proposal straight away; it will lock a package if
+              Prepare the proposal right away; it will lock a package if
               one isn&rsquo;t chosen yet.
             </small>
           </span>

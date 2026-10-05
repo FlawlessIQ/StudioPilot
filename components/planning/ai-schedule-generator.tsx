@@ -980,7 +980,7 @@ export function AiScheduleGenerator({
           <div>
             <p className="eyebrow">Draft · nothing is sent yet</p>
             <h2>Generate a run of show</h2>
-            <p>Fill in what you know. Anything you leave blank is guessed and labelled as a guess.</p>
+            <p>Fill in what you know. Anything you leave blank is guessed and labeled as a guess.</p>
           </div>
           <Sparkles />
         </div>
@@ -1326,7 +1326,7 @@ export function AiScheduleGenerator({
               <p className="schedule-basis-empty">
                 Built from {groundingSummary}.
                 {" "}{draft.sourceTrace.assumptionItemCount > 0
-                  ? ` ${draft.sourceTrace.assumptionItemCount} of the items below still rest on an assumption — each one is labelled.`
+                  ? ` ${draft.sourceTrace.assumptionItemCount} of the items below still rest on an assumption — each one is labeled.`
                   : ""}
               </p>
             )}

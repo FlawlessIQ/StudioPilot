@@ -125,11 +125,11 @@ test("an overdue balance is the studio's move, not the client's", () => {
   assert.equal(overdue.current?.owner, "studio");
   assert.equal(
     overdue.current?.action?.kind === "link" && overdue.current.action.label,
-    "Chase payment",
+    "Follow up on payment",
   );
 
   // And so every surface derived from it now says the same thing.
   const position = positionFrom(overdue.current, "READY");
   assert.equal(position.owner, "studio");
-  assert.equal(position.actionLabel, "Chase payment");
+  assert.equal(position.actionLabel, "Follow up on payment");
 });

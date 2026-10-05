@@ -113,7 +113,7 @@ export function CrewOfferSettings() {
             <span>Send prepared crew offers as soon as a job is booked</span>
             <small>
               Off, the plan waits on the job for you to send. On, the first name
-              for each role is asked straight away — including the fee. Imported
+              for each role is asked right away — including the fee. Imported
               bookings are never offered automatically, because they were usually
               staffed before they reached StudioCue.
             </small>

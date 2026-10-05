@@ -802,7 +802,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
           {subjectMatch.name}{" "}
           is on your roster but cannot take this as it stands —{" "}
           {namedRanked?.exclusions.join(", ").toLocaleLowerCase()}. They are
-          ticked below; send anyway, or choose someone else.
+          checked below; send anyway, or choose someone else.
         </p>
       ) : null}
       {namedId && !namedIsOfferable && !namedNeedsReview && subjectMatch.kind === "matched" ? (

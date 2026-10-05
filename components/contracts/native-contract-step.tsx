@@ -254,7 +254,7 @@ export function NativeContractStep({
       return;
     }
     if (!consented) {
-      setError("Tick the box to sign for the studio.");
+      setError("Check the box to sign for the studio.");
       return;
     }
     const overridesChanged = JSON.stringify(overrides) !== JSON.stringify(draft.mergeOverrides ?? {});

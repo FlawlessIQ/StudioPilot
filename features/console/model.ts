@@ -98,7 +98,7 @@ export const SUBSCRIPTION_STATUS: Record<string, { label: string; tone: Tone }> 
   past_due: { label: "Past due", tone: "bad" },
   unpaid: { label: "Unpaid", tone: "bad" },
   paused: { label: "Paused", tone: "warn" },
-  cancelled: { label: "Cancelled", tone: "neutral" },
+  cancelled: { label: "Canceled", tone: "neutral" },
   incomplete: { label: "No card yet", tone: "warn" },
 };
 

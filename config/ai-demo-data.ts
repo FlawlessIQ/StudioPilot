@@ -293,7 +293,7 @@ export const demoTasks = [
   {
     id: "TSK-1202",
     project: "Hudson Valley Athletics",
-    title: "Chase signed organization agreement",
+    title: "Follow up on signed organization agreement",
     status: "in_progress",
     dueInDays: -1,
   },

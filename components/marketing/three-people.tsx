@@ -27,7 +27,7 @@ export function ThreePeople({ titleId }: { titleId: string }) {
           <h3 className="mk-people-label">
             <Store aria-hidden="true" size={16} /> You
           </h3>
-          <p>The whole job: where it is, the next move, and every step ticked off.</p>
+          <p>The whole job: where it is, the next move, and every step checked off.</p>
           <AnnotatedShot crop={{ bottom: 0.58 }} screen="job-page" />
         </article>
         <article className="mk-people-couple">

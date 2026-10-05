@@ -791,7 +791,7 @@ export function DeliveryForm({ projectId }: { projectId?: string }) {
             </p>
           ) : outstandingGateSteps.length ? (
             <p className="delivery-gate-notice form-span" role="status">
-              <strong>Back up the cards first.</strong> Tick{" "}
+              <strong>Back up the cards first.</strong> Check{" "}
               {outstandingGateSteps.map((key) => POST_PRODUCTION_META[key].label).join(", ")}{" "}
               on the checklist above — it&rsquo;s the one step that protects the files.
             </p>

@@ -212,7 +212,7 @@ test("a blocking checkpoint says what it waits for, not that it blocks", () => {
     "a record-backed one says which record",
   );
   assert.ok(
-    details.some((detail) => /judgement/.test(detail)),
+    details.some((detail) => /judgment/.test(detail)),
     "a manual one says it is the studio's call",
   );
 });

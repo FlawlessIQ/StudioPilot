@@ -71,7 +71,7 @@ export function CombinedAgreementSend({
       return;
     }
     if (!consented) {
-      setError("Tick the box to sign for the studio.");
+      setError("Check the box to sign for the studio.");
       return;
     }
     setBusy("send");

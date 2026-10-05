@@ -457,12 +457,12 @@ function ThreadNextMove({
         <div className="thread-next is-interrupted">
           <div className="thread-next-copy">
             <p className="thread-next-eyebrow">
-              <PauseCircle size={12} /> {held ? "On hold" : "Cancelled"}
+              <PauseCircle size={12} /> {held ? "On hold" : "Canceled"}
             </p>
             <strong>
               {held
                 ? "This job is on hold, so the client isn't billed, charged or reminded."
-                : "This job was cancelled. Everything on it is still on file."}
+                : "This job was canceled. Everything on it is still on file."}
             </strong>
             <small>
               {interruption.reason

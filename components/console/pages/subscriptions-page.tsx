@@ -26,10 +26,10 @@ const VIEWS: Array<{ key: View; label: string; test: (studio: ConsoleStudio) => 
   { key: "active", label: "Paying", test: (studio) => studio.subscriptionStatus === "active" && !studio.comped },
   { key: "trialing", label: "Trialing", test: (studio) => studio.subscriptionStatus === "trialing" && !studio.comped },
   { key: "past_due", label: "Past due", test: (studio) => studio.subscriptionStatus === "past_due" || studio.subscriptionStatus === "unpaid" || studio.subscriptionStatus === "paused" },
-  { key: "cancelling", label: "Cancelling", test: (studio) => studio.cancelAtPeriodEnd },
+  { key: "cancelling", label: "Canceling", test: (studio) => studio.cancelAtPeriodEnd },
   { key: "comped", label: "Comped", test: (studio) => studio.comped },
   { key: "incomplete", label: "No card yet", test: (studio) => studio.subscriptionStatus === "incomplete" && !studio.comped },
-  { key: "cancelled", label: "Cancelled", test: (studio) => studio.subscriptionStatus === "cancelled" },
+  { key: "cancelled", label: "Canceled", test: (studio) => studio.subscriptionStatus === "cancelled" },
   { key: "all", label: "All", test: () => true },
 ];
 

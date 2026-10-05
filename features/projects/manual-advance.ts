@@ -64,7 +64,7 @@ const ROUTES: Record<string, ManualAdvance> = {
   "RETAINER_PENDING:BOOKED": {
     label: "Record the retainer",
     detail:
-      "Paid by transfer, cheque or card reader? Record the payment on the booking page, then confirm the booking.",
+      "Paid by transfer, check or card reader? Record the payment on the booking page, then confirm the booking.",
     href: "/studio/booking?project=:projectId",
   },
   "POSTPONED:BOOKED": {

@@ -78,7 +78,7 @@ const FAILURES: Record<string, ProviderFailure> = {
     provider: "your calendar",
   },
   cancel_consultation_resources: {
-    title: "The consultation wasn't cancelled",
+    title: "The consultation wasn't canceled",
     provider: "your calendar",
   },
   reschedule_consultation_resources: {

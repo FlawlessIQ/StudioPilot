@@ -29,7 +29,7 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{
   subtitle: string;
 }> = [
   { key: "identity", slug: "studio-details", title: "Studio details", subtitle: "Names, timezone, and your inquiry link" },
-  { key: "branding", slug: "email-branding", title: "Email branding", subtitle: "Logo, colours and sender name on client emails" },
+  { key: "branding", slug: "email-branding", title: "Email branding", subtitle: "Logo, colors and sender name on client emails" },
   { key: "availability", slug: "consultation-availability", title: "Consultation availability", subtitle: "When clients can book a call" },
   { key: "jobTypes", slug: "job-types", title: "Job types", subtitle: "Weddings, sessions, events — and what each kind does" },
   { key: "templates", slug: "email-templates", title: "Email templates", subtitle: "Design the branded template" },

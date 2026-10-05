@@ -112,7 +112,7 @@ const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
     label: "Communications",
     // A new inquiry gets two emails and studios couldn't tell which setting
     // changed which (GR Productions, 2026-10-01).
-    note: "A new inquiry gets two emails. The automatic \u201cwe got your inquiry\u201d one goes straight away \u2014 change its words under Email templates (Inquiry Acknowledgement). Your personal first reply is drafted for you to approve, and follows what you write under How your first reply should go.",
+    note: "A new inquiry gets two emails. The automatic \u201cwe got your inquiry\u201d one goes right away \u2014 change its words under Email templates (Inquiry Acknowledgment). Your personal first reply is drafted for you to approve, and follows what you write under How your first reply should go.",
     items: [
       { kind: "section", key: "forwarding", icon: Forward },
       { kind: "section", key: "templates", icon: LayoutTemplate },

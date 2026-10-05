@@ -110,7 +110,7 @@ export function CoiRequestActions({
             text(request.dueDate) ? `, due ${formatEventDate(text(request.dueDate))}` : ""
           }. Nothing has been sent.${request.fromVenueMemory ? " The venue's details are from the last certificate you sent them." : ""}`}
         </p>
-        <button className="button button-dark" disabled={busy} onClick={() => void run("approvePreparedCoi", {}, "Sent to your agent. StudioCue chases it until it's back.")} type="button">
+        <button className="button button-dark" disabled={busy} onClick={() => void run("approvePreparedCoi", {}, "Sent to your agent. StudioCue follows up until it's back.")} type="button">
           <Send /> Send to your agent
         </button>
       </>
@@ -308,7 +308,7 @@ export function CoiRequestActions({
         <p className="coi-status-note">
           {status === "requested"
             ? request.escalatedAt
-              ? `Your agent hasn't replied after ${Number(request.chaseCount ?? 0)} follow-ups — StudioCue stopped chasing.${text(settings?.agentPhone) ? ` Call ${text(settings?.agentPhone)}.` : ""}`
+              ? `Your agent hasn't replied after ${Number(request.chaseCount ?? 0)} follow-ups — StudioCue stopped following up.${text(settings?.agentPhone) ? ` Call ${text(settings?.agentPhone)}.` : ""}`
               : `With your agent${Number(request.chaseCount ?? 0) ? ` · followed up ${Number(request.chaseCount)} time${Number(request.chaseCount) === 1 ? "" : "s"}` : ""}. Their reply with the PDF comes straight back here.`
             : status === "correction_required"
               ? "Sent back to your agent for a correction. StudioCue follows up until it's back."
@@ -326,7 +326,7 @@ export function CoiRequestActions({
           <CoiResendToAgent
             busy={busy}
             onResend={(changes) =>
-              void run("resendCoi", changes, "Sent again with the corrected details. StudioCue chases the new one.")
+              void run("resendCoi", changes, "Sent again with the corrected details. StudioCue follows up on the new one.")
             }
             requestEmail={text(request.requestEmail) || text(settings?.agentEmail)}
             requirement={requirement}

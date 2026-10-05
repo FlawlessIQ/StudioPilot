@@ -290,7 +290,7 @@ test("the cancellation write closes the plan, supersedes the bills and leaves th
   assert.equal(byPath.has("invoiceReferences/r1"), false, "money received is not rewritten");
   assert.equal(byPath.get("bookingOrchestrations/p")?.status, "cancelled");
   assert.match(String(byPath.get("tasks/invoice_void_f1")?.title), /Void invoice 1045 in QuickBooks/);
-  assert.equal(byPath.get("tasks/refund_or_keep_p")?.title, "Refund or keep the retainer paid after cancelling");
+  assert.equal(byPath.get("tasks/refund_or_keep_p")?.title, "Refund or keep the retainer paid after canceling");
 });
 
 test("cancelling and closing as lost both close billing, and a paid retainer after either exits cleanly", () => {

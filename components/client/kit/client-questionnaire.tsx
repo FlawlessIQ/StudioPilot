@@ -104,7 +104,7 @@ export function ClientQuestionnaire() {
           error={responses.error}
           loading={responses.loading}
           loadingText="Opening your questionnaire…"
-          upcoming="Your studio hasn’t sent a questionnaire yet. You’ll get an email when there’s one to fill in."
+          upcoming="Your studio hasn’t sent a questionnaire yet. You’ll get an email when there’s one to fill out."
         />
         <PoweredBy />
       </Main>
@@ -129,7 +129,7 @@ export function ClientQuestionnaire() {
                   ? "Sent to your studio"
                   : response.dueDate
                     ? `Due ${date(response.dueDate)}`
-                    : "Ready to fill in"
+                    : "Ready to fill out"
               }
               title={text(response.name ?? response.templateName, `Questionnaire ${index + 1}`)}
             />

@@ -20,7 +20,7 @@ const LABELS: Record<string, string> = {
   partially_signed: "Partly signed",
   completed: "Complete",
   declined: "Declined",
-  voided: "Cancelled",
+  voided: "Canceled",
 
   // Money
   paid: "Paid",
@@ -47,7 +47,7 @@ const LABELS: Record<string, string> = {
   viewed: "Opened",
   accepted: "Accepted",
   reassigned: "Reassigned",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
   exhausted: "Nobody accepted",
   active: "In progress",
 
@@ -66,6 +66,11 @@ export function statusLabel(value: unknown): string {
   if (!key) return "";
   return (
     LABELS[key] ??
-    key.replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase())
+    key
+      .replaceAll("_", " ")
+      // Stored values keep their spelling ("cancelled"); the reader gets US English.
+      .replace(/cancell(ed|ing)/g, "cancel$1")
+      .replace(/acknowledgement/g, "acknowledgment")
+      .replace(/^\w/, (letter) => letter.toUpperCase())
   );
 }

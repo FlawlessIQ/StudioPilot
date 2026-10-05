@@ -86,7 +86,7 @@ const FIELD_TYPES: Array<[string, string]> = [
   ["file", "File upload"],
   ["contact", "Contact"],
   ["repeating_group", "Repeating group"],
-  ["acknowledgement", "Acknowledgement"],
+  ["acknowledgement", "Acknowledgment"],
   ["information", "Information block"],
 ];
 
@@ -571,8 +571,8 @@ export function QuestionnaireTemplateEditor({
                             }
                             value={field.conditionalOn.equals === true ? "yes" : "no"}
                           >
-                            <option value="yes">Ticked</option>
-                            <option value="no">Not ticked</option>
+                            <option value="yes">Checked</option>
+                            <option value="no">Not checked</option>
                           </select>
                         </label>
                       ) : CHOICE_TYPES.includes(reads.type) && reads.options.trim() ? (

@@ -28,7 +28,7 @@ test("an inquiry without consent is refused, with words a person can act on", ()
   assert.equal(refused.success, false);
   if (!refused.success) {
     const issue = refused.error.issues.find((item) => item.path.includes("consent"));
-    assert.equal(issue?.message, "Please tick the box so we know we may reply to you.");
+    assert.equal(issue?.message, "Please check the box so we know we may reply to you.");
   }
   assert.equal(publicLeadIntakeSchema.safeParse({ ...base, consent: true }).success, true);
 });

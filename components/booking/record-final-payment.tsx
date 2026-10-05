@@ -121,7 +121,7 @@ export function RecordFinalPayment({
           <input
             maxLength={200}
             name="reference"
-            placeholder="Payment or cheque reference"
+            placeholder="Payment or check reference"
           />
         </label>
         <button className="button" disabled={busy} type="submit">

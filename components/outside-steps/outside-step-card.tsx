@@ -173,7 +173,7 @@ export function OutsideStepCard({
               {status.detected
                 ? " — StudioCue saw this for itself."
                 : step.detection === "automatic"
-                  ? " — StudioCue will tick this off by itself."
+                  ? " — StudioCue will check this off by itself."
                   : since
                     ? ` — you told us on ${since}.`
                     : ""}

@@ -774,13 +774,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
       return {
-        subject: `Your consultation with ${brand.studioName} is cancelled`,
+        subject: `Your consultation with ${brand.studioName} is canceled`,
         preheader: `Your consultation${startsAt ? ` on ${startsAt}` : ""} is no longer happening.`,
-        eyebrow: "Consultation cancelled",
-        heading: "Your consultation is cancelled",
+        eyebrow: "Consultation canceled",
+        heading: "Your consultation is canceled",
         paragraphs: [
           greeting,
-          `We've cancelled your consultation${startsAt ? ` on ${startsAt}` : ""}, so there's no need to join.`,
+          `We've canceled your consultation${startsAt ? ` on ${startsAt}` : ""}, so there's no need to join.`,
           rescheduleUrl
             ? "If you'd still like to talk, pick another time that suits you."
             : "If you'd still like to talk, reply to this email and we'll find another time.",
@@ -1205,16 +1205,16 @@ function copyFor(input: RenderEmailInput): EmailCopy {
        */
       const body = stringValue(values, "customBody");
       return {
-        subject: `Your booking with ${brand.studioName}${project} is cancelled`,
-        preheader: "Your booking has been cancelled. Reply to this email with any questions.",
-        eyebrow: "Booking cancelled",
-        heading: "Your booking is cancelled",
+        subject: `Your booking with ${brand.studioName}${project} is canceled`,
+        preheader: "Your booking has been canceled. Reply to this email with any questions.",
+        eyebrow: "Booking canceled",
+        heading: "Your booking is canceled",
         paragraphs: [
           greeting,
           ...(body
             ? clientEmailParagraphs(body)
             : [
-                `As we discussed, your booking${project} is now cancelled, and we won't send you any more reminders or invoices for it.`,
+                `As we discussed, your booking${project} is now canceled, and we won't send you any more reminders or invoices for it.`,
                 "If you have any questions, or anything about this doesn't look right, just reply to this email.",
               ]),
         ],
@@ -1251,13 +1251,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         };
       }
       return {
-        subject: `Cancelled: your ${brand.studioName} assignment${project}`,
+        subject: `Canceled: your ${brand.studioName} assignment${project}`,
         preheader: "This job is no longer going ahead.",
-        eyebrow: "Assignment cancelled",
+        eyebrow: "Assignment canceled",
         heading: "This job has been called off",
         paragraphs: [
           greeting,
-          `The event${project} is no longer going ahead, so your assignment has been cancelled. You are not needed on the day, and nothing further is expected from you.`,
+          `The event${project} is no longer going ahead, so your assignment has been canceled. You are not needed on the day, and nothing further is expected from you.`,
           ...(why ? [`The studio noted: ${why}`] : []),
           "Please get in touch if you were counting on this date and want to talk it through.",
         ],
@@ -1438,7 +1438,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const label = stringValue(values, "label") || "Photo gallery";
       return {
         subject: `Download your photographs before ${expirationDate ? humanDate(expirationDate, zone) : "they expire"}`,
-        preheader: "Your gallery closes soon. Save your favourites now.",
+        preheader: "Your gallery closes soon. Save your favorites now.",
         eyebrow: "Gallery reminder",
         heading: "Your gallery closes soon",
         paragraphs: [
@@ -1781,7 +1781,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           until
             ? `Everything keeps working until ${until}. After that the studio becomes read-only: you can still open every job and export your data, but nothing can be sent or changed, and messages to your clients are held until payment goes through.`
             : "Update your card to keep everything running.",
-          "Update your card and the payment is tried again straight away.",
+          "Update your card and the payment is tried again right away.",
         ],
         action: actionUrl ? { label: "Update your card", url: actionUrl } : undefined,
       };
@@ -1841,7 +1841,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           `StudioCue hasn't captured an inquiry from your inbox in ${days} days, which is longer than usual for ${brand.studioName}.`,
           "It may just be a quiet week. But if your email forwarding stopped (a changed password, a deleted filter, or a mailbox move can do it), inquiries will be waiting in your inbox instead.",
-          "The quickest check: fill in your own website form and see whether it appears in StudioCue within a couple of minutes.",
+          "The quickest check: fill out your own website form and see whether it appears in StudioCue within a couple of minutes.",
         ],
         action: actionUrl ? { label: "Check inquiry capture", url: actionUrl } : undefined,
       };

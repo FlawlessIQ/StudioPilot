@@ -81,7 +81,7 @@ export default function ForCrewPage() {
             points: [
               "Only the segments they are on",
               "Version numbers, not “latest final v3”",
-              "Acknowledgement recorded per person",
+              "Acknowledgment recorded per person",
             ],
           },
           {
@@ -90,7 +90,7 @@ export default function ForCrewPage() {
             points: [
               "Requirements listed per assignment",
               "Secure document upload",
-              "Outstanding items chased for you",
+              "Outstanding items followed up for you",
             ],
           },
           {
@@ -125,7 +125,7 @@ export default function ForCrewPage() {
             ],
           },
           {
-            title: "No licence per freelancer",
+            title: "No license per freelancer",
             text: "Your crew are not billed seats — the plan's seats are for your own team. Bring in the people you hire for one Saturday without adding a subscription; Studio covers up to 25 active crew.",
             points: [
               "No per-seat billing for crew",

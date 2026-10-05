@@ -407,7 +407,7 @@ export function LiveReports() {
                 <small>
                   Your actions per delivered wedding
                   <InfoHint label="Your actions per delivered wedding">
-                    How many approvals, ticks and sends a typical delivered wedding took from you. Lower means
+                    How many approvals, check-offs and sends a typical delivered wedding took from you. Lower means
                     StudioCue did more.
                   </InfoHint>
                 </small>
@@ -415,8 +415,8 @@ export function LiveReports() {
               </span>
               <p>
                 {effort.deliveredMedian === null
-                  ? "Once a wedding is delivered, this counts every approval, tick and send it took from your side. Lower is better."
-                  : `The typical wedding across ${effort.deliveredCount} delivered took this many approvals, ticks and sends from your side. Lower is better.`}
+                  ? "Once a wedding is delivered, this counts every approval, check-off and send it took from your side. Lower is better."
+                  : `The typical wedding across ${effort.deliveredCount} delivered took this many approvals, check-offs and sends from your side. Lower is better.`}
                 {effort.most ? (
                   <>
                     {" "}The most was{" "}

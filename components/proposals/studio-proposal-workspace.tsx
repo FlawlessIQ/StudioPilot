@@ -3205,7 +3205,7 @@ export function StudioProposalWorkspace({
                   <div className="proposal-undo-confirm" role="group" aria-label="Confirm">
                     <p>
                       {closing === "discard"
-                        ? "Discard this draft? Nobody outside your studio has seen it. You can start a new one straight away."
+                        ? "Discard this draft? Nobody outside your studio has seen it. You can start a new one right away."
                         : "Withdraw it? The couple's page will say it's no longer on offer and they can't accept it. Nothing is emailed — tell them yourself. You can send a new one after."}
                     </p>
                     {closing === "withdraw" ? (

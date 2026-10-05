@@ -222,7 +222,7 @@ export function CloseInquiryCard({ action }: ActionCardProps) {
   const state = str(job.state);
   if (state === "LOST") return <ActionShell title={title}><Done>{`${jobName(job)} is already marked lost.`}</Done></ActionShell>;
   if (!PRE_BOOKING.has(state))
-    return <ActionShell title={title}><Blocked>{`${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, so it isn't an open inquiry. To stop a booked job, move it to Cancelled.`}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, so it isn't an open inquiry. To stop a booked job, move it to Canceled.`}</Blocked></ActionShell>;
   return (
     <ActionShell
       detail="It moves to Lost, and its follow-ups and unsent reply drafts stop. You can reopen it any time."
@@ -343,7 +343,7 @@ export function MaybeInquiryCard({ action }: ActionCardProps) {
       detail={
         confirming
           ? "It becomes a real inquiry: a job is made for it and a reply is drafted."
-          : "It is dropped. Its sender keeps being captured unless you tick below."
+          : "It is dropped. Its sender keeps being captured unless you check the box below."
       }
       icon={<Inbox size={15} />}
       title={title}
@@ -861,14 +861,14 @@ export function CancelJobCard({ action }: ActionCardProps) {
   if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
   const state = str(job.state) as ProjectState;
-  if (state === "CANCELLED") return <ActionShell title={title}><Done>{`${jobName(job)} is already cancelled.`}</Done></ActionShell>;
+  if (state === "CANCELLED") return <ActionShell title={title}><Done>{`${jobName(job)} is already canceled.`}</Done></ActionShell>;
   if (!interruptionsFor(state).includes("CANCELLED"))
     return (
       <ActionShell title={title}>
         <Blocked>
           {PRE_BOOKING.has(state)
             ? `${jobName(job)} is still an inquiry. Mark it lost instead — that records why and stops its follow-ups.`
-            : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, and a job can't be cancelled after the event.`}
+            : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}, and a job can't be canceled after the event.`}
         </Blocked>
       </ActionShell>
     );
@@ -883,7 +883,7 @@ export function CancelJobCard({ action }: ActionCardProps) {
         <CheckField checked={tell} label="Tell the client by email" onChange={setTell} />
         {tell ? (
           <TextAreaField
-            hint="Leave empty for a short note that the booking is cancelled."
+            hint="Leave empty for a short note that the booking is canceled."
             label="Your message"
             onChange={setMessage}
             rows={3}
@@ -908,7 +908,7 @@ export function CancelJobCard({ action }: ActionCardProps) {
                 notifyClient: tell,
                 clientMessage: tell ? message.trim() || null : null,
               });
-              return `${jobName(job)} is cancelled.${tell ? " The client is being emailed." : ""}`;
+              return `${jobName(job)} is canceled.${tell ? " The client is being emailed." : ""}`;
             },
             { refresh: ["projects", "crewAssignments", "invoiceReferences", "contracts", "tasks"] },
           )
@@ -949,10 +949,10 @@ export function GoBackJobCard({ action }: ActionCardProps) {
         <Blocked>
           {uncancel
             ? refusal === "NOT_CANCELLED"
-              ? `${jobName(job)} isn't cancelled.`
+              ? `${jobName(job)} isn't canceled.`
               : refusal === "UNCANCEL_WINDOW_PASSED"
-                ? `${jobName(job)} was cancelled more than ${UNCANCEL_WINDOW_DAYS} days ago, so it can't be undone. Create a new job for the client instead.`
-                : `${jobName(job)} was cancelled before StudioCue recorded where it stood, so it can't be brought back. Create a new job instead.`
+                ? `${jobName(job)} was canceled more than ${UNCANCEL_WINDOW_DAYS} days ago, so it can't be undone. Create a new job for the client instead.`
+                : `${jobName(job)} was canceled before StudioCue recorded where it stood, so it can't be brought back. Create a new job instead.`
             : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}. Only a delivered or closed job is reopened.`}
         </Blocked>
       </ActionShell>

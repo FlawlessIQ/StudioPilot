@@ -93,10 +93,10 @@ export function FirstReplySettings() {
         <ol className="first-reply-two-emails">
           <li>
             <strong>The automatic &ldquo;we got your inquiry&rdquo; email.</strong>{" "}
-            It goes straight away, before you&rsquo;ve seen the inquiry. You can
+            It goes right away, before you&rsquo;ve seen the inquiry. You can
             change its words under{" "}
             <Link href={settingsSectionHref("templates")}>Email templates</Link>{" "}
-            — pick &ldquo;Inquiry Acknowledgement&rdquo;.
+            — pick &ldquo;Inquiry Acknowledgment&rdquo;.
           </li>
           <li>
             <strong>Your personal first reply.</strong>{" "}

@@ -637,7 +637,7 @@ function WebsiteRoute({ onDone }: { onDone: () => void }) {
         {
           title: "Where's your website?",
           intro:
-            "Clients fill in your StudioCue form right on your site, and each inquiry lands in Today — nothing to forward, no email settings.",
+            "Clients fill out your StudioCue form right on your site, and each inquiry lands in Today — nothing to forward, no email settings.",
           ready: Boolean(guide),
           body: (
             <Chips
@@ -1083,7 +1083,7 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
           <li><span>Press <strong>Start the test</strong>.</span></li>
           <li>
             <span>
-              Open your <strong>live website</strong>{" "}in a new tab and fill in your contact form as
+              Open your <strong>live website</strong>{" "}in a new tab and fill out your contact form as
               a client would. Your own name and email are fine.
             </span>
           </li>
@@ -1097,7 +1097,7 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
           <button
             className="button button-light button-sm"
             disabled={busy}
-            onClick={() => void run(() => actions.startTest(true), "The test could not be cancelled.")}
+            onClick={() => void run(() => actions.startTest(true), "The test could not be canceled.")}
             type="button"
           >
             Cancel
@@ -1172,7 +1172,7 @@ function TestStep({ setup, actions }: { setup: LeadCaptureSetupState; actions: L
               </button>
             </>
           ) : (
-            <Tip>No labelled fields found. It still becomes an inquiry, read from its text.</Tip>
+            <Tip>No labeled fields found. It still becomes an inquiry, read from its text.</Tip>
           )}
         </>
       ) : null}

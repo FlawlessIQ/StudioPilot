@@ -716,7 +716,7 @@ function ReceiptCard({ receipt }: { receipt: RecordValue }) {
       setNotice(
         friendlyError(
           caught,
-          type === "cancelReceipt" ? "That couldn't be cancelled." : "That couldn't be run again.",
+          type === "cancelReceipt" ? "That couldn't be canceled." : "That couldn't be run again.",
         ),
       );
     } finally {
@@ -941,7 +941,7 @@ export function AiApprovalQueue() {
             <div className="ai-queue-empty">
               <Clock3 size={22} />
               <strong>No action receipts yet.</strong>
-              <small>Every approved, rejected, retried, or cancelled action will leave a plain-language receipt.</small>
+              <small>Every approved, rejected, retried, or canceled action will leave a plain-language receipt.</small>
             </div>
           ) : null}
         </section>

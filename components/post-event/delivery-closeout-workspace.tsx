@@ -753,7 +753,7 @@ export function DeliveryCloseoutWorkspace({
               <>
                 <p>
                   {pendingAsks
-                    ? `The ${pendingAsks === 1 ? "review ask that hasn't gone out" : `${pendingAsks} review asks that haven't gone out`} will be cancelled, and none will be scheduled for this couple. Nothing is sent to them.`
+                    ? `The ${pendingAsks === 1 ? "review ask that hasn't gone out" : `${pendingAsks} review asks that haven't gone out`} will be canceled, and none will be scheduled for this couple. Nothing is sent to them.`
                     : "No review asks will be scheduled for this couple. Nothing is sent to them."}
                 </p>
                 <span>

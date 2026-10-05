@@ -49,7 +49,7 @@ const quickQuestions = [
   "Give me the event-day brief in priority order.",
   "What is the next scheduled moment and where is it?",
   "Which facts or approvals are still uncertain?",
-  "Summarize crew arrival, roles, and acknowledgements.",
+  "Summarize crew arrival, roles, and acknowledgments.",
   "What venue or insurance detail should I double-check?",
   "Show the family formal groups and any missing names.",
 ];
@@ -351,7 +351,7 @@ export function EventDayCopilot({
             <div className="event-day-warning">
               <AlertTriangle />
               <span>
-                <strong>{unacknowledgedCrew.length} crew acknowledgement{unacknowledgedCrew.length === 1 ? "" : "s"} missing</strong>
+                <strong>{unacknowledgedCrew.length} crew acknowledgment{unacknowledgedCrew.length === 1 ? "" : "s"} missing</strong>
                 <small>The latest published schedule has not been acknowledged by every accepted crew member.</small>
               </span>
               <Link href={`/studio/crew?project=${projectId}`}>Review</Link>

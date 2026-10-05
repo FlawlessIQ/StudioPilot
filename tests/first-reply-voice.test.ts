@@ -148,14 +148,14 @@ test("it sits in Settings → Communications, next to Email templates", () => {
   const group = shell.slice(shell.indexOf('label: "Communications"'), shell.indexOf('label: "Crew and insurance"'));
   assert.ok(group.indexOf('key: "templates"') < group.indexOf('key: "firstReply"'));
   // And the page says plainly which setting changes which email.
-  assert.match(group, /Email templates \(Inquiry Acknowledgement\)/);
+  assert.match(group, /Email templates \(Inquiry Acknowledgment\)/);
   assert.match(group, /first reply/);
 });
 
 test("the settings page explains the two emails and links to both places", () => {
   const page = readFileSync(`${process.cwd()}/components/settings/first-reply-settings.tsx`, "utf8");
   assert.match(page, /settingsSectionHref\("templates"\)/);
-  assert.match(page, /Inquiry Acknowledgement/);
+  assert.match(page, /Inquiry Acknowledgment/);
   assert.match(page, /Teach Cue your voice/);
   assert.match(page, /setFirstReplyInstructions\(/);
 });

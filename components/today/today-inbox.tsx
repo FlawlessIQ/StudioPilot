@@ -107,7 +107,7 @@ const PREPARED_PHONE_PREVIEW = 4;
 
 const BAND_LABEL: Record<TodayBand, string> = {
   overdue: "Already late",
-  soon: "This fortnight",
+  soon: "Next two weeks",
   later: "When you get to it",
 };
 
@@ -794,8 +794,8 @@ export function TodayInbox() {
               <h3>Paid another way</h3>
               <p>
                 {settling.singleBill
-                  ? "For a payment taken on the day, or by transfer, cheque or cash. The amount is the one they agreed to."
-                  : "For a balance that arrived by transfer, cheque or cash. The amount is the one they agreed to."}
+                  ? "For a payment taken on the day, or by transfer, check or cash. The amount is the one they agreed to."
+                  : "For a balance that arrived by transfer, check or cash. The amount is the one they agreed to."}
               </p>
             </header>
             <RecordFinalPayment

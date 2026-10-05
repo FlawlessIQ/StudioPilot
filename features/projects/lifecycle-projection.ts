@@ -277,7 +277,7 @@ export function projectLifecycleProjection(input: {
             completionMethod: text(checkpoint.completionMethod),
           }) ??
           (checkpoint.blocking === true
-            ? "Your judgement — mark it done once you have."
+            ? "Your judgment — mark it done once you have."
             : "Required project follow-up."),
         status: overdue(dueAt, now)
           ? "blocked"

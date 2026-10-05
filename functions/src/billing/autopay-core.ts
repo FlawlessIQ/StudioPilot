@@ -48,7 +48,7 @@ export function autopayConsentText(input: {
   dueDate: string | null;
 }): string {
   const when = input.dueDate ? `on ${input.dueDate}` : "when it falls due";
-  return `I authorise ${input.studioName} to charge this card ${input.amount} for my final balance ${when}, and to try once more ${AUTOPAY_RETRY_AFTER_DAYS} days later if that charge is declined. I can remove the card before then.`;
+  return `I authorize ${input.studioName} to charge this card ${input.amount} for my final balance ${when}, and to try once more ${AUTOPAY_RETRY_AFTER_DAYS} days later if that charge is declined. I can remove the card before then.`;
 }
 
 export type AutopayAttempt = {

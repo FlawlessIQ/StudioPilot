@@ -117,7 +117,7 @@ export const riskItems: readonly {
     icon: ShieldCheck,
   },
   {
-    label: "3 crew acknowledgements",
+    label: "3 crew acknowledgments",
     detail: "Published schedule v4",
     owner: "Crew",
     icon: UserCheck,

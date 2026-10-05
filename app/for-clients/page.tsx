@@ -138,7 +138,7 @@ export default function ForClientsPage() {
             title: "It is your studio they see",
             text: "Your name on every page and every email. StudioCue is the thing making it work, not the brand your clients are asked to trust.",
             points: [
-              "Your studio name and colours",
+              "Your studio name and colors",
               "Emails sent in your name",
               "Replies come back to you, on the job",
             ],

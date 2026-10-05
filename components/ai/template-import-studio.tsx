@@ -177,7 +177,7 @@ function importStatusLabel(status: string | undefined) {
   if (status === "ignored") return "Ignored";
   if (status === "rejected") return "Rejected by file safety";
   if (status === "failed") return "Import needs attention";
-  if (status === "cancelled") return "Cancelled";
+  if (status === "cancelled") return "Canceled";
   return status.replaceAll("_", " ");
 }
 
@@ -257,7 +257,7 @@ export function TemplateImportStudio({
     let active = true;
     void Promise.resolve()
       .then(() => {
-        if (!active) throw new DOMException("Cancelled", "AbortError");
+        if (!active) throw new DOMException("Canceled", "AbortError");
         setBusy(true);
         setPipelineError(null);
         return getStudioImportReview(resumeSessionId);
@@ -429,7 +429,7 @@ export function TemplateImportStudio({
           caught instanceof DOMException && caught.name === "AbortError";
         setPipelineError(
           cancelled
-            ? "Import cancelled. No source was activated."
+            ? "Import canceled. No source was activated."
             : friendlyError(caught, "The secure import could not be completed."),
         );
         setBusy(false);
@@ -497,7 +497,7 @@ export function TemplateImportStudio({
           caught instanceof DOMException && caught.name === "AbortError";
         setPipelineError(
           cancelled
-            ? "Import cancelled. No source was activated."
+            ? "Import canceled. No source was activated."
             : friendlyError(caught, "The source could not be imported."),
         );
         return;

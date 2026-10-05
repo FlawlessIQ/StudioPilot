@@ -127,7 +127,7 @@ export function TaskRecordActions({ task }: { task: TaskRow }) {
             className="button button-danger"
             disabled={busy !== null}
             onClick={() =>
-              void run("cancelTask", { reason: null }, "Cancelled. It stays on the list as a record.", "That task could not be cancelled.").then(
+              void run("cancelTask", { reason: null }, "Canceled. It stays on the list as a record.", "That task could not be canceled.").then(
                 () => setConfirmCancel(false),
               )
             }

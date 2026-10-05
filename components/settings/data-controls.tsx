@@ -208,7 +208,7 @@ export function DataControls() {
           <h2>Request account deletion</h2>
           <p>
             This begins a 30-day cooling-off period. It does not immediately
-            erase records and can be cancelled before approval.
+            erase records and can be canceled before approval.
           </p>
         </div>
         <form onSubmit={(event) => void requestDeletion(event)}>

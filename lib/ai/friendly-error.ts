@@ -13,8 +13,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   APPROVAL_PERMISSION_REQUIRED: "Only the studio's owners and admins can approve this.",
   DRAFT_NOT_APPROVABLE: "That message has already been approved, declined or sent.",
   DRAFT_NOT_FOUND: "That message isn't there any more. Refresh and try again.",
-  CONSULTATION_NOT_CANCELLABLE: "That consultation can't be cancelled — it has already happened or been cancelled.",
-  CONSULTATION_NOT_COMPLETABLE: "That consultation can't be written up — it was cancelled.",
+  CONSULTATION_NOT_CANCELLABLE: "That consultation can't be canceled — it has already happened or been canceled.",
+  CONSULTATION_NOT_COMPLETABLE: "That consultation can't be written up — it was canceled.",
   CONSULTATION_NOT_FOUND: "That consultation isn't there any more. Refresh and try again.",
   CONSULTATION_NOT_RESCHEDULABLE: "Only a consultation still to come can be moved.",
   INVALID_TIME_RANGE: "The end time has to be after the start time.",
@@ -227,7 +227,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Already done — this was approved or put away a moment ago, so nothing was sent again.",
   // Cancel / Retry on a receipt in the AI queue (aiQueueCommand).
   ACTION_RECEIPT_NOT_FOUND: "That receipt isn't there any more. Refresh to see the latest.",
-  ACTION_RECEIPT_NOT_CANCELLABLE: "That has already run or been cancelled, so there's nothing to cancel.",
+  ACTION_RECEIPT_NOT_CANCELLABLE: "That has already run or been canceled, so there's nothing to cancel.",
   ACTION_RECEIPT_NOT_RETRYABLE: "That can't be run again from here. Open the job to do it by hand.",
   // Retry / Leave it on Today's "An email did not send" card.
   EMAIL_JOB_NOT_FOUND: "That email isn't there any more. Refresh and try again.",
@@ -276,8 +276,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INQUIRY_LINK_CLOSED: "This inquiry is closed. Reply to the studio's email if you'd like to pick it back up.",
   INQUIRY_PAST_CONSULTATION: "You've already spoken with the studio, and your proposal is on its way. Reply to their email to talk again.",
   // The studio's event form on that link (functions/src/intake/inquiry-form.ts).
-  INQUIRY_FORM_REQUIRED: "Please fill in the studio's form first — they'd like your answers before the call.",
-  PHONE_NUMBER_REQUIRED: "Add the best number to call you, so the studio can ring you at that time.",
+  INQUIRY_FORM_REQUIRED: "Please fill out the studio's form first — they'd like your answers before the call.",
+  PHONE_NUMBER_REQUIRED: "Add the best number to call you, so the studio can reach you at that time.",
   INQUIRY_FORM_INCOMPLETE: "A few questions marked Required still need an answer.",
   INQUIRY_FORM_NOT_AVAILABLE: "This form isn't available any more. You can go ahead and pick a time.",
   QUICKBOOKS_PAYMENTS_NOT_GRANTED:
@@ -334,7 +334,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   REPLACE_TAGS_ONE_STUDIO: "Tags can be replaced on one studio at a time. Use Add tags for several.",
   STRIPE_SUBSCRIPTION_ITEM_MISSING: "Stripe returned a subscription with no plan on it. Open it in Stripe to check.",
   STUDIO_IS_COMPED: "This studio is comped. End the comp first.",
-  SUBSCRIPTION_NOT_EXTENDABLE: "A past-due or cancelled subscription can't be given more trial time.",
+  SUBSCRIPTION_NOT_EXTENDABLE: "A past-due or canceled subscription can't be given more trial time.",
   SUBSCRIPTION_NOT_FOUND: "This studio has no subscription record.",
   SUPPORT_ACCESS_NOT_ACTIVE: "That support session has already ended.",
   SUPPORT_ACCESS_REQUIRED: "Start a support session for this studio first.",
@@ -345,9 +345,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "Your trial hasn't started yet. Add a card under Studio settings → Subscription to start it, then try again. If your subscription lapsed, update your card there to reactivate.",
   GROUP_EVENT_NOT_ENABLED: "Turn on the roster for this job first.",
   PARTICIPANT_NOT_FOUND: "That person isn't on this roster any more. Refresh the page.",
-  PARTICIPANT_PAID: "They've already paid, so they can't be cancelled here. Refund them where you took the payment, then edit their entry.",
+  PARTICIPANT_PAID: "They've already paid, so they can't be canceled here. Refund them where you took the payment, then edit their entry.",
   PARTICIPANT_ALREADY_PAID: "Their payment is already recorded.",
-  PARTICIPANT_CANCELLED: "They're cancelled. Restore them first.",
+  PARTICIPANT_CANCELLED: "They're canceled. Restore them first.",
   PARTICIPANT_EMAIL_REQUIRED: "Add their email to send a receipt, or record the payment without one.",
   SUBSCRIPTION_READ_ONLY:
     "This studio is read-only until billing is updated, so nothing can be sent or changed. The studio owner can update the card under Studio settings → Subscription; everything picks up again once payment goes through.",
@@ -469,7 +469,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   // Wave 3: undo. Each says what is in the way and what to do about it.
   CONTACT_ARCHIVED: "This client is archived. Restore them first, then edit their details.",
   NO_TASK_CHANGES: "Nothing about the task changed, so there was nothing to save.",
-  TASK_CANCELLED: "That task was cancelled. Reopen it first if it still needs doing.",
+  TASK_CANCELLED: "That task was canceled. Reopen it first if it still needs doing.",
   TASK_ALREADY_COMPLETE: "That task is already done. Reopen it first to change it.",
   TASK_NOT_SETTLED: "That task is still open, so there's nothing to reopen.",
   TASK_ASSIGNEE_INVALID: "That person isn't an active member of your team. Pick someone who is, or a role.",
@@ -524,7 +524,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   BILLING_COMMAND_FAILED:
     "Billing couldn't be reached. Try again, and contact support if it keeps failing.",
   INTERRUPTION_REASON_REQUIRED:
-    "Say why the job is on hold or cancelled — at least a short sentence, so it makes sense later.",
+    "Say why the job is on hold or canceled — at least a short sentence, so it makes sense later.",
   EVIDENCE_CONTROLLED_TRANSITION:
     "This step needs the record behind it, not a stage change — the job page links to where to enter it.",
   VERSION_CONFLICT:
@@ -532,14 +532,14 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   // Going back (Wave 3): undoing a cancel, reopening a finished job.
   OWNER_ONLY_MOVE:
     "Only the studio owner can undo a cancel or reopen a finished job, because it changes what the crew and the couple were told.",
-  NOT_CANCELLED: "This job isn't cancelled, so there's nothing to undo.",
+  NOT_CANCELLED: "This job isn't canceled, so there's nothing to undo.",
   // The couple's proposal on a job the studio has paused or stopped.
   PROJECT_ON_HOLD:
     "This booking is on hold with the studio right now, so the proposal can't be accepted. Message the studio to pick it back up.",
   PROJECT_NOT_ACTIVE:
     "This booking is no longer active, so the proposal can't be accepted. Message the studio if you'd like to talk about it.",
   UNCANCEL_ORIGIN_UNKNOWN:
-    "This job was cancelled before StudioCue recorded where it stood, so it can't be brought back here. Create a new job for the couple instead.",
+    "This job was canceled before StudioCue recorded where it stood, so it can't be brought back here. Create a new job for the couple instead.",
   UNCANCEL_WINDOW_PASSED:
     "A cancel can be undone for 30 days, and this one is older. Create a new job for the couple instead.",
   INQUIRY_NOT_DISMISSED: "This inquiry wasn't marked \u201cnot an inquiry\u201d, so there's nothing to restore.",
@@ -646,7 +646,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
    * describes the wrong check is worse than no copy.
    */
   DELIVERY_GATE_BLOCKED:
-    "Nothing can be released until the cards are backed up. Tick \"Cards backed up\" on this job's post-production checklist first.",
+    "Nothing can be released until the cards are backed up. Check \"Cards backed up\" on this job's post-production checklist first.",
   DELIVERY_URL_MUST_USE_HTTPS:
     "The gallery link has to start with https:// so the couple's photographs are not sent over an open connection.",
   DELIVERY_DRAFT_INVALID:
@@ -677,11 +677,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   DELIVERY_LINK_UNCHANGED:
     "That's the link the couple already has. Paste the right one.",
   POST_PRODUCTION_STEP_NOT_UNDOABLE:
-    "That step is set by another part of StudioCue, so it can't be unticked here.",
+    "That step is set by another part of StudioCue, so it can't be unchecked here.",
   POST_PRODUCTION_STEP_NOT_COMPLETE:
-    "That step isn't ticked. Refresh to see the checklist as it is.",
+    "That step isn't checked. Refresh to see the checklist as it is.",
   POST_PRODUCTION_BACKUP_RELEASED:
-    "Something has already been released against this backup, so it stays ticked.",
+    "Something has already been released against this backup, so it stays checked.",
   ALBUM_CREATIVE_AUTHORITY_REQUIRED:
     "Only the studio owner or a lead photographer can make this album decision.",
 
@@ -756,7 +756,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CONTRACT_NOT_VOIDABLE:
     "Only an agreement that is out for signature can be withdrawn.",
   AUTO_SEND_CONSENT_REQUIRED:
-    "Type your name and tick the box to let StudioCue sign and send for you.",
+    "Type your name and check the box to let StudioCue sign and send for you.",
   CONTRACT_NOT_SENT: "Your studio hasn't sent this agreement yet.",
   CONTRACT_ALREADY_SIGNED: "This agreement is already signed.",
   CONTRACT_VOIDED: "Your studio withdrew this agreement. They'll send a new one.",
@@ -767,7 +767,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "This agreement is addressed to a different email address. Sign in with the email your studio sent it to.",
   DOCUMENT_CHANGED:
     "The agreement was updated while you were reading it. Read the latest version before signing.",
-  CONSENT_REQUIRED: "Tick the box to agree to sign electronically.",
+  CONSENT_REQUIRED: "Check the box to agree to sign electronically.",
   CONSENT_OUTDATED:
     "The terms for signing electronically were updated. Reload the page, read them, and sign again.",
   NAME_REQUIRED: "Type your full name as your signature.",
@@ -892,7 +892,7 @@ const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
       : detail === "reopenInquiry"
         ? "Use Reopen inquiry to bring it back — it returns to the stage it closed from."
         : detail === "uncancelProject"
-          ? "Use Undo the cancel on the job page (owner only). It returns the job to where it was cancelled from."
+          ? "Use Undo the cancel on the job page (owner only). It returns the job to where it was canceled from."
           : detail === "reopenJob"
             ? "Use Move back on the job page (owner only) to reopen a finished job, with a reason."
             : "That move has its own step on the job page.",
@@ -911,7 +911,7 @@ const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
       : detail === "automations_paused"
         ? "Messages to this couple are paused on the job, so nothing was sent. Bring them in on the job first."
         : detail === "cancelled"
-          ? "This wedding is cancelled, so nothing was sent to the couple."
+          ? "This wedding is canceled, so nothing was sent to the couple."
           : "That job isn't there any more, so nothing was sent.",
   // A package change once an agreement is out. The remedy depends on which
   // agreement (functions/src/crm/commands.ts assertPackagesEditable); this

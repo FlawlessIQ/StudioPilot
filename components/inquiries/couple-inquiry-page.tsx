@@ -124,8 +124,8 @@ const friendly: Record<string, string> = {
   TIME_NO_LONGER_AVAILABLE: "That time was just taken. Please choose another.",
   EVENT_DATE_REQUIRED: "Add your date first, so the studio can check it’s free.",
   FORMAT_NOT_OFFERED: "Please choose one of the ways the studio meets.",
-  PHONE_NUMBER_REQUIRED: "Add the best number to call you, so the studio can ring you at that time.",
-  INQUIRY_FORM_REQUIRED: "Please fill in the studio’s form first — they’d like your answers before the call.",
+  PHONE_NUMBER_REQUIRED: "Add the best number to call you, so the studio can reach you at that time.",
+  INQUIRY_FORM_REQUIRED: "Please fill out the studio’s form first — they’d like your answers before the call.",
   INQUIRY_FORM_INCOMPLETE: "A few questions marked Required still need an answer.",
   INQUIRY_FORM_NOT_AVAILABLE: "This form isn’t available any more. You can go ahead and pick a time.",
   QUESTIONNAIRE_ALREADY_SUBMITTED: "You’ve already sent this to the studio. Reply to their email to change an answer.",
@@ -443,7 +443,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       await call("inquiry_cancel", { token, reason: null });
       load();
     } catch (caught: unknown) {
-      setNotice(message(caught, "Your consultation couldn’t be cancelled. Please reply to the studio’s email."));
+      setNotice(message(caught, "Your consultation couldn’t be canceled. Please reply to the studio’s email."));
     } finally {
       setBusy(false);
     }

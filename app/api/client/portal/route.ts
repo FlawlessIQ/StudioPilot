@@ -1940,7 +1940,7 @@ async function autopayStatus(tenantId: string, projectId: string) {
     amountCents,
     currency,
     dueDate,
-    consentText: `I authorise ${studioName} to charge this card ${amount} for my final balance ${dueText ? `on ${dueText}` : "when it falls due"}, and to try once more 3 days later if that charge is declined. I can remove the card before then.`,
+    consentText: `I authorize ${studioName} to charge this card ${amount} for my final balance ${dueText ? `on ${dueText}` : "when it falls due"}, and to try once more 3 days later if that charge is declined. I can remove the card before then.`,
     method: method
       ? {
           id: method.id,

@@ -186,7 +186,7 @@ export function TeamManagement() {
         tenantId: workspace.tenantId,
         input: { invitationId },
       });
-      setNotice("Invitation cancelled. The link no longer works.");
+      setNotice("Invitation canceled. The link no longer works.");
       await load();
     } catch (caught: unknown) {
       setNotice(
@@ -451,7 +451,7 @@ export function TeamManagement() {
                   <span>
                     {asking === "suspend"
                       ? `Suspend ${member.displayName}? They can't sign in until you reactivate them. Nothing they did is lost.`
-                      : `Remove ${member.displayName} from your studio? They lose access straight away. To bring them back, invite them again.`}
+                      : `Remove ${member.displayName} from your studio? They lose access right away. To bring them back, invite them again.`}
                   </span>
                   <span>
                     <button

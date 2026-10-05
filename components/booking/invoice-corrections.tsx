@@ -258,7 +258,7 @@ export function RecordInvoicePayment({
         </label>
         <label>
           Reference (optional)
-          <input maxLength={200} name="reference" placeholder="Payment or cheque reference" />
+          <input maxLength={200} name="reference" placeholder="Payment or check reference" />
         </label>
         <button className="button" disabled={busy} type="submit">
           {busy ? <LoaderCircle aria-hidden="true" className="spin" size={14} /> : null}

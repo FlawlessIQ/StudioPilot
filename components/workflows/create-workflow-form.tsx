@@ -125,7 +125,7 @@ const automationChoices = [
   {
     key: "schedule-approved-alert",
     name: "Notify the studio when a schedule is approved",
-    detail: "Create an internal alert before final publication and crew acknowledgement.",
+    detail: "Create an internal alert before final publication and crew acknowledgment.",
     trigger: "schedule_approved",
     actions: [
       {
@@ -133,7 +133,7 @@ const automationChoices = [
         type: "send_internal_alert",
         configuration: {
           title: "Schedule approved",
-          body: "Publish the final schedule and confirm crew acknowledgement.",
+          body: "Publish the final schedule and confirm crew acknowledgment.",
         },
         requiresApproval: false,
       },
@@ -492,8 +492,8 @@ export function CreateWorkflowForm({
         <legend>
           Starting automations
           <InfoHint label="Starting automations">
-            All ticked by default. The email ones send to the client on schedule, with no draft waiting for approval,
-            so untick any you’d rather send yourself.
+            All checked by default. The email ones send to the client on schedule, with no draft waiting for approval,
+            so uncheck any you’d rather send yourself.
           </InfoHint>
         </legend>
         {availableAutomations.map((automation) => (

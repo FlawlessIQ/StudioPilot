@@ -73,14 +73,14 @@ export function KitPreview({ initialColor }: { initialColor: string | null }) {
         <Main label="Kit preview">
           <div className="kit-stack-tight">
             <p className="kit-eyebrow">StudioCue mobile kit</p>
-            <h1 className="kit-title">Every piece, in the studio&rsquo;s colour</h1>
+            <h1 className="kit-title">Every piece, in the studio&rsquo;s color</h1>
             <p className="kit-body">
-              Pick a studio colour. Pale colours are darkened until buttons and links read
+              Pick a studio color. Pale colors are darkened until buttons and links read
               clearly.
             </p>
           </div>
 
-          <div className="kit-chip-list" role="group" aria-label="Studio colour">
+          <div className="kit-chip-list" role="group" aria-label="Studio color">
             {swatches.map((swatch) => (
               <button
                 aria-pressed={swatch.color === color}
@@ -95,8 +95,8 @@ export function KitPreview({ initialColor }: { initialColor: string | null }) {
           </div>
           <Note icon={theme.adjusted ? ShieldCheck : Check} tone="accent">
             {theme.adjusted
-              ? `Studio colour ${color.toUpperCase()} is too pale to read, so buttons use ${theme.accent}.`
-              : `Studio colour ${theme.accent} is used exactly as given.`}
+              ? `Studio color ${color.toUpperCase()} is too pale to read, so buttons use ${theme.accent}.`
+              : `Studio color ${theme.accent} is used exactly as given.`}
           </Note>
 
           <Steps step={2} total={3} />

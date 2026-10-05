@@ -413,7 +413,7 @@ export function StudioRecord({ tenantId }: { tenantId: string }) {
       <ConfirmDialog
         busy={busy === "unsuspendTenant"}
         confirmLabel="Unsuspend studio"
-        description={`${studio.name}'s studio app opens again straight away.`}
+        description={`${studio.name}'s studio app opens again right away.`}
         onClose={() => setDialog(null)}
         onConfirm={async ({ reason }) => {
           const result = await run("unsuspendTenant", { tenantId, reason }, { done: `${studio.name} is unsuspended.` });

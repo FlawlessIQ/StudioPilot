@@ -74,7 +74,7 @@ export function InquiryEventFormSetting() {
         !response.persisted
           ? "Preview: nothing was saved."
           : templateId
-            ? `Saved. Couples who write in about a wedding will be asked to fill in ${name ?? "this form"} before they pick a time to talk.`
+            ? `Saved. Couples who write in about a wedding will be asked to fill out ${name ?? "this form"} before they pick a time to talk.`
             : "Saved. The inquiry page goes straight to picking a time again.",
       );
     } catch (caught: unknown) {
@@ -132,7 +132,7 @@ export function InquiryEventFormSetting() {
       )}
       {current && !notice ? (
         <p className="form-notice" role="status">
-          {`Wedding inquiries are asked to fill in ${String(current.name ?? "your form")} first.`}
+          {`Wedding inquiries are asked to fill out ${String(current.name ?? "your form")} first.`}
         </p>
       ) : null}
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}

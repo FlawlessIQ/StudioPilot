@@ -164,7 +164,7 @@ const CORPORATE: readonly StarterSection[] = [
  * rosters and where the team will actually be.
  */
 const SPORTS: readonly StarterSection[] = [
-  section("organisation", "Organisation", [
+  section("organisation", "Organization", [
     ["organisation", "Club, league or school", "text", true],
     ["primary-contact", "Primary contact", "contact", true],
     ["day-contact", "Who meets us at the venue?", "contact", true],

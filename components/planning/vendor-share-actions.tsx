@@ -281,7 +281,7 @@ export function VendorShareActions({
             onCancel={() => setConfirmingRevoke(false)}
             onConfirm={() => void revoke().then(() => setConfirmingRevoke(false))}
           >
-            {`${vendor.company || vendor.contactName || "The vendor"}'s link stops opening straight away, and they aren't told. It can't be switched back on — to share again, create a new link and send it to them.`}
+            {`${vendor.company || vendor.contactName || "The vendor"}'s link stops opening right away, and they aren't told. It can't be switched back on — to share again, create a new link and send it to them.`}
           </ConfirmStep>
         ) : active ? (
           <button

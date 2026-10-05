@@ -142,7 +142,7 @@ export function voidInvoiceTask(input: {
     tenantId: input.tenantId,
     projectId: input.projectId,
     title: `Void ${number ? `invoice ${number}` : `the ${kind} invoice`} in ${provider}`,
-    description: `${input.why} StudioCue no longer counts this ${kind} invoice and won't chase or charge it; void it in ${provider} so the couple isn't asked to pay it.`,
+    description: `${input.why} StudioCue no longer counts this ${kind} invoice and won't follow up on or charge it; void it in ${provider} so the couple isn't asked to pay it.`,
     now: input.now,
     actor: input.actor,
   });
@@ -165,7 +165,7 @@ export function refundOrKeepTask(input: {
     id: `refund_or_keep_${input.projectId}`,
     tenantId: input.tenantId,
     projectId: input.projectId,
-    title: "Refund or keep the retainer paid after cancelling",
+    title: "Refund or keep the retainer paid after canceling",
     description: `The couple has paid ${amount} on a job that is no longer going ahead. Decide under your agreement whether to refund it or keep it, and do that where it was paid. StudioCue doesn't move money back on its own.`,
     now: input.now,
     actor: input.actor,
@@ -226,7 +226,7 @@ export function writeStoppedBilling(
   );
   const why =
     input.stop === "cancelled"
-      ? "The job was cancelled."
+      ? "The job was canceled."
       : "The inquiry was closed as lost.";
   const voidTaskIds: string[] = [];
   for (const invoice of reads.invoices) {

@@ -217,7 +217,7 @@ export function testCustomerBody(email: string, address: Json | null): Json {
     FamilyName: "Test",
     ...(email ? { PrimaryEmailAddr: { Address: email } } : {}),
     ...(address ? { BillAddr: address } : {}),
-    Notes: "Made by StudioCue's \"Send a test invoice\". Its invoices are voided straight away.",
+    Notes: "Made by StudioCue's \"Send a test invoice\". Its invoices are voided right away.",
   };
 }
 

@@ -116,7 +116,7 @@ export function useBillingAddressStep(input: {
     if (onFile && !editing) {
       if (confirmed) return { ok: true, address: onFile };
       return step === "required"
-        ? fail("Tick “This is my billing address”, or change it.")
+        ? fail("Check “This is my billing address”, or change it.")
         : { ok: true, address: null };
     }
     const typed = [fields.line1, fields.line2, fields.city, fields.region, fields.postalCode].some((value) =>

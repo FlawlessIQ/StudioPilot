@@ -433,7 +433,7 @@ export function BookingAmendmentPanel({
               {num(pending.dateShiftDays) !== 0 ? (
                 <li>
                   The wedding date moves. Crew who said yes are asked to confirm the new day, and calendar events, due dates and the
-                  calls you ticked move with it.
+                  calls you checked move with it.
                 </li>
               ) : null}
               <li>Unpaid invoices written for the old total or date are replaced with new ones.</li>
@@ -692,7 +692,7 @@ export function BookingAmendmentPanel({
                 </label>
               );
             })}
-            <p className="amendment-hint">Ticked calls move when the couple signs; their invitation updates.</p>
+            <p className="amendment-hint">Checked calls move when the couple signs; their invitation updates.</p>
           </fieldset>
         ) : null}
         <label className="is-wide">

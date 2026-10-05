@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { US_ENGLISH_PART } from "./language.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
@@ -276,7 +277,7 @@ function fallbackDraft(input: {
  * them as quoted preferences (studio-voice.ts) — never in place of them.
  */
 export const MESSAGE_DRAFT_RULES =
-  "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. `facts.jobPackages`, when present, is every package the client has on this job (photography and video are often booked together): when the message refers to what they booked, name every package in `jobPackages.packages`, never just the first, and describe each only from its own `coverage`, `inclusions` and `terms`; `jobPackages.totalCents` is the combined total. `facts.packages`, when present, is the studio's catalogue, not what this client booked. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs." +
+  "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. `facts.jobPackages`, when present, is every package the client has on this job (photography and video are often booked together): when the message refers to what they booked, name every package in `jobPackages.packages`, never just the first, and describe each only from its own `coverage`, `inclusions` and `terms`; `jobPackages.totalCents` is the combined total. `facts.packages`, when present, is the studio's catalog, not what this client booked. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs." +
   " Use the words of the job's kind (project.eventKind): a couple and their wedding only for a wedding; a family and their session for portraits; their event otherwise. Never mention a ceremony, bride or groom on a job that is not a wedding.";
 
 /** Triggers that are the studio's first personal reply to an inquiry. */
@@ -332,6 +333,7 @@ async function generateDraft(input: {
                 firstReply: input.firstReply,
               }),
             },
+            US_ENGLISH_PART,
           ],
         },
         contents,

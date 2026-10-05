@@ -69,9 +69,13 @@ type TemplateRecord = {
   createdAt: string;
 };
 
+// Stored keys keep their original spelling; the name a studio reads is US English.
+const US_SPELLING: Record<string, string> = { acknowledgement: "acknowledgment", cancelled: "canceled" };
+
 const label = (key: string) =>
   key
     .split("_")
+    .map((part) => US_SPELLING[part] ?? part)
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(" ");
 

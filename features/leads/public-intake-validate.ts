@@ -56,7 +56,7 @@ export const PUBLIC_INTAKE_MESSAGES = {
   venueContactEmail: "Check the venue coordinator's email.",
   city: INQUIRY_CONFIG_MESSAGES.city,
   message: "Tell the studio a little about the day — a sentence is plenty.",
-  consent: "Please tick the box so we know we may reply to you.",
+  consent: "Please check the box so we know we may reply to you.",
   customAnswers: "Check your answers.",
 } as const;
 

@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { US_ENGLISH_PART } from "./language.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -227,6 +228,7 @@ async function generate(
                 momentsInstruction +
                 " This is an unapproved draft requiring human review.",
             },
+            US_ENGLISH_PART,
           ],
         },
         contents,

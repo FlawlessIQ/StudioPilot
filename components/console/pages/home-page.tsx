@@ -86,7 +86,7 @@ export function HomePage() {
     const days: Array<{ label: string; value: number }> = [];
     for (let offset = 13; offset >= 0; offset -= 1) {
       const day = new Date(now - offset * 86_400_000).toISOString().slice(0, 10);
-      days.push({ label: new Date(`${day}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric" }), value: all.filter((studio) => studio.createdAt?.startsWith(day)).length });
+      days.push({ label: new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { day: "numeric" }), value: all.filter((studio) => studio.createdAt?.startsWith(day)).length });
     }
     return days;
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -80,7 +80,7 @@ const stageLabels: Record<string, string> = {
   DELIVERED: "Delivered",
   REVIEW_REQUESTED: "After delivery",
   CLOSED: "Complete",
-  CANCELLED: "Cancelled",
+  CANCELLED: "Canceled",
   POSTPONED: "Postponed",
   ARCHIVED: "Archived",
 };

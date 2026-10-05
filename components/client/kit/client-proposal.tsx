@@ -207,7 +207,7 @@ export function ClientProposal() {
             ) : (
               <>
                 <h2 className="kit-section">Your date is reserved</h2>
-                <p className="kit-body">Your studio has it in the diary. Details for the day will appear here as it gets closer.</p>
+                <p className="kit-body">Your studio has it on the calendar. Details for the day will appear here as it gets closer.</p>
               </>
             )}
           </Card>

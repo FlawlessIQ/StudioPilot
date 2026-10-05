@@ -69,7 +69,7 @@ export function cancelConsequences(input: {
   const lines: string[] = [];
   if (input.acceptedCrew)
     lines.push(
-      `${input.acceptedCrew === 1 ? "The crew member" : `The ${input.acceptedCrew} crew members`} who accepted ${input.acceptedCrew === 1 ? "is" : "are"} released and emailed straight away, with a calendar file that takes the day out of their diary.`,
+      `${input.acceptedCrew === 1 ? "The crew member" : `The ${input.acceptedCrew} crew members`} who accepted ${input.acceptedCrew === 1 ? "is" : "are"} released and emailed right away, with a calendar file that takes the day off their calendar.`,
     );
   if (input.pendingOffers)
     lines.push(
@@ -77,7 +77,7 @@ export function cancelConsequences(input: {
     );
   if (input.standingInvoices)
     lines.push(
-      "Billing stops: open invoices stop being chased or charged, and you get a task to void each one in your invoicing app. Money already paid becomes a task to refund or keep.",
+      "Billing stops: open invoices stop being followed up on or charged, and you get a task to void each one in your invoicing app. Money already paid becomes a task to refund or keep.",
     );
   if (input.unsignedAgreementOut)
     lines.push("The agreement the couple hasn't signed yet is withdrawn, so it can no longer be signed.");

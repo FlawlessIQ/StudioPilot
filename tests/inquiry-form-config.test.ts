@@ -164,8 +164,8 @@ test("saving says what is wrong, in the studio's words", () => {
     { questions: Array.from({ length: 9 }, (_, index) => ({ ...GR.questions[2]!, id: `q${index}` })) },
     /8 questions or fewer/,
   );
-  refuse({ buttonColor: "red" }, /hex colour/);
-  refuse({ background: "black" as never }, /cream, white or light grey/);
+  refuse({ buttonColor: "red" }, /hex color/);
+  refuse({ background: "black" as never }, /cream, white or light gray/);
 });
 
 test("saving tidies what the editor holds mid-edit", () => {

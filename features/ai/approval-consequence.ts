@@ -119,7 +119,7 @@ export function approvalConsequenceSentence(
     );
   }
   if (dispatchesOnApproval(input)) {
-    return `Approving emails this to ${input.recipient} straight away.`;
+    return `Approving emails this to ${input.recipient} right away.`;
   }
   if (input.capability && !sendsOnApproval(input.capability) && input.body) {
     return "Approving saves the draft. It isn't emailed from here.";

@@ -185,7 +185,7 @@ test("setup polish: the places that said the wrong thing now say the right one",
   // Studio details has no logo; Email branding does.
   const sections = source("features/settings/sections.ts");
   assert.match(sections, /"Names, timezone, and your inquiry link"/);
-  assert.match(sections, /"Logo, colours and sender name on client emails"/);
+  assert.match(sections, /"Logo, colors and sender name on client emails"/);
   // Who email comes from, and where replies go, said as they are.
   const branding = source("components/settings/email-branding.tsx");
   assert.match(branding, /NEXT_PUBLIC_EMAIL_FROM_ADDRESS/);

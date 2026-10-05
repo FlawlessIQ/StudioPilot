@@ -179,7 +179,7 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
           </h2>
           <p>
             What has to be true before this job is ready. Most complete
-            themselves when the record arrives; the judgements are yours.
+            themselves when the record arrives; the judgments are yours.
             <InfoHint term="checkpoint" />
           </p>
         </div>
@@ -336,7 +336,7 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                   </label>
                   <small>
                     Recorded against your name in the audit log. Readiness will
-                    show this as your judgement, not as something StudioCue saw.
+                    show this as your judgment, not as something StudioCue saw.
                   </small>
                   <div>
                     <button className="button" type="submit">

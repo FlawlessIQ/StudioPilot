@@ -155,7 +155,7 @@ test("a second approval reads as done, not as a failure", () => {
   assert.match(friendlyError(new Error("AI_ACTION_ALREADY_DECIDED")), /nothing was sent again/);
   assert.match(friendlyError(new Error("CLIENT_OUTREACH_STOPPED:put_away")), /put away, so nothing was sent/);
   assert.match(friendlyError(new Error("CLIENT_OUTREACH_STOPPED:automations_paused")), /paused/);
-  assert.match(friendlyError(new Error("CLIENT_OUTREACH_STOPPED:cancelled")), /cancelled/);
+  assert.match(friendlyError(new Error("CLIENT_OUTREACH_STOPPED:cancelled")), /canceled/);
 });
 
 // ─── 3. A reply sent by hand retires the draft it came from ────────────────

@@ -54,7 +54,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     id: "checkpoint",
     term: "Checkpoint",
     audience: "studio",
-    hint: "One item on the readiness checklist. Most tick themselves when the record arrives; the judgement calls are yours.",
+    hint: "One item on the readiness checklist. Most check themselves off when the record arrives; the judgment calls are yours.",
   },
   {
     id: "booking-gate",
@@ -157,7 +157,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Imported, and quiet",
     audience: "studio",
     explainer: "import-bookings",
-    hint: "StudioCue sends this client no emails, invoices, reminders or charges until you bring them in. The portal invite is a separate, optional tick.",
+    hint: "StudioCue sends this client no emails, invoices, reminders or charges until you bring them in. The portal invite is a separate, optional checkbox.",
   },
   {
     id: "booking-change",
@@ -220,7 +220,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Your journey",
     audience: "couple",
     explainer: "couple-tour",
-    hint: "Every step from booking to your photos, in order. Each one ticks off as it's done.",
+    hint: "Every step from booking to your photos, in order. Each one is checked off as it's done.",
   },
 
   {
@@ -279,7 +279,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Checklist",
     audience: "crew",
     explainer: "crew-day",
-    hint: "What the studio needs before the day: paperwork to send, gear to confirm, the run of show to read. Items tick off when done or waived.",
+    hint: "What the studio needs before the day: paperwork to send, gear to confirm, the run of show to read. Items are checked off when done or waived.",
   },
   {
     id: "crew-closeout",

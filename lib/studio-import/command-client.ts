@@ -155,7 +155,7 @@ async function command<T>(
     );
   } catch (caught: unknown) {
     if (options.signal?.aborted) {
-      throw new DOMException("Cancelled", "AbortError");
+      throw new DOMException("Canceled", "AbortError");
     }
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       throw new Error(
@@ -307,7 +307,7 @@ export async function uploadStudioImportFiles(input: {
 
   try {
     for (const [index, file] of input.files.entries()) {
-      if (input.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+      if (input.signal?.aborted) throw new DOMException("Canceled", "AbortError");
       const clientId = `${file.name}-${file.size}-${file.lastModified}`;
       const item = created.items.find(
         (candidate) => candidate.clientId === clientId,
@@ -336,7 +336,7 @@ export async function uploadStudioImportFiles(input: {
     const startedAt = Date.now();
     let current = created;
     while (Date.now() - startedAt < 120_000) {
-      if (input.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+      if (input.signal?.aborted) throw new DOMException("Canceled", "AbortError");
       current = await command<StudioImportSessionResult>({
         type: "getSession",
         tenantId,
@@ -493,7 +493,7 @@ export async function retryStudioImportItem(input: {
   const startedAt = Date.now();
   let current: StudioImportSessionResult;
   while (Date.now() - startedAt < 120_000) {
-    if (input.signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+    if (input.signal?.aborted) throw new DOMException("Canceled", "AbortError");
     current = await command<StudioImportSessionResult>({
       type: "getSession",
       tenantId,
@@ -602,7 +602,7 @@ export async function waitForStudioImportReview(input: {
   const startedAt = Date.now();
   while (Date.now() - startedAt < 60_000) {
     if (input.signal?.aborted)
-      throw new DOMException("Cancelled", "AbortError");
+      throw new DOMException("Canceled", "AbortError");
     const review = await getStudioImportReview(input.sessionId);
     input.onReview?.(review);
     const active = review.sources.some((source) =>

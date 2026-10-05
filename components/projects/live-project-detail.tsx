@@ -506,7 +506,7 @@ function ProjectInterruptionControl({
         setNotice(
           target === "POSTPONED"
             ? "The job is on hold. Bring it back when the new date is settled."
-            : `The job is cancelled.${tellCouple ? ` ${capital(words.clientFallback)} is being emailed.` : ""} The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days.`,
+            : `The job is canceled.${tellCouple ? ` ${capital(words.clientFallback)} is being emailed.` : ""} The owner can undo it for ${UNCANCEL_WINDOW_DAYS} days.`,
         );
         refreshTenantRecords("projects", "crewAssignments", "invoiceReferences", "contracts", "tasks");
       } else {
@@ -590,7 +590,7 @@ function ProjectInterruptionControl({
                         <textarea
                           maxLength={2000}
                           onChange={(event) => setCoupleMessage(event.target.value)}
-                          placeholder="Leave empty to send a short note that the booking is cancelled and they can reply with questions."
+                          placeholder="Leave empty to send a short note that the booking is canceled and they can reply with questions."
                           rows={4}
                           value={coupleMessage}
                         />
@@ -908,7 +908,7 @@ function ProjectLifecycleLanes({
         <header>
           <div>
             <p className="eyebrow">Reference</p>
-            <h2>{cancelled ? "This job is cancelled" : "This job is on hold"}</h2>
+            <h2>{cancelled ? "This job is canceled" : "This job is on hold"}</h2>
             {/*
               Says only what the server now makes true (money audit,
               2026-09-30). This read "Nothing is outstanding for the studio"

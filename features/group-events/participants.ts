@@ -93,7 +93,7 @@ export const PARTICIPANT_STATUS_LABEL: Record<ParticipantStatus, string> = {
   unpaid: "Not paid",
   pay_on_day: "Pays on the day",
   paid: "Paid",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
 };
 
 export const PAYMENT_METHOD_LABEL: Record<ParticipantPaymentMethod, string> = {

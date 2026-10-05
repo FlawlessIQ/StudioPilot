@@ -59,7 +59,7 @@ export function ScheduleImpactSummary({ scheduleId }: { scheduleId: string }) {
         <span className={impact.requiresRenewedCrewAcknowledgement ? "requires-action" : ""}>
           <BellRing size={16} />
           <strong>{impact.requiresRenewedCrewAcknowledgement ? "Required" : "Not required"}</strong>
-          <small>Renewed crew acknowledgement</small>
+          <small>Renewed crew acknowledgment</small>
         </span>
       </div>
       {impact.changedItems.length ? (

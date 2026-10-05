@@ -101,7 +101,7 @@ export const publicLeadIntakeFields = z.object({
   // matters because it is now reachable — "Invalid literal value" is not
   // something to show someone enquiring about their wedding.
   consent: z.boolean().refine((given) => given === true, {
-    message: "Please tick the box so we know we may reply to you.",
+    message: "Please check the box so we know we may reply to you.",
   }),
   source: z.string().trim().max(120).default("public_inquiry"),
   honeypot: z.string().max(0).default(""),

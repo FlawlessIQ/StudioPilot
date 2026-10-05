@@ -34,7 +34,7 @@ type Doc = Record<string, unknown> & { id: string };
 const BUCKETS: Array<{ key: AssignmentBucket; label: string }> = [
   { key: "upcoming", label: "Upcoming" },
   { key: "waiting", label: "Waiting on a reply" },
-  { key: "closed", label: "Past & cancelled" },
+  { key: "closed", label: "Past & canceled" },
 ];
 
 /**
@@ -283,7 +283,7 @@ export function CrewHub({ initialView }: { initialView: "crew" | "assignments" }
                   ? "No confirmed work coming up"
                   : bucket === "waiting"
                     ? "Nobody is waiting to reply"
-                    : "Nothing past or cancelled"}
+                    : "Nothing past or canceled"}
               </strong>
               {bucket === "upcoming" ? (
                 <small>Pick a job above to offer its roles.</small>

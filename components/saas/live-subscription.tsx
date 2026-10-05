@@ -108,7 +108,7 @@ export function LiveSubscription() {
         incomplete: "Trial not started",
         past_due: "Payment past due",
         unpaid: "Unpaid — read-only",
-        cancelled: "Cancelled",
+        cancelled: "Canceled",
         paused: "Paused",
         canceled: "Canceled",
         loading: "Loading…",
@@ -193,7 +193,7 @@ export function LiveSubscription() {
             {checkoutOutcome === "success"
               ? "Starting your trial…"
               : checkoutOutcome === "cancelled"
-                ? "Checkout was cancelled — your trial hasn't started"
+                ? "Checkout was canceled — your trial hasn't started"
                 : status === "incomplete"
                   ? "Your trial hasn't started yet"
                   : "Your subscription needs attention"}

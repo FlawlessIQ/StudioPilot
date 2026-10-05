@@ -901,7 +901,7 @@ function ConsultationActions({
               input: { projectId, consultationId, reason: null },
             },
             (notified) =>
-              `Consultation cancelled. It comes off your calendar and any Zoom meeting is removed${
+              `Consultation canceled. It comes off your calendar and any Zoom meeting is removed${
                 notified
                   ? "; the client is emailed"
                   : "; the client was not emailed, so let them know"

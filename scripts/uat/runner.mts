@@ -272,7 +272,7 @@ await run("M4-1", I, a, async () => {
   await a.getByLabel(/Ceremony start time/).fill("16:30");
   await a.getByRole("button", { name: "Not sure yet" }).click();
   const colours = await a.getByRole("button", { name: "Sage" }).count();
-  expect(colours > 0, "the multi-select 'Your colours' question renders as a text box, not choices");
+  expect(colours > 0, "the multi-select 'Your colors' question renders as a text box, not choices");
   await a.getByRole("button", { name: "Sage" }).click();
   await a.getByRole("button", { name: "Gold" }).click();
   return "One section per screen, chips, progress.";

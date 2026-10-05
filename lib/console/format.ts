@@ -52,24 +52,24 @@ export function relative(iso: string | null | undefined, now: number = Date.now(
   return future ? `in ${text}` : `${text} ago`;
 }
 
-/** "12 Mar", or "12 Mar 2025" outside the current year. */
+/** "Mar 12", or "Mar 12, 2025" outside the current year. */
 export function shortDate(iso: string | null | undefined, now: number = Date.now()): string {
   const at = parse(iso);
   if (at === null) return "—";
   const date = new Date(at);
   const sameYear = date.getFullYear() === new Date(now).getFullYear();
-  return date.toLocaleDateString("en-GB", {
+  return date.toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
     ...(sameYear ? {} : { year: "numeric" }),
   });
 }
 
-/** "12 Mar 2026, 09:12" — the hover text and record pages. */
+/** "Mar 12, 2026, 09:12 AM" — the hover text and record pages. */
 export function dateTime(iso: string | null | undefined): string {
   const at = parse(iso);
   if (at === null) return "—";
-  return new Date(at).toLocaleString("en-GB", {
+  return new Date(at).toLocaleString("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",

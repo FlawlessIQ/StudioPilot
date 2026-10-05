@@ -116,7 +116,7 @@ export function ParticipantRoster({
         </header>
         <p className="form-notice">
           List every athlete and parent, take each payment on the day or before, and email each parent their own
-          receipt. The organiser stays the job&rsquo;s contact.
+          receipt. The organizer stays the job&rsquo;s contact.
         </p>
         <div className="participant-roster-actions">
           <button

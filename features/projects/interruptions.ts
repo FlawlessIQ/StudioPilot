@@ -56,7 +56,7 @@ export const INTERRUPTION_COPY: Record<
   },
   CANCELLED: {
     label: "Cancel the job",
-    prompt: "Why was it cancelled?",
+    prompt: "Why was it canceled?",
     // "Nothing is deleted" read as reversible while the same click emailed
     // accepted crew that the day was off (go-back audit, 2026-09-30). The
     // confirm step now lists each consequence (going-back.ts).

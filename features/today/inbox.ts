@@ -1524,7 +1524,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       eventDate: eventFor(invoice.projectId),
       updatedAt: changedAt(invoice),
       amountCents: balance,
-      label: "Chase payment",
+      label: "Follow up on payment",
     });
     if (text(invoice.projectId)) {
       overdueInvoiceProjectIds.add(text(invoice.projectId));
@@ -2312,7 +2312,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         id: "coi-setup",
         kind: "insurance",
         title: "Save who sends your certificates of insurance",
-        detail: `${nameFor(needing.id) ?? "A booked job"} needs one — StudioCue can ask for it and chase it`,
+        detail: `${nameFor(needing.id) ?? "A booked job"} needs one — StudioCue can ask for it and follow up`,
         href: "/studio/settings/insurance",
         label: "Set up",
         projectId: needing.id,

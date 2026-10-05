@@ -326,7 +326,7 @@ export const billingHandlers = {
             customSubject: `Your payment for ${owner.studioName} didn't go through`,
             customBody: [
               `We couldn't take the latest payment for ${owner.studioName}.`,
-              "Update your card from your subscription page and we'll try again straight away. It takes a minute, and nothing in your studio changes.",
+              "Update your card from your subscription page and we'll try again right away. It takes a minute, and nothing in your studio changes.",
               "If something's wrong, reply to this email and we'll help.",
             ].join("\n"),
             actionLabel: "Update your card",

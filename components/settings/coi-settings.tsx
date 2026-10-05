@@ -111,7 +111,7 @@ export function CoiSettings() {
             <h2 id="coi-settings-title">Certificates of insurance</h2>
             <p>
               Who sends your certificates, and how far StudioCue goes on its own
-              asking for them and chasing them.
+              asking for them and following up.
             </p>
           </div>
         </div>
@@ -218,7 +218,7 @@ export function CoiSettings() {
           {source === "agent" ? (
             <>
               <label>
-                Chase every (days)
+                Follow up every (days)
                 <input
                   max={14}
                   min={1}
@@ -236,7 +236,7 @@ export function CoiSettings() {
                 </small>
               </label>
               <label>
-                Chase at most
+                Follow up at most
                 <input
                   max={10}
                   min={1}
@@ -247,7 +247,7 @@ export function CoiSettings() {
                   value={value<number>("maxChases", 4)}
                 />
                 <small>
-                  Then StudioCue stops chasing and tells you on Today — as it
+                  Then StudioCue stops following up and tells you on Today — as it
                   does 5 days before the due date, whatever the count.
                 </small>
               </label>

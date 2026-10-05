@@ -976,9 +976,9 @@ export function projectJourney(input: JourneyInput): {
       : coiMove
         ? coiMove
         : input.coiStatus === "correction_required"
-          ? "With your agent for a correction — chasing automatically"
+          ? "With your agent for a correction — following up automatically"
           : coiWaiting
-            ? "Requested — chasing automatically"
+            ? "Requested — following up automatically"
             : "Request the certificate for the venue",
     status: coiDone
       ? "complete"
@@ -1043,7 +1043,7 @@ export function projectJourney(input: JourneyInput): {
         : {
             kind: "link",
             label: finalOverdue
-              ? "Chase payment"
+              ? "Follow up on payment"
               : finalWaiting
                 ? "Check payment status"
                 : "Send final invoice",

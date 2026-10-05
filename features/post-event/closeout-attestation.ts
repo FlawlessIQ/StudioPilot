@@ -162,6 +162,6 @@ export function closeoutPendingNote(
       : `Nothing to do yet — the first ask is scheduled ${where}.`;
   }
   if (key === "album" && context.albumStatus === "instructions_available")
-    return "Waiting on their album selections. Reminders go out a week and a fortnight after delivery.";
+    return "Waiting on their album selections. Reminders go out one and two weeks after delivery.";
   return null;
 }

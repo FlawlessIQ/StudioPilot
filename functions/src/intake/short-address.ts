@@ -325,7 +325,7 @@ export function shortAddressTrust(input: {
   return {
     trusted: false,
     reason: from
-      ? `Sent to your StudioCue address from ${from}, which StudioCue doesn't recognise yet.`
+      ? `Sent to your StudioCue address from ${from}, which StudioCue doesn't recognize yet.`
       : "Sent to your StudioCue address by a sender StudioCue couldn't verify.",
   };
 }

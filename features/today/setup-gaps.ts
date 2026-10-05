@@ -250,7 +250,7 @@ export function setupGaps(
     gaps.push({
       key: "insurance",
       title: "Say who sends your insurance certificates",
-      detail: "Venues often want one. StudioCue can ask your agent, chase it and bring it back for one approval.",
+      detail: "Venues often want one. StudioCue can ask your agent, follow up and bring it back for one approval.",
       actionLabel: "Set it up",
       href: "/studio/settings/insurance",
       blocking: false,

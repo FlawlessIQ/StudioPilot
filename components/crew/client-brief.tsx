@@ -150,7 +150,7 @@ const MOCK_BRIEF: Brief[] = [
     id: "demo-brief",
     questionnaireName: "Wedding day planning",
     beforeYouShoot: [
-      { fieldId: "no-photo-list", label: "Please don't photograph", text: "The bride's uncle Mark (grey suit). Family reasons." },
+      { fieldId: "no-photo-list", label: "Please don't photograph", text: "The bride's uncle Mark (gray suit). Family reasons." },
       { fieldId: "sensitivities", label: "Handle with care", text: "Groom's grandmother uses a wheelchair; keep her in the front row of formals." },
     ],
     onTheDay: [

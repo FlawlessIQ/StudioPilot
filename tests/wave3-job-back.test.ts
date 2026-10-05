@@ -111,7 +111,7 @@ test("the cancel confirm lists what happens, and no longer reads as reversible",
     outsideAgreementOut: false,
     onCalendar: true,
   }).join(" ");
-  for (const claim of [/emailed straight away/, /withdrawn quietly/, /Billing stops/, /agreement .* withdrawn/, /Google Calendar/, /stops emailing the couple/, /30 days/])
+  for (const claim of [/emailed right away/, /withdrawn quietly/, /Billing stops/, /agreement .* withdrawn/, /Google Calendar/, /stops emailing the couple/, /30 days/])
     assert.match(lines, claim);
   assert.doesNotMatch(INTERRUPTION_COPY.CANCELLED.detail, /Nothing is deleted/);
   const page = read("components/projects/live-project-detail.tsx");
@@ -188,7 +188,7 @@ test("the couple's cancellation email is the studio's words, or a plain default"
     projectName: "Rivera wedding",
     values: { customBody: "We're so sorry to hear the news. Your retainer will be refunded this week." },
   });
-  assert.match(custom.subject, /cancelled/);
+  assert.match(custom.subject, /canceled/);
   assert.match(custom.text, /retainer will be refunded/);
   const plain = renderEmailTemplate({ key: "project_cancelled", brand, recipientName: "Jordan", projectName: "Rivera wedding", values: {} });
   assert.match(plain.text, /won't send you any more reminders or invoices/);

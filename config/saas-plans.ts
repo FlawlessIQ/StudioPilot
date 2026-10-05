@@ -25,7 +25,7 @@ export const planCards = [
     features: [
       "Unlimited clients and projects, up to 25 crew",
       "COI workflows and custom automations",
-      "AI schedule generation and crew acknowledgement",
+      "AI schedule generation and crew acknowledgment",
       "Advanced readiness reporting and priority support",
     ],
   },

@@ -74,14 +74,14 @@ const config: Record<
       ["Items", ["items"]],
     ],
     boundary:
-      "Published versions remain preserved. Human approval and renewed crew acknowledgement are tracked independently.",
+      "Published versions remain preserved. Human approval and renewed crew acknowledgment are tracked independently.",
   },
   crew: {
     collections: ["crewAssignments", "crewProfiles"],
     back: "/studio/crew",
     backLabel: "crew",
     label: "Crew record",
-    description: "Assignment details, requirements, and acknowledgement status.",
+    description: "Assignment details, requirements, and acknowledgment status.",
     active: "Crew",
     titleFields: ["projectName", "name", "role", "id"],
     statusFields: ["status", "active"],

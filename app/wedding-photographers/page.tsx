@@ -80,7 +80,7 @@ export default function WeddingPhotographersPage() {
             points: [
               "One-tap crew offers with the terms on them",
               "Automatic cascade on decline or expiry",
-              "Per-person schedule acknowledgement",
+              "Per-person schedule acknowledgment",
             ],
           },
           {

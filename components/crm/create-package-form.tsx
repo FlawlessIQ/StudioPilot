@@ -37,7 +37,7 @@ const schema = z
     name: z
       .string()
       .trim()
-      .min(2, "Give the package a name clients will recognise.")
+      .min(2, "Give the package a name clients will recognize.")
       .max(120, "Keep the name under 120 characters."),
     description: z
       .string()

@@ -38,7 +38,7 @@ type Invoice = {
   hostedInvoiceUrl?: string | null;
 };
 
-const monthLabel = (key: string) => new Date(`${key}-01T12:00:00`).toLocaleDateString("en-GB", { month: "short" });
+const monthLabel = (key: string) => new Date(`${key}-01T12:00:00`).toLocaleDateString("en-US", { month: "short" });
 
 export function RevenuePage() {
   const router = useRouter();
@@ -157,7 +157,7 @@ export function RevenuePage() {
               <tbody>
                 {cohorts.map((cohort) => (
                   <tr className="cx-row" key={cohort.key}>
-                    <td className="cx-td">{new Date(`${cohort.key}-01T12:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</td>
+                    <td className="cx-td">{new Date(`${cohort.key}-01T12:00:00`).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</td>
                     <td className="cx-td" data-align="right">{cohort.signed}</td>
                     <td className="cx-td" data-align="right">{cohort.paying}</td>
                     <td className="cx-td" data-align="right">{cohort.trialing}</td>

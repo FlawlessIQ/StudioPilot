@@ -18,7 +18,7 @@ export const INQUIRY_BACKGROUND_SWATCHES: Record<
 > = {
   cream: { label: "Cream", page: "#F7F3EC", card: "#FFFDF9", line: "#E8E0D3", sunken: "#EDE6DA" },
   white: { label: "White", page: "#FFFFFF", card: "#FFFFFF", line: "#E4E4E7", sunken: "#F2F2F3" },
-  light: { label: "Light grey", page: "#F3F5F7", card: "#FFFFFF", line: "#E1E5EA", sunken: "#E8ECF0" },
+  light: { label: "Light gray", page: "#F3F5F7", card: "#FFFFFF", line: "#E1E5EA", sunken: "#E8ECF0" },
 };
 
 const INK = "#1D1A16";

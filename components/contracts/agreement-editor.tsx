@@ -527,14 +527,14 @@ export function AgreementEditor() {
           When a proposal is accepted
           <InfoHint label="When a proposal is accepted">
             Off by default: the contract is written and waits for you to read and sign it. On: StudioCue signs with
-            your typed name and sends it straight away.
+            your typed name and sends it right away.
           </InfoHint>
         </p>
         <h2>{autoSendEnabled ? "StudioCue signs and sends for you" : "StudioCue prepares it for you to send"}</h2>
         <p>
           A contract is always written from this agreement the moment a couple accepts. By default it
           waits for you to read it and sign. You can let StudioCue sign with your name and send it
-          straight away instead — any contract with a detail to fill in still waits for you.
+          right away instead — any contract with a detail to fill in still waits for you.
         </p>
         {autoSendEnabled ? (
           <div className="agreement-editor-actions">

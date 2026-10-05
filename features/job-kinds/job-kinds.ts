@@ -149,9 +149,9 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     scheduleA: "Session details (Schedule A)",
     afterwards: "After your session",
     dayBeforeChecklist: [
-      "outfits laid out, colours that sit well together",
+      "outfits laid out, colors that sit well together",
       "little ones fed and rested before we start",
-      "any props or favourite toys you want in the photos",
+      "any props or favorite toys you want in the photos",
     ],
   },
   corporate: {

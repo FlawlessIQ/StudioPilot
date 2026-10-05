@@ -945,7 +945,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           {/* This job's invoices, where the final bill can be sent or
               recorded — not the whole studio's list (wave 3). */}
           <Link className="button button-dark" href={`/studio/invoices?project=${projectId}`}>
-            Chase payment <ArrowRight size={15} />
+            Follow up on payment <ArrowRight size={15} />
           </Link>
         </aside>
       ) : null}

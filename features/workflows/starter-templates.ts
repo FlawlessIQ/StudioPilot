@@ -214,7 +214,7 @@ export function starterTemplates(): StarterTemplate[] {
     {
       name: "Sports Photography",
       description:
-        "Organiser-led sports coverage, with crew and locations confirmed ahead.",
+        "Organizer-led sports coverage, with crew and locations confirmed ahead.",
       eventTypeId: "sports",
       eventTypeLabel: "Sports",
       checkpointTemplates: subset(SPORTS_KEYS),

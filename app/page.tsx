@@ -235,7 +235,7 @@ export default function MarketingHome() {
                 <h2 id="coi-title">The certificate the venue asks for, handled.</h2>
                 <p>
                   Most venues won&rsquo;t let you shoot without a certificate naming them. StudioCue asks your
-                  agent, chases it, checks what comes back against what the venue requires, and sends it on
+                  agent, follows up, checks what comes back against what the venue requires, and sends it on
                   once you approve.
                 </p>
               </header>

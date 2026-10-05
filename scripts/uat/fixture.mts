@@ -177,7 +177,7 @@ batch.set(db.doc("questionnaireResponses/qr-uat-a"), {
       { id: "day", title: "The day", fields: [
         field("ceremony-time", "Ceremony start time", "time", { required: true }),
         field("first-look", "Are you planning a first look?", "radio", { options: ["Yes", "No", "Not sure yet"] }),
-        field("colours", "Your colours", "multi_select", { options: ["Sage", "Ivory", "Gold", "Blush"] }),
+        field("colours", "Your colors", "multi_select", { options: ["Sage", "Ivory", "Gold", "Blush"] }),
       ] },
       { id: "family", title: "Family photos", fields: [
         field("must-have-groups", "Family formals", "long_text", { required: true }),

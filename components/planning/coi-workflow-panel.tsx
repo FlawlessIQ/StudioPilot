@@ -437,7 +437,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
           <label className="coi-checkbox">
             <input name="waiverOfSubrogation" type="checkbox" /> Waiver of
             subrogation required
-            <small>Tick only if the venue&apos;s contract asks for it.</small>
+            <small>Check only if the venue&apos;s contract asks for it.</small>
           </label>
           <label className="coi-checkbox">
             <input name="primaryNoncontributory" type="checkbox" /> Primary and noncontributory wording required
@@ -459,7 +459,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
             <p className="eyebrow">Certificates of insurance</p>
             <h2>
               {requests.length === 1 ? "This job’s certificate" : "Certificates"}
-              <InfoHint label="Chasing your agent">
+              <InfoHint label="Following up with your agent">
                 {/* The studio's own numbers (Settings → Insurance). "Daily in
                     the last week" never happened with the defaults: the last
                     follow-up goes weeks before then. */}

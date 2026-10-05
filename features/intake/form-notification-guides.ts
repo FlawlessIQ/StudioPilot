@@ -66,7 +66,7 @@ export const NOTIFICATION_GUIDES: ReadonlyArray<NotificationGuide> = [
         text: "In its **Send an email** action, click **Show additional settings**, then **Edit** next to **Recipients**.",
       },
       {
-        text: "Tick **StudioCue inquiries** — keep yourself ticked too — then **Apply** and **Save** the automation.",
+        text: "Check **StudioCue inquiries** — keep yourself checked too — then **Apply** and **Save** the automation.",
       },
     ],
     note: "Wix can only email your contacts, which is why the address goes in as a contact first. Is your form from 123FormBuilder or Jotform, sitting inside your Wix page? Choose that one instead — Wix's settings don't reach it.",

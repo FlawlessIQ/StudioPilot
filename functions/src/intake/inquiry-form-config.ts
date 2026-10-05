@@ -284,10 +284,10 @@ function readConfig(raw: unknown, strict: boolean): Checked {
 
   const buttonColor = raw.buttonColor === null || raw.buttonColor === undefined || raw.buttonColor === "" ? null : normaliseHexColor(raw.buttonColor);
   if (strict && buttonColor === null && raw.buttonColor !== null && raw.buttonColor !== undefined && raw.buttonColor !== "")
-    errors.push("The button colour must be a hex colour such as #8A6A3A.");
+    errors.push("The button color must be a hex color such as #8A6A3A.");
   const background = oneOf(INQUIRY_BACKGROUNDS, raw.background) ? raw.background : defaults.background;
   if (strict && raw.background !== undefined && !oneOf(INQUIRY_BACKGROUNDS, raw.background))
-    errors.push("Choose cream, white or light grey for the background.");
+    errors.push("Choose cream, white or light gray for the background.");
 
   return {
     config: {

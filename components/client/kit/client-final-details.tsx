@@ -71,7 +71,7 @@ export function ClientFinalDetails() {
   async function confirm() {
     if (!workspace.tenantId || !workspace.projectId || !details) return;
     if (typedName.trim().length < 2) return setError("Type your full name to confirm.");
-    if (!agreed) return setError("Tick the box to confirm these are your final details.");
+    if (!agreed) return setError("Check the box to confirm these are your final details.");
     setBusy(true);
     setError(null);
     try {

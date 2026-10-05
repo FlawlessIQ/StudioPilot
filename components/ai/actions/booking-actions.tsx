@@ -262,7 +262,7 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
         kind === "reschedule_consultation"
           ? `Now ${when(consultation.startsAt)}. They're emailed the new time, and your calendar${consultation.joinUrl ? " and the Zoom meeting" : ""} follow it.`
           : kind === "cancel_consultation"
-            ? `${when(consultation.startsAt)}. They're emailed that it's cancelled; it comes off your calendar${consultation.joinUrl ? " and the Zoom meeting is removed" : ""}.`
+            ? `${when(consultation.startsAt)}. They're emailed that it's canceled; it comes off your calendar${consultation.joinUrl ? " and the Zoom meeting is removed" : ""}.`
             : `${when(consultation.startsAt)}. Your notes feed the proposal and the job's brief.`
       }
       icon={kind === "cancel_consultation" ? <CalendarX size={15} /> : <CalendarClock size={15} />}
@@ -315,8 +315,8 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
                   input: { projectId: job.id, consultationId: consultation.id, reason: reason.trim() || null },
                 });
                 return notifiedOf(cancelled)
-                  ? "The consultation is cancelled, and they're being emailed."
-                  : "The consultation is cancelled. They weren't emailed, so let them know.";
+                  ? "The consultation is canceled, and they're being emailed."
+                  : "The consultation is canceled. They weren't emailed, so let them know.";
               }
               await sendBookingCommand({
                 type: "completeConsultation",
@@ -914,7 +914,7 @@ export function ProposalStepCard({ action }: ActionCardProps) {
     discard_proposal_draft: {
       op: "discard_draft",
       label: "Discard the draft",
-      detail: "Nobody outside your studio has seen it. You can start a new one straight away.",
+      detail: "Nobody outside your studio has seen it. You can start a new one right away.",
       done: "The draft is discarded. Ask me to draft a new one when you're ready.",
     },
     withdraw_proposal: {

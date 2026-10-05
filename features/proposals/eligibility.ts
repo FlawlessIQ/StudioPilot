@@ -81,7 +81,7 @@ export function proposalStageNotice(
       };
     case "too_early":
       return {
-        heading: `${projectName} is still an enquiry`,
+        heading: `${projectName} is still an inquiry`,
         detail:
           "A proposal starts after the consultation. Mark the consultation done on the job — it takes one click if you already spoke — and come back.",
       };
@@ -95,7 +95,7 @@ export function proposalStageNotice(
       return {
         heading: `${projectName} is not an active job`,
         detail:
-          "It is cancelled or on hold. Bring it back to a live stage before pricing new work for it.",
+          "It is canceled or on hold. Bring it back to a live stage before pricing new work for it.",
       };
   }
 }

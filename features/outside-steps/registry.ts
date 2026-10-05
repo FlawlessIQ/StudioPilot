@@ -126,7 +126,7 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
       },
       {
         title: "You're back in StudioCue",
-        text: "StudioCue sees the new permission and ticks this off by itself.",
+        text: "StudioCue sees the new permission and checks this off by itself.",
       },
     ],
   },
@@ -158,7 +158,7 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
       },
       {
         title: "Send a test",
-        text: "Use **Test** in Inquiry capture. StudioCue ticks this off the moment the test — or your first real inquiry — arrives.",
+        text: "Use **Test** in Inquiry capture. StudioCue checks this off the moment the test — or your first real inquiry — arrives.",
       },
     ],
   },
@@ -186,12 +186,12 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
       },
       {
         title: "Turn on meeting summaries",
-        text: "Under **Meeting**, switch on **Meeting summary with AI**, then tick **Auto-start when meeting starts** so you don't have to remember on each call.",
-        tip: "Needs a paid Zoom plan (Pro or higher). If the switch is greyed out, your Zoom account admin has locked it and needs to turn it on for you.",
+        text: "Under **Meeting**, switch on **Meeting summary with AI**, then check **Auto-start when meeting starts** so you don't have to remember on each call.",
+        tip: "Needs a paid Zoom plan (Pro or higher). If the switch is grayed out, your Zoom account admin has locked it and needs to turn it on for you.",
       },
       {
         title: "Hold a consultation",
-        text: "StudioCue ticks this off by itself when the first summary arrives after a consultation booked through StudioCue.",
+        text: "StudioCue checks this off by itself when the first summary arrives after a consultation booked through StudioCue.",
       },
     ],
   },

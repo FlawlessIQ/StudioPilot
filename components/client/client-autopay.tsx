@@ -31,7 +31,7 @@ const DEMO_STATUS: ClientAutopayStatus = {
   currency: "USD",
   dueDate: "2026-10-03",
   consentText:
-    "I authorise the studio to charge this card $4,200.00 for my final balance on October 3, 2026, and to try once more 3 days later if that charge is declined. I can remove the card before then.",
+    "I authorize the studio to charge this card $4,200.00 for my final balance on October 3, 2026, and to try once more 3 days later if that charge is declined. I can remove the card before then.",
   method: null,
 };
 

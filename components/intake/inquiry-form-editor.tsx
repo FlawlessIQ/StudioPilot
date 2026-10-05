@@ -222,7 +222,7 @@ export function InquiryFormEditor({
           <fieldset className="inquiry-form-editor-group">
             <legend>Kinds of inquiry</legend>
             <p className="inquiry-form-editor-hint">
-              Clients choose one at the end of the first page, and the next page asks only what you tick here. A
+              Clients choose one at the end of the first page, and the next page asks only what you check here. A
               general question skips straight to their message.
             </p>
             {draft.eventTypes.map((type, index) => (
@@ -496,12 +496,12 @@ export function InquiryFormEditor({
           </fieldset>
 
           <fieldset className="inquiry-form-editor-group">
-            <legend>Colours</legend>
+            <legend>Colors</legend>
             <div className="inquiry-form-editor-fields">
               <label>
                 <span>Buttons</span>
                 <input
-                  aria-label="Button colour"
+                  aria-label="Button color"
                   onChange={(event) => {
                     setColorText(event.target.value.toUpperCase());
                     change({ buttonColor: normaliseHexColor(event.target.value) });
@@ -532,7 +532,7 @@ export function InquiryFormEditor({
                   }}
                   type="button"
                 >
-                  Use my brand colour
+                  Use my brand color
                 </button>
               ) : null}
             </div>

@@ -261,7 +261,7 @@ export function EmailBranding() {
             <span>
               {uploading
                 ? "Uploading…"
-                : "Choose the file from your computer — PNG, JPEG, WebP or SVG, under 2 MB. It's saved straight away and appears on your emails, proposals, client portal and inquiry form."}
+                : "Choose the file from your computer — PNG, JPEG, WebP or SVG, under 2 MB. It's saved right away and appears on your emails, proposals, client portal and inquiry form."}
             </span>
           </label>
           {branding.logoUrl ? (

@@ -686,7 +686,7 @@ async function handleInquiryCommand(
     await upcoming.ref.update({
       status: "cancelled",
       cancelledAt: now,
-      cancellationReason: command.input.reason || "Cancelled by the couple",
+      cancellationReason: command.input.reason || "Canceled by the couple",
       updatedAt: now,
       updatedBy: "couple",
     });
@@ -706,7 +706,7 @@ async function handleInquiryCommand(
     }
     await recordCoupleAction(db, context, {
       id: `couple_cancel_${upcoming.id}`,
-      title: `${text(context.lead.get("firstName")) || "The couple"} cancelled their consultation (${whenLabel(text(upcoming.get("startsAt")), timezone)})`,
+      title: `${text(context.lead.get("firstName")) || "The couple"} canceled their consultation (${whenLabel(text(upcoming.get("startsAt")), timezone)})`,
       action: "consultation.cancelled_by_couple",
       after: { consultationId: upcoming.id, reason: command.input.reason ?? null },
       now,

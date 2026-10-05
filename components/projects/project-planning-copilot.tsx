@@ -96,7 +96,7 @@ export function ProjectPlanningCopilot({
           id: "coi",
           label: "Prepare venue insurance",
           detail:
-            "Create the request once; StudioCue will chase receipt, extract the certificate, and pause for approval.",
+            "Create the request once; StudioCue will follow up on receipt, extract the certificate, and pause for approval.",
           href: `/studio/insurance?project=${projectId}`,
           state: "ready",
           icon: ShieldCheck,

@@ -39,7 +39,7 @@ export default function FeaturesPage() {
             text: "The points in a project's life that cost money will not move on a click. Booked, in particular, needs a signed agreement, a retainer that has cleared, a date nothing else is on, and complete client details — checked together, at the moment of booking. You can still take a job on with the retainer waived; the record then says it was waived, not that it was paid.",
             points: [
               "The gate names exactly what is missing",
-              "Overrides exist, are permissioned, and are labelled as overrides",
+              "Overrides exist, are permissioned, and are labeled as overrides",
               "Every check recorded with its result",
             ],
             visual: {
