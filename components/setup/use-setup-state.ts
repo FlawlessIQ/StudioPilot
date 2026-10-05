@@ -14,6 +14,7 @@ import {
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { nativeSigningOn } from "@/features/contracts/rollout";
+import { inquiryFormChoices } from "@/features/questionnaires/inquiry-form-setting";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -54,6 +55,8 @@ export function useSetupState(): {
     coi: boolean;
     /** The inquiry form has been saved; undefined when it can't be read. */
     work: boolean | undefined;
+    /** The inquiry page's form has been chosen, or "none" chosen; undefined when it can't be read. */
+    inquiryForm: boolean | undefined;
   } | null>(null);
 
   const [reads, setReads] = useState(0);
@@ -99,6 +102,8 @@ export function useSetupState(): {
           Boolean(text(capture?.get("lastTestCaptureAt"))),
         coi: Boolean(coi?.exists()),
         work: capture ? Boolean(capture.get("inquiryForm")) : undefined,
+        // Null is "no form": an answer. Absent is never asked.
+        inquiryForm: capture ? capture.get("inquiryEventForm") !== undefined : undefined,
       });
     });
     return () => {
@@ -142,6 +147,12 @@ export function useSetupState(): {
       tenantDocs?.work === undefined
         ? undefined
         : tenantDocs.work || (projects.records ?? []).length > 0,
+    // Asked only when there is a wedding form to choose.
+    hasDecidedInquiryForm:
+      tenantDocs?.inquiryForm === undefined
+        ? undefined
+        : tenantDocs.inquiryForm ||
+          !inquiryFormChoices(questionnaireTemplates.records ?? []).some((choice) => choice.forWeddings),
     hasInquiryCapture:
       Boolean(tenantDocs?.captured) ||
       (leads.records ?? []).some(

@@ -22,7 +22,14 @@ import { setSignatureMode, startProviderConnect } from "@/lib/integrations/comma
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { SETUP_ORDER, setupQuestionCount, type SetupGap, type SetupGapKey } from "@/features/today/setup-gaps";
+import {
+  INQUIRY_FORM_SETTING_HREF,
+  SETUP_ORDER,
+  setupQuestionCount,
+  type SetupGap,
+  type SetupGapKey,
+} from "@/features/today/setup-gaps";
+import { InquiryEventFormSetting } from "@/components/planning/inquiry-event-form-setting";
 import { JOB_KIND_LABELS, JOB_KINDS, type JobKind } from "@/features/job-kinds/job-kinds";
 import { defaultInquiryFormConfig } from "@/features/leads/inquiry-form-config";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -129,6 +136,10 @@ const NATIVE_AGREEMENT_HREF = "/studio/contracts/agreement";
 const NATIVE_AGREEMENT_WHY =
   "Bring in the agreement you already use. StudioCue writes each client's contract from it, with their details and the price they accepted, and they sign in their portal.";
 
+// Forms are in; the question left is which one the first reply's link asks for.
+const INQUIRY_FORM_WHY =
+  "Your forms are in. Choose the one your first reply's link asks for, and new clients fill it in before they pick a time to talk — so you have it for the call.";
+
 // Asked in the one shared order Today's "Next:" also follows.
 const ORDERED = SETUP_ORDER.map((key) => QUESTIONS.find((question) => question.key === key)!);
 
@@ -180,6 +191,8 @@ export function SetupConversation() {
           <SendOwnAgreement onAnswered={refresh} />
         );
       case "questionnaire":
+        // Forms are in; what's left is which one the inquiry link asks for.
+        if (gap.href === INQUIRY_FORM_SETTING_HREF) return <InquiryEventFormSetting onSaved={refresh} />;
         return (
           <div className="setup-answer-row">
             <Link className="button button-dark" href={IMPORT_FORM}>
@@ -273,7 +286,9 @@ export function SetupConversation() {
                       : question.key === "agreement" &&
                           gap?.href === NATIVE_AGREEMENT_HREF
                         ? NATIVE_AGREEMENT_WHY
-                        : question.why}
+                        : gap?.href === INQUIRY_FORM_SETTING_HREF
+                          ? INQUIRY_FORM_WHY
+                          : question.why}
                   </p>
                   {gap?.blocking ? (
                     <span className="setup-blocking">

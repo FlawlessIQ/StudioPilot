@@ -24,7 +24,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
  * (leadCaptureSettings/{tenantId}.inquiryEventForm), written only by the
  * planning command setInquiryEventForm, which checks owner or admin.
  */
-export function InquiryEventFormSetting() {
+export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = {}) {
   const workspace = useWorkspace();
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
   const ownerOrAdmin = ["studio_owner", "studio_admin"].includes(String(workspace.role));
@@ -70,6 +70,7 @@ export function InquiryEventFormSetting() {
       const name = choices.find((item) => item.id === templateId)?.name;
       setSavedId(templateId);
       setChoice(null);
+      if (response.persisted) onSaved?.();
       setNotice(
         !response.persisted
           ? "Preview: nothing was saved."
@@ -85,7 +86,8 @@ export function InquiryEventFormSetting() {
   }
 
   return (
-    <section className="panel" aria-labelledby="inquiry-event-form-heading">
+    // Today and setup link here (features/today/setup-gaps.ts) when it hasn't been chosen.
+    <section className="panel" aria-labelledby="inquiry-event-form-heading" id="inquiry-form">
       <div>
         <p className="eyebrow">
           <ClipboardList aria-hidden="true" size={14} /> Before the consultation

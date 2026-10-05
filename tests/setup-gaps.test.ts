@@ -198,3 +198,32 @@ test("setup polish: the places that said the wrong thing now say the right one",
   // Imported forms are for the job type they name.
   assert.match(source("functions/src/studio-import/review.ts"), /eventTypeId: questionnaireEventType\(/);
 });
+
+test("a studio with forms that never chose one for its inquiry link is asked, and blocked once couples get the link", () => {
+  // GR Productions, 2026-10-05: the setting existed and was never seen, so
+  // every couple's link asked for a ceremony time instead of the event form.
+  const ready: SetupState = {
+    hasActivePackage: true,
+    hasAgreementTemplate: true,
+    hasQuestionnaireTemplate: true,
+    hasConsultationAvailability: true,
+    hasDecidedInquiryForm: false,
+  };
+  const quietGap = setupGaps(ready, quiet).find((gap) => gap.key === "questionnaire");
+  assert.equal(quietGap?.href, "/studio/questionnaires#inquiry-form");
+  assert.equal(quietGap?.blocking, false);
+
+  const waiting = setupGaps(ready, { ...quiet, openInquiries: 2 }).find((gap) => gap.key === "questionnaire");
+  assert.equal(waiting?.blocking, true);
+  assert.match(waiting?.detail ?? "", /2 couples are getting your inquiry link.*not your event form/);
+  // On Today, where the studio actually looks.
+  const today = todayInbox({ now: "2026-10-05T12:00:00.000Z", setupGaps: setupGaps(ready, { ...quiet, openInquiries: 1 }), journeys: [] });
+  assert.ok(JSON.stringify(today).includes("Choose the form couples fill in before your call"));
+
+  // Choosing "no form" is an answer; so is a studio Today can't read the setting for.
+  for (const hasDecidedInquiryForm of [true, undefined]) {
+    assert.ok(!setupGaps({ ...ready, hasDecidedInquiryForm }, { ...quiet, openInquiries: 3 }).some((gap) => gap.key === "questionnaire"));
+  }
+  // Never part of "ready to take bookings".
+  assert.equal(setupComplete(ready), true);
+});

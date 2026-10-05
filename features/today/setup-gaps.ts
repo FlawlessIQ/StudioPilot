@@ -112,6 +112,14 @@ export type SetupState = {
    * complete": only an explicit `false` asks.
    */
   hasChosenWork?: boolean;
+  /**
+   * The studio has said which form, if any, couples fill in on the page its
+   * first reply links to (leadCaptureSettings.inquiryEventForm — "none" is an
+   * answer). Optional and never part of "setup complete": only an explicit
+   * `false` asks, and the setup hook says `false` only when there is a
+   * wedding form to choose.
+   */
+  hasDecidedInquiryForm?: boolean;
 };
 
 export type SetupSignals = {
@@ -246,6 +254,33 @@ export function setupGaps(
     });
   }
 
+  /**
+   * GR Productions asked for it twice: "the link in that email needs to be the
+   * event info form. Need that info before I call them." The page could do it
+   * since 2026-10-01 — behind a setting on the Questionnaires page that nobody
+   * at the studio ever saw, so every couple got "Ceremony time, anything else?"
+   * (2026-10-05). The choice is asked here, and on Today once couples are
+   * actually getting the link.
+   */
+  if (
+    state.hasQuestionnaireTemplate &&
+    state.hasConsultationAvailability &&
+    state.hasDecidedInquiryForm === false
+  ) {
+    const waiting = signals.openInquiries;
+    gaps.push({
+      key: "questionnaire",
+      title: "Choose the form couples fill in before your call",
+      detail: waiting
+        ? `${waiting === 1 ? "A couple is" : `${waiting} couples are`} getting your inquiry link. It asks a couple of details and a time to talk — not your event form. Choose it, and they fill it in before they book.`
+        : "Your first reply links couples to a page. Choose your event form, and they fill it in before they pick a time to talk.",
+      actionLabel: "Choose the form",
+      href: INQUIRY_FORM_SETTING_HREF,
+      blocking: waiting > 0,
+      blockedProjectName: null,
+    });
+  }
+
   if (state.hasCoiSettings === false) {
     gaps.push({
       key: "insurance",
@@ -277,6 +312,9 @@ export function setupGaps(
 }
 
 /** Setup is finished when nothing is missing. */
+/** Where a studio chooses the form its inquiry link asks for. */
+export const INQUIRY_FORM_SETTING_HREF = "/studio/questionnaires#inquiry-form";
+
 export function setupComplete(state: SetupState): boolean {
   return (
     state.hasInquiryCapture !== false &&
