@@ -40,6 +40,11 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
             {/* The journey's "Send the form" lands here; assignment must be
                 possible in place, not a template-library detour away. */}
             <QuestionnaireBuilder defaultMode="assign" defaultProjectId={project} />
+            {/* The recommended forms were only on the library page, and the
+                job's "Send the form" always lands here with ?project= — so
+                Gabe never saw them (2026-10-05). A copy appears in the picker
+                above as soon as it's made. */}
+            <RecommendedQuestionnaires />
             <section className="panel focused-tool-link">
               <div>
                 <p className="eyebrow">Reusable setup</p>

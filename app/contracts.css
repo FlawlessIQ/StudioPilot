@@ -13,20 +13,23 @@
   overflow-wrap: anywhere;
 }
 
-.contract-document-title {
+.contract-document-title,
+.contract-document .contract-document-title {
   font-size: 1.6rem;
   line-height: 1.2;
   margin: 0 0 1.1rem;
   font-weight: 500;
 }
 
-.contract-heading {
+.contract-heading,
+.contract-document .contract-heading {
   font-size: 1.2rem;
   margin: 1.4rem 0 0.5rem;
   font-weight: 500;
 }
 
-.contract-subheading {
+.contract-subheading,
+.contract-document .contract-subheading {
   font-family: var(--ds-sans, system-ui, sans-serif);
   font-size: 0.82rem;
   letter-spacing: 0.04em;
@@ -35,7 +38,13 @@
   font-weight: 650;
 }
 
-.contract-paragraph {
+/* Each rule is also scoped under .contract-document: the couple's portal
+   resets margins with `.kit :where(h1, h2, h3, p, …)`, which ties with a single
+   class and loads later, so it won — every clause ran into the next and the
+   agreement read as one block (Gabe, 2026-10-05). Lists were fixed the same
+   way on 2026-09-30. */
+.contract-paragraph,
+.contract-document .contract-paragraph {
   margin: 0 0 0.8rem;
   white-space: pre-line;
 }
@@ -56,7 +65,8 @@
 }
 
 /* A package's name above its own list, when an agreement covers several. */
-.contract-group-title {
+.contract-group-title,
+.contract-document .contract-group-title {
   font-weight: 650;
   margin: 0.7rem 0 0.2rem;
 }

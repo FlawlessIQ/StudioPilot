@@ -534,6 +534,22 @@ export function templateFieldKeys(body: string): string[] {
   return keys;
 }
 
+/**
+ * A clause that opens with its own label ("Booking Fee: An $1000 retainer…")
+ * reads with the label in bold, as an imported one-line agreement already did
+ * (restoreClauseBreaks). GR's agreement kept its line breaks, so its labels
+ * stayed plain and the couple read nine clauses as one block (Gabe,
+ * 2026-10-05). Up to five words, starting with a capital, then a colon and a
+ * space; a paragraph the studio already bolded is left as written. Only new
+ * agreements: a signed one is stored as it was.
+ */
+const LEADING_LABEL = /^([A-Z][A-Za-z’'&/-]*(?:\s+[A-Za-z&][A-Za-z’'&/-]*){0,4}):\s+(?=\S)/;
+
+export function boldLeadingLabel(text: string): string {
+  if (text.startsWith("**")) return text;
+  return text.replace(LEADING_LABEL, (_, label: string) => `**${label}:** `);
+}
+
 function inlines(
   text: string,
   valueFor: (key: string) => string | null,
@@ -622,7 +638,7 @@ export function resolveContractDocument(input: {
     if (raw.type === "heading") {
       blocks.push({ type: "heading", level: raw.level, content: inlines(raw.text, valueFor) });
     } else if (raw.type === "paragraph") {
-      blocks.push({ type: "paragraph", content: inlines(raw.text, valueFor) });
+      blocks.push({ type: "paragraph", content: inlines(boldLeadingLabel(raw.text), valueFor) });
     } else if (raw.type === "list") {
       blocks.push({
         type: "list",
