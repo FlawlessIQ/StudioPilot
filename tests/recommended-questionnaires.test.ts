@@ -5,7 +5,7 @@ import {
   recommendedFieldCount,
   recommendedQuestionnaires,
 } from "@/features/questionnaires/recommended-templates";
-import { isTbd, shiftClock, suggestedTime, TBD } from "@/features/questionnaires/field-extras";
+import { allowsTbd, isTbd, isTimeQuestion, shiftClock, suggestedTime, TBD } from "@/features/questionnaires/field-extras";
 import { questionnaireFieldSchema } from "@/features/questionnaires/schema";
 import { parseQuestionnaireSections } from "@/features/questionnaires/client-form";
 import { eventDetailCategory, eventDetailsFrom } from "@/features/contracts/event-details";
@@ -244,4 +244,40 @@ test("'Which are you?': one tap places the person who inquired and their partner
   // Once they've picked (or typed one of those answers), it goes — even with the partner's left blank.
   assert.equal(roleChoicesOpen(parsed, { "bride-name": "Riley Moss", "bride-email": "riley@example.com" }), false);
   assert.equal(parseRoleChoices({ bride: {}, groom: {} }), null);
+});
+
+test("every time question offers TBD unless the studio turned it off — GR's text-typed times included", () => {
+  // GR Productions, 2026-10-05: "Let TBD be an option for everything. On times."
+  // Their imported Wedding Event Info form asks its times as text questions.
+  const gr = [
+    { id: "ceremony", label: "Ceremony Times", type: "text", required: true },
+    { id: "reception", label: "Reception Times", type: "text", required: true },
+    { id: "coverage", label: "Photo/Video Start and End Time", type: "text", required: true },
+    { id: "venue", label: "Ceremony Location", type: "text", required: true },
+    { id: "date", label: "Event Date", type: "date", required: true },
+    { id: "guests", label: "# of Invited Guests", type: "dropdown", required: true, options: ["50", "100"] },
+  ];
+  assert.deepEqual(gr.filter(isTimeQuestion).map((field) => field.id), ["ceremony", "reception", "coverage"]);
+  assert.equal(allowsTbd({ type: "time", label: "First look" }), true);
+  assert.equal(allowsTbd({ type: "time", label: "First look", allowTbd: false }), false);
+  assert.equal(allowsTbd({ type: "text", label: "Groom's address", allowTbd: true }), true);
+  assert.equal(allowsTbd({ type: "text", label: "Groom's address" }), false);
+
+  const sections = [{ id: "s", title: "Your day", fields: gr }];
+  // The inquiry page (server) and the portal (browser) agree on which ones.
+  const page = coupleFormSections(sections)[0]!.fields.filter((field) => field.allowTbd).map((field) => field.id);
+  const portal = parseQuestionnaireSections(sections)[0]!.fields.filter((field) => field.allowTbd).map((field) => field.id);
+  assert.deepEqual(page, ["ceremony", "reception", "coverage"]);
+  assert.deepEqual(portal, page);
+
+  // TBD on a required time counts as answered on the inquiry page, so the form can go.
+  const applied = applyCoupleAnswers({ sections: coupleFormSections(sections), prior: {}, incoming: { coverage: "tbd" } });
+  assert.equal(applied.answers.coverage, TBD);
+});
+
+test("the TBD rule is one rule: the functions copy matches", () => {
+  assert.equal(
+    readFileSync("features/questionnaires/field-extras.ts", "utf8"),
+    readFileSync("functions/src/planning/field-extras.ts", "utf8"),
+  );
 });

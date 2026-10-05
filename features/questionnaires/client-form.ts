@@ -27,7 +27,7 @@ export type QuestionnaireSection = {
   fields: QuestionnaireField[];
 };
 
-import { suggestedFromOf, type SuggestedFrom } from "./field-extras";
+import { allowsTbd, suggestedFromOf, type SuggestedFrom } from "./field-extras";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -88,7 +88,7 @@ export function parseQuestionnaireSections(value: unknown): QuestionnaireSection
               ? { fieldId: String(condition.fieldId), equals: condition.equals }
               : null,
             ...(typeof item.help === "string" && item.help.trim() ? { help: item.help.trim() } : {}),
-            ...(item.allowTbd === true ? { allowTbd: true } : {}),
+            ...(allowsTbd(item) ? { allowTbd: true } : {}),
             ...(suggestedFromOf(item.suggestedFrom) ? { suggestedFrom: suggestedFromOf(item.suggestedFrom)! } : {}),
           };
         }),

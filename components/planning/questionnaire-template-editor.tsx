@@ -7,7 +7,7 @@ import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { criticalCrewQuestions } from "@/features/questionnaires/crew-brief";
-import type { SuggestedFrom } from "@/features/questionnaires/field-extras";
+import { allowsTbd, isTimeQuestion, TBD_TYPES, type SuggestedFrom } from "@/features/questionnaires/field-extras";
 import { repairTemplateLinks, type TemplateLinkProblem } from "@/features/questionnaires/template-rules";
 import {
   moveField,
@@ -93,7 +93,6 @@ const FIELD_TYPES: Array<[string, string]> = [
 const CHOICE_TYPES = ["dropdown", "multi_select", "radio"];
 
 /** Questions a couple can honestly answer "not decided yet". */
-const TBD_TYPES = ["text", "long_text", "time", "address", "contact"];
 
 const DESTINATION_LABEL = { contract: "In the contract", locks: "Locks with the final details" } as const;
 
@@ -253,7 +252,10 @@ export function QuestionnaireTemplateEditor({
               : [],
             conditionalOn: field.conditionalOn ?? null,
             ...(field.help?.trim() ? { help: field.help.trim().slice(0, 500) } : {}),
-            ...(field.allowTbd && TBD_TYPES.includes(field.type) ? { allowTbd: true } : {}),
+            // Time questions allow TBD by default (field-extras.ts, allowsTbd), so
+            // only turning one off needs saying.
+            ...(TBD_TYPES.includes(field.type) && field.allowTbd === true ? { allowTbd: true } : {}),
+            ...(field.allowTbd === false && isTimeQuestion(field) ? { allowTbd: false } : {}),
             ...(field.suggestedFrom ? { suggestedFrom: field.suggestedFrom } : {}),
           })),
         })),
@@ -467,7 +469,7 @@ export function QuestionnaireTemplateEditor({
                   {TBD_TYPES.includes(field.type) ? (
                     <label className="questionnaire-editor-required" title="The couple can answer TBD — not decided yet">
                       <input
-                        checked={field.allowTbd === true}
+                        checked={allowsTbd(field)}
                         onChange={(event) => patchField(field.id, { allowTbd: event.target.checked })}
                         type="checkbox"
                       />

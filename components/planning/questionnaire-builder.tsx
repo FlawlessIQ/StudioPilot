@@ -209,7 +209,8 @@ export function QuestionnaireBuilder({
                                         locked: f.locked === true,
                                         conditionalOn: conditionOf(f.conditionalOn),
                                         help: typeof f.help === "string" ? f.help : "",
-                                        allowTbd: f.allowTbd === true,
+                                        // False is kept: a time question allows TBD unless turned off.
+                                        allowTbd: typeof f.allowTbd === "boolean" ? f.allowTbd : undefined,
                                         suggestedFrom: suggestedFromOf(f.suggestedFrom),
                                       };
                                     })

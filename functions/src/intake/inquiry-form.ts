@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { isReturned, liveAssignmentFor } from "../planning/questionnaire-lifecycle.js";
-import { isTbd, suggestedFromOf, TBD, type SuggestedFrom } from "../planning/field-extras.js";
+import { allowsTbd, isTbd, suggestedFromOf, TBD, type SuggestedFrom } from "../planning/field-extras.js";
 
 /**
  * The studio's event form, on the couple's inquiry page.
@@ -174,7 +174,7 @@ export function coupleFormSections(sections: unknown): CoupleSection[] {
           options: Array.isArray(field.options) ? field.options.map(String) : [],
           conditionalOn: text(condition.fieldId) ? { fieldId: text(condition.fieldId), equals: condition.equals } : null,
           ...(text(field.help) ? { help: text(field.help).slice(0, 500) } : {}),
-          ...(field.allowTbd === true ? { allowTbd: true } : {}),
+          ...(allowsTbd(field) ? { allowTbd: true } : {}),
           ...(suggestedFromOf(field.suggestedFrom) ? { suggestedFrom: suggestedFromOf(field.suggestedFrom)! } : {}),
         } satisfies CoupleField,
       ];

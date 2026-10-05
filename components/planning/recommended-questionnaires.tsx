@@ -9,6 +9,7 @@ import {
   recommendedQuestionnaires,
   type RecommendedQuestionnaire,
 } from "@/features/questionnaires/recommended-templates";
+import { allowsTbd } from "@/features/questionnaires/field-extras";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 
@@ -103,7 +104,7 @@ export function RecommendedQuestionnaires() {
                         <li key={field.id}>
                           <span>
                             {field.label}
-                            {field.allowTbd ? <em>TBD allowed</em> : null}
+                            {allowsTbd(field) ? <em>TBD allowed</em> : null}
                           </span>
                           {field.help ? <small>{field.help}</small> : null}
                         </li>
