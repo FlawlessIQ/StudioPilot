@@ -29,6 +29,8 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
   const ownerOrAdmin = ["studio_owner", "studio_admin"].includes(String(workspace.role));
   const [savedId, setSavedId] = useState<string | null>(null);
+  // Never saved, not even "no form": nothing has been chosen yet.
+  const [decided, setDecided] = useState(true);
   // Null until the studio touches the picker; "" means "no form".
   const [choice, setChoice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(!dataIsLive);
@@ -44,6 +46,7 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
         if (!active) return;
         const setting = snapshot.get("inquiryEventForm") as { templateId?: unknown } | null | undefined;
         setSavedId(typeof setting?.templateId === "string" ? setting.templateId : null);
+        setDecided(setting !== undefined);
         setLoaded(true);
       })
       .catch(() => {
@@ -58,7 +61,10 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
   // A saved id goes stale when the form is edited; show the live version.
   const current = currentInquiryFormTemplate(rows, savedId);
   const choices = inquiryFormChoices(rows);
-  const selected = choice ?? current?.id ?? "";
+  // A studio that hasn't chosen starts on its wedding form, ready to save:
+  // "Don't send a form", greyed out, was where every studio sat (2026-10-05).
+  const selected =
+    choice ?? current?.id ?? (decided ? "" : (choices.find((item) => item.forWeddings)?.id ?? ""));
 
   if (!ownerOrAdmin) return null;
 
@@ -70,7 +76,10 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
       const name = choices.find((item) => item.id === templateId)?.name;
       setSavedId(templateId);
       setChoice(null);
-      if (response.persisted) onSaved?.();
+      if (response.persisted) {
+        setDecided(true);
+        onSaved?.();
+      }
       setNotice(
         !response.persisted
           ? "Preview: nothing was saved."
@@ -123,7 +132,7 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
           </label>
           <button
             className="button button-dark"
-            disabled={busy || selected === (current?.id ?? "")}
+            disabled={busy || (decided && selected === (current?.id ?? ""))}
             type="submit"
           >
             {busy ? "Saving…" : "Save"}
