@@ -160,6 +160,9 @@ await run("M2-1", I, a, async () => {
   await fits(a, "Inquiry step 3");
   const consent = a.getByRole("checkbox");
   if (await consent.count()) await consent.first().check();
+  // The form drops a Send within 600ms of the step appearing (a double tap on
+  // Continue); nobody types the message that fast, but Playwright does.
+  await sleep(700);
   await a.getByRole("button", { name: "Send inquiry" }).click();
   await a.getByText(/thank|sent|received/i).first().waitFor({ timeout: 30000 });
   const lead = await waitFor(
@@ -435,8 +438,15 @@ await run("X-1", I, a, async () => {
     await a.goto(`${APP}${path}`);
     await a.locator(".kit-powered").waitFor({ timeout: 20000 });
     await a.waitForLoadState("networkidle").catch(() => undefined);
-    await sleep(1500);
-    await a.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    // Scroll until the page stops growing: content that lands after the
+    // scroll pushes the footer down and reads as "under the bar".
+    let height = -1;
+    for (let i = 0; i < 10; i++) {
+      await sleep(i ? 500 : 1500);
+      const now = await a.evaluate(() => { window.scrollTo(0, document.body.scrollHeight); return document.body.scrollHeight; });
+      if (now === height) break;
+      height = now;
+    }
     await sleep(300);
     const gap = await a.evaluate(() => {
       const last = document.querySelector(".kit-powered")!.getBoundingClientRect();
