@@ -3390,7 +3390,9 @@ textarea:focus-visible {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 60px 12%;
+  /* A short foot: the legal line is in the flow now, and 60px under it made
+     the sign-up page scroll by 20px on a desktop. */
+  padding: 60px 12% 24px;
   position: relative;
 }
 
@@ -3583,14 +3585,28 @@ textarea:focus-visible {
   font-weight: 650;
 }
 
+/* In the flow after the form, not pinned to the panel's foot: on a phone the
+   form is taller than the screen and the pinned line printed over "Already
+   registered? Sign in" (Conor, 2026-10-05). */
 .auth-legal {
-  bottom: 22px;
   color: #8a918b;
   font-size: 12px;
-  left: 0;
-  position: absolute;
+  margin: 28px 0 0;
   text-align: center;
   width: 100%;
+}
+
+.mobile-auth-switch {
+  display: none;
+}
+
+/* The narrowest phones (320px) can't fit the wordmark beside Sign in and the
+   trial button; the mark alone carries the brand there (its link is labeled). */
+@media (max-width: 370px) {
+  .marketing-nav .brand-logo > span:not(.ds-brand-mark),
+  .mobile-auth-logo .brand-logo > span:not(.ds-brand-mark) {
+    display: none;
+  }
 }
 
 /* Client portal */
@@ -5044,6 +5060,22 @@ textarea:focus-visible {
     top: 26px;
   }
 
+  .mobile-auth-switch {
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink);
+    display: inline-flex;
+    font-size: 15px;
+    font-weight: 600;
+    min-height: 40px;
+    padding: 0 16px;
+    position: absolute;
+    right: 24px;
+    top: 22px;
+    white-space: nowrap;
+  }
+
   .inquiry-layout {
     gap: 42px;
     /* minmax(0, …), not 1fr: a bare 1fr is minmax(auto, 1fr), so the column
@@ -5074,8 +5106,21 @@ textarea:focus-visible {
     padding: 0 17px;
   }
 
+  /* Sign in stays on phones: hiding it left returning studios no way in
+     but through the trial form (Conor, 2026-10-05). */
+  .marketing-actions {
+    gap: 14px;
+  }
+
   .marketing-actions .text-link {
-    display: none;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .marketing-actions .button {
+    padding-inline: 14px;
+    white-space: nowrap;
   }
 
   .hero {

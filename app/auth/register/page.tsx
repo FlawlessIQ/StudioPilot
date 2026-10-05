@@ -17,6 +17,8 @@ export default async function RegisterPage({
   const { next } = await searchParams;
   const isClientInvite = next?.startsWith("/auth/client-invite?token=") ?? false;
   const backHref = isClientInvite && next ? next : "/";
+  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
+  const loginHref = safeNext ? `/auth/login?next=${encodeURIComponent(safeNext)}` : "/auth/login";
   return (
     <main className="auth-page">
       <section className="auth-brand-panel">
@@ -54,9 +56,14 @@ export default async function RegisterPage({
         </div>
       </section>
       <section className="auth-form-panel">
-        <div className="mobile-auth-logo">
+        {/* Phones have no brand panel: the logo goes home, and the way to
+            sign in is at the top, not under the form (Conor, 2026-10-05). */}
+        <Link aria-label="StudioCue home" className="mobile-auth-logo" href="/">
           <Logo />
-        </div>
+        </Link>
+        <Link className="mobile-auth-switch" href={loginHref}>
+          Sign in
+        </Link>
         {isClientInvite ? (
           <Link className="mobile-client-auth-back" href={backHref}>
             <ArrowLeft size={15} /> Back to invitation

@@ -67,7 +67,12 @@ export default async function LoginPage({
         </div>
       </section>
       <section className="auth-form-panel">
-        <div className="mobile-auth-logo"><Logo /></div>
+        <Link aria-label="StudioCue home" className="mobile-auth-logo" href="/"><Logo /></Link>
+        {/* A studio without an account starts a trial from here; clients and
+            crew arrive by invitation, so they aren't offered one. */}
+        {!isClientArrival && !isCrewArrival ? (
+          <Link className="mobile-auth-switch" href="/auth/register">Start free trial</Link>
+        ) : null}
         {fromInvitation ? (
           <Link className="mobile-client-auth-back" href={backHref}>
             <ArrowLeft size={15} /> Back to invitation
