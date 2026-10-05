@@ -18,6 +18,7 @@ export const OUTSIDE_STEP_IDS = [
   "quickbooks_payments_reconnect",
   "inquiry_capture",
   "zoom_meeting_summaries",
+  "quickbooks_sales_tax",
 ] as const;
 
 export type OutsideStepId = (typeof OUTSIDE_STEP_IDS)[number];
@@ -195,9 +196,53 @@ export const OUTSIDE_STEPS: Record<OutsideStepId, OutsideStep> = {
       },
     ],
   },
+  /**
+   * Intuit's API only reads whether sales tax is on (TaxPrefs.UsingSalesTax,
+   * PartnerTaxEnabled for Automated Sales Tax); turning it on happens in
+   * QuickBooks itself. So it is one guided visit, and StudioCue ticks it off
+   * by reading the setting back (Conor, 2026-10-05).
+   */
+  quickbooks_sales_tax: {
+    id: "quickbooks_sales_tax",
+    title: "Turn on Automated Sales Tax in QuickBooks",
+    where: "QuickBooks",
+    why: "QuickBooks then works out the right tax for each client from their address, so StudioCue can add it to your final invoices.",
+    who: "You, or whoever runs your books",
+    unlocks: "Sales tax on your invoices, worked out per client",
+    detection: "automatic",
+    home: "/studio/integrations?tab=quickbooks",
+    markLabel: "I've turned it on",
+    instructions: [
+      {
+        title: "Open sales tax in QuickBooks",
+        text: "Sign in to QuickBooks Online and open **Taxes** (or **Sales tax**) in the left menu.",
+        path: ["Taxes", "Sales tax"],
+        link: { href: "https://qbo.intuit.com/app/salestax", label: "Open QuickBooks sales tax" },
+      },
+      {
+        title: "Turn on Automated Sales Tax",
+        text: "Choose **Set up sales tax** (or **Use Automated Sales Tax**), confirm your business address, and add the state agency you pay sales tax to.",
+        tip: "If your sales tax was set up by hand years ago, QuickBooks offers to switch you to Automated Sales Tax on the same page.",
+      },
+      {
+        title: "You're done",
+        text: "Come back to StudioCue. It reads the setting from QuickBooks and checks this off by itself.",
+      },
+    ],
+  },
 };
 
 export type OutsideStepRecord = { state?: unknown; at?: unknown };
+
+/**
+ * The sales-tax step's own words, by what QuickBooks reports. Kept beside the
+ * step so the card and its tests read the same thing.
+ */
+export const QUICKBOOKS_SALES_TAX_LABELS = {
+  automatic: "Automated Sales Tax is on",
+  manual: "QuickBooks has sales tax set up by hand",
+  off: "Sales tax is off in QuickBooks",
+} as const;
 
 export type OutsideStepStatus = {
   state: "not_started" | "waiting" | "done" | "attention";
@@ -222,6 +267,8 @@ type Signals = {
   captured?: boolean;
   /** Zoom has sent StudioCue a meeting summary. */
   zoomSummaries?: boolean;
+  /** What QuickBooks last reported about sales tax, when StudioCue has read it. */
+  quickBooksSalesTax?: "automatic" | "manual" | "off" | null;
 };
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -258,6 +305,24 @@ export function outsideStepStatus(id: OutsideStepId, signals: Signals): OutsideS
     if (recorded === "waiting" || recorded === "done")
       return { state: "waiting", label: "Turned on — waiting for your next consultation", detected: false, since };
     return { state: "not_started", label: "Not turned on yet", detected: false, since: null };
+  }
+  if (id === "quickbooks_sales_tax") {
+    const reported = signals.quickBooksSalesTax ?? null;
+    if (reported === "automatic")
+      return { state: "done", label: QUICKBOOKS_SALES_TAX_LABELS.automatic, detected: true, since };
+    if (recorded === "waiting" || recorded === "done")
+      return {
+        state: "waiting",
+        label: "Turned on — StudioCue checks QuickBooks next time you open it",
+        detected: false,
+        since,
+      };
+    return {
+      state: "not_started",
+      label: reported ? QUICKBOOKS_SALES_TAX_LABELS[reported] : "Not turned on yet",
+      detected: Boolean(reported),
+      since: null,
+    };
   }
   // quickbooks_payments_reconnect: Intuit's grant is the proof.
   if (signals.paymentsGranted)

@@ -98,7 +98,8 @@ export function SalesTaxDecision({
           </p>
           {status.company?.salesTax === "manual" ? (
             <p className="sales-tax-question-note">
-              QuickBooks works tax out from each address only with Automated Sales Tax on (in QuickBooks: Taxes → Sales tax).
+              QuickBooks works tax out from each address only with Automated Sales Tax on.{" "}
+              <Link href="/studio/integrations?tab=quickbooks">Here&rsquo;s how to turn it on</Link>.
             </p>
           ) : null}
         </div>

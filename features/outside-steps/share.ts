@@ -20,6 +20,8 @@ const QUESTION_PATTERNS: Record<OutsideStepId, RegExp> = {
     /\b(inquiry capture|lead capture|capture (my |the )?(inquir|enquir|leads)|forward(ing)? (my )?(inquir|enquir|form emails?|leads)|(website|contact) form|inquiries (to|into) studiocue|get (my )?(inquiries|enquiries|leads) in)/i,
   zoom_meeting_summaries:
     /\bzoom\b.*\b(summar|ai companion|zoom ai|notes|transcript)|\bmeeting summar/i,
+  quickbooks_sales_tax:
+    /\b(automated sales tax|sales tax|tax on (my |the )?invoices?|(add|charge|collect)(ing)? tax)\b/i,
 };
 
 /**
@@ -38,6 +40,7 @@ function matchQuestion(question: string): OutsideStepId | null {
   if (QUESTION_PATTERNS.quickbooks_payments_reconnect.test(text)) return "quickbooks_payments_reconnect";
   if (QUESTION_PATTERNS.quickbooks_payments_apply.test(text)) return "quickbooks_payments_apply";
   if (QUESTION_PATTERNS.zoom_meeting_summaries.test(text)) return "zoom_meeting_summaries";
+  if (QUESTION_PATTERNS.quickbooks_sales_tax.test(text)) return "quickbooks_sales_tax";
   if (QUESTION_PATTERNS.inquiry_capture.test(text)) return "inquiry_capture";
   return null;
 }

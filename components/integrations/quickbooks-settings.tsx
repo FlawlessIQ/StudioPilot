@@ -19,6 +19,9 @@ import {
 } from "@/lib/integrations/quickbooks-setup-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { SalesTaxDecision } from "@/components/integrations/sales-tax-question";
+import { OutsideStepCard } from "@/components/outside-steps/outside-step-card";
+import { useTenantDocuments } from "@/components/live/tenant-records";
+import { outsideStepStatus, type OutsideStepRecord } from "@/features/outside-steps/registry";
 
 /**
  * Settings → Integrations → QuickBooks: run QuickBooks without leaving
@@ -61,6 +64,9 @@ export function QuickBooksSettings() {
   const workspace = useWorkspace();
   const tenantId = workspace.tenantId;
   const allowed = ["studio_owner", "studio_admin"].includes(String(workspace.role));
+  // The studio's own "I've turned it on" for the Automated Sales Tax step.
+  const { records: tenants } = useTenantDocuments("tenants", { enabled: allowed });
+  const tenant = tenants?.find((entry) => entry.id === tenantId);
   const [status, setStatus] = useState<QuickBooksSetupStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"save" | "items" | "test" | null>(null);
@@ -232,11 +238,16 @@ export function QuickBooksSettings() {
               <input checked={mode === "none"} name="sales-tax-mode" onChange={() => setMode("none")} type="radio" />
               <span>Don&rsquo;t add sales tax</span>
             </label>
+            {/* Intuit only lets an app read this setting, so it is one guided
+                visit to QuickBooks, ticked off by reading it back. */}
             {mode === "quickbooks" && company && company.salesTax !== "automatic" ? (
-              <p className="qb-settings-hint is-attention">
-                QuickBooks only works out tax from each client&rsquo;s address when Automated Sales Tax is on. Turn it on in
-                QuickBooks under Taxes → Sales tax.
-              </p>
+              <OutsideStepCard
+                status={outsideStepStatus("quickbooks_sales_tax", {
+                  record: (tenant?.outsideSteps as Record<string, OutsideStepRecord> | undefined)?.quickbooks_sales_tax,
+                  quickBooksSalesTax: company.salesTax,
+                })}
+                stepId="quickbooks_sales_tax"
+              />
             ) : null}
             {mode === "quickbooks" ? (
               <label className="qb-settings-rate">

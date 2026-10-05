@@ -204,3 +204,25 @@ test("a connection records the scopes the provider granted, not the ones asked f
   assert.match(oauth, /scopes: grantedScopes,/);
   assert.match(oauth, /grantedScopes\.includes\("meeting:read:summary"\)/);
 });
+
+test("Automated Sales Tax: read back from QuickBooks, since Intuit only lets an app read it", () => {
+  const salesTax = (signals: Parameters<typeof outsideStepStatus>[1]) =>
+    outsideStepStatus("quickbooks_sales_tax", signals);
+  assert.deepEqual(salesTax({ quickBooksSalesTax: "automatic" }).state, "done");
+  assert.equal(salesTax({ quickBooksSalesTax: "automatic" }).detected, true);
+  // Told, not yet seen: waiting until StudioCue reads QuickBooks again.
+  assert.equal(salesTax({ quickBooksSalesTax: "manual", record: { state: "waiting", at: "2026-10-05T19:00:00Z" } }).state, "waiting");
+  // Seen and done wins over anything the studio said.
+  assert.equal(salesTax({ quickBooksSalesTax: "automatic", record: { state: "waiting" } }).state, "done");
+  assert.equal(salesTax({ quickBooksSalesTax: "manual" }).label, "QuickBooks has sales tax set up by hand");
+  assert.equal(salesTax({ quickBooksSalesTax: "off" }).label, "Sales tax is off in QuickBooks");
+  assert.equal(salesTax({}).label, "Not turned on yet");
+  const step = OUTSIDE_STEPS.quickbooks_sales_tax;
+  assert.equal(step.detection, "automatic");
+  assert.equal(step.home, "/studio/integrations?tab=quickbooks");
+  assert.ok(step.instructions[0]?.link?.href.startsWith("https://qbo.intuit.com/"));
+  // The reading is kept where the step can see it, each time QuickBooks is read.
+  const setup = readFileSync("functions/src/integrations/quickbooks-setup.ts", "utf8");
+  assert.equal(setup.match(/rememberCompanySalesTax\(link, /g)?.length, 2, "both the live and the mock read keep it");
+  assert.match(readFileSync("components/outside-steps/use-outside-steps.ts", "utf8"), /quickBooksSalesTax: \["automatic", "manual", "off"\]\.includes\(String\(quickbooks\?\.companySalesTax\)\)/);
+});

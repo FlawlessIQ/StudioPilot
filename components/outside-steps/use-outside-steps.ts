@@ -85,6 +85,11 @@ export function useOutsideSteps(): {
           zoomSummaries: (providerJobs.records ?? []).some(
             (job) => job.type === "capture_zoom_meeting_summary",
           ),
+          // Kept on the connection each time StudioCue reads QuickBooks
+          // (functions/src/integrations/quickbooks-setup.ts).
+          quickBooksSalesTax: ["automatic", "manual", "off"].includes(String(quickbooks?.companySalesTax))
+            ? (quickbooks?.companySalesTax as "automatic" | "manual" | "off")
+            : null,
         }),
       ]),
     ) as Record<OutsideStepId, OutsideStepStatus>;

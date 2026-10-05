@@ -107,6 +107,19 @@ const optional = async <T>(work: () => Promise<T>): Promise<T | null> => {
   }
 };
 
+/**
+ * What QuickBooks just said about sales tax, kept on the connection so the
+ * "Turn on Automated Sales Tax" step (features/outside-steps/registry.ts) can
+ * tick itself off without reading QuickBooks again. Best effort: a failed
+ * write never fails the status read.
+ */
+function rememberCompanySalesTax(link: Link, salesTax: string) {
+  if (link.document.get("companySalesTax") === salesTax) return;
+  void link.document.ref
+    .set({ companySalesTax: salesTax, companySalesTaxCheckedAt: new Date().toISOString() }, { merge: true })
+    .catch(() => undefined);
+}
+
 async function status(tenantId: string): Promise<QuickBooksSetupStatus> {
   const { raw, saved } = await readSettings(tenantId);
   const base = (hint: boolean) => normaliseBillingSettings(raw, tenantId, { quickBooksSalesTax: hint });
@@ -142,6 +155,7 @@ async function status(tenantId: string): Promise<QuickBooksSetupStatus> {
       taxRates: null,
       lastTest: lastTestPay,
     });
+    rememberCompanySalesTax(link, company.salesTax);
     return {
       connected: true,
       mock: true,
@@ -164,6 +178,7 @@ async function status(tenantId: string): Promise<QuickBooksSetupStatus> {
     const salesTaxSetup = quickBooksCompanyStatus({ companyInfo, preferences, taxRates: null, lastTest: lastTestPay }).salesTax;
     const taxRates = salesTaxSetup === "manual" ? await optional(() => company.query(TAX_RATE_QUERY, "QUICKBOOKS_TAX_RATE_READ_FAILED")) : null;
     const companyStatus = quickBooksCompanyStatus({ companyInfo, preferences, taxRates, lastTest: lastTestPay });
+    rememberCompanySalesTax(link, companyStatus.salesTax);
     // Items: the stored ones if still live, else whatever already carries the
     // names — read only; nothing is created by looking.
     const verified = await optional(() => verifiedStoredItemIds(company, stored));
