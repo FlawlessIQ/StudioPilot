@@ -14372,7 +14372,10 @@ form:has(> .address-field) > .address-field,
   position: absolute;
 }
 
-.ds-root .crew-hub-search > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+/* :not(.kit-input) keeps this above the base input rule in legacy-bridge.css
+   (0,5,1, loaded later): at equal weight its padding won and the search
+   icon sat on the placeholder (iPhone walk, 2026-10-05). */
+.ds-root .crew-hub-search > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.kit-input) {
   padding-left: 34px;
   width: 100%;
 }
@@ -16433,20 +16436,24 @@ label {
     content: " · ";
   }
   /* The whole row opens the job; the arrow itself isn't needed.
-     grid-area: auto matters: an absolutely positioned grid item measures
-     inset from its grid area, so the link filled only the arrow's 100x44
-     cell and a tap anywhere else on the row did nothing — no job opened
-     from the list on a phone (iPhone walk, 2026-10-05). */
+     The link was absolute with inset: 0, but an absolutely positioned grid
+     item measures from its grid area, so it filled only the arrow's 100x44
+     cell and a tap anywhere else on the row did nothing (iPhone walk,
+     2026-10-05). grid-area: auto would fix that and the production CSS
+     build drops it, so the link stays a zero-size grid item and its
+     ::after (.crm-table article > a[href]::after, inset: 0) covers the row:
+     a pseudo-element isn't a grid item, so it measures from the row. */
   .ds-root .crm-projects-table article > a {
-    grid-area: auto;
-    position: absolute;
-    inset: 0;
+    position: static;
+    width: 0;
+    height: 0;
+    min-width: 0;
+    padding: 0;
     border: 0;
     border-radius: 0;
     background: transparent;
     transform: none;
-    width: auto;
-    height: auto;
+    overflow: visible;
   }
   .ds-root .crm-projects-table article > a svg {
     display: none;
@@ -20216,7 +20223,7 @@ label {
    overridden by the .ds-root input rule, so the envelope sat on top of the
    placeholder. Match that rule's specificity to keep the room for the icon. */
 .input-with-icon > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-.ds-root .input-with-icon > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+.ds-root .input-with-icon > input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.kit-input) {
   padding-left: 40px;
 }
 
