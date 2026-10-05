@@ -36,9 +36,17 @@ mirrored in functions):
 
 Stripe is the source of truth; `stripeWebhook` applies events in order (a late
 event never revives a cancelled subscription) and a studio that has had a
-Stripe subscription never gets a second trial. **Stripe dashboard settings
-(Conor):** retries end in cancel; trial-ending and failed-payment emails on;
-the customer portal allows plan switches; statement descriptor "STUDIOCUE".
+Stripe subscription never gets a second trial.
+
+Stripe (live, set 2026-10-04): StudioCue's two products carry the statement
+descriptor **STUDIOCUE** (subscription charges only; the shared account's own
+descriptor stays FLAWLESSIQ for the other products). The StudioCue portal
+configuration (`bpc_1TxzKQ…`) offers switching between all four prices, with
+quantity fixed at 1 — it was adjustable, which let a studio buy a flat plan
+twice. **Dashboard only, and account-wide (shared with AdHelm and ScoreOps):**
+the retry schedule's final action and the customer emails (trial ending,
+payment failed). StudioCue handles either final action — `unpaid` and
+`cancelled` both make a studio read-only.
 
 ## Integrations
 
