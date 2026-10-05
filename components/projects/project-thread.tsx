@@ -4,6 +4,7 @@ import { FileLinks } from "@/components/documents/file-link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { todayLocalIso } from "@/lib/format/event-date";
 import Link from "next/link";
+import { jumpIfSamePage } from "@/lib/ui/hash-target";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -503,7 +504,16 @@ function ThreadNextMove({
           </div>
           <div className="thread-next-actions">
             {current.action?.kind === "link" ? (
-              <Link className="thread-next-go" href={current.action.href}>
+              <Link
+                className="thread-next-go"
+                href={current.action.href}
+                // "Review reply" points at #prepared on this same page; the
+                // router treated a second visit as "already here" (Gabe,
+                // 2026-10-05). Jump directly.
+                onClick={(event) => {
+                  if (current.action?.kind === "link" && jumpIfSamePage(current.action.href)) event.preventDefault();
+                }}
+              >
                 {current.action.label} <ArrowRight size={15} />
               </Link>
             ) : null}
@@ -549,6 +559,9 @@ function ThreadNextMove({
                 <Link
                   className="button button-light"
                   href={`/studio/projects/${projectId}#project-checkpoints`}
+                  onClick={(event) => {
+                    if (jumpIfSamePage(`/studio/projects/${projectId}#project-checkpoints`)) event.preventDefault();
+                  }}
                 >
                   Confirm what you know <ArrowRight size={14} />
                 </Link>

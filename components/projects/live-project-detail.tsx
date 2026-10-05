@@ -79,6 +79,7 @@ import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
+import { useHashTarget } from "@/lib/ui/hash-target";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
 import { ProjectJobPlan } from "@/components/projects/project-job-plan";
 import { ParticipantRoster } from "@/components/group-events/participant-roster";
@@ -1116,6 +1117,9 @@ function ProjectCrewPanel({
 }
 
 export function LiveProjectDetail({ projectId }: { projectId: string }) {
+  // #prepared from Today, or any in-page anchor: its section renders after
+  // the job loads, so jump once it exists (lib/ui/hash-target.ts).
+  useHashTarget();
   const workspace = useWorkspace();
   const isPhone = useIsPhone();
   /**

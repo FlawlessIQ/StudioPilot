@@ -1828,7 +1828,8 @@
 }
 
 /* Anchored jump should not land under the sticky topbar. */
-.ds-root #project-checkpoints {
+.ds-root #project-checkpoints,
+.ds-root #prepared {
   scroll-margin-top: 88px;
 }
 

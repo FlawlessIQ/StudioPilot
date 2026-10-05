@@ -39,7 +39,46 @@ const slug = (value: unknown, fallback: string): string =>
     .replace(/^-|-$/g, "")
     .slice(0, 80) || fallback;
 
-function importedQuestionnaireSections(contentValue: unknown) {
+const CHOICE_TYPES = new Set(["dropdown", "radio", "multi_select"]);
+
+/**
+ * A "choice" with fewer than two options is a sample answer the extraction
+ * read as the only option, not a choice. GR's imported "# of Invited Guests"
+ * became a dropdown whose one option was "100-150", so couples could pick
+ * that range and nothing else (Gabe, 2026-10-05). Ask it as text instead.
+ */
+export function importedFieldType(extractedType: string, options: string[]): string {
+  const type =
+    extractedType === "short_text"
+      ? "text"
+      : extractedType === "choice"
+        ? "dropdown"
+        : IMPORTED_FIELD_TYPES.has(extractedType)
+          ? extractedType
+          : "text";
+  return CHOICE_TYPES.has(type) && options.length < 2 ? "text" : type;
+}
+
+const IMPORTED_FIELD_TYPES = new Set([
+  "text",
+  "long_text",
+  "email",
+  "phone",
+  "date",
+  "time",
+  "address",
+  "dropdown",
+  "multi_select",
+  "radio",
+  "checkbox",
+  "file",
+  "contact",
+  "repeating_group",
+  "acknowledgement",
+  "information",
+]);
+
+export function importedQuestionnaireSections(contentValue: unknown) {
   const content = record(contentValue);
   const fields = Array.isArray(content.fields) ? content.fields : [];
   return [
@@ -48,32 +87,10 @@ function importedQuestionnaireSections(contentValue: unknown) {
       title: "Project details",
       fields: fields.map((fieldValue, index) => {
         const field = record(fieldValue);
-        const extractedType = string(field.type);
-        const type =
-          extractedType === "short_text"
-            ? "text"
-            : extractedType === "choice"
-              ? "dropdown"
-              : [
-                    "text",
-                    "long_text",
-                    "email",
-                    "phone",
-                    "date",
-                    "time",
-                    "address",
-                    "dropdown",
-                    "multi_select",
-                    "radio",
-                    "checkbox",
-                    "file",
-                    "contact",
-                    "repeating_group",
-                    "acknowledgement",
-                    "information",
-                  ].includes(extractedType)
-                ? extractedType
-                : "text";
+        const options = Array.isArray(field.options)
+          ? field.options.map(String).filter(Boolean)
+          : [];
+        const type = importedFieldType(string(field.type), options);
         return {
           id: slug(field.id ?? field.label, `field-${index + 1}`),
           label: string(field.label) || `Question ${index + 1}`,
@@ -81,9 +98,8 @@ function importedQuestionnaireSections(contentValue: unknown) {
           required: field.required === true,
           locked: false,
           internalOnly: false,
-          options: Array.isArray(field.options)
-            ? field.options.map(String).filter(Boolean)
-            : [],
+          // A one-option "choice" became text above; its lone option goes.
+          options: type === "text" ? [] : options,
           conditionalOn:
             field.conditionalOn &&
             typeof field.conditionalOn === "object" &&
