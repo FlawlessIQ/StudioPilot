@@ -11,7 +11,7 @@
  * "chapter, step, how long": the shot starts where that step starts.
  *
  *   mk-hero-loop, mk-loop-*   16:9 silent loops from the composed chapters
- *   mk-teaser                 16:9, ~70 s, new narration + the music bed
+ *   mk-teaser                 16:9, ~70 s, Matilda (paced) over the lively bed
  *   social-couple, social-crew, social-year
  *                             9:16, ~30 s, one phone filling the frame,
  *                             narration, burned-in captions, music
@@ -21,13 +21,13 @@
  * to post.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { captions } from "./lib/assemble";
-import { makeMusicBed, withMusic } from "./lib/music";
-import { HOW_TO_HOME, speak, type Line, type VoiceConfig } from "./lib/voice";
+import { makeMusicBed, withMusic, type BedStyle } from "./lib/music";
+import { HOW_TO_HOME, speak, speakPaced, type Line, type VoiceConfig } from "./lib/voice";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HOW_TO_HOME, "out");
@@ -39,13 +39,25 @@ for (const line of readFileSync(".env.local", "utf8").split("\n")) {
   const match = /^([A-Z0-9_]+)=(.*)$/.exec(line);
   if (match && !process.env[match[1]!]) process.env[match[1]!] = match[2]!.replace(/^["']|["']$/g, "");
 }
-const voice = JSON.parse(readFileSync(path.join(HERE, "voice.config.json"), "utf8")) as VoiceConfig;
+const voiceFrom = (file: string) => JSON.parse(readFileSync(path.join(HERE, file), "utf8")) as VoiceConfig;
+// The loops and the social cuts keep Brian; the trial teaser is Matilda, as the journey film (Conor, 2026-10-06).
+const voice = voiceFrom("voice.config.json");
+const TEASER_VOICE = voiceFrom("voice.journey.json");
+
+/**
+ * The chapter takes these shots were chosen from, pinned: the journey was
+ * re-recorded (new voice, page loads cut), which moved every step.
+ * out/cutdown-takes/journey-<n> holds those takes; without it, the current ones.
+ */
+const PINNED = existsSync(path.join(OUT, "cutdown-takes")) ? path.join(OUT, "cutdown-takes") : OUT;
+/** Which takes chapter() reads: pinned for the loops and social cuts; the teaser uses the current journey (no loading screens). */
+let TAKES = PINNED;
 
 type Mark = { step: number; at: number; on: string; layout: string };
 type Shot = { ch: number; step: number; len: number; skip?: number };
 
 function chapter(n: number) {
-  const dir = path.join(OUT, `journey-${n}`);
+  const dir = path.join(TAKES, `journey-${n}`);
   const marks = JSON.parse(readFileSync(path.join(dir, "streams", "marks.json"), "utf8")) as Mark[];
   const composed = path.join(dir, `journey-${n}.voice.mp4`);
   return { dir, marks, composed, length: probe(composed) };
@@ -89,9 +101,11 @@ function poster(video: string, at: number, file: string) {
   ffmpeg(["-ss", at.toFixed(2), "-i", video, "-frames:v", "1", "-q:v", "3", file]);
 }
 
+/** Clears a cut's folder for a new render, keeping any rollback copy (<id>.brian.*). */
 function fresh(id: string) {
   const dir = path.join(OUT, id);
-  rmSync(dir, { recursive: true, force: true });
+  if (existsSync(dir))
+    for (const name of readdirSync(dir)) if (!name.includes(".brian.")) rmSync(path.join(dir, name), { recursive: true, force: true });
   mkdirSync(path.join(dir, "work"), { recursive: true });
   return dir;
 }
@@ -144,17 +158,21 @@ function makeLoop(id: string) {
 
 type Beat = { say?: string; shots: Shot[]; card?: { eyebrow?: string; title: string; subtitle?: string } };
 
-async function narrate(beats: Beat[]) {
+/** Paced voices (a config with `pacing`) speak each sentence on their own, with the film's pauses between. */
+async function narrate(beats: Beat[], with_: VoiceConfig = voice) {
   const said = beats.map((b) => b.say).filter((s): s is string => !!s);
   const lines = new Map<number, Line>();
   let k = 0;
   for (const [i, beat] of beats.entries()) {
     if (!beat.say) continue;
-    lines.set(i, await speak(beat.say, voice, { previousText: said[k - 1], nextText: said[k + 1] }));
+    const context = with_.modelId === "eleven_v3" ? {} : { previousText: said[k - 1], nextText: said[k + 1] };
+    lines.set(i, await (with_.pacing ? speakPaced : speak)(beat.say, with_, context));
     k++;
   }
   return lines;
 }
+
+const firstWord = (line: Line) => line.alignment.character_start_times_seconds.find((_, i) => /\S/.test(line.alignment.characters[i] ?? "")) ?? 0;
 
 async function cardPng(card: NonNullable<Beat["card"]>, size: { w: number; h: number }, file: string) {
   const { card: html } = await import("./lib/recorder");
@@ -177,18 +195,31 @@ async function voiced(
   beats: Beat[],
   renderShot: (shot: Shot, file: string, length: number) => void | Promise<void>,
   size: { w: number; h: number },
+  with_: VoiceConfig = voice,
 ) {
   const dir = fresh(id);
-  const lines = await narrate(beats);
+  const lines = await narrate(beats, with_);
+  // A paced voice (the teaser) gets One Saturday's rules: 1.5 s before a
+  // first word that opens the film, each beat's first word 0.1 s after its
+  // cut (never before), and about stepGap between beats.
+  const paced = with_.pacing;
+  const boundaries: Array<{ beat: number; cut: number; word: number }> = [];
+  let liftAt = 0;
   const parts: string[] = [];
   const placed: Array<{ step: number; line: Line; at: number }> = [];
   let clock = 0;
   for (const [i, beat] of beats.entries()) {
     const line = lines.get(i);
     const planned = beat.shots.reduce((sum, s) => sum + s.len, 0) || 3;
-    const need = line ? line.durationSec + 0.6 : planned;
+    const last = i === beats.length - 1;
+    if (last) liftAt = clock;
+    const offset = line && paced ? Math.max(0, (i === 0 ? 1.5 : 0.1) - firstWord(line)) : 0.15;
+    const need = line ? (paced ? offset + line.durationSec + (last ? 1.3 : paced.stepGap - 0.1) : line.durationSec + 0.6) : planned;
     const scale = Math.max(1, need / planned);
-    if (line) placed.push({ step: i, line, at: clock + 0.15 });
+    if (line) {
+      placed.push({ step: i, line, at: clock + offset });
+      boundaries.push({ beat: i, cut: clock, word: clock + offset + firstWord(line) });
+    }
     if (beat.card) {
       const png = path.join(dir, "work", `card-${i}.png`);
       await cardPng(beat.card, size, png);
@@ -220,14 +251,20 @@ async function voiced(
     "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ac", "1", "-ar", "44100", voiceTrack,
   ]);
   writeFileSync(path.join(dir, `${id}.vtt`), captions(placed));
-  return { dir, voiceTrack, length, placed };
+  if (paced)
+    for (const x of boundaries) {
+      const lead = x.word - x.cut;
+      console.log(`   beat ${x.beat}: cut ${x.cut.toFixed(2)}  first word ${x.word.toFixed(2)}  (${lead.toFixed(2)} s)`);
+      if (lead < 0) throw new Error(`Beat ${x.beat}'s line starts before its picture.`);
+    }
+  return { dir, voiceTrack, length, placed, liftAt };
 }
 
-async function withBed(dir: string, id: string, voiceTrack: string, length: number, seed: number) {
+async function withBed(dir: string, id: string, voiceTrack: string, length: number, seed: number, style: BedStyle = "calm", liftAt?: number) {
   const bed = path.join(dir, "work", "bed.wav");
-  makeMusicBed(length + 1, bed, seed);
+  makeMusicBed(length + 1, bed, seed, style, { liftAt });
   const out = path.join(dir, `${id}.mp4`);
-  withMusic(voiceTrack, bed, 0, length, out);
+  withMusic(voiceTrack, bed, 0, length, out, style);
   return out;
 }
 
@@ -247,12 +284,16 @@ const TEASER: Beat[] = [
 
 async function makeTeaser() {
   const id = "mk-teaser";
-  const { dir, voiceTrack, length } = await voiced(id, TEASER, (shot, file, len) => {
+  // The current journey takes have every page load cut out, so the teaser's
+  // longer, voice-paced shots never run into an "Opening your…" screen.
+  TAKES = OUT;
+  // Matilda, paced, over the lively bed that lifts into the end card (Conor, 2026-10-06).
+  const { dir, voiceTrack, length, liftAt } = await voiced(id, TEASER, (shot, file, len) => {
     const { start, end } = window({ ...shot, len });
     const hold = Math.max(0, len - (end - start));
     landscapeShot({ ...shot, len }, file, hold);
-  }, { w: 1920, h: 1080 });
-  const out = await withBed(dir, id, voiceTrack, length, 11);
+  }, { w: 1920, h: 1080 }, TEASER_VOICE);
+  const out = await withBed(dir, id, voiceTrack, length, 11, "lively", liftAt);
   poster(out, 6, path.join(dir, `${id}.jpg`));
   writeFileSync(path.join(dir, "meta.json"), JSON.stringify({ durationSec: Math.round(length * 10) / 10, orientation: "landscape", chapters: [], transcript: TEASER.map((b) => b.say).filter(Boolean).join(" ") }, null, 2));
   rmSync(path.join(dir, "work"), { recursive: true, force: true });

@@ -79,10 +79,11 @@ function reverb(input: Float32Array, spread: number): Float32Array {
 }
 
 /** "calm": the journey film's original bed. "upbeat": lively, for the sales films (below). */
-export type BedStyle = "calm" | "upbeat";
+export type BedStyle = "calm" | "upbeat" | "lively";
 
 export function makeMusicBed(seconds: number, outWav: string, seed = 7, style: BedStyle = "calm", options: { liftAt?: number } = {}): void {
   if (style === "upbeat") return makeUpbeatBed(seconds, outWav, seed, options.liftAt);
+  if (style === "lively") return makeUpbeatBed(seconds, outWav, seed, options.liftAt, true);
   const length = Math.ceil((seconds + 2) * RATE);
   const left = new Float32Array(length);
   const right = new Float32Array(length);
@@ -245,8 +246,15 @@ export function withMusic(voiceMp4: string, bedWav: string, from: number, length
   // (high-pass at 70 Hz, not 120) and ducks harder and faster while anyone
   // speaks: about 9 dB under a line (measured against Matilda at -16 LUFS),
   // back up within half a second of a pause.
-  const bedChain = style === "upbeat" ? "highpass=f=70,volume=0.40" : "highpass=f=120,volume=0.42";
-  const duck = style === "upbeat" ? "threshold=0.05:ratio=4:attack=12:release=380:knee=4" : "threshold=0.03:ratio=3.5:attack=25:release=500";
+  // The lively bed (the trial teaser) sits further forward still, and ducks
+  // about 9 dB under her, measured as RMS over a spoken line (LUFS gating
+  // hides the dips): the key is boosted (level_sc) so short words still bite.
+  const bedChain = { upbeat: "highpass=f=70,volume=0.40", lively: "highpass=f=60,volume=0.62", calm: "highpass=f=120,volume=0.42" }[style];
+  const duck = {
+    upbeat: "threshold=0.05:ratio=4:attack=12:release=380:knee=4",
+    lively: "threshold=0.02:ratio=12:attack=8:release=300:knee=2:level_sc=6",
+    calm: "threshold=0.03:ratio=3.5:attack=25:release=500",
+  }[style];
   execFileSync(
     "ffmpeg",
     [
@@ -281,8 +289,14 @@ export function withMusic(voiceMp4: string, bedWav: string, from: number, length
  * pad. `liftAt` (seconds) builds a two-bar riser into that moment and opens
  * up after it, for the end card. Deterministic, like the calm bed.
  */
-function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: number): void {
-  const bpm = 122;
+function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: number, lively = false): void {
+  // Lively (the trial teaser, Conor 2026-10-06: "much more upbeat"): 128 bpm
+  // in E, a snare under the claps, open hats, a bright saw lead hook every
+  // bar, and a four-bar build with a snare roll into the end. Its extra parts
+  // draw from their own random stream, so the upbeat bed is unchanged.
+  const bpm = lively ? 128 : 122;
+  const shift = lively ? 2 : 0;
+  const rand2 = seeded(seed + 1000);
   const beat = 60 / bpm;
   const bar = 4 * beat;
   const length = Math.ceil((seconds + 2) * RATE);
@@ -303,7 +317,7 @@ function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: n
 
   for (let b = 0; b < bars; b++) {
     const start = b * bar;
-    const notes = PROGRESSION[b % PROGRESSION.length]!;
+    const notes = PROGRESSION[b % PROGRESSION.length]!.map((n) => n + shift);
     const cycle = Math.floor(b / PROGRESSION.length);
     const intro = b < 2; // two bars in before the drums: the bed arrives, then moves
     const open = lifted(start);
@@ -388,6 +402,49 @@ function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: n
         const env = Math.min(1, t / 0.3) * Math.min(1, Math.max(0, (bar + 0.6 - t) / 0.6));
         return PAD_WAVE[Math.floor(((f * t) % 1) * TABLE)]! * env * 0.011;
       });
+    }
+
+    if (lively && !intro) {
+      // A snare body under the claps.
+      for (const q of [1, 3])
+        stereo(drumL, drumR, start + q * beat, 0.25, 0.5, (t) => {
+          const body = Math.sin(2 * Math.PI * 185 * t) * Math.exp(-t / 0.05);
+          return (body * 0.6 + (rand2() * 2 - 1) * 0.5) * Math.exp(-t / 0.09) * 0.09;
+        });
+      // Open hats on the off-beats.
+      for (let e = 1; e < 8; e += 2) {
+        let previous = 0;
+        stereo(drumL, drumR, start + e * (beat / 2), 0.2, 0.35, (t) => {
+          const noise = rand2() * 2 - 1;
+          const high = noise - previous;
+          previous = noise;
+          return high * Math.exp(-t / 0.06) * 0.032;
+        });
+      }
+      // The lead: a bright saw hook in eighths over the chord, every bar.
+      const tones = notes.slice(1).map((n) => n + 24);
+      const hook = [0, -1, 2, 1, -1, 2, 3, 1];
+      for (const [e, which] of hook.entries()) {
+        if (which < 0) continue;
+        const f = freq(tones[which % tones.length]!);
+        stereo(left, right, start + e * (beat / 2), 0.5, 0.45 + (e % 2) * 0.1, (t) => {
+          const env = Math.min(1, t / 0.005) * Math.exp(-t / 0.16);
+          let v = 0;
+          for (let h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * h * f * t) / h;
+          return v * env * 0.014;
+        });
+      }
+    }
+  }
+
+  // The lively bed's bigger build: a snare roll that speeds up over the
+  // last four bars, under the riser below.
+  if (lively && liftAt !== undefined && liftAt < seconds) {
+    const rollFrom = Math.max(0, liftAt - 4 * bar);
+    for (let t0 = rollFrom; t0 < liftAt - 0.02; ) {
+      const p = (t0 - rollFrom) / (liftAt - rollFrom);
+      stereo(drumL, drumR, t0, 0.12, 0.5, (t) => (rand2() * 2 - 1) * Math.exp(-t / 0.035) * (0.03 + 0.07 * p));
+      t0 += p < 0.5 ? beat / 2 : p < 0.8 ? beat / 4 : beat / 8;
     }
   }
 
