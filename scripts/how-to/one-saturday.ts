@@ -31,7 +31,7 @@
  * Files to review, not to publish: nothing here uploads anything.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser } from "playwright";
@@ -141,7 +141,7 @@ const BEATS: Beat[] = [
     kind: "saturday",
     time: "4:50 pm",
     duties: ["crew_calendar"],
-    say: "They said yes, and it went on their calendar.",
+    say: "Jordan said yes, and it's on their calendar.",
     text: "Jordan said yes. The wedding is on their calendar.",
     short: "Jordan said yes",
     shots: [{ ch: 4, step: 4, skip: -0.5, on: "crew", len: 3 }],
@@ -364,8 +364,16 @@ async function emailStill(browser: Browser, which: "ack" | "sign" | "coi_chase",
 
 // ── Assembly ────────────────────────────────────────────────────────────────
 
+/**
+ * The journey takes this film is cut from, pinned: re-recording a journey
+ * chapter (a new voice) moves every step, and the shots above are timed to
+ * these takes. out/one-saturday-takes/journey-<n>/streams is a copy of the
+ * takes the shots were chosen from; without it, the current chapters are used.
+ */
+const TAKES = existsSync(path.join(OUT, "one-saturday-takes")) ? path.join(OUT, "one-saturday-takes") : OUT;
+
 function marksOf(ch: number) {
-  return JSON.parse(readFileSync(path.join(OUT, `journey-${ch}`, "streams", "marks.json"), "utf8")) as Array<{ step: number; at: number }>;
+  return JSON.parse(readFileSync(path.join(TAKES, `journey-${ch}`, "streams", "marks.json"), "utf8")) as Array<{ step: number; at: number }>;
 }
 
 /** The source file and where the shot starts in it; how long it can run before its step ends. */
@@ -375,7 +383,7 @@ function sourceOf(shot: Shot): { file: string; start: number; room: number } {
   const marks = marksOf(shot.ch);
   const i = marks.findIndex((m) => m.step === shot.step);
   if (i < 0) throw new Error(`journey-${shot.ch} has no step ${shot.step}.`);
-  const file = path.join(OUT, `journey-${shot.ch}`, "streams", `${shot.on}.mp4`);
+  const file = path.join(TAKES, `journey-${shot.ch}`, "streams", `${shot.on}.mp4`);
   const start = marks[i]!.at + (shot.skip ?? 0);
   const next = marks.slice(i + 1).find((m) => m.at > marks[i]!.at + 0.01);
   const end = next ? next.at : probe(file);
@@ -407,10 +415,17 @@ const candidate = (name: string) => {
 };
 const PACE = FILM.pacing;
 const FADE = 0.35;
-/** The voice comes in this far into a scene, once the dissolve has settled; the rest of the beat gap falls before the next scene. */
-const LEAD = 0.4;
+/**
+ * A scene's first word lands this long after its picture has fully
+ * arrived (the dissolve done), so picture and log always change first and
+ * a line about one scene never plays over the last (Conor, 2026-10-06:
+ * "it feels like it's still the COI topic but it's actually moved on").
+ * Measured from the word itself, not the audio file, which can open on silence.
+ */
+const WORD_AFTER_CUT = 0.1;
 const LAST_BEAT = 1.3;
 
+const firstWord = (line: Line) => line.alignment.character_start_times_seconds.find((_, i) => /\S/.test(line.alignment.characters[i] ?? "")) ?? 0;
 const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
 type Spoken = { line: Line; offset: number };
 /** Per beat: how much its shots stretch to hold the voice, and where each sentence starts within it. */
@@ -425,7 +440,7 @@ async function narrate(voice: VoiceConfig, beats: Beat[] = BEATS): Promise<Plan>
   const missing: VoiceNotCached[] = [];
   for (const [b, beat] of beats.entries()) {
     const spoken: Spoken[] = [];
-    let at = b === 0 ? PACE.leadIn : LEAD;
+    let at = 0;
     for (const sentence of beat.say ? sentencesOf(beat.say) : []) {
       const context = stitched ? { previousText: all[k - 1], nextText: all[k + 1] } : {};
       k++;
@@ -434,6 +449,7 @@ async function narrate(voice: VoiceConfig, beats: Beat[] = BEATS): Promise<Plan>
         throw error;
       });
       if (!line) continue;
+      if (!spoken.length) at = Math.max(0, (b === 0 ? PACE.leadIn : FADE + WORD_AFTER_CUT) - firstWord(line));
       spoken.push({ line, offset: at });
       at += line.durationSec + PACE.sentenceGap;
     }
@@ -441,7 +457,7 @@ async function narrate(voice: VoiceConfig, beats: Beat[] = BEATS): Promise<Plan>
     const planned = beat.kind === "card" ? beat.len : beat.shots.reduce((sum, s) => sum + s.len, 0);
     const clips = beat.kind === "card" ? 1 : beat.shots.length;
     const speechEnd = spoken.length ? at - PACE.sentenceGap : 0;
-    const need = spoken.length ? speechEnd + (last ? LAST_BEAT : PACE.beatGap - LEAD + FADE * clips) : planned;
+    const need = spoken.length ? speechEnd + (last ? LAST_BEAT : PACE.beatGap - FADE - WORD_AFTER_CUT + FADE * clips) : planned;
     plan.push({ scale: Math.max(1, need / planned), spoken });
   }
   if (missing.length) {
@@ -464,8 +480,14 @@ async function renderShape(browser: Browser, shape: Shape, plan: Plan) {
   let posterAt = 0;
   let clock = 0;
   let endCardAt = 0;
+  // Each scene's cut and its first word, to check the picture always leads.
+  const boundaries: Array<{ scene: string; cut: number; word: number }> = [];
   for (const [b, beat] of BEATS.entries()) {
     const { scale, spoken } = plan[b] ?? { scale: 1, spoken: [] };
+    if (spoken[0]) {
+      const scene = beat.kind === "saturday" ? beat.time : beat.kind === "monday" ? "Monday" : beat.title;
+      boundaries.push({ scene, cut: b === 0 ? 0 : clock + FADE, word: clock + spoken[0].offset + firstWord(spoken[0].line) });
+    }
     if (b === BEATS.length - 1) endCardAt = clock;
     for (const s of spoken) placed.push({ line: s.line, at: clock + s.offset });
     if (beat.kind === "card") {
@@ -514,7 +536,7 @@ async function renderShape(browser: Browser, shape: Shape, plan: Plan) {
       clock += shot.len - FADE;
     }
   }
-  return { clips, posterAt, placed, endCardAt };
+  return { clips, posterAt, placed, endCardAt, boundaries };
 }
 
 /** The sentences at their places, -16 LUFS, then the bed ducked under them (lib/music.ts withMusic). */
@@ -620,11 +642,16 @@ if (wanted === "voices") {
     for (const shape of ["wide", "tall"] as const) {
       if (wanted !== "both" && wanted !== shape) continue;
       const name = `one-saturday-${shape === "wide" ? "16x9" : "9x16"}${silent ? ".silent" : ""}`;
-      const { clips, posterAt, placed, endCardAt } = await renderShape(browser, shape, plan);
+      const { clips, posterAt, placed, endCardAt, boundaries } = await renderShape(browser, shape, plan);
       const out = path.join(DIR, `${name}.mp4`);
       const length = finish(clips, out, shape === "wide" ? 31 : 37, placed, endCardAt);
       ffmpeg(["-ss", posterAt.toFixed(2), "-i", out, "-frames:v", "1", "-q:v", "3", path.join(DIR, `${name}.jpg`)]);
       console.log(`✓ ${name}: ${length.toFixed(1)}s, ${Math.round(readFileSync(out).length / 1024)} KB → ${out}`);
+      for (const x of boundaries) {
+        const lead = x.word - x.cut;
+        console.log(`   scene ${x.scene.padEnd(10).slice(0, 10)} cut ${x.cut.toFixed(2)}  first word ${x.word.toFixed(2)}  (${lead >= 0 && lead <= 0.25 ? "ok" : "CHECK"} ${lead.toFixed(2)} s)`);
+        if (lead < 0) throw new Error(`The ${x.scene} line starts before its picture: ${lead.toFixed(2)} s.`);
+      }
       for (const p of placed) console.log(`   ${p.at.toFixed(1).padStart(5)}–${(p.at + p.line.durationSec).toFixed(1).padStart(5)}  ${p.line.text}`);
     }
   } finally {
