@@ -1533,7 +1533,27 @@ export const proposalCommand = onRequest(
             const clientContact = clientContactId
               ? await transaction.get(db.doc(`contacts/${clientContactId}`))
               : null;
-            const clientEmail = stringValue(recipient.email).toLowerCase();
+            /**
+             * Who to email is who the client is now, not who they were when
+             * the proposal was drafted.
+             *
+             * The snapshot stays as the record of who the offer was written
+             * for. Mailing it meant a couple who changed address mid-job (GR,
+             * 2026-10-06: "I changed emails mid job. And now can't resend the
+             * proposal to new email") could only be reached by re-issuing,
+             * and nothing said so. `lastSentTo` records where each send went.
+             */
+            const currentContact =
+              clientContact?.exists && clientContact.get("tenantId") === command.tenantId
+                ? clientContact
+                : null;
+            const clientEmail = (
+              stringValue(currentContact?.get("email")).trim() ||
+              stringValue(recipient.email)
+            ).toLowerCase();
+            const clientName =
+              stringValue(currentContact?.get("displayName")).trim() ||
+              stringValue(recipient.displayName);
             const hasPortalAccess = Boolean(
               clientContact?.get("portalUserId"),
             );
@@ -1576,7 +1596,7 @@ export const proposalCommand = onRequest(
               proposalId: proposal.id,
               type: "proposal_sent",
               recipient: clientEmail,
-              recipientName: stringValue(recipient.displayName),
+              recipientName: clientName,
               actionUrl: invitation
                 ? invitation.inviteUrl
                 : `${appUrl}${proposalPath}`,
@@ -1677,6 +1697,7 @@ export const proposalCommand = onRequest(
                 ),
                 emailJobId,
                 emailDeliveryStatus: "queued",
+                lastSentTo: clientEmail,
                 updatedAt: timestamp,
                 updatedBy: identity.uid,
               });
@@ -1737,6 +1758,7 @@ export const proposalCommand = onRequest(
                 ...(expiryExtended ? { expiresAt } : {}),
                 emailJobId,
                 emailDeliveryStatus: "queued",
+                lastSentTo: clientEmail,
                 updatedAt: timestamp,
                 updatedBy: identity.uid,
               });
@@ -1746,6 +1768,7 @@ export const proposalCommand = onRequest(
                 expiresAt,
                 expiryExtended,
                 emailJobId,
+                recipient: clientEmail,
                 storagePath: pdfDocument
                   ? stringValue(
                       pdfDocument.get("providerFileId"),

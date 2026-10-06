@@ -200,7 +200,12 @@ async function advanceProposal(db: Firestore, proposal: DocumentSnapshot, now: s
   // stopped it.
   if (project.get("state") !== "PROPOSAL" || !mayContactClient(project.data())) return false;
   const client = (proposal.get("clientSnapshot") ?? {}) as { email?: unknown; displayName?: unknown };
-  const email = text(client.email);
+  const contactIds = Array.isArray(project.get("clientContactIds")) ? (project.get("clientContactIds") as unknown[]).map(String) : [];
+  // The client as they are now: a couple who changed address after the
+  // proposal went out is followed up at the new one (proposals.ts, send).
+  const contact = contactIds[0] ? await db.doc(`contacts/${contactIds[0]}`).get() : null;
+  const current = contact?.exists && contact.get("tenantId") === tenantId ? contact : null;
+  const email = text(current?.get("email")).trim() || text(client.email);
   if (!email) return false;
 
   const [contracts, inbound, snapshots] = await Promise.all([
@@ -220,7 +225,7 @@ async function advanceProposal(db: Firestore, proposal: DocumentSnapshot, now: s
 
   const tenant = await db.doc(`tenants/${tenantId}`).get();
   const studioName = text(tenant.get("brandName")) || text(tenant.get("businessName")) || "Your studio";
-  const displayName = text(client.displayName) || null;
+  const displayName = text(current?.get("displayName")).trim() || text(client.displayName) || null;
   const projectName = text(project.get("name")) || text(((proposal.get("eventSnapshot") ?? {}) as { name?: unknown }).name) || "your booking";
   const copy = proposalFollowUpCopy({
     days,
@@ -231,7 +236,6 @@ async function advanceProposal(db: Firestore, proposal: DocumentSnapshot, now: s
     expiresAt: text(proposal.get("expiresAt")),
     studioName,
   });
-  const contactIds = Array.isArray(project.get("clientContactIds")) ? (project.get("clientContactIds") as unknown[]).map(String) : [];
   const actionId = proposalFollowUpActionId(proposal.id, days);
   await db.doc(`aiActions/${actionId}`).create({
     id: actionId,

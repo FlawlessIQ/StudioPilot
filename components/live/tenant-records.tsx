@@ -71,7 +71,7 @@ import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { leadIntakeGaps } from "@/features/crm/lead-intake";
 import { billingAddressOf, ClientRecordActions } from "@/components/clients/client-record-actions";
-import { coupleConfirmed, formatBillingAddress } from "@/features/contacts/billing-address-signing";
+import { billingAddressOrigin, coupleConfirmed, formatBillingAddress } from "@/features/contacts/billing-address-signing";
 import { cacheEntryPredatesWrite } from "@/lib/live/record-writes";
 import {
   InferredTag,
@@ -682,7 +682,7 @@ export function LiveClientCards({
               {billingAddress ? (
                 <small title={formatBillingAddress(billingAddress)}>
                   {`Billing: ${formatBillingAddress(billingAddress)}${
-                    coupleConfirmed(client) ? " · confirmed by the couple at signing" : ""
+                    coupleConfirmed(client) ? ` · ${billingAddressOrigin(client)}` : ""
                   }`}
                 </small>
               ) : null}

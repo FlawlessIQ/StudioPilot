@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MapPin } from "lucide-react";
-import { coupleConfirmed, formatBillingAddress } from "@/features/contacts/billing-address-signing";
+import { billingAddressOrigin, formatBillingAddress } from "@/features/contacts/billing-address-signing";
 import { billingAddressOf } from "@/components/clients/client-record-actions";
 
 /**
@@ -26,7 +26,6 @@ export function BillingAddressSummary({
   if (!contact) return null;
   const address = billingAddressOf(contact.billingAddress);
   if (!address && !showMissing) return null;
-  const byCouple = address ? coupleConfirmed(contact) : null;
   const email = typeof contact.email === "string" ? contact.email : "";
   const editHref = `/studio/clients${email ? `?q=${encodeURIComponent(email)}` : ""}`;
   return (
@@ -39,9 +38,7 @@ export function BillingAddressSummary({
       {address ? (
         <span>
           <small>
-            {byCouple
-              ? "Billing address · confirmed by the client at signing"
-              : "Billing address · added by the studio"}
+            {`Billing address · ${billingAddressOrigin(contact, "the client")}`}
           </small>
           <strong>{formatBillingAddress(address)}</strong>
         </span>

@@ -132,11 +132,13 @@ export async function loadContractSources(
         (id): id is string => typeof id === "string" && id.length > 0,
       ).slice(0, 2)
     : [];
-  const contacts = (
+  const contactDocuments = (
     await Promise.all(clientContactIds.map((id) => db.doc(`contacts/${id}`).get()))
-  )
-    .filter((contact) => contact.exists && contact.get("tenantId") === input.tenantId)
-    .map((contact) => contact.data() ?? {});
+  ).filter((contact) => contact.exists && contact.get("tenantId") === input.tenantId);
+  const contacts = contactDocuments.map((contact) => contact.data() ?? {});
+  // The client who signs, as they are now. The proposal froze their email when
+  // it was drafted; a couple who changed address since signs with the new one.
+  const primaryContact = contactDocuments.find((contact) => contact.id === clientContactIds[0]);
 
   /**
    * The couple's own answers to the details form, for printing into the
@@ -175,7 +177,7 @@ export async function loadContractSources(
     ? (proposal.get("paymentSchedule") as unknown[]).map(record)
     : [];
   const clientName = text(client.displayName);
-  const clientEmail = text(client.email).toLowerCase();
+  const clientEmail = (text(primaryContact?.get("email")).trim() || text(client.email)).toLowerCase();
   /**
    * Every package on the proposal, not only the first. GR's photo + video
    * agreement said "2 photographers, 8 hours" and listed only the photo

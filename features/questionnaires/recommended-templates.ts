@@ -94,6 +94,13 @@ function eventDetailSections(tbd: boolean): RecommendedSection[] {
         field("bride-name", "Bride's name", "text", true),
         field("bride-email", "Bride's email", "email", true),
         field("bride-phone", "Bride's phone", "phone", true),
+        // Saved to the client when answered and none is on file
+        // (functions/src/contacts/address-from-form.ts): QuickBooks taxes
+        // from it, and signing shows it filled in. Optional. The final
+        // schedule repeats it like every detail above, already filled in.
+        field("billing-address", "Home address (for billing)", "address", false, {
+          help: "Street, city, state and ZIP. Where your invoices are addressed.",
+        }),
         where("getting-ready", "Bridal prep location"),
         when("bridal-prep-start", "Bridal prep start time"),
         when("bridal-prep-end", "Bridal prep end time"),

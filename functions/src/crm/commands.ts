@@ -30,6 +30,12 @@ import {
 } from "../packages/one-off.js";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
 import { holdResumeStates } from "./hold-resume.js";
+import {
+  amendmentFollows,
+  emailChanged,
+  invitationRetires,
+  retargetContractSigners,
+} from "./email-change.js";
 import { billingAddressInputSchema, sameBillingAddress } from "../contacts/billing-address.js";
 import {
   evidenceControlledTransitions,
@@ -3540,6 +3546,70 @@ export const crmCommand = onRequest(
             billingAddress: contact.get("billingAddress") ?? null,
           };
           const email = command.input.email?.trim() ?? null;
+          /**
+           * A new address carries over to what is still waiting on them:
+           * unsigned agreements and booking changes (who must sign), and a
+           * portal invitation to the old address is retired (email-change.ts).
+           * Read here, before the first write, because this is a transaction.
+           */
+          const moving = emailChanged(before.email, email);
+          const fromEmail = String(before.email ?? "").trim().toLowerCase();
+          const toEmail = (email ?? "").toLowerCase();
+          const contactProjectIds = moving
+            ? (Array.isArray(contact.get("projectIds")) ? (contact.get("projectIds") as unknown[]) : [])
+                .filter((id): id is string => typeof id === "string" && id.length > 0)
+                .slice(0, 25)
+            : [];
+          const [projectContracts, projectAmendments, pendingInvitations] = moving
+            ? await Promise.all([
+                Promise.all(
+                  contactProjectIds.map((projectId) =>
+                    transaction.get(
+                      db.collection("contracts")
+                        .where("tenantId", "==", command.tenantId)
+                        .where("projectId", "==", projectId),
+                    ),
+                  ),
+                ),
+                Promise.all(
+                  contactProjectIds.map((projectId) =>
+                    transaction.get(
+                      db.collection("bookingAmendments")
+                        .where("tenantId", "==", command.tenantId)
+                        .where("projectId", "==", projectId),
+                    ),
+                  ),
+                ),
+                transaction.get(
+                  db.collection("clientInvitations")
+                    .where("tenantId", "==", command.tenantId)
+                    .where("contactId", "==", command.input.contactId),
+                ),
+              ])
+            : [[], [], null];
+          const followed = {
+            contracts: [] as string[],
+            amendments: [] as string[],
+            invitationsRetired: [] as string[],
+          };
+          if (moving) {
+            for (const contract of projectContracts.flatMap((result) => result.docs)) {
+              const signers = retargetContractSigners(contract.data(), fromEmail, toEmail);
+              if (!signers) continue;
+              transaction.update(contract.ref, { signers, updatedAt: timestamp, updatedBy: identity.uid });
+              followed.contracts.push(contract.id);
+            }
+            for (const amendment of projectAmendments.flatMap((result) => result.docs)) {
+              if (!amendmentFollows(amendment.data(), fromEmail)) continue;
+              transaction.update(amendment.ref, { clientEmail: toEmail, updatedAt: timestamp, updatedBy: identity.uid });
+              followed.amendments.push(amendment.id);
+            }
+            for (const invitation of pendingInvitations?.docs ?? []) {
+              if (!invitationRetires(invitation.data(), fromEmail)) continue;
+              transaction.update(invitation.ref, { status: "revoked", revokedAt: timestamp, updatedAt: timestamp, updatedBy: identity.uid });
+              followed.invitationsRetired.push(invitation.id);
+            }
+          }
           transaction.update(contactReference, {
             firstName: command.input.firstName,
             lastName: command.input.lastName,
@@ -3594,6 +3664,7 @@ export const crmCommand = onRequest(
                 command.input.billingAddress === undefined
                   ? before.billingAddress
                   : command.input.billingAddress,
+              ...(moving ? { followedEmailChange: followed } : {}),
             },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
@@ -3601,7 +3672,11 @@ export const crmCommand = onRequest(
             automationRunId: null,
             providerEventId: null,
           });
-          const output = { contactId: command.input.contactId, updated: true };
+          const output = {
+            contactId: command.input.contactId,
+            updated: true,
+            ...(moving ? { emailFollowed: followed } : {}),
+          };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

@@ -3,6 +3,7 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { buildCrewBrief } from "./crew-brief.js";
 import { jobPackageSnapshotIds } from "../ai/schedule-package-facts.js";
 import { packagesIncludeVideo } from "../ai/schedule-crew.js";
+import { saveFormBillingAddress } from "../contacts/address-from-form.js";
 
 /**
  * Whether the job's packages send a videographer, so the brief can say
@@ -43,6 +44,14 @@ export const crewBriefOnQuestionnaireWrite = onDocumentWritten(
     const responseId = event.params.responseId;
     const reference = getFirestore().doc(`crewBriefs/${responseId}`);
     const after = event.data?.after?.data();
+    // A billing address the couple gave on the form goes onto their client
+    // record when none is there (contacts/address-from-form.ts). Its own
+    // failure must not cost the crew their brief.
+    if (after) {
+      await saveFormBillingAddress(getFirestore(), responseId, after).catch((caught: unknown) => {
+        console.error("form billing address", responseId, caught instanceof Error ? caught.message : caught);
+      });
+    }
     // Reopened for the couple: the crew keep the brief they had until the
     // couple sends the form again. Their half-made edits are not the plan,
     // and deleting the brief would take the do-not-photograph list with it.

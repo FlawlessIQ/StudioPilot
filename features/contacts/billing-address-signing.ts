@@ -147,7 +147,7 @@ export type BillingAddressProvenance = {
 };
 
 /** How the couple gave it: at a signature, or when asked for it on their portal. */
-export type BillingAddressVia = "contract_signing" | "amendment_signing" | "address_request";
+export type BillingAddressVia = "contract_signing" | "amendment_signing" | "address_request" | "form";
 
 export const COUPLE_CONFIRMED_LABEL = "Confirmed by the couple at signing";
 export const COUPLE_CONFIRMED_ON_REQUEST_LABEL = "Confirmed by the couple";
@@ -174,6 +174,24 @@ export function coupleConfirmed(contact: object | null | undefined): { at: strin
     | undefined;
   if (provenance?.source !== "couple") return null;
   return { at: typeof provenance.at === "string" ? provenance.at : null };
+}
+
+/**
+ * Where the stored address came from, in words: "confirmed by the couple at
+ * signing", "given by the couple on their form" (saved by
+ * functions/src/contacts/address-from-form.ts), "confirmed by the couple", or
+ * "added by the studio". Two screens said "at signing" for every couple's
+ * address, which was wrong for the ones they gave when asked.
+ */
+export function billingAddressOrigin(contact: object | null | undefined, who = "the couple"): string {
+  const stored = (contact as { fieldProvenance?: unknown } | null | undefined)?.fieldProvenance;
+  const provenance = (stored as Record<string, unknown> | undefined)?.billingAddress as
+    | Record<string, unknown>
+    | undefined;
+  if (provenance?.source !== "couple") return "added by the studio";
+  if (provenance.via === "form") return `given by ${who} on their form`;
+  if (provenance.via === "address_request") return `confirmed by ${who}`;
+  return `confirmed by ${who} at signing`;
 }
 
 /** One line: "12 Main St, Apt 4, Madison, NJ 07940" (the country only when not the US). */

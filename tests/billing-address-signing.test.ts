@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
 import {
+  billingAddressOrigin,
   billingAddressRequirement,
   billingAddressStepFor,
   coupleConfirmed,
@@ -585,9 +586,19 @@ test("a studio edit takes the couple's mark off a changed address, and only a ch
 
 test("the studio sees where the address came from", () => {
   const summary = read("components/clients/billing-address-summary.tsx");
-  assert.match(summary, /Billing address · confirmed by the client at signing/);
+  assert.match(summary, /Billing address · \$\{billingAddressOrigin\(contact, "the client"\)/);
   assert.match(read("components/booking/project-booking-workspace.tsx"), /<BillingAddressSummary/);
-  assert.match(read("components/live/tenant-records.tsx"), /confirmed by the couple at signing/);
+  assert.match(read("components/live/tenant-records.tsx"), /billingAddressOrigin\(client\)/);
+  const signed = { fieldProvenance: { billingAddress: { source: "couple", via: "contract_signing" } } };
+  const asked = { fieldProvenance: { billingAddress: { source: "couple", via: "address_request" } } };
+  const form = { fieldProvenance: { billingAddress: { source: "couple", via: "form" } } };
+  const studio = { fieldProvenance: { billingAddress: { source: "studio" } } };
+  assert.equal(billingAddressOrigin(signed), "confirmed by the couple at signing");
+  assert.equal(billingAddressOrigin(asked), "confirmed by the couple");
+  assert.equal(billingAddressOrigin(form), "given by the couple on their form");
+  assert.equal(billingAddressOrigin(studio), "added by the studio");
+  assert.equal(billingAddressOrigin({}), "added by the studio");
+  assert.equal(billingAddressOrigin(form, "the client"), "given by the client on their form");
 });
 
 test("QuickBooks gets the address: on a new customer, and filled into an existing one's blank", () => {

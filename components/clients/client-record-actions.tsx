@@ -104,13 +104,27 @@ export function ClientRecordActions({
         // caller that doesn't load addresses can't clear one by omission.
         billingAddress: typed ? address : client.billingAddress === undefined ? undefined : null,
       });
-      setNotice(teamEmailWarning(saved.result) ?? "Client updated.");
+      setNotice(teamEmailWarning(saved.result) ?? emailFollowedNotice(saved.result) ?? "Client updated.");
       refreshTenantRecords("contacts");
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That client could not be updated."));
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * What moved with a new email (functions/src/crm/email-change.ts), said
+   * once, so the studio knows the next resend and signature use it.
+   */
+  function emailFollowedNotice(result: unknown): string | null {
+    const followed = (result as { emailFollowed?: { contracts?: unknown[]; amendments?: unknown[] } } | null)
+      ?.emailFollowed;
+    if (!followed) return null;
+    const waiting = (followed.contracts?.length ?? 0) + (followed.amendments?.length ?? 0);
+    return waiting
+      ? `Client updated. Proposals, follow-ups and the ${waiting === 1 ? "agreement waiting on them" : "agreements waiting on them"} now go to the new address.`
+      : "Client updated. Proposals and follow-ups now go to the new address.";
   }
 
   /**

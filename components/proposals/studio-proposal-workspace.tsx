@@ -1937,6 +1937,7 @@ export function StudioProposalWorkspace({
   const workspace = useWorkspace();
   // The job, for how its kind books and is paid (job-kinds.ts).
   const { records: proposalProjects } = useTenantDocuments("projects");
+  const { records: proposalContacts } = useTenantDocuments("contacts");
   const contracts = useTenantDocuments("contracts");
   const [proposal, setProposal] = useState<Value | null | undefined>(
     dataIsLive ? undefined : { ...mockProposal, id },
@@ -2266,6 +2267,27 @@ export function StudioProposalWorkspace({
     ? proposal.paymentSchedule.map((entry) => text(objectValue(entry).label, ""))
     : [];
   const proposalJob = proposalProjects?.find((entry) => entry.id === text(proposal.projectId, "")) ?? null;
+  /**
+   * Where it went, and where it would go now.
+   *
+   * Sends read the client afresh (functions/src/booking/proposals.ts), so a
+   * couple who changed address mid-job gets the next resend at the new one.
+   * The card said "to <the address it was drafted for>" whatever happened
+   * since — GR, 2026-10-06, looking at the old address after correcting it.
+   */
+  const sentTo = text(proposal.lastSentTo, "") || text(objectValue(proposal.clientSnapshot).email, "");
+  const jobClientId = Array.isArray(proposalJob?.clientContactIds)
+    ? text((proposalJob?.clientContactIds as unknown[])[0], "")
+    : "";
+  const currentClientEmail = text(
+    proposalContacts?.find((entry) => entry.id === jobClientId)?.email,
+    "",
+  );
+  const clientEmailChanged = Boolean(
+    sentTo &&
+      currentClientEmail &&
+      sentTo.trim().toLowerCase() !== currentClientEmail.trim().toLowerCase(),
+  );
   // The job's profile when it is loaded; the schedule's own lines otherwise,
   // since they are written by the job's payment shape (paymentScheduleFor).
   const jobProfile = proposalJob ? projectProfile(proposalJob) : null;
@@ -2967,9 +2989,14 @@ export function StudioProposalWorkspace({
                       * address. Naming the recipient is what would have ended
                       * it on the first send, and it costs one line.
                       */}
-                    {text(objectValue(proposal.clientSnapshot).email) ? (
+                    {sentTo ? (
                       <small className="proposal-delivery-recipient">
-                        to {text(objectValue(proposal.clientSnapshot).email)}
+                        to {sentTo}
+                      </small>
+                    ) : null}
+                    {clientEmailChanged ? (
+                      <small className="proposal-delivery-recipient is-changed" role="status">
+                        Their email changed to {currentClientEmail}. Resend goes there.
                       </small>
                     ) : null}
                   </div>

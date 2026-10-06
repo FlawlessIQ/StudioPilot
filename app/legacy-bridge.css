@@ -2948,3 +2948,11 @@
     justify-content: center;
   }
 }
+
+/* The client's email changed after this proposal was sent: the next resend
+   goes to the new one, and the card says so (GR, 2026-10-06). */
+.ds-root .proposal-delivery-state small.proposal-delivery-recipient.is-changed {
+  color: #9d4b3f;
+  font-size: 12px;
+  font-weight: 600;
+}
