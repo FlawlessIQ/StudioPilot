@@ -180,7 +180,7 @@ Once 1 ships, the "without chasing" line becomes true and the Saturday log can a
 ## Outbound
 
 - **Trial emails become "Cue's first two weeks."** Phase 3 of the video plan hasn't started, so this is the frame from the start. Day 0: "Cue starts today." Day 2: "What Cue did while you were out." Day 7: "Want Cue to stop asking about these?" (trust dial). Day 12: "Keep your office manager."
-- **The film:** a 30–45 second cutdown, *"One Saturday,"* made from the existing journey takes (`scripts/how-to/cutdowns.ts`). Vertical versions for social.
+- **The film:** a 30–45 second cutdown, *"One Saturday,"* made from the existing journey takes. Vertical versions for social. **Made 2026-10-06, awaiting Conor:** `scripts/how-to/one-saturday.ts` (16:9 + 9:16, 38 s, music only, the log as captions; every Saturday line is checked against `cue-duties.ts` as `on_its_own`, every Monday line as `you_approve`). Files in `marketing-out/`; nothing published.
 - **Social series:** "While I was shooting," screenshots of the handled log from Conor's test studio.
 - **Gabe:** ask for a new quote on record about the office-manager experience. `tests/marketing-claims.test.ts` requires his approval for any new quote.
 - **Sales one-pager:** the job description as a PDF, for Gabe to hand to vendor friends.

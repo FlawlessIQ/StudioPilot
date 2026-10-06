@@ -22,6 +22,9 @@
 /.vinext/
 /out/
 
+# Marketing renders kept for review before publishing (scripts/how-to/one-saturday.ts and others)
+/marketing-out/
+
 # misc
 .DS_Store
 __pycache__/
