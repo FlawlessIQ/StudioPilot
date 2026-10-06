@@ -1660,3 +1660,33 @@
     grid-template-columns: 56px minmax(0, 1fr);
   }
 }
+
+/* --- The site's top bar (components/marketing/marketing-layout.tsx) ---
+   "Meet Cue" made eight links, which wrapped two lines deep between the
+   width where the nav appears and ~1180px. Links never wrap; the ones the
+   footer also carries step out first. On a phone the wordmark ran into
+   "Sign in" at 375px; it gives up a little size instead (Sign in stays —
+   mobile sign-in is one tap). */
+.marketing-nav nav a {
+  white-space: nowrap;
+}
+@media (max-width: 1180px) {
+  .marketing-nav nav a[href="/for-crew"],
+  .marketing-nav nav a[href="/for-clients"],
+  .marketing-nav nav a[href="/how-to"] {
+    display: none;
+  }
+}
+@media (max-width: 940px) {
+  .marketing-nav nav a[href="/integrations"] {
+    display: none;
+  }
+}
+@media (max-width: 420px) {
+  .marketing-nav {
+    column-gap: 12px;
+  }
+  .marketing-nav .brand-logo > span:last-child {
+    font-size: 21px;
+  }
+}
