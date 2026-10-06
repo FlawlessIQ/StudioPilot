@@ -1,7 +1,8 @@
 /**
  * Joins the journey film's chapters into one film.
  *
- *   npx tsx scripts/how-to/join.ts            # journey-1 … journey-N → journey
+ *   npx tsx scripts/how-to/join.ts            # journey-1 … journey-N → journey (upbeat bed)
+ *   npx tsx scripts/how-to/join.ts calm       # …over the original calm bed
  *
  * Each chapter is made on its own (make.ts journey-<n>), so one can be
  * re-cut without re-recording the rest. This stitches their videos end to
@@ -18,7 +19,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { makeMusicBed, withMusic } from "./lib/music";
+import { makeMusicBed, withMusic, type BedStyle } from "./lib/music";
 import { HOW_TO_HOME } from "./lib/voice";
 
 const OUT = path.join(HOW_TO_HOME, "out");
@@ -47,10 +48,12 @@ ffmpeg(["-f", "concat", "-safe", "0", "-i", path.join(dir, "parts.txt"), "-c", "
 
 const total = lengths.reduce((a, b) => a + b, 0);
 const bed = path.join(dir, "music.wav");
-makeMusicBed(total + 1, bed);
+// Upbeat since 2026-10-06 (Conor: "lively and upbeat"); `join.ts calm` brings back the original bed.
+const MUSIC: BedStyle = process.argv.includes("calm") ? "calm" : "upbeat";
+makeMusicBed(total + 1, bed, 7, MUSIC);
 const video = path.join(dir, "journey.mp4");
-withMusic(voiceFilm, bed, 0, total, video);
-chapters.forEach((id, i) => withMusic(voiceOf(id), bed, starts[i]!, lengths[i]!, path.join(OUT, id, `${id}.mp4`)));
+withMusic(voiceFilm, bed, 0, total, video, MUSIC);
+chapters.forEach((id, i) => withMusic(voiceOf(id), bed, starts[i]!, lengths[i]!, path.join(OUT, id, `${id}.mp4`), MUSIC));
 
 const stamp = (s: number) => {
   const ms = Math.max(0, Math.round(s * 1000));

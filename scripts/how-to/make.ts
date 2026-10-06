@@ -82,7 +82,9 @@ for (const id of ids) {
   const said = script.steps.map((step, i) => ({ i, text: step.say })).filter((s): s is { i: number; text: string } => !!s.text);
   const lines = new Map<number, Line>();
   for (const [k, { i, text }] of said.entries()) {
-    lines.set(i, await speak(text, voice, { previousText: said[k - 1]?.text, nextText: said[k + 1]?.text }));
+    // eleven_v3 doesn't take the neighbouring text.
+    const context = voice.modelId === "eleven_v3" ? {} : { previousText: said[k - 1]?.text, nextText: said[k + 1]?.text };
+    lines.set(i, await speak(text, voice, context));
   }
   const holdFor = (i: number) => {
     const line = lines.get(i);

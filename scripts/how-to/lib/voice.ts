@@ -73,6 +73,16 @@ export async function elevenlabs<T>(pathname: string, init: RequestInit = {}): P
   return (await response.json()) as T;
 }
 
+/** A line that would need ElevenLabs while HOW_TO_VOICE_OFFLINE is set; `characters` is what it would cost. */
+export class VoiceNotCached extends Error {
+  constructor(readonly text: string) {
+    super(`Not in the voice cache: "${text}"`);
+  }
+  get characters() {
+    return this.text.length;
+  }
+}
+
 /** One line of narration, from the cache when the words and settings are unchanged. */
 export async function speak(
   text: string,
@@ -92,6 +102,9 @@ export async function speak(
   const audioPath = path.join(CACHE, `${hash}.mp3`);
   const metaPath = path.join(CACHE, `${hash}.json`);
   if (!existsSync(audioPath) || !existsSync(metaPath)) {
+    // HOW_TO_VOICE_OFFLINE=1: render only from the cache (no credits spent),
+    // and say what is missing instead.
+    if (process.env.HOW_TO_VOICE_OFFLINE) throw new VoiceNotCached(body.text);
     const result = await elevenlabs<{ audio_base64: string; alignment: Alignment }>(
       `/text-to-speech/${voice.voiceId}/with-timestamps?output_format=${voice.outputFormat}`,
       { method: "POST", body: JSON.stringify(body) },

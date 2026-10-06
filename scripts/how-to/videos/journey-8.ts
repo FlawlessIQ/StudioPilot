@@ -5,6 +5,7 @@ export default defineHowTo({
   id: "journey-8",
   title: "One wedding, start to finish: after the wedding",
   start: { as: "owner", viewport: "desktop" },
+  voice: "voice.journey.json",
   cast: { studio: "owner", couple: "ella.hart@studiohub.test", crew: "crew" },
   steps: [
     { do: [{ story: "wedding-in:-1" }] },

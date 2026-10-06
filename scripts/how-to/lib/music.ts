@@ -78,7 +78,11 @@ function reverb(input: Float32Array, spread: number): Float32Array {
   return out;
 }
 
-export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
+/** "calm": the journey film's original bed. "upbeat": lively, for the sales films (below). */
+export type BedStyle = "calm" | "upbeat";
+
+export function makeMusicBed(seconds: number, outWav: string, seed = 7, style: BedStyle = "calm", options: { liftAt?: number } = {}): void {
+  if (style === "upbeat") return makeUpbeatBed(seconds, outWav, seed, options.liftAt);
   const length = Math.ceil((seconds + 2) * RATE);
   const left = new Float32Array(length);
   const right = new Float32Array(length);
@@ -201,7 +205,11 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
     peak = Math.max(peak, Math.abs(left[n]!), Math.abs(right[n]!));
   }
 
-  // 16-bit stereo WAV, peaks at about -6 dBFS.
+  writeWav(left, right, total, peak, outWav);
+}
+
+/** 16-bit stereo WAV, peaks at about -6 dBFS. */
+function writeWav(left: Float32Array, right: Float32Array, total: number, peak: number, outWav: string) {
   const gain = peak > 0 ? 0.5 / peak : 1;
   const data = Buffer.alloc(total * 4);
   for (let n = 0; n < total; n++) {
@@ -231,8 +239,14 @@ export function makeMusicBed(seconds: number, outWav: string, seed = 7): void {
  * speaks; the voice keeps its own -16 LUFS, in stereo. The picture is
  * copied untouched.
  */
-export function withMusic(voiceMp4: string, bedWav: string, from: number, length: number, outMp4: string): void {
+export function withMusic(voiceMp4: string, bedWav: string, from: number, length: number, outMp4: string, style: BedStyle = "calm"): void {
   const fadeOut = Math.max(0, length - 1.5);
+  // The upbeat bed is busier, so it sits a little lower, keeps its kick
+  // (high-pass at 70 Hz, not 120) and ducks harder and faster while anyone
+  // speaks: about 9 dB under a line (measured against Matilda at -16 LUFS),
+  // back up within half a second of a pause.
+  const bedChain = style === "upbeat" ? "highpass=f=70,volume=0.40" : "highpass=f=120,volume=0.42";
+  const duck = style === "upbeat" ? "threshold=0.05:ratio=4:attack=12:release=380:knee=4" : "threshold=0.03:ratio=3.5:attack=25:release=500";
   execFileSync(
     "ffmpeg",
     [
@@ -243,8 +257,8 @@ export function withMusic(voiceMp4: string, bedWav: string, from: number, length
       [
         // Mono voice to both sides at full level (a plain stereo upmix drops it 3 dB).
         "[0:a]pan=stereo|c0=c0|c1=c0,aresample=44100,asplit=2[voice][key]",
-        `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,highpass=f=120,volume=0.42,afade=t=in:d=1.2,afade=t=out:st=${fadeOut.toFixed(3)}:d=1.5[bed]`,
-        "[bed][key]sidechaincompress=threshold=0.03:ratio=3.5:attack=25:release=500[ducked]",
+        `[1:a]aformat=sample_rates=44100:channel_layouts=stereo,${bedChain},afade=t=in:d=1.2,afade=t=out:st=${fadeOut.toFixed(3)}:d=1.5[bed]`,
+        `[bed][key]sidechaincompress=${duck}[ducked]`,
         // No loudnorm here: the voice is already at -16 LUFS (compose.ts), and a
         // one-pass loudnorm lifts the quiet stretches — it brought the bed up
         // to the voice's level under every title card. A limiter catches peaks.
@@ -256,4 +270,163 @@ export function withMusic(voiceMp4: string, bedWav: string, from: number, length
     ],
     { stdio: "inherit" },
   );
+}
+
+/**
+ * The upbeat bed (Conor, 2026-10-06: "lively and upbeat"), for the sales
+ * films. Same rules as the calm one, written here, so it has no licence: 122
+ * bpm in D major, one chord a bar round I–V–vi–IV; a soft four-on-the-floor
+ * kick, claps on two and four, a sixteenth-note shaker; an octave-bouncing
+ * bass; bright off-beat chord stabs, a bell line every other pass and a thin
+ * pad. `liftAt` (seconds) builds a two-bar riser into that moment and opens
+ * up after it, for the end card. Deterministic, like the calm bed.
+ */
+function makeUpbeatBed(seconds: number, outWav: string, seed: number, liftAt?: number): void {
+  const bpm = 122;
+  const beat = 60 / bpm;
+  const bar = 4 * beat;
+  const length = Math.ceil((seconds + 2) * RATE);
+  const left = new Float32Array(length), right = new Float32Array(length);
+  // Drums stay dry and skip the low-pass, like the calm bed's shaker.
+  const drumL = new Float32Array(length), drumR = new Float32Array(length);
+  const rand = seeded(seed);
+  const add = (buf: Float32Array, from: number, len: number, voice: (t: number) => number) => {
+    for (let k = 0; k < len && from + k < length; k++) buf[from + k]! += voice(k / RATE);
+  };
+  const stereo = (l: Float32Array, r: Float32Array, at: number, dur: number, pan: number, voice: (t: number) => number) => {
+    const from = Math.floor(at * RATE), len = Math.floor(dur * RATE);
+    add(l, from, len, (t) => voice(t) * (1 - pan));
+    add(r, from, len, (t) => voice(t) * pan);
+  };
+  const lifted = (at: number) => liftAt !== undefined && at >= liftAt;
+  const bars = Math.ceil(seconds / bar) + 1;
+
+  for (let b = 0; b < bars; b++) {
+    const start = b * bar;
+    const notes = PROGRESSION[b % PROGRESSION.length]!;
+    const cycle = Math.floor(b / PROGRESSION.length);
+    const intro = b < 2; // two bars in before the drums: the bed arrives, then moves
+    const open = lifted(start);
+
+    // Kick: every beat, soft and short; a falling sine.
+    if (!intro)
+      for (let q = 0; q < 4; q++)
+        stereo(drumL, drumR, start + q * beat, 0.3, 0.5, (t) => {
+          const phase = 2 * Math.PI * (48 * t + (62 / 28) * (1 - Math.exp(-28 * t)));
+          return Math.sin(phase) * Math.exp(-t / 0.11) * 0.36;
+        });
+    // Claps on two and four: three quick bursts of filtered noise and a short tail.
+    if (!intro)
+      for (const q of [1, 3]) {
+        let previous = 0, low = 0;
+        stereo(drumL, drumR, start + q * beat, 0.25, 0.46 + rand() * 0.08, (t) => {
+          const noise = rand() * 2 - 1;
+          const high = noise - previous;
+          previous = noise;
+          low += 0.35 * (high - low);
+          const bursts = t < 0.024 ? Math.exp(-((t % 0.008) / 0.0025)) : Math.exp(-(t - 0.024) / 0.07);
+          return low * bursts * 0.11;
+        });
+      }
+    // Shaker: sixteenths, the off-beats leaning in.
+    if (!intro)
+      for (let x = 0; x < 16; x++) {
+        let previous = 0;
+        const accent = x % 4 === 2 ? 1 : x % 2 === 1 ? 0.55 : 0.35;
+        stereo(drumL, drumR, start + x * (beat / 4) + (rand() - 0.5) * 0.004, 0.06, 0.62 + rand() * 0.12, (t) => {
+          const noise = rand() * 2 - 1;
+          const high = noise - previous;
+          previous = noise;
+          return high * Math.exp(-t / 0.016) * 0.026 * accent;
+        });
+      }
+
+    // Bass: eighths bouncing root–octave, a fifth on the way back.
+    const root = notes[0]! + 12;
+    const line = [0, 12, 0, 12, 7, 12, 0, 12];
+    for (const [e, interval] of line.entries()) {
+      if (intro && e % 2) continue;
+      const f = freq(root + interval);
+      stereo(left, right, start + e * (beat / 2), 0.32, 0.5, (t) => {
+        const env = Math.min(1, t / 0.004) * Math.exp(-t / 0.15);
+        let v = 0;
+        for (let h = 1; h <= 4; h++) v += Math.sin(2 * Math.PI * h * f * t) / h ** 1.6;
+        return v * env * 0.05;
+      });
+    }
+
+    // Stabs: the chord on every off-beat, short and bright (an octave up after the lift).
+    const stab = notes.slice(1).map((n) => n + 12 + (open ? 12 : 0));
+    for (let e = 1; e < 8; e += 2) {
+      for (const note of stab) {
+        const f = freq(note);
+        stereo(left, right, start + e * (beat / 2) + (rand() - 0.5) * 0.006, 0.4, 0.35 + rand() * 0.3, (t) => {
+          const env = Math.min(1, t / 0.003) * Math.exp(-t / 0.085);
+          return (Math.sin(2 * Math.PI * f * t) + 0.3 * Math.sin(8 * Math.PI * f * t) * Math.exp(-t / 0.03)) * env * 0.02;
+        });
+      }
+    }
+
+    // A bell line every other pass round the progression: the hook.
+    if (!intro && (cycle % 2 === 1 || open)) {
+      const tones = notes.slice(2).map((n) => n + 24);
+      const pattern = [0, -1, 1, 2, -1, 1, 0, -1];
+      for (const [e, which] of pattern.entries()) {
+        if (which < 0) continue;
+        const f = freq(tones[which % tones.length]!);
+        stereo(left, right, start + e * (beat / 2), 1.2, 0.55, (t) => {
+          const env = Math.min(1, t / 0.004) * Math.exp(-t / 0.35);
+          return (Math.sin(2 * Math.PI * f * t) + 0.18 * Math.sin(2 * Math.PI * 2.76 * f * t) * Math.exp(-t / 0.12)) * env * 0.022;
+        });
+      }
+    }
+
+    // A thin pad under it all.
+    for (const note of notes.slice(1)) {
+      const f = freq(note);
+      stereo(left, right, start, bar + 0.6, note % 2 ? 0.4 : 0.6, (t) => {
+        const env = Math.min(1, t / 0.3) * Math.min(1, Math.max(0, (bar + 0.6 - t) / 0.6));
+        return PAD_WAVE[Math.floor(((f * t) % 1) * TABLE)]! * env * 0.011;
+      });
+    }
+  }
+
+  // The lift: a two-bar noise riser into liftAt, then a soft crash.
+  if (liftAt !== undefined && liftAt < seconds) {
+    const rise = 2 * bar;
+    let previous = 0, low = 0;
+    stereo(drumL, drumR, Math.max(0, liftAt - rise), rise, 0.5, (t) => {
+      const p = t / rise;
+      const noise = rand() * 2 - 1;
+      const high = noise - previous;
+      previous = noise;
+      low += (0.05 + 0.6 * p) * (high - low); // opens up as it rises
+      return low * p * p * 0.09;
+    });
+    let prev = 0;
+    stereo(drumL, drumR, liftAt, 1.8, 0.5, (t) => {
+      const noise = rand() * 2 - 1;
+      const high = noise - prev;
+      prev = noise;
+      return high * Math.exp(-t / 0.5) * 0.05;
+    });
+  }
+
+  const smooth = (x: Float32Array) => {
+    let y = 0;
+    for (let n = 0; n < x.length; n++) x[n] = y = y + 0.45 * (x[n]! - y);
+  };
+  smooth(left);
+  smooth(right);
+  const wetL = reverb(left, 0), wetR = reverb(right, 23);
+  const total = Math.floor(seconds * RATE);
+  let peak = 0;
+  for (let n = 0; n < total; n++) {
+    const t = n / RATE;
+    const fade = Math.min(1, t / 1.5) * Math.min(1, Math.max(0, (seconds - t) / 3));
+    left[n] = (left[n]! * 0.85 + wetL[n]! * 0.22 + drumL[n]!) * fade;
+    right[n] = (right[n]! * 0.85 + wetR[n]! * 0.22 + drumR[n]!) * fade;
+    peak = Math.max(peak, Math.abs(left[n]!), Math.abs(right[n]!));
+  }
+  writeWav(left, right, total, peak, outWav);
 }

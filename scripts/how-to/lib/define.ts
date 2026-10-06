@@ -119,7 +119,7 @@ export type HowToScript = {
   /**
    * The narrator, when it isn't the how-to guides' default
    * (voice.config.json, Brian): a voice config file beside make.ts, e.g.
-   * "voice.journey.json", so a film can have its own narrator.
+   * "voice.journey.json" (Matilda, for the journey film), so a film can have its own narrator.
    */
   voice?: string;
   steps: Step[];

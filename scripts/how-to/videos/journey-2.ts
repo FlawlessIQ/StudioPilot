@@ -5,6 +5,7 @@ export default defineHowTo({
   id: "journey-2",
   title: "One wedding, start to finish: the consultation",
   start: { as: "owner", viewport: "desktop" },
+  voice: "voice.journey.json",
   cast: { studio: "owner", couple: "guest" },
   steps: [
     {

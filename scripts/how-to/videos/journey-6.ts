@@ -5,6 +5,7 @@ export default defineHowTo({
   id: "journey-6",
   title: "One wedding, start to finish: planning",
   start: { as: "owner", viewport: "desktop" },
+  voice: "voice.journey.json",
   cast: { studio: "owner", couple: "ella.hart@studiohub.test", crew: "crew" },
   steps: [
     { do: [{ story: "wedding-in:178" }, { story: "scheduler:planning/planning-form-scheduler.ts#planningFormScheduler" }] },

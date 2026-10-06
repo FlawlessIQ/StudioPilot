@@ -45,9 +45,9 @@ const { renderEmailTemplate } = (await import(`${process.cwd()}/functions/src/co
 };
 import { latestEmail } from "./journey/emails";
 import { inbox } from "./lib/journey-recorder";
-import { makeMusicBed, withMusic } from "./lib/music";
+import { makeMusicBed, withMusic, type BedStyle } from "./lib/music";
 import { card } from "./lib/recorder";
-import { HOW_TO_HOME, speak, type Line, type VoiceConfig } from "./lib/voice";
+import { HOW_TO_HOME, speak, VoiceNotCached, type Line, type VoiceConfig } from "./lib/voice";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HOW_TO_HOME, "out");
@@ -395,6 +395,8 @@ function sourceOf(shot: Shot): { file: string; start: number; room: number } {
 type Candidate = VoiceConfig & { name: string };
 const FILM = JSON.parse(readFileSync(path.join(HERE, "one-saturday.voice.json"), "utf8")) as {
   use: string;
+  /** Which bed lib/music.ts composes under it. */
+  music: BedStyle;
   pacing: { leadIn: number; sentenceGap: number; beatGap: number };
   candidates: Candidate[];
 };
@@ -420,15 +422,20 @@ async function narrate(voice: VoiceConfig, beats: Beat[] = BEATS): Promise<Plan>
   const stitched = voice.modelId !== "eleven_v3";
   let k = 0;
   const plan: Plan = [];
+  const missing: VoiceNotCached[] = [];
   for (const [b, beat] of beats.entries()) {
     const spoken: Spoken[] = [];
     let at = b === 0 ? PACE.leadIn : LEAD;
     for (const sentence of beat.say ? sentencesOf(beat.say) : []) {
       const context = stitched ? { previousText: all[k - 1], nextText: all[k + 1] } : {};
-      const line = await speak(sentence, voice, context);
+      k++;
+      const line = await speak(sentence, voice, context).catch((error: unknown) => {
+        if (error instanceof VoiceNotCached) return void missing.push(error);
+        throw error;
+      });
+      if (!line) continue;
       spoken.push({ line, offset: at });
       at += line.durationSec + PACE.sentenceGap;
-      k++;
     }
     const last = b === BEATS.length - 1;
     const planned = beat.kind === "card" ? beat.len : beat.shots.reduce((sum, s) => sum + s.len, 0);
@@ -436,6 +443,10 @@ async function narrate(voice: VoiceConfig, beats: Beat[] = BEATS): Promise<Plan>
     const speechEnd = spoken.length ? at - PACE.sentenceGap : 0;
     const need = spoken.length ? speechEnd + (last ? LAST_BEAT : PACE.beatGap - LEAD + FADE * clips) : planned;
     plan.push({ scale: Math.max(1, need / planned), spoken });
+  }
+  if (missing.length) {
+    const characters = missing.reduce((sum, m) => sum + m.characters, 0);
+    throw new Error(`${missing.length} lines (${characters} characters) aren't in the voice cache for ${voice.voiceId}/${voice.modelId}:\n  ${missing.map((m) => m.text).join("\n  ")}`);
   }
   return plan;
 }
@@ -452,8 +463,10 @@ async function renderShape(browser: Browser, shape: Shape, plan: Plan) {
   const placed: Array<{ line: Line; at: number }> = [];
   let posterAt = 0;
   let clock = 0;
+  let endCardAt = 0;
   for (const [b, beat] of BEATS.entries()) {
     const { scale, spoken } = plan[b] ?? { scale: 1, spoken: [] };
+    if (b === BEATS.length - 1) endCardAt = clock;
     for (const s of spoken) placed.push({ line: s.line, at: clock + s.offset });
     if (beat.kind === "card") {
       const len = beat.len * scale;
@@ -501,7 +514,7 @@ async function renderShape(browser: Browser, shape: Shape, plan: Plan) {
       clock += shot.len - FADE;
     }
   }
-  return { clips, posterAt, placed };
+  return { clips, posterAt, placed, endCardAt };
 }
 
 /** The sentences at their places, -16 LUFS, then the bed ducked under them (lib/music.ts withMusic). */
@@ -514,7 +527,7 @@ function mixVoice(picture: string, placed: Array<{ line: Line; at: number }>, le
     `${delays};${placed.map((_, i) => `[a${i}]`).join("")}amix=inputs=${placed.length}:normalize=0:dropout_transition=0,apad,atrim=0:${length.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=11[aout]`,
     "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ac", "1", "-ar", "44100", voiceTrack,
   ]);
-  withMusic(voiceTrack, bed, 0, length, out);
+  withMusic(voiceTrack, bed, 0, length, out, FILM.music);
 }
 
 /**
@@ -522,7 +535,7 @@ function mixVoice(picture: string, placed: Array<{ line: Line; at: number }>, le
  * voice at -16 LUFS and the bed ducked under it (lib/music.ts withMusic, as
  * the journey film); without, the bed alone at -18 LUFS.
  */
-function finish(clips: string[], out: string, seed: number, placed: Array<{ line: Line; at: number }>) {
+function finish(clips: string[], out: string, seed: number, placed: Array<{ line: Line; at: number }>, liftAt: number) {
   const lengths = clips.map(probe);
   const inputs = clips.flatMap((c) => ["-i", c]);
   let graph = "";
@@ -537,7 +550,8 @@ function finish(clips: string[], out: string, seed: number, placed: Array<{ line
   const picture = path.join(WORK, `${path.basename(out, ".mp4")}-picture.mp4`);
   ffmpeg([...inputs, "-filter_complex", `${graph}${last}fade=t=out:st=${(length - 0.6).toFixed(3)}:d=0.6[v]`, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-pix_fmt", "yuv420p", picture]);
   const bed = path.join(WORK, `bed-${seed}.wav`);
-  makeMusicBed(length + 1, bed, seed);
+  // The bed lifts as the end card arrives.
+  makeMusicBed(length + 1, bed, seed, FILM.music, { liftAt });
   if (placed.length) {
     mixVoice(picture, placed, length, bed, out, WORK);
     return length;
@@ -579,7 +593,7 @@ async function voiceSamples(only: number[]) {
     const picture = path.join(work, "picture.mp4");
     ffmpeg(["-f", "lavfi", "-i", `color=c=black:s=320x180:r=30:d=${length.toFixed(3)}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", picture]);
     const bed = path.join(work, "bed.wav");
-    makeMusicBed(length + 1, bed, 31);
+    makeMusicBed(length + 1, bed, 31, FILM.music);
     const out = path.join(work, "mix.mp4");
     mixVoice(picture, placed, length, bed, out, work);
     const mp3 = path.join(dir, `${slug}.mp3`);
@@ -606,9 +620,9 @@ if (wanted === "voices") {
     for (const shape of ["wide", "tall"] as const) {
       if (wanted !== "both" && wanted !== shape) continue;
       const name = `one-saturday-${shape === "wide" ? "16x9" : "9x16"}${silent ? ".silent" : ""}`;
-      const { clips, posterAt, placed } = await renderShape(browser, shape, plan);
+      const { clips, posterAt, placed, endCardAt } = await renderShape(browser, shape, plan);
       const out = path.join(DIR, `${name}.mp4`);
-      const length = finish(clips, out, shape === "wide" ? 31 : 37, placed);
+      const length = finish(clips, out, shape === "wide" ? 31 : 37, placed, endCardAt);
       ffmpeg(["-ss", posterAt.toFixed(2), "-i", out, "-frames:v", "1", "-q:v", "3", path.join(DIR, `${name}.jpg`)]);
       console.log(`✓ ${name}: ${length.toFixed(1)}s, ${Math.round(readFileSync(out).length / 1024)} KB → ${out}`);
       for (const p of placed) console.log(`   ${p.at.toFixed(1).padStart(5)}–${(p.at + p.line.durationSec).toFixed(1).padStart(5)}  ${p.line.text}`);

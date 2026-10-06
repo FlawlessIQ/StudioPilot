@@ -5,6 +5,7 @@ export default defineHowTo({
   id: "journey-7",
   title: "One wedding, start to finish: the wedding week",
   start: { as: "owner", viewport: "desktop" },
+  voice: "voice.journey.json",
   cast: { studio: "owner", couple: "ella.hart@studiohub.test", crew: "crew" },
   steps: [
     { do: [{ story: "wedding-in:6" }, { story: "scheduler:communications/event-reminders.ts#eventReminderScheduler" }, { story: "retainer-paid:final" }, { story: "crew-paperwork" }] },

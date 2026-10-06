@@ -1,5 +1,6 @@
 {
-  "use": "Jessica (v3)",
+  "use": "Matilda (v3)",
+  "music": "upbeat",
   "pacing": { "leadIn": 1.5, "sentenceGap": 0.6, "beatGap": 1.0 },
   "candidates": [
     {
