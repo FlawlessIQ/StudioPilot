@@ -110,15 +110,26 @@ verified by commit. GitHub Actions runs the same checks on every push
   the bill's "$X overdue" card on Today ("Send reminder"). The invoice is
   read again at approval and as the email goes, so a bill paid in between is
   never chased. Never auto-sent: it is not a lifecycle trigger, so the trust
-  dial can't reach it. Open: walk one on prod (an overdue test invoice →
-  draft → send → email received with the pay link).
+  dial can't reach it. Walked on prod 2026-10-06 (test bill on FlawlessIQ's
+  Rivera job → draft → "Send reminder" → email with "Pay securely" received;
+  the card then reads "reminded Oct 6").
 - **Proposal follow-ups — built 2026-10-06, tap to send.** Day 3 and day 7
   after a proposal goes out, while it is still sent/viewed and unexpired, the
   job is at PROPOSAL, the client hasn't written, and no combined agreement is
   out (that has the contract reminders). Drafted by the daily
   `inquiryFollowUpScheduler` (`functions/src/booking/proposal-follow-ups.ts`),
   shown on Today's Approve lane, withdrawn daily once the proposal is
-  answered; re-read at approval and at send. Open: walk one on prod.
+  answered; re-read at approval and at send. Walked on prod 2026-10-06
+  (Pick Test proposal, sentAt backdated → draft on Today → "Approve & send"
+  → email with "Review your proposal" received).
+- **Trial emails, "Cue's first two weeks" — live 2026-10-06.** Day 0, 2 and
+  7, sent by `billingNoticeScheduler` (`functions/src/saas/trial-series.ts`),
+  latest only, never within 4 days of the trial's end. All three received on
+  prod (FlawlessIQ's trial dates shifted for the test, then restored).
+- **Today's morning handoff — live 2026-10-06.** "Since yesterday, Cue
+  handled N things. M need you." (`features/today/handoff.ts`), owners and
+  admins only. Known gap: the older "Handled for you" hero stat reads email
+  status `sent`/`delivered`, but the worker writes `succeeded`.
 - Rotate the secrets ever pasted into chat; MFA on every provider console.
 - A SendGrid subuser so StudioCue gets its own Event Webhook.
 - Firestore point-in-time recovery (off).
