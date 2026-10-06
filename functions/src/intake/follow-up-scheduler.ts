@@ -1,6 +1,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { advanceFollowUp } from "./follow-ups.js";
+import { advanceProposalFollowUps } from "../booking/proposal-follow-ups.js";
 
 /**
  * Once a day: every open inquiry the couple has gone quiet on gets its
@@ -9,6 +10,9 @@ import { advanceFollowUp } from "./follow-ups.js";
  *
  * Open inquiries are jobs at the inquiry stage (every dated inquiry is one)
  * and leads that aren't jobs yet; both are reached through their leads.
+ *
+ * Then proposals the client hasn't answered get theirs, on day 3 and day 7
+ * (../booking/proposal-follow-ups.ts). Same idea, same tap to send.
  */
 export const inquiryFollowUpScheduler = onSchedule(
   { schedule: "every day 14:00", timeZone: "UTC", retryCount: 1, region: "us-east4" },
@@ -39,5 +43,11 @@ export const inquiryFollowUpScheduler = onSchedule(
       }
     }
     console.info(`[follow-up] ${leadIds.size} open inquiries; ${drafted} nudges drafted, ${offered} closes offered`);
+    try {
+      const proposals = await advanceProposalFollowUps(db, now);
+      console.info(`[follow-up] proposals: ${proposals.drafted} follow-ups drafted, ${proposals.retired} withdrawn`);
+    } catch (caught: unknown) {
+      console.error("[follow-up] proposal follow-ups failed", caught);
+    }
   },
 );

@@ -75,6 +75,7 @@ import { billingHoldFor, holdJobForBilling } from "../saas/billing-hold.js";
 import { isReservedTestAddress } from "../communications/test-address.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
 import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
+import { proposalStillOpen } from "../booking/proposal-follow-ups.js";
 import {
   chargeSavedCard,
   removeQuickBooksCard,
@@ -859,6 +860,20 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       !(Number(invoice.get("balanceCents")) > 0)
     )
       return { held: "invoice_settled", type };
+  }
+  // A proposal follow-up: the proposal is read again as it goes. Answered,
+  // withdrawn, replaced or expired in the undo window, and it isn't sent
+  // (booking/proposal-follow-ups.ts).
+  if (document.get("proposalFollowUpId")) {
+    const proposal = await getFirestore()
+      .doc(`proposals/${String(document.get("proposalFollowUpId"))}`)
+      .get();
+    if (
+      !proposal.exists ||
+      proposal.get("tenantId") !== document.get("tenantId") ||
+      !proposalStillOpen(proposal.data(), new Date().toISOString())
+    )
+      return { held: "proposal_no_longer_open", type };
   }
   // A contract email is about one contract. Asking a couple to sign an
   // agreement they signed an hour ago, or one the studio withdrew, is worse

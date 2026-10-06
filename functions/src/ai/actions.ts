@@ -19,6 +19,7 @@ import {
 import { studioHubCors } from "../security/cors.js";
 import { consultationPrepStale } from "../booking/consultation-prep.js";
 import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
+import { proposalStillOpen } from "../booking/proposal-follow-ups.js";
 
 const commandSchema = z.object({
   tenantId: z.string().min(1),
@@ -282,6 +283,21 @@ export const aiActionCommand = onRequest(
             throw new Error("PAYMENT_REMINDER_SETTLED");
         }
         const paymentReminderUrl = text(paymentReminder.actionUrl);
+        // A proposal follow-up for a proposal answered, withdrawn, replaced or
+        // expired since it was drafted (booking/proposal-follow-ups.ts). From
+        // the stored draft too.
+        const proposalFollowUp = record(record(action.get("structuredOutput")).proposalFollowUp);
+        const proposalFollowUpId = text(proposalFollowUp.proposalId);
+        if (communicationApproval && proposalFollowUpId) {
+          const proposal = await db.doc(`proposals/${proposalFollowUpId}`).get();
+          if (
+            !proposal.exists ||
+            proposal.get("tenantId") !== parsed.tenantId ||
+            !proposalStillOpen(proposal.data(), now)
+          )
+            throw new Error("PROPOSAL_NO_LONGER_OPEN");
+        }
+        const followUpUrl = text(proposalFollowUp.actionUrl);
         const communicationDraftId = communicationApproval
           ? `ai_reply_${actionId}`
           : null;
@@ -310,8 +326,11 @@ export const aiActionCommand = onRequest(
               action:
                 paymentReminderInvoiceId && /^https:\/\//.test(paymentReminderUrl)
                   ? { label: text(paymentReminder.actionLabel) || "Pay securely", url: paymentReminderUrl }
-                  : null,
+                  : proposalFollowUpId && /^https:\/\//.test(followUpUrl)
+                    ? { label: text(proposalFollowUp.actionLabel) || "Review your proposal", url: followUpUrl }
+                    : null,
               paymentReminderInvoiceId: paymentReminderInvoiceId || null,
+              proposalFollowUpId: proposalFollowUpId || null,
             })
           : null;
         const emailJobId = communicationDispatch?.emailJob?.id ?? null;

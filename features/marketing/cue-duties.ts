@@ -16,7 +16,8 @@
  * code-verified audit behind this list is in the plan above; when a duty
  * changes class, change it here and the pages follow.
  *
- * Deliberately absent (not built, so never implied): proposal follow-ups, answering a couple without a tap, the studio's own
+ * Deliberately absent (not built, so never implied): answering a couple
+ * without a tap, the studio's own
  * inbox, rescheduling, pricing, paying crew, closing a job, and anything
  * done to the photos.
  */
@@ -27,7 +28,7 @@ export type DutyAreaId = "inquiries" | "paperwork" | "money" | "crew" | "insuran
 
 export const DUTY_AREAS: ReadonlyArray<{ id: DutyAreaId; title: string }> = [
   { id: "inquiries", title: "Inquiries" },
-  { id: "paperwork", title: "Agreements" },
+  { id: "paperwork", title: "Proposals and agreements" },
   { id: "money", title: "Getting paid" },
   { id: "crew", title: "Crew" },
   { id: "insurance", title: "Venues and insurance" },
@@ -85,7 +86,14 @@ export const CUE_DUTIES = [
     needs: "Your availability",
     runs: "publicConsultationScheduling",
   },
-  // Agreements
+  // Proposals and agreements
+  {
+    id: "proposal_follow_up",
+    area: "paperwork",
+    mode: "you_approve",
+    text: "Follows up on a proposal the client hasn't answered, on day 3 and day 7",
+    runs: "inquiryFollowUpScheduler",
+  },
   {
     id: "agreement_prepared",
     area: "paperwork",

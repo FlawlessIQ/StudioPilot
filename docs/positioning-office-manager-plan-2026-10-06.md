@@ -7,7 +7,8 @@ send; proposal follow-up; forwarded-inquiry acknowledgement), phase 6 (morning
 handoff), phase 7 (outbound), and Gabe's quote (drafts below, not published).
 **Phase 5 started 2026-10-06 with payment chasing** (tap to send; see
 `docs/production-status.md` → Open). Proposal follow-up and forwarded-inquiry
-acknowledgement are next.
+acknowledgement are next. Proposal follow-ups followed the same day (day 3
+and day 7, tap to send); the forwarded-inquiry acknowledgement is what's left.
 Google: ask Search Console to index `/office-manager` and
 `/virtual-assistant-for-photographers` (IndexNow doesn't reach Google).
 

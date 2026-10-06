@@ -27,6 +27,8 @@ type ApprovedCommunicationInput = {
    * (operations/jobs.ts): a bill paid in the meantime is not chased.
    */
   paymentReminderInvoiceId?: string | null;
+  /** A proposal follow-up's proposal, read again as the email goes. */
+  proposalFollowUpId?: string | null;
 };
 
 /**
@@ -99,6 +101,9 @@ export function approvedCommunicationDispatch(
           actionUrl: input.action?.url ?? null,
           ...(input.paymentReminderInvoiceId
             ? { paymentReminderInvoiceId: input.paymentReminderInvoiceId }
+            : {}),
+          ...(input.proposalFollowUpId
+            ? { proposalFollowUpId: input.proposalFollowUpId }
             : {}),
           category: input.category,
           communicationDraftId: `ai_reply_${input.actionId}`,

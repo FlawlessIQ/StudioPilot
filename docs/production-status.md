@@ -112,6 +112,13 @@ verified by commit. GitHub Actions runs the same checks on every push
   never chased. Never auto-sent: it is not a lifecycle trigger, so the trust
   dial can't reach it. Open: walk one on prod (an overdue test invoice →
   draft → send → email received with the pay link).
+- **Proposal follow-ups — built 2026-10-06, tap to send.** Day 3 and day 7
+  after a proposal goes out, while it is still sent/viewed and unexpired, the
+  job is at PROPOSAL, the client hasn't written, and no combined agreement is
+  out (that has the contract reminders). Drafted by the daily
+  `inquiryFollowUpScheduler` (`functions/src/booking/proposal-follow-ups.ts`),
+  shown on Today's Approve lane, withdrawn daily once the proposal is
+  answered; re-read at approval and at send. Open: walk one on prod.
 - Rotate the secrets ever pasted into chat; MFA on every provider console.
 - A SendGrid subuser so StudioCue gets its own Event Webhook.
 - Firestore point-in-time recovery (off).

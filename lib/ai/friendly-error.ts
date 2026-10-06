@@ -186,6 +186,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   FINAL_DETAILS_NAME_REQUIRED: "Type your full name to confirm.",
   // A payment reminder approved after the bill was paid, voided or replaced
   // (functions/src/ai/actions.ts).
+  // A proposal follow-up approved after the proposal was answered,
+  // withdrawn, replaced or expired (functions/src/ai/actions.ts).
+  PROPOSAL_NO_LONGER_OPEN:
+    "That proposal has been answered, withdrawn, replaced or has expired since Cue drafted this, so the follow-up isn't sent.",
   PAYMENT_REMINDER_SETTLED:
     "That bill has been paid, voided or replaced since Cue drafted this, so the reminder isn't sent.",
   CONSULTATION_PREP_STALE:

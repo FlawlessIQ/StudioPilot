@@ -2027,6 +2027,18 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // A payment reminder is sent from its bill's overdue card. With no such
     // card the bill is paid, voided or no longer late: nothing to send.
     if (text(asRecord(asRecord(action.structuredOutput).paymentReminder).invoiceId)) continue;
+    // A proposal follow-up only while the proposal is still waiting on the
+    // client: answered, withdrawn, replaced or expired since, it has nothing
+    // to ask (functions/src/booking/proposal-follow-ups.ts withdraws it too).
+    const followUpProposalId = text(asRecord(asRecord(action.structuredOutput).proposalFollowUp).proposalId);
+    if (followUpProposalId) {
+      const proposal = rows(input.proposals).find((row) => row.id === followUpProposalId);
+      const open =
+        proposal &&
+        ["sent", "viewed"].includes(text(proposal.status)) &&
+        text(proposal.expiresAt) > input.now;
+      if (!open) continue;
+    }
     // A follow-up only belongs on its couple's card, while they're still
     // quiet; anywhere else it is a nudge to someone who may have answered.
     if (text(action.capability) === "inquiry_follow_up") continue;
