@@ -146,6 +146,58 @@ export function JourneyFilmButton({
 }
 
 /**
+ * A short film offered as a button that opens it in the same dialog: "One
+ * Saturday" (docs/positioning-office-manager-plan-2026-10-06.md). Like the
+ * journey button, a new-tab click or a page without JavaScript follows `href`,
+ * which is also where the dialog's link goes; without the video published the
+ * button is a plain link.
+ */
+export function FilmButton({
+  videoId,
+  href,
+  title,
+  blurb,
+  linkLabel,
+  children,
+  className,
+}: {
+  videoId: string;
+  href: string;
+  title: string;
+  blurb: string;
+  linkLabel: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const video = helpVideo(videoId);
+  return (
+    <>
+      <Link
+        className={className}
+        href={href}
+        onClick={(event) => {
+          if (!video || !opensHere(event)) return;
+          event.preventDefault();
+          setOpen(true);
+        }}
+      >
+        {children}
+      </Link>
+      <VideoDialog
+        blurb={blurb}
+        linkLabel={linkLabel}
+        onClose={() => setOpen(false)}
+        open={open}
+        pageHref={href}
+        title={title}
+        videoId={videoId}
+      />
+    </>
+  );
+}
+
+/**
  * "Watch the couple's 1-minute tour →": a how-to video offered as a link, not
  * a player on the page. Opens in the film's dialog; a new-tab click, or a page
  * without JavaScript, goes to the written guide at /how-to/<id>. Without the

@@ -111,3 +111,11 @@ export function marketingMedia(
     alt: entry.alt,
   };
 }
+
+/**
+ * Narrated films the website opens in a dialog, published through
+ * scripts/how-to/publish.ts like the how-to videos (so they live in
+ * features/help/video-manifest.json) but belonging to no guide: "One
+ * Saturday" (scripts/how-to/one-saturday.ts).
+ */
+export const MARKETING_FILM_IDS = ["one-saturday"] as const;

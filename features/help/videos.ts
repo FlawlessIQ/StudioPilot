@@ -82,3 +82,10 @@ export function helpVideoLength(id: string | undefined): string | null {
   const video = helpVideo(id);
   return video ? formatMinutes(video.durationSec) : null;
 }
+
+/** "51 sec" under a minute and a half, else minutes: a short film's length on its button. */
+export function filmLength(id: string | undefined): string | null {
+  const video = helpVideo(id);
+  if (!video) return null;
+  return video.durationSec < 90 ? `${Math.round(video.durationSec)} sec` : formatMinutes(video.durationSec);
+}

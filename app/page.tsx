@@ -13,7 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { planCards } from "@/config/saas-plans";
-import { JourneyFilmButton } from "@/components/help/journey-film";
+import { FilmButton, JourneyFilmButton } from "@/components/help/journey-film";
 import { HomeFaq } from "@/components/marketing/home-faq";
 import { HireComparison } from "@/components/marketing/hire-comparison";
 import { HomeJourney } from "@/components/marketing/home-journey";
@@ -27,7 +27,7 @@ import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
 import { TourLink } from "@/components/help/journey-film";
 import { StudioProof } from "@/components/marketing/studio-proof";
 import { ThreePeople } from "@/components/marketing/three-people";
-import { helpVideo, helpVideoLength } from "@/features/help/videos";
+import { filmLength as shortFilmLength, helpVideo, helpVideoLength } from "@/features/help/videos";
 import { JOURNEY_FILM_ID, JOURNEY_PAGE, journeyStageHref } from "@/features/journey/expected-timeline";
 import { assistantHoursFor } from "@/features/marketing/cue-duties";
 import { marketingMetadata } from "@/features/marketing/metadata";
@@ -168,6 +168,17 @@ export default function MarketingHome() {
               <strong>Works around the clock. Waits for you on what matters.</strong>
               <small>Routine notices and reminders go out on their own. Anything Cue writes for you, and anything about money or signatures, waits for your yes.</small>
             </p>
+            <FilmButton
+              blurb="what Cue did while you were out shooting, and what it left for Monday."
+              className="button button-light mk-saturday-film"
+              href="/office-manager"
+              linkLabel="Read Cue's job description"
+              title="One Saturday"
+              videoId="one-saturday"
+            >
+              <Play aria-hidden="true" size={16} />
+              {shortFilmLength("one-saturday") ? `Watch one Saturday · ${shortFilmLength("one-saturday")}` : "See Cue's job description"}
+            </FilmButton>
           </div>
           <div className="mk-story-media">
             <SaturdayLog />

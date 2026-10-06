@@ -1,3 +1,6 @@
+import { Play } from "lucide-react";
+import { FilmButton } from "@/components/help/journey-film";
+import { filmLength } from "@/features/help/videos";
 import { CapabilityGrid, MarketingLayout } from "@/components/marketing/marketing-layout";
 import { HireComparison } from "@/components/marketing/hire-comparison";
 import { JobDescription } from "@/components/marketing/job-description";
@@ -38,6 +41,17 @@ export default function OfficeManagerPage() {
               on their own. Anything Cue writes for you, and anything about money or signatures,
               waits for your yes.
             </p>
+            <FilmButton
+              blurb="what Cue did while you were out shooting, and what it left for Monday."
+              className="button button-dark"
+              href="#om-role-title"
+              linkLabel="Read the job description"
+              title="One Saturday"
+              videoId="one-saturday"
+            >
+              <Play aria-hidden="true" size={16} />
+              {filmLength("one-saturday") ? `Watch one Saturday · ${filmLength("one-saturday")}` : "Read the job description"}
+            </FilmButton>
           </header>
           <SaturdayLog />
         </div>

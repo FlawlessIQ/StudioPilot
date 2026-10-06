@@ -8,6 +8,7 @@ import { boldLabels, plainText } from "@/features/help/rich-text";
 import { helpForRoute, routeMatches } from "@/features/help/routes";
 import { helpVideo, helpVideoIds } from "@/features/help/videos";
 import { JOURNEY_VIDEO_IDS } from "@/features/journey/expected-timeline";
+import { MARKETING_FILM_IDS } from "@/features/marketing/media";
 
 /**
  * Help that describes a screen as it used to be is worse than no help
@@ -142,8 +143,19 @@ test("each explainer is a guide, not an essay", () => {
 test("videos are only shown once the pipeline has published them", () => {
   // A video belongs to an explainer, or is the wedding film and its chapters
   // ("A wedding, start to finish", features/journey/expected-timeline.ts).
+  // Or it is one of the website's narrated films, opened from a marketing page.
   for (const id of helpVideoIds())
-    assert.ok(EXPLAINERS.some((guide) => guide.video === id) || JOURNEY_VIDEO_IDS.includes(id), `${id} has no explainer`);
+    assert.ok(
+      EXPLAINERS.some((guide) => guide.video === id) ||
+        JOURNEY_VIDEO_IDS.includes(id) ||
+        (MARKETING_FILM_IDS as readonly string[]).includes(id),
+      `${id} has no explainer`,
+    );
+  for (const id of MARKETING_FILM_IDS)
+    assert.ok(
+      ["app/page.tsx", "app/office-manager/page.tsx"].some((page) => readFileSync(page, "utf8").includes(`videoId="${id}"`)),
+      `${id} is published but no marketing page opens it`,
+    );
   assert.equal(helpVideo("today", undefined), null, "no media base, no video");
   assert.equal(helpVideo("not-a-video", "https://example.test"), null);
   const [first] = helpVideoIds();
