@@ -246,7 +246,7 @@ export function cueHandoff(input: HandoffInput): HandoffItem[] {
     if (seen.has(primaryId)) continue;
     const projectId = text(job.projectId) || null;
     const project = projectId ? byId("projects", projectId) : null;
-    const client = clientRef(project?.name, jobKindOf(project));
+    const client = clientNameFor(job, project);
     const line = describe({ job, primaryId, client, byId });
     if (!line) continue;
     seen.add(primaryId);
@@ -285,4 +285,23 @@ export function handoffWhen(at: string, now: Date | string, timeZone?: string): 
   const day = new Intl.DateTimeFormat("en-CA", { ...options, year: "numeric", month: "2-digit", day: "2-digit" });
   const time = new Intl.DateTimeFormat("en-US", { ...options, hour: "numeric", minute: "2-digit" }).format(new Date(at));
   return day.format(new Date(at)) === day.format(new Date(now)) ? time : `Yesterday ${time}`;
+}
+
+/** Emails that go to someone other than the client: the crew, the insurance agent. */
+const NOT_TO_THE_CLIENT = new Set(["crew_reminder", "crew_invitation", "coi_request"]);
+
+/**
+ * Who a line names. A message to the client names the client (the email's
+ * recipient), not the job: "Reminded Harper Lane wedding to sign their
+ * agreement" read the job's name as a person (prod, 2026-10-06). Without a
+ * recipient name, the job's name with its kind word dropped ("Harper Lane").
+ * Lines about the crew or the agent name the job, as "for Harper Lane wedding".
+ */
+export function clientNameFor(job: Record<string, unknown>, project: Record<string, unknown> | null | undefined): string {
+  const jobName = clientRef(project?.name, jobKindOf(project));
+  if (NOT_TO_THE_CLIENT.has(text(job.type))) return jobName;
+  const recipient = text(job.recipientName).trim();
+  if (recipient && !recipient.includes("@")) return recipient;
+  const bare = jobName.replace(/\s+(wedding|portraits?|session|corporate|sports|event)$/i, "").trim();
+  return bare || jobName;
 }

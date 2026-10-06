@@ -304,3 +304,16 @@ test("times read as today's clock, or yesterday's", () => {
   assert.equal(handoffWhen("2026-10-06T09:14:00.000Z", NOW, "UTC"), "9:14 AM");
   assert.equal(handoffWhen("2026-10-05T16:02:00.000Z", NOW, "UTC"), "Yesterday 4:02 PM");
 });
+
+test("lines name the client, not the job: the recipient, else the job's name without its kind word", async () => {
+  const { clientNameFor } = await import("@/features/today/handoff");
+  const harper = { name: "Harper Lane wedding", eventKind: "wedding" };
+  // Seen on prod 2026-10-06: "Reminded Harper Lane wedding to sign their agreement".
+  assert.equal(clientNameFor({ type: "contract_reminder", recipientName: "Harper Lane" }, harper), "Harper Lane");
+  assert.equal(clientNameFor({ type: "contract_reminder" }, harper), "Harper Lane");
+  assert.equal(clientNameFor({ type: "consultation_confirmation" }, { name: "Tbdwalk Fresh Wedding" }), "Tbdwalk Fresh");
+  assert.equal(clientNameFor({ type: "event_reminder", recipientName: "ella@example.com" }, { name: "Lena Marsh Portraits" }), "Lena Marsh");
+  // To the crew or the agent, the line is "for {the job}".
+  assert.equal(clientNameFor({ type: "crew_reminder", recipientName: "Jordan" }, harper), "Harper Lane wedding");
+  assert.equal(clientNameFor({ type: "coi_request" }, harper), "Harper Lane wedding");
+});
