@@ -148,6 +148,22 @@ function coverageFields(coverage: readonly CoverageItem[]) {
   };
 }
 
+/**
+ * A per-crew retainer must count someone on its own package. GR's
+ * two-videographer package charged "per photographer" — nobody — and the
+ * floor below billed one person: $1,000 where they meant $2,000
+ * (features/packages/retainer-check.ts, 2026-10-06). Refused when the rule or
+ * the crew is written; an untouched package keeps working.
+ */
+function assertPerCrewCountsSomeone(rule: unknown, coverage: readonly CoverageItem[]) {
+  const value = (typeof rule === "object" && rule !== null ? rule : {}) as { type?: unknown; billedRoles?: unknown };
+  if (value.type !== "per_crew_member") return;
+  const crew = coverage.reduce((sum, item) => sum + Math.max(0, item.count), 0);
+  const roles = Array.isArray(value.billedRoles) && value.billedRoles.length ? value.billedRoles.map(String) : ["photographer"];
+  const counted = roles.reduce((sum, role) => sum + (coverage.find((item) => item.role === role)?.count ?? 0), 0);
+  if (crew > 0 && counted === 0) throw new Error("PER_CREW_RETAINER_BILLS_NOBODY");
+}
+
 /** Mirrors billedCrewCount in features/packages/create-snapshot.ts. */
 function billedCrewCount(
   coverage: readonly CoverageItem[],
@@ -2293,6 +2309,12 @@ export const crmCommand = onRequest(
           ) {
             Object.assign(patch, coverageFields(coverageFromInput(changes)));
           }
+          if (patch.retainerRule !== undefined || patch.includedCoverage !== undefined) {
+            assertPerCrewCountsSomeone(
+              patch.retainerRule ?? existing.get("retainerRule"),
+              (patch.includedCoverage as CoverageItem[] | undefined) ?? resolveCoverage(existing.data()),
+            );
+          }
           const nextVersion = Number(existing.get("version") ?? 1) + 1;
           transaction.update(reference, {
             ...patch,
@@ -2348,6 +2370,7 @@ export const crmCommand = onRequest(
               ? String(tenantForCurrency.get("currency"))
               : command.input.currency;
           const { addOnIds: suggestedAddOnIds, ...packageInput } = command.input;
+          assertPerCrewCountsSomeone(command.input.retainerRule, coverageFromInput(command.input));
           const suggestedAddOns = suggestedAddOnIds?.length
             ? await libraryAddOns(transaction, db, command.tenantId, suggestedAddOnIds)
             : null;

@@ -30,7 +30,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   describeCoverage,
   resolveCoverage,
+  type CoverageRole,
 } from "@/features/packages/coverage";
+import { crewTheRuleCounts } from "@/features/packages/retainer-check";
 import {
   requireInsuranceOf,
   type CrewRequirementSettings,
@@ -561,8 +563,20 @@ function display(
         maximumFractionDigits: 0,
       }).format(Number(cents ?? 0) / 100);
     if (type === "fixed") return money(rule.amountCents);
-    if (type === "per_crew_member")
-      return `${money(rule.amountPerCrewCents)} per crew`;
+    if (type === "per_crew_member") {
+      /**
+       * What a booking is asked for, and a rule that counts nobody said so.
+       * GR's two-videographer package charged "$1,000 per crew" — per
+       * photographer, of whom it had none — so every proposal asked for one
+       * person's retainer (features/packages/retainer-check.ts, 2026-10-06).
+       */
+      const coverage = resolveCoverage(record);
+      const roles = (Array.isArray(rule.billedRoles) && rule.billedRoles.length ? rule.billedRoles : ["photographer"]) as CoverageRole[];
+      const counted = crewTheRuleCounts(coverage, roles);
+      if (coverage.length && counted === 0)
+        return `${money(rule.amountPerCrewCents)} per ${roles.join(" and ")} — none on this package, so it charges for one person. Open it to fix`;
+      return `${money(rule.amountPerCrewCents)} per crew · ${money(Number(rule.amountPerCrewCents ?? 0) * Math.max(1, counted))} a booking`;
+    }
     return "Not set";
   }
   if (kind === "date") {

@@ -346,3 +346,38 @@ test("the functions copy of coverage matches features/", () => {
     body("features/packages/coverage.ts"),
   );
 });
+
+// --- a per-crew retainer that counts nobody (GR, 2026-10-06) -----------------
+import { crewTheRuleCounts, perCrewRetainerProblem } from "@/features/packages/retainer-check";
+import { billedCrewCount as snapshotBilledCrew } from "@/features/packages/create-snapshot";
+
+test("a per-crew retainer counting nobody on its own package is caught, not silently billed as one person", () => {
+  // GR's Gold Cinematic: two videographers, "$1,000 per crew" — per photographer.
+  const video = [{ role: "videographer" as const, count: 2 }];
+  assert.equal(crewTheRuleCounts(video, ["photographer"]), 0);
+  // The floor of one is unchanged — changing it would reprice live packages.
+  assert.equal(snapshotBilledCrew(video, ["photographer"]), 1);
+  assert.match(
+    perCrewRetainerProblem({ coverage: video, billedRoles: ["photographer"] }) ?? "",
+    /charged per photographer, but this package has no photographers — only videographers/,
+  );
+  assert.equal(perCrewRetainerProblem({ coverage: video, billedRoles: ["videographer"] }), null);
+  assert.equal(perCrewRetainerProblem({ coverage: video, billedRoles: ["photographer", "videographer"] }), null);
+  // A legacy rule (no roles) on a photo package still means photographers, and is fine.
+  assert.equal(perCrewRetainerProblem({ coverage: [{ role: "photographer", count: 2 }], billedRoles: undefined }), null);
+});
+
+test("the editor, the create form and the server all refuse it; the list and the proposal show it", () => {
+  const editor = readFileSync("components/crm/edit-package-form.tsx", "utf8");
+  // Switching to per-crew starts on everyone the package sends.
+  assert.match(editor, /: Number\(videographers \|\| 0\) > 0\);/);
+  assert.match(editor, /if \(perCrewProblem\) \{\s*setError\(perCrewProblem\);/);
+  assert.match(readFileSync("components/crm/create-package-form.tsx", "utf8"), /perCrewRetainerProblem\(\{/);
+  const server = readFileSync("functions/src/crm/commands.ts", "utf8");
+  assert.match(server, /throw new Error\("PER_CREW_RETAINER_BILLS_NOBODY"\)/);
+  assert.match(server, /assertPerCrewCountsSomeone\(command\.input\.retainerRule, coverageFromInput\(command\.input\)\)/);
+  assert.match(server, /if \(patch\.retainerRule !== undefined \|\| patch\.includedCoverage !== undefined\) \{\s*assertPerCrewCountsSomeone\(/);
+  assert.match(readFileSync("lib/ai/friendly-error.ts", "utf8"), /PER_CREW_RETAINER_BILLS_NOBODY:/);
+  assert.match(readFileSync("components/studio/live-domain-view.tsx", "utf8"), /none on this package, so it charges for one person/);
+  assert.match(readFileSync("components/proposals/studio-proposal-workspace.tsx", "utf8"), /`From the packages: \$\{allSnapshots/);
+});

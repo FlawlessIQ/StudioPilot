@@ -1887,7 +1887,11 @@ export function StudioProposalComposer() {
               <em>
                 {retainerOverride === null
                   ? allSnapshots.length > 1
-                    ? "From the packages"
+                    ? // Each package's share, so a surprising total explains itself:
+                      // GR expected $4,000 and saw $1,000 with no way to tell why (2026-10-06).
+                      `From the packages: ${allSnapshots
+                        .map((item) => `${text(item.packageName, "Package")} ${money(number(item.retainerCents), currency)}`)
+                        .join(" + ")}`
                     : "From the package"
                   : `${allSnapshots.length > 1 ? "Packages say" : "Package says"} ${money(combined.retainerCents, currency)}`}
               </em>

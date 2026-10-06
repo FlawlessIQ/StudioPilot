@@ -5,6 +5,7 @@ import {
   coverageFrom,
 } from "@/components/crm/package-coverage-fields";
 import { useState } from "react";
+import { perCrewRetainerProblem } from "@/features/packages/retainer-check";
 import { EXAMPLE_PACKAGES, type ExamplePackage } from "@/features/job-kinds/example-packages";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -119,6 +120,15 @@ const schema = z
         message: "Choose at least one role the retainer charges for.",
       });
     }
+    // Charging per photographer on a package with none counts nobody (retainer-check.ts).
+    const nobody =
+      values.retainerMode === "per_crew_member" && values.paymentShape === "deposit_and_balance"
+        ? perCrewRetainerProblem({
+            coverage: coverageFrom({ photographers: values.photographers, videographers: values.videographers }),
+            billedRoles: billedRolesFrom(values),
+          })
+        : null;
+    if (nobody) context.addIssue({ code: "custom", path: ["billPhotographers"], message: nobody });
   });
 type FormInput = z.input<typeof schema>;
 type FormValues = z.output<typeof schema>;

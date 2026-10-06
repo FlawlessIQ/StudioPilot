@@ -6,6 +6,7 @@ import {
 } from "@/components/crm/package-coverage-fields";
 import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
+import { perCrewRetainerProblem } from "@/features/packages/retainer-check";
 import { useState } from "react";
 import {
   isPaymentShape,
@@ -108,14 +109,22 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
   const videographers =
     edits.videographers ??
     String(coverageCount(storedCoverage, "videographer"));
-  // A rule with no roles named bills photographers, which is what it meant
-  // before roles existed — so the boxes show what the package actually does.
+  // A stored per-crew rule shows what it bills: its roles, or — with none
+  // named — photographers, which is what it meant before roles existed.
+  // A package switching to per-crew starts on everyone it sends: ticking
+  // photographers alone made GR's two-videographer package charge "per
+  // photographer" for nobody (features/packages/retainer-check.ts).
+  const storedPerCrew = storedMode === "per_crew_member";
   const billPhotographers =
     edits.billPhotographers ??
-    (storedBilledRoles ? storedBilledRoles.includes("photographer") : true);
+    (storedPerCrew
+      ? storedBilledRoles ? storedBilledRoles.includes("photographer") : true
+      : Number(photographers || 0) > 0);
   const billVideographers =
     edits.billVideographers ??
-    (storedBilledRoles ? storedBilledRoles.includes("videographer") : false);
+    (storedPerCrew
+      ? storedBilledRoles ? storedBilledRoles.includes("videographer") : false
+      : Number(videographers || 0) > 0);
   // Stored when the studio has set them; until then, what the package's
   // coverage and wording imply — the same list a job would get.
   const deliverables: EditableDeliverable[] =
@@ -166,6 +175,17 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             billedRolesFrom({ billPhotographers, billVideographers }),
           );
 
+  const perCrewProblem =
+    hasDeposit && mode === "per_crew_member"
+      ? perCrewRetainerProblem({
+          coverage: coverageFrom({
+            photographers: Math.max(0, Math.round(Number(photographers || 0))),
+            videographers: Math.max(0, Math.round(Number(videographers || 0))),
+          }),
+          billedRoles: billedRolesFrom({ billPhotographers, billVideographers }),
+        })
+      : null;
+
   async function save() {
     const crew =
       Math.max(0, Math.round(Number(photographers || 0))) +
@@ -176,6 +196,10 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     }
     if (mode === "per_crew_member" && !billPhotographers && !billVideographers) {
       setError("Choose at least one role the retainer charges for.");
+      return;
+    }
+    if (perCrewProblem) {
+      setError(perCrewProblem);
       return;
     }
     if (edits.description !== undefined && description.trim().length < 10) {
@@ -334,6 +358,11 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             value={amount}
           />
           <small>Clients are asked for {formatCents(retainerPreview)}.</small>
+          {perCrewProblem ? (
+            <small className="form-error" role="alert">
+              {perCrewProblem}
+            </small>
+          ) : null}
         </label>
         {mode === "per_crew_member" ? (
           <>

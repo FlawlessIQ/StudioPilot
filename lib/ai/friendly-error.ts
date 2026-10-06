@@ -170,6 +170,8 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVOICE_NOT_HELD: "That bill isn't waiting for you any more — it's been sent, voided or replaced. Refresh to see where it is.",
   INVOICE_ACTION_IN_PROGRESS: "QuickBooks is still working on your last choice for this bill. Give it a moment, then refresh.",
   RETAINER_HAS_NO_TAX: "A retainer never carries sales tax, so it's only ever sent as it stands.",
+  PER_CREW_RETAINER_BILLS_NOBODY:
+    "That retainer is charged per crew member, but none of the roles it counts are on this package. Check the photographers or videographers the package includes.",
   BILLING_ADDRESS_NEEDED_FOR_TAX:
     "QuickBooks had no billing address to work the tax out from. Ask the couple for it, or add it on their client record and use Work the tax out again — or send it without tax.",
   QUESTIONNAIRE_TEMPLATE_INVALID:
