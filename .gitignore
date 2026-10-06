@@ -59,3 +59,6 @@ firestore-debug.log
 ui-debug.log
 pglite-debug.log
 .emulator-data/
+
+# Marketing renders made locally (one-pager PDF, film cuts) — not committed
+marketing-out/

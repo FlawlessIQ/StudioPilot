@@ -338,3 +338,15 @@ test("Cue never: the job description keeps the same boundary as the features pag
   for (const never of ["Signs anything", "Records a payment", "Changes who can see what", "Marks a job ready", "Touches your photos"])
     assert.ok(titles.includes(never), never);
 });
+
+test("the printed one-pager says only what the site says, and stays out of search", () => {
+  const sheet = read("app/office-manager/one-pager/page.tsx");
+  // Every duty, the Saturday lines, the never list and the wage come from the
+  // one list the claims tests hold to the code; none are typed into the sheet.
+  for (const name of ["CUE_DUTIES", "SATURDAY_LOG", "CUE_NEVER", "ASSISTANT_WAGE"]) assert.match(sheet, new RegExp(name), name);
+  assert.match(sheet, /robots: \{ index: false, follow: false \}/);
+  assert.doesNotMatch(read("app/sitemap.ts"), /one-pager/);
+  // The only quote is Gabriel's approved one.
+  const quotes = copy("app/office-manager/one-pager/page.tsx").match(/&ldquo;([^&]+)&rdquo;/g) ?? [];
+  assert.deepEqual(quotes, ["&ldquo;I review it and send it.&rdquo;"]);
+});

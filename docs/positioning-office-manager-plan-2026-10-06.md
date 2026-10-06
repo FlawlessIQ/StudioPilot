@@ -8,7 +8,13 @@ handoff), phase 7 (outbound), and Gabe's quote (drafts below, not published).
 **Phase 5 started 2026-10-06 with payment chasing** (tap to send; see
 `docs/production-status.md` → Open). Proposal follow-up and forwarded-inquiry
 acknowledgement are next. Proposal follow-ups followed the same day (day 3
-and day 7, tap to send); the forwarded-inquiry acknowledgement is what's left.
+and day 7, tap to send). **Forwarded-inquiry acknowledgement: dropped** (Conor,
+2026-10-06) — a forwarded inquiry stays unacknowledged; the AI-drafted
+personal reply is enough, and the site keeps saying "from your website form".
+Both walked on prod the same day on FlawlessIQ (draft → Today → Send → email
+received with its button). Search Console indexing requested for both new
+pages. The one-pager is `/office-manager/one-pager` (noindex) →
+`npx tsx scripts/marketing/one-pager.ts` → `marketing-out/cue-one-pager.pdf`.
 Google: ask Search Console to index `/office-manager` and
 `/virtual-assistant-for-photographers` (IndexNow doesn't reach Google).
 

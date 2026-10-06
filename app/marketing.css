@@ -1690,3 +1690,157 @@
     font-size: 21px;
   }
 }
+
+/* --- Cue's job description on one printed page (app/office-manager/one-pager) --- */
+.mk-sheet {
+  max-width: 8.5in;
+  min-height: 11in;
+  margin: 0 auto;
+  padding: 0.4in 0.55in 0.35in;
+  background: #fff;
+  color: #1c2620;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.mk-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e3dccb;
+  color: #5c6a61;
+  font-size: 12px;
+}
+.mk-sheet h1 {
+  margin: 14px 0 6px;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 30px;
+  font-weight: 460;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.mk-sheet-lede {
+  margin: 0 0 14px;
+  color: #4f5752;
+  font-size: 13px;
+}
+.mk-sheet-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f7f3ea;
+}
+.mk-sheet-meta dt {
+  color: #778079;
+  font-size: 9.5px;
+  font-weight: 720;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mk-sheet-meta dd {
+  margin: 0;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 15px;
+}
+.mk-sheet h2 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 720;
+}
+.mk-sheet-duties {
+  columns: 2;
+  column-gap: 26px;
+}
+.mk-sheet-duties > div {
+  break-inside: avoid;
+  margin-bottom: 10px;
+}
+.marketing-page .mk-sheet ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.marketing-page .mk-sheet li {
+  margin: 0 0 3px;
+  color: #4f5752;
+}
+.marketing-page .mk-sheet li::before {
+  content: none;
+}
+.mk-sheet-tag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dfece2;
+  color: #2f5a40;
+  font-size: 9.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.mk-sheet-tag--approve {
+  background: #f3e6c8;
+  color: #7a5518;
+}
+.mk-sheet-row {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 18px;
+  margin-top: 6px;
+}
+.mk-sheet-never {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #14201b;
+}
+.mk-sheet-never h2 {
+  color: #cdb98a;
+}
+.marketing-page .mk-sheet-never li {
+  color: #eef2ee;
+}
+.mk-sheet-saturday {
+  padding: 12px 14px;
+  border: 1px solid #e3dccb;
+  border-radius: 10px;
+}
+.mk-sheet-saturday time {
+  color: #50725c;
+  font-weight: 650;
+}
+.mk-sheet-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #e3dccb;
+  color: #5c6a61;
+}
+.mk-sheet-foot p {
+  margin: 0 0 6px;
+}
+.mk-sheet-quote {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 15px;
+  color: #1c2620;
+}
+.mk-sheet-quote span {
+  margin-left: 6px;
+  color: #778079;
+  font-family: inherit;
+  font-size: 11px;
+}
+.mk-sheet-cta {
+  color: #1c2620;
+  font-size: 13px;
+  font-weight: 700;
+}
+@media print {
+  @page {
+    size: letter;
+    margin: 0;
+  }
+  .mk-sheet {
+    min-height: auto;
+  }
+}
