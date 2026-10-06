@@ -11,6 +11,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { crewRequirementsFor, type CrewRequirementSettings } from "@/features/crew/requirements";
 import { directOfferDefaults, offerResponsibilities } from "@/features/crew/direct-offer";
 import { jobCoverage, jobPackageSnapshotIds, ownerShootsJob } from "@/features/crew/staffing-plan";
+import { lapsedOnJob, spokenForOnJob } from "@/features/crew/offer-again";
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 const localDateTime = (value: Date) => {
@@ -69,17 +70,19 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
   const eventDate =
     text(project?.eventDate) || todayLocalIso();
 
-  // Someone already offered or booked on this job is not a candidate for a
-  // second offer on it. The server would happily write a duplicate.
-  const spokenFor = useMemo(() => {
-    const taken = new Set<string>();
-    for (const item of assignments ?? []) {
-      if (item.projectId !== projectId) continue;
-      if (["declined", "cancelled"].includes(text(item.status))) continue;
-      taken.add(text(item.crewProfileId));
-    }
-    return taken;
-  }, [assignments, projectId]);
+  // Someone with a live offer or booking on this job is not a candidate for a
+  // second offer on it. The server would happily write a duplicate. An offer
+  // that ran out of time is over, though — leaving it in here is what kept a
+  // studio from re-offering a second shooter who missed the window
+  // (features/crew/offer-again.ts).
+  const spokenFor = useMemo(
+    () => spokenForOnJob(assignments ?? [], projectId),
+    [assignments, projectId],
+  );
+  const lapsed = useMemo(
+    () => lapsedOnJob(assignments ?? [], projectId),
+    [assignments, projectId],
+  );
 
   const available = (profiles ?? []).filter(
     (profile) => profile.active === true && !spokenFor.has(profile.id),
@@ -242,6 +245,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
               {available.map((profile) => (
                 <option key={profile.id} value={profile.id}>
                   {text(profile.name) || "Crew member"}
+                  {lapsed.has(profile.id) ? " — last offer ran out of time" : ""}
                 </option>
               ))}
             </select>

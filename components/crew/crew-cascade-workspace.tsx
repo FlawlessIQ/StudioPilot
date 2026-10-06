@@ -31,6 +31,7 @@ import {
   ownerShootsJob,
 } from "@/features/crew/staffing-plan";
 import { suggestedResponsibilitiesText } from "@/features/crew/responsibilities";
+import { lapsedOnJob } from "@/features/crew/offer-again";
 import {
   rankCrewCandidates,
   type CrewCandidateInput,
@@ -316,6 +317,24 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
     const reached = Number(cascade.currentCandidateIndex ?? 0);
     return ordered.slice(reached + 1);
   };
+  /**
+   * The people this cascade asked whose offer ran out of time.
+   *
+   * They never said no, so the next round may ask them again — GR's only
+   * second shooter missed a 24-hour window and "Offer to someone else" then
+   * ruled him out and offered the role to nobody (features/crew/offer-again.ts).
+   */
+  const lapsed = lapsedOnJob(assignments ?? [], projectId);
+  const askedFor = (cascade: Record<string, unknown>): string[] =>
+    list(cascade.candidateIds)
+      .map(text)
+      .filter(Boolean)
+      .slice(0, Number(cascade.currentCandidateIndex ?? 0) + 1);
+  const lapsedFor = (cascade: Record<string, unknown>): string[] =>
+    askedFor(cascade).filter((id) => lapsed.has(id));
+  const nameOf = (id: string) =>
+    text((profiles ?? []).find((profile) => profile.id === id)?.name) ||
+    "They";
   // Ranking someone the studio cannot offer the job to reads as a bug. The
   // count in the heading already says how many were ruled out; the people
   // themselves belong behind it, not interleaved with the shortlist carrying
@@ -1105,10 +1124,13 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
               {openStalled
                 .map((cascade) => {
                   const left = untriedFor(cascade).length;
+                  const missed = lapsedFor(cascade);
                   return `${text(cascade.role) || "Role"} — ${
                     left
                       ? `${left} more ${left === 1 ? "person" : "people"} not yet asked`
-                      : "everyone on the list has been asked"
+                      : missed.length
+                        ? `${missed.map(nameOf).join(", ")} didn't answer in time`
+                        : "everyone on the list has been asked"
                   }`;
                 })
                 .join(" · ")}
@@ -1121,22 +1143,24 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                     .map((cascade) => text(cascade.role))
                     .filter(Boolean);
                   setRolesText(roles.join("\n"));
-                  // Everyone already asked is off the table for this round.
+                  // Everyone who already said no is off the table for this
+                  // round. Someone whose offer ran out of time is not: they
+                  // stay in, so the round can ask them again.
                   const asked = new Set(
-                    openStalled.flatMap((cascade) => {
-                      const ordered = list(cascade.candidateIds).map(text);
-                      return ordered.slice(
-                        0,
-                        Number(cascade.currentCandidateIndex ?? 0) + 1,
-                      );
-                    }),
+                    openStalled.flatMap((cascade) =>
+                      askedFor(cascade).filter((id) => !lapsed.has(id)),
+                    ),
                   );
                   setExcluded(asked);
                   setRestartOpen(true);
                 }}
                 type="button"
               >
-                <Send /> Offer to someone else
+                <Send />{" "}
+                {openStalled.every((cascade) => !untriedFor(cascade).length) &&
+                openStalled.some((cascade) => lapsedFor(cascade).length)
+                  ? "Ask again"
+                  : "Offer to someone else"}
               </button>
               <a className="button button-light" href="#crew-direct-invite">
                 Invite someone directly
