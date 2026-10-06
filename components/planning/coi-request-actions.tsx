@@ -106,7 +106,7 @@ export function CoiRequestActions({
     body = (
       <>
         <p className="coi-status-note">
-          {`StudioCue prepared this request to ${text(request.requestEmail) || text(settings?.agentEmail) || "your agent"}${
+          {`Cue prepared this request to ${text(request.requestEmail) || text(settings?.agentEmail) || "your agent"}${
             text(request.dueDate) ? `, due ${formatEventDate(text(request.dueDate))}` : ""
           }. Nothing has been sent.${request.fromVenueMemory ? " The venue's details are from the last certificate you sent them." : ""}`}
         </p>
@@ -308,7 +308,7 @@ export function CoiRequestActions({
         <p className="coi-status-note">
           {status === "requested"
             ? request.escalatedAt
-              ? `Your agent hasn't replied after ${Number(request.chaseCount ?? 0)} follow-ups — StudioCue stopped following up.${text(settings?.agentPhone) ? ` Call ${text(settings?.agentPhone)}.` : ""}`
+              ? `Your agent hasn't replied after ${Number(request.chaseCount ?? 0)} follow-ups — Cue stopped following up.${text(settings?.agentPhone) ? ` Call ${text(settings?.agentPhone)}.` : ""}`
               : `With your agent${Number(request.chaseCount ?? 0) ? ` · followed up ${Number(request.chaseCount)} time${Number(request.chaseCount) === 1 ? "" : "s"}` : ""}. Their reply with the PDF comes straight back here.`
             : status === "correction_required"
               ? "Sent back to your agent for a correction. StudioCue follows up until it's back."

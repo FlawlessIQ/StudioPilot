@@ -339,7 +339,7 @@ export function AiQueueCard({
       {/* What approving actually does, in one sentence. The entity type,
           downstream command and authority boundary are audit metadata, not
           the question being asked of a photographer — they stay available
-          under "Why StudioCue prepared this". */}
+          under "Why Cue prepared this". */}
       {/* Derived from the same condition the server uses, because this card
           used to promise "nothing goes to the client until you send it" and
           then send it one second later. See features/ai/approval-consequence.ts. */}
@@ -365,7 +365,7 @@ export function AiQueueCard({
       <details className="ai-queue-explanation">
         <summary>
           <Sparkles size={14} />
-          Why StudioCue prepared this
+          Why Cue prepared this
           <ChevronDown size={14} />
         </summary>
         <div>
@@ -435,7 +435,7 @@ export function AiQueueCard({
           {output.outward === true ? (
             <small>Sends to {text(output.sendsTo) || "the client"}</small>
           ) : null}
-          {/* The reason lives under "Why StudioCue prepared this" — see the
+          {/* The reason lives under "Why Cue prepared this" — see the
               disclosure below. Printing it here as well put the same sentence
               on the card twice, and with the headline also set to it, three
               times. */}

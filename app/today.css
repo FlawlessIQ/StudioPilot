@@ -1467,7 +1467,7 @@
   .today-card-facts { gap: 5px; margin-top: 3px; }
   .today-card-facts li { padding: 2px 8px; font-size: 11px; }
 
-  /* "StudioCue prepared this — you decide" under every one of 13 approve
+  /* "Cue prepared this — you decide" under every one of 13 approve
      cards is pure repetition of the "Prepared for you" heading above them.
      Drop it on phones. The act cards keep theirs ("stopped safely — needs
      you"), which says something the heading doesn't. */

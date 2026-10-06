@@ -7,7 +7,7 @@
  *
  *   act     — only you can do this (an inquiry, an exception, a job whose
  *             next step is yours)
- *   approve — StudioCue prepared it; one tap releases it
+ *   approve — Cue prepared it; one tap releases it
  *   fyi     — evidence arrived and the engines already acted; nothing to do
  *
  * Ranking reuses the urgency weights the home page already trusted, so an
@@ -1224,7 +1224,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: item.kind ?? null,
       title: item.title,
       detail: item.detail,
-      evidence: "StudioCue stopped safely — this one needs you",
+      evidence: "Cue stopped safely — this one needs you",
       projectId: item.projectId ?? null,
       projectName: item.projectName ?? null,
       action: item.action ?? {
@@ -2122,7 +2122,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         detail: onBrief
           ? "StudioCue couldn't choose a package from the consultation. Pick one or more on the booking brief and it drafts the proposal."
           : issues.map((issue) => issue.message).filter(Boolean).join(" ") || "StudioCue needs a decision before this can go ahead.",
-        evidence: "StudioCue prepared this — you decide",
+        evidence: "Cue prepared this — you decide",
         projectId: projectId || null,
         projectName: nameFor(action.projectId),
         action: {
@@ -2147,13 +2147,15 @@ export function todayInbox(input: TodayInput): TodayInbox {
     approve.push({
       id: `ai-${action.id}`,
       lane: "approve",
-      // What the draft is a draft *of* — the capability names it.
-      kind: toneKindFor(
-        text(action.capability) || text(action.assetType) || text(action.type),
-      ),
+      // What the draft is a draft *of* — the capability names it, except a
+      // proposal follow-up, which is a delivery_message_draft about a
+      // proposal and showed the gallery icon (prod walk, 2026-10-06).
+      kind: followUpProposalId
+        ? "proposal"
+        : toneKindFor(text(action.capability) || text(action.assetType) || text(action.type)),
       title: text(action.title) || "Review prepared work",
       detail: preparedFor(action),
-      evidence: "StudioCue prepared this — you decide",
+      evidence: "Cue prepared this — you decide",
       projectId: text(action.projectId) || null,
       projectName: nameFor(action.projectId),
       action: {
@@ -2212,7 +2214,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: item.kind ?? null,
       title: item.title,
       detail: item.detail,
-      evidence: "StudioCue prepared this — you decide",
+      evidence: "Cue prepared this — you decide",
       projectId: text(item.projectId) || null,
       projectName: nameFor(item.projectId),
       action: item.action ?? { kind: "link", label: item.label, href: item.href },

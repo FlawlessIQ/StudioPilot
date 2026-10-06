@@ -30,7 +30,13 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { chromium, type Browser } from "playwright";
 import { cueDuty, type CueDutyId } from "../../features/marketing/cue-duties";
-import { renderEmailTemplate, type EmailBrand } from "../../functions/src/communications/email-templates";
+// Imported at run time, not statically: a static import of functions/src
+// pulls the functions package into the app's build, which fails on App
+// Hosting (tests/app-build-boundary.test.ts). The UAT scripts do the same.
+type EmailBrand = { studioName: string; productName: string; accentColor: string; logoUrl: string | null; contactEmail: string | null };
+const { renderEmailTemplate } = (await import(`${process.cwd()}/functions/src/communications/email-templates.ts`)) as {
+  renderEmailTemplate: (input: Record<string, unknown>) => { subject: string; html: string; text: string };
+};
 import { latestEmail } from "./journey/emails";
 import { inbox } from "./lib/journey-recorder";
 import { makeMusicBed } from "./lib/music";

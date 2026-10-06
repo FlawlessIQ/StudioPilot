@@ -1917,7 +1917,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   <div className="booking-complete-message">
                     <CircleAlert size={18} />
                     <span>
-                      <strong>StudioCue stopped safely</strong>
+                      <strong>Cue stopped safely</strong>
                       <small>
                         Resolve anything listed below, then run the booking
                         review again.
