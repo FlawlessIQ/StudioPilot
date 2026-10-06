@@ -35,7 +35,7 @@ export const GLOSSARY: readonly HelpTerm[] = [
     id: "cue",
     term: "Cue",
     audience: "studio",
-    hint: "StudioCue's assistant. Ask it to do something and it prepares the work for you to approve.",
+    hint: "Your studio's office manager. Ask Cue to do something and it prepares the work for you to approve.",
   },
   {
     id: "prepared",

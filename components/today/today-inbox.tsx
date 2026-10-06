@@ -536,7 +536,7 @@ export function TodayInbox() {
               <div>
                 <strong>
                   {setup.brandNew
-                    ? "Let\u2019s get your studio ready."
+                    ? "Show Cue how you work."
                     : "Finish setting up your studio."}
                 </strong>
                 <small>

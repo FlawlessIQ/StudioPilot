@@ -72,7 +72,7 @@ const navSections = [
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
       { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
       { label: "Clients", href: "/studio/clients", icon: UsersRound },
-      // AI review left the nav: Today shows every approval waiting on the
+      // "Waiting on you" (the AI review page) left the nav: Today shows every approval waiting on the
       // studio, and a second list of the same drafts read as a second queue
       // to clear. The page stays addressable for its activity history.
       { label: "Insights", href: "/studio/reports", icon: ChartNoAxesColumn },
@@ -111,7 +111,7 @@ const primaryTabGroups = new Set(["Today", "Inquiries", "Jobs", "Cue"]);
 const activeGroups: Record<string, string[]> = {
   // Not "Notifications": the bell's page lit up Today in the sidebar, so
   // the studio was told it was somewhere it wasn't (UI audit, 2026-10-02).
-  Today: ["Today", "Dashboard", "AI review", "AI queue"],
+  Today: ["Today", "Dashboard", "Waiting on you"],
   Inquiries: ["Inquiries", "Leads"],
   Cue: ["Cue", "Copilot"],
   Insights: ["Insights"],
@@ -161,7 +161,7 @@ const StudioShellContext = createContext(false);
 
 const studioRouteLabels: Record<string, string> = {
   audit: "Workflows",
-  "ai-queue": "AI review",
+  "ai-queue": "Waiting on you",
   automations: "Workflows",
   booking: "Booking",
   calendar: "Calendar",

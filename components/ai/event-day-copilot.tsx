@@ -193,7 +193,7 @@ export function EventDayCopilot({
       .then(setResult)
       .catch((caught: unknown) => {
         preparedBriefs.current.delete(projectId);
-        setError(friendlyError(caught, "Copilot could not prepare the brief."));
+        setError(friendlyError(caught, "Cue could not prepare the brief."));
       })
       .finally(() => setBusy(false));
   }, [projectId, schedule, workspace.tenantId]);
@@ -212,7 +212,7 @@ export function EventDayCopilot({
         }),
       );
     } catch (caught: unknown) {
-      setError(friendlyError(caught, "Copilot could not answer."));
+      setError(friendlyError(caught, "Cue could not answer."));
     } finally {
       setBusy(false);
     }

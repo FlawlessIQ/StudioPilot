@@ -34,7 +34,7 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{
   { key: "jobTypes", slug: "job-types", title: "Job types", subtitle: "Weddings, sessions, events — and what each kind does" },
   { key: "templates", slug: "email-templates", title: "Email templates", subtitle: "Design the branded template" },
   { key: "firstReply", slug: "first-reply", title: "How your first reply should go", subtitle: "What Cue's personal reply to a new inquiry always does" },
-  { key: "drafts", slug: "automatic-drafts", title: "Automatic drafts", subtitle: "Which lifecycle emails are drafted for you" },
+  { key: "drafts", slug: "automatic-drafts", title: "What Cue can do without asking", subtitle: "Routine messages Cue may send on its own" },
   { key: "forwarding", slug: "inquiry-capture", title: "Inquiry capture", subtitle: "Your form on your website, or forwarding" },
   { key: "planning", slug: "planning-timeline", title: "Planning timeline", subtitle: "Weddings: when couples get their planning form, and when details lock" },
   { key: "crewOffers", slug: "crew-offers", title: "Crew offers", subtitle: "Whether booking sends the prepared offers, or you do" },

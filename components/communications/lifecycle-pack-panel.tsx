@@ -112,11 +112,11 @@ export function LifecyclePackPanel() {
     <section className="panel communications-lifecycle-pack">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Lifecycle pack</p>
+          <p className="eyebrow">Routine messages</p>
           <h2>
-            Automatic drafts
-            <InfoHint label="Automatic drafts">
-              StudioCue writes these for every booked job on schedule. “Review each time” waits on Today for your
+            What Cue can do without asking
+            <InfoHint label="What Cue can do without asking">
+              Cue prepares these for every booked job on schedule. “Review each time” waits on Today for your
               approval; “Send automatically” emails the client without you seeing it first.
             </InfoHint>
           </h2>
@@ -124,9 +124,10 @@ export function LifecyclePackPanel() {
         <ShieldCheck aria-hidden="true" />
       </div>
       <p className="communications-lifecycle-note">
-        StudioCue prepares these messages on schedule — for booked weddings, and for couples with a consultation coming up.
-        Drafts wait for your approval on Today unless a message is explicitly set
-        to send automatically.
+        Routine messages Cue may send on its own. Money, signatures and anything
+        Cue writes itself always wait for you. Cue prepares these on schedule — for
+        booked weddings, and for couples with a consultation coming up — and each
+        one waits on Today unless you set it to send automatically.
       </p>
       <ul className="communications-lifecycle-list">
         {(Object.keys(COPY) as Array<keyof LifecycleSettings>).map(

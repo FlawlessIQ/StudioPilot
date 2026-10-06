@@ -245,14 +245,14 @@ export function SetupConversation() {
               ? "Your studio is set up."
               : complete
                 ? "You're ready to take bookings."
-                : "Let's set up your studio."}
+                : "Show Cue how you work."}
           </h1>
           <p className="setup-lede">
             {allAnswered
-              ? "Everything StudioCue needs is in place. Change any of it whenever your studio does."
+              ? "Everything Cue needs is in place. Change any of it whenever your studio does."
               : complete
                 ? "Everything a booking needs is in place. What's left below only matters if venues ask for it."
-                : `${setupQuestionCount().replace(/^./, (first) => first.toUpperCase())} questions, most answered right here. Skip anything; StudioCue will bring it back when a job actually needs it.`}
+                : `${setupQuestionCount().replace(/^./, (first) => first.toUpperCase())} questions about how your studio runs, most answered right here. Skip anything; Cue will bring it back when a job actually needs it.`}
           </p>
           {!loading ? (
             <p className="setup-progress">

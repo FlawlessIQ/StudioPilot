@@ -1040,12 +1040,12 @@ export function SettingsCard({ action }: ActionCardProps) {
       href: "/studio/settings/consultation-availability",
     },
     set_automatic_emails: {
-      title: "Automatic emails",
+      title: "What Cue can do without asking",
       // Only these three are governed here (lifecycle-pack-panel.tsx). Review
       // asks, questionnaire and payment reminders have their own controls, so
       // the card doesn't claim them.
       detail:
-        "The schedule confirmation, final balance summary and day-before checklist: whether StudioCue drafts them, and whether they send without your review.",
+        "The schedule confirmation, final balance summary and day-before checklist: whether Cue prepares them, and whether they send without your review.",
       ownerOnly: true,
       body: <LifecyclePackPanel />,
       href: "/studio/settings/automatic-drafts",

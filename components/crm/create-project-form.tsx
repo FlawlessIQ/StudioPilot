@@ -383,8 +383,8 @@ export function CreateProjectForm({
 
   return (
     <div className="intake-workspace">
-      <aside className="intake-copilot" aria-label="StudioCue copilot">
-        <p className="eyebrow">StudioCue copilot</p>
+      <aside className="intake-copilot" aria-label="Cue">
+        <p className="eyebrow">Cue · your office manager</p>
         <h2>Tell me about the booking.</h2>
         <p>
           Paste the client&rsquo;s email or text — or just describe the job in

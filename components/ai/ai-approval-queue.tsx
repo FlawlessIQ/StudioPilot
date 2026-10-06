@@ -866,12 +866,12 @@ export function AiApprovalQueue() {
     <div className="ai-queue-page">
       <header className="ai-queue-hero">
         <div>
-          <p className="eyebrow"><Sparkles size={14} /> AI review</p>
+          <p className="eyebrow"><Sparkles size={14} /> Waiting on you</p>
           <h1>Prepared for you.<br />Never decided for you.</h1>
           <p>
-            Review drafts and workflow actions with their source facts,
-            confidence, affected record, and exactly what happens after
-            approval.
+            Cue, your office manager, prepared these. Each one shows its
+            source facts, the record it changes, and exactly what happens
+            after you approve.
           </p>
         </div>
         <aside>
@@ -881,7 +881,7 @@ export function AiApprovalQueue() {
         </aside>
       </header>
 
-      <nav className="ai-queue-tabs" aria-label="AI review views">
+      <nav className="ai-queue-tabs" aria-label="Waiting on you views">
         <button className={filter === "review" ? "is-active" : ""} onClick={() => setFilter("review")} type="button">
           <BrainCircuit /> Review queue <span>{aiActions.length + approvals.length}</span>
         </button>

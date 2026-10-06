@@ -21,10 +21,10 @@ export const EXPLAINERS: readonly Explainer[] = [
     purpose:
       "StudioCue runs your studio from the first inquiry to the final gallery. Four places in the menu do most of the work.",
     steps: [
-      "**Today** is your inbox: everything that needs a decision, most urgent first. Drafts StudioCue has written wait under **Prepared for you** — **Approve** them as they are, or **Review** them first.",
+      "**Today** is your inbox: everything that needs a decision, most urgent first. Drafts Cue has written wait under **Prepared for you** — **Approve** them as they are, or **Review** them first.",
       "**Inquiries** holds everyone who hasn't booked yet, by stage — **New**, **Talking**, **Consult**, **Proposal**, **Signing** — and shows whose move it is.",
       "**Jobs** holds every booked job. Open one to see its whole story and **Your next move**.",
-      "**Cue** is your assistant. Ask it to draft an email, prepare a proposal or tell you what's outstanding — it prepares, you approve.",
+      "**Cue** is your office manager. Ask it to draft an email, prepare a proposal or tell you what's outstanding. Cue prepares the work. You approve it.",
       "**Calendar**, **Messages**, **Clients** and **Insights** sit under **More** on a phone. Your packages and templates live in **Library**.",
     ],
     next: "Every screen has a **How to** button at the top. It opens the guide for whatever you're looking at.",
@@ -47,14 +47,14 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Today shows everything waiting on you, most urgent first, and keeps track of everything else. If nothing is waiting, nothing is wrong.",
     steps: [
       "Read the headline. It's the single most urgent thing; **You're all clear.** means nothing needs you.",
-      "Work through **Prepared for you** — replies, reminders and bills StudioCue has drafted. **Approve** sends one as written; **Review** opens it so you can edit it first.",
+      "Work through **Prepared for you** — replies, reminders and bills Cue has drafted. **Approve** sends one as written; **Review** opens it so you can edit it first.",
       "For a new inquiry, read the **Reply ready** draft and tap **Send reply**, or **Edit** it first. If it isn't really an inquiry, tap **Not an inquiry**.",
-      "Then clear what's under **Only you can do this** — the decisions StudioCue can't make for you. Each one opens where you finish it.",
+      "Then clear what's under **Only you can do this** — the decisions Cue can't make for you. Each one opens where you finish it.",
       "When a client goes quiet, you'll be asked to **Close — went quiet** or **Keep it open**.",
     ],
     next: "Anything waiting on someone else sits under **In motion** and comes back to Today by itself when it needs you again.",
     goodToKnow: [
-      "**Handled for you** lists what StudioCue did without you, so you can always check.",
+      "**Handled for you** lists what Cue did without you, so you can always check.",
       "A reply only includes a booking link once your consultation hours are set.",
     ],
     terms: ["today", "prepared", "inquiry"],
@@ -72,7 +72,7 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Inquiries holds everyone who's asked about a date but hasn't booked. A confirmed inquiry with a date becomes a job right away, so nothing slips.",
     steps: [
       "Open **Inquiries**. **Open** shows everyone still in play; the other tabs split them by stage, from **New** to **Signing**. **Your move** marks the ones waiting on you.",
-      "Answer from **Today**: StudioCue drafts a reply to each new inquiry. Read it, then **Send reply**. It includes a link where the client can add details and pick a consultation time.",
+      "Answer from **Today**: Cue drafts a reply to each new inquiry. Read it, then **Send reply**. It includes a link where the client can add details and pick a consultation time.",
       "Unsure emails arrive as **Maybe an inquiry** — tap **Yes, an inquiry** or **Not an inquiry**.",
       "No answer? A follow-up is drafted on day 3 and day 7, ready for **Send follow-up**.",
       "If it doesn't book, open the job, choose **Close inquiry** and pick why — **Went quiet**, **Booked someone else**, **Budget** and so on.",
@@ -305,17 +305,17 @@ export const EXPLAINERS: readonly Explainer[] = [
   {
     id: "cue",
     title: "Ask Cue, then approve",
-    summary: "Ask your assistant anything, or ask it to do something — it prepares, you approve.",
+    summary: "Ask your office manager anything, or ask it to do something. Cue prepares the work. You approve it.",
     audience: "studio",
     stage: "every-day",
     routes: ["/studio/copilot", "/studio/ai-queue"],
     purpose:
-      "Cue is your assistant. Ask it anything about your studio, or ask it to do something, and it prepares the work for you to approve.",
+      "Cue is your studio's office manager. Ask it anything about your studio, or ask it to do something, and it prepares the work for you to approve.",
     steps: [
       "Open **Cue** and type into **Message Cue**, or pick a suggestion.",
       "Type a slash for a ready-made question, like /attention for today's priorities or /unpaid for balances owed.",
       "When Cue prepares something, it shows as a card. Nothing happens until you tap its button.",
-      "Drafted emails wait under **Prepared for you** on Today and in AI review: **Approve & send**, **Edit first**, **Reject** or **Dismiss**.",
+      "Drafted emails wait under **Prepared for you** on Today and in **Waiting on you**: **Approve & send**, **Edit first**, **Reject** or **Dismiss**.",
       "**New conversation** starts afresh; earlier ones stay under **Pick up where you left off**.",
     ],
     next: "Cue answers from your studio's records and shows where each fact came from.",
@@ -647,13 +647,13 @@ export const EXPLAINERS: readonly Explainer[] = [
       "/studio/settings/email-templates",
     ],
     purpose:
-      "Workflows set the checkpoints and automatic emails every booked job gets. Automatic drafts and email templates decide how routine emails are written and sent.",
+      "Workflows set the checkpoints and automatic emails every booked job gets. **What Cue can do without asking** and email templates decide how routine emails are written and sent.",
     steps: [
       "Open **Library**, choose **Workflow templates**, then **Create workflow**.",
       "Name it, pick the **Event type**, and choose the **Starting checkpoints** — the milestones every job must reach, dated back from the event.",
       "Review **Starting automations**. Email automations go to the client on schedule without a draft to approve, so uncheck any you'd rather send yourself.",
       "Set **Availability** to publish it for new jobs, then **Create workflow**.",
-      "In **Studio settings**, **Automatic drafts** sets whether each routine email waits for you (**Review each time**) or sends itself (**Send automatically**).",
+      "In **Studio settings**, **What Cue can do without asking** sets whether each routine email waits for you (**Review each time**) or Cue sends it on its own (**Send automatically**).",
     ],
     next: "New jobs of that type get the workflow when they're booked. **Automation runs** shows each time an automation ran and whether it worked.",
     goodToKnow: [

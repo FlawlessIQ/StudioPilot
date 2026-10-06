@@ -120,7 +120,7 @@ export function TrustDialOffers() {
       setNotice(
         result.mode === "preview"
           ? "Development preview: the setting was not saved."
-          : `Done — ${LABELS[trigger]} now send automatically. Change it any time in Settings.`,
+          : `Done — Cue now sends ${LABELS[trigger]} without asking. Change it any time in Settings.`,
       );
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That setting could not be saved."));
@@ -148,10 +148,10 @@ export function TrustDialOffers() {
             <Sparkles size={16} />
           </span>
           <div>
-            <strong>Send {LABELS[trigger]} automatically?</strong>
+            <strong>Want Cue to send {LABELS[trigger]} without asking?</strong>
             <small>
               You approved the last {TRUST_DIAL_THRESHOLD}{" "} without changing a
-              word. StudioCue can send them on schedule; anything with missing
+              word. Cue can send them on schedule; anything with missing
               details still waits for you.
             </small>
           </div>

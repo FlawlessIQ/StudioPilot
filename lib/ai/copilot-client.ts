@@ -150,7 +150,7 @@ export async function askCopilot(input: {
     throw new Error(
       friendlyAiError(
         new Error(result.error ?? ""),
-        "The assistant couldn't answer that. Try again.",
+        "Cue couldn't answer that. Try again.",
       ),
     );
   return result;
@@ -319,7 +319,7 @@ export async function askCopilotStream(
     throw new Error(
       friendlyAiError(
         new Error(payload.error ?? ""),
-        "The assistant couldn't answer that. Try again.",
+        "Cue couldn't answer that. Try again.",
       ),
     );
   }
@@ -343,7 +343,7 @@ export async function askCopilotStream(
     else if (event.done) done = event.done;
     else if (event.error)
       throw new Error(
-        friendlyAiError(new Error(event.error), "The assistant couldn't answer that."),
+        friendlyAiError(new Error(event.error), "Cue couldn't answer that."),
       );
   };
   for (;;) {
@@ -357,7 +357,7 @@ export async function askCopilotStream(
     }
   }
   if (buffer.trim()) handleFrame(buffer);
-  if (!done) throw new Error("The assistant's answer ended unexpectedly. Try again.");
+  if (!done) throw new Error("Cue's answer ended unexpectedly. Try again.");
   return done;
 }
 

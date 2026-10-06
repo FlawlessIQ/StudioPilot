@@ -196,7 +196,7 @@ export function CopilotWorkspace() {
       if (result.threadId) setThreadId(result.threadId);
       refreshThreads();
     } catch (caught: unknown) {
-      setError(friendlyError(caught, "Copilot failed."));
+      setError(friendlyError(caught, "Cue could not answer."));
     } finally {
       setBusy(false);
       setStreamingText("");
@@ -411,7 +411,7 @@ export function CopilotWorkspace() {
             <span className="cue-id-text">
               <strong>Cue</strong>
               <small>
-                <i className="cue-live" aria-hidden="true" /> StudioCue assistant
+                <i className="cue-live" aria-hidden="true" /> Your office manager
                 · ready
               </small>
             </span>
@@ -453,8 +453,8 @@ export function CopilotWorkspace() {
                     : "Ask about operations, payments, crew, contracts or readiness — I'll do the legwork and hand you the next step to approve."}
                 </p>
                 <p className="cue-welcome-promise">
-                  <ShieldCheck size={13} aria-hidden="true" /> I prepare — you
-                  approve. Nothing sends on its own.
+                  <ShieldCheck size={13} aria-hidden="true" /> I prepare the
+                  work. You approve it. Nothing I write sends on its own.
                 </p>
               </div>
             </div>
@@ -549,7 +549,7 @@ export function CopilotWorkspace() {
         ) : null}
       </div>
 
-      <aside className="cue-rail" aria-label="Assistant context">
+      <aside className="cue-rail" aria-label="What Cue is looking at">
         {threads.length ? (
           <section className="cue-rail-sec">
             <h2>Pick up where you left off</h2>
@@ -656,7 +656,7 @@ function AssistantTurn({
         </span>
       </header>
       {trace.length ? (
-        <div className="cp-trace" aria-label="What the assistant reviewed">
+        <div className="cp-trace" aria-label="What Cue reviewed">
           {trace.map((step) => (
             <span className="cp-trace-chip" key={step.label}>
               <Check size={12} strokeWidth={3} />

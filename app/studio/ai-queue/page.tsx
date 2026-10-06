@@ -3,14 +3,14 @@ import { AiApprovalQueue } from "@/components/ai/ai-approval-queue";
 import { AppShell } from "@/components/layout/app-shell";
 
 export const metadata: Metadata = {
-  title: "AI review",
+  title: "Waiting on you",
   description:
-    "Review sourced AI drafts, workflow approvals, and action receipts.",
+    "Everything Cue prepared that is waiting on your approval, with its sources and receipts.",
 };
 
 export default function AiQueuePage() {
   return (
-    <AppShell active="AI queue">
+    <AppShell active="Waiting on you">
       <AiApprovalQueue />
     </AppShell>
   );

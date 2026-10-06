@@ -574,7 +574,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   VERTEX_AI_SCHEDULE_NOT_CONFIGURED:
     "AI drafting isn't available for this workspace — use \u201cBuild it myself\u201d to start the run of show from what you have entered.",
   VERTEX_AI_COPILOT_NOT_CONFIGURED:
-    "The assistant isn't available for this workspace yet. Everything it reads is on the job itself.",
+    "Cue isn't available for this workspace yet. Everything it reads is on the job itself.",
   VERTEX_AI_EMPTY_OUTPUT: "We couldn't draft this. Try again.",
   GOOGLE_RUNTIME_IDENTITY_UNAVAILABLE: "We couldn't draft this. Try again.",
   // Cue's catch-all. Anything the provider or the runtime throws that is not
