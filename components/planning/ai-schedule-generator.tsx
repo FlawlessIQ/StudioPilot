@@ -1109,8 +1109,8 @@ export function AiScheduleGenerator({
               <>
                 <h2>Lay out the day</h2>
                 <p>
-                  Built from the couple&rsquo;s answers and your timings, counted from the ceremony. Every line is
-                  yours to change.
+                  Built from the couple&rsquo;s Final Schedule answers. Anything they didn&rsquo;t time is marked
+                  as a suggestion. Every line is yours to change.
                 </p>
               </>
             ) : (
@@ -1330,8 +1330,9 @@ export function AiScheduleGenerator({
                 <h2>
                   The day
                   <InfoHint label="The day">
-                    Each item says where its time came from: the couple’s answers, one of your timing rules, or an
-                    assumption. Check the assumptions before you publish.
+                    {weddingDay
+                      ? "Each line says where its time came from: the couple’s form, or a suggestion where they gave no time. Check the suggestions before you publish."
+                      : "Each item says where its time came from: the client’s answers, one of your timing rules, or an assumption. Check the assumptions before you publish."}
                   </InfoHint>
                 </h2>
                 <p>Change anything — it stays in time order. Your crew sees it once you publish.</p>
