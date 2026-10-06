@@ -73,9 +73,9 @@ export const MARKETING_MEDIA = {
   },
   teaser: {
     kind: "voiced",
-    file: "mk-teaser.v1.mp4",
-    poster: "mk-teaser.v1.jpg",
-    captions: "mk-teaser.v1.vtt",
+    file: "mk-teaser.v2.mp4",
+    poster: "mk-teaser.v2.jpg",
+    captions: "mk-teaser.v2.vtt",
     alt: "What StudioCue does over a wedding, in about a minute.",
   },
 } as const satisfies Record<string, LoopEntry | VoicedEntry>;
