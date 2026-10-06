@@ -62,3 +62,10 @@ test("it goes out with the planning form, once, and never after the lock", () =>
   assert.match(commands, /for \(const templateId of \[parsed\.input\.formTemplateId, parsed\.input\.shotListTemplateId\]\)/);
   assert.match(read("components/planning/planning-timeline-settings.tsx"), /shotListTemplateId: effectiveShotList/);
 });
+
+test("booked inside the planning window, the shot list goes at booking with the form", () => {
+  const scheduler = read("functions/src/planning/planning-form-scheduler.ts");
+  const atBooking = scheduler.slice(scheduler.indexOf("export async function sendPlanningFormAtBooking"));
+  assert.match(atBooking, /if \(planningFormDue\(data, studio\.timeline, today\)\) await sendShotList\(db, project, studio, today, now\);/);
+  assert.match(atBooking, /return withShotList\("sent"\);/);
+});

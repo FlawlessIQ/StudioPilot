@@ -232,11 +232,19 @@ export async function sendPlanningFormAtBooking(db: Firestore, project: Document
   if (data.importedAt || clientOutreachStop(data) !== null) return "quiet";
   const eventDate = text(data.eventDate).slice(0, 10);
   if (!eventDate || eventDate <= now.slice(0, 10)) return "no_date";
+  // Booked inside the planning window (the form date has passed): the shot
+  // list goes now, with the form, not on tomorrow's sweep (prod walk,
+  // 2026-10-06 — a March wedding booked in October).
+  const today = now.slice(0, 10);
+  const withShotList = async (outcome: string) => {
+    if (planningFormDue(data, studio.timeline, today)) await sendShotList(db, project, studio, today, now);
+    return outcome;
+  };
   const template = planningFormTemplate(studio, text(data.eventTypeId), true) ?? planningFormTemplate(studio, "wedding", true);
-  if (!template) return "no_form";
+  if (!template) return withShotList("no_form");
   const responses = await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", project.id).get();
   if (liveAssignmentFor(responses.docs.map((response) => ({ id: response.id, ...response.data() })), { id: template.id, name: text(template.name) })) {
-    return "has_it";
+    return withShotList("has_it");
   }
   const templateSnapshot = await db.doc(`questionnaireTemplates/${template.id}`).get();
   try {
@@ -253,10 +261,10 @@ export async function sendPlanningFormAtBooking(db: Firestore, project: Document
     });
   } catch (caught) {
     // ALREADY_EXISTS: a retry, or the form-date send got there first.
-    if ((caught as { code?: unknown })?.code === 6) return "has_it";
+    if ((caught as { code?: unknown })?.code === 6) return withShotList("has_it");
     throw caught;
   }
-  return "sent";
+  return withShotList("sent");
 }
 
 export const planningFormScheduler = onSchedule(

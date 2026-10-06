@@ -454,6 +454,18 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       setLoading(false);
     }
   }, [projectId, workspace.role, workspace.tenantId]);
+  /**
+   * A recorded retainer books the job a few seconds later, in a trigger
+   * (booking-orchestration), so the refresh right after recording catches it
+   * still "Awaiting deposit" and offering "Check and confirm" for a job that
+   * had already booked (prod walk, 2026-10-06). Read once more after it lands.
+   */
+  const settleAfterRetainer = () => {
+    window.setTimeout(() => {
+      refreshTenantRecords("projects", "contracts", "invoiceReferences", "checkpoints", "readinessAssessments");
+      void load().catch(() => {});
+    }, 9000);
+  };
 
   useEffect(() => {
     if (!workspace.loading && workspace.tenantId) {
@@ -1524,6 +1536,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                         "readinessAssessments",
                       );
                       void load();
+                      settleAfterRetainer();
                     }}
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
@@ -1682,6 +1695,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                         "readinessAssessments",
                       );
                       void load();
+                      settleAfterRetainer();
                     }}
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
@@ -1817,6 +1831,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                         "readinessAssessments",
                       );
                       void load();
+                      settleAfterRetainer();
                     }}
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}

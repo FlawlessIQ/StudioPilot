@@ -78,7 +78,10 @@ export function RecordRetainerPayment({
       // landed — the same gap as record-signed-agreement.tsx. Say it, and say
       // what is left.
       onRecorded(
-        `${paidInFull ? "Payment" : "Retainer"} recorded against your name. Confirm the booking to finish.`,
+        // Not "Confirm the booking to finish": with the agreement signed the
+        // job usually books itself seconds later (prod walk, 2026-10-06), and
+        // the page re-reads to show which happened.
+        `${paidInFull ? "Payment" : "Retainer"} recorded against your name.`,
       );
     } catch (caught: unknown) {
       setNotice(
