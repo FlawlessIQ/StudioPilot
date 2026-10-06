@@ -251,6 +251,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   edit_timing_rules: SettingsCard,
   export_studio_data: SettingsCard,
   set_crew_offer_settings: SettingsCard,
+  set_crew_call_order: SettingsCard,
   set_up_inquiry_capture: SettingsCard,
   connect_integration: ConnectIntegrationCard,
   show_forwarding_address: ForwardingAddressCard,

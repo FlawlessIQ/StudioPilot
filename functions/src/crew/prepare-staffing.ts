@@ -293,6 +293,25 @@ export async function prepareCrewStaffing(input: {
       })),
   }));
 
+  const settings =
+    typeof tenant.get("crewOffers") === "object" && tenant.get("crewOffers")
+      ? (tenant.get("crewOffers") as Record<string, unknown>)
+      : {};
+  // The studio's standing first-call order per trade, set on the Crew page
+  // (features/crew/first-call.ts): the automatic offers ask in that order.
+  const storedFirstCall =
+    typeof settings.firstCall === "object" && settings.firstCall
+      ? (settings.firstCall as Record<string, unknown>)
+      : {};
+  const firstCall = Object.fromEntries(
+    (["photographer", "videographer"] as const).map((trade) => [
+      trade,
+      list(storedFirstCall[trade]).filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      ),
+    ]),
+  );
+
   const plan = planCrewStaffing({
     coverage,
     eventSpecialty,
@@ -302,12 +321,9 @@ export async function prepareCrewStaffing(input: {
     candidates,
     depth: 5,
     ownerCovers: ownerShootsJob(project.data()),
+    firstCall,
   });
 
-  const settings =
-    typeof tenant.get("crewOffers") === "object" && tenant.get("crewOffers")
-      ? (tenant.get("crewOffers") as Record<string, unknown>)
-      : {};
   // Liability cover is the studio's choice; the W-9 and the schedule
   // acknowledgement are not. See features/crew/requirements.ts.
   const requirements = crewRequirementsFor(settings);

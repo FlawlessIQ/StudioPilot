@@ -157,6 +157,8 @@ const REACHED: Record<string, string> = {
   setCrewCompliance: "CrewRecordActions", submitCrewProfileDocument: "CrewRecordActions",
   inviteAssignment: "\"inviteAssignment\"", createCrewCascade: "\"createCrewCascade\"", createCrewPlan: "CrewCascadeWorkspace",
   setCrewOfferSettings: "CrewOfferSettings", waiveRequirement: "\"waiveRequirement\"",
+  // The first-call order, set with the arrows on the Crew page (components/crew/crew-call-order.tsx).
+  setCrewFirstCall: "CrewCallOrderPanel",
   completeRequirement: "CrewCascadeWorkspace", completeAssignment: "CrewCascadeWorkspace",
   reviewAssignmentCloseout: "\"reviewAssignmentCloseout\"", updateAssignmentPayment: "\"updateAssignmentPayment\"",
   withdrawAssignment: "withdrawCrew(",

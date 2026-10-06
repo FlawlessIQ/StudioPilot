@@ -139,6 +139,22 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * The studio's first-call order for one trade (features/crew/first-call.ts).
+     *
+     * Its own command rather than a field on `setCrewOfferSettings`: that one
+     * is owner-only because it can switch on automatic offers, while ordering
+     * the people you already work with is everyday studio work.
+     */
+    type: z.literal("setCrewFirstCall"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      trade: coverageRoleSchema,
+      order: z.array(z.string().min(1).max(200)).max(200),
+    }),
+  }),
+  z.object({
     type: z.literal("createCrewPlan"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -994,6 +1010,54 @@ export const crewCommand = onRequest(
         });
         await batch.commit();
         result = { tenantId: parsed.tenantId, settings: parsed.input };
+      } else if (parsed.type === "setCrewFirstCall") {
+        if (!["studio_owner", "studio_admin"].includes(role)) throw new Error("FORBIDDEN");
+        const order = [...new Set(parsed.input.order)];
+        if (order.length !== parsed.input.order.length)
+          throw new Error("FIRST_CALL_DUPLICATE");
+        // Only this studio's people: an id from anywhere else is refused,
+        // not quietly stored where staffing would trip over it.
+        const profiles = order.length
+          ? await db.getAll(...order.map((id) => db.doc(`crewProfiles/${id}`)))
+          : [];
+        if (
+          profiles.some(
+            (profile) => !profile.exists || profile.get("tenantId") !== parsed.tenantId,
+          )
+        )
+          throw new Error("CREW_PROFILE_NOT_FOUND");
+        const tenantReference = db.doc(`tenants/${parsed.tenantId}`);
+        const tenant = await tenantReference.get();
+        if (!tenant.exists) throw new Error("TENANT_NOT_FOUND");
+        const crewOffers = tenant.get("crewOffers") as { firstCall?: Record<string, unknown> } | undefined;
+        const before = crewOffers?.firstCall?.[parsed.input.trade] ?? null;
+        const auditReference = db.collection("auditEvents").doc();
+        const batch = db.batch();
+        batch.update(tenantReference, {
+          [`crewOffers.firstCall.${parsed.input.trade}`]: order,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        batch.create(auditReference, {
+          id: auditReference.id,
+          tenantId: parsed.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "tenant.crew_first_call_updated",
+          entityType: "tenant",
+          entityId: parsed.tenantId,
+          timestamp: now,
+          before: { trade: parsed.input.trade, order: before },
+          after: { trade: parsed.input.trade, order },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: parsed.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { tenantId: parsed.tenantId, trade: parsed.input.trade, order };
       } else if (parsed.type === "createCrewPlan") {
         if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
           throw new Error("FORBIDDEN");

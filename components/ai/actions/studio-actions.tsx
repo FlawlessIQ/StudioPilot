@@ -15,6 +15,7 @@ import { startProviderConnect } from "@/lib/integrations/command-client";
 import { CreateCrewProfileForm } from "@/components/crew/create-crew-profile-form";
 import { CrewRecordActions, crewActionsProps } from "@/components/crew/crew-record-actions";
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
+import { CrewCallOrderPanel } from "@/components/crew/crew-call-order";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
 import { withdrawCrew } from "@/components/crew/withdraw-crew-control";
 import { setOwnerShooting } from "@/components/crew/owner-shooting-toggle";
@@ -1080,6 +1081,12 @@ export function SettingsCard({ action }: ActionCardProps) {
       ownerOnly: true,
       body: <DataControls />,
       href: "/studio/settings/data",
+    },
+    set_crew_call_order: {
+      title: "Crew call order",
+      detail: "Who you call first for each type of crew. Offers go out in this order, top to bottom.",
+      body: <CrewCallOrderPanel />,
+      href: "/studio/crew",
     },
     set_crew_offer_settings: {
       title: "Crew offer settings",

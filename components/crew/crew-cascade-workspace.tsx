@@ -32,6 +32,7 @@ import {
 } from "@/features/crew/staffing-plan";
 import { suggestedResponsibilitiesText } from "@/features/crew/responsibilities";
 import { lapsedOnJob } from "@/features/crew/offer-again";
+import { readFirstCall } from "@/features/crew/first-call";
 import {
   rankCrewCandidates,
   type CrewCandidateInput,
@@ -78,6 +79,9 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const crewSettings = (tenants ?? []).find(
     (entry) => entry.id === workspace.tenantId,
   )?.crewOffers as CrewRequirementSettings | undefined;
+  // The studio's standing order per trade, set on the Crew page
+  // (features/crew/first-call.ts). This job's arrows still win over it.
+  const firstCall = useMemo(() => readFirstCall(crewSettings), [crewSettings]);
   const { records: cascades } = useTenantDocuments("crewCascades");
   const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const project = projects?.find((item) => item.id === projectId);
@@ -229,17 +233,28 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
       requireInsurance: requireInsuranceOf(crewSettings),
     });
     const rank = new Map(manualOrder.map((id, index) => [id, index]));
-    return [...ranked].sort((left, right) => {
-      const leftRank = rank.get(left.crewProfileId);
-      const rightRank = rank.get(right.crewProfileId);
-      if (leftRank !== undefined || rightRank !== undefined)
-        return (
-          (leftRank ?? Number.MAX_SAFE_INTEGER) -
-          (rightRank ?? Number.MAX_SAFE_INTEGER)
-        );
-      return 0;
-    });
-  }, [candidateInputs, endsAt, manualOrder, project?.city, specialty, startsAt]);
+    // Then the studio's first call for the trade this list is ranked for,
+    // so the list on screen opens in the order the offers will go out.
+    const standing = new Map(
+      (firstCall[specialty === "video" ? "videographer" : "photographer"] ?? []).map(
+        (id, index) => [id, index],
+      ),
+    );
+    const last = Number.MAX_SAFE_INTEGER;
+    return ranked
+      .map((candidate, index) => ({ candidate, index }))
+      .sort((left, right) => {
+        const byJob =
+          (rank.get(left.candidate.crewProfileId) ?? last) -
+          (rank.get(right.candidate.crewProfileId) ?? last);
+        if (byJob) return byJob;
+        const byStudio =
+          (standing.get(left.candidate.crewProfileId) ?? last) -
+          (standing.get(right.candidate.crewProfileId) ?? last);
+        return byStudio || left.index - right.index;
+      })
+      .map((entry) => entry.candidate);
+  }, [candidateInputs, endsAt, firstCall, manualOrder, project?.city, specialty, startsAt]);
   const included = recommendations.filter(
     (candidate) =>
       candidate.eligible && !excluded.has(candidate.crewProfileId),
@@ -415,12 +430,14 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
         // the list on screen. Without this the two disagreed: a preferred
         // videographer moved to the top stayed second in the offers.
         preferredOrder: manualOrder,
+        firstCall,
         depth: 5,
       }),
     [
       candidateInputs,
       endsAt,
       excluded,
+      firstCall,
       manualOrder,
       project?.city,
       roles,

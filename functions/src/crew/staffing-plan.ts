@@ -235,27 +235,42 @@ export function assignCandidatesToRoles(input: {
    * nothing else. Empty (the normal case) leaves the engine's order untouched.
    */
   preferredOrder?: readonly string[];
+  /**
+   * The studio's standing first-call order, per trade.
+   *
+   * GR Productions (2026-10-06): "How do I order crew members for staffing
+   * events? And categorize them by types." The order above is one job's; this
+   * is the studio's every-job answer — "for a second shooter, Albert first,
+   * then Vittor" — set once on the Crew page (tenant `crewOffers.firstCall`).
+   * A job's own order still wins where it has one; the engine's ranking
+   * decides only among the people the studio has not placed.
+   */
+  firstCall?: Partial<Record<CoverageRole, readonly string[]>>;
 }): StaffingRolePlan[] {
   const excluded = new Set(input.excludedIds ?? []);
   const depth = Math.max(1, input.depth ?? 5);
   // Rank by the studio's position where they have given one, and leave
   // everyone else in the engine's order behind them. Stable, so candidates
   // the studio never touched keep their relative ranking.
-  const preferred = new Map(
-    (input.preferredOrder ?? []).map((id, index) => [id, index]),
-  );
-  const applyPreference = (ranked: CrewCandidateRecommendation[]) => {
-    if (!preferred.size) return ranked;
+  const positions = (order: readonly string[] | undefined) =>
+    new Map((order ?? []).map((id, index) => [id, index]));
+  const preferred = positions(input.preferredOrder);
+  const applyPreference = (
+    ranked: CrewCandidateRecommendation[],
+    trade: CoverageRole,
+  ) => {
+    const standing = positions(input.firstCall?.[trade]);
+    if (!preferred.size && !standing.size) return ranked;
+    const last = Number.MAX_SAFE_INTEGER;
     return ranked
       .map((candidate, index) => ({ candidate, index }))
       .sort((left, right) => {
-        const leftRank = preferred.get(left.candidate.crewProfileId);
-        const rightRank = preferred.get(right.candidate.crewProfileId);
-        if (leftRank !== rightRank)
-          return (
-            (leftRank ?? Number.MAX_SAFE_INTEGER) -
-            (rightRank ?? Number.MAX_SAFE_INTEGER)
-          );
+        const leftRank = preferred.get(left.candidate.crewProfileId) ?? last;
+        const rightRank = preferred.get(right.candidate.crewProfileId) ?? last;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        const leftCall = standing.get(left.candidate.crewProfileId) ?? last;
+        const rightCall = standing.get(right.candidate.crewProfileId) ?? last;
+        if (leftCall !== rightCall) return leftCall - rightCall;
         return left.index - right.index;
       })
       .map((entry) => entry.candidate);
@@ -279,7 +294,7 @@ export function assignCandidatesToRoles(input: {
       endsAt: input.endsAt,
       candidates: input.candidates,
     });
-    const ordered = applyPreference(ranked);
+    const ordered = applyPreference(ranked, trade);
     rankedFor.set(key, ordered);
     return ordered;
   };
@@ -342,6 +357,8 @@ export function planCrewStaffing(input: {
   depth?: number;
   /** Whether the owner shoots this job (see `ownerShootsJob`). */
   ownerCovers?: boolean;
+  /** The studio's standing first-call order per trade (see `assignCandidatesToRoles`). */
+  firstCall?: Partial<Record<CoverageRole, readonly string[]>>;
 }): StaffingPlan {
   const { roles, studioCovers } = rolesToBook(input.coverage, input.ownerCovers ?? true);
   const plans = assignCandidatesToRoles({ ...input, roles });

@@ -29,6 +29,7 @@ import {
   requireInsuranceOf,
   type CrewRequirementSettings,
 } from "@/features/crew/requirements";
+import { readFirstCall } from "@/features/crew/first-call";
 import {
   matchSubject,
   unmatchedSubjectNotice,
@@ -567,15 +568,30 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     // photographer", which titled a videographer's offer as photography.
     return stillToBook[0]?.role ?? "Crew";
   });
+  // The studio's first call for this trade leads (features/crew/first-call.ts),
+  // the same order booking's automatic offers and the staffing screen use.
+  const roleTrade = coverageRoleForLabel(role);
+  const standing = new Map(
+    (readFirstCall(crewSettings)[roleTrade] ?? []).map((id, index) => [id, index]),
+  );
   const ranked = rankCrewCandidates({
     roleSpecialty,
-    roleTrade: coverageRoleForLabel(role),
+    roleTrade,
     serviceArea,
     startsAt,
     endsAt,
     candidates,
     requireInsurance: requireInsuranceOf(crewSettings),
-  }).filter((candidate) => !spokenFor.has(candidate.crewProfileId));
+  })
+    .filter((candidate) => !spokenFor.has(candidate.crewProfileId))
+    .map((candidate, index) => ({ candidate, index }))
+    .sort(
+      (left, right) =>
+        (standing.get(left.candidate.crewProfileId) ?? Number.MAX_SAFE_INTEGER) -
+          (standing.get(right.candidate.crewProfileId) ?? Number.MAX_SAFE_INTEGER) ||
+        left.index - right.index,
+    )
+    .map((entry) => entry.candidate);
 
   /**
    * The person the operator named, joined to the roster.

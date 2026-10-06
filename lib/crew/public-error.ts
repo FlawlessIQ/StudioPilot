@@ -95,6 +95,8 @@ const CREW_CODE_MESSAGES: Record<string, string> = {
     "Check the times: your finish has to be after your start.",
   INVALID_ASSIGNMENT_RANGE:
     "Check the times: the assignment has to end after it starts.",
+  FIRST_CALL_DUPLICATE:
+    "Someone is in that order twice. Reload the Crew page and set the order again.",
   CREW_PROFILE_NOT_FOUND:
     "Your crew profile could not be found for this studio. Ask them to re-send your invitation.",
 };

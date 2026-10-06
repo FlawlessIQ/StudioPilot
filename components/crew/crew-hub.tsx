@@ -10,6 +10,8 @@ import {
   crewActionsProps,
 } from "@/components/crew/crew-record-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { CrewCallOrder } from "@/components/crew/crew-call-order";
+import { readFirstCall } from "@/features/crew/first-call";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   requireInsuranceOf,
@@ -65,6 +67,7 @@ export function CrewHub({ initialView }: { initialView: "crew" | "assignments" }
     (entry) => entry.id === workspace.tenantId,
   )?.crewOffers as CrewRequirementSettings | undefined;
   const insuranceRequired = requireInsuranceOf(crewSettings);
+  const firstCall = useMemo(() => readFirstCall(crewSettings), [crewSettings]);
 
   const projectById = useMemo(
     () => new Map((projects.records ?? []).map((project) => [project.id, project])),
@@ -243,6 +246,21 @@ export function CrewHub({ initialView }: { initialView: "crew" | "assignments" }
                 </Link>
               ) : null}
             </div>
+          ) : !needle && !showArchived ? (
+            // By trade, in the order the studio calls them
+            // (components/crew/crew-call-order.tsx). A search or the archive
+            // is a lookup, not an order, so those stay one list.
+            <CrewCallOrder
+              firstCall={firstCall}
+              people={visibleProfiles}
+              renderCard={(profile) => (
+                <CrewCard
+                  insuranceRequired={insuranceRequired}
+                  profile={profile}
+                  upcoming={upcomingByProfile.get(profile.id) ?? 0}
+                />
+              )}
+            />
           ) : (
             <div className="crew-card-grid">
               {visibleProfiles.map((profile) => (

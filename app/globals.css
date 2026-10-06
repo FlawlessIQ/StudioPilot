@@ -14742,6 +14742,85 @@ form:has(> .address-field) > .address-field,
   }
 }
 
+/* The roster by trade, each in the studio's first-call order
+   (components/crew/crew-call-order.tsx). */
+.crew-call-order {
+  display: grid;
+  gap: 22px;
+}
+
+.crew-type-group {
+  display: grid;
+  gap: 12px;
+}
+
+.crew-type-group > header {
+  display: grid;
+  gap: 2px;
+}
+
+.crew-type-group > header h3 {
+  align-items: baseline;
+  color: var(--ink);
+  display: flex;
+  font-size: 16px;
+  gap: 8px;
+  margin: 0;
+}
+
+.crew-type-group > header h3 span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.crew-type-group > header small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.crew-call-slot {
+  align-content: start;
+  display: grid;
+  gap: 6px;
+}
+
+/* Editing a card opens a full form: give its slot the row, as the card did. */
+.crew-call-slot:has(details[open]) {
+  grid-column: 1 / -1;
+}
+
+.crew-call-bar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 4px;
+}
+
+.crew-call-bar strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.crew-call-bar > span {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.crew-call-bar .button {
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.crew-call-bar .crew-call-move {
+  min-width: 44px;
+  padding: 0;
+}
+
 /* Saying a closeout requirement is done without StudioCue seeing it: the
    reason, its caveat and the buttons, stacked. It had no rules, so the label,
    field and caveat ran together on one line. */

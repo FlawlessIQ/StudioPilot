@@ -196,6 +196,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "import_studio_materials", scope: "studio", ownerAdminOnly: true, when: "bring in the studio's existing templates, price lists, contracts or questionnaires from files or a website" },
   { id: "edit_timing_rules", scope: "studio", ownerAdminOnly: true, when: "change how long parts of the day take when timelines are drafted" },
   { id: "export_studio_data", scope: "studio", ownerAdminOnly: true, when: "export / download all of the studio's data" },
+  { id: "set_crew_call_order", scope: "studio", ownerAdminOnly: true, when: "set who the studio calls first for crew, per type (photographers, videographers), or give a crew member a type" },
   { id: "set_crew_offer_settings", scope: "studio", ownerAdminOnly: true, when: "choose whether crew offers go out automatically on booking, and how long crew have to answer" },
   { id: "set_up_inquiry_capture", scope: "studio", ownerAdminOnly: true, when: "set up inquiry forwarding or teach StudioCue the studio's website contact form" },
   { id: "show_forwarding_address", scope: "studio", when: "show the studio's inquiry forwarding address" },
