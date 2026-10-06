@@ -7,6 +7,7 @@
  *   npx tsx scripts/how-to/one-saturday.ts wide       # 16:9 only
  *   npx tsx scripts/how-to/one-saturday.ts tall       # 9:16 only
  *   npx tsx scripts/how-to/one-saturday.ts --silent   # no narration (music only)
+ *   npx tsx scripts/how-to/one-saturday.ts publishable  # the 16:9 cut as help video `one-saturday` (publish.ts)
  *   npx tsx scripts/how-to/one-saturday.ts voices     # the opening in each candidate voice (voices 2 5: just those)
  *
  * The story is the homepage's Saturday log (features/marketing/cue-duties.ts):
@@ -44,6 +45,7 @@ const { renderEmailTemplate } = (await import(`${process.cwd()}/functions/src/co
   renderEmailTemplate: (input: Record<string, unknown>) => { subject: string; html: string; text: string };
 };
 import { latestEmail } from "./journey/emails";
+import { captions } from "./lib/assemble";
 import { inbox } from "./lib/journey-recorder";
 import { makeMusicBed, withMusic, type BedStyle } from "./lib/music";
 import { card } from "./lib/recorder";
@@ -628,11 +630,43 @@ async function voiceSamples(only: number[]) {
   writeFileSync(path.join(dir, "voices.txt"), readme.join("\n") + "\n");
 }
 
+/**
+ * The 16:9 cut as a help video publish.ts can ship as `one-saturday`:
+ * one-saturday.{mp4,jpg,vtt} and meta.json beside the cuts, in the shape the
+ * journey chapters use. The captions come from the same placement the voice
+ * was mixed with, so each cue starts with its words; the chapters are the
+ * scenes, at the moment each one's picture has arrived.
+ */
+function writePublishable(plan: Plan, cut: string) {
+  const placed: Array<{ step: number; line: Line; at: number }> = [];
+  const chapters: Array<{ at: number; title: string }> = [];
+  let clock = 0;
+  for (const [b, beat] of BEATS.entries()) {
+    const { scale, spoken } = plan[b] ?? { scale: 1, spoken: [] };
+    for (const sp of spoken) placed.push({ step: placed.length, line: sp.line, at: clock + sp.offset });
+    const title = beat.kind === "saturday" ? `${beat.time} · ${beat.short}` : beat.kind === "monday" ? "Monday · Waiting for you" : b === 0 ? "One Saturday" : "Meet Cue";
+    chapters.push({ at: b === 0 ? 0 : Math.round((clock + FADE) * 10) / 10, title });
+    const lens = beat.kind === "card" ? [beat.len] : beat.shots.map((shot) => shot.len);
+    for (const len of lens) clock += len * scale - FADE;
+  }
+  const id = "one-saturday";
+  for (const ext of ["mp4", "jpg"]) execFileSync("cp", [path.join(DIR, `${cut}.${ext}`), path.join(DIR, `${id}.${ext}`)]);
+  writeFileSync(path.join(DIR, `${id}.vtt`), captions(placed));
+  const durationSec = Math.round(probe(path.join(DIR, `${id}.mp4`)) * 10) / 10;
+  const transcript = BEATS.flatMap((b) => (b.say ? [b.say] : [])).join(" ");
+  writeFileSync(path.join(DIR, "meta.json"), JSON.stringify({ durationSec, orientation: "landscape", chapters, transcript }, null, 2));
+  console.log(`✓ ${id}.{mp4,jpg,vtt} + meta.json (${durationSec}s), for publish.ts ${id}`);
+}
+
 const args = process.argv.slice(2);
 const silent = args.includes("--silent");
-const wanted = (args.find((a) => !a.startsWith("--")) ?? "both") as Shape | "both" | "voices";
+const wanted = (args.find((a) => !a.startsWith("--")) ?? "both") as Shape | "both" | "voices" | "publishable";
 if (wanted === "voices") {
   await voiceSamples(args.slice(1).map(Number).filter(Boolean));
+} else if (wanted === "publishable") {
+  // From the 16:9 cut already made, without re-rendering: the voice plan comes from the cache.
+  process.env.HOW_TO_VOICE_OFFLINE = "1";
+  writePublishable(await narrate(candidate(FILM.use)), "one-saturday-16x9");
 } else {
   rmSync(WORK, { recursive: true, force: true });
   mkdirSync(WORK, { recursive: true });
@@ -653,6 +687,7 @@ if (wanted === "voices") {
         if (lead < 0) throw new Error(`The ${x.scene} line starts before its picture: ${lead.toFixed(2)} s.`);
       }
       for (const p of placed) console.log(`   ${p.at.toFixed(1).padStart(5)}–${(p.at + p.line.durationSec).toFixed(1).padStart(5)}  ${p.line.text}`);
+      if (shape === "wide" && !silent) writePublishable(plan, name);
     }
   } finally {
     await browser.close();
