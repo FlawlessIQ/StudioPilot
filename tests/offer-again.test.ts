@@ -44,3 +44,13 @@ test("both ways back to a lapsed person use the shared rule", () => {
   const workspace = readFileSync("components/crew/crew-cascade-workspace.tsx", "utf8");
   assert.match(workspace, /askedFor\(cascade\)\.filter\(\(id\) => !lapsed\.has\(id\)\)/);
 });
+
+test("the stalled panel is not repainted with the feature gradient", () => {
+  // legacy-bridge.css loads last; without its own rule here the role-is-open
+  // panel took the green gradient and its eyebrow and line went unreadable.
+  const bridge = readFileSync("app/legacy-bridge.css", "utf8");
+  assert.match(
+    bridge,
+    /\.ds-root \.crew-cascade-hero\.is-waiting,\s*\.ds-root \.crew-cascade-hero\.is-stalled,[^{]*\{[^}]*background: var\(--ds-surface/,
+  );
+});

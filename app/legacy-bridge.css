@@ -381,6 +381,7 @@
    globals.css because legacy-bridge loads last and its .ds-root heroes
    would otherwise repaint the gradient over it. */
 .ds-root .crew-cascade-hero.is-waiting,
+.ds-root .crew-cascade-hero.is-stalled,
 .ds-root .booking-autopilot-hero.is-settled {
   background: var(--ds-surface, #fff);
   border: 1px solid var(--ds-line, #e3e1d8);
@@ -390,6 +391,22 @@
 
 .ds-root .crew-cascade-hero.is-waiting {
   border-left: 3px solid #b08a3a;
+}
+
+/* A role nobody took. It had no rule here, so the gradient above repainted
+   it and its red eyebrow and grey line sat on dark green, all but invisible
+   (GR, 2026-10-06: "albert missed his invite? ... I cant"). */
+.ds-root .crew-cascade-hero.is-stalled {
+  border-left: 3px solid #9d4b3f;
+}
+
+.ds-root .crew-cascade-hero.is-stalled p {
+  color: var(--ds-muted, #5f6a63);
+}
+
+.ds-root .crew-cascade-hero.is-stalled .eyebrow,
+.ds-root .crew-cascade-hero.is-stalled > svg {
+  color: #9d4b3f;
 }
 
 .ds-root .crew-cascade-hero.is-waiting h2 {
