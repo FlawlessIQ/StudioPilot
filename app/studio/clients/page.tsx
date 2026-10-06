@@ -4,8 +4,18 @@ import { Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveClientCards } from "@/components/live/tenant-records";
 import { PeopleSectionNav } from "@/components/layout/people-section-nav";
+import {
+  clientListViews,
+  type ClientListView,
+} from "@/features/contacts/client-search";
 
 export const metadata: Metadata = { title: "Clients" };
+
+const tabLabels: Record<ClientListView, string> = {
+  active: "Active",
+  prospects: "Prospects",
+  archived: "Archived",
+};
 
 export default async function ClientsPage({
   searchParams,
@@ -30,21 +40,27 @@ export default async function ClientsPage({
         <PeopleSectionNav />
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
+            {/* A tab keeps the search: the client someone is looking for may
+                be the archived one. */}
             <div className="crm-tabs">
-              <Link className={view === "active" ? "active" : ""} href="?view=active">
-                Active
-              </Link>
-              <Link className={view === "prospects" ? "active" : ""} href="?view=prospects">
-                Prospects
-              </Link>
-              <Link className={view === "archived" ? "active" : ""} href="?view=archived">
-                Archived
-              </Link>
+              {clientListViews.map((tab) => (
+                <Link
+                  className={view === tab ? "active" : ""}
+                  href={`?${new URLSearchParams(q ? { view: tab, q } : { view: tab })}`}
+                  key={tab}
+                >
+                  {tabLabels[tab]}
+                </Link>
+              ))}
             </div>
             <form className="crm-search-form" method="get">
               <input name="view" type="hidden" value={view} />
               <Search size={15} />
-              <input aria-label="Search clients" defaultValue={q} name="q" placeholder="Search clients" />
+              {/* Keyed on the query: a client-side visit to another ?q= (a tab,
+                  the global search) keeps this page mounted, and an
+                  uncontrolled box went on showing the old words over a list
+                  that no longer matched them. */}
+              <input aria-label="Search clients" defaultValue={q} key={q} name="q" placeholder="Name, email, phone or company" />
               <button type="submit">Search</button>
             </form>
           </div>

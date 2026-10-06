@@ -58,6 +58,11 @@ import {
   type ClientInviteProjectOption,
 } from "@/components/clients/client-portal-invite";
 import { runClientInvitation } from "@/lib/client/invitation-client";
+import {
+  clientListEmptyState,
+  clientListView,
+  searchClientList,
+} from "@/features/contacts/client-search";
 export type TenantDocument = Record<string, unknown> & { id: string };
 
 import { demoTenantDocuments } from "@/features/live/demo-records";
@@ -479,24 +484,9 @@ export function LiveClientCards({
   const [invitationStatusErrorKey, setInvitationStatusErrorKey] = useState<
     string | null
   >(null);
-  const values = (records ?? []).filter((contact) => {
-    const contactTypes = Array.isArray(contact.contactTypes)
-      ? contact.contactTypes.map(String)
-      : [];
-    const archived = Boolean(contact.archivedAt);
-    const matchesView =
-      view === "archived"
-        ? archived
-        : view === "prospects"
-          ? !archived && contactTypes.includes("prospect")
-          : !archived && contactTypes.includes("client");
-    return (
-      matchesView &&
-      String(contact.displayName ?? "")
-        .toLowerCase()
-        .includes(q.toLowerCase())
-    );
-  })
+  const listView = clientListView(view);
+  const search = searchClientList(records ?? [], listView, q);
+  const values = search.rows
     // Firestore document order is not an order a person recognises. It only
     // looks alphabetical here because the demo's ids happen to be built from
     // surnames; with real generated ids this list arrives shuffled. Same
@@ -628,28 +618,9 @@ export function LiveClientCards({
     );
   if (!values.length)
     return (
-      // "No matching" implies a filter was applied. Distinguish an empty search
-      // from an empty list, and from an empty tab.
-      <LiveRecordsState
-        kind="empty"
-        state={
-          q
-            ? `No clients match “${q}”`
-            : view === "archived"
-              ? "No archived clients"
-              : view === "prospects"
-                ? "No prospects yet"
-                : "No clients yet"
-        }
-        detail={
-          q
-            ? "Try a different name or email, or clear the search."
-            : "Add a client directly or convert an inquiry when you are ready to book."
-        }
-        action={
-          q ? undefined : { href: "/studio/clients/new", label: "Add client" }
-        }
-      />
+      // "No matching" implies a filter was applied, so an empty search, an
+      // empty list and an empty tab each say which they are.
+      <LiveRecordsState kind="empty" {...clientListEmptyState(listView, q, search.elsewhere)} />
     );
   return (
     <>
