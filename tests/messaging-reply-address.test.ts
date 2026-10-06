@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 /**
@@ -122,4 +123,20 @@ test("a short secret is treated as no secret", () => {
   } finally {
     process.env.INBOUND_REPLY_SIGNING_SECRET = saved;
   }
+});
+
+test("a certificate request keeps its coi+ reply address even when the agent is also the couple", () => {
+  // GR Productions, 2026-10-06: the "agent" was the couple's own address, the
+  // conversation's reply+ won, and the PDF landed in Messages.
+  const worker = readFileSync("functions/src/operations/jobs.ts", "utf8");
+  assert.match(worker, /const ownReplyAddress = firstString\(document\.get\("replyAddress"\)\);/);
+  assert.match(worker, /const threadReplyAddress = sendThreadId && !ownReplyAddress/);
+  assert.match(worker, /ownReplyAddress \?\? threadReplyAddress \?\? firstString\(context\.brand\.contactEmail\)/);
+});
+
+test("inbound mail with a coi+ address reaches the certificate handler, even beside a reply+ address", () => {
+  const route = readFileSync("app/api/webhooks/sendgrid/inbound/route.ts", "utf8");
+  const coi = route.indexOf('functionName = "sendgridInboundCoi";\n    } else if (');
+  const reply = route.indexOf("/reply\\+[A-Za-z0-9_.-]{16,400}@/i.test(recipients)");
+  assert.ok(coi > 0 && reply > coi, "coi+ is checked before reply+");
 });

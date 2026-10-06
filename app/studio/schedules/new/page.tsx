@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { AiScheduleGenerator } from "@/components/planning/ai-schedule-generator";
-import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 
 export const metadata: Metadata = { title: "Generate Schedule" };
 
@@ -38,15 +37,11 @@ export default async function NewSchedulePage({
         </header>
         <AiScheduleGenerator initialProjectId={project} />
         {/*
-          * Timing rules moved below the draft.
-          *
-          * This panel was the first thing on the page, so a photographer
-          * opening "Plan the day" was met by an empty configuration form
-          * reading "No rules yet" before anything they came for. Rules are
-          * how a studio makes the *next* draft better, which is a second
-          * visit, not a precondition for the first.
+          * Timing rules live inside the generator now, and only for jobs that
+          * aren't weddings: a wedding's day comes from the couple's Final
+          * Schedule. GR Productions (2026-10-06): "These should be deleted.
+          * They don't work for every wedding."
           */}
-        <TimingRuleEditor />
       </div>
     </AppShell>
   );

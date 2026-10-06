@@ -42,6 +42,11 @@ export async function POST(request: Request): Promise<Response> {
     const recipients = `${envelope}\n${to}`;
     if (/gallery\+[A-Za-z0-9_-]{20,300}@/i.test(recipients)) {
       functionName = "sendgridInboundGallery";
+    } else if (/coi\+[A-Za-z0-9_-]{20,300}@/i.test(recipients)) {
+      // A certificate for a request: before any reply+ address on the same
+      // message (a reply-all), so the PDF reaches the job's certificate page
+      // and not Messages (GR Productions, 2026-10-06).
+      functionName = "sendgridInboundCoi";
     } else if (
       /reply\+[A-Za-z0-9_.-]{16,400}@/i.test(recipients) ||
       // A studio replying to the StudioCue team about its feedback (Console

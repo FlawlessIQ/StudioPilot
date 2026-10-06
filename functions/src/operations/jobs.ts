@@ -1072,12 +1072,21 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     recipient,
     context.recipientIsClient,
   );
-  const threadReplyAddress = sendThreadId
+  /**
+   * An email that names its own reply address keeps it. A certificate request
+   * sends the agent a `coi+` address so their PDF comes back to the job's
+   * certificate page; when the agent's address was also the couple's, the
+   * conversation's `reply+` address won, and the certificate landed in
+   * Messages as a note from the couple (GR Productions, 2026-10-06). Every
+   * job that sets one goes to an agent, a venue or the studio — never a
+   * client conversation it would take away from Messages.
+   */
+  const ownReplyAddress = firstString(document.get("replyAddress"));
+  const threadReplyAddress = sendThreadId && !ownReplyAddress
     ? replyAddressFor(sendThreadId)
     : null;
   const replyAddress =
-    threadReplyAddress ??
-    firstString(document.get("replyAddress"), context.brand.contactEmail);
+    ownReplyAddress ?? threadReplyAddress ?? firstString(context.brand.contactEmail);
   // Carry the studio's name on reply_to, not just the address. A per-thread
   // address is necessarily a long signed token, and a client hitting reply saw
   // `reply+Y29udl8wZDhjMj...@inbound.studio-cue.com` sitting in the To field —
