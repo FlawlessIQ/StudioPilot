@@ -1,13 +1,62 @@
 {
-  "voiceId": "EXAVITQu4vr4xnSDxMaL",
-  "voiceName": "Sarah",
-  "modelId": "eleven_multilingual_v2",
-  "settings": { "stability": 0.55, "similarity_boost": 0.75, "style": 0.15, "use_speaker_boost": true, "speed": 1.0 },
-  "seed": 1007,
-  "outputFormat": "mp3_44100_128",
+  "use": "Jessica (v3)",
+  "pacing": { "leadIn": 1.5, "sentenceGap": 0.6, "beatGap": 1.0 },
   "candidates": [
-    { "name": "Sarah", "voiceId": "EXAVITQu4vr4xnSDxMaL" },
-    { "name": "Jessica", "voiceId": "cgSgspJ2msm6clMCkdW9" },
-    { "name": "Matilda", "voiceId": "XrExE9yKIg1WjnnlVkGX" }
+    {
+      "name": "Jessica (v3)",
+      "voiceId": "cgSgspJ2msm6clMCkdW9",
+      "modelId": "eleven_v3",
+      "settings": { "stability": 0.5, "similarity_boost": 0.75, "use_speaker_boost": true },
+      "seed": 1007,
+      "outputFormat": "mp3_44100_128"
+    },
+    {
+      "name": "Matilda (v3)",
+      "voiceId": "XrExE9yKIg1WjnnlVkGX",
+      "modelId": "eleven_v3",
+      "settings": { "stability": 0.5, "similarity_boost": 0.75, "use_speaker_boost": true },
+      "seed": 1007,
+      "outputFormat": "mp3_44100_128"
+    },
+    {
+      "name": "Aria (v3)",
+      "voiceId": "9BWtsMINqrJLrRacOk9x",
+      "modelId": "eleven_v3",
+      "settings": { "stability": 0.5, "similarity_boost": 0.75, "use_speaker_boost": true },
+      "seed": 1007,
+      "outputFormat": "mp3_44100_128"
+    },
+    {
+      "name": "Jessica (v2)",
+      "voiceId": "cgSgspJ2msm6clMCkdW9",
+      "modelId": "eleven_multilingual_v2",
+      "settings": { "stability": 0.4, "similarity_boost": 0.75, "style": 0.3, "use_speaker_boost": true, "speed": 0.93 },
+      "seed": 1007,
+      "outputFormat": "mp3_44100_128"
+    },
+    {
+      "name": "Matilda (v2)",
+      "voiceId": "XrExE9yKIg1WjnnlVkGX",
+      "modelId": "eleven_multilingual_v2",
+      "settings": { "stability": 0.4, "similarity_boost": 0.75, "style": 0.3, "use_speaker_boost": true, "speed": 0.93 },
+      "seed": 1007,
+      "outputFormat": "mp3_44100_128"
+    },
+    {
+      "name": "Aria (v2)",
+      "voiceId": "9BWtsMINqrJLrRacOk9x",
+      "modelId": "eleven_multilingual_v2",
+      "settings": { "stability": 0.4, "similarity_boost": 0.75, "style": 0.3, "use_speaker_boost": true, "speed": 0.93 },
+      "seed": 1007,
+      "outputFormat": "mp3_44100_128"
+    },
+    {
+      "name": "Rachel (v2)",
+      "voiceId": "21m00Tcm4TlvDq8ikWAM",
+      "modelId": "eleven_multilingual_v2",
+      "settings": { "stability": 0.4, "similarity_boost": 0.75, "style": 0.3, "use_speaker_boost": true, "speed": 0.93 },
+      "seed": 1007,
+      "outputFormat": "mp3_44100_128"
+    }
   ]
 }

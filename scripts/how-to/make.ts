@@ -35,7 +35,8 @@ for (const line of readFileSync(".env.local", "utf8").split("\n")) {
   if (match && !process.env[match[1]!]) process.env[match[1]!] = match[2]!.replace(/^["']|["']$/g, "");
 }
 
-const voice = JSON.parse(readFileSync(path.join(HERE, "voice.config.json"), "utf8")) as VoiceConfig;
+// The guides' narrator; a script can name its own (HowToScript.voice).
+const voiceFrom = (file = "voice.config.json") => JSON.parse(readFileSync(path.join(HERE, file), "utf8")) as VoiceConfig;
 const reset = (snapshot?: string) => execFileSync(path.join(HERE, "stack.sh"), ["reset", ...(snapshot ? [snapshot] : [])], { stdio: "inherit" });
 
 /**
@@ -77,6 +78,7 @@ for (const id of ids) {
   }
 
   // Narration first: its lengths set how long each step is held.
+  const voice = voiceFrom(script.voice);
   const said = script.steps.map((step, i) => ({ i, text: step.say })).filter((s): s is { i: number; text: string } => !!s.text);
   const lines = new Map<number, Line>();
   for (const [k, { i, text }] of said.entries()) {

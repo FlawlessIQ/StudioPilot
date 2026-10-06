@@ -7,7 +7,7 @@
  *   npx tsx scripts/how-to/one-saturday.ts wide       # 16:9 only
  *   npx tsx scripts/how-to/one-saturday.ts tall       # 9:16 only
  *   npx tsx scripts/how-to/one-saturday.ts --silent   # no narration (music only)
- *   npx tsx scripts/how-to/one-saturday.ts voices     # the same lines in each candidate voice
+ *   npx tsx scripts/how-to/one-saturday.ts voices     # the opening in each candidate voice (voices 2 5: just those)
  *
  * The story is the homepage's Saturday log (features/marketing/cue-duties.ts):
  * while the photographer shoots, Cue works through the day, and on Monday a
@@ -31,7 +31,7 @@
  * Files to review, not to publish: nothing here uploads anything.
  */
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser } from "playwright";
@@ -384,46 +384,77 @@ function sourceOf(shot: Shot): { file: string; start: number; room: number } {
 
 // ── Narration ───────────────────────────────────────────────────────────────
 
-type FilmVoice = VoiceConfig & { voiceName: string; candidates: Array<{ name: string; voiceId: string }> };
-const VOICE = JSON.parse(readFileSync(path.join(HERE, "one-saturday.voice.json"), "utf8")) as FilmVoice;
+/**
+ * The narrator and the pacing (one-saturday.voice.json): `use` names the
+ * candidate that reads the film; the others are there to be heard
+ * (`voices` mode). Each sentence is rendered on its own and placed on the
+ * timeline, so the pauses are ours, not the model's: a lead-in before the
+ * first word, a beat between sentences, a longer one between scenes. The
+ * picture waits for the voice.
+ */
+type Candidate = VoiceConfig & { name: string };
+const FILM = JSON.parse(readFileSync(path.join(HERE, "one-saturday.voice.json"), "utf8")) as {
+  use: string;
+  pacing: { leadIn: number; sentenceGap: number; beatGap: number };
+  candidates: Candidate[];
+};
+const candidate = (name: string) => {
+  const found = FILM.candidates.find((c) => c.name === name);
+  if (!found) throw new Error(`No voice candidate "${name}" in one-saturday.voice.json.`);
+  return found;
+};
+const PACE = FILM.pacing;
 const FADE = 0.35;
-/** The voice comes in this far into its beat, once the dissolve has settled. */
-const LEAD = 0.3;
-/** Room after a line before the next dissolve starts; the end card holds longer. */
-const BREATH = 0.35;
+/** The voice comes in this far into a scene, once the dissolve has settled; the rest of the beat gap falls before the next scene. */
+const LEAD = 0.4;
 const LAST_BEAT = 1.3;
 
-async function narrate(voice: VoiceConfig) {
-  const said = BEATS.map((b) => b.say).filter((s): s is string => !!s);
-  const lines = new Map<number, Line>();
+const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
+type Spoken = { line: Line; offset: number };
+/** Per beat: how much its shots stretch to hold the voice, and where each sentence starts within it. */
+type Plan = Array<{ scale: number; spoken: Spoken[] }>;
+
+async function narrate(voice: VoiceConfig, beats: Beat[] = BEATS): Promise<Plan> {
+  const all = beats.flatMap((b) => (b.say ? sentencesOf(b.say) : []));
+  // eleven_v3 doesn't take the neighbouring text; v2 reads more evenly with it.
+  const stitched = voice.modelId !== "eleven_v3";
   let k = 0;
-  for (const [i, beat] of BEATS.entries()) {
-    if (!beat.say) continue;
-    lines.set(i, await speak(beat.say, voice, { previousText: said[k - 1], nextText: said[k + 1] }));
-    k++;
+  const plan: Plan = [];
+  for (const [b, beat] of beats.entries()) {
+    const spoken: Spoken[] = [];
+    let at = b === 0 ? PACE.leadIn : LEAD;
+    for (const sentence of beat.say ? sentencesOf(beat.say) : []) {
+      const context = stitched ? { previousText: all[k - 1], nextText: all[k + 1] } : {};
+      const line = await speak(sentence, voice, context);
+      spoken.push({ line, offset: at });
+      at += line.durationSec + PACE.sentenceGap;
+      k++;
+    }
+    const last = b === BEATS.length - 1;
+    const planned = beat.kind === "card" ? beat.len : beat.shots.reduce((sum, s) => sum + s.len, 0);
+    const clips = beat.kind === "card" ? 1 : beat.shots.length;
+    const speechEnd = spoken.length ? at - PACE.sentenceGap : 0;
+    const need = spoken.length ? speechEnd + (last ? LAST_BEAT : PACE.beatGap - LEAD + FADE * clips) : planned;
+    plan.push({ scale: Math.max(1, need / planned), spoken });
   }
-  return lines;
+  return plan;
 }
 
-/** How much longer than planned a beat must run to hold its line: 1 when it already fits. */
-function stretch(beat: Beat, line: Line | undefined, last: boolean) {
-  const planned = beat.kind === "card" ? beat.len : beat.shots.reduce((sum, s) => sum + s.len, 0);
-  if (!line) return 1;
-  const clips = beat.kind === "card" ? 1 : beat.shots.length;
-  const need = LEAD + line.durationSec + (last ? LAST_BEAT : BREATH + FADE * clips);
-  return Math.max(1, need / planned);
+/** How long a beat is on screen once stretched, dissolves taken off (the last runs to the end). */
+function beatSpan(beat: Beat, scale: number, last: boolean) {
+  const lens = beat.kind === "card" ? [beat.len] : beat.shots.map((s) => s.len);
+  return lens.reduce((sum, len) => sum + len * scale, 0) - (last ? FADE * (lens.length - 1) : FADE * lens.length);
 }
 
-async function renderShape(browser: Browser, shape: Shape, lines: Map<number, Line>) {
+async function renderShape(browser: Browser, shape: Shape, plan: Plan) {
   const size = SIZE[shape];
   const clips: string[] = [];
   const placed: Array<{ line: Line; at: number }> = [];
   let posterAt = 0;
   let clock = 0;
   for (const [b, beat] of BEATS.entries()) {
-    const line = lines.get(b);
-    const scale = stretch(beat, line, b === BEATS.length - 1);
-    if (line) placed.push({ line, at: clock + (b === 0 ? LEAD + 0.1 : LEAD) });
+    const { scale, spoken } = plan[b] ?? { scale: 1, spoken: [] };
+    for (const s of spoken) placed.push({ line: s.line, at: clock + s.offset });
     if (beat.kind === "card") {
       const len = beat.len * scale;
       const png = path.join(WORK, `${shape}-b${b}-card.png`);
@@ -473,6 +504,19 @@ async function renderShape(browser: Browser, shape: Shape, lines: Map<number, Li
   return { clips, posterAt, placed };
 }
 
+/** The sentences at their places, -16 LUFS, then the bed ducked under them (lib/music.ts withMusic). */
+function mixVoice(picture: string, placed: Array<{ line: Line; at: number }>, length: number, bed: string, out: string, work: string) {
+  const voiceTrack = path.join(work, `${path.basename(out, ".mp4")}-voice.mp4`);
+  const delays = placed.map((p, i) => `[${i + 1}:a]adelay=${Math.round(p.at * 1000)}:all=1[a${i}]`).join(";");
+  ffmpeg([
+    "-i", picture, ...placed.flatMap((p) => ["-i", p.line.audioPath]),
+    "-filter_complex",
+    `${delays};${placed.map((_, i) => `[a${i}]`).join("")}amix=inputs=${placed.length}:normalize=0:dropout_transition=0,apad,atrim=0:${length.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=11[aout]`,
+    "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ac", "1", "-ar", "44100", voiceTrack,
+  ]);
+  withMusic(voiceTrack, bed, 0, length, out);
+}
+
 /**
  * Joins clips with a short dissolve, then the sound: with narration, the
  * voice at -16 LUFS and the bed ducked under it (lib/music.ts withMusic, as
@@ -495,15 +539,7 @@ function finish(clips: string[], out: string, seed: number, placed: Array<{ line
   const bed = path.join(WORK, `bed-${seed}.wav`);
   makeMusicBed(length + 1, bed, seed);
   if (placed.length) {
-    const voiceTrack = path.join(WORK, `${path.basename(out, ".mp4")}-voice.mp4`);
-    const delays = placed.map((p, i) => `[${i + 1}:a]adelay=${Math.round(p.at * 1000)}:all=1[a${i}]`).join(";");
-    ffmpeg([
-      "-i", picture, ...placed.flatMap((p) => ["-i", p.line.audioPath]),
-      "-filter_complex",
-      `${delays};${placed.map((_, i) => `[a${i}]`).join("")}amix=inputs=${placed.length}:normalize=0:dropout_transition=0,apad,atrim=0:${length.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=11[aout]`,
-      "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ac", "1", "-ar", "44100", voiceTrack,
-    ]);
-    withMusic(voiceTrack, bed, 0, length, out);
+    mixVoice(picture, placed, length, bed, out, WORK);
     return length;
   }
   ffmpeg([
@@ -514,34 +550,63 @@ function finish(clips: string[], out: string, seed: number, placed: Array<{ line
   return length;
 }
 
-/** The same two lines in each candidate voice, so the narrator can be changed by ear. */
-async function voiceSamples() {
+/**
+ * The film's opening, through the 1:30 pm scene, in each candidate voice:
+ * placed exactly as the film would place it (lead-in, pauses, scenes
+ * stretched to the voice) over the same music bed, so a voice can be
+ * chosen by ear. `voices 2 5` renders just those candidates.
+ */
+async function voiceSamples(only: number[]) {
   const dir = path.join(DIR, "voice-samples");
-  mkdirSync(dir, { recursive: true });
-  const sample = [BEATS[1]!.say, BEATS[BEATS.length - 1]!.say].join(" ");
-  for (const candidate of VOICE.candidates) {
-    const line = await speak(sample, { ...VOICE, voiceId: candidate.voiceId });
-    const file = path.join(dir, `one-saturday-${candidate.name.toLowerCase()}.mp3`);
-    copyFileSync(line.audioPath, file);
-    console.log(`${candidate.name.padEnd(8)} ${candidate.voiceId}  ${line.durationSec.toFixed(1)}s → ${file}`);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(path.join(dir, "work"), { recursive: true });
+  const opening = BEATS.slice(0, BEATS.findIndex((b) => b.kind === "saturday" && b.duties.includes("crew_cascade")) + 1);
+  const readme: string[] = [];
+  for (const [i, voice] of FILM.candidates.entries()) {
+    if (only.length && !only.includes(i + 1)) continue;
+    const plan = await narrate(voice, opening);
+    const placed: Array<{ line: Line; at: number }> = [];
+    let clock = 0;
+    for (const [b, beat] of opening.entries()) {
+      for (const s of plan[b]!.spoken) placed.push({ line: s.line, at: clock + s.offset });
+      clock += beatSpan(beat, plan[b]!.scale, false);
+    }
+    const length = Math.max(...placed.map((p) => p.at + p.line.durationSec)) + 1.2;
+    const slug = `${i + 1}-${voice.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}`;
+    const work = path.join(dir, "work", slug);
+    mkdirSync(work, { recursive: true });
+    // A blank picture to carry the voice through the same mix as the film.
+    const picture = path.join(work, "picture.mp4");
+    ffmpeg(["-f", "lavfi", "-i", `color=c=black:s=320x180:r=30:d=${length.toFixed(3)}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", picture]);
+    const bed = path.join(work, "bed.wav");
+    makeMusicBed(length + 1, bed, 31);
+    const out = path.join(work, "mix.mp4");
+    mixVoice(picture, placed, length, bed, out, work);
+    const mp3 = path.join(dir, `${slug}.mp3`);
+    ffmpeg(["-i", out, "-vn", "-c:a", "libmp3lame", "-b:a", "192k", mp3]);
+    const settings = Object.entries(voice.settings).map(([k, v]) => `${k}=${v}`).join(", ");
+    readme.push(`${i + 1}. ${voice.name}: voice ${voice.voiceId}, model ${voice.modelId}, ${settings}`);
+    console.log(`✓ ${slug}.mp3 (${length.toFixed(1)}s)`);
   }
+  rmSync(path.join(dir, "work"), { recursive: true, force: true });
+  writeFileSync(path.join(dir, "voices.txt"), readme.join("\n") + "\n");
 }
 
 const args = process.argv.slice(2);
 const silent = args.includes("--silent");
 const wanted = (args.find((a) => !a.startsWith("--")) ?? "both") as Shape | "both" | "voices";
 if (wanted === "voices") {
-  await voiceSamples();
+  await voiceSamples(args.slice(1).map(Number).filter(Boolean));
 } else {
   rmSync(WORK, { recursive: true, force: true });
   mkdirSync(WORK, { recursive: true });
-  const lines = silent ? new Map<number, Line>() : await narrate(VOICE);
+  const plan: Plan = silent ? [] : await narrate(candidate(FILM.use));
   const browser = await chromium.launch({ channel: "chrome" });
   try {
     for (const shape of ["wide", "tall"] as const) {
       if (wanted !== "both" && wanted !== shape) continue;
       const name = `one-saturday-${shape === "wide" ? "16x9" : "9x16"}${silent ? ".silent" : ""}`;
-      const { clips, posterAt, placed } = await renderShape(browser, shape, lines);
+      const { clips, posterAt, placed } = await renderShape(browser, shape, plan);
       const out = path.join(DIR, `${name}.mp4`);
       const length = finish(clips, out, shape === "wide" ? 31 : 37, placed);
       ffmpeg(["-ss", posterAt.toFixed(2), "-i", out, "-frames:v", "1", "-q:v", "3", path.join(DIR, `${name}.jpg`)]);
