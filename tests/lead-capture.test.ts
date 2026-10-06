@@ -700,6 +700,12 @@ test("a reply carries the couple's link before its sign-off, once, and only when
   assert.match(linked.body, /pick a time to talk — it takes two minutes: https:\/\/.+\/i\/[\w-]{43}\n\nWarmly,\nGabe$/);
   const token = String(store.get("inquiryLinks/l1")!.token);
   assert.ok(linked.body.includes(`/i/${token}`));
+  // A first paragraph that opens "Thanks…" is not the sign-off (prod walk,
+  // 2026-10-06: the link landed straight under "Dear Maya,").
+  const thanksFirst =
+    "Dear Maya,\n\nThanks so much for reaching out about your wedding at The Madison Hotel on March 13, 2027! Your date is free.\n\nCheers, Conor — FlawlessIQ.";
+  const placed = await withInquiryLink(db, { tenantId: "t1", leadId: "l2", body: thanksFirst, now });
+  assert.match(placed.body, /^Dear Maya,\n\nThanks so much[^\n]+\n\nTell us a little more about your day[^\n]+\n\nCheers, Conor — FlawlessIQ\.$/);
   // The same inquiry keeps the same link, and it isn't added twice.
   const again = await withInquiryLink(db, { tenantId: "t1", leadId: "l1", body: linked.body, now });
   assert.equal(again.body, linked.body);

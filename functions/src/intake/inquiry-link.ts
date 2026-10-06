@@ -127,8 +127,11 @@ export async function withInquiryLink(
     kindLead.get("eventKind") === "general" ? "other" : kindLead.get("eventKind"),
   );
   // Before the sign-off when there is one, so the link isn't the last thing
-  // after "Warmly,".
-  const signOff = /\n\n((?:warmly|best|thanks|thank you|kind regards|regards|cheers|all the best)[^\n]*,?\s*(?:\n[^\n]*)?)$/i.exec(
+  // after "Warmly,". A sign-off is a short line and at most a name under it:
+  // matched across a blank line, "Thanks so much for reaching out…" — the
+  // whole first paragraph — read as one, and the link landed straight under
+  // "Dear Maya," (prod walk, 2026-10-06).
+  const signOff = /\n\n((?:warmly|best|thanks|thank you|kind regards|regards|cheers|all the best)[^\n]{0,48}(?:\n[^\n]{1,60})?)$/i.exec(
     input.body.trimEnd(),
   );
   const body = signOff
