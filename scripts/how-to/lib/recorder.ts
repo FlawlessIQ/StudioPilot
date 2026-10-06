@@ -143,7 +143,10 @@ export async function run(
     const from = Date.now() / 1000;
     for (const inner of action.cut) await run(page, pointer, inner, still, cut);
     await page.waitForTimeout(300);
-    cut(from, Date.now() / 1000);
+    // A still page sends the screencast nothing: take a frame, so what follows
+    // the cut opens on this page, not on black or on whatever came before.
+    await still(page);
+    cut(from, Date.now() / 1000 - 0.05);
   } else if ("reload" in action) {
     await page.reload({ waitUntil: "load" });
     await page.waitForTimeout(900);

@@ -175,7 +175,9 @@ export async function recordJourney(
         cutInStep += to - from;
       };
 
-      for (const action of step.do) {
+      for (const [a, action] of step.do.entries()) {
+        // The waitFor that followed a page load ran with it (below).
+        if (a > 0 && "waitFor" in action && "goto" in step.do[a - 1]!) continue;
         try {
           if ("card" in action) {
             // A full-frame still of its own; no one's screen is disturbed.
@@ -208,8 +210,20 @@ export async function recordJourney(
           } else if ("respond" in action) {
             const body = JSON.stringify(await respond(action.respond.with));
             await screen!.page.route(action.respond.url, (route) => route.fulfill({ status: 200, contentType: "application/json", body }), { times: 1 });
-          } else if ("goto" in action && action.goto.includes("{")) {
-            await run(screen!.page, screen!.pointer, { goto: await resolvePath(action.goto) }, still(screen!), cut);
+          } else if ("goto" in action) {
+            // A page load is cut, up to the moment its content is there: no
+            // "Opening your workspace…" or half-drawn page in the film.
+            // The step's line starts on the loaded page.
+            const from = Date.now() / 1000;
+            const goto = action.goto.includes("{") ? await resolvePath(action.goto) : action.goto;
+            await run(screen!.page, screen!.pointer, { goto }, still(screen!), cut);
+            const next = step.do[a + 1];
+            if (next && "waitFor" in next) await run(screen!.page, screen!.pointer, next, still(screen!), cut);
+            await screen!.page.waitForTimeout(300);
+            // A still page sends the screencast nothing: take a frame, so the
+            // film resumes on the loaded page rather than the last loading frame.
+            await still(screen!)(screen!.page);
+            cut(from, Date.now() / 1000 - 0.05);
           } else {
             await run(screen!.page, screen!.pointer, action, still(screen!), cut);
           }
