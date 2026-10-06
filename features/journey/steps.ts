@@ -820,7 +820,7 @@ export function projectJourney(input: JourneyInput): {
           : scheduleWaiting
             ? "With the client to approve"
             : formDone
-              ? "Drafted from the form using your timing rules"
+              ? `Ready to lay out from ${who}'s form`
               : `Starts once ${who} return their details form`,
     // Deliberately *not* gated on the form, unlike the contract and the
     // retainer. Their destinations refuse without their input; this one does

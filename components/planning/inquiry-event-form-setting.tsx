@@ -8,6 +8,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   currentInquiryFormTemplate,
   inquiryFormChoices,
+  suggestedInquiryForm,
 } from "@/features/questionnaires/inquiry-form-setting";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -64,7 +65,7 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
   // A studio that hasn't chosen starts on its wedding form, ready to save:
   // "Don't send a form", greyed out, was where every studio sat (2026-10-05).
   const selected =
-    choice ?? current?.id ?? (decided ? "" : (choices.find((item) => item.forWeddings)?.id ?? ""));
+    choice ?? current?.id ?? (decided ? "" : suggestedInquiryForm(choices));
 
   if (!ownerOrAdmin) return null;
 

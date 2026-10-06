@@ -64,7 +64,7 @@ export function TimelineCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   return (
     <ActionShell
-      detail="Built from their questionnaire, the job's packages and your timing rules. You edit it; publishing sends it to the crew and, for anything shared, to the client."
+      detail="Laid out from their form and the job's packages. You edit it; publishing sends it to the crew and, for anything shared, to the client."
       icon={<CalendarRange size={15} />}
       title={title}
     >

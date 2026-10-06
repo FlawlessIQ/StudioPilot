@@ -48,6 +48,33 @@ export function inquiryFormChoices<T extends TemplateRow & { eventTypeId?: unkno
       id: template.id,
       name: String(template.name ?? "Untitled questionnaire"),
       forWeddings: String(template.eventTypeId ?? "wedding") === "wedding",
+      recommendedId: typeof (template as { recommendedId?: unknown }).recommendedId === "string"
+        ? String((template as { recommendedId?: unknown }).recommendedId)
+        : null,
     }))
     .sort((left, right) => Number(right.forWeddings) - Number(left.forWeddings) || left.name.localeCompare(right.name));
+}
+
+/**
+ * What the picker opens on for a studio that hasn't chosen: their copy of the
+ * recommended Event details form, else a wedding form that isn't the final
+ * schedule or the shot list — both are for after booking. The first wedding
+ * form by name was the old planning questionnaire on the production walk of
+ * 2026-10-06, with the Event details copy sitting right under it.
+ */
+export function suggestedInquiryForm(
+  choices: ReadonlyArray<{ id: string; name: string; forWeddings: boolean; recommendedId: string | null }>,
+): string {
+  const afterBooking = new Set(["wedding-final-schedule", "wedding-shot-list"]);
+  return (
+    choices.find((item) => item.recommendedId === "wedding-event-details")?.id ??
+    choices.find(
+      (item) =>
+        item.forWeddings &&
+        !afterBooking.has(item.recommendedId ?? "") &&
+        !/\b(planning|final schedule|shot list)\b/i.test(item.name),
+    )?.id ??
+    choices.find((item) => item.forWeddings)?.id ??
+    ""
+  );
 }

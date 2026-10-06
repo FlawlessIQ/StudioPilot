@@ -4,6 +4,7 @@ import { buildCrewBrief } from "./crew-brief.js";
 import { jobPackageSnapshotIds } from "../ai/schedule-package-facts.js";
 import { packagesIncludeVideo } from "../ai/schedule-crew.js";
 import { saveFormBillingAddress } from "../contacts/address-from-form.js";
+import { fillVenueFromForm } from "./venue-from-form.js";
 
 /**
  * Whether the job's packages send a videographer, so the brief can say
@@ -50,6 +51,10 @@ export const crewBriefOnQuestionnaireWrite = onDocumentWritten(
     if (after) {
       await saveFormBillingAddress(getFirestore(), responseId, after).catch((caught: unknown) => {
         console.error("form billing address", responseId, caught instanceof Error ? caught.message : caught);
+      });
+      // And the job's venue, when it has none (planning/venue-from-form.ts).
+      await fillVenueFromForm(getFirestore(), responseId, after).catch((caught: unknown) => {
+        console.error("form venue", responseId, caught instanceof Error ? caught.message : caught);
       });
     }
     // Reopened for the couple: the crew keep the brief they had until the
