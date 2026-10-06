@@ -10,6 +10,7 @@
  * The key comes from ELEVENLABS_API_KEY (in .env.local); it is never logged,
  * committed or sent anywhere but api.elevenlabs.io.
  */
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -23,6 +24,13 @@ export type VoiceConfig = {
   /** Fixed so a re-take of unchanged words sounds the same. */
   seed: number;
   outputFormat: string;
+  /**
+   * Pauses a film sets itself rather than leaving to the model (Conor,
+   * 2026-10-06: the narrator "doesn't pause when she should"): each sentence
+   * is rendered on its own and joined with `sentenceGap` seconds of silence,
+   * and a step holds `stepGap` seconds after its line unless it says otherwise.
+   */
+  pacing?: { sentenceGap: number; stepGap: number };
 };
 
 export type Alignment = {
@@ -115,4 +123,46 @@ export async function speak(
   const alignment = JSON.parse(readFileSync(metaPath, "utf8")) as Alignment;
   const ends = alignment.character_end_times_seconds;
   return { text, audioPath, durationSec: ends.length ? ends[ends.length - 1]! : 0, alignment };
+}
+
+/**
+ * A step's narration with the film's own pauses: each sentence spoken on its
+ * own, trimmed to its last word, and joined with `sentenceGap` of silence.
+ * The alignment is joined the same way, so captions still follow the words.
+ * Without `pacing`, or for a single sentence, this is `speak`.
+ */
+export async function speakPaced(text: string, voice: VoiceConfig, context: { previousText?: string; nextText?: string } = {}): Promise<Line> {
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (!voice.pacing || sentences.length < 2) return speak(text, voice, context);
+  // eleven_v3 doesn't take the neighbouring text.
+  const stitched = voice.modelId !== "eleven_v3";
+  const parts: Line[] = [];
+  for (const [i, sentence] of sentences.entries()) {
+    const around = stitched ? { previousText: sentences[i - 1] ?? context.previousText, nextText: sentences[i + 1] ?? context.nextText } : {};
+    parts.push(await speak(sentence, voice, around));
+  }
+  const gap = voice.pacing.sentenceGap;
+  const hash = createHash("sha256").update(JSON.stringify({ parts: parts.map((p) => p.audioPath), gap })).digest("hex").slice(0, 20);
+  const audioPath = path.join(CACHE, `paced-${hash}.mp3`);
+  const characters: string[] = [], starts: number[] = [], ends: number[] = [];
+  let offset = 0;
+  for (const [i, part] of parts.entries()) {
+    if (i > 0) {
+      characters.push(" ");
+      starts.push(offset - gap);
+      ends.push(offset);
+    }
+    characters.push(...part.alignment.characters);
+    starts.push(...part.alignment.character_start_times_seconds.map((t) => t + offset));
+    ends.push(...part.alignment.character_end_times_seconds.map((t) => t + offset));
+    offset += part.durationSec + gap;
+  }
+  if (!existsSync(audioPath)) {
+    const inputs = parts.flatMap((p) => ["-i", p.audioPath]);
+    const chain = parts
+      .map((p, i) => `[${i}:a]aresample=44100,aformat=channel_layouts=mono,atrim=0:${p.durationSec.toFixed(3)}${i < parts.length - 1 ? `,apad=pad_dur=${gap}` : ""}[p${i}]`)
+      .join(";");
+    execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...inputs, "-filter_complex", `${chain};${parts.map((_, i) => `[p${i}]`).join("")}concat=n=${parts.length}:v=0:a=1[a]`, "-map", "[a]", "-c:a", "libmp3lame", "-b:a", "128k", audioPath]);
+  }
+  return { text, audioPath, durationSec: offset - gap, alignment: { characters, character_start_times_seconds: starts, character_end_times_seconds: ends } };
 }

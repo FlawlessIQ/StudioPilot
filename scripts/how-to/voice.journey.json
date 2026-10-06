@@ -4,5 +4,6 @@
   "modelId": "eleven_v3",
   "settings": { "stability": 0.5, "similarity_boost": 0.75, "use_speaker_boost": true },
   "seed": 1007,
-  "outputFormat": "mp3_44100_128"
+  "outputFormat": "mp3_44100_128",
+  "pacing": { "sentenceGap": 0.6, "stepGap": 1.0 }
 }

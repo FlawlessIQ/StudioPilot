@@ -19,7 +19,7 @@ import { assemble } from "./lib/assemble";
 import { record } from "./lib/recorder";
 import { compose } from "./lib/compose";
 import { recordJourney } from "./lib/journey-recorder";
-import { HOW_TO_HOME, speak, type Line, type VoiceConfig } from "./lib/voice";
+import { HOW_TO_HOME, speakPaced, type Line, type VoiceConfig } from "./lib/voice";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -84,11 +84,11 @@ for (const id of ids) {
   for (const [k, { i, text }] of said.entries()) {
     // eleven_v3 doesn't take the neighbouring text.
     const context = voice.modelId === "eleven_v3" ? {} : { previousText: said[k - 1]?.text, nextText: said[k + 1]?.text };
-    lines.set(i, await speak(text, voice, context));
+    lines.set(i, await speakPaced(text, voice, context));
   }
   const holdFor = (i: number) => {
     const line = lines.get(i);
-    const pause = (script.steps[i]!.pauseAfterMs ?? 700) / 1000;
+    const pause = (script.steps[i]!.pauseAfterMs ?? (voice.pacing?.stepGap ?? 0.7) * 1000) / 1000;
     return line ? line.durationSec + pause : 0;
   };
 
