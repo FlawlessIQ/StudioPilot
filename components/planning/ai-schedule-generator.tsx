@@ -50,6 +50,7 @@ import {
   type StandardMomentKey,
 } from "@/features/schedules/standard-moments";
 import { scheduleCrewOptions } from "@/features/schedules/crew-options";
+import { crewLabels, sortLabels } from "@/features/schedules/crew-labels";
 import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
 import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
@@ -313,6 +314,25 @@ export function AiScheduleGenerator({
       }),
     [crewAssignments, crewProfiles, projectId],
   );
+  /**
+   * The crew as the studio writes them — P1, V1, P2, V2 — and the teams they
+   * make: the first stays with the bride, the second takes the groom
+   * (features/schedules/crew-labels.ts; GR's run of show, 2026-10-06).
+   */
+  const crewTags = useMemo(() => {
+    const labels = crewLabels(crewOptions.map((member) => ({ id: member.id, role: member.role })));
+    const byNumber = (number: number) => crewOptions.filter((member) => labels.get(member.id)?.number === number).map((member) => member.id);
+    return {
+      labels,
+      // P1, P2, V1, V2 — the order the PDF and the chips use.
+      ordered: (() => {
+        const order = sortLabels(crewOptions.map((member) => labels.get(member.id)?.label ?? ""));
+        const at = (id: string) => order.indexOf(labels.get(id)?.label ?? "");
+        return [...crewOptions].sort((left, right) => at(left.id) - at(right.id));
+      })(),
+      teams: { first: byNumber(1), second: byNumber(2) },
+    };
+  }, [crewOptions]);
   /** Who the questions would go to, and whether there is anyone to send to. */
   const clientContactId = useMemo(() => {
     const ids = selectedProject?.clientContactIds;
@@ -841,13 +861,19 @@ export function AiScheduleGenerator({
       rules: dayRules,
       coverageMinutes: packageMinutes ?? null,
       venue: String(selectedProject?.venueName ?? "").trim() || null,
+      secondTeam: crewTags.teams.second.length > 0,
     });
     setPlanNotes(plan.notes);
     if (!plan.rows.length) {
       setNotice(plan.notes.join(" "));
       return;
     }
-    const items = planItems(plan, { eventDate: eventDay, timeZone: zone, idFor: () => crypto.randomUUID() }) as ScheduleItem[];
+    const items = planItems(plan, {
+      eventDate: eventDay,
+      timeZone: zone,
+      idFor: () => crypto.randomUUID(),
+      teams: crewTags.teams,
+    }) as ScheduleItem[];
     if (plan.coverageStart) setCoverageStartsAt(`${eventDay}T${plan.coverageStart}`);
     if (plan.coverageEnd) setCoverageEndsAt(`${eventDay}T${plan.coverageEnd}`);
     const coverageEnd = plan.coverageEnd ? wallClockToIso(eventDay, plan.coverageEnd, zone) : null;
@@ -1424,23 +1450,31 @@ export function AiScheduleGenerator({
                       </span>
                     ))}
                     {item.blockingIssues.length ? <small>{item.blockingIssues.join(" · ")}</small> : null}
-                    {crewOptions.length ? (
-                      <details className="schedule-line-crew">
-                        <summary>{crewCount ? `Crew: ${crewCount}` : "Crew"}</summary>
-                        <fieldset className="schedule-item-crew">
-                          <legend>Crew on this</legend>
-                          {crewOptions.map((member) => (
-                            <label key={member.id}>
-                              <input
-                                checked={itemCrewIds(item).includes(member.id)}
-                                onChange={() => toggleCrew(index, member.id)}
-                                type="checkbox"
-                              />
-                              {member.name} · {member.role}
-                            </label>
-                          ))}
-                        </fieldset>
-                      </details>
+                    {/*
+                      * Who covers it, as chips: P1 V1 with the bride, P2 V2
+                      * with the groom. None picked is everyone. A line runs
+                      * to the next one on its own track (day-plan.ts).
+                      */}
+                    {crewTags.ordered.length ? (
+                      <span className="schedule-line-crew" role="group" aria-label={`Who covers ${item.title || `line ${index + 1}`}`}>
+                        {crewTags.ordered.map((member) => {
+                          const tag = crewTags.labels.get(member.id);
+                          const on = itemCrewIds(item).includes(member.id);
+                          return (
+                            <button
+                              aria-pressed={on}
+                              className={`schedule-line-chip is-${tag?.trade ?? "photographer"}-${((tag?.number ?? 1) - 1) % 2 + 1}`}
+                              key={member.id}
+                              onClick={() => toggleCrew(index, member.id)}
+                              title={`${member.name} · ${member.role}`}
+                              type="button"
+                            >
+                              {tag?.label ?? member.name}
+                            </button>
+                          );
+                        })}
+                        {crewCount ? null : <small>Everyone</small>}
+                      </span>
                     ) : null}
                     <button
                       aria-label={`Remove ${item.title || `line ${index + 1}`}`}

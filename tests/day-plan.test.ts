@@ -284,3 +284,81 @@ test("the PDF service lays out the document, and an older caller still gets its 
   const worker = read("functions/src/operations/ai-pdf.ts");
   assert.match(worker, /document:\{title:document\.title,subtitle:document\.subtitle,studio:tenantName/);
 });
+
+// --- crew tracks ---------------------------------------------------------------
+import { sameTrack } from "@/features/schedules/day-plan";
+
+test("lines run to the next line on their own track: the groom's team isn't cut off by the bride's", () => {
+  const items = [
+    { id: "touchups", startAt: "2027-06-12T17:00:00.000Z", endAt: "2027-06-12T17:00:00.000Z", crewIds: ["p1", "v1"] },
+    { id: "groom", startAt: "2027-06-12T17:00:00.000Z", endAt: "2027-06-12T17:00:00.000Z", crewIds: ["p2", "v2"] },
+    { id: "dress", startAt: "2027-06-12T17:15:00.000Z", endAt: "2027-06-12T17:15:00.000Z", crewIds: ["p1", "v1"] },
+    { id: "ceremony", startAt: "2027-06-12T18:30:00.000Z", endAt: "2027-06-12T18:30:00.000Z", crewIds: [] },
+  ];
+  assert.equal(sameTrack(items[0]!, items[1]!), false);
+  assert.equal(sameTrack(items[0]!, items[3]!), true, "a line nobody's named on is everyone's");
+  const flowed = new Map(flowEnds(items, new Set(), "2027-06-13T03:00:00.000Z").map((item) => [item.id, item.endAt]));
+  assert.equal(flowed.get("touchups"), "2027-06-12T17:15:00.000Z");
+  assert.equal(flowed.get("groom"), "2027-06-12T18:30:00.000Z");
+  assert.equal(flowed.get("dress"), "2027-06-12T18:30:00.000Z");
+});
+
+test("with a second team booked, GR's day lays out in two tracks the way his run of show does", () => {
+  const plan = planDay({
+    answers: {
+      "ceremony-time": "14:30",
+      "ceremony-end-time": "15:30",
+      "cocktail-hour-time": "18:30",
+      "reception-time": "19:45",
+      "dinner-time": "21:00",
+      coverageStartTime: "12:30",
+      coverageEndTime: "23:00",
+      "photo-2-start-time": "13:00",
+      "photo-2-end-time": "20:45",
+      "bridal-prep-end": "13:00",
+      "first-look": "No",
+      "getting-ready": "501 South Ave West, Westfield",
+      "ceremony-location": "Saint Helen, Westfield",
+      "reception-location": "The Ryland Inn",
+    },
+    rules: GR_RULES,
+    coverageMinutes: 630,
+    secondTeam: true,
+  });
+  const items = planItems(plan, {
+    eventDate: "2027-06-12",
+    timeZone: NY,
+    idFor: (index) => `line_${index}`,
+    teams: { first: ["p1", "v1"], second: ["p2", "v2"] },
+  });
+  const at = (title: string) => items.find((item) => item.title.startsWith(title))!;
+  assert.deepEqual(at("Photo and video arrive").crewIds, ["p1", "v1"]);
+  assert.deepEqual(at("Details with the bride").crewIds, ["p1", "v1"]);
+  // The groom with the second team, at their own start, alongside the bride.
+  const groom = at("Groom getting ready");
+  assert.deepEqual(groom.crewIds, ["p2", "v2"]);
+  assert.equal(clockAt(groom.startAt), "13:00");
+  assert.equal(clockAt(groom.endAt), "14:00");
+  assert.equal(clockAt(at("Touch-ups").endAt), "13:15");
+  // Everyone at the ceremony; the shared reception line ends when the second team leaves.
+  assert.deepEqual(at("Ceremony").crewIds, []);
+  assert.equal(clockAt(at("Entrances").endAt), "20:45");
+  // After their hours, the first team carries on alone.
+  assert.deepEqual(at("Dinner").crewIds, ["p1", "v1"]);
+  // With one team, nobody is named on anything.
+  const solo = planItems(planDay({ answers: { "ceremony-time": "16:00" }, rules: [], coverageMinutes: 480 }), {
+    eventDate: "2027-06-12",
+    timeZone: NY,
+    idFor: (index) => `solo_${index}`,
+    teams: { first: ["p1"], second: [] },
+  });
+  assert.ok(solo.every((item) => item.crewIds.length === 0));
+});
+
+test("the editor offers the crew as P1 V1 P2 V2 chips and lays out two tracks when a second team is booked", () => {
+  const editor = read("components/planning/ai-schedule-generator.tsx");
+  assert.match(editor, /secondTeam: crewTags\.teams\.second\.length > 0/);
+  assert.match(editor, /teams: crewTags\.teams/);
+  assert.match(editor, /className=\{`schedule-line-chip is-\$\{tag\?\.trade/);
+  assert.match(editor, /aria-pressed=\{on\}/);
+});

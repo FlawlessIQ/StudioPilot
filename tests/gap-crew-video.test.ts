@@ -150,7 +150,9 @@ test("the editor offers every booked crew member on the job, with their role", (
   ]);
   const editor = read("components/planning/ai-schedule-generator.tsx");
   assert.match(editor, /scheduleCrewOptions\(/);
-  assert.match(editor, /className="schedule-item-crew"/);
+  // As P1 / V1 / P2 / V2 chips on each line (crew-labels.ts), named in the tooltip.
+  assert.match(editor, /className="schedule-line-crew"/);
+  assert.match(editor, /title=\{`\$\{member\.name\} · \$\{member\.role\}`\}/);
   // In start order since 2026-10-01 (tests/run-of-show-order.test.ts).
   assert.match(editor, /items: sortScheduleItems\(draft\.items\)\.map\(\(item\) => withCrewIds\(item\)\)/);
 });

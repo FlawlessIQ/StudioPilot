@@ -70,7 +70,16 @@ export type PlanRow = {
   tbd: boolean;
   /** Travel rows carry their minutes for the crew sheet. */
   travelMinutes: number;
+  /**
+   * Who covers it, when a second team is booked: the first team stays with
+   * the bride, the second takes the groom, and after the second team's hours
+   * the first carries on alone (GR's run of show, 2026-10-06). "all" when
+   * there is one team, or for what everyone covers.
+   */
+  team: Team;
 };
+
+export type Team = "first" | "second" | "all";
 
 export type DayPlan = {
   /** Ceremony somewhere other than the reception. */
@@ -121,6 +130,8 @@ const ANSWER_KEYS: Partial<Record<MilestoneKey, readonly string[]>> = {
   cake: ["cake-cutting-time", "cake-cutting", "cakeCuttingTime"],
   night: ["night-pictures-time"],
 };
+const SECOND_TEAM_START_KEYS = ["photo-2-start-time", "photo2StartTime", "second-team-start-time"];
+const SECOND_TEAM_END_KEYS = ["photo-2-end-time", "photo2EndTime", "second-team-end-time"];
 const COVERAGE_END_KEYS = ["coverageEndTime", "coverage-end-time", "end-time", "coverageEndsAt", "photographyEndTime"];
 const PREP_END_KEYS = ["bridal-prep-end"];
 const CEREMONY_END_KEYS = ["ceremony-end-time"];
@@ -198,6 +209,8 @@ export function planDay(input: {
   coverageMinutes?: number | null;
   /** The job's own venue, when the form names none. */
   venue?: string | null;
+  /** A second photo/video team is booked: the groom gets them, and the day runs in two tracks. */
+  secondTeam?: boolean;
 }): DayPlan {
   const answers = input.answers;
   const rules = (input.rules ?? []).filter((rule) => rule.active !== false);
@@ -324,6 +337,12 @@ export function planDay(input: {
   // The groom only when the couple gave a time: no rule of GR's says when.
   const groom = fixed("groom");
   if (groom && groom !== "tbd") placed.set("groom", groom);
+  // A second team starts with the groom, from their own start time if the couple gave one.
+  const secondStart = clockAnswer(answerFor(answers, SECOND_TEAM_START_KEYS));
+  if (input.secondTeam && !placed.has("groom")) {
+    const at = secondStart ?? minutesClock(placed.get("touchups")?.minutes ?? placed.get("details")?.minutes ?? C - 120);
+    if (at) placed.set("groom", { minutes: clockMinutes(at), source: secondStart ? "form" : "usual", label: secondStart ? "Their second team's start" : "Usual timing — change it", tbd: false });
+  }
 
   /**
    * After the ceremony, forward. A church day: family photos at the church,
@@ -430,6 +449,16 @@ export function planDay(input: {
     cocktail: cocktailEnd ?? (cocktailStart === undefined ? null : minutesClock(Math.min(cocktailStart + length("cocktail"), placed.get("entrances")?.minutes ?? Infinity))),
   };
 
+  // Two tracks when a second team is booked; after their hours, the first team alone.
+  const secondEnd = clockAnswer(answerFor(answers, SECOND_TEAM_END_KEYS));
+  const teamFor = (key: MilestoneKey | null, minutes: number): Team => {
+    if (!input.secondTeam) return "all";
+    if (key === "groom") return "second";
+    if (key === "arrive" || key === "details" || key === "touchups" || key === "dress") return "first";
+    if (secondEnd && minutes >= clockMinutes(secondEnd)) return "first";
+    return "all";
+  };
+
   const order = Object.keys(TITLES) as MilestoneKey[];
   const rows: PlanRow[] = [];
   for (const key of order) {
@@ -446,6 +475,7 @@ export function planDay(input: {
       sourceLabel: at.label,
       tbd: at.tbd,
       travelMinutes: key === "leave_for_ceremony" || key === "leave_for_reception" ? TRAVEL : 0,
+      team: teamFor(key, at.minutes),
     });
   }
   // The studio's own moments that are none of the above ("Sunset portraits").
@@ -464,6 +494,7 @@ export function planDay(input: {
       sourceLabel: `Your timing: ${rule.name.trim()}`,
       tbd: false,
       travelMinutes: 0,
+      team: teamFor(null, at!.minutes),
     });
   }
   rows.sort((left, right) => clockMinutes(left.time) - clockMinutes(right.time) || order.indexOf(left.key as MilestoneKey) - order.indexOf(right.key as MilestoneKey));
@@ -482,13 +513,23 @@ export function planDay(input: {
     if (key === "night") return 30;
     return length(key);
   };
+  const sameTrack = (left: Team, right: Team) => left === "all" || right === "all" || left === right;
   rows.forEach((row, index) => {
-    const next = rows[index + 1];
+    const next = rows.slice(index + 1).find((later) => sameTrack(row.team, later.team) && later.time > row.time);
     const natural = usualLength(row);
     if (row.end || !next || natural <= 0) return;
     const start = clockMinutes(row.time);
-    if (clockMinutes(next.time) - start > natural + 30) row.end = minutesClock(start + natural);
+    if (clockMinutes(next.time) - start >= natural + 30) row.end = minutesClock(start + natural);
   });
+  // A line both teams are on ends when the second team leaves, so it can say they conclude there.
+  if (input.secondTeam && secondEnd) {
+    const leave = clockMinutes(secondEnd);
+    rows.forEach((row, index) => {
+      if (row.team !== "all" || row.end || clockMinutes(row.time) >= leave) return;
+      const next = rows.slice(index + 1).find((later) => sameTrack(row.team, later.team) && later.time > row.time);
+      if (next && clockMinutes(next.time) > leave) row.end = secondEnd;
+    });
+  }
   const startClock = minutesClock(arrive.minutes);
   const endClock = minutesClock(Math.min(end, 24 * 60 - 1));
   return { churchDay, firstLook, rows, coverageStart: startClock, coverageEnd: endClock, notes };
@@ -534,10 +575,21 @@ export type PlannedItem = {
  * ends where the next starts unless it has its own end; the last ends with
  * coverage.
  */
-export function planItems(plan: DayPlan, input: { eventDate: string; timeZone: string; idFor: (index: number) => string }): PlannedItem[] {
+export function planItems(
+  plan: DayPlan,
+  input: {
+    eventDate: string;
+    timeZone: string;
+    idFor: (index: number) => string;
+    /** Crew profile ids on each team (crew-labels.ts: P1/V1 first, P2/V2 second). */
+    teams?: { first: readonly string[]; second: readonly string[] };
+  },
+): PlannedItem[] {
   const at = (clock: string) => wallClockToIso(input.eventDate, clock, input.timeZone);
   const coverageEnd = plan.coverageEnd ? at(plan.coverageEnd) : null;
   const pinned = new Set<string>();
+  // Everyone is no tag at all: a line the whole crew covers names nobody.
+  const crewFor = (team: Team): string[] => (team === "all" || !input.teams ? [] : [...input.teams[team]]);
   const items: PlannedItem[] = plan.rows.flatMap((row, index) => {
     const startAt = at(row.time);
     if (!startAt) return [];
@@ -553,8 +605,8 @@ export function planItems(plan: DayPlan, input: { eventDate: string; timeZone: s
       location: row.where,
       address: null,
       travelMinutes: row.travelMinutes,
-      crewIds: [],
-      photographerIds: [],
+      crewIds: crewFor(row.team),
+      photographerIds: crewFor(row.team),
       participants: [],
       vendorContactIds: [],
       equipment: [],
@@ -573,7 +625,7 @@ export function planItems(plan: DayPlan, input: { eventDate: string; timeZone: s
  * it. A block that would end at or before it starts gets half an hour.
  * Returned in the order given, so a row doesn't jump while its time is typed.
  */
-export function flowEnds<T extends { id: string; startAt: string; endAt: string }>(
+export function flowEnds<T extends { id: string; startAt: string; endAt: string; crewIds?: readonly string[] | unknown }>(
   items: readonly T[],
   pinned: ReadonlySet<string>,
   coverageEndIso: string | null,
@@ -587,13 +639,29 @@ export function flowEnds<T extends { id: string; startAt: string; endAt: string 
   });
 }
 
-/** Where each block would end if it ran to the next one (or to coverage end). */
-function flowingEnds(items: ReadonlyArray<{ id: string; startAt: string }>, coverageEndIso: string | null): Map<string, string> {
+type Tracked = { id: string; startAt: string; crewIds?: readonly string[] | unknown; photographerIds?: unknown };
+const crewOf = (item: Tracked): string[] => {
+  const list = Array.isArray(item.crewIds) ? item.crewIds : Array.isArray(item.photographerIds) ? item.photographerIds : [];
+  return list.filter((id): id is string => typeof id === "string" && id.length > 0);
+};
+/**
+ * Whether two lines are on the same track: they share someone, or either is
+ * everyone's (no crew named). The groom with the second team at 1:00 runs on
+ * past the bride's 1:00 touch-ups with the first.
+ */
+export function sameTrack(left: Tracked, right: Tracked): boolean {
+  const a = crewOf(left);
+  const b = crewOf(right);
+  return !a.length || !b.length || a.some((id) => b.includes(id));
+}
+
+/** Where each block would end if it ran to the next one on its track (or to coverage end). */
+function flowingEnds(items: ReadonlyArray<Tracked>, coverageEndIso: string | null): Map<string, string> {
   const sorted = [...items].sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt));
   const ends = new Map<string, string>();
   sorted.forEach((item, index) => {
     const start = Date.parse(item.startAt);
-    const next = sorted.slice(index + 1).find((later) => Date.parse(later.startAt) > start);
+    const next = sorted.slice(index + 1).find((later) => Date.parse(later.startAt) > start && sameTrack(item, later));
     const candidate = next ? Date.parse(next.startAt) : coverageEndIso ? Date.parse(coverageEndIso) : Number.NaN;
     const end = Number.isFinite(candidate) && candidate > start ? candidate : start + 30 * 60_000;
     if (Number.isFinite(start)) ends.set(item.id, new Date(end).toISOString());
@@ -606,7 +674,7 @@ function flowingEnds(items: ReadonlyArray<{ id: string; startAt: string }>, cove
  * day would end it. Read off a saved version, so opening it to change one
  * time keeps every deliberate gap.
  */
-export function pinnedEnds(items: ReadonlyArray<{ id: string; startAt: string; endAt: string }>, coverageEndIso: string | null): Set<string> {
+export function pinnedEnds(items: ReadonlyArray<Tracked & { endAt: string }>, coverageEndIso: string | null): Set<string> {
   const ends = flowingEnds(items, coverageEndIso);
   return new Set(
     items

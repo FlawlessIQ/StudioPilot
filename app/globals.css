@@ -15282,9 +15282,16 @@ form:has(> .address-field) > .address-field,
 .schedule-draft-items .schedule-line-tbd input{width:14px;height:14px;margin:0;padding:0;border-radius:4px}
 .schedule-line-source{border:1px solid color-mix(in srgb,var(--success) 30%,var(--line));background:color-mix(in srgb,var(--success) 9%,var(--surface));border-radius:999px;padding:3px 8px;font-size:11px}
 .schedule-line-source.is-assumption{border-color:color-mix(in srgb,var(--amber-dark) 45%,var(--line));background:color-mix(in srgb,var(--amber) 30%,var(--surface))}
-.schedule-line-crew summary{cursor:pointer}
-.schedule-line-crew[open]{flex-basis:100%}
-.schedule-line-crew .schedule-item-crew{margin:6px 0 0}
+/* Who covers a line: P1 V1 with the bride, P2 V2 with the groom — the colors
+   the run-of-show PDF uses (cloud-run/pdf/run_of_show.py). */
+.schedule-line-crew{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
+.schedule-line-crew small{color:var(--muted);font-size:11px}
+.schedule-line-chip{min-width:28px;min-height:22px;border:1px dashed var(--line);border-radius:6px;background:transparent;padding:0 6px;color:var(--muted);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.schedule-line-chip[aria-pressed="true"]{border-style:solid}
+.schedule-line-chip.is-photographer-1[aria-pressed="true"]{background:#E4EFE2;border-color:#C6DCC2;color:#3E6A3B}
+.schedule-line-chip.is-videographer-1[aria-pressed="true"]{background:#F4EAD6;border-color:#E6D3AE;color:#87672A}
+.schedule-line-chip.is-photographer-2[aria-pressed="true"]{background:#E1EAF4;border-color:#C4D3E6;color:#3A5878}
+.schedule-line-chip.is-videographer-2[aria-pressed="true"]{background:#F3E2EA;border-color:#E3C4D2;color:#7A3B5A}
 .schedule-plan-notes{list-style:none;margin:0 0 6px;padding:10px 12px;display:grid;gap:6px;border-radius:10px;background:color-mix(in srgb,var(--amber) 22%,var(--surface));font-size:12.5px}
 .schedule-plan-notes li{display:flex;gap:7px;align-items:flex-start}
 /* What an AI draft works from, folded away on a wedding. */
