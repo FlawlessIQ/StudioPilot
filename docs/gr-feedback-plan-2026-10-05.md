@@ -235,6 +235,79 @@ schedule for editing, per Gabe's answer 2: no fresh copy.)
 2. Send Gabe one message: what changed, what he needs to switch on, and the
    two or three things to try.
 
+## Phase 7: Gabe's second day (2026-10-06)
+
+Gabe kept testing on the 6th. What was fixed the same day, and the two items
+still to build.
+
+### Fixed and live on the 6th
+
+| Point | Fix |
+|---|---|
+| Inquiry link still opened the plain form; times can't be "TBD" | Setup and Today prompt for the inquiry form (2bce843, fb4f42b); every time question takes TBD |
+| Day-of schedule "too strict" | Weddings lay the day out from the couple's form only: no timing rules, no AI draft; P1/V1 tracks; Gabe-style run-of-show PDF; timezone bug fixed |
+| "Can't prepare proposal" | 403s after another session deployed all functions without the invokers. Invokers re-applied. |
+| Retainer $1,000, not $4,000 | A per-crew retainer that counts nobody on its package is refused in the editor and on the server (dd98d28f). GR's packages are left for Gabe to fix. |
+| COI upload didn't show | A COI reply landed in Messages when the agent's email equals the couple's. The certificate's own reply address wins now (f8abe852). |
+| Albert can't accept the crew offer | It had expired after 24h, and nothing could re-offer it. An expired offer is re-offerable now ("Ask again", or direct offer); the stalled panel is readable (2d262b78, 08dc79db). |
+| Albert can't accept the proposal as the couple | By design: his address is GR's crew, and one person has one role per studio. Test with another address. |
+
+### 7.1 The client's email changes mid-job
+
+Gabe: "I changed emails mid job. And now can't resend the proposal to new
+email." Real couples do this ("started on work email and then changed it").
+
+- **Cause:** a proposal freezes the couple's email in `clientSnapshot` when it
+  is drafted. Send, Resend and the proposal follow-ups all mail that frozen
+  address (`functions/src/booking/proposals.ts`, `proposal-follow-ups.ts`).
+  Only "Correct and re-issue" re-reads the contact, and nothing tells the
+  studio to use it. The card keeps saying "Sent to <old address>".
+- **Same shape in agreements:** a contract's `signers[].email` is frozen too,
+  and signing refuses anyone whose sign-in email differs
+  (`server/contracts/client-signing.ts`). A couple who changed address could
+  not sign an agreement sent before the change.
+- **Already right:** QuickBooks bills the contact's current email
+  (`clientEmailFor`). A portal invitation to the old address can no longer be
+  accepted, because accepting checks the contact's current email.
+- **Fix:**
+  - Resend and the follow-ups mail the job's client contact as it is now. The
+    proposal records where each send went (`lastSentTo`). The frozen snapshot
+    stays as the record of who the offer was drafted for.
+  - The proposal card says "Their email changed to X. Resend goes there." when
+    the two differ.
+  - An unsigned agreement follows the contact's email for its client signer
+    (resend, reminders and the signing check). A signed one never changes.
+  - Changing a client's email revokes their pending portal invitation to the
+    old address.
+- **Tests:** resend after an email change goes to the new address; the
+  follow-up scheduler too; an unsigned agreement signs with the new address and
+  not the old; a signed agreement is untouched.
+- **Proof:** on prod as a FlawlessIQ couple: inquiry from address A, send the
+  proposal, change the client to address B, Resend, then accept and sign as B.
+- **Deploy:** functions (booking proposals, follow-ups, contracts, and the
+  contact update path), then the app.
+
+### 7.2 Billing address from the event form
+
+Gabe: "billing address isn't populating with the info from event form."
+
+- **Cause:** GR's Event details form (on the inquiry link) asks only for
+  places on the day: prep, ceremony, reception. Those are deliberately never
+  used for billing. Our recommended form has no home address question either.
+  Where a form does have one (Dionne's imported "Bride Address"), it is offered
+  at signing but not copied to the client record.
+- **Fix:**
+  - Add an optional "Home address (for billing)" question to the recommended
+    Event details form and to GR's copy (through the product, announced).
+  - When a form answer gives the couple's own address and the contact has none
+    on file, save it to the contact. The same reader as signing
+    (`suggestedBillingAddress`), so venues are never taken.
+- **Trade-off:** one more question on GR's inquiry link. On 2026-10-02 the address
+  was kept off the inquiry form; GR's own form is on that link now.
+- **Tests:** an answered home address lands on the contact; a venue never does;
+  an address already on file is not overwritten.
+- **Deploy:** functions (form submit path), then the app.
+
 ## Gabe's answers (2026-10-05)
 
 1. **Archive the old wedding forms only.** He hasn't looked at the corporate and
@@ -258,3 +331,5 @@ schedule for editing, per Gabe's answer 2: no fresh copy.)
 | 4 | Final schedule at signing and a review at 6 months | Claude | medium | functions and app |
 | 5 | Shot list milestone (own form, 4 weeks out, crew access) | Claude, after Gabe's sample | medium to large | functions and app |
 | 6 | Prod walk, then one message to Gabe | Claude, Conor | small | none |
+| 7.1 | The client's email changes mid-job: proposals and agreements follow it | Claude | medium | functions and app |
+| 7.2 | Home address on the event form, saved to the client | Claude | small | functions and app |
