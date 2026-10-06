@@ -15296,7 +15296,7 @@ form:has(> .address-field) > .address-field,
 .schedule-ai-inputs.is-plain .schedule-ai-inputs-grid{margin-top:0}
 .schedule-ai-inputs-grid .form-span{grid-column:1/-1}
 @media(max-width:850px){.schedule-ai-inputs-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:560px){.schedule-line{grid-template-columns:9.25rem minmax(0,1fr)}.schedule-line .schedule-line-where{grid-column:1/-1}.schedule-ai-inputs-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.schedule-line{grid-template-columns:8.75rem minmax(0,1fr)}.schedule-line .schedule-line-what{order:-1;grid-column:1/-1}.schedule-ai-inputs-grid{grid-template-columns:1fr}}
 
 /* Said instead of the portal button when there is no Stripe customer to open a
    portal for. See components/saas/live-subscription.tsx. */
