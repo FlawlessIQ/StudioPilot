@@ -6,6 +6,8 @@
  *   npx tsx scripts/how-to/one-saturday.ts            # both
  *   npx tsx scripts/how-to/one-saturday.ts wide       # 16:9 only
  *   npx tsx scripts/how-to/one-saturday.ts tall       # 9:16 only
+ *   npx tsx scripts/how-to/one-saturday.ts --silent   # no narration (music only)
+ *   npx tsx scripts/how-to/one-saturday.ts voices     # the same lines in each candidate voice
  *
  * The story is the homepage's Saturday log (features/marketing/cue-duties.ts):
  * while the photographer shoots, Cue works through the day, and on Monday a
@@ -21,13 +23,17 @@
  * client-facing screen is in the studio's name; Cue appears only in the
  * studio-facing log.
  *
- * Music only (lib/music.ts); the log is the caption, so it works muted.
- * Output: $HOW_TO_HOME/out/one-saturday/one-saturday-{16x9,9x16}.{mp4,jpg}.
+ * Narrated by a female voice of its own (one-saturday.voice.json; the how-to
+ * videos keep Brian in voice.config.json), over the music bed, ducked. The
+ * log stays on screen as the caption, so it also works muted. Each beat
+ * stretches to hold its line.
+ * Output: $HOW_TO_HOME/out/one-saturday/one-saturday-{16x9,9x16}[.silent].{mp4,jpg}.
  * Files to review, not to publish: nothing here uploads anything.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium, type Browser } from "playwright";
 import { cueDuty, type CueDutyId } from "../../features/marketing/cue-duties";
 // Imported at run time, not statically: a static import of functions/src
@@ -39,10 +45,11 @@ const { renderEmailTemplate } = (await import(`${process.cwd()}/functions/src/co
 };
 import { latestEmail } from "./journey/emails";
 import { inbox } from "./lib/journey-recorder";
-import { makeMusicBed } from "./lib/music";
+import { makeMusicBed, withMusic } from "./lib/music";
 import { card } from "./lib/recorder";
-import { HOW_TO_HOME } from "./lib/voice";
+import { HOW_TO_HOME, speak, type Line, type VoiceConfig } from "./lib/voice";
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HOW_TO_HOME, "out");
 const DIR = path.join(OUT, "one-saturday");
 const WORK = path.join(DIR, "work");
@@ -66,10 +73,16 @@ type Shot = Source & {
   crop?: { wide: Rect; tall: Rect };
 };
 
+/**
+ * `say` is the narration for the beat. It starts as the beat does and the
+ * beat stretches to hold it, so the picture paces to the voice. A Saturday
+ * beat's words are bound by its `duties` (all `on_its_own`, checked below);
+ * Monday's by MONDAY (all `you_approve`).
+ */
 type Beat =
-  | { kind: "card"; eyebrow: string; title: string; subtitle: string; len: number; end?: boolean }
-  | { kind: "saturday"; time: string; duties: CueDutyId[]; text: string; short: string; shots: Shot[] }
-  | { kind: "monday"; shots: Shot[] };
+  | { kind: "card"; eyebrow: string; title: string; subtitle: string; len: number; end?: boolean; say?: string }
+  | { kind: "saturday"; time: string; duties: CueDutyId[]; text: string; short: string; shots: Shot[]; say?: string }
+  | { kind: "monday"; shots: Shot[]; say?: string };
 
 // The Today card and Send reply, framed to the inquiry card.
 const TODAY_CARD = { wide: { x: 340, y: 100, w: 1176, h: 940 }, tall: { x: 390, y: 0, w: 900, h: 1080 } };
@@ -83,23 +96,25 @@ const CERTIFICATE = { wide: { x: 445, y: 250, w: 880, h: 700 }, tall: { x: 450, 
  * screen, since the footage is the journey film's wedding (Ella and Jordan).
  */
 const BEATS: Beat[] = [
-  { kind: "card", eyebrow: "One Saturday", title: "You're shooting a wedding.", subtitle: "Here's what Cue did while you were out.", len: 3 },
+  { kind: "card", eyebrow: "One Saturday", title: "You're shooting a wedding.", subtitle: "Here's what Cue did while you were out.", len: 3, say: "You're out shooting. Here's what Cue did while you were gone." },
   {
     kind: "saturday",
     time: "9:42 am",
     duties: ["inquiry_ack"],
+    say: "A new inquiry came in. Cue checked your date, thanked them, and drafted your reply.",
     text: "New inquiry for June 12. Your date is free. Cue acknowledged it, told you, and drafted your reply.",
     short: "Answered a new inquiry",
     shots: [
-      { ch: 1, step: 3, skip: 3.4, on: "couple", len: 2.4 },
-      { email: "ack", len: 2.4 },
-      { ch: 1, step: 5, skip: 2.6, on: "studio", len: 3.2, crop: TODAY_CARD },
+      { ch: 1, step: 3, skip: 3.4, on: "couple", len: 2.2 },
+      { email: "ack", len: 2.1 },
+      { ch: 1, step: 5, skip: 2.6, on: "studio", len: 2.9, crop: TODAY_CARD },
     ],
   },
   {
     kind: "saturday",
     time: "11:05 am",
     duties: ["signing_reminders"],
+    say: "It reminded a couple to sign their agreement.",
     text: "Reminded the Okafors to sign their agreement.",
     short: "Reminded the Okafors to sign",
     shots: [{ email: "sign", len: 3 }],
@@ -108,6 +123,7 @@ const BEATS: Beat[] = [
     kind: "saturday",
     time: "1:30 pm",
     duties: ["crew_cascade"],
+    say: "When a second shooter passed, it offered the job to the next person on your list.",
     text: "Marcus passed on the Hart wedding. Cue offered it to Jordan, next on your list.",
     short: "Offered the Harts' job to Jordan",
     shots: [{ ch: 4, step: 3, skip: 1.7, on: "crew", len: 3.2 }],
@@ -116,6 +132,7 @@ const BEATS: Beat[] = [
     kind: "saturday",
     time: "2:15 pm",
     duties: ["coi_chase"],
+    say: "It chased your insurance agent for a certificate.",
     text: "Chased your insurance agent for the Willow Creek certificate.",
     short: "Chased your agent",
     shots: [{ email: "coi_chase", len: 3 }],
@@ -124,6 +141,7 @@ const BEATS: Beat[] = [
     kind: "saturday",
     time: "4:50 pm",
     duties: ["crew_calendar"],
+    say: "They said yes, and it went on their calendar.",
     text: "Jordan said yes. The wedding is on their calendar.",
     short: "Jordan said yes",
     shots: [{ ch: 4, step: 4, skip: -0.5, on: "crew", len: 3 }],
@@ -132,6 +150,7 @@ const BEATS: Beat[] = [
     kind: "saturday",
     time: "6:20 pm",
     duties: ["coi_check"],
+    say: "When the certificate came back short, Cue flagged it for you.",
     text: "The certificate came in with $500,000 of cover. Willow Creek needs $1,000,000. Flagged it for you.",
     short: "Caught a short certificate",
     shots: [{ take: "coi", at: 66.8, len: 3.6, crop: CERTIFICATE }],
@@ -140,6 +159,7 @@ const BEATS: Beat[] = [
     kind: "saturday",
     time: "8:00 pm",
     duties: ["week_before_note", "call_times"],
+    say: "It sent next week's couple their week-before note, and the crew their call times.",
     text: "Sent next week's couple their week-before note. Call times went to the crew.",
     short: "Sent the week-before note",
     shots: [
@@ -149,9 +169,10 @@ const BEATS: Beat[] = [
   },
   {
     kind: "monday",
+    say: "On Monday, a few things are waiting. Each one is ready to send with one tap.",
     shots: [
-      { ch: 7, step: 8, skip: 1.3, on: "studio", len: 4, crop: PREPARED },
-      { ch: 1, step: 6, skip: 0, on: "studio", len: 3, crop: TODAY_CARD },
+      { ch: 7, step: 8, skip: 1.3, on: "studio", len: 3.4, crop: PREPARED },
+      { ch: 1, step: 6, skip: 0, on: "studio", len: 2.4, crop: TODAY_CARD },
     ],
   },
   {
@@ -161,6 +182,7 @@ const BEATS: Beat[] = [
     title: "Meet Cue, your studio's office manager.",
     subtitle: "Works around the clock. Waits for you on what matters.",
     len: 3.6,
+    say: "Meet Cue, your studio's office manager. It works around the clock, and waits for you on what matters.",
   },
 ];
 
@@ -179,6 +201,16 @@ for (const beat of BEATS)
       if (cueDuty(id).mode !== "on_its_own") throw new Error(`"${beat.time}" uses ${id}, which Cue doesn't do on its own.`);
 for (const item of MONDAY)
   if (cueDuty(item.duty).mode !== "you_approve") throw new Error(`Monday's "${item.text}" (${item.duty}) isn't a prepared, one-tap duty.`);
+// The narration is held the same way: a line that says Cue did something
+// rides a Saturday beat whose duties are checked above, and no line may say
+// Cue did what only the studio does (send a reply, sign, take money).
+const NEVER_SAID = /\b(sent|send|sends) (your|the|their) (reply|answer)\b|\breplied\b|\bsign(ed|s)? for\b|\b(charged|collected|took) (a |the )?payment\b|\bpaid\b/i;
+for (const beat of BEATS) {
+  if (!beat.say) continue;
+  if (NEVER_SAID.test(beat.say)) throw new Error(`Narration claims something Cue never does on its own: "${beat.say}"`);
+  if (beat.kind !== "saturday" && /\bCue (checked|sent|reminded|offered|chased|flagged|acknowledged)\b|^It (sent|reminded|offered|chased|flagged)\b/.test(beat.say))
+    throw new Error(`"${beat.say}" says Cue acted, outside a Saturday beat whose duties are checked.`);
+}
 
 const SATURDAY = BEATS.filter((b): b is Extract<Beat, { kind: "saturday" }> => b.kind === "saturday");
 
@@ -350,23 +382,60 @@ function sourceOf(shot: Shot): { file: string; start: number; room: number } {
   return { file, start, room: Math.max(0.5, end - start) };
 }
 
-async function renderShape(browser: Browser, shape: Shape) {
+// ── Narration ───────────────────────────────────────────────────────────────
+
+type FilmVoice = VoiceConfig & { voiceName: string; candidates: Array<{ name: string; voiceId: string }> };
+const VOICE = JSON.parse(readFileSync(path.join(HERE, "one-saturday.voice.json"), "utf8")) as FilmVoice;
+const FADE = 0.35;
+/** The voice comes in this far into its beat, once the dissolve has settled. */
+const LEAD = 0.3;
+/** Room after a line before the next dissolve starts; the end card holds longer. */
+const BREATH = 0.35;
+const LAST_BEAT = 1.3;
+
+async function narrate(voice: VoiceConfig) {
+  const said = BEATS.map((b) => b.say).filter((s): s is string => !!s);
+  const lines = new Map<number, Line>();
+  let k = 0;
+  for (const [i, beat] of BEATS.entries()) {
+    if (!beat.say) continue;
+    lines.set(i, await speak(beat.say, voice, { previousText: said[k - 1], nextText: said[k + 1] }));
+    k++;
+  }
+  return lines;
+}
+
+/** How much longer than planned a beat must run to hold its line: 1 when it already fits. */
+function stretch(beat: Beat, line: Line | undefined, last: boolean) {
+  const planned = beat.kind === "card" ? beat.len : beat.shots.reduce((sum, s) => sum + s.len, 0);
+  if (!line) return 1;
+  const clips = beat.kind === "card" ? 1 : beat.shots.length;
+  const need = LEAD + line.durationSec + (last ? LAST_BEAT : BREATH + FADE * clips);
+  return Math.max(1, need / planned);
+}
+
+async function renderShape(browser: Browser, shape: Shape, lines: Map<number, Line>) {
   const size = SIZE[shape];
   const clips: string[] = [];
+  const placed: Array<{ line: Line; at: number }> = [];
   let posterAt = 0;
   let clock = 0;
-  const fade = 0.35;
   for (const [b, beat] of BEATS.entries()) {
+    const line = lines.get(b);
+    const scale = stretch(beat, line, b === BEATS.length - 1);
+    if (line) placed.push({ line, at: clock + (b === 0 ? LEAD + 0.1 : LEAD) });
     if (beat.kind === "card") {
+      const len = beat.len * scale;
       const png = path.join(WORK, `${shape}-b${b}-card.png`);
       await cardStill(browser, beat, shape, png);
       const file = path.join(WORK, `${shape}-b${b}.mp4`);
-      ffmpeg(["-loop", "1", "-t", beat.len.toFixed(3), "-i", png, "-vf", `scale=${size.w}:${size.h},fps=30,format=yuv420p`, "-c:v", "libx264", "-preset", "medium", "-crf", "16", file]);
+      ffmpeg(["-loop", "1", "-t", len.toFixed(3), "-i", png, "-vf", `scale=${size.w}:${size.h},fps=30,format=yuv420p`, "-c:v", "libx264", "-preset", "medium", "-crf", "16", file]);
       clips.push(file);
-      clock += beat.len - fade;
+      clock += len - FADE;
       continue;
     }
-    for (const [s, shot] of beat.shots.entries()) {
+    for (const [s, planned] of beat.shots.entries()) {
+      const shot = { ...planned, len: planned.len * scale };
       const chrome = path.join(WORK, `${shape}-b${b}-s${s}.png`);
       const { mask, rect } = await shotChrome(browser, beat, shot, shape, chrome);
       const { src, phone } = placement(shot, shape);
@@ -381,6 +450,7 @@ async function renderShape(browser: Browser, shape: Shape) {
         picture = ["-loop", "1", "-t", shot.len.toFixed(3), "-i", still];
         pictureChain = `[1:v]${fit},format=rgba[p]`;
       } else {
+        // A stretched shot runs on into its step, and holds its last frame only if the step runs out.
         const { file: source, start, room } = sourceOf(shot);
         const run = Math.min(shot.len, room);
         picture = ["-ss", start.toFixed(3), "-t", run.toFixed(3), "-i", source];
@@ -397,31 +467,45 @@ async function renderShape(browser: Browser, shape: Shape) {
       // The poster: the short certificate, with most of the day already in the log.
       if (beat.kind === "saturday" && beat.duties.includes("coi_check")) posterAt = clock + shot.len / 2;
       clips.push(file);
-      clock += shot.len - fade;
+      clock += shot.len - FADE;
     }
   }
-  return { clips, posterAt };
+  return { clips, posterAt, placed };
 }
 
-/** Joins clips with a short dissolve, then lays the music bed under the whole film. */
-function finish(clips: string[], out: string, seed: number) {
-  const fade = 0.35;
+/**
+ * Joins clips with a short dissolve, then the sound: with narration, the
+ * voice at -16 LUFS and the bed ducked under it (lib/music.ts withMusic, as
+ * the journey film); without, the bed alone at -18 LUFS.
+ */
+function finish(clips: string[], out: string, seed: number, placed: Array<{ line: Line; at: number }>) {
   const lengths = clips.map(probe);
   const inputs = clips.flatMap((c) => ["-i", c]);
   let graph = "";
   let last = "[0:v]";
   let offset = 0;
   for (let i = 1; i < clips.length; i++) {
-    offset += lengths[i - 1]! - fade;
-    graph += `${last}[${i}:v]xfade=transition=fade:duration=${fade}:offset=${offset.toFixed(3)}[x${i}];`;
+    offset += lengths[i - 1]! - FADE;
+    graph += `${last}[${i}:v]xfade=transition=fade:duration=${FADE}:offset=${offset.toFixed(3)}[x${i}];`;
     last = `[x${i}]`;
   }
-  const length = lengths.reduce((a, b) => a + b, 0) - fade * (clips.length - 1);
+  const length = lengths.reduce((a, b) => a + b, 0) - FADE * (clips.length - 1);
   const picture = path.join(WORK, `${path.basename(out, ".mp4")}-picture.mp4`);
   ffmpeg([...inputs, "-filter_complex", `${graph}${last}fade=t=out:st=${(length - 0.6).toFixed(3)}:d=0.6[v]`, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-pix_fmt", "yuv420p", picture]);
   const bed = path.join(WORK, `bed-${seed}.wav`);
   makeMusicBed(length + 1, bed, seed);
-  // No voice to duck under: the bed alone, at a comfortable -18 LUFS, fading out with the picture.
+  if (placed.length) {
+    const voiceTrack = path.join(WORK, `${path.basename(out, ".mp4")}-voice.mp4`);
+    const delays = placed.map((p, i) => `[${i + 1}:a]adelay=${Math.round(p.at * 1000)}:all=1[a${i}]`).join(";");
+    ffmpeg([
+      "-i", picture, ...placed.flatMap((p) => ["-i", p.line.audioPath]),
+      "-filter_complex",
+      `${delays};${placed.map((_, i) => `[a${i}]`).join("")}amix=inputs=${placed.length}:normalize=0:dropout_transition=0,apad,atrim=0:${length.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=11[aout]`,
+      "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-ac", "1", "-ar", "44100", voiceTrack,
+    ]);
+    withMusic(voiceTrack, bed, 0, length, out);
+    return length;
+  }
   ffmpeg([
     "-i", picture, "-i", bed,
     "-filter_complex", `[1:a]atrim=0:${length.toFixed(3)},highpass=f=60,afade=t=in:d=0.8,afade=t=out:st=${(length - 2).toFixed(3)}:d=2,loudnorm=I=-18:TP=-1.5:LRA=11,aresample=44100[a]`,
@@ -430,25 +514,53 @@ function finish(clips: string[], out: string, seed: number) {
   return length;
 }
 
-const wanted = (process.argv[2] ?? "both") as Shape | "both";
-rmSync(WORK, { recursive: true, force: true });
-mkdirSync(WORK, { recursive: true });
-const browser = await chromium.launch({ channel: "chrome" });
-try {
-  for (const shape of ["wide", "tall"] as const) {
-    if (wanted !== "both" && wanted !== shape) continue;
-    const name = `one-saturday-${shape === "wide" ? "16x9" : "9x16"}`;
-    const { clips, posterAt } = await renderShape(browser, shape);
-    const out = path.join(DIR, `${name}.mp4`);
-    const length = finish(clips, out, shape === "wide" ? 31 : 37);
-    ffmpeg(["-ss", posterAt.toFixed(2), "-i", out, "-frames:v", "1", "-q:v", "3", path.join(DIR, `${name}.jpg`)]);
-    console.log(`✓ ${name}: ${length.toFixed(1)}s, ${Math.round(readFileSync(out).length / 1024)} KB → ${out}`);
+/** The same two lines in each candidate voice, so the narrator can be changed by ear. */
+async function voiceSamples() {
+  const dir = path.join(DIR, "voice-samples");
+  mkdirSync(dir, { recursive: true });
+  const sample = [BEATS[1]!.say, BEATS[BEATS.length - 1]!.say].join(" ");
+  for (const candidate of VOICE.candidates) {
+    const line = await speak(sample, { ...VOICE, voiceId: candidate.voiceId });
+    const file = path.join(dir, `one-saturday-${candidate.name.toLowerCase()}.mp3`);
+    copyFileSync(line.audioPath, file);
+    console.log(`${candidate.name.padEnd(8)} ${candidate.voiceId}  ${line.durationSec.toFixed(1)}s → ${file}`);
   }
-} finally {
-  await browser.close();
 }
-writeFileSync(
-  path.join(DIR, "transcript.txt"),
-  [...SATURDAY.map((b) => `${b.time}: ${b.text}`), `Monday: ${MONDAY.map((m) => m.text).join(" · ")}`].join("\n") + "\n",
-);
-rmSync(WORK, { recursive: true, force: true });
+
+const args = process.argv.slice(2);
+const silent = args.includes("--silent");
+const wanted = (args.find((a) => !a.startsWith("--")) ?? "both") as Shape | "both" | "voices";
+if (wanted === "voices") {
+  await voiceSamples();
+} else {
+  rmSync(WORK, { recursive: true, force: true });
+  mkdirSync(WORK, { recursive: true });
+  const lines = silent ? new Map<number, Line>() : await narrate(VOICE);
+  const browser = await chromium.launch({ channel: "chrome" });
+  try {
+    for (const shape of ["wide", "tall"] as const) {
+      if (wanted !== "both" && wanted !== shape) continue;
+      const name = `one-saturday-${shape === "wide" ? "16x9" : "9x16"}${silent ? ".silent" : ""}`;
+      const { clips, posterAt, placed } = await renderShape(browser, shape, lines);
+      const out = path.join(DIR, `${name}.mp4`);
+      const length = finish(clips, out, shape === "wide" ? 31 : 37, placed);
+      ffmpeg(["-ss", posterAt.toFixed(2), "-i", out, "-frames:v", "1", "-q:v", "3", path.join(DIR, `${name}.jpg`)]);
+      console.log(`✓ ${name}: ${length.toFixed(1)}s, ${Math.round(readFileSync(out).length / 1024)} KB → ${out}`);
+      for (const p of placed) console.log(`   ${p.at.toFixed(1).padStart(5)}–${(p.at + p.line.durationSec).toFixed(1).padStart(5)}  ${p.line.text}`);
+    }
+  } finally {
+    await browser.close();
+  }
+  writeFileSync(
+    path.join(DIR, "transcript.txt"),
+    [
+      "Narration:",
+      ...BEATS.flatMap((b) => (b.say ? [b.say] : [])),
+      "",
+      "On screen:",
+      ...SATURDAY.map((b) => `${b.time}: ${b.text}`),
+      `Monday: ${MONDAY.map((m) => m.text).join(" · ")}`,
+    ].join("\n") + "\n",
+  );
+  rmSync(WORK, { recursive: true, force: true });
+}
