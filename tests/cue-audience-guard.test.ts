@@ -99,6 +99,10 @@ const STUDIO_OR_PLATFORM_EMAIL = new Set<string>([
   "billing_trial_ending",
   "billing_payment_failed",
   "billing_payment_recovered",
+  // "Cue's first two weeks", to the studio owner during the trial.
+  "trial_cue_starts",
+  "trial_cue_so_far",
+  "trial_cue_without_asking",
 ]);
 
 const brand = {

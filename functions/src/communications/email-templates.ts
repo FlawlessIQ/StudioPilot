@@ -52,12 +52,24 @@ export const BILLING_EMAIL_TYPES = [
   "billing_payment_recovered",
 ] as const;
 
+/**
+ * "Cue's first two weeks": StudioCue writing to a studio owner during the
+ * trial (saas/trial-series.ts). Platform mail, like billing: StudioCue's
+ * letterhead, sent by the billing scheduler, and never to a client.
+ */
+export const TRIAL_EMAIL_TYPES = [
+  "trial_cue_starts",
+  "trial_cue_so_far",
+  "trial_cue_without_asking",
+] as const;
+
 /** Sent by StudioCue itself rather than by a studio. */
 export const isPlatformEmailType = (type: string): boolean =>
   isAuthEmailType(type) ||
   (FEEDBACK_EMAIL_TYPES as readonly string[]).includes(type) ||
   (TEAM_EMAIL_TYPES as readonly string[]).includes(type) ||
-  (BILLING_EMAIL_TYPES as readonly string[]).includes(type);
+  (BILLING_EMAIL_TYPES as readonly string[]).includes(type) ||
+  (TRIAL_EMAIL_TYPES as readonly string[]).includes(type);
 
 export const emailTemplateKeys = [
   "staff_invitation",
@@ -152,6 +164,10 @@ export const emailTemplateKeys = [
   "billing_trial_ending",
   "billing_payment_failed",
   "billing_payment_recovered",
+  // StudioCue → studio owner during the trial: "Cue's first two weeks".
+  "trial_cue_starts",
+  "trial_cue_so_far",
+  "trial_cue_without_asking",
 ] as const;
 
 export type EmailTemplateKey = (typeof emailTemplateKeys)[number];
@@ -518,6 +534,53 @@ function consultationMeetingDetails(values: Record<string, unknown>): {
     };
   if (location) return { joinUrl: "", line: `Location or meeting details: ${location}` };
   return { joinUrl: "", line: "We'll share any final meeting details before the appointment." };
+}
+
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/** What Cue did during a trial, as saas/trial-series.ts counts it. */
+export type TrialActivityCounts = {
+  inquiries: number;
+  acknowledged: number;
+  reminders: number;
+  emailsSent: number;
+  drafted: number;
+  approved: number;
+  waiting: number;
+};
+
+const TRIAL_ACTIVITY_KEYS = ["inquiries", "acknowledged", "reminders", "emailsSent", "drafted", "approved", "waiting"] as const;
+
+function trialActivityFrom(record: Record<string, unknown>): TrialActivityCounts | null {
+  if (!TRIAL_ACTIVITY_KEYS.some((key) => key in record)) return null;
+  const count = (key: (typeof TRIAL_ACTIVITY_KEYS)[number]) => {
+    const value = Number(record[key]);
+    return Number.isSafeInteger(value) && value > 0 ? value : 0;
+  };
+  return Object.fromEntries(TRIAL_ACTIVITY_KEYS.map((key) => [key, count(key)])) as TrialActivityCounts;
+}
+
+/**
+ * The day-2 email's list: one line per thing that happened, none for what
+ * didn't. Real counts only; a zero is left out, never dressed up.
+ */
+export function trialActivityLines(activity: TrialActivityCounts): string[] {
+  const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+  const lines: string[] = [];
+  if (activity.inquiries) lines.push(n(activity.inquiries, "inquiry came in", "inquiries came in"));
+  if (activity.acknowledged) {
+    lines.push(`${n(activity.acknowledged, "inquiry", "inquiries")} acknowledged by Cue on its own, with the date checked`);
+  }
+  if (activity.reminders) lines.push(`${n(activity.reminders, "reminder", "reminders")} sent on schedule`);
+  if (activity.emailsSent) {
+    lines.push(`${n(activity.emailsSent, "email", "emails")} sent for you in all, to clients, crew and venues`);
+  }
+  if (activity.drafted) {
+    lines.push(
+      `${n(activity.drafted, "draft", "drafts")} prepared for you${activity.approved ? `, ${activity.approved} approved` : ""}`,
+    );
+  }
+  return lines.map((line) => `- ${line}`);
 }
 
 /** "GR Productions’" and "Alder & Muse’s": a name ending in s takes the apostrophe alone. */
@@ -1816,6 +1879,96 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "Any messages to your clients that were held while the payment was outstanding are on their way.",
         ],
         action: actionUrl ? { label: "Open StudioCue", url: actionUrl.replace(/\/studio\/subscription$/, "/studio") } : undefined,
+      };
+    }
+    // "Cue's first two weeks" (saas/trial-series.ts). To the studio owner, so
+    // these may name Cue; signed by the team, never by a person.
+    case "trial_cue_starts": {
+      const studio = stringValue(values, "studioName") || "your studio";
+      return {
+        subject: "Cue starts today",
+        preheader: "What it does on its own, what it leaves for you, and three things to set up first.",
+        eyebrow: "Your first two weeks",
+        heading: "Cue starts today",
+        paragraphs: [
+          greeting,
+          `Cue is the office manager in ${possessive(studio)} StudioCue. Some of the work it does on its own, at any hour: it acknowledges every inquiry from your form and checks the date, reminds clients to sign, books the job when the retainer is paid, and sends crew their call times.`,
+          "The rest it prepares and leaves on Today for you: your first reply to an inquiry, follow-ups, payment reminders and crew offers. Payments, signatures and anything Cue wrote in its own words always wait for your tap.",
+          "Three things make it useful in the first week:",
+          [
+            "- Send it your inquiries: your website form, inbox forwarding or your inquiry link (Settings, Inquiry capture).",
+            "- Connect QuickBooks, so retainers and final balances go out from your own books (Integrations).",
+            "- Bring in the jobs you've already booked. Their clients aren't emailed (Jobs, Import bookings).",
+          ].join("\n"),
+          "Setup walks through each one and shows what's done. Most take a few minutes.",
+          "The StudioCue team",
+        ],
+        action: actionUrl ? { label: "Open setup", url: actionUrl } : undefined,
+      };
+    }
+    case "trial_cue_so_far": {
+      const studio = stringValue(values, "studioName") || "your studio";
+      const activity = trialActivityFrom(recordValue(values, "trialActivity"));
+      const days = numberValue(values, "trialDays");
+      const since = days && days > 1 ? `in your first ${days} days` : "since your trial started";
+      // Nothing happened: say so, and say what gives Cue work. Never a list of zeros.
+      if (!activity || (activity.inquiries === 0 && activity.emailsSent === 0 && activity.drafted === 0)) {
+        return {
+          subject: "Cue hasn't had anything to do yet",
+          preheader: "Nothing has reached it so far. Here's how to give it work.",
+          eyebrow: "Your first two weeks",
+          heading: "Nothing to report yet",
+          paragraphs: [
+            greeting,
+            `Nothing has reached Cue at ${studio} ${since}: no inquiries, nothing to send, nothing to prepare. That's normal until your inquiries point at it. The quickest ways to give it work:`,
+            [
+              "- Send it your inquiries: your website form, inbox forwarding or your inquiry link.",
+              "- Fill out your own inquiry form once, and see what a new client gets back.",
+              "- Bring in the jobs you've already booked, so their reminders run here. Their clients aren't emailed.",
+            ].join("\n"),
+            "The StudioCue team",
+          ],
+          action: actionUrl ? { label: "Set up inquiries", url: actionUrl } : undefined,
+        };
+      }
+      const lines = trialActivityLines(activity);
+      return {
+        subject: "What Cue did so far",
+        preheader: (lines[0] ?? "").replace(/^- /, "") || "Here's what Cue did for you so far.",
+        eyebrow: "Your first two weeks",
+        heading: "What Cue did so far",
+        paragraphs: [
+          greeting,
+          `Here's what Cue did for ${studio} ${since}:`,
+          lines.join("\n"),
+          activity.waiting > 0
+            ? `${activity.waiting === 1 ? "One thing is" : `${activity.waiting} things are`} waiting on you in Today.`
+            : "Nothing is waiting on you right now.",
+          ...(activity.inquiries === 0
+            ? ["No inquiries have reached it yet. Once your form or inbox forwarding points at Cue, it starts on each one the minute it arrives."]
+            : []),
+          "The StudioCue team",
+        ],
+        action: actionUrl ? { label: "Open Today", url: actionUrl } : undefined,
+      };
+    }
+    case "trial_cue_without_asking": {
+      const approvals = numberValue(values, "trustApprovals") ?? 3;
+      const count = COUNT_WORDS[approvals] ?? String(approvals);
+      return {
+        subject: "What Cue can do without asking",
+        preheader: `Approve the same routine message ${count} times unchanged, and Cue offers to stop asking.`,
+        eyebrow: "Your first two weeks",
+        heading: "Want Cue to stop asking?",
+        paragraphs: [
+          greeting,
+          "Cue starts out asking. Its routine messages (the schedule confirmation, the final balance summary, the day-before checklist and the note ahead of a consultation) each wait for your tap.",
+          `Approve the same kind ${count} times in a row without changing a word, and Cue offers to send that one on its own from then on. Say no and it keeps asking. Say yes and you can turn it back off any time.`,
+          "Some things always wait for you, whatever you choose: payments, anything that needs a signature, and any message Cue wrote in its own words.",
+          "Every setting is in one place, under What Cue can do without asking.",
+          "The StudioCue team",
+        ],
+        action: actionUrl ? { label: "What Cue can do without asking", url: actionUrl } : undefined,
       };
     }
     case "participant_receipt": {
