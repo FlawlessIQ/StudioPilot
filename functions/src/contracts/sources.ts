@@ -14,7 +14,7 @@ import {
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { isReturned } from "../planning/questionnaire-lifecycle.js";
 import { contractFormAnswers } from "./form-answers.js";
-import { eventDetailsFrom } from "./event-details.js";
+import { eventDetailsFrom, venueFromAnswers } from "./event-details.js";
 import { formatContractDate } from "./document.js";
 
 /**
@@ -252,7 +252,9 @@ export async function loadContractSources(
         name: text(event.name) || text(project.get("name")),
         type: text(event.eventType) || text(project.get("eventType")),
         date: text(event.eventDate) || text(project.get("eventDate")).slice(0, 10),
-        venue: text(event.venue) || text(project.get("venueName")) || null,
+        // The records first; then where the couple said it is on their form,
+        // so a blank job venue doesn't hold the agreement back.
+        venue: text(event.venue) || text(project.get("venueName")) || venueFromAnswers(formAnswers),
       },
       package: {
         name: text(pricing.packageName) || text(snapshotData.packageName),

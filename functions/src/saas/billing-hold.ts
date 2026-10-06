@@ -43,6 +43,7 @@ export const STALE_REMINDER_DAYS = 14;
 /** Mail to the studio itself, or a client's copy of their own act. */
 const DELIVERED_WHILE_LAPSED: readonly string[] = [
   "studio_contract_signed",
+  "studio_contract_waiting",
   "client_message_received",
   "studio_booking_confirmed",
   "studio_capture_silent",

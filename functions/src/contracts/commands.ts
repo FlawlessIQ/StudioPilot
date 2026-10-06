@@ -6,6 +6,7 @@ import { mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { requireProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
+import { studioNotificationAddress } from "../communications/notify-address.js";
 import {
   contractDocumentSchema,
   convertImportedAgreement,
@@ -1097,12 +1098,50 @@ export async function prepareOnAcceptance(
   });
   if (!prepared) return { outcome: "draft_already_prepared" };
 
+  /**
+   * Waiting on the studio: tell them by email, because nothing else did.
+   *
+   * GR Productions, 2026-10-06: Tiffany accepted, the venue was blank, and
+   * auto-send held the agreement. The only trace was a task and the job's next
+   * step — invisible to a studio not looking at StudioCue — while the couple
+   * sat on "accepted" and heard nothing. One per proposal, keyed on it.
+   */
+  const held = async (outcome: string, reason: "review" | "needs_fields" | "signer_inactive") => {
+    const recipient = await studioNotificationAddress(db, input.tenantId).catch(() => null);
+    if (!recipient) {
+      console.warn("contract_waiting_studio_address_missing", { tenantId: input.tenantId, projectId: input.projectId });
+      return { outcome };
+    }
+    const labels = new Map(draft.resolved.fields.map((field) => [field.key, field.label]));
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
+    const emailId = `studio_contract_waiting_${input.proposalId}`;
+    await db.doc(`emailJobs/${emailId}`).create({
+      id: emailId,
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      type: "studio_contract_waiting",
+      recipient,
+      clientName: draft.clientName,
+      reason,
+      missingFields: draft.resolved.unresolved.map((key) => labels.get(key) ?? key),
+      actionUrl: `${appUrl}/studio/contracts?project=${encodeURIComponent(input.projectId)}`,
+      status: "queued",
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+    }).catch((caught: unknown) => {
+      // Already queued by an earlier delivery of this trigger.
+      if ((caught as { code?: unknown })?.code !== 6) throw caught;
+    });
+    return { outcome };
+  };
+
   const tenant = await db.doc(`tenants/${input.tenantId}`).get();
   const autoSend = ((tenant.get("defaultContractSettings") ?? {}) as Record<string, unknown>)
     .nativeAutoSend as Record<string, unknown> | undefined;
   if (autoSend?.enabled !== true || typeof autoSend.signerName !== "string")
-    return { outcome: "prepared" };
-  if (draft.resolved.unresolved.length) return { outcome: "prepared_needs_fields" };
+    return held("prepared", "review");
+  if (draft.resolved.unresolved.length) return held("prepared_needs_fields", "needs_fields");
   // The adopting owner must still be an owner or admin here, or nobody is
   // signing for the studio.
   const adoptedBy = String(autoSend.adoptedBy ?? "");
@@ -1114,7 +1153,7 @@ export async function prepareOnAcceptance(
     membership.get("status") !== "active" ||
     !["studio_owner", "studio_admin"].includes(String(membership.get("role")))
   )
-    return { outcome: "prepared_auto_send_signer_inactive" };
+    return held("prepared_auto_send_signer_inactive", "signer_inactive");
   await sendContract(
     {
       tenantId: input.tenantId,

@@ -102,6 +102,9 @@ export const emailTemplateKeys = [
   "amendment_withdrawn",
   // Studio-facing: the couple signed.
   "studio_contract_signed",
+  // Studio-facing: an accepted proposal's agreement is drafted and waiting
+  // on the studio — to check, or to finish when a field is blank.
+  "studio_contract_waiting",
   "retainer_invoice",
   "booking_confirmation",
   "questionnaire_request",
@@ -1066,6 +1069,37 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             : "The retainer is next. When it's paid, record it on the job and the booking confirms.",
         ],
         action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
+      };
+    }
+    case "studio_contract_waiting": {
+      const clientName = stringValue(values, "clientName") || "Your client";
+      const reason = stringValue(values, "reason");
+      const missing = Array.isArray(values.missingFields)
+        ? values.missingFields.filter((field): field is string => typeof field === "string" && Boolean(field.trim()))
+        : [];
+      const list = (items: string[]) =>
+        items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+      return {
+        subject:
+          reason === "review"
+            ? `${clientName} accepted — the agreement is ready to send${project}`
+            : `${possessive(clientName)} agreement is waiting on you${project}`,
+        preheader:
+          reason === "needs_fields" && missing.length
+            ? `It's missing: ${list(missing)}.`
+            : `${clientName} accepted the proposal and is waiting for the agreement.`,
+        eyebrow: "Agreement",
+        heading: reason === "review" ? "The agreement is ready" : "The agreement needs you",
+        paragraphs: [
+          `${clientName} accepted the proposal${project}, and StudioCue drafted the agreement from it.`,
+          reason === "needs_fields"
+            ? `It wasn't sent automatically because it's missing: ${missing.length ? list(missing) : "a detail only you can fill in"}. Fill that in and send it.`
+            : reason === "signer_inactive"
+              ? "It wasn't sent automatically because the person it's set to sign for the studio is no longer an owner or admin here. Check it and send it yourself."
+              : "Check it over and send it.",
+          `${clientName} hasn't received anything yet.`,
+        ],
+        action: actionUrl ? { label: "Open the agreement", url: actionUrl } : undefined,
       };
     }
     case "retainer_invoice":

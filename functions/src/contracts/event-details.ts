@@ -160,6 +160,38 @@ export function eventDetailsFrom(input: {
   return { title, rows: rows.slice(0, 40), missing, lockDaysBefore };
 }
 
+/**
+ * Where the event is, from the couple's own answers — for a job whose records
+ * have no venue.
+ *
+ * GR Productions, 2026-10-06: Tiffany gave "Christ the King" and "Brooklake
+ * Country Club" on the event details form, the job's venue stayed blank, and
+ * the agreement's Venue field held the whole contract back from auto-send.
+ * The answers were already in Schedule A; the field above it never read them.
+ *
+ * A question that asks for the venue itself wins ("Venue", "Event location");
+ * otherwise the ceremony's place, then the reception's, both when they
+ * differ. Only place questions count — "Ceremony officiant" is about the
+ * ceremony but is not where it is — and "TBD" is not a venue.
+ */
+export function venueFromAnswers(answers: ReadonlyArray<{ question: string; answer: string }>): string | null {
+  const given = answers
+    .map((row) => ({ question: row.question.trim(), answer: row.answer.trim() }))
+    .filter((row) => row.question && row.answer && !notDecided(row.answer));
+  const venueQuestion = (question: string) =>
+    /^ (event |wedding |session )?(venue|location)( name)?( and address| address)? $/.test(normalise(question));
+  const asked = given.find((row) => venueQuestion(row.question));
+  if (asked) return asked.answer;
+  const place = (question: string) =>
+    [" location", " venue", " address", " where", " place", " church", " chapel"].some((word) => normalise(question).includes(word));
+  const placeFor = (category: Category) =>
+    given.find((row) => eventDetailCategory(row.question) === category && place(row.question))?.answer ?? null;
+  const ceremony = placeFor("ceremony");
+  const reception = placeFor("reception");
+  if (ceremony && reception && normalise(ceremony) !== normalise(reception)) return `${ceremony} and ${reception}`;
+  return ceremony ?? reception;
+}
+
 /** What Schedule A says about changes: the lock, when this job has one. */
 function lockSentence(lockDaysBefore: number | null | undefined): string {
   // Undefined: a schedule built before the lock was per kind — the wedding's four weeks.

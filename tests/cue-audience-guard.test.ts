@@ -84,6 +84,7 @@ test("couple and crew screens never name Cue", () => {
 const STUDIO_OR_PLATFORM_EMAIL = new Set<string>([
   "staff_invitation",
   "studio_contract_signed",
+  "studio_contract_waiting",
   "studio_booking_confirmed",
   "studio_capture_silent",
   "studio_new_inquiry",
