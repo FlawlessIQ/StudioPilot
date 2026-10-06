@@ -687,7 +687,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           : bookingComplete
             ? "Not recorded here"
             : proposal
-              ? "Ready to send"
+              // Not "Ready to send": this can't see the draft's blanks, and it
+              // said so beside "1 to fill in" on the same page (prod walk,
+              // 2026-10-06). The agreement card below says what's missing.
+              ? "Not sent yet"
               : "Waits for the proposal",
     },
     {

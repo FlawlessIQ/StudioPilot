@@ -21,6 +21,7 @@ const JOINABLE_STATES = [
 ];
 import { studioHubCors } from "../security/cors.js";
 import { findTenantBySlug } from "./tenant-by-slug.js";
+import { inquiryLinkFor, studioTakesBookings } from "../intake/inquiry-link.js";
 import {
   dayFieldsFor,
   inquiryAnswersForLead,
@@ -420,12 +421,20 @@ export const publicLeadIntake = onRequest(
       automationRunId: null,
       providerEventId: null,
     });
+    // Their own inquiry page, so the acknowledgement opens StudioCue: there is
+    // no job or account yet, and the page needs neither (Conor, 2026-10-06:
+    // every client email links). Only when the studio takes bookings — the
+    // same rule as the first reply's link (intake/inquiry-link.ts).
+    const inquiryPage = (await studioTakesBookings(db, tenantId).catch(() => false))
+      ? await inquiryLinkFor(db, { tenantId, leadId, now: timestamp }).catch(() => null)
+      : null;
     batch.create(db.doc(`emailJobs/inquiry_ack_${leadId}`), {
       id: `inquiry_ack_${leadId}`,
       tenantId,
       projectId: null,
       contactId,
       leadId,
+      ...(inquiryPage ? { portalUrl: inquiryPage } : {}),
       type: "inquiry_acknowledgement",
       recipient: normalizedEmail,
       recipientName: `${input.firstName} ${input.lastName}`.trim(),

@@ -522,7 +522,9 @@ function consultationMeetingDetails(values: Record<string, unknown>): {
 } {
   const joinUrl = safeUrl(stringValue(values, "joinUrl"));
   const location = stringValue(values, "location");
-  if (joinUrl) return { joinUrl, line: `Join the video call here: ${joinUrl}` };
+  // The link is the button (and its line in the text version); writing it
+  // here too sent it twice (prod walk, 2026-10-06).
+  if (joinUrl) return { joinUrl, line: "It's a video call. Join with the button below at the time." };
   if (values.meetingDetailsPending === true)
     return {
       joinUrl: "",
@@ -2271,8 +2273,57 @@ const paragraphHtml = (paragraph: string): string => {
   return `<p class="email-paragraph" style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${escapeHtml(paragraph)}</p>`;
 };
 
+/** Mail a couple (or another client) reads. */
+export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
+  "client_invitation", "inquiry_acknowledgement", "consultation_confirmation", "consultation_invitation",
+  "consultation_reminder", "consultation_rescheduled", "consultation_cancelled", "package_follow_up",
+  "proposal_sent", "contract_sent", "contract_ready", "contract_reminder", "contract_signed", "contract_voided",
+  "contract_superseded", "amendment_withdrawn", "retainer_invoice", "final_invoice", "final_payment_reminder",
+  "booking_confirmation", "questionnaire_request", "questionnaire_reminder", "project_cancelled",
+  "billing_address_request", "final_details_request", "schedule_review", "final_schedule_published",
+  "event_reminder", "thank_you", "delivery", "delivery_correction", "album_selection_reminder",
+  "delivery_expiry_reminder", "review_request", "manual_message", "client_message_received", "autopay_charged",
+  "autopay_charge_failed", "participant_receipt",
+]);
+
+/** Mail a crew member reads. */
+export const CREW_EMAIL_TYPES: ReadonlySet<string> = new Set([
+  "crew_invitation", "crew_directory_invitation", "crew_reminder", "crew_assignment_cancelled",
+]);
+
+/**
+ * Every client and crew email can open StudioCue.
+ *
+ * Conor, 2026-10-06: "make sure all of them have a link to open Studiocue. I
+ * received one … that didn't have it." Each template's button was optional,
+ * shown only when the sender passed its URL, so any sender that forgot — or a
+ * template that never had one (an inquiry acknowledgement before a job
+ * existed, a voided agreement, a cancelled booking, a crew cancellation) —
+ * sent mail with nowhere to go. When nothing else links, clients get their
+ * home (the portal, or their inquiry page before they have an account — see
+ * emailContext in operations/jobs.ts) and crew get their workspace.
+ */
+export function withStudioCueLink(copy: EmailCopy, input: RenderEmailInput): EmailCopy {
+  const linked =
+    Boolean(copy.action?.url) ||
+    Boolean(copy.secondaryAction?.url) ||
+    (copy.moreActions ?? []).some((extra) => Boolean(extra.url));
+  if (linked) return copy;
+  const appUrl = safeUrl(stringValue(input.values, "appUrl"));
+  if (CREW_EMAIL_TYPES.has(input.key)) {
+    return appUrl ? { ...copy, action: { label: "Open StudioCue", url: `${appUrl.replace(/\/$/, "")}/crew` } } : copy;
+  }
+  if (CLIENT_EMAIL_TYPES.has(input.key)) {
+    const home = safeUrl(stringValue(input.values, "portalUrl"));
+    return home
+      ? { ...copy, action: { label: /\/i\//.test(home) ? "Open your inquiry" : "Open your client portal", url: home } }
+      : copy;
+  }
+  return copy;
+}
+
 export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
-  const copy = customizedCopy(copyFor(input), input);
+  const copy = withStudioCueLink(customizedCopy(copyFor(input), input), input);
   const accent = normalizeColor(input.brand.accentColor);
   const studioName = escapeHtml(input.brand.studioName);
   const productName = escapeHtml(input.brand.productName);

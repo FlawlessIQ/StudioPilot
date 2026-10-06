@@ -682,6 +682,28 @@ async function emailContext(
       if (leadEmail) clientContactEmails.add(leadEmail);
     }
   }
+  /**
+   * Where "open StudioCue" goes for this recipient when the email names
+   * nowhere itself.
+   *
+   * The client portal needs an account, and a couple has none until their
+   * proposal's invitation — so for them it was a sign-in page they could not
+   * pass. Their own inquiry page (/i/…) needs no sign-in and says what is
+   * next, so a couple without an account gets that. Everyone else, the
+   * portal. Crew get their workspace (email-templates.ts, withStudioCueLink).
+   */
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app";
+  const recipientContact =
+    clientContacts.find(
+      (snapshot) => String(snapshot.get("email") ?? "").trim().toLowerCase() === recipient.trim().toLowerCase(),
+    ) ?? contact;
+  let clientHome = projectId ? `${appUrl}/client` : "";
+  const homeLeadId = leadId ?? firstString(project?.get("leadId"));
+  if (!recipientContact?.get("portalUserId") && homeLeadId) {
+    const link = await db.doc(`inquiryLinks/${homeLeadId}`).get();
+    const token = link.exists && link.get("tenantId") === tenantId ? firstString(link.get("token")) : null;
+    if (token) clientHome = `${appUrl}/i/${token}`;
+  }
   const studioName =
     firstString(
       document.get("brandName"),
@@ -793,11 +815,8 @@ async function emailContext(
         (project?.exists ? jobKindOf(project.data()) : null),
       // How the job is paid, when its package said (job-kinds.ts).
       paymentShape: firstString(document.get("paymentShape"), project?.get("paymentShape")) ?? null,
-      portalUrl:
-        firstString(document.get("portalUrl")) ??
-        (projectId
-          ? `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/client`
-          : ""),
+      portalUrl: firstString(document.get("portalUrl")) ?? clientHome,
+      appUrl,
     },
   };
 }
