@@ -275,10 +275,10 @@ const TEASER: Beat[] = [
   { say: "A couple finds you. Their inquiry lands on your Today screen, with a reply already written.", shots: [{ ch: 1, step: 3, len: 2, skip: 2.5 }, { ch: 1, step: 5, len: 4, skip: 3.2 }] },
   { say: "You read it, and send.", shots: [{ ch: 1, step: 6, len: 2.5 }] },
   { say: "They book a call, and accept your proposal on their phone.", shots: [{ ch: 2, step: 1, len: 2.5 }, { ch: 3, step: 5, len: 3, skip: 2.5 }] },
-  { say: "The agreement goes out, signed for you. They sign, pay the retainer, and they're booked. No chasing.", shots: [{ ch: 3, step: 8, len: 3.5 }, { ch: 3, step: 13, len: 3.5 }] },
+  { say: "The agreement is written from the proposal they accepted. They sign, pay the retainer, and they're booked. Reminders go out on time, and late payments are drafted for one tap.", shots: [{ ch: 3, step: 8, len: 3.5 }, { ch: 3, step: 13, len: 3.5 }] },
   { say: "Your second shooter says yes in one tap.", shots: [{ ch: 4, step: 4, len: 3 }] },
-  { say: "Months later, StudioCue drafts the day from their answers. Your couple approves it, and your crew gets the day sheet.", shots: [{ ch: 6, step: 5, len: 3 }, { ch: 6, step: 8, len: 3 }, { ch: 6, step: 10, len: 3, skip: 5 }] },
-  { say: "Then the gallery, the review, and the job wraps itself up.", shots: [{ ch: 8, step: 8, len: 2.5, skip: 2.5 }, { ch: 8, step: 10, len: 2.5, skip: 2.5 }, { ch: 8, step: 12, len: 2.5 }] },
+  { say: "Months later, StudioCue drafts the day from their answers. Your couple approves it, and your crew gets the day sheet.", shots: [{ ch: 6, step: 5, len: 3 }, { ch: 6, step: 8, len: 3 }, { ch: 6, step: 10, len: 3, skip: 3 }] },
+  { say: "Then the gallery, the review, and when everything's in, the job's ready to close.", shots: [{ ch: 8, step: 8, len: 2.5, skip: 2.5 }, { ch: 8, step: 10, len: 1.4, skip: 1.5 }, { ch: 8, step: 12, len: 3.6 }] },
   { say: "Every wedding, inquiry to album. Already prepared.", card: { eyebrow: "StudioCue", title: "Every wedding, inquiry to album.", subtitle: "Start your free trial at studio-cue.com" }, shots: [] },
 ];
 
