@@ -29,6 +29,7 @@ export function PlanningTimelineSettings() {
   const [lockWeeks, setLockWeeks] = useState<number | null>(null);
   const [atBooking, setAtBooking] = useState<boolean | null>(null);
   const [review, setReview] = useState<boolean | null>(null);
+  const [shotListId, setShotListId] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export function PlanningTimelineSettings() {
   const effectiveLockWeeks = lockWeeks ?? Math.round(stored.lockDaysBefore / 7);
   const effectiveAtBooking = atBooking ?? stored.formAtBooking;
   const effectiveReview = review ?? stored.reviewAtFormDate;
+  const effectiveShotList = shotListId === undefined ? stored.shotListTemplateId : shotListId;
   const forms = (templates ?? [])
     .filter((template) => template.status === "active" && !template.archivedAt)
     .map((template) => ({ id: template.id, name: String(template.name ?? "Questionnaire") }))
@@ -56,6 +58,7 @@ export function PlanningTimelineSettings() {
         lockDaysBefore: effectiveLockWeeks * 7,
         formAtBooking: effectiveAtBooking,
         reviewAtFormDate: effectiveReview,
+        shotListTemplateId: effectiveShotList,
       });
       setSaved(true);
     } catch (caught: unknown) {
@@ -167,6 +170,32 @@ export function PlanningTimelineSettings() {
               {effectiveSend === "auto"
                 ? "Anyone who already filled it in gets a note to update anything that changed: the same answers, not a new form."
                 : "Needs “Send it automatically”."}
+            </small>
+          </label>
+          {/* GR (2026-10-05): the shot list is "its own form", due four
+              weeks out, and the crew must have it — features/questionnaires/
+              recommended-templates.ts has one to copy. */}
+          <label>
+            Shot list
+            <select
+              disabled={!mayEdit}
+              onChange={(event) => {
+                setShotListId(event.target.value || null);
+                touch();
+              }}
+              value={effectiveShotList ?? ""}
+            >
+              <option value="">Don&rsquo;t send one</option>
+              {forms.map((form) => (
+                <option key={form.id} value={form.id}>
+                  {form.name}
+                </option>
+              ))}
+            </select>
+            <small>
+              {effectiveSend === "auto"
+                ? "Goes out with the planning form, due when the details lock. Your crew see the answers on their day sheet."
+                : "Sent with the planning form when that goes out automatically. Until then, send it from the job's forms."}
             </small>
           </label>
           <label>

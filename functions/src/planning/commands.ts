@@ -185,6 +185,8 @@ const command = z.discriminatedUnion("type", [
       /** Also at booking, and a review (not a second copy) at the form date. */
       formAtBooking: z.boolean().optional(),
       reviewAtFormDate: z.boolean().optional(),
+      /** The shot list sent with the planning form (planning-timeline.ts). */
+      shotListTemplateId: z.string().min(1).max(200).nullable().optional(),
     }),
   }),
   z.object({
@@ -670,8 +672,9 @@ export const planningCommand = onRequest(
       let result: Record<string, unknown>;
       if (parsed.type === "setPlanningTimeline") {
         if (!["studio_owner", "studio_admin"].includes(role)) throw new Error("FORBIDDEN");
-        if (parsed.input.formTemplateId) {
-          const template = await db.doc(`questionnaireTemplates/${parsed.input.formTemplateId}`).get();
+        for (const templateId of [parsed.input.formTemplateId, parsed.input.shotListTemplateId]) {
+          if (!templateId) continue;
+          const template = await db.doc(`questionnaireTemplates/${templateId}`).get();
           if (!template.exists || template.get("tenantId") !== parsed.tenantId) throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
         }
         const tenantReference = db.doc(`tenants/${parsed.tenantId}`);

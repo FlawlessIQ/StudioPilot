@@ -32,6 +32,12 @@ export type PlanningTimeline = {
    * and update the same answers rather than sent a second copy.
    */
   reviewAtFormDate: boolean;
+  /**
+   * The shot list, sent with the planning form and due when the details lock
+   * (GR, 2026-10-05: "its own form", 4 weeks out, crew must have it). Null:
+   * none is sent.
+   */
+  shotListTemplateId: string | null;
 };
 
 export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
@@ -41,6 +47,7 @@ export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
   lockDaysBefore: 28,
   formAtBooking: false,
   reviewAtFormDate: false,
+  shotListTemplateId: null,
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -57,6 +64,8 @@ export function resolvePlanningTimeline(raw: unknown): PlanningTimeline {
     lockDaysBefore: Number.isInteger(lock) && lock >= 7 && lock <= 90 ? lock : DEFAULT_PLANNING_TIMELINE.lockDaysBefore,
     formAtBooking: value.formAtBooking === true,
     reviewAtFormDate: value.reviewAtFormDate === true,
+    shotListTemplateId:
+      typeof value.shotListTemplateId === "string" && value.shotListTemplateId.trim() ? value.shotListTemplateId.trim() : null,
   };
 }
 

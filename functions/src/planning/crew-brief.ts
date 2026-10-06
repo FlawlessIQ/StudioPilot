@@ -54,6 +54,10 @@ export const crewStarterFieldIds: ReadonlySet<string> = new Set([
   "planner",
   "videographer",
   "must-have-groups",
+  // the recommended shot list (features/questionnaires/recommended-templates.ts)
+  "must-have-shots",
+  "people-to-capture",
+  "details-to-capture",
   "sensitivities",
   "ceremony-time",
   "sunset-priority",

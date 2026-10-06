@@ -200,6 +200,54 @@ const FAMILY: RecommendedSection = {
   ],
 };
 
+/**
+ * The shot list: the pictures that matter most to them, in their words.
+ *
+ * GR Productions (2026-10-05): "must take photos" is its own form, due four
+ * weeks out (the details lock), and the crew must have it. Gabe's own sample
+ * hasn't arrived; this is the usual working-studio list, written so his
+ * questions can replace these without changing how it travels. The ids are
+ * the ones the crew brief knows (crew-brief.ts), so a submitted list reaches
+ * the crew's day sheet — the groups in the order to call them, the people to
+ * find, and, first, anyone to avoid.
+ */
+const SHOT_LIST: RecommendedSection[] = [
+  {
+    id: "groups",
+    title: "Family and group pictures",
+    fields: [
+      field("must-have-groups", "Family and group pictures, in the order to call them", "long_text", false, {
+        help: "One group per line, as you'd like them called. For example: \"Us with both sets of parents\", \"Grandparents\", \"Everyone from the bridal party\".",
+      }),
+    ],
+  },
+  {
+    id: "must-take",
+    title: "Must-take pictures",
+    fields: [
+      field("must-have-shots", "Pictures you don't want us to miss", "long_text", false, {
+        help: "Moments, people together, anything that matters most to you.",
+      }),
+      field("people-to-capture", "People we should be sure to photograph", "long_text", false, {
+        help: "Who they are and how we'll recognize them. For example: \"Grandma Rose, blue dress, front row\".",
+      }),
+      field("details-to-capture", "Details to capture", "long_text", false, {
+        help: "Rings, heirlooms, something handmade, a note from family.",
+      }),
+    ],
+  },
+  {
+    id: "care",
+    title: "Good to know",
+    fields: [
+      field("no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false),
+      field("sensitivities", "Anything we should handle carefully", "long_text", false, {
+        help: "Separated parents, someone unwell, a recent loss. Only your crew see this.",
+      }),
+    ],
+  },
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -225,6 +273,18 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       dueDaysBeforeEvent: 35,
       reminderDaysBeforeDue: [14, 3],
       sections: [...eventDetailSections(false), FAMILY, DAY_IN_ORDER],
+    },
+    {
+      id: "wedding-shot-list",
+      name: "Shot list",
+      summary:
+        "The pictures that matter most to them: family groups in the order to call them, must-take moments, people to find, and anyone to avoid. Your crew see it on their day sheet.",
+      useIt: "Choose it as your shot list in Settings → Planning timeline, and it goes out with the planning form.",
+      eventTypeId: "wedding",
+      // Due when the details lock, four weeks out.
+      dueDaysBeforeEvent: 28,
+      reminderDaysBeforeDue: [14, 3],
+      sections: SHOT_LIST,
     },
   ];
 }

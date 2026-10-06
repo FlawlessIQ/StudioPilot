@@ -71,7 +71,50 @@ async function loadStudio(db: Firestore, tenantId: string): Promise<Studio> {
   };
 }
 
+/**
+ * The shot list, on the planning form's day (planning-timeline.ts,
+ * `shotListTemplateId`). Weddings only, once per job, never a second copy, and
+ * due when the details lock — the template's own due date. A failure here is
+ * logged and never costs the couple their planning form.
+ */
+async function sendShotList(db: Firestore, project: DocumentSnapshot, studio: Studio, today: string, now: string): Promise<void> {
+  const data = project.data() ?? {};
+  const tenantId = text(data.tenantId);
+  const templateId = studio.timeline.shotListTemplateId;
+  if (!templateId || jobKindOf(data) !== "wedding") return;
+  // Past the lock it would arrive already overdue.
+  if (detailsLocked(text(data.eventDate).slice(0, 10), today, studio.timeline)) return;
+  const template = resolveInquiryFormTemplate(studio.templates as never, templateId) as (Row & { id: string }) | null;
+  if (!template) return;
+  const responses = await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", project.id).get();
+  if (liveAssignmentFor(responses.docs.map((response) => ({ id: response.id, ...response.data() })), { id: template.id, name: text(template.name) })) return;
+  try {
+    await sendNewQuestionnaire(db, {
+      tenantId,
+      projectId: project.id,
+      project,
+      template: await db.doc(`questionnaireTemplates/${template.id}`).get(),
+      idempotencyKey: `shot_list_${project.id}_${template.id}`,
+      actorId: "planning-form-scheduler",
+      now,
+      allowAi: false,
+    });
+  } catch (caught) {
+    // ALREADY_EXISTS: yesterday's run sent it.
+    if ((caught as { code?: unknown })?.code === 6) return;
+    console.error(JSON.stringify({ severity: "ERROR", event: "shot_list.failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));
+  }
+}
+
 async function sendOne(db: Firestore, project: DocumentSnapshot, studio: Studio, today: string, now: string): Promise<string> {
+  const outcome = await sendPlanningForm(db, project, studio, today, now);
+  // With the planning form, on its day — whether that sent it, asked for a
+  // review, or found it already out. Not on a day the form isn't due.
+  if (outcome !== "not_due") await sendShotList(db, project, studio, today, now);
+  return outcome;
+}
+
+async function sendPlanningForm(db: Firestore, project: DocumentSnapshot, studio: Studio, today: string, now: string): Promise<string> {
   const data = project.data() ?? {};
   const tenantId = text(data.tenantId);
   if (!planningFormDue(data, studio.timeline, today)) return "not_due";
