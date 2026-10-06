@@ -69,6 +69,7 @@ import { finalDetailsLockApplies } from "../job-kinds/job-kinds.js";
 import { decideDetailChange, requestDetailChange } from "./detail-changes.js";
 import { lockingFieldIds } from "./details-lock.js";
 import { templateLinkProblems } from "./template-rules.js";
+import { eventZone } from "./day-clock.js";
 
 const item = z.object({
   id: z.string(),
@@ -2151,6 +2152,17 @@ export const planningCommand = onRequest(
         };
       } else if (parsed.type === "publishSchedule") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        /**
+         * The wedding's zone, not the laptop's: every reader formats the
+         * stored instants in this one. The editor sent the browser's zone, so
+         * a studio planning an out-of-state wedding (or a laptop left on
+         * another zone) published a schedule that read hours off.
+         */
+        const scheduleProject = await db.doc(`projects/${parsed.input.projectId}`).get();
+        const scheduleZone =
+          scheduleProject.get("tenantId") === parsed.tenantId
+            ? eventZone(scheduleProject.get("timezone"), parsed.input.timezone)
+            : eventZone(parsed.input.timezone);
         const schedules = await db
           .collection("schedules")
           .where("tenantId", "==", parsed.tenantId)
@@ -2275,7 +2287,7 @@ export const planningCommand = onRequest(
           projectId: parsed.input.projectId,
           version,
           status: "published",
-          timezone: parsed.input.timezone,
+          timezone: scheduleZone,
           items: currentItems,
           sourceTrace: {
             traceableItemCount: currentItems.length,
@@ -2335,7 +2347,7 @@ export const planningCommand = onRequest(
               sourceScheduleId: id,
               version,
               status: "published",
-              timezone: parsed.input.timezone,
+              timezone: scheduleZone,
               items: currentItems.filter(
                 (scheduleItem) =>
                   ["crew", "shared"].includes(scheduleItem.visibility) &&

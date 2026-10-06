@@ -257,8 +257,11 @@ test("the editor offers the moments and keeps its list in order", () => {
   const editor = read("components/planning/ai-schedule-generator.tsx");
   assert.match(editor, /WEDDING_STANDARD_MOMENTS\.map\(/);
   assert.match(editor, /placeStandardMoment\(key, current\.items/);
-  assert.match(editor, /moveScheduleItem\(current\.items, index, direction\)/);
+  // The list sorts itself by time (GR, 2026-10-06): nothing to move, and
+  // every change keeps each block running to the next (day-plan.ts flowEnds).
+  assert.doesNotMatch(editor, /moveScheduleItem\(/);
   assert.match(editor, /onBlur=\{resortItems\}/);
+  assert.match(editor, /flowEnds\(change\(current\.items\), keepPinned, coverageEnd\)/);
   assert.match(editor, /items: sortScheduleItems\(draft\.items\)\.map\(\(item\) => withCrewIds\(item\)\)/);
   // The answer to "did the questions go?" is beside the Send button.
   assert.match(editor, /Sent to \$\{clientName\} — their answers will ground the next draft\./);

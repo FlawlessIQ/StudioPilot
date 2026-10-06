@@ -1,10 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   CalendarClock,
   CheckCircle2,
   ListPlus,
@@ -31,11 +29,17 @@ import {
 } from "@/features/planning/manual-run-of-show";
 import { liveProjects } from "@/features/projects/put-away";
 import { itemCrewIds, withCrewIds } from "@/features/schedules/item-crew";
+import { sortScheduleItems } from "@/features/schedules/run-of-show-order";
+import { eventZone, isoToWallClock, spokenClock, wallClockToIso } from "@/features/schedules/day-clock";
 import {
-  moveScheduleItem,
-  scheduleItemMoves,
-  sortScheduleItems,
-} from "@/features/schedules/run-of-show-order";
+  flowEnds,
+  pinnedEnds,
+  planDay,
+  planItems,
+  titleIsTbd,
+  withTbdTitle,
+  type DayRule,
+} from "@/features/schedules/day-plan";
 import {
   WEDDING_STANDARD_MOMENTS,
   isWeddingJob,
@@ -98,15 +102,29 @@ type Draft = {
   };
 };
 
-const isoOrNull = (value: FormDataEntryValue | null) => {
-  const text = String(value ?? "");
-  return text ? new Date(text).toISOString() : null;
-};
-
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+
+/**
+ * Where a line's time came from, in the studio's words. The chips read
+ * "project fact · ceremonyTime" and "assumption · Standard 30 min duration for
+ * getting into the dress" (GR Productions, 2026-10-06): the system talking to
+ * itself. The laid-out day already labels its own lines plainly.
+ */
+const SOURCE_WORDS: Record<string, string> = {
+  questionnaire_answer: "From their form",
+  timing_rule: "Your timing",
+  project_fact: "From the job",
+  package_fact: "From the package",
+  crew_fact: "From the crew",
+  assumption: "Suggested — check it",
+};
+const sourceWords = (source: { type: string; label: string }) =>
+  /^(From their|Their form|Your timing|Usual timing|Coverage starts)/.test(source.label)
+    ? source.label
+    : (SOURCE_WORDS[source.type] ?? "Suggested — check it");
 
 const answer = (
   answers: Record<string, unknown>,
@@ -131,41 +149,11 @@ const eventDateTime = (eventDate: string, time: string) =>
     : "";
 
 /**
- * A UTC instant, as the wall clock a datetime-local input expects.
- *
- * The review list rendered `item.startAt.slice(0, 16)`. Item times are
- * normalised to UTC by the command's schema, so slicing hands the input the
- * *UTC* wall clock and the browser shows it as if it were local — a four-hour
- * lie in New York, and the reason a noon wedding's ceremony read 12:00 AM the
- * next day.
- *
- * Worse than being wrong, it was wrong in one direction only: the onChange
- * beside it does `new Date(value).toISOString()`, which reads the field as
- * local and converts to UTC. Read and write used opposite conventions, so
- * merely opening a time field and confirming it shifted the item by the
- * offset. This is the inverse of that write, so a value that is not edited
- * round-trips unchanged.
- *
- * Browser-local on purpose: the coverage inputs above already work this way —
- * naive local strings, converted on submit by `isoOrNull` — so the whole
- * screen now speaks one convention. A studio shooting outside its own
- * timezone is a separate question and needs `project.timezone` threaded
- * through both halves, not just this one.
+ * Every time on this screen is a wall clock at the wedding, in the job's zone
+ * (features/schedules/day-clock.ts). It used to be the browser's: a datetime-
+ * local field read local, a stored instant was sliced as UTC, and the publish
+ * sent the laptop's zone — fine until a laptop or a wedding was anywhere else.
  */
-const toLocalInput = (iso: string) => {
-  const parsed = new Date(iso);
-  if (!Number.isFinite(parsed.valueOf())) return "";
-  const offset = parsed.getTimezoneOffset() * 60_000;
-  return new Date(parsed.valueOf() - offset).toISOString().slice(0, 16);
-};
-
-/** The inverse of toLocalInput, or null for a cleared or half-typed field. */
-const fromLocalInput = (value: string): string | null => {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isFinite(parsed.valueOf()) ? parsed.toISOString() : null;
-};
-
 const shiftLocalMinutes = (value: string, minutes: number) => {
   if (!value) return "";
   const parsed = new Date(value);
@@ -193,7 +181,13 @@ export function AiScheduleGenerator({
   const { records: crewProfiles } = useTenantDocuments("crewProfiles");
   // For naming the recipient of the suggested questions.
   const { records: contacts } = useTenantDocuments("contacts");
+  // The studio's own timings ("First Look: 195 minutes before the ceremony").
+  const { records: timingRules } = useTenantDocuments("timingRules");
   const [draft, setDraft] = useState<Draft | null>(null);
+  /** Blocks whose end the studio set; every other block runs to the next one. */
+  const [pinned, setPinned] = useState<Set<string>>(() => new Set());
+  /** What the laid-out day wants the studio to check, said once above the lines. */
+  const [planNotes, setPlanNotes] = useState<string[]>([]);
   const [coverageMinutes, setCoverageMinutes] = useState(480);
   const [projectId, setProjectId] = useState(initialProjectId);
   const [coverageStartsAt, setCoverageStartsAt] = useState("");
@@ -265,6 +259,51 @@ export function AiScheduleGenerator({
     () => projects?.find((project) => project.id === projectId),
     [projectId, projects],
   );
+  /** The wedding's zone: the job's, else this browser's, else New York. */
+  const zone = useMemo(
+    () => eventZone(selectedProject?.timezone, Intl.DateTimeFormat().resolvedOptions().timeZone),
+    [selectedProject],
+  );
+  const eventDay = String(selectedProject?.eventDate ?? "").slice(0, 10);
+  /** A wedding is laid out from its answers; other kinds keep the AI and moment chips. */
+  const weddingDay = isWeddingJob(selectedProject);
+  const aiInputsRef = useRef<HTMLDetailsElement | null>(null);
+  /** A "YYYY-MM-DDTHH:MM" field value, read at the wedding. */
+  const localToIso = (local: string) =>
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local) ? wallClockToIso(local.slice(0, 10), local.slice(11, 16), zone) : null;
+  /**
+   * Everything the couple has told the studio, across every form on the job:
+   * the event details and the final schedule are separate forms, and the day
+   * needs both. Newest answer wins.
+   */
+  const jobAnswers = useMemo(() => {
+    const merged: Record<string, unknown> = {};
+    (questionnaires ?? [])
+      .filter((response) => response.projectId === projectId && response.status !== "archived" && !response.withdrawnAt)
+      .sort((left, right) =>
+        String(left.updatedAt ?? left.submittedAt ?? "").localeCompare(String(right.updatedAt ?? right.submittedAt ?? "")),
+      )
+      .forEach((response) => {
+        for (const [key, value] of Object.entries(record(response.answers))) {
+          if (value !== null && value !== undefined && String(value).trim() !== "") merged[key] = value;
+        }
+      });
+    return merged;
+  }, [projectId, questionnaires]);
+  const dayRules = useMemo<DayRule[]>(() => {
+    const eventType = String(selectedProject?.eventTypeId ?? "wedding");
+    return (timingRules ?? [])
+      .filter((rule) => rule.active !== false && String(rule.eventTypeId ?? "wedding") === eventType)
+      .map((rule) => ({
+        id: String(rule.id),
+        name: String(rule.name ?? ""),
+        anchor: String(rule.anchor ?? ""),
+        offsetMinutes: Number(rule.offsetMinutes ?? 0),
+        durationMinutes: Number(rule.durationMinutes ?? 0),
+        active: true,
+      }))
+      .filter((rule) => rule.name.trim() && Number.isFinite(rule.offsetMinutes));
+  }, [selectedProject, timingRules]);
   const crewOptions = useMemo(
     () =>
       scheduleCrewOptions({
@@ -514,8 +553,8 @@ export function AiScheduleGenerator({
     setNotice(null);
     const form = new FormData(event.currentTarget);
     try {
-      const startsAt = isoOrNull(form.get("coverageStartsAt"));
-      const endsAt = isoOrNull(form.get("coverageEndsAt"));
+      const startsAt = localToIso(String(form.get("coverageStartsAt") ?? ""));
+      const endsAt = localToIso(String(form.get("coverageEndsAt") ?? ""));
       if (!startsAt || !endsAt) throw new Error("Enter a coverage window.");
       const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
       if (!endpoint) throw new Error("AI schedule generation is not configured.");
@@ -544,8 +583,8 @@ export function AiScheduleGenerator({
             crewIds: [],
             coverageStartsAt: startsAt,
             coverageEndsAt: endsAt,
-            ceremonyTime: isoOrNull(form.get("ceremonyTime")),
-            receptionTime: isoOrNull(form.get("receptionTime")),
+            ceremonyTime: localToIso(String(form.get("ceremonyTime") ?? "")),
+            receptionTime: localToIso(String(form.get("receptionTime") ?? "")),
             locations: parsedLocations,
             preferences: String(form.get("preferences") ?? ""),
           }),
@@ -553,8 +592,12 @@ export function AiScheduleGenerator({
       );
       const result = (await response.json()) as Draft & { error?: string };
       if (!response.ok) throw new Error(result.error ?? "Generation failed.");
-      // Server-sorted already; kept in start order from here on.
-      setDraft({ ...result, items: sortScheduleItems(result.items) });
+      // Server-sorted already; kept in start order from here on. The model's
+      // ends are kept as it set them; the studio can let any run to the next.
+      const items = sortScheduleItems(result.items);
+      setPinned(pinnedEnds(items, endsAt));
+      setPlanNotes([]);
+      setDraft({ ...result, items });
       setAskResult(null);
       setPublishNotice(null);
       setFailed(false);
@@ -687,7 +730,8 @@ export function AiScheduleGenerator({
     try {
       const response = await sendPlanningCommand("publishSchedule", {
         projectId,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        // The wedding's zone; the server prefers the job's own (publishSchedule).
+        timezone: zone,
         coverageMinutes: derivedCoverageMinutes,
         // Both fields, so a function still reading photographerIds sees the crew.
         // In start order: the server sorts too, but what is sent is what was seen.
@@ -729,10 +773,10 @@ export function AiScheduleGenerator({
     // Seeded from the form above, which the studio has usually just filled in
     // — see seededManualSchedule. It used to discard all of it.
     const seeded = seededManualSchedule(() => crypto.randomUUID(), {
-      coverageStartsAt: coverageStartsAt || null,
-      coverageEndsAt: coverageEndsAt || null,
-      ceremonyTime: ceremonyTime || null,
-      receptionTime: receptionTime || null,
+      coverageStartsAt: localToIso(coverageStartsAt),
+      coverageEndsAt: localToIso(coverageEndsAt),
+      ceremonyTime: localToIso(ceremonyTime),
+      receptionTime: localToIso(receptionTime),
       locations: locations || null,
       eventDate: String(selectedProject?.eventDate ?? "").slice(0, 10) || null,
     });
@@ -744,6 +788,8 @@ export function AiScheduleGenerator({
         ? `Run of show started from what you entered — ${seeded.length} items. Add the rest, then publish it as a version.`
         : "Empty run of show started. Add each item, then publish it as a version.",
     );
+    setPinned(pinnedEnds(seeded as ScheduleItem[], localToIso(coverageEndsAt)));
+    setPlanNotes([]);
     setDraft({
       items: seeded as ScheduleItem[],
       assumptions: [],
@@ -762,20 +808,80 @@ export function AiScheduleGenerator({
     });
   }
 
-  function addItem() {
+  /**
+   * Every change to the lines goes through here, so each block keeps running
+   * to the next one (or to the end of coverage) unless the studio set its end.
+   */
+  function changeItems(change: (items: ScheduleItem[]) => ScheduleItem[], keepPinned: Set<string> = pinned) {
+    const coverageEnd = localToIso(coverageEndsAt);
     setDraft((current) =>
-      current
-        ? {
-            ...current,
-            items: sortScheduleItems([
-              ...current.items,
-              manualScheduleItem(
-                crypto.randomUUID(),
-                nextItemStart(current.items, coverageStartsAt || null),
-              ) as ScheduleItem,
-            ]),
-          }
-        : current,
+      current ? { ...current, items: flowEnds(change(current.items), keepPinned, coverageEnd) } : current,
+    );
+  }
+
+  /**
+   * The day, laid out from the couple's answers and the studio's timings.
+   *
+   * GR Productions (2026-10-06): the run of show was "too strict" for a day
+   * that is different every wedding, and the AI draft placed times hours off.
+   * This needs no model: the ceremony is the anchor, and each milestone comes
+   * from the couple's form, the studio's timing rule, or the usual timing — in
+   * that order (features/schedules/day-plan.ts).
+   */
+  function layOutDay() {
+    setFailed(false);
+    setAskResult(null);
+    setPublishNotice(null);
+    if (!eventDay) {
+      setNotice("This job has no date yet. Add the wedding date, then lay out the day.");
+      return;
+    }
+    const plan = planDay({
+      answers: jobAnswers,
+      rules: dayRules,
+      coverageMinutes: packageMinutes ?? null,
+      venue: String(selectedProject?.venueName ?? "").trim() || null,
+    });
+    setPlanNotes(plan.notes);
+    if (!plan.rows.length) {
+      setNotice(plan.notes.join(" "));
+      return;
+    }
+    const items = planItems(plan, { eventDate: eventDay, timeZone: zone, idFor: () => crypto.randomUUID() }) as ScheduleItem[];
+    if (plan.coverageStart) setCoverageStartsAt(`${eventDay}T${plan.coverageStart}`);
+    if (plan.coverageEnd) setCoverageEndsAt(`${eventDay}T${plan.coverageEnd}`);
+    const coverageEnd = plan.coverageEnd ? wallClockToIso(eventDay, plan.coverageEnd, zone) : null;
+    const count = (type: string) => items.filter((item) => item.sourceReferences[0]?.type === type).length;
+    setPinned(pinnedEnds(items, coverageEnd));
+    setDraft({
+      items,
+      assumptions: [],
+      missingInformation: [],
+      conflicts: [],
+      risks: [],
+      suggestedQuestions: [],
+      interactionId: `dayplan_${crypto.randomUUID()}`,
+      humanReviewRequired: true,
+      sourceTrace: {
+        questionnaireCount: count("questionnaire_answer"),
+        timingRuleCount: count("timing_rule"),
+        crewFactCount: 0,
+        assumptionItemCount: count("assumption"),
+      },
+    });
+    setNotice(
+      `The day is laid out: ${items.length} lines, ${plan.churchDay ? "a church day" : "all at one venue"}${
+        plan.firstLook ? " with a first look" : ""
+      }. Change anything, then publish.`,
+    );
+  }
+
+  function addItem() {
+    changeItems((items) =>
+      sortScheduleItems([
+        ...items,
+        manualScheduleItem(crypto.randomUUID(), nextItemStart(items, localToIso(coverageStartsAt))) as ScheduleItem,
+      ]),
     );
   }
 
@@ -788,15 +894,17 @@ export function AiScheduleGenerator({
   function addMoment(key: StandardMomentKey) {
     setDraft((current) => {
       if (!current) return current;
+      // As instants at the wedding: the helper reads anything Date can, and
+      // a bare "2027-08-17T16:00" would be read in this browser's zone.
       const placed = placeStandardMoment(key, current.items, {
-        coverageStartsAt: coverageStartsAt || null,
-        coverageEndsAt: coverageEndsAt || null,
-        ceremonyAt: ceremonyTime || null,
-        receptionAt: receptionTime || null,
-        firstLookAt: momentTimes.firstLookAt || null,
-        cocktailAt: momentTimes.cocktailAt || null,
-        dinnerAt: momentTimes.dinnerAt || null,
-        cakeAt: momentTimes.cakeAt || null,
+        coverageStartsAt: localToIso(coverageStartsAt),
+        coverageEndsAt: localToIso(coverageEndsAt),
+        ceremonyAt: localToIso(ceremonyTime),
+        receptionAt: localToIso(receptionTime),
+        firstLookAt: localToIso(momentTimes.firstLookAt),
+        cocktailAt: localToIso(momentTimes.cocktailAt),
+        dinnerAt: localToIso(momentTimes.dinnerAt),
+        cakeAt: localToIso(momentTimes.cakeAt),
       });
       const item = {
         ...manualScheduleItem(crypto.randomUUID(), placed.startAt, placed.title),
@@ -807,7 +915,7 @@ export function AiScheduleGenerator({
             .map((line) => line.trim())
             .filter(Boolean)[0] ?? null,
       } as ScheduleItem;
-      return { ...current, items: sortScheduleItems([...current.items, item]) };
+      return { ...current, items: flowEnds(sortScheduleItems([...current.items, item]), pinned, localToIso(coverageEndsAt)) };
     });
   }
 
@@ -815,7 +923,7 @@ export function AiScheduleGenerator({
   function addKindMoment(moment: KindMoment) {
     setDraft((current) => {
       if (!current) return current;
-      const placed = placeKindMoment(moment, current.items, coverageStartsAt || null);
+      const placed = placeKindMoment(moment, current.items, localToIso(coverageStartsAt));
       const item = {
         ...manualScheduleItem(crypto.randomUUID(), placed.startAt, placed.title),
         endAt: placed.endAt,
@@ -825,7 +933,7 @@ export function AiScheduleGenerator({
             .map((line) => line.trim())
             .filter(Boolean)[0] ?? null,
       } as ScheduleItem;
-      return { ...current, items: sortScheduleItems([...current.items, item]) };
+      return { ...current, items: flowEnds(sortScheduleItems([...current.items, item]), pinned, localToIso(coverageEndsAt)) };
     });
   }
 
@@ -843,21 +951,6 @@ export function AiScheduleGenerator({
         ? current
         : { ...current, items: sorted };
     });
-  }
-
-  /**
-   * Move a row up or down the day.
-   *
-   * The list is always in time order, so moving a row moves its time: it
-   * trades slots with its neighbour, each keeping its own length. Two items at
-   * the same time just swap places. See features/schedules/run-of-show-order.ts.
-   */
-  function moveItem(index: number, direction: "up" | "down") {
-    setDraft((current) =>
-      current
-        ? { ...current, items: moveScheduleItem(current.items, index, direction) }
-        : current,
-    );
   }
 
   /**
@@ -880,6 +973,10 @@ export function AiScheduleGenerator({
     setNotice(
       `Version ${Number(selectedSchedule.version ?? 1)} is open below. Change what you need, then publish it as a new version.`,
     );
+    // Every deliberate gap stays: an end that isn't where the day would put it is the studio's.
+    const lastEnd = items.reduce((latest, item) => (String(item.endAt) > latest ? String(item.endAt) : latest), "");
+    setPinned(pinnedEnds(items, lastEnd || null));
+    setPlanNotes([]);
     setDraft({
       items: sortScheduleItems(
         items.map((item) => ({
@@ -914,14 +1011,7 @@ export function AiScheduleGenerator({
   }
 
   function removeItem(index: number) {
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            items: current.items.filter((_, itemIndex) => itemIndex !== index),
-          }
-        : current,
-    );
+    changeItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
   }
 
   /** Put someone on a segment, or take them off it. */
@@ -935,17 +1025,43 @@ export function AiScheduleGenerator({
     updateItem(index, withCrewIds(item, next));
   }
 
-  function updateItem(index: number, patch: Partial<ScheduleItem>) {
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            items: current.items.map((item, itemIndex) =>
-              itemIndex === index ? { ...item, ...patch } : item,
-            ),
-          }
-        : current,
-    );
+  function updateItem(index: number, patch: Partial<ScheduleItem>, keepPinned: Set<string> = pinned) {
+    changeItems((items) => items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)), keepPinned);
+  }
+
+  /** A line's own day (an after-midnight line keeps its date) and its clock there. */
+  const clockOfItem = (iso: string) => isoToWallClock(iso, zone);
+
+  /** A new start time; a block with its own end keeps its length. */
+  function changeStart(index: number, clock: string) {
+    const item = draft?.items[index];
+    if (!item || !clock) return;
+    const startAt = wallClockToIso(clockOfItem(item.startAt)?.date || eventDay, clock, zone);
+    if (!startAt) return;
+    const patch: Partial<ScheduleItem> = { startAt };
+    if (pinned.has(item.id)) {
+      const length = Date.parse(item.endAt) - Date.parse(item.startAt);
+      patch.endAt = new Date(Date.parse(startAt) + Math.max(length, 15 * 60_000)).toISOString();
+    }
+    updateItem(index, patch);
+  }
+
+  /** Set this block's own end, or (null) let it run to the next one again. */
+  function changeEnd(index: number, clock: string | null) {
+    const item = draft?.items[index];
+    if (!item) return;
+    const next = new Set(pinned);
+    if (clock === null) {
+      next.delete(item.id);
+      setPinned(next);
+      updateItem(index, {}, next);
+      return;
+    }
+    const endAt = wallClockToIso(clockOfItem(item.startAt)?.date || eventDay, clock, zone);
+    if (!endAt || Date.parse(endAt) <= Date.parse(item.startAt)) return;
+    next.add(item.id);
+    setPinned(next);
+    updateItem(index, { endAt }, next);
   }
 
   return (
@@ -979,10 +1095,22 @@ export function AiScheduleGenerator({
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Draft · nothing is sent yet</p>
-            <h2>Generate a run of show</h2>
-            <p>Fill in what you know. Anything you leave blank is guessed and labeled as a guess.</p>
+            {weddingDay ? (
+              <>
+                <h2>Lay out the day</h2>
+                <p>
+                  Built from the couple&rsquo;s answers and your timings, counted from the ceremony. Every line is
+                  yours to change.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>Generate a run of show</h2>
+                <p>Fill in what you know. Anything you leave blank is guessed and labeled as a guess.</p>
+              </>
+            )}
           </div>
-          <Sparkles />
+          {weddingDay ? <CalendarClock /> : <Sparkles />}
         </div>
         <form className="schedule-generator-form" onSubmit={(event) => void generate(event)}>
           <label>
@@ -997,6 +1125,18 @@ export function AiScheduleGenerator({
               {liveProjects(projects).map((project) => <option key={project.id} value={project.id}>{String(project.name)}</option>)}
             </select>
           </label>
+          {/*
+            * What the AI draft is asked to work from. For a wedding, laying out
+            * the day needs none of it — the form answers are already read — so
+            * it folds away under the AI option instead of leading the page.
+            */}
+          <details
+            className={weddingDay ? "form-span schedule-ai-inputs" : "form-span schedule-ai-inputs is-plain"}
+            open={weddingDay ? undefined : true}
+            ref={aiInputsRef}
+          >
+            <summary>Coverage, times and notes for an AI draft</summary>
+            <div className="schedule-ai-inputs-grid">
           <label>
             Coverage starts
             <input
@@ -1084,6 +1224,8 @@ export function AiScheduleGenerator({
           {prefillSummary ? (
             <p className="form-notice form-span">{prefillSummary}</p>
           ) : null}
+            </div>
+          </details>
           {selectedSchedule ? (
             <div className="schedule-replanning-notice form-span">
               <CalendarClock aria-hidden="true" />
@@ -1102,13 +1244,28 @@ export function AiScheduleGenerator({
             </div>
           ) : null}
           <div className="schedule-generate-actions">
-            <button className="button button-dark" disabled={busy} type="submit">
+            {weddingDay ? (
+              <button className="button button-dark" disabled={busy || !projectId} onClick={layOutDay} type="button">
+                <CalendarClock /> {draft ? "Start over from their answers" : "Lay out the day"}
+              </button>
+            ) : null}
+            <button
+              className={weddingDay ? "button button-light" : "button button-dark"}
+              disabled={busy}
+              // Its inputs are folded away on a wedding; open them so the browser can check them.
+              onClick={() => {
+                if (aiInputsRef.current) aiInputsRef.current.open = true;
+              }}
+              type="submit"
+            >
               {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
               {busy
                 ? "Generating…"
-                : selectedSchedule
-                  ? "Prepare updated draft"
-                  : "Generate draft"}
+                : weddingDay
+                  ? "Ask AI to draft it"
+                  : selectedSchedule
+                    ? "Prepare updated draft"
+                    : "Generate draft"}
             </button>
             {/**
               * The path that does not need AI.
@@ -1169,96 +1326,130 @@ export function AiScheduleGenerator({
               </div>
               <AlertTriangle />
             </div>
-            {draft.items.map((item, index) => (
-              <article key={item.id}>
-                <input aria-label="Item title" value={item.title} onChange={(event) => updateItem(index, { title: event.target.value })} />
-                {/* Re-sorted on leaving the field — see resortItems. */}
-                <input aria-label="Start time" type="datetime-local" value={toLocalInput(item.startAt)} onBlur={resortItems} onChange={(event) => { const startAt = fromLocalInput(event.target.value); if (startAt) updateItem(index, { startAt }); }} />
-                <input aria-label="End time" type="datetime-local" value={toLocalInput(item.endAt)} onBlur={resortItems} onChange={(event) => { const endAt = fromLocalInput(event.target.value); if (endAt) updateItem(index, { endAt }); }} />
-                <input aria-label="Location" value={item.location ?? ""} onChange={(event) => updateItem(index, { location: event.target.value || null })} />
-                {/*
-                  * Only when there is something to say.
-                  *
-                  * "No model-reported issue" appeared under every item — nine
-                  * repetitions of a double negative that told the studio
-                  * nothing, on a screen already dense with the model talking
-                  * about itself. The source chips below already carry
-                  * provenance.
-                  */}
-                {item.blockingIssues.length || !item.sourceReferences.length ? (
-                  <small>
-                    {item.blockingIssues.join(" · ") ||
-                      "Yours, not the model's"}
-                  </small>
-                ) : null}
-                {/*
-                  * Who is on it — photographers and videographers alike.
-                  *
-                  * Items carried a crew list nobody could edit, so the
-                  * videographer on a photo + video wedding could not be put on
-                  * the speeches, and their day sheet could not say so.
-                  */}
-                {crewOptions.length ? (
-                  <fieldset className="schedule-item-crew">
-                    <legend>Crew on this</legend>
-                    {crewOptions.map((member) => (
-                      <label key={member.id}>
-                        <input
-                          checked={itemCrewIds(item).includes(member.id)}
-                          onChange={() => toggleCrew(index, member.id)}
-                          type="checkbox"
-                        />
-                        {member.name} · {member.role}
-                      </label>
+            {planNotes.length ? (
+              <ul className="schedule-plan-notes" role="status">
+                {planNotes.map((note) => (
+                  <li key={note}>
+                    <AlertTriangle aria-hidden size={13} /> {note}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {/*
+              * One line per block: time · what · where.
+              *
+              * GR Productions (2026-10-06) found the old rows "too strict" —
+              * a date-and-time picker for the start and another for the end
+              * of every block, on a day that only has one date. The date is
+              * the wedding's; a block runs until the next one starts unless
+              * its end is set; the list sorts itself, so there is nothing to
+              * move.
+              */}
+            {draft.items.map((item, index) => {
+              const start = clockOfItem(item.startAt);
+              const end = clockOfItem(item.endAt);
+              const tbd = titleIsTbd(item.title);
+              const ownEnd = pinned.has(item.id);
+              const crewCount = itemCrewIds(item).length;
+              return (
+                <div className={tbd ? "schedule-line is-tbd" : "schedule-line"} key={item.id}>
+                  {/* Re-sorted on leaving the field — see resortItems. */}
+                  <input
+                    aria-label={`Time for ${item.title || `line ${index + 1}`}`}
+                    className="schedule-line-time"
+                    onBlur={resortItems}
+                    onChange={(event) => changeStart(index, event.target.value)}
+                    type="time"
+                    value={start?.clock ?? ""}
+                  />
+                  <input
+                    aria-label="What"
+                    className="schedule-line-what"
+                    onChange={(event) => updateItem(index, { title: withTbdTitle(event.target.value, tbd) })}
+                    placeholder="What happens"
+                    value={withTbdTitle(item.title, false)}
+                  />
+                  <input
+                    aria-label="Where"
+                    className="schedule-line-where"
+                    onChange={(event) => updateItem(index, { location: event.target.value || null })}
+                    placeholder="Where"
+                    value={item.location ?? ""}
+                  />
+                  <div className="schedule-line-meta">
+                    {ownEnd ? (
+                      <span className="schedule-line-end">
+                        <label>
+                          Ends
+                          <input
+                            aria-label={`End time for ${item.title || `line ${index + 1}`}`}
+                            onChange={(event) => changeEnd(index, event.target.value)}
+                            type="time"
+                            value={end?.clock ?? ""}
+                          />
+                        </label>
+                        <button className="schedule-line-link" onClick={() => changeEnd(index, null)} type="button">
+                          Run to the next
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="schedule-line-link"
+                        onClick={() => end && changeEnd(index, end.clock)}
+                        title="Set this block's own end"
+                        type="button"
+                      >
+                        {end ? `until ${spokenClock(end.clock)}` : "Set an end"}
+                      </button>
+                    )}
+                    <label className="schedule-line-tbd">
+                      <input
+                        checked={tbd}
+                        onChange={(event) => updateItem(index, { title: withTbdTitle(item.title, event.target.checked) })}
+                        type="checkbox"
+                      />
+                      Time TBD
+                    </label>
+                    {item.sourceReferences.slice(0, 1).map((source) => (
+                      <span
+                        className={source.type === "assumption" ? "schedule-line-source is-assumption" : "schedule-line-source"}
+                        key={`${source.type}-${source.sourceId}`}
+                        title={source.label}
+                      >
+                        {sourceWords(source)}
+                      </span>
                     ))}
-                  </fieldset>
-                ) : null}
-                {/*
-                  * Move moves the time: the list is always in time order, so
-                  * a manual order the sort would undo is not on offer.
-                  */}
-                <div className="schedule-item-actions">
-                  <button
-                    aria-label={`Move ${item.title || `item ${index + 1}`} earlier`}
-                    className="button button-quiet schedule-item-move"
-                    disabled={!scheduleItemMoves(draft.items.length, index).up}
-                    onClick={() => moveItem(index, "up")}
-                    type="button"
-                  >
-                    <ArrowUp size={14} /> Move up
-                  </button>
-                  <button
-                    aria-label={`Move ${item.title || `item ${index + 1}`} later`}
-                    className="button button-quiet schedule-item-move"
-                    disabled={!scheduleItemMoves(draft.items.length, index).down}
-                    onClick={() => moveItem(index, "down")}
-                    type="button"
-                  >
-                    <ArrowDown size={14} /> Move down
-                  </button>
-                  <button
-                    aria-label={`Remove item ${index + 1}`}
-                    className="button button-quiet schedule-item-remove"
-                    onClick={() => removeItem(index)}
-                    type="button"
-                  >
-                    <Trash2 size={14} /> Remove
-                  </button>
-                </div>
-                <div className="schedule-item-sources">
-                  {item.sourceReferences.map((source) => (
-                    <span
-                      className={
-                        source.type === "assumption" ? "is-assumption" : ""
-                      }
-                      key={`${source.type}-${source.sourceId}`}
+                    {item.blockingIssues.length ? <small>{item.blockingIssues.join(" · ")}</small> : null}
+                    {crewOptions.length ? (
+                      <details className="schedule-line-crew">
+                        <summary>{crewCount ? `Crew: ${crewCount}` : "Crew"}</summary>
+                        <fieldset className="schedule-item-crew">
+                          <legend>Crew on this</legend>
+                          {crewOptions.map((member) => (
+                            <label key={member.id}>
+                              <input
+                                checked={itemCrewIds(item).includes(member.id)}
+                                onChange={() => toggleCrew(index, member.id)}
+                                type="checkbox"
+                              />
+                              {member.name} · {member.role}
+                            </label>
+                          ))}
+                        </fieldset>
+                      </details>
+                    ) : null}
+                    <button
+                      aria-label={`Remove ${item.title || `line ${index + 1}`}`}
+                      className="schedule-line-link schedule-line-remove"
+                      onClick={() => removeItem(index)}
+                      type="button"
                     >
-                      {source.type.replaceAll("_", " ")} · {source.label}
-                    </span>
-                  ))}
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  </div>
                 </div>
-              </article>
-            ))}
+              );
+            })}
             {/*
               * The moments every wedding has, one tap each, placed from the
               * ceremony, reception and coverage times above. See

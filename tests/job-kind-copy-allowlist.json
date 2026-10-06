@@ -87,7 +87,7 @@
   "components/marketing/marketing-layout.tsx": 5,
   "components/marketing/studio-proof.tsx": 6,
   "components/marketing/three-people.tsx": 6,
-  "components/planning/ai-schedule-generator.tsx": 13,
+  "components/planning/ai-schedule-generator.tsx": 18,
   "components/planning/final-details-panel.tsx": 2,
   "components/planning/final-invoice-reconciliation.tsx": 3,
   "components/planning/inquiry-event-form-setting.tsx": 7,

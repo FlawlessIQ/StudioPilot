@@ -24,6 +24,7 @@ import {
   momentsInstructionFor,
 } from "./schedule-moments.js";
 import { sortScheduleItems } from "../planning/item-order.js";
+import { eventZone, naiveToIso } from "../planning/day-clock.js";
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json =>
@@ -54,18 +55,21 @@ const inputSchema = z.object({
 
 /**
  * The model is instructed to emit ISO 8601 timestamps with offsets. Accept any
- * parseable ISO form (offset, Z, or missing seconds) and normalize to UTC so a
- * formatting choice by the model never fails the whole draft.
+ * parseable ISO form (offset, Z, or missing seconds) so a formatting choice by
+ * the model never fails the whole draft.
+ *
+ * One without an offset ("2027-08-17T17:00") is a wall clock at the venue, and
+ * is left as written here for parseDraft to place in the event's zone. It used
+ * to get a "Z" appended — read as UTC — so GR Productions' 5:00 PM first look
+ * showed at 1:00 PM in New Jersey (2026-10-05; planning/day-clock.ts).
  */
+const NAIVE_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
 const flexibleDatetime = z
   .string()
   .min(1)
   .transform((value, context) => {
-    const candidate =
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value)
-        ? `${value}Z`
-        : value;
-    const parsed = Date.parse(candidate);
+    const naive = NAIVE_DATETIME.test(value.trim());
+    const parsed = Date.parse(naive ? `${value.trim()}Z` : value);
     if (!Number.isFinite(parsed)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -73,7 +77,7 @@ const flexibleDatetime = z
       });
       return z.NEVER;
     }
-    return new Date(parsed).toISOString();
+    return naive ? value.trim() : new Date(parsed).toISOString();
   });
 
 const draftItemSchema = z.object({
@@ -339,6 +343,12 @@ async function generate(
     }
     const result = outputSchema.safeParse(parsed);
     if (result.success) {
+      // Wall clocks without an offset are the venue's (flexibleDatetime).
+      const zone = eventZone(record(record(context).project).timezone);
+      for (const item of result.data.items) {
+        item.startAt = naiveToIso(item.startAt, zone) ?? item.startAt;
+        item.endAt = naiveToIso(item.endAt, zone) ?? item.endAt;
+      }
       /**
        * Every item outside the window is a shifted clock, not a conflict.
        *
