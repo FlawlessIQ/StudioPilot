@@ -8,6 +8,8 @@ const publicRoutes: Array<{
   priority: number;
 }> = [
   { path: "/", changeFrequency: "weekly", priority: 1 },
+  { path: "/office-manager", changeFrequency: "monthly", priority: 0.9 },
+  { path: "/virtual-assistant-for-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/features", changeFrequency: "monthly", priority: 0.9 },
   { path: "/pricing", changeFrequency: "monthly", priority: 0.9 },
   { path: "/integrations", changeFrequency: "monthly", priority: 0.8 },

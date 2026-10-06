@@ -30,9 +30,9 @@ const MAX_BYTES = 300_000;
 
 /** Each card: the film moment (seconds in), and the page's own words. */
 const CARDS: Record<OgImage, { at: number; kicker: string; headline: string }> = {
-  home: { at: 116, kicker: "For wedding photographers", headline: "Every wedding, inquiry to album — already prepared." },
+  home: { at: 116, kicker: "For photography studios", headline: "Meet Cue, your studio's office manager." },
   features: { at: 96, kicker: "Features", headline: "Most of what matters is what it refuses to do." },
-  pricing: { at: 132, kicker: "Pricing · 14-day trial", headline: "Price the operation, not every client." },
+  pricing: { at: 132, kicker: "Pricing · 14-day trial", headline: "An office manager for less than a day of an assistant." },
   integrations: { at: 64, kicker: "Integrations", headline: "Keep trusted systems authoritative." },
   "wedding-photographers": { at: 176, kicker: "For wedding photographers", headline: "Be ready for the day no one can reschedule." },
   corporate: { at: 216, kicker: "Corporate photography", headline: "The questions that sink a corporate shoot, asked before the day." },
@@ -41,6 +41,8 @@ const CARDS: Record<OgImage, { at: number; kicker: string; headline: string }> =
   "for-clients": { at: 184, kicker: "For your clients", headline: "One link, from booking to the gallery." },
   "how-to": { at: 32, kicker: "How to", headline: "How to use StudioCue." },
   "wedding-journey": { at: 328, kicker: "Watch it run", headline: "A wedding, start to finish." },
+  "office-manager": { at: 96, kicker: "Meet Cue", headline: "Your studio's office manager. On every hour." },
+  "virtual-assistant": { at: 64, kicker: "For photographers", headline: "The assistant you were going to hire, without the hiring." },
 };
 
 const MARK = `<svg viewBox="0 0 96 96" width="44" height="44"><rect x="8" y="8" width="80" height="80" rx="22" fill="#F4F1E8"/><circle cx="48" cy="48" r="21" fill="none" stroke="#14201B" stroke-width="5.5"/><circle cx="48" cy="48" r="7" fill="#14201B"/><circle cx="71.5" cy="24.5" r="5.5" fill="#C9973D"/></svg>`;

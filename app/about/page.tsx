@@ -6,7 +6,7 @@ export const metadata = marketingMetadata({
   title: "About StudioCue",
   absoluteTitle: true,
   description:
-    "StudioCue (Studio Cue) is software for photography studios that runs every wedding and event from inquiry to gallery, built with a working wedding studio in New Jersey.",
+    "StudioCue (Studio Cue) gives photography studios Cue, an office manager that runs every wedding and event from inquiry to gallery, built with a working wedding studio in New Jersey.",
   path: "/about",
   og: "home",
 });
@@ -22,13 +22,13 @@ export default function AboutPage() {
     <MarketingLayout
       eyebrow="About"
       title="About StudioCue"
-      description="StudioCue — sometimes written Studio Cue — is software for photography studios. It runs every wedding and event from the first inquiry to the final gallery, and drafts each next step for the studio to approve."
+      description="StudioCue (sometimes written Studio Cue) gives photography studios Cue, an office manager that works every hour. Cue runs every wedding and event from the first inquiry to the final gallery: the routine work on its own, everything that matters prepared for the studio to approve."
     >
       <CapabilityGrid
         items={[
           {
             title: "What it does",
-            text: "A wedding is booked a year out and takes a hundred small steps to get to. StudioCue prepares each one — the reply, the proposal, the agreement, the payments, the run of show, the crew offer, the gallery — and waits for the studio's yes.",
+            text: "A wedding is booked a year out and takes a hundred small steps to get to. Cue does the routine ones on its own and prepares the rest (the reply, the proposal, the run of show, the crew offer) for the studio's yes.",
             points: [
               "Inquiries, proposals and agreements signed online",
               "Invoices and payments through QuickBooks",
@@ -50,7 +50,7 @@ export default function AboutPage() {
             title: "How it was built",
             text: "Alongside a working wedding studio, and shaped by how real weddings run — the story is below. The rule it was built on: StudioCue does the preparing, the studio does the deciding.",
             points: [
-              "Cue, the assistant inside StudioCue, prepares; the studio approves",
+              "Cue, the studio's office manager, prepares; the studio approves",
               "It never records a payment, a signature or a permission on its own",
               "StudioCue never takes a cut of client payments",
             ],

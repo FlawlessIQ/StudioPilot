@@ -103,6 +103,11 @@ verified by commit. GitHub Actions runs the same checks on every push
 ## Open
 
 - Counsel review → v1.1 of the legal set.
+- **Payment chasing (backlog, decided 2026-10-06):** reminders for overdue
+  balances, **tap to send** by default (Conor). The `final_payment_reminder`
+  template exists and nothing queues it. Until it ships, the site may not say
+  Cue chases payments (`tests/marketing-claims.test.ts`). Plan:
+  `docs/positioning-office-manager-plan-2026-10-06.md`.
 - Rotate the secrets ever pasted into chat; MFA on every provider console.
 - A SendGrid subuser so StudioCue gets its own Event Webhook.
 - Firestore point-in-time recovery (off).

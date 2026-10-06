@@ -10,6 +10,7 @@ export function MarketingNav() {
     <header className="marketing-nav">
       <Link href="/" aria-label="StudioCue home"><Logo /></Link>
       <nav aria-label="Main navigation">
+        <Link href="/office-manager">Meet Cue</Link>
         <Link href="/features">Features</Link>
         <Link href="/for-crew">For crew</Link>
         <Link href="/for-clients">For clients</Link>
@@ -37,15 +38,17 @@ export function MarketingFooter() {
     <footer className="marketing-footer">
       <div className="marketing-footer-brand">
         <Logo />
-        <p>Calm operations for remarkable photography teams.</p>
+        <p>Cue, the office manager for photography studios.</p>
       </div>
       <nav aria-label="Footer" className="marketing-footer-links">
+        <Link href="/office-manager">Meet Cue</Link>
         <Link href={JOURNEY_PAGE}>A wedding, start to finish</Link>
         <Link href="/for-crew">For crew</Link>
         <Link href="/for-clients">For clients</Link>
         <Link href="/wedding-photographers">Weddings</Link>
         <Link href="/corporate-photographers">Corporate</Link>
         <Link href="/sports-photographers">Sports</Link>
+        <Link href="/virtual-assistant-for-photographers">A virtual assistant for photographers</Link>
         <Link href="/how-to">How to use StudioCue</Link>
         <Link href="/about">About</Link>
         <Link href="/support">Support</Link>

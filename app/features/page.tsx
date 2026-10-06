@@ -79,7 +79,7 @@ export default function FeaturesPage() {
       />
       <section aria-labelledby="cue-title" className="mk-section mk-cue-section">
         <header className="mk-section-head">
-          <span className="section-kicker">Cue, the assistant</span>
+          <span className="section-kicker">Cue, your office manager</span>
           <h2 id="cue-title">Cue drafts. You decide.</h2>
           <p>
             Cue writes the schedule, reads the insurance certificate, and tells you what looks wrong.

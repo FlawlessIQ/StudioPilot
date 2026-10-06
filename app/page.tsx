@@ -15,26 +15,34 @@ import {
 import { planCards } from "@/config/saas-plans";
 import { JourneyFilmButton } from "@/components/help/journey-film";
 import { HomeFaq } from "@/components/marketing/home-faq";
+import { HireComparison } from "@/components/marketing/hire-comparison";
 import { HomeJourney } from "@/components/marketing/home-journey";
+import { JobDescription } from "@/components/marketing/job-description";
 import { LoopVideo } from "@/components/marketing/loop-video";
 import { MarketingFooter, MarketingNav } from "@/components/marketing/marketing-layout";
 import { BrandSchema } from "@/components/seo/brand-schema";
 import { PaymentTrack } from "@/components/marketing/payment-track";
+import { SaturdayLog } from "@/components/marketing/saturday-log";
 import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
 import { TourLink } from "@/components/help/journey-film";
 import { StudioProof } from "@/components/marketing/studio-proof";
 import { ThreePeople } from "@/components/marketing/three-people";
 import { helpVideo, helpVideoLength } from "@/features/help/videos";
 import { JOURNEY_FILM_ID, JOURNEY_PAGE, journeyStageHref } from "@/features/journey/expected-timeline";
+import { assistantHoursFor } from "@/features/marketing/cue-duties";
 import { marketingMetadata } from "@/features/marketing/metadata";
 import { setupQuestionCount } from "@/features/today/setup-gaps";
 
 /**
- * The homepage, rebuilt around the journey film
- * (docs/marketing-video-onboarding-plan-2026-10-02.md §4): wedding-led, selling
- * the whole wedding — inquiry to album, prepared for you, approved by you —
- * with the couple's and the crew's side shown, and a band for the other kinds
- * of work StudioCue now runs.
+ * The homepage. Since 2026-10-06 it sells Cue as the studio's office manager
+ * (docs/positioning-office-manager-plan-2026-10-06.md): a hire that works
+ * every hour and waits for the photographer on what matters. What Cue does on
+ * its own and what it prepares comes from features/marketing/cue-duties.ts.
+ * Couples and crew never hear of Cue, so the sections about them speak of the
+ * studio. Before that it was rebuilt around the journey film
+ * (docs/marketing-video-onboarding-plan-2026-10-02.md §4), which it still
+ * carries: wedding-led, the couple's and the crew's side shown, and a band
+ * for the other kinds of work StudioCue runs.
  *
  * One moving thing, up front: the hero loop and the film it opens. The six
  * chapter stops are its index — stills that open the film, never players.
@@ -45,10 +53,10 @@ import { setupQuestionCount } from "@/features/today/setup-gaps";
  * held to it by tests/marketing-claims.test.ts.
  */
 export const metadata = marketingMetadata({
-  title: "StudioCue · Every wedding, inquiry to album, already prepared",
-  socialTitle: "Every wedding, inquiry to album — already prepared.",
+  title: "StudioCue · Meet Cue, the office manager for photography studios",
+  socialTitle: "Meet Cue, your studio's office manager.",
   description:
-    "StudioCue drafts every next step of a wedding — the reply, the proposal, the agreement, the timeline, the crew offer — and waits for your yes. Your couple and your crew each get their own app.",
+    "Cue answers new inquiries, sends the paperwork, chases the insurance certificate, lines up your crew and keeps your couples on schedule, at any hour. Anything that matters waits for your yes.",
   path: "/",
   og: "home",
   absoluteTitle: true,
@@ -94,12 +102,12 @@ export default function MarketingHome() {
           <div className="hero-glow" aria-hidden="true" />
           <div className="hero-copy">
             <p className="hero-eyebrow">For wedding photographers</p>
-            {/* A/B later (plan §4 Test): "Run every wedding without the admin eating your week." */}
-            <h1>Every wedding, inquiry to album — already prepared.</h1>
+            {/* A/B later: "You shoot. Cue runs the office." */}
+            <h1>Meet Cue, your studio&rsquo;s office manager.</h1>
             <p>
-              StudioCue drafts every next step — the reply, the proposal, the agreement, the
-              timeline, the crew offer — and waits for your yes. Your couple and your crew each
-              get their own app.
+              Cue answers new inquiries, sends the paperwork, chases the insurance certificate,
+              lines up your crew and keeps your couples on schedule, day and night. Anything that
+              matters waits for your yes.
             </p>
             <div className="hero-actions">
               <Link className="button button-dark" href="/auth/register">
@@ -146,13 +154,33 @@ export default function MarketingHome() {
           </div>
         </section>
 
+        <section className="readiness-story readiness-story--dark mk-story" id="cue">
+          <div className="story-copy">
+            <span className="section-kicker">While you were shooting</span>
+            <h2>Cue ran the office.</h2>
+            <p>
+              You were at a wedding all day. Cue answered the inquiry that came in at breakfast,
+              found a second shooter when yours dropped out, and caught a certificate that would
+              have kept you out of the venue. On Monday, four things are waiting for you, each
+              ready to send.
+            </p>
+            <p className="mk-stat">
+              <strong>Works around the clock. Waits for you on what matters.</strong>
+              <small>Routine notices and reminders go out on their own. Anything Cue writes for you, and anything about money or signatures, waits for your yes.</small>
+            </p>
+          </div>
+          <div className="mk-story-media">
+            <SaturdayLog />
+          </div>
+        </section>
+
         <section className="mk-section" aria-labelledby="journey-title" id="journey">
           <header className="mk-section-head">
             <span className="section-kicker">The whole year, not just the booking</span>
-            <h2 id="journey-title">One wedding, start to finish.</h2>
+            <h2 id="journey-title">Watch Cue run one wedding, start to finish.</h2>
             <p>
-              Inquiry to album is a year or more and a hundred small steps. This is what StudioCue
-              does at each stop. Press one to watch that part of the film.
+              Inquiry to album is a year or more and a hundred small steps. This is what Cue
+              handles at each stop. Press one to watch that part of the film.
             </p>
           </header>
           <HomeJourney />
@@ -169,18 +197,31 @@ export default function MarketingHome() {
 
         <ThreePeople titleId="people-title" />
 
-        <section className="readiness-story readiness-story--dark mk-story" id="cue">
-          <div className="story-copy">
-            <span className="section-kicker">Meet Cue</span>
-            <h2>It prepares. You approve.</h2>
+        <section className="mk-section" aria-labelledby="role-title" id="job-description">
+          <header className="mk-section-head">
+            <span className="section-kicker">The job description</span>
+            <h2 id="role-title">Everything an office manager does, except the coffee runs.</h2>
             <p>
-              Cue is the assistant inside StudioCue. It writes the reply in your voice, turns the
-              couple&rsquo;s answers into a run of show, and tells you plainly what isn&rsquo;t
-              ready and why. Ask it about any job.
+              Cue does the routine work on its own and prepares the rest for one tap. It learns
+              your studio from your own agreement, packages and forms.
+            </p>
+          </header>
+          <JobDescription perArea={2} />
+        </section>
+
+        <section className="readiness-story readiness-story--dark mk-story" id="trust">
+          <div className="story-copy">
+            <span className="section-kicker">Like any new hire</span>
+            <h2>It starts by asking. It earns the keys.</h2>
+            <p>
+              On day one, the messages that sound like you wait for you: the schedule confirmation,
+              the day-before checklist, the balance notice. Approve the same kind three times
+              without changing a word and Cue offers to send it on its own from then on. Money,
+              signatures and anything Cue writes itself always wait.
             </p>
             <p className="mk-stat">
-              <strong>17 emails to Ella and Jordan. StudioCue wrote every one.</strong>
-              <small>The wedding in the film, start to finish.</small>
+              <strong>17 emails to Ella and Jordan. Cue wrote every one.</strong>
+              <small>The wedding in the film, start to finish. Every one went out in the studio&rsquo;s name.</small>
             </p>
           </div>
           <div className="mk-story-media">
@@ -211,10 +252,10 @@ export default function MarketingHome() {
             <div>
               <header className="mk-section-head mk-section-head--left">
                 <span className="section-kicker">Getting paid</span>
-                <h2 id="paid-title">From yes to paid in full, without chasing.</h2>
+                <h2 id="paid-title">From yes to paid in full, on schedule.</h2>
                 <p>
-                  Invoices go out from your own QuickBooks, and payments land there.
-                  StudioCue never takes a cut of client payments.
+                  Cue sends each invoice from your own QuickBooks at the right moment, and
+                  payments land there. StudioCue never takes a cut of client payments.
                 </p>
               </header>
               <PaymentTrack />
@@ -232,11 +273,11 @@ export default function MarketingHome() {
             <div>
               <header className="mk-section-head mk-section-head--left">
                 <span className="section-kicker">Certificates of insurance</span>
-                <h2 id="coi-title">The certificate the venue asks for, handled.</h2>
+                <h2 id="coi-title">Cue gets the certificate the venue asks for.</h2>
                 <p>
-                  Most venues won&rsquo;t let you shoot without a certificate naming them. StudioCue asks your
-                  agent, follows up, checks what comes back against what the venue requires, and sends it on
-                  once you approve.
+                  Most venues won&rsquo;t let you shoot without a certificate naming them. Cue gets the
+                  request to your agent ready, chases until it&rsquo;s back, checks it against what the venue
+                  requires, and sends it on once you approve.
                 </p>
               </header>
               <ul className="mk-coi-points">
@@ -274,7 +315,7 @@ export default function MarketingHome() {
             <span className="section-kicker">The readiness engine</span>
             <h2>&ldquo;Booked&rdquo; isn&rsquo;t ready.</h2>
             <p>
-              StudioCue checks the facts your team defines: signed agreements, reconciled payments,
+              Cue checks the facts you define: signed agreements, reconciled payments,
               approved schedules, accepted crew, confirmed locations, insurance, and every blocking
               checkpoint.
             </p>
@@ -337,6 +378,18 @@ export default function MarketingHome() {
           </div>
         </section>
 
+        <section className="mk-section" aria-labelledby="compare-title" id="compare">
+          <header className="mk-section-head">
+            <span className="section-kicker">Hire, software, or Cue</span>
+            <h2 id="compare-title">Works like an assistant. Costs like software.</h2>
+            <p>
+              A CRM keeps the records and leaves the work to you. An assistant does the work, once
+              you&rsquo;ve trained them, during their hours. Cue does the work from day one, at any hour.
+            </p>
+          </header>
+          <HireComparison />
+        </section>
+
         <StudioProof />
 
         <section className="integration-band" id="integrations">
@@ -356,11 +409,11 @@ export default function MarketingHome() {
 
         <section className="marketing-pricing" id="pricing">
           <header>
-            <span className="section-kicker">Simple, serious software</span>
-            <h2>Price the operation—not every client.</h2>
+            <span className="section-kicker">What Cue costs</span>
+            <h2>Less than a day of an assistant&rsquo;s time.</h2>
             <p>
-              Every plan includes unlimited clients and projects. Annual plans include
-              two months free.
+              {`${planCards[0].monthly} a month buys about ${assistantHoursFor(planCards[0].monthlyCents / 100)} of an administrative assistant at the US median wage. Cue is on every hour of the month.`}
+              {" "}Every plan includes unlimited clients and projects. Annual plans include two months free.
             </p>
           </header>
           <div className="marketing-pricing-grid">
@@ -412,10 +465,10 @@ export default function MarketingHome() {
 
         <section className="closing-cta" aria-label="Get started">
           <div className="closing-inner">
-            <h2>Your next wedding is already being prepared.</h2>
+            <h2>Your office manager can start today.</h2>
             <p>
-              Start free today. Cue drafts the first move before you&rsquo;ve finished
-              your coffee&mdash;you decide whether it sends.
+              Start free. Cue has the first reply drafted before you&rsquo;ve finished your
+              coffee, and you decide whether it sends.
             </p>
             <div className="closing-actions">
               <Link className="button button-dark" href="/auth/register">

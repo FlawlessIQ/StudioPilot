@@ -23,9 +23,23 @@ export const HOME_FAQ: ReadonlyArray<{ question: string; answer: string }> = [
       "Yes. Add them one at a time, or upload a spreadsheet exported from your current tool and check every row before anything is imported. Imported jobs arrive quietly: nothing is emailed, invoiced or charged to your client until you choose to bring them in.",
   },
   {
-    question: "What does the AI do on its own?",
+    question: "Is Cue a person?",
     answer:
-      "It drafts. Replies, proposals, the run of show and follow-ups are prepared for you, and nothing it writes is sent until you approve it. It never records a payment, a signature or a permission, and never marks a job ready. Some routine messages, like reminders, can send on their own; you choose which in Settings.",
+      "No. Cue is software: AI for the writing, and fixed rules for everything that counts. It works at any hour, and it never pretends to be someone it isn't.",
+  },
+  {
+    question: "What does Cue do on its own?",
+    answer:
+      "The routine work: acknowledging inquiries from your website, reminding clients to sign and to finish their forms, sending invoices from your QuickBooks, offering a job to the next photographer when someone passes, chasing your insurance agent, the week-before note, and review and album reminders. Anything the AI writes (replies, proposals, the run of show) waits for you to approve it. It never records a payment, a signature or a permission, and never marks a job ready. A few more routine messages can send on their own once you switch them on.",
+  },
+  {
+    question: "Will my clients know about Cue?",
+    answer:
+      "No. Every email and every page your clients see comes from your studio, in your name and your voice. Your crew deal with you too. Cue works behind the scenes, for you.",
+  },
+  {
+    question: "Does Cue touch my photos?",
+    answer: "Never. Cue runs the office. Editing, culling and the gallery you send are yours.",
   },
   {
     question: "Is my card charged during the trial?",

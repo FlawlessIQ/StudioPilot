@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ArrowRight, CircleCheck } from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/marketing-layout";
+import { HireComparison } from "@/components/marketing/hire-comparison";
 import { planCards } from "@/config/saas-plans";
+import { assistantHoursFor } from "@/features/marketing/cue-duties";
 import { marketingMetadata } from "@/features/marketing/metadata";
 
 export const metadata = marketingMetadata({
@@ -14,7 +16,12 @@ export const metadata = marketingMetadata({
 
 export default function PricingPage() {
   return (
-    <MarketingLayout eyebrow="Simple, serious software" pricingLink={false} title="Price the operation—not every client." description="Unlimited clients and projects on every plan, with clear team, AI, workflow, and brand entitlements.">
+    <MarketingLayout
+      eyebrow="What Cue costs"
+      pricingLink={false}
+      title="An office manager for less than a day of an assistant."
+      description={`${planCards[0].monthly} a month buys about ${assistantHoursFor(planCards[0].monthlyCents / 100)} of an administrative assistant at the US median wage. Cue works every hour of the month. Unlimited clients and projects on every plan.`}
+    >
       <section className="marketing-pricing-grid marketing-pricing-page">
         {planCards.map((plan) => (
           <article className={`marketing-price-card ${plan.highlight ? "is-featured" : ""}`} key={plan.key}>
@@ -34,6 +41,13 @@ export default function PricingPage() {
         ))}
       </section>
       <p className="marketing-pricing-note">Provider subscriptions, assisted migration, and implementation services are separate. StudioCue does not take a percentage of client payments.</p>
+      <section aria-labelledby="pricing-compare-title" className="mk-section">
+        <header className="mk-section-head">
+          <span className="section-kicker">Hire, software, or Cue</span>
+          <h2 id="pricing-compare-title">Works like an assistant. Costs like software.</h2>
+        </header>
+        <HireComparison />
+      </section>
     </MarketingLayout>
   );
 }

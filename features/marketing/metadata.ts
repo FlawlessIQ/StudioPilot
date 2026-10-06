@@ -20,6 +20,8 @@ export const OG_IMAGES = [
   "for-clients",
   "how-to",
   "wedding-journey",
+  "office-manager",
+  "virtual-assistant",
 ] as const;
 export type OgImage = (typeof OG_IMAGES)[number];
 

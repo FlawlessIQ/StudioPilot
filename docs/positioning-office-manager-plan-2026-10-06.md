@@ -190,7 +190,27 @@ Once 1 ships, the "without chasing" line becomes true and the Saturday log can a
 
 Phases 2–4 can ship this week. Phase 5 makes the strongest claims true, so it should land before any paid push.
 
-## Open questions
+## Decisions, round 2 (Conor, 2026-10-06)
+
+1. **Daily digest stays off** for now.
+2. **Payment chasing goes on the backlog, tap to send** (see `docs/production-status.md` → Open). The homepage's "without chasing" is reworded, and a claims test forbids the claim until it ships.
+3. **Only the studio hears about Cue.** Crew and couples deal with the studio, and a test keeps "Cue" off the client and crew pages.
+4. **Gabe's quote:** draft options are below. **Nothing goes on the site until Gabe picks one and approves the exact words** (the claims test allows only his approved quote).
+5. **A real wage, cited:** BLS median for secretaries and administrative assistants (SOC 43-6014), May 2025: **$22.86/hr, $47,540/yr** (`features/marketing/cue-duties.ts` `ASSISTANT_WAGE`). $150 ≈ 6½ hours.
+6. **Go** on phases 1–4.
+
+## Draft quotes for Gabe (to approve or rewrite; not published)
+
+These are drafts written for Gabe to react to. They are **not** his words until he says them. Ask him to pick one, change it however he likes, or say it his own way.
+
+- A. "It's like having an office manager who never goes home. I review it and send it."
+- B. "I used to spend five or six hours of admin on every couple. Now Cue does it, and I just say yes."
+- C. "On a wedding Saturday, Cue answers my inquiries and chases my certificates. Monday I tap send."
+- D. "It feels like I hired someone. Someone who already knew how I run my weddings."
+
+When he approves one, put it in `components/marketing/studio-proof.tsx` and update the allowed-quote assertion in `tests/marketing-claims.test.ts` in the same commit.
+
+## Open questions (round 1, answered above)
 
 1. **Daily digest:** default it on for new studios as Cue's end-of-day note?
 2. **Payment chasing:** prepared (tap to send) by default, or automatic by default with the trust dial?

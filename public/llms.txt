@@ -1,12 +1,14 @@
 # StudioCue
 
-> StudioCue (also written Studio Cue) is software for photography studios that runs every wedding and event from the first inquiry to the final gallery. It drafts each next step — the reply, the proposal, the agreement, the run of show, the crew offer — for the studio to approve, and gives the couple and the crew their own app in the studio's name. Website: https://studio-cue.com
+> StudioCue (also written Studio Cue) gives photography studios Cue, an office manager that works every hour, from the first inquiry to the final gallery. Cue does the routine work on its own (acknowledging inquiries, signing and form reminders, invoices from QuickBooks, offering a job to the next photographer, chasing insurance certificates, the week-before note, review and album reminders) and prepares the rest for the studio to approve: the reply, the proposal, the run of show, the crew offer. Couples and crew get their own app in the studio's name. Website: https://studio-cue.com
 
-StudioCue is for wedding photographers first, and also family and portrait sessions, corporate events and sports. Couples use a portal on any phone (nothing to download); second shooters and assistants get a crew app with offers, call times and day sheets. Cue, the assistant inside StudioCue, prepares work and never records a payment, a signature or a permission on its own. Invoices and payments go through the studio's own QuickBooks; StudioCue never takes a cut of client payments. Agreements are written from the accepted proposal and signed online in StudioCue. Pricing: Studio $150/month, Multi-Brand $299/month; 14-day trial, card required, nothing charged for 14 days.
+StudioCue is for wedding photographers first, and also family and portrait sessions, corporate events and sports. Couples use a portal on any phone (nothing to download); second shooters and assistants get a crew app with offers, call times and day sheets. Cue never records a payment, a signature or a permission on its own, never marks a job ready, and never touches the photos. Couples never deal with Cue: everything they see comes from the studio. Invoices and payments go through the studio's own QuickBooks; StudioCue never takes a cut of client payments. Agreements are written from the accepted proposal and signed online in StudioCue. Pricing: Studio $150/month, Multi-Brand $299/month; 14-day trial, card required, nothing charged for 14 days.
 
 ## Key pages
 
-- [Home](https://studio-cue.com/): what StudioCue does, the six stages of a wedding, pricing and FAQ
+- [Home](https://studio-cue.com/): Cue, the office manager, what it does on its own, the six stages of a wedding, pricing and FAQ
+- [Meet Cue](https://studio-cue.com/office-manager): Cue's full job description, what it does on its own and what waits for the studio
+- [A virtual assistant for photographers](https://studio-cue.com/virtual-assistant-for-photographers): what photographers hire an assistant for, and what Cue does instead
 - [A wedding, start to finish](https://studio-cue.com/how-to/wedding-journey): a 6-minute film and a stage-by-stage guide to one wedding, inquiry to closed
 - [For wedding photographers](https://studio-cue.com/wedding-photographers)
 - [For your clients](https://studio-cue.com/for-clients): the couple's portal

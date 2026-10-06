@@ -1239,3 +1239,424 @@
   flex: none;
   margin-top: 2px;
 }
+
+/* ============================================================
+   Cue, the studio's office manager (2026-10-06,
+   docs/positioning-office-manager-plan-2026-10-06.md):
+   the Saturday log, the job description and the hire comparison.
+   ============================================================ */
+
+/* --- "While you were shooting" (components/marketing/saturday-log.tsx) --- */
+.mk-log {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+.mk-log-card {
+  display: grid;
+  gap: 0;
+  border: 1px solid #2a3a32;
+  border-radius: 20px;
+  background: #f7f3ea;
+  color: #1c2620;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 28%);
+  overflow: hidden;
+}
+.mk-log-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #e3dccb;
+  color: #5c6a61;
+  font-size: 13.5px;
+}
+.mk-log-day {
+  color: #1c2620;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 22px;
+  font-weight: 480;
+}
+.marketing-page .mk-log-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 6px 22px;
+  list-style: none;
+}
+.marketing-page .mk-log-list li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed #e3dccb;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.marketing-page .mk-log-list li::before {
+  content: none;
+}
+/* The log sits inside the dark story band, whose list rules (.readiness-story
+   li: flex, 13px margins, pale text, green icons) would otherwise reach it. */
+.marketing-page .mk-log li {
+  margin: 0;
+  color: #1c2620;
+  font-weight: 450;
+  align-items: start;
+}
+.marketing-page .mk-log li svg {
+  color: #50725c;
+}
+.marketing-page .mk-log-list li:last-child {
+  border-bottom: 0;
+}
+.mk-log-list time {
+  color: #50725c;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  padding-top: 1px;
+}
+.mk-log-waiting {
+  display: grid;
+  gap: 10px;
+  padding: 16px 22px;
+  background: #eef4ef;
+  border-top: 1px solid #cfdcd2;
+}
+.mk-log-waiting h3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.mk-log-waiting h3 svg {
+  color: #b4822c;
+}
+.marketing-page .mk-log-waiting ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.marketing-page .mk-log-waiting li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.marketing-page .mk-log-waiting li::before {
+  content: none;
+}
+.mk-log-waiting li svg {
+  flex: none;
+  margin-top: 2px;
+  color: #50725c;
+}
+.marketing-page .mk-log-total {
+  margin: 0;
+  padding: 12px 22px 16px;
+  color: #1c2620;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 17px;
+  background: #eef4ef;
+}
+.mk-log > figcaption {
+  color: #9fb0a6;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+/* On a light page (/office-manager) the caption sits on cream, not green. */
+.marketing-subpage .mk-log > figcaption {
+  color: var(--muted);
+}
+
+/* --- The job description (components/marketing/job-description.tsx) --- */
+.mk-role {
+  display: grid;
+  gap: 22px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--cream, #f7f3ea);
+}
+.mk-role-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.mk-role-meta div {
+  display: grid;
+  gap: 2px;
+}
+.mk-role-meta dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mk-role-meta dd {
+  margin: 0;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 22px;
+  font-weight: 480;
+  line-height: 1.2;
+}
+.mk-role-duties {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+  gap: 22px 28px;
+}
+.mk-role-duties section {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.mk-role-duties h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 720;
+}
+.marketing-page .mk-role-duties ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.marketing-page .mk-role-duties li {
+  display: grid;
+  gap: 5px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.marketing-page .mk-role-duties li::before {
+  content: none;
+}
+.mk-role-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mk-role-tag,
+.mk-role-needs {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.mk-role-tag--auto {
+  background: #dfece2;
+  color: #2f5a40;
+}
+.mk-role-tag--approve {
+  background: #f3e6c8;
+  color: #7a5518;
+}
+.mk-role-needs {
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 560;
+}
+.mk-role-never {
+  display: grid;
+  gap: 14px;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: #14201b;
+  color: #eef2ee;
+}
+.mk-role-never h3 {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 0;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 22px;
+  font-weight: 480;
+}
+.mk-role-never h3 svg {
+  color: #cdb98a;
+}
+.marketing-page .mk-role-never ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: 14px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.marketing-page .mk-role-never li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+}
+.marketing-page .mk-role-never li::before {
+  content: none;
+}
+.mk-role-never li > svg {
+  flex: none;
+  margin-top: 3px;
+  color: #e2a17a;
+}
+.mk-role-never li > span {
+  display: grid;
+  gap: 1px;
+}
+.mk-role-never strong {
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 650;
+}
+.mk-role-never small {
+  color: #b9c4bc;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.mk-role-more {
+  justify-self: center;
+}
+
+/* --- Hire, CRM, or Cue (components/marketing/hire-comparison.tsx) --- */
+.mk-compare {
+  display: grid;
+  gap: 12px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.mk-compare table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+.mk-compare th,
+.mk-compare td {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.mk-compare tbody tr:last-child th,
+.mk-compare tbody tr:last-child td {
+  border-bottom: 0;
+}
+.mk-compare thead th {
+  background: var(--cream, #f7f3ea);
+  font-size: 13px;
+  font-weight: 720;
+}
+.mk-compare tbody th {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  width: 18%;
+}
+.mk-compare td {
+  color: var(--ink-soft);
+}
+.mk-compare .mk-compare-cue {
+  background: #eef4ef;
+  color: #1c2620;
+  font-weight: 560;
+}
+.mk-compare thead .mk-compare-cue {
+  background: #14201b;
+  color: #fff;
+}
+.mk-compare > figcaption {
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+.mk-compare > figcaption a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .mk-role {
+    padding: 20px 16px;
+  }
+  .mk-role-meta {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .mk-role-meta dd {
+    font-size: 19px;
+  }
+  /* The table becomes one card per row, each cell labelled. */
+  .mk-compare table,
+  .mk-compare tbody,
+  .mk-compare tr,
+  .mk-compare th,
+  .mk-compare td {
+    display: block;
+    width: auto;
+  }
+  .mk-compare thead {
+    display: none;
+  }
+  .mk-compare table {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+  .mk-compare tbody {
+    display: grid;
+    gap: 12px;
+  }
+  .mk-compare tr {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .mk-compare tbody th {
+    width: auto;
+    padding: 10px 14px;
+    background: var(--cream, #f7f3ea);
+    color: #1c2620;
+    font-size: 14px;
+  }
+  .mk-compare td {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 14px;
+  }
+  .mk-compare td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .mk-compare tbody tr:last-child td {
+    border-bottom: 1px solid var(--line);
+  }
+  .mk-compare tbody tr td:last-child {
+    border-bottom: 0;
+  }
+  .marketing-page .mk-log-list li {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+}

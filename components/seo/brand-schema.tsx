@@ -17,7 +17,7 @@ import { SITE_URL } from "@/lib/site";
 export const BRAND_SAME_AS: string[] = [];
 
 export const BRAND_DESCRIPTION =
-  "StudioCue (also written Studio Cue) is software for photography studios that runs every wedding and event from the first inquiry to the final gallery. It drafts each next step — the reply, the proposal, the agreement, the timeline, the crew offer — for the studio to approve, and gives the couple and the crew their own app.";
+  "StudioCue (also written Studio Cue) gives photography studios Cue, an office manager that works every hour. Cue runs every wedding and event from the first inquiry to the final gallery: it acknowledges inquiries, sends invoices from QuickBooks, chases insurance certificates and lines up crew on its own, and prepares the reply, the proposal, the run of show and the crew offer for the studio to approve. Couples and crew get their own app in the studio's name.";
 
 export function brandSchema() {
   const prices = planCards.map((plan) => plan.monthlyCents / 100);
@@ -60,7 +60,7 @@ export function brandSchema() {
         name: "StudioCue",
         alternateName: "Studio Cue",
         applicationCategory: "BusinessApplication",
-        applicationSubCategory: "Photography studio management",
+        applicationSubCategory: "Office manager for photography studios",
         operatingSystem: "Web, iOS, Android (browser)",
         url: `${SITE_URL}/`,
         description: BRAND_DESCRIPTION,

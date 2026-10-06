@@ -46,11 +46,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "StudioCue · Photography Operations OS",
+    default: "StudioCue · The office manager for photography studios",
     template: "%s · StudioCue",
   },
   description:
-    "StudioCue (Studio Cue) runs a photography studio's jobs from inquiry to gallery: proposals, agreements, payments, planning, crew and delivery, prepared for you to approve.",
+    "StudioCue (Studio Cue) gives a photography studio Cue, an office manager that works every hour: inquiries, agreements, invoices, planning, crew and insurance certificates, from inquiry to gallery, with anything that matters waiting for your yes.",
   applicationName: "StudioCue",
   manifest: "/manifest.webmanifest",
   // Installed to the home screen, StudioCue runs standalone (no browser chrome).
@@ -60,24 +60,24 @@ export const metadata: Metadata = {
     title: "StudioCue",
   },
   openGraph: {
-    title: "StudioCue · From inquiry to gallery.",
+    title: "StudioCue · Meet Cue, your studio's office manager.",
     description:
-      "One calm workflow for clients, booking, planning, crew, and delivery—with AI where the repetitive work happens.",
+      "Cue answers inquiries, sends the paperwork, chases the certificate and lines up your crew, at any hour. Anything that matters waits for your yes.",
     type: "website",
     images: [
       {
         url: "/og.png",
         width: 1755,
         height: 896,
-        alt: "StudioCue — From inquiry to gallery. One calm workflow.",
+        alt: "StudioCue — Meet Cue, your studio's office manager.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "StudioCue · From inquiry to gallery.",
+    title: "StudioCue · Meet Cue, your studio's office manager.",
     description:
-      "One calm workflow for clients, booking, planning, crew, and delivery—with AI where the repetitive work happens.",
+      "Cue answers inquiries, sends the paperwork, chases the certificate and lines up your crew, at any hour. Anything that matters waits for your yes.",
     images: ["/og.png"],
   },
   icons: {

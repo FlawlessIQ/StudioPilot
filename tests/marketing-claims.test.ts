@@ -31,6 +31,8 @@ const MARKETING = [
   "app/sports-photographers/page.tsx",
   "app/for-clients/page.tsx",
   "app/for-crew/page.tsx",
+  "app/office-manager/page.tsx",
+  "app/virtual-assistant-for-photographers/page.tsx",
   "components/marketing/marketing-layout.tsx",
   "components/marketing/studio-proof.tsx",
 ];
@@ -114,6 +116,9 @@ const HOME_PARTS = [
   "components/marketing/payment-track.tsx",
   "components/marketing/cue-does-cue-never.tsx",
   "components/marketing/trial-teaser.tsx",
+  "components/marketing/saturday-log.tsx",
+  "components/marketing/job-description.tsx",
+  "components/marketing/hire-comparison.tsx",
 ];
 
 test("the new marketing pieces offer no Stripe payments, SMS, or popularity", () => {
@@ -153,7 +158,7 @@ test("FAQ: imports exist for booked weddings and for the studio's own documents,
 
 test("FAQ: the AI only drafts, and the write boundary that makes it so is in the suite", async () => {
   const { HOME_FAQ } = await import("@/components/marketing/home-faq");
-  const answer = HOME_FAQ.find((item) => /AI/.test(item.question))?.answer ?? "";
+  const answer = HOME_FAQ.find((item) => /on its own/.test(item.question))?.answer ?? "";
   assert.match(answer, /never records a payment, a signature or a permission/);
   assert.ok(existsSync("tests/ai-write-boundary.test.ts"));
   assert.match(read("package.json"), /tests\/ai-write-boundary\.test\.ts/, "the AI boundary test must run in npm test");
@@ -273,4 +278,53 @@ test("every marketing page has its own 1200×630 social card under 300 KB", asyn
     .filter((path, index, all) => path.startsWith("app/") && all.indexOf(path) === index)
     .map((path) => /og: "([a-z-]+)"/.exec(read(path))?.[1]);
   assert.deepEqual([...used].sort(), [...OG_IMAGES].sort(), "each page names its own card, and each card is used once");
+});
+
+// ── Cue, the studio's office manager (docs/positioning-office-manager-plan-2026-10-06.md) ──
+
+test("every duty the site gives Cue is done by a function that is still deployed", async () => {
+  const { CUE_DUTIES } = await import("@/features/marketing/cue-duties");
+  const index = read("functions/src/index.ts");
+  for (const duty of CUE_DUTIES)
+    assert.match(index, new RegExp(`\\b${duty.runs}\\b`), `${duty.id} says ${duty.runs} does it, but functions/src/index.ts doesn't export it`);
+});
+
+test("the Saturday log shows only what Cue does on its own, and Monday only what waits for a tap", async () => {
+  const { MONDAY_WAITING, SATURDAY_LOG, cueDuty } = await import("@/features/marketing/cue-duties");
+  for (const entry of SATURDAY_LOG)
+    assert.equal(cueDuty(entry.duty).mode, "on_its_own", `"${entry.text}" is in the Saturday log but Cue doesn't do ${entry.duty} on its own`);
+  for (const item of MONDAY_WAITING)
+    assert.equal(cueDuty(item.duty).mode, "you_approve", `"${item.text}" waits for Monday but ${item.duty} isn't prepared for a tap`);
+  assert.match(copy("components/marketing/saturday-log.tsx"), /An example Saturday/, "the log says its times are an example");
+});
+
+test("nothing says Cue chases late payments, because nothing sends a payment reminder yet", () => {
+  // The final_payment_reminder template exists but no scheduler queues it
+  // (payment chasing is on the backlog, tap to send). When it ships, change
+  // this to check the scheduler instead.
+  for (const path of [...MARKETING, ...HOME_PARTS, "features/marketing/cue-duties.ts", "public/llms.txt"])
+    assert.doesNotMatch(copy(path), /without chasing|chas(?:es|ing) (?:late |overdue )?(?:payments?|balances?|invoices?)/i, path);
+});
+
+test("couples and crew never hear of Cue: the pages about them speak of the studio", () => {
+  for (const path of ["app/for-clients/page.tsx", "app/for-crew/page.tsx"])
+    assert.doesNotMatch(copy(path).replace(/StudioCue/g, ""), /\bCue\b/, `${path} names Cue`);
+  const faq = copy("components/marketing/home-faq.tsx");
+  assert.match(faq, /Will my clients know about Cue\?/);
+});
+
+test("the hire comparison cites its wage, and the hours it quotes are that wage", async () => {
+  const { ASSISTANT_WAGE, assistantHoursFor } = await import("@/features/marketing/cue-duties");
+  assert.match(ASSISTANT_WAGE.source, /Bureau of Labor Statistics, May \d{4}/);
+  assert.ok(ASSISTANT_WAGE.url.startsWith("https://"));
+  assert.ok(Math.abs(ASSISTANT_WAGE.annual / 2080 - ASSISTANT_WAGE.hourly) < 0.05, "annual and hourly come from the same release");
+  assert.equal(assistantHoursFor(150), "six and a half hours");
+  assert.match(copy("components/marketing/hire-comparison.tsx"), /ASSISTANT_WAGE\.source/);
+});
+
+test("Cue never: the job description keeps the same boundary as the features page", async () => {
+  const { CUE_NEVER } = await import("@/features/marketing/cue-duties");
+  const titles = CUE_NEVER.map((item) => item.title);
+  for (const never of ["Signs anything", "Records a payment", "Changes who can see what", "Marks a job ready", "Touches your photos"])
+    assert.ok(titles.includes(never), never);
 });

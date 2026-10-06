@@ -11,7 +11,7 @@ import { marketingMetadata } from "@/features/marketing/metadata";
 export const metadata = marketingMetadata({
   title: "For Wedding Photographers",
   description:
-    "StudioCue runs the whole wedding — inquiry to delivered gallery — and Cue drafts each next step for you to approve.",
+    "Cue, your studio's office manager, runs the whole wedding, inquiry to delivered gallery: the routine work on its own, each next step prepared for you to approve.",
   path: "/wedding-photographers",
   og: "wedding-photographers",
 });
@@ -27,7 +27,7 @@ export default function WeddingPhotographersPage() {
     <MarketingLayout
       eyebrow="For wedding photographers"
       title="Be ready for the day no one can reschedule."
-      description="From the first inquiry to the delivered gallery, StudioCue runs the whole wedding, and Cue drafts each next step for you to approve. You keep every decision — you just stop being the bottleneck between the couple, the crew, and the day."
+      description="From the first inquiry to the delivered gallery, Cue, your studio's office manager, runs the whole wedding. It does the routine work on its own and prepares each next step for you to approve. You keep every decision. You just stop being the bottleneck between the couple, the crew and the day."
     >
       {/* The film, high on the page: the most relevant place for it. It
           renders nothing where the film isn't published. */}
