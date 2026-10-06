@@ -16,8 +16,7 @@
  * code-verified audit behind this list is in the plan above; when a duty
  * changes class, change it here and the pages follow.
  *
- * Deliberately absent (not built, so never implied): chasing late payments,
- * proposal follow-ups, answering a couple without a tap, the studio's own
+ * Deliberately absent (not built, so never implied): proposal follow-ups, answering a couple without a tap, the studio's own
  * inbox, rescheduling, pricing, paying crew, closing a job, and anything
  * done to the photos.
  */
@@ -123,6 +122,13 @@ export const CUE_DUTIES = [
     mode: "on_its_own",
     text: "Raises the final balance invoice 28 days before the day",
     needs: "QuickBooks",
+    runs: "finalInvoiceScheduler",
+  },
+  {
+    id: "payment_reminder",
+    area: "money",
+    mode: "you_approve",
+    text: "Drafts a reminder when a payment is late, and checks it's still owed before it goes",
     runs: "finalInvoiceScheduler",
   },
   // Crew
@@ -270,6 +276,7 @@ export const MONDAY_WAITING: ReadonlyArray<{ text: string; duty: CueDutyId }> = 
   { text: "The Willow Creek certificate: send it, or ask your agent to fix it", duty: "coi_send" },
   { text: "The Lees' schedule confirmation", duty: "schedule_confirmation" },
   { text: "Crew offers for the Nguyen wedding, booked Saturday night", duty: "crew_offers" },
+  { text: "A reminder to the Parks: their balance is a week late", duty: "payment_reminder" },
 ];
 
 /** What Cue never does, whatever it is asked (CLAUDE.md's AI boundary, in plain words). */

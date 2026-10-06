@@ -298,12 +298,22 @@ test("the Saturday log shows only what Cue does on its own, and Monday only what
   assert.match(copy("components/marketing/saturday-log.tsx"), /An example Saturday/, "the log says its times are an example");
 });
 
-test("nothing says Cue chases late payments, because nothing sends a payment reminder yet", () => {
-  // The final_payment_reminder template exists but no scheduler queues it
-  // (payment chasing is on the backlog, tap to send). When it ships, change
-  // this to check the scheduler instead.
+test("late payments: claimed as reminders Cue drafts and the studio sends, never as sent on their own", async () => {
+  // Payment chasing shipped 2026-10-06 as tap to send
+  // (functions/src/billing/payment-reminders.ts). The site may say Cue
+  // handles the chasing; it may not say reminders go out by themselves.
+  const { cueDuty } = await import("@/features/marketing/cue-duties");
+  const duty = cueDuty("payment_reminder");
+  assert.equal(duty.mode, "you_approve");
+  assert.match(read("functions/src/operations/invoice-scheduler.ts"), /draftPaymentReminders\(/);
+  assert.match(read("functions/src/billing/payment-reminders.ts"), /status: "review_required",/);
+  assert.match(copy("app/page.tsx"), /drafts the reminder and you send it with one tap/);
   for (const path of [...MARKETING, ...HOME_PARTS, "features/marketing/cue-duties.ts", "public/llms.txt"])
-    assert.doesNotMatch(copy(path), /without chasing|chas(?:es|ing) (?:late |overdue )?(?:payments?|balances?|invoices?)/i, path);
+    assert.doesNotMatch(
+      copy(path),
+      /(?:automatic(?:ally)?|on its own|by (?:it|them)sel(?:f|ves))[^.]{0,40}(?:payment|balance) reminders?|(?:payment|balance) reminders?[^.]{0,40}(?:automatic(?:ally)?|on (?:its|their) own|by themselves)/i,
+      `${path} says payment reminders send themselves; they wait for the studio's tap`,
+    );
 });
 
 test("couples and crew never hear of Cue: the pages about them speak of the studio", () => {

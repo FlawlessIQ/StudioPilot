@@ -18,6 +18,7 @@ import {
 } from "../post-event/client-outreach.js";
 import { studioHubCors } from "../security/cors.js";
 import { consultationPrepStale } from "../booking/consultation-prep.js";
+import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
 
 const commandSchema = z.object({
   tenantId: z.string().min(1),
@@ -263,6 +264,24 @@ export const aiActionCommand = onRequest(
           );
           if (stale) throw new Error(stale);
         }
+        // A payment reminder for a bill paid, voided or replaced since it
+        // was drafted must not ask the client for money
+        // (billing/payment-reminders.ts).
+        // From the stored draft, never the edit: the browser may change the
+        // words, not which invoice is chased or where the button goes.
+        const paymentReminder = record(record(action.get("structuredOutput")).paymentReminder);
+        const paymentReminderInvoiceId = text(paymentReminder.invoiceId);
+        if (communicationApproval && paymentReminderInvoiceId) {
+          const invoice = await db.doc(`invoiceReferences/${paymentReminderInvoiceId}`).get();
+          if (
+            !invoice.exists ||
+            invoice.get("tenantId") !== parsed.tenantId ||
+            invoiceClosedToProviderWork(invoice.get("status")) ||
+            !(Number(invoice.get("balanceCents")) > 0)
+          )
+            throw new Error("PAYMENT_REMINDER_SETTLED");
+        }
+        const paymentReminderUrl = text(paymentReminder.actionUrl);
         const communicationDraftId = communicationApproval
           ? `ai_reply_${actionId}`
           : null;
@@ -288,6 +307,11 @@ export const aiActionCommand = onRequest(
               requestedBy: identity.uid,
               holdForUndo,
               undoCount,
+              action:
+                paymentReminderInvoiceId && /^https:\/\//.test(paymentReminderUrl)
+                  ? { label: text(paymentReminder.actionLabel) || "Pay securely", url: paymentReminderUrl }
+                  : null,
+              paymentReminderInvoiceId: paymentReminderInvoiceId || null,
             })
           : null;
         const emailJobId = communicationDispatch?.emailJob?.id ?? null;

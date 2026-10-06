@@ -1448,6 +1448,25 @@ export function todayInbox(input: TodayInput): TodayInbox {
   );
   const coiCardProjectIds = new Set(coiCards.map((request) => text(request.projectId)));
 
+  /**
+   * Payment reminders, by invoice (functions/src/billing/payment-reminders.ts).
+   * One Cue drafted and is waiting rides on that bill's overdue card as
+   * "Send reminder", rather than as a second card for the same money; ones
+   * already sent say when on it.
+   */
+  const reminderDrafts = new Map<string, TodayRecord>();
+  const remindersSent = new Map<string, string[]>();
+  for (const action of rows(input.aiActions)) {
+    const invoiceId = text(asRecord(asRecord(action.structuredOutput).paymentReminder).invoiceId);
+    if (!invoiceId) continue;
+    if (text(action.status) === "review_required") {
+      const snoozed = text(action.snoozedUntil);
+      if (!(snoozed && snoozed > input.now)) reminderDrafts.set(invoiceId, action);
+    } else if (text(asRecord(action.decision).action) === "approved") {
+      remindersSent.set(invoiceId, [...(remindersSent.get(invoiceId) ?? []), text(asRecord(action.decision).decidedAt)]);
+    }
+  }
+
   // Projects whose overdue balance already has its own card, so the journey's
   // balance step is not repeated below.
   const overdueInvoiceProjectIds = new Set<string>();
@@ -1506,6 +1525,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       ["voided", "void", "refunded", "paid", "superseded", "failed", "cancelled"].includes(text(invoice.status))
     )
       continue;
+    const reminder = reminderDrafts.get(invoice.id);
+    const sent = (remindersSent.get(invoice.id) ?? []).filter(Boolean).sort();
+    const lastSent = sent[sent.length - 1];
     exception({
       id: `invoice-${invoice.id}`,
       kind: "invoice",
@@ -1515,9 +1537,26 @@ export function todayInbox(input: TodayInput): TodayInbox {
       title: `${currency(balance)} overdue`,
       detail: nameFor(invoice.projectId) ?? "Client balance",
       dueDate: due,
-      // No resend command exists for an invoice that did go out: the
-      // provider's own reminder is the way, so the card says where.
-      extraFacts: [`due ${formatDueDate(due)}`, `resend it from ${provider}`],
+      // A reminder Cue drafted is sent from here. Without one (not yet
+      // drafted, or the studio declined the last), the provider's own
+      // reminder is the way, so the card says where.
+      extraFacts: [
+        `due ${formatDueDate(due)}`,
+        reminder
+          ? "Cue drafted a reminder"
+          : lastSent
+            ? `${sent.length === 1 ? "reminded" : `reminded ${sent.length} times, last`} ${formatDueDate(lastSent.slice(0, 10))}`
+            : `resend it from ${provider}`,
+      ],
+      action: reminder
+        ? {
+            kind: "approve",
+            label: "Send reminder",
+            actionId: reminder.id,
+            href: chaseHref,
+            preview: previewOf(reminder.structuredOutput),
+          }
+        : undefined,
       href: chaseHref,
       projectId: text(invoice.projectId) || null,
       projectName: nameFor(invoice.projectId),
@@ -1985,6 +2024,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (text(action.status) !== "review_required") continue;
     // Already on its inquiry's card, above.
     if (mergedReplies.has(action.id)) continue;
+    // A payment reminder is sent from its bill's overdue card. With no such
+    // card the bill is paid, voided or no longer late: nothing to send.
+    if (text(asRecord(asRecord(action.structuredOutput).paymentReminder).invoiceId)) continue;
     // A follow-up only belongs on its couple's card, while they're still
     // quiet; anywhere else it is a nudge to someone who may have answered.
     if (text(action.capability) === "inquiry_follow_up") continue;

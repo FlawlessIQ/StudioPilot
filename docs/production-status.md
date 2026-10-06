@@ -103,11 +103,15 @@ verified by commit. GitHub Actions runs the same checks on every push
 ## Open
 
 - Counsel review → v1.1 of the legal set.
-- **Payment chasing (backlog, decided 2026-10-06):** reminders for overdue
-  balances, **tap to send** by default (Conor). The `final_payment_reminder`
-  template exists and nothing queues it. Until it ships, the site may not say
-  Cue chases payments (`tests/marketing-claims.test.ts`). Plan:
-  `docs/positioning-office-manager-plan-2026-10-06.md`.
+- **Payment chasing — built 2026-10-06, tap to send (Conor).** The daily
+  invoice run drafts a reminder for each bill a day past due
+  (`functions/src/billing/payment-reminders.ts`): up to three, a week apart,
+  one waiting at a time, and a declined one ends the chase. It is sent from
+  the bill's "$X overdue" card on Today ("Send reminder"). The invoice is
+  read again at approval and as the email goes, so a bill paid in between is
+  never chased. Never auto-sent: it is not a lifecycle trigger, so the trust
+  dial can't reach it. Open: walk one on prod (an overdue test invoice →
+  draft → send → email received with the pay link).
 - Rotate the secrets ever pasted into chat; MFA on every provider console.
 - A SendGrid subuser so StudioCue gets its own Event Webhook.
 - Firestore point-in-time recovery (off).

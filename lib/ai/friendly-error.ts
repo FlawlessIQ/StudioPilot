@@ -184,6 +184,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   FINAL_DETAILS_CHANGED: "Something was updated since this opened. Here it is again — please check it once more.",
   FINAL_DETAILS_NOT_FOUND: "There are no final details to confirm yet.",
   FINAL_DETAILS_NAME_REQUIRED: "Type your full name to confirm.",
+  // A payment reminder approved after the bill was paid, voided or replaced
+  // (functions/src/ai/actions.ts).
+  PAYMENT_REMINDER_SETTLED:
+    "That bill has been paid, voided or replaced since Cue drafted this, so the reminder isn't sent.",
   CONSULTATION_PREP_STALE:
     "That call has moved or already happened, so this note isn't sent. A new one is prepared for the new time.",
   BILLING_ADDRESS_INVALID: "Check the street, city, state and ZIP code, then save it again.",

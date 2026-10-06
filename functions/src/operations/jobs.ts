@@ -845,6 +845,21 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       .get();
     if (invoice.exists && invoiceClosedToProviderWork(invoice.get("status")))
       return { held: "invoice_closed", type };  }
+  // A payment reminder the studio approved: the bill is read again as it
+  // goes. Paid, voided or replaced in the undo window, or nothing left on it,
+  // and the client is not asked for money (billing/payment-reminders.ts).
+  if (document.get("paymentReminderInvoiceId")) {
+    const invoice = await getFirestore()
+      .doc(`invoiceReferences/${String(document.get("paymentReminderInvoiceId"))}`)
+      .get();
+    if (
+      !invoice.exists ||
+      invoice.get("tenantId") !== document.get("tenantId") ||
+      invoiceClosedToProviderWork(invoice.get("status")) ||
+      !(Number(invoice.get("balanceCents")) > 0)
+    )
+      return { held: "invoice_settled", type };
+  }
   // A contract email is about one contract. Asking a couple to sign an
   // agreement they signed an hour ago, or one the studio withdrew, is worse
   // than silence — so the contract is read again as the email goes.

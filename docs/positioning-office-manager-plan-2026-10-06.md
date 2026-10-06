@@ -5,6 +5,9 @@
 changed pages. Still open: phase 5 (payment chasing on the backlog, tap to
 send; proposal follow-up; forwarded-inquiry acknowledgement), phase 6 (morning
 handoff), phase 7 (outbound), and Gabe's quote (drafts below, not published).
+**Phase 5 started 2026-10-06 with payment chasing** (tap to send; see
+`docs/production-status.md` → Open). Proposal follow-up and forwarded-inquiry
+acknowledgement are next.
 Google: ask Search Console to index `/office-manager` and
 `/virtual-assistant-for-photographers` (IndexNow doesn't reach Google).
 

@@ -20,6 +20,13 @@ type ApprovedCommunicationInput = {
   holdForUndo?: boolean;
   /** How many times an earlier approval of this draft was undone; picks a fresh job id. */
   undoCount?: number;
+  /** The email's one button, when the draft carries one (a payment reminder's pay link). */
+  action?: { label: string; url: string } | null;
+  /**
+   * A payment reminder's invoice, read again as the email goes
+   * (operations/jobs.ts): a bill paid in the meantime is not chased.
+   */
+  paymentReminderInvoiceId?: string | null;
 };
 
 /**
@@ -88,8 +95,11 @@ export function approvedCommunicationDispatch(
           type: "manual_message",
           customSubject: input.subject,
           customBody: input.body,
-          actionLabel: null,
-          actionUrl: null,
+          actionLabel: input.action?.label ?? null,
+          actionUrl: input.action?.url ?? null,
+          ...(input.paymentReminderInvoiceId
+            ? { paymentReminderInvoiceId: input.paymentReminderInvoiceId }
+            : {}),
           category: input.category,
           communicationDraftId: `ai_reply_${input.actionId}`,
           aiActionId: input.actionId,

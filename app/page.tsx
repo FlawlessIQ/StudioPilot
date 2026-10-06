@@ -161,7 +161,7 @@ export default function MarketingHome() {
             <p>
               You were at a wedding all day. Cue answered the inquiry that came in at breakfast,
               found a second shooter when yours dropped out, and caught a certificate that would
-              have kept you out of the venue. On Monday, four things are waiting for you, each
+              have kept you out of the venue. On Monday, five things are waiting for you, each
               ready to send.
             </p>
             <p className="mk-stat">
@@ -252,10 +252,11 @@ export default function MarketingHome() {
             <div>
               <header className="mk-section-head mk-section-head--left">
                 <span className="section-kicker">Getting paid</span>
-                <h2 id="paid-title">From yes to paid in full, on schedule.</h2>
+                <h2 id="paid-title">From yes to paid in full, without the chasing.</h2>
                 <p>
-                  Cue sends each invoice from your own QuickBooks at the right moment, and
-                  payments land there. StudioCue never takes a cut of client payments.
+                  Cue sends each invoice from your own QuickBooks at the right moment. When a
+                  payment runs late, it drafts the reminder and you send it with one tap.
+                  Payments land in QuickBooks, and StudioCue never takes a cut of client payments.
                 </p>
               </header>
               <PaymentTrack />

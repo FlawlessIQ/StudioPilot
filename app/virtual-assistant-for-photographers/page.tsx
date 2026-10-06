@@ -15,9 +15,9 @@ export const metadata = marketingMetadata({
  * (docs/positioning-office-manager-plan-2026-10-06.md). It maps the jobs
  * photographers hand to an assistant onto what Cue really does, and says
  * plainly what an assistant does that Cue doesn't. Every claim here is one of
- * the duties in features/marketing/cue-duties.ts; nothing about chasing late
- * payments, the phone, or the studio's own inbox, because Cue does none of
- * those.
+ * the duties in features/marketing/cue-duties.ts; nothing about the phone
+ * or the studio's own inbox, because Cue does neither. Late payments are
+ * drafted reminders the studio sends, never sent on Cue's own.
  */
 export default function VirtualAssistantPage() {
   return (
@@ -38,12 +38,12 @@ export default function VirtualAssistantPage() {
             ],
           },
           {
-            title: "Contracts and invoices",
-            text: "Cue writes the agreement from the proposal your client accepted, reminds them to sign, and sends the retainer invoice from your own QuickBooks once they have. The final balance invoice is raised 28 days before the day.",
+            title: "Contracts, invoices and late payments",
+            text: "Cue writes the agreement from the proposal your client accepted, reminds them to sign, and sends the retainer invoice from your own QuickBooks once they have. The final balance invoice is raised 28 days before the day. When a payment runs late, Cue drafts a polite reminder for you to send.",
             points: [
               "Agreements signed online",
-              "Signing reminders on day 3 and day 7",
               "Invoices from your QuickBooks, on time",
+              "Late-payment reminders, ready to send",
             ],
           },
           {

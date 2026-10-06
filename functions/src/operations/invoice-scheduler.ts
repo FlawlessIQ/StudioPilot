@@ -1,6 +1,7 @@
 import { getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { raiseFinalInvoice } from "../booking/final-invoice.js";
+import { draftPaymentReminders } from "../billing/payment-reminders.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { hasFinalBalance, projectProfile } from "../job-kinds/job-kinds.js";
 
@@ -159,5 +160,12 @@ export const finalInvoiceScheduler = onSchedule(
       marked += 1;
     }
     if (marked) await batch.commit();
+
+    // Cue drafts a reminder for each bill past due; the studio sends it from
+    // Today with one tap (billing/payment-reminders.ts). The same invoices,
+    // with each job already read and checked against the invoice's tenant.
+    const owned = new Map<string, Record<string, unknown>>();
+    for (const [id, project] of projects) owned.set(id, (project ?? {}) as Record<string, unknown>);
+    await draftPaymentReminders(db, overdue.docs, owned, new Date());
   },
 );
