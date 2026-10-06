@@ -621,6 +621,114 @@
   }
 }
 
+/* ── Cue's morning handoff ────────────────────────────────────────── */
+
+/* One line under the briefing, collapsed by default. On a phone it stays a
+   single row (the sentence ellipsizes) until it is opened: a queue is never
+   expanded cards on mobile. */
+.today-handoff {
+  border: 1px solid color-mix(in srgb, var(--accent-deep, #0b6e4f) 22%, var(--line, #dfe4df));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-deep, #0b6e4f) 4%, transparent);
+  overflow: hidden;
+}
+
+.today-handoff-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ink, #17201b);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today-handoff-line,
+.today-handoff-line-short {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-handoff-line-short {
+  display: none;
+}
+
+.today-handoff-chevron {
+  flex: none;
+  color: var(--accent-deep, #0b6e4f);
+  transition: transform 160ms ease;
+}
+
+.today-handoff.is-open .today-handoff-chevron {
+  transform: rotate(180deg);
+}
+
+.today-handoff-list {
+  display: grid;
+  margin: 0;
+  padding: 0 16px 8px;
+  list-style: none;
+}
+
+.today-handoff-list li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid var(--line, #e6eae4);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.today-handoff-list a,
+.today-handoff-list span {
+  min-width: 0;
+  color: var(--ink, #17201b);
+  text-decoration: none;
+}
+
+.today-handoff-list a:hover {
+  text-decoration: underline;
+}
+
+.today-handoff-list time {
+  flex: none;
+  color: var(--muted, #6b7570);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .today-handoff-line {
+    display: none;
+  }
+
+  .today-handoff-line-short {
+    display: block;
+  }
+
+  .today-handoff-toggle {
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .today-handoff-list {
+    padding: 0 12px 6px;
+  }
+}
+
 /* ── Handled-for-you ──────────────────────────────────────────────── */
 
 .today-handled {

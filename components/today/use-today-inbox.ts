@@ -34,6 +34,8 @@ import {
   type TodayRecord,
 } from "@/features/today/inbox";
 import { studioHasBookedAJob } from "@/features/journey/expected-timeline";
+import { cueHandoff, type HandoffItem } from "@/features/today/handoff";
+import { useRecentEmailJobs } from "@/components/today/use-recent-email-jobs";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -94,6 +96,12 @@ export function useTodayInbox(): {
   booked: number;
   handled: number;
   /**
+   * What Cue sent in the last day with nobody pressing anything (the morning
+   * handoff). Empty for anyone but owners and admins, who alone may read
+   * the studio's email jobs.
+   */
+  handoff: HandoffItem[];
+  /**
    * Where every active job stands. Exposed so the Jobs table can name the
    * same next step Today names, instead of keeping its own opinion.
    */
@@ -143,6 +151,7 @@ export function useTodayInbox(): {
     enabled: ownerOperations,
   });
   const emailJobs = useTenantDocuments("emailJobs");
+  const recentEmailJobs = useRecentEmailJobs(ownerOperations, emailJobs.records);
   const integrationConnections = useTenantDocuments("integrationConnections", {
     enabled: ownerOperations,
   });
@@ -426,6 +435,19 @@ export function useTodayInbox(): {
       },
       now,
     ),
+    handoff: cueHandoff({
+      now,
+      emailJobs: recentEmailJobs,
+      projects: projects.records,
+      leads: leads.records,
+      invoiceReferences: invoiceReferences.records,
+      insuranceRequests: insuranceRequests.records,
+      questionnaireResponses: questionnaires.records,
+      consultations: consultations.records,
+      bookingOrchestrations: bookingOrchestrations.records,
+      crewAssignments: crewAssignments.records,
+      aiActions: aiActions.records,
+    }),
     loading: projects.records === null || leads.records === null,
   };
 }

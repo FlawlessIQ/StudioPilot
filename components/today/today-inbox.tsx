@@ -32,6 +32,7 @@ import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
 import { useTodayInbox } from "@/components/today/use-today-inbox";
+import { CueHandoff } from "@/components/today/cue-handoff";
 import { LeadCaptureStart } from "@/components/intake/lead-capture-setup";
 import { JourneyTodayCard } from "@/components/help/journey-today-card";
 import { SETUP_STEP_NAME } from "@/features/today/setup-gaps";
@@ -122,7 +123,7 @@ const BAND_LABEL: Record<TodayBand, string> = {
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
-  const { inbox, metrics, booked, handled, journeys, loading, setup, aiActions, automationApprovals } =
+  const { inbox, metrics, booked, handled, handoff, journeys, loading, setup, aiActions, automationApprovals } =
     useTodayInbox();
   // A workflow step waiting for approval, decided here rather than on a
   // separate review page.
@@ -276,7 +277,9 @@ export function TodayInbox() {
             : undefined,
         }
       : null,
-    handled > 0
+    // Cue's handoff line below says what was handled, from the sends
+    // themselves. Two different "handled" counts on one screen read as a bug.
+    handled > 0 && !handoff.length
       ? {
           label: "Handled for you",
           value: String(handled),
@@ -479,6 +482,11 @@ export function TodayInbox() {
               </dl>
             ) : null}
           </header>
+
+          {/* Cue's morning handoff: what went out overnight with nobody
+              pressing anything, and how much of the queue below is theirs.
+              Owners and admins only; hidden when Cue handled nothing. */}
+          {!loading && !failed ? <CueHandoff items={handoff} needYou={waiting} /> : null}
 
           {!loading ? <TrustDialOffers /> : null}
 
