@@ -1233,12 +1233,16 @@ export function AiScheduleGenerator({
                 <strong>
                   {planningInputsChanged
                     ? "New planning details are ready to reconcile"
-                    : `A schedule version already exists for this project`}
+                    : weddingDay && publishedVersion
+                      ? `Version ${publishedVersion} is published`
+                      : `A schedule version already exists for this project`}
                 </strong>
                 <small>
                   {planningInputsChanged
                     ? "The submitted questionnaire changed after the current version. The new draft will be compared when you publish it."
-                    : "Generate only when facts changed. Publishing creates an immutable version and shows the exact impact."}
+                    : weddingDay
+                      ? "Open it to change a time, or start over from the couple’s answers. Publishing makes a new version and shows what changed."
+                      : "Generate only when facts changed. Publishing creates an immutable version and shows the exact impact."}
                 </small>
               </span>
             </div>
