@@ -1,5 +1,13 @@
 # Positioning: Cue, your studio's office manager (plan, 2026-10-06)
 
+**Status (2026-10-06): phases 1–4 live on studio-cue.com** — 0e90a257 (site),
+90e41c7a (in-app copy), 5d8930a9 (top-bar fix). IndexNow sent for the new and
+changed pages. Still open: phase 5 (payment chasing on the backlog, tap to
+send; proposal follow-up; forwarded-inquiry acknowledgement), phase 6 (morning
+handoff), phase 7 (outbound), and Gabe's quote (drafts below, not published).
+Google: ask Search Console to index `/office-manager` and
+`/virtual-assistant-for-photographers` (IndexNow doesn't reach Google).
+
 ## Decisions (Conor + Gabe, 2026-10-06)
 
 Gabe has already pitched this framing to photographers and it landed well.
