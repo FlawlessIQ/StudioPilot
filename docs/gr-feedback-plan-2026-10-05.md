@@ -252,6 +252,17 @@ still to build.
 | Albert can't accept the crew offer | It had expired after 24h, and nothing could re-offer it. An expired offer is re-offerable now ("Ask again", or direct offer); the stalled panel is readable (2d262b78, 08dc79db). |
 | Albert can't accept the proposal as the couple | By design: his address is GR's crew, and one person has one role per studio. Test with another address. |
 
+### Status (2026-10-06, 19:00Z)
+
+**7.1 and 7.2 live** (c87e75a2). 15 functions were deployed by name and their bundles checked, then the app rollout was verified.
+- **7.1, walked on prod:** FlawlessIQ "Pick Test" moved from t14@ to t14b@.
+  - The card said "Their email changed… Resend goes there".
+  - The resend went to t14b@ (`succeeded`), and `lastSentTo` was recorded.
+  - The old invite was revoked and a new one is pending for t14b@.
+- **7.2, proven on prod:** a submitted test form saved the address, marked "given by the couple on their form". The venue answer was ignored. The test records were removed.
+- **Not walked:** accepting and signing as the new address. Creating that account is a person's step.
+- **Gabe's step:** add a "Home address (for billing)" question to his Event details form copy. Any question whose label says "billing address" works.
+
 ### 7.1 The client's email changes mid-job
 
 Gabe: "I changed emails mid job. And now can't resend the proposal to new
