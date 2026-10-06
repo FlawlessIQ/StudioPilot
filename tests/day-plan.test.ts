@@ -202,3 +202,85 @@ test("the AI draft's bare times are the venue's, and a schedule publishes in the
   assert.doesNotMatch(editor, /Move up|Move down/, "the list sorts itself");
   assert.doesNotMatch(editor, /source\.type\.replaceAll\("_", " "\)/, "sources in the studio's words");
 });
+
+// --- the run of show the studio hands out ---------------------------------------
+import { crewLabels } from "@/features/schedules/crew-labels";
+import { runOfShowDocument, timeRange } from "../functions/src/planning/run-of-show-doc.ts";
+
+test("crew are named the way a studio writes them: leads first, photo and video numbered apart", () => {
+  const labels = crewLabels([
+    { id: "a", role: "Second photographer", order: "2026-09-02" },
+    { id: "b", role: "Videographer", order: "2026-09-03" },
+    { id: "c", role: "Lead photographer", order: "2026-09-05" },
+    { id: "d", role: "Second video", order: "2026-09-01" },
+  ]);
+  assert.deepEqual(
+    ["a", "b", "c", "d"].map((id) => labels.get(id)?.label),
+    ["P2", "V1", "P1", "V2"],
+  );
+  assert.equal(read("features/schedules/crew-labels.ts"), read("functions/src/planning/crew-labels.ts"));
+});
+
+test("GR's own run of show, rebuilt: the wedding's times, team chips, and who concludes when", () => {
+  const z = NY;
+  const day = "2027-06-12";
+  const at = (clock: string) => wallClockToIso(day, clock, z)!;
+  const home = "501 South Ave West, Apt 201, Westfield, NJ 07090";
+  const church = "Parish Community of Saint Helen, 1600 Rahway Avenue, Westfield, NJ 07090";
+  const inn = "The Ryland Inn, 115 Old Hwy 28, White House Station, NJ 08889";
+  const everyone = ["p1", "v1", "p2", "v2"];
+  const line = (start: string, end: string, title: string, location: string, crewIds: string[], notes = "") => ({
+    startAt: at(start), endAt: at(end), title, location, crewIds, notes,
+  });
+  const document = runOfShowDocument({
+    items: [
+      line("12:30", "13:00", "Arrival & detail photos", home, ["p1", "v1"], "dress, rings, flowers, shoes, invitations"),
+      line("13:00", "14:00", "Groom getting ready", home, ["p2", "v2"]),
+      line("14:30", "15:30", "Ceremony", church, everyone),
+      line("19:45", "20:45", "Entrances, first dance, speeches, parent dances", inn, everyone),
+      line("21:30", "21:30", "Cake cutting — time TBD", inn, ["p1", "v1"]),
+      line("21:45", "22:00", "Night photos, dessert photos & dancing", inn, ["p1", "v1"]),
+      line("22:00", "23:00", "Dancing / party", inn, ["p1"]),
+    ],
+    timeZone: z,
+    version: 2,
+    publishedAt: "2026-10-06T14:00:00Z",
+    project: { name: "Gabe Rhodes Wedding", eventDate: day, eventType: "Wedding" },
+    crewLabels: new Map([["p1", "P1"], ["v1", "V1"], ["p2", "P2"], ["v2", "V2"]]),
+  });
+  assert.equal(document.title, "Wedding Photo & Video Run of Show");
+  assert.equal(document.subtitle, "Saturday, June 12, 2027 — Ceremony at Parish Community of Saint Helen — Reception at The Ryland Inn");
+  assert.deepEqual(document.facts.map((fact) => fact.label), ["Getting ready", "Ceremony", "Reception", "Coverage"]);
+  assert.equal(
+    document.facts.at(-1)!.value,
+    "Photo 1 + Video 1: 12:30 PM – 11:00 PM / 10:00 PM  |  Photo 2 + Video 2: 1:00 PM – 8:45 PM",
+  );
+  const [arrival, groom, ceremony, entrances, cake, night, party] = document.rows;
+  assert.equal(arrival!.time, "12:30 – 1:00 PM");
+  assert.deepEqual(arrival!.crew, ["P1", "V1"]);
+  assert.equal(arrival!.where, "Getting ready — dress, rings, flowers, shoes, invitations");
+  assert.deepEqual(groom!.crew, ["P2", "V2"]);
+  // A line the whole crew is on needs no tags; the place is named briefly.
+  assert.deepEqual(ceremony!.crew, []);
+  assert.equal(ceremony!.where, "Parish Community of Saint Helen");
+  assert.equal(entrances!.concludes, "P2 / V2 conclude 8:45 PM");
+  assert.equal(cake!.time, "TBD");
+  assert.equal(cake!.title, "Cake cutting");
+  assert.equal(night!.concludes, "V1 concludes 10:00 PM");
+  assert.equal(party!.concludes, "P1 concludes 11:00 PM");
+  assert.equal(document.footer, "Version 2 · published Oct 6, 2026 · Times are Eastern Daylight Time");
+  assert.equal(document.fileName, "gabe-rhodes-wedding-run-of-show-v2.pdf");
+  // No raw timestamps or ids reach the page.
+  assert.doesNotMatch(JSON.stringify(document), /\d{4}-\d{2}-\d{2}T|schedule_|tenant_/);
+  assert.equal(timeRange("11:30", "12:15"), "11:30 AM – 12:15 PM");
+  assert.equal(timeRange("21:30", "21:30"), "9:30 PM");
+});
+
+test("the PDF service lays out the document, and an older caller still gets its table", () => {
+  const service = read("cloud-run/pdf/main.py");
+  assert.match(service, /document: RunOfShowDocument \| None = None/);
+  assert.match(service, /if data\.document is not None:\s*\n\s*return Response\(content=build_run_of_show_pdf\(data\.document\)/);
+  assert.match(read("cloud-run/pdf/Dockerfile"), /COPY main\.py contract\.py run_of_show\.py/);
+  const worker = read("functions/src/operations/ai-pdf.ts");
+  assert.match(worker, /document:\{title:document\.title,subtitle:document\.subtitle,studio:tenantName/);
+});

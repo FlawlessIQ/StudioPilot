@@ -29,6 +29,7 @@ from reportlab.platypus import (
 )
 
 from contract import ContractRequest, build_contract_pdf
+from run_of_show import RunOfShowDocument, build_run_of_show_pdf
 
 app = FastAPI(title="StudioCue PDF Service")
 
@@ -95,6 +96,9 @@ class ScheduleRequest(BaseModel):
     timezone: str = Field(min_length=1, max_length=80)
     items: list[ScheduleItem] = Field(min_length=1, max_length=250)
     generated_at: str = Field(min_length=1, max_length=80)
+    # The page as the studio hands it out (run_of_show.py). Absent from an
+    # older caller, which still gets the plain table below.
+    document: RunOfShowDocument | None = None
 
 
 class CloseoutRequirement(BaseModel):
@@ -412,6 +416,8 @@ def proposal_pdf(data: ProposalRequest) -> Response:
 
 @app.post("/v1/schedules/pdf")
 def schedule_pdf(data: ScheduleRequest) -> Response:
+    if data.document is not None:
+        return Response(content=build_run_of_show_pdf(data.document), media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.schedule_id}.pdf"'})
     rows = [["START", "END", "ITEM", "LOCATION"]]
     rows.extend([[item.start, item.end, item.title, item.location or "—"] for item in data.items])
     payload = build_operations_pdf(

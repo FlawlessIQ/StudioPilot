@@ -21,6 +21,10 @@ import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
 import { inquiryReplySystemInstruction } from "../ai/studio-voice.js";
 import { dayFieldsFor, normaliseInquiryFormConfig, resolveInquiryEventType } from "../intake/inquiry-form-config.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
+import { runOfShowDocument } from "../planning/run-of-show-doc.js";
+import { crewLabels } from "../planning/crew-labels.js";
+import { eventZone } from "../planning/day-clock.js";
+import { itemCrewIds } from "../planning/item-crew.js";
 import { proposalTermsFor } from "../proposals/default-terms.js";
 import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
@@ -792,6 +796,40 @@ export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))=
   if(requirement.get("primaryNoncontributory")===true&&!normalize(extraction.primaryNoncontributory).includes("yes")&&!normalize(extraction.primaryNoncontributory).includes("true"))discrepancies.push({field:"primaryNoncontributory",expected:"Required",extracted:String(extraction.primaryNoncontributory??""),severity:"warning"});
   const now=new Date().toISOString();await insurance.ref.update({status:"under_review",extractedData:extraction,aiExtraction:extraction,discrepancies,aiExtractedAt:now,humanDecision:"pending",updatedAt:now,updatedBy:"vertex-ai-worker"});return{requestId,status:"under_review",discrepancyCount:discrepancies.length,humanApprovalRequired:true}}
 
+/**
+ * The run of show as the page a studio hands out (planning/run-of-show-doc.ts):
+ * the wedding's own times, where everyone is, and who covers what, with the
+ * crew named the way the studio writes them (P1, V1).
+ */
+async function runOfShowFor(db:FirebaseFirestore.Firestore,schedule:DocumentSnapshot,items:Array<Json>){
+  const tenantId=String(schedule.get("tenantId"));
+  const projectId=String(schedule.get("projectId"));
+  const [project,assignments]=await Promise.all([
+    db.doc(`projects/${projectId}`).get(),
+    db.collection("crewAssignments").where("tenantId","==",tenantId).where("projectId","==",projectId).where("status","==","accepted").get(),
+  ]);
+  const labels=crewLabels(assignments.docs.map(assignment=>({
+    id:String(assignment.get("crewProfileId")??assignment.id),
+    role:String(assignment.get("role")??""),
+    order:String(assignment.get("acceptedAt")??assignment.get("createdAt")??""),
+  })));
+  return runOfShowDocument({
+    items:items.map(item=>({
+      startAt:String(item.startAt),
+      endAt:String(item.endAt),
+      title:String(item.title??""),
+      location:typeof item.location==="string"?item.location:null,
+      notes:typeof item.notes==="string"?item.notes:null,
+      crewIds:itemCrewIds(item as {crewIds?:unknown;photographerIds?:unknown}),
+    })),
+    timeZone:eventZone(schedule.get("timezone"),project.get("timezone")),
+    version:Number(schedule.get("version")??1),
+    publishedAt:typeof schedule.get("publishedAt")==="string"?schedule.get("publishedAt"):schedule.get("createdAt")??null,
+    project:{name:project.get("name")??null,eventDate:project.get("eventDate")??null,eventType:project.get("eventType")??project.get("eventTypeId")??null},
+    crewLabels:new Map([...labels.values()].map(label=>[label.id,label.label])),
+  });
+}
+
 async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tenant=await db.doc(`tenants/${String(job.get("tenantId"))}`).get();const tenantName=String(tenant.get("brandName")??tenant.get("businessName")??"Studio");const generatedAt=new Date().toISOString();const type=String(job.get("type"));
   // A signed StudioCue contract and its certificate. See ../contracts/seal.ts.
   if(type==="contract_pdf")return contractPdfInput(db,job,tenantName);
@@ -888,7 +926,22 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
       },
       packageDetails:details,
     }}
-  if(type==="schedule_pdf"){const schedule=await db.doc(`schedules/${String(job.get("scheduleId"))}`).get();if(!schedule.exists)throw new Error("SCHEDULE_NOT_FOUND");const items=Array.isArray(schedule.get("items"))?schedule.get("items") as Array<Json>:[];return{endpoint:"schedules",entity:schedule,payload:{tenant_name:tenantName,project_id:String(schedule.get("projectId")),schedule_id:schedule.id,version:Number(schedule.get("version")),timezone:String(schedule.get("timezone")),items:items.map(item=>({start:String(item.startAt),end:String(item.endAt),title:String(item.title),location:String(item.location??"")})),generated_at:generatedAt}}}
+  if(type==="schedule_pdf"){
+    const schedule=await db.doc(`schedules/${String(job.get("scheduleId"))}`).get();
+    if(!schedule.exists)throw new Error("SCHEDULE_NOT_FOUND");
+    const items=Array.isArray(schedule.get("items"))?schedule.get("items") as Array<Json>:[];
+    const document=await runOfShowFor(db,schedule,items);
+    return{endpoint:"schedules",entity:schedule,fileName:document.fileName,payload:{
+      tenant_name:tenantName,
+      project_id:String(schedule.get("projectId")),
+      schedule_id:schedule.id,
+      version:Number(schedule.get("version")),
+      timezone:String(schedule.get("timezone")),
+      // As before, for a PDF service that predates `document`.
+      items:items.map(item=>({start:String(item.startAt),end:String(item.endAt),title:String(item.title),location:String(item.location??"")})),
+      generated_at:generatedAt,
+      document:{title:document.title,subtitle:document.subtitle,studio:tenantName,facts:document.facts,rows:document.rows,footer:document.footer},
+    }}}
   if(type==="closeout_pdf"){const closeout=await db.doc(`projectCloseouts/${String(job.get("closeoutId"))}`).get();if(!closeout.exists)throw new Error("CLOSEOUT_NOT_FOUND");const project=await db.doc(`projects/${String(closeout.get("projectId"))}`).get();const requirements=Array.isArray(closeout.get("requirements"))?closeout.get("requirements") as Array<Json>:[];return{endpoint:"closeouts",entity:closeout,payload:{tenant_name:tenantName,project_id:String(closeout.get("projectId")),closeout_id:closeout.id,project_name:String(project.get("name")??closeout.get("projectId")),requirements:requirements.map(item=>({label:String(item.label),complete:Boolean(item.complete),evidence_id:item.evidenceId??null})),generated_at:generatedAt}}}
   throw new Error("UNSUPPORTED_PDF_JOB")}
 
@@ -924,7 +977,8 @@ export async function runPdfJob(job:DocumentSnapshot){
   const documentId=`generated_${job.id}`;
   const generatedName=isProposal
     ?`${String(input.entity.get("eventSnapshot")?.name??"project").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase()||"project"}-proposal-v${Number(input.entity.get("version")??1)}.pdf`
-    :`${job.id}.pdf`;
+    // "replytest-couple-wedding-run-of-show-v1.pdf", not the job's id.
+    :"fileName" in input&&typeof input.fileName==="string"&&input.fileName?input.fileName:`${job.id}.pdf`;
   const db=getFirestore();
   const batch=db.batch();
   batch.set(db.doc(`documents/${documentId}`),{
