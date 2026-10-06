@@ -283,7 +283,7 @@ export function planDay(input: {
     const clock = clockAnswer(value);
     return clock ? { minutes: clockMinutes(clock), source: "form", label: "From their form", tbd: false } : null;
   };
-  const usual = (minutes: number): Placed => ({ minutes, source: "usual", label: "Usual timing — change it", tbd: false });
+  const usual = (minutes: number): Placed => ({ minutes, source: "usual", label: "Suggested — check it", tbd: false });
   const placed = new Map<MilestoneKey, Placed>();
   placed.set("ceremony", { minutes: C, source: "form", label: "From their form", tbd: false });
   const lengthOf = (key: MilestoneKey, usualMinutes: number) => {
@@ -341,7 +341,7 @@ export function planDay(input: {
   const secondStart = clockAnswer(answerFor(answers, SECOND_TEAM_START_KEYS));
   if (input.secondTeam && !placed.has("groom")) {
     const at = secondStart ?? minutesClock(placed.get("touchups")?.minutes ?? placed.get("details")?.minutes ?? C - 120);
-    if (at) placed.set("groom", { minutes: clockMinutes(at), source: secondStart ? "form" : "usual", label: secondStart ? "Their second team's start" : "Usual timing — change it", tbd: false });
+    if (at) placed.set("groom", { minutes: clockMinutes(at), source: secondStart ? "form" : "usual", label: secondStart ? "Their second team's start" : "Suggested — check it", tbd: false });
   }
 
   /**
@@ -377,6 +377,22 @@ export function planDay(input: {
     const ruled = byRule(ruleFor(key));
     if (ruled) placed.set(key, ruled);
   }
+
+  /**
+   * Anything the couple gave a time for is on the day, whatever its shape.
+   * GR's test couple answered "Hide the couple: 6:00 PM" on a church day,
+   * where the plan has no hide — and the line vanished (2026-10-06).
+   */
+  for (const key of Object.keys(ANSWER_KEYS) as MilestoneKey[]) {
+    if (key === "arrive" || placed.has(key)) continue;
+    const answered = byAnswer(key);
+    if (answered && answered !== "tbd") placed.set(key, answered);
+  }
+
+  // A guessed drive that can't arrive before cocktails start there isn't a drive worth listing.
+  const drive = placed.get("leave_for_reception");
+  const cocktailAt = placed.get("cocktail");
+  if (drive?.source === "usual" && cocktailAt && drive.minutes >= cocktailAt.minutes) placed.delete("leave_for_reception");
 
   // Coverage: the couple's times, the studio's rule, else the first thing on the day.
   const earliest = Math.min(...[...placed.values()].map((at) => at.minutes));

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
@@ -38,8 +38,8 @@ import {
   planItems,
   titleIsTbd,
   withTbdTitle,
-  type DayRule,
 } from "@/features/schedules/day-plan";
+import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 import {
   WEDDING_STANDARD_MOMENTS,
   isWeddingJob,
@@ -123,7 +123,7 @@ const SOURCE_WORDS: Record<string, string> = {
   assumption: "Suggested — check it",
 };
 const sourceWords = (source: { type: string; label: string }) =>
-  /^(From their|Their form|Your timing|Usual timing|Coverage starts)/.test(source.label)
+  /^(From their|Their form|Their second|Your timing|Suggested|Coverage starts)/.test(source.label)
     ? source.label
     : (SOURCE_WORDS[source.type] ?? "Suggested — check it");
 
@@ -182,8 +182,6 @@ export function AiScheduleGenerator({
   const { records: crewProfiles } = useTenantDocuments("crewProfiles");
   // For naming the recipient of the suggested questions.
   const { records: contacts } = useTenantDocuments("contacts");
-  // The studio's own timings ("First Look: 195 minutes before the ceremony").
-  const { records: timingRules } = useTenantDocuments("timingRules");
   const [draft, setDraft] = useState<Draft | null>(null);
   /** Blocks whose end the studio set; every other block runs to the next one. */
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
@@ -268,7 +266,6 @@ export function AiScheduleGenerator({
   const eventDay = String(selectedProject?.eventDate ?? "").slice(0, 10);
   /** A wedding is laid out from its answers; other kinds keep the AI and moment chips. */
   const weddingDay = isWeddingJob(selectedProject);
-  const aiInputsRef = useRef<HTMLDetailsElement | null>(null);
   /** A "YYYY-MM-DDTHH:MM" field value, read at the wedding. */
   const localToIso = (local: string) =>
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local) ? wallClockToIso(local.slice(0, 10), local.slice(11, 16), zone) : null;
@@ -291,20 +288,6 @@ export function AiScheduleGenerator({
       });
     return merged;
   }, [projectId, questionnaires]);
-  const dayRules = useMemo<DayRule[]>(() => {
-    const eventType = String(selectedProject?.eventTypeId ?? "wedding");
-    return (timingRules ?? [])
-      .filter((rule) => rule.active !== false && String(rule.eventTypeId ?? "wedding") === eventType)
-      .map((rule) => ({
-        id: String(rule.id),
-        name: String(rule.name ?? ""),
-        anchor: String(rule.anchor ?? ""),
-        offsetMinutes: Number(rule.offsetMinutes ?? 0),
-        durationMinutes: Number(rule.durationMinutes ?? 0),
-        active: true,
-      }))
-      .filter((rule) => rule.name.trim() && Number.isFinite(rule.offsetMinutes));
-  }, [selectedProject, timingRules]);
   const crewOptions = useMemo(
     () =>
       scheduleCrewOptions({
@@ -856,9 +839,10 @@ export function AiScheduleGenerator({
       setNotice("This job has no date yet. Add the wedding date, then lay out the day.");
       return;
     }
+    // The couple's form, and nothing else of the studio's: timing rules "don't
+    // work for every wedding" (GR, 2026-10-06). Gaps get a suggestion, marked.
     const plan = planDay({
       answers: jobAnswers,
-      rules: dayRules,
       coverageMinutes: packageMinutes ?? null,
       venue: String(selectedProject?.venueName ?? "").trim() || null,
       secondTeam: crewTags.teams.second.length > 0,
@@ -1138,7 +1122,18 @@ export function AiScheduleGenerator({
           </div>
           {weddingDay ? <CalendarClock /> : <Sparkles />}
         </div>
-        <form className="schedule-generator-form" onSubmit={(event) => void generate(event)}>
+        <form
+          className="schedule-generator-form"
+          onSubmit={(event) => {
+            // A wedding is laid out from its answers; the AI draft is for other kinds.
+            if (weddingDay) {
+              event.preventDefault();
+              layOutDay();
+              return;
+            }
+            void generate(event);
+          }}
+        >
           <label>
             Project
             <select
@@ -1152,15 +1147,13 @@ export function AiScheduleGenerator({
             </select>
           </label>
           {/*
-            * What the AI draft is asked to work from. For a wedding, laying out
-            * the day needs none of it — the form answers are already read — so
-            * it folds away under the AI option instead of leading the page.
+            * What the AI draft is asked to work from — for jobs that aren't
+            * weddings. A wedding's day comes from the couple's Final Schedule
+            * (layOutDay); two buttons that disagreed was the bug: GR pressed
+            * the AI one and got their timing rules, not the form (2026-10-06).
             */}
-          <details
-            className={weddingDay ? "form-span schedule-ai-inputs" : "form-span schedule-ai-inputs is-plain"}
-            open={weddingDay ? undefined : true}
-            ref={aiInputsRef}
-          >
+          {weddingDay ? null : (
+          <details className="form-span schedule-ai-inputs is-plain" open>
             <summary>Coverage, times and notes for an AI draft</summary>
             <div className="schedule-ai-inputs-grid">
           <label>
@@ -1252,6 +1245,7 @@ export function AiScheduleGenerator({
           ) : null}
             </div>
           </details>
+          )}
           {selectedSchedule ? (
             <div className="schedule-replanning-notice form-span">
               <CalendarClock aria-hidden="true" />
@@ -1279,24 +1273,12 @@ export function AiScheduleGenerator({
                 <CalendarClock /> {draft ? "Start over from their answers" : "Lay out the day"}
               </button>
             ) : null}
-            <button
-              className={weddingDay ? "button button-light" : "button button-dark"}
-              disabled={busy}
-              // Its inputs are folded away on a wedding; open them so the browser can check them.
-              onClick={() => {
-                if (aiInputsRef.current) aiInputsRef.current.open = true;
-              }}
-              type="submit"
-            >
-              {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
-              {busy
-                ? "Generating…"
-                : weddingDay
-                  ? "Ask AI to draft it"
-                  : selectedSchedule
-                    ? "Prepare updated draft"
-                    : "Generate draft"}
-            </button>
+            {weddingDay ? null : (
+              <button className="button button-dark" disabled={busy} type="submit">
+                {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
+                {busy ? "Generating…" : selectedSchedule ? "Prepare updated draft" : "Generate draft"}
+              </button>
+            )}
             {/**
               * The path that does not need AI.
               *
@@ -1730,6 +1712,8 @@ export function AiScheduleGenerator({
           {staleVendors > 0 && projectId ? <VendorReshareBanner projectId={projectId} /> : null}
         </>
       ) : null}
+      {/* Timing rules feed the AI draft, which only jobs that aren't weddings use. */}
+      {weddingDay ? null : <TimingRuleEditor />}
     </div>
   );
 }

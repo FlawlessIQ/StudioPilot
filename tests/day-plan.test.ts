@@ -362,3 +362,54 @@ test("the editor offers the crew as P1 V1 P2 V2 chips and lays out two tracks wh
   assert.match(editor, /className=\{`schedule-line-chip is-\$\{tag\?\.trade/);
   assert.match(editor, /aria-pressed=\{on\}/);
 });
+
+// --- the form, not the rules (GR, 2026-10-06) --------------------------------
+test("a wedding's day comes from the couple's form: every answered line appears, gaps are marked, no rules", () => {
+  // Dionne Rhodes' Final Schedule, as GR's test couple filled it in.
+  const answers = {
+    "ceremony-location": "St Rose of Lima",
+    "reception-location": "Primavera Regency",
+    "getting-ready": "140 Briarwood Rd\nFlorham Park NJ",
+    coverageStartTime: "12:00",
+    coverageEndTime: "22:00",
+    "ceremony-time": "15:00",
+    "ceremony-end-time": "16:00",
+    "cocktail-hour-time": "18:00",
+    "cocktail-end-time": "19:00",
+    "reception-time": "19:00",
+    "details-with-bride-time": "12:30",
+    "touch-ups-time": "13:00",
+    "bride-in-dress-time": "13:15",
+    "groom-start-time": "14:00",
+    "first-look-time": "17:00",
+    "hide-time": "18:00",
+    "family-photos-time": "17:30",
+    "dinner-time": "20:30",
+    "cake-cutting-time": "21:00",
+    "night-pictures-time": "21:30",
+  };
+  const plan = planDay({ answers, coverageMinutes: 600 });
+  assert.equal(plan.churchDay, true);
+  const titles = plan.rows.map((row) => row.title);
+  // A church day has no hide in its shape, but the couple gave one: it stays.
+  assert.ok(titles.includes("Hide the couple"));
+  assert.equal(plan.rows.find((row) => row.key === "hide")?.time, "18:00");
+  // Everything but the drive is theirs; the drive is a marked suggestion.
+  for (const row of plan.rows) {
+    if (row.key === "leave_for_ceremony" || row.key === "leave_for_reception") assert.equal(row.sourceLabel, "Suggested — check it");
+    else assert.match(row.sourceLabel, /^(From their form|Coverage starts)/, row.title);
+  }
+  // A guessed drive that can't fit before cocktails start isn't listed.
+  assert.equal(plan.rows.find((row) => row.key === "leave_for_reception"), undefined);
+});
+
+test("the wedding schedule page has one way to build the day: no timing rules, no AI draft", () => {
+  const editor = read("components/planning/ai-schedule-generator.tsx");
+  const layOut = editor.slice(editor.indexOf("function layOutDay()"), editor.indexOf("function addItem()"));
+  assert.doesNotMatch(layOut, /rules:/, "Lay out the day reads the form only");
+  assert.doesNotMatch(editor, /useTenantDocuments\("timingRules"\)/);
+  assert.match(editor, /\{weddingDay \? null : <TimingRuleEditor \/>\}/);
+  assert.match(editor, /\{weddingDay \? null : \(\s*<button className="button button-dark" disabled=\{busy\} type="submit">/);
+  assert.match(editor, /if \(weddingDay\) \{\s*event\.preventDefault\(\);\s*layOutDay\(\);/);
+  assert.doesNotMatch(read("app/studio/schedules/new/page.tsx"), /<TimingRuleEditor/);
+});
