@@ -204,6 +204,19 @@ Gabe: "Final schedule should be sent after contract signed, and then again
 
 ## Phase 5: Shot list milestone (Albert's point, new feature)
 
+**Built ahead of Gabe's sample (2026-10-06, 27f6f567).**
+- A recommended "Shot list" form. Its questions:
+  - family and group pictures, in call order;
+  - must-take pictures, people to find, details;
+  - anyone not to photograph, and what to handle with care.
+- Due 28 days out.
+- Settings → Planning timeline → "Shot list" sends it with the planning form (weddings, once, never after the lock).
+- Every answer reaches the crew's day sheet, and anyone to avoid comes first. Proven on prod with a test response, then removed.
+- Not built:
+  - a dedicated journey step;
+  - a readiness warning. The form's own reminders and the outstanding-forms list cover it for now.
+- When Gabe's sample arrives, swap the questions in `features/questionnaires/recommended-templates.ts`. Keep the crew-brief ids.
+
 Decided by Gabe: its own form ("must take photos"), due 4 weeks out, crew must
 have access. **Waiting on Gabe's sample form** for the questions themselves.
 
@@ -262,6 +275,14 @@ still to build.
 - **7.2, proven on prod:** a submitted test form saved the address, marked "given by the couple on their form". The venue answer was ignored. The test records were removed.
 - **Not walked:** accepting and signing as the new address. Creating that account is a person's step.
 - **Gabe's step:** add a "Home address (for billing)" question to his Event details form copy. Any question whose label says "billing address" works.
+
+### Also shipped on the 6th (after Phase 7)
+
+| What | Commit | Proven on prod |
+|---|---|---|
+| Crew first-call order per type on the Crew page; booking offers, the job staffing screen and Cue follow it | 4c56c504 | Typed and reordered FlawlessIQ crew; the job's list opened in that order; phone width checked |
+| Shot list (Phase 5, see above) | 27f6f567 | Setting saved; a test response reached the crew brief |
+| Clients search: email, phone and company; says which tab has the match; tabs keep the search | ed047efa | "t14" finds Pick Test; Prospects says "1 active client matches" |
 
 ### 7.1 The client's email changes mid-job
 
