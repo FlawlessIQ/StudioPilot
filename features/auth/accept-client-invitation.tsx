@@ -218,13 +218,29 @@ export function AcceptClientInvitation({
     ) {
       return;
     }
-    void acceptInvitation().catch((caught: unknown) => {
-      setActivation("error");
-      setMessage(
-        friendlyError(
-          caught instanceof Error ? caught.message : "ACTIVATION_FAILED",
-        ),
-      );
+    // Signed in as someone else — another couple's portal, the studio owner on
+    // a shared laptop. Say so here rather than send an accept the server is
+    // bound to refuse (it did, on the prod walk of 2026-10-07).
+    const signedInAs = (user.email ?? "").trim().toLowerCase();
+    const invited = (preview.email ?? "").trim().toLowerCase();
+    if (signedInAs && invited && signedInAs !== invited) {
+      acceptStarted.current = true;
+      queueMicrotask(() => {
+        setActivation("error");
+        setMessage(friendlyError("INVITED_EMAIL_MISMATCH"));
+      });
+      return;
+    }
+    acceptStarted.current = true;
+    queueMicrotask(() => {
+      void acceptInvitation().catch((caught: unknown) => {
+        setActivation("error");
+        setMessage(
+          friendlyError(
+            caught instanceof Error ? caught.message : "ACTIVATION_FAILED",
+          ),
+        );
+      });
     });
   }, [acceptInvitation, preview, user]);
 
@@ -263,7 +279,16 @@ export function AcceptClientInvitation({
     // enumeration), and there is no way back to this page's own "Set a
     // password" step. Signing out is enough; this page then renders it.
     // Hit for real on a shared laptop where the studio owner was signed in.
-    if (preview?.hasAccount === false) return;
+    // The error card is chosen before the "no one signed in" one, so leaving
+    // `activation` at "error" kept it on screen after signing out: the button
+    // signed the other account out and the page never changed (prod walk,
+    // 2026-10-07). Back to the start, where the invitation's own form shows.
+    if (preview?.hasAccount === false) {
+      acceptStarted.current = false;
+      setMessage("");
+      setActivation("idle");
+      return;
+    }
     router.replace(loginHref);
   }
 

@@ -102,3 +102,11 @@ test("recording a retainer re-reads once the booking has had time to land", () =
   assert.ok((workspace.match(/settleAfterRetainer\(\);/g) ?? []).length >= 2);
   assert.doesNotMatch(read("components/booking/record-retainer-payment.tsx"), /recorded against your name\. Confirm the booking/);
 });
+
+test("an invitation opened while signed in as someone else leads to the set-password form", () => {
+  // 2026-10-07: Pick Test's invite opened in a window still signed in as Maya.
+  // The accept was refused and "Continue and set your password" did nothing.
+  const page = read("features/auth/accept-client-invitation.tsx");
+  assert.match(page, /if \(signedInAs && invited && signedInAs !== invited\) \{/);
+  assert.match(page, /if \(preview\?\.hasAccount === false\) \{\s*acceptStarted\.current = false;\s*setMessage\(""\);\s*setActivation\("idle"\);\s*return;\s*\}/);
+});
