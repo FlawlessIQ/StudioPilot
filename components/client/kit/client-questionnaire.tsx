@@ -53,6 +53,7 @@ import {
 } from "@/components/client/kit/role-chooser";
 import { Question } from "@/components/client/kit/questionnaire-question";
 import { SubmittedAnswer } from "@/components/client/kit/submitted-answer";
+import { autosaveDelayMs, portalSaveStop } from "@/features/forms/autosave";
 
 type ResponseRecord = Record<string, unknown> & { id: string };
 
@@ -178,6 +179,10 @@ function QuestionnaireForm({
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  /** Autosaves failed in a row, for the back-off (features/forms/autosave.ts). */
+  const [saveFailures, setSaveFailures] = useState(0);
+  /** Set when no retry can save this form; autosave stops for good. */
+  const [saveStopped, setSaveStopped] = useState(false);
   const [notice, setNotice] = useState<{ tone?: "danger" | "accent"; text: string } | null>(null);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const answersRef = useRef(answers);
@@ -271,6 +276,7 @@ function QuestionnaireForm({
           : { persisted: false };
         if (version === changeVersion.current) setDirty(false);
         setLastSavedAt(new Date());
+        setSaveFailures(0);
         if (submit) {
           setStatus("submitted");
           setNotice(
@@ -282,11 +288,18 @@ function QuestionnaireForm({
           onSubmitted();
         }
       } catch (caught: unknown) {
-        const message = friendlyError(caught, "Your answers couldn’t be saved. Check your connection.");
-        setNotice({ tone: "danger", text: message });
+        const code = caught instanceof Error ? caught.message : "";
+        const stop = portalSaveStop(code);
+        if (stop) {
+          setSaveStopped(true);
+          setNotice({ tone: "danger", text: stop });
+        } else {
+          setSaveFailures((count) => count + 1);
+          setNotice({ tone: "danger", text: friendlyError(caught, "Your answers couldn’t be saved. Check your connection.") });
+        }
         // The studio already has it: show what they have rather than a form
         // that can no longer save.
-        if (caught instanceof Error && caught.message === "QUESTIONNAIRE_ALREADY_SUBMITTED") setStatus("submitted");
+        if (code === "QUESTIONNAIRE_ALREADY_SUBMITTED") setStatus("submitted");
       } finally {
         if (submit) setSubmitting(false);
         else setSaving(false);
@@ -296,11 +309,12 @@ function QuestionnaireForm({
   );
 
   // Autosave. Nothing is disabled while it runs, so the keyboard stays up.
+  // Longer after a failure; never again after one no retry can fix.
   useEffect(() => {
-    if (!dirty || !loaded || submitted || saving || submitting) return;
-    const timer = window.setTimeout(() => void persist(false), 1_200);
+    if (!dirty || !loaded || submitted || saving || submitting || saveStopped) return;
+    const timer = window.setTimeout(() => void persist(false), autosaveDelayMs(saveFailures, 1_200));
     return () => window.clearTimeout(timer);
-  }, [dirty, loaded, persist, saving, submitted, submitting]);
+  }, [dirty, loaded, persist, saving, submitted, submitting, saveStopped, saveFailures]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -317,9 +331,10 @@ function QuestionnaireForm({
   }
 
   function goTo(next: number) {
-    if (dirty && !saving) void persist(false);
+    if (dirty && !saving && !saveStopped) void persist(false);
     setIndex(next);
-    setNotice(null);
+    // Why it stopped saving stays in view on every section.
+    if (!saveStopped) setNotice(null);
     window.scrollTo({ top: 0 });
   }
 
@@ -350,8 +365,12 @@ function QuestionnaireForm({
 
   const saveState = saving
     ? "Saving…"
-    : dirty
-      ? "Saving shortly…"
+    : saveStopped && dirty
+      ? "Not saved."
+      : dirty
+      ? saveFailures
+        ? "Not saved yet. Trying again in a moment…"
+        : "Saving shortly…"
       : lastSavedAt
         ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
         : "Your answers save as you type.";

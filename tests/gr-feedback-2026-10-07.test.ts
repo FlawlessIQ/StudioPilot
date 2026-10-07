@@ -108,7 +108,7 @@ test("a form whose inquiry is gone stops saving; a passing failure waits longer 
   }
   assert.equal(saveFailureIsFinal("RATE_LIMITED"), false);
   assert.equal(saveFailureIsFinal(""), false);
-  assert.deepEqual([0, 1, 2, 3, 10].map(autosaveDelayMs), [1_500, 3_000, 6_000, 12_000, 60_000]);
+  assert.deepEqual([0, 1, 2, 3, 10].map((n) => autosaveDelayMs(n)), [1_500, 3_000, 6_000, 12_000, 60_000]);
   const page = read("components/inquiries/couple-inquiry-page.tsx");
   assert.match(page, /if \(saveFailureIsFinal\(code\)\) \{/);
   assert.match(page, /autosaveDelayMs\(saveFailures\)/);
@@ -142,4 +142,28 @@ test("an invite link names its studio, so a dead one still shows who to ask", ()
   assert.match(page, /type: "brand",/);
   assert.match(page, /Ask \$\{brand\.studioName\} to send you a new link\./);
   assert.match(read("app/auth/client-invite/page.tsx"), /studioId=\{studio\}/);
+});
+
+test("the portal form stops on a refusal no retry can fix, in the couple's words, and backs off otherwise", async () => {
+  const { portalSaveStop, autosaveDelayMs: delay } = await import("@/features/forms/autosave");
+  for (const code of [
+    "RESPONSE_NOT_FOUND",
+    "AUTHENTICATION_REQUIRED",
+    "Sign in before changing planning records.",
+    "FORBIDDEN",
+    "ACTIVE_SUBSCRIPTION_REQUIRED",
+    "ENTITLEMENT_REQUIRED:planning",
+  ]) {
+    const said = portalSaveStop(code);
+    assert.ok(said, code);
+    // Never the studio's staff wording, never billing.
+    assert.doesNotMatch(said!, /owner|admin|subscription|billing/i, code);
+    assert.match(said!, /weren’t saved/, code);
+  }
+  assert.equal(portalSaveStop("Planning command failed."), null);
+  assert.equal(portalSaveStop("Failed to fetch"), null);
+  assert.deepEqual([0, 1, 2, 10].map((n) => delay(n, 1_200)), [1_200, 2_400, 4_800, 60_000]);
+  const form = read("components/client/kit/client-questionnaire.tsx");
+  assert.match(form, /saveStopped\) return;\s+const timer = window\.setTimeout\(\(\) => void persist\(false\), autosaveDelayMs\(saveFailures, 1_200\)\);/);
+  assert.match(form, /const stop = portalSaveStop\(code\);/);
 });

@@ -21,7 +21,5 @@ export function saveFailureIsFinal(code: string): boolean {
   return FINAL.has(code);
 }
 
-/** The pause before the next autosave: 1.5s, then doubling to a minute. */
-export function autosaveDelayMs(failures: number): number {
-  return Math.min(1_500 * 2 ** Math.max(0, failures), 60_000);
-}
+/** The pause before the next autosave (features/forms/autosave.ts). */
+export { autosaveDelayMs } from "@/features/forms/autosave";
