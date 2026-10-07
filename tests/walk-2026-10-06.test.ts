@@ -111,11 +111,11 @@ test("an invitation opened while signed in as someone else leads to the set-pass
   assert.match(page, /if \(preview\?\.hasAccount === false\) \{\s*acceptStarted\.current = false;\s*setMessage\(""\);\s*setActivation\("idle"\);\s*return;\s*\}/);
 });
 
-test("the sign-in page quotes GR Productions' cleared line and its logo goes home", () => {
+test("the sign-in page says what Cue does, with no invented testimonial, and its logo goes home", () => {
   const page = read("app/auth/login/page.tsx");
-  // Only the line Gabriel cleared, verbatim (components/marketing/studio-proof.tsx).
-  assert.match(page, /"“I review it and send it\.”"/);
-  assert.match(page, /<strong>Gabriel Rhodes<\/strong>/);
+  // A product line, not a quote, until Gabriel signs off on one.
+  assert.match(page, /"Cue prepares every inquiry, contract and crew offer\. You review it and send it\."/);
+  assert.match(page, /<strong>Meet Cue<\/strong>/);
   assert.doesNotMatch(page, /Alex Morgan|Alder &amp; Muse|six different tools/);
   assert.match(page, /<Link aria-label="StudioCue home" className="auth-quote-logo" href="\/">\s*<Logo \/>/);
 });

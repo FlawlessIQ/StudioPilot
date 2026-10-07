@@ -43,10 +43,10 @@ export default async function LoginPage({
           <blockquote>
             {isClientArrival
               ? "Your studio invited you to one secure place for project details, next steps, schedules, and delivery."
-              : // The one line GR Productions has cleared for us, verbatim
-                // (components/marketing/studio-proof.tsx). This was a made-up
-                // studio and a made-up quote.
-                "“I review it and send it.”"}
+              : // What Cue does, in our words, not a testimonial: a quote from GR
+                // Productions waits on Gabriel's sign-off (Conor, 2026-10-07).
+                // This was once a made-up studio's made-up quote.
+                "Cue prepares every inquiry, contract and crew offer. You review it and send it."}
           </blockquote>
           {isClientArrival ? (
             <div className="quote-author client-auth-assurance">
@@ -58,10 +58,10 @@ export default async function LoginPage({
             </div>
           ) : (
             <div className="quote-author">
-              <span>GR</span>
+              <span>Cue</span>
               <div>
-                <strong>Gabriel Rhodes</strong>
-                <small>GR Productions, Madison, New Jersey</small>
+                <strong>Meet Cue</strong>
+                <small>Your studio&rsquo;s office manager. Anything that matters waits for your yes.</small>
               </div>
             </div>
           )}
