@@ -491,7 +491,7 @@ function PartnerDetails({ partner }: { partner: Row }) {
           </div>
           {form.taxFormStatus === "received" ? <PartnerInput id="partner-edit-w9-on" label="Received on" onChange={field("taxFormReceivedOn")} type="date" value={form.taxFormReceivedOn} /> : null}
         </div>
-        <span className="cx-hint">Keep the W-9 itself, with their taxpayer ID, outside StudioCue. Only whether it's on file is recorded here.</span>
+        <span className="cx-hint">{"Keep the W-9 itself, with their taxpayer ID, outside StudioCue. Only whether it's on file is recorded here."}</span>
         <div className="cx-field">
           <label className="cx-label" htmlFor="partner-edit-notes">Notes</label>
           <textarea className="cx-input" id="partner-edit-notes" maxLength={2000} onChange={field("notes")} rows={3} value={form.notes} />
@@ -522,7 +522,7 @@ function StatementLinkPanel({ partner, toast }: { partner: Row; toast: (message:
   };
   return (
     <Panel title="Their statement page">
-      <span className="cx-hint">What they see: their code and link, how many studios signed up and paid (by date, not by name), what they've earned and been paid. No account needed.</span>
+      <span className="cx-hint">{"What they see: their code and link, how many studios signed up and paid (by date, not by name), what they've earned and been paid. No account needed."}</span>
       {link ? (
         <div className="cx-inline">
           <input className="cx-input cx-mono" readOnly value={link} />
@@ -573,7 +573,7 @@ function PayoutsView({ rows, onOpen }: { rows: Row[] | null; onOpen: (id: string
       toCsv(["Partner", "Business", "Code", "Owed (USD)", "Paid by", "Handle", "W-9"], picked.map((row) => [row.name, row.business ?? "", row.code, (row.owedCents / 100).toFixed(2), PAYOUT_METHOD_LABELS[row.payoutMethod ?? ""] ?? "", row.payoutHandle ?? "", TAX_FORM_LABELS[row.taxFormStatus ?? "not_requested"]])),
     );
   if (!rows) return <Empty title="Loading…" />;
-  if (!owed.length) return <Empty title="Nothing owed">Commission shows here once a partner's studio pays its first annual invoice.</Empty>;
+  if (!owed.length) return <Empty title="Nothing owed">{"Commission shows here once a partner's studio pays its first annual invoice."}</Empty>;
   return (
     <Panel
       actions={

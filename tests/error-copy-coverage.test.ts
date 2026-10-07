@@ -57,6 +57,8 @@ const USER_FACING_API_ROUTES = [
   "functions/[functionName]/route.ts",
   "integrations/status/route.ts",
   "public/places/route.ts",
+  // A photographer reads these on studio-cue.com/demo.
+  "public/demo/route.ts",
   "reply-approval/route.ts",
   "share-ack/route.ts",
   "studio/places/route.ts",

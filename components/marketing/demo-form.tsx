@@ -109,7 +109,7 @@ export function DemoForm() {
       </label>
       <label>
         What would you like to see?
-        <textarea maxLength={4000} name="message" placeholder="How you run things today, how many weddings and events a year, what takes the most time" rows={4} />
+        <textarea maxLength={4000} name="message" placeholder="How you run things today, how many jobs a year, what takes the most time" rows={4} />
       </label>
       <label>
         Good days and times for a call
