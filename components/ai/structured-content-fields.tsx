@@ -17,6 +17,31 @@ const hiddenByDefault = new Set(["sourceText"]);
  * because changing which package is recommended means changing the id.
  */
 const isMachineReference = (key: string) => /(^|[a-z])Id$/.test(key);
+
+/**
+ * The record's own bookkeeping, also hidden from the preview: which model,
+ * when it ran, whether it is "ready", that a human must review it. A
+ * questionnaire review showed Gabe "Model Mode · vertex", "Human Review
+ * Required · true" and an ISO timestamp under the actual findings — "Can we
+ * hide this? Will scare some people." (GR, 2026-10-07).
+ */
+const bookkeeping = new Set([
+  "status",
+  "humanReviewRequired",
+  "modelMode",
+  "modelVersion",
+  "model",
+  "promptVersion",
+  "schemaVersion",
+  // When the record was made, never when the event is: startsAt, dueAt and
+  // the like are the content and stay.
+  "generatedAt",
+  "createdAt",
+  "updatedAt",
+  "analyzedAt",
+  "extractedAt",
+]);
+const isBookkeeping = (key: string) => bookkeeping.has(key);
 const isCents = (key: string) => /Cents$/.test(key);
 
 const labels: Record<string, string> = {
@@ -30,6 +55,10 @@ const labels: Record<string, string> = {
   signatureAnchors: "Signature fields",
   sourceText: "Original extracted text",
   timingRules: "Timing rules",
+  missingInformation: "Still missing",
+  contradictions: "Doesn't line up",
+  planningRisks: "Worth checking",
+  suggestedQuestions: "You could ask them",
 };
 
 function labelFor(key: string) {
@@ -297,7 +326,10 @@ const isEmpty = (item: unknown) =>
 export function StructuredContentPreview({ value }: { value: StructuredValue }) {
   const entries = Object.entries(value).filter(
     ([key, item]) =>
-      !hiddenByDefault.has(key) && !isMachineReference(key) && !isEmpty(item),
+      !hiddenByDefault.has(key) &&
+      !isMachineReference(key) &&
+      !isBookkeeping(key) &&
+      !isEmpty(item),
   );
   const prose = entries.filter(([key]) => proseKeys.has(key));
   const facts = entries.filter(([key]) => !proseKeys.has(key));
@@ -317,6 +349,16 @@ export function StructuredContentPreview({ value }: { value: StructuredValue }) 
               <dd>
                 {isCents(key) && typeof item === "number"
                   ? formatCents(item)
+                  : Array.isArray(item) && item.every((entry) => typeof entry === "string")
+                  ? (
+                      // What was found, not how many: "2 items" told the
+                      // studio nothing it could act on.
+                      <ul className="structured-preview-list">
+                        {(item as string[]).map((entry, index) => (
+                          <li key={`${key}-${index}`}>{entry}</li>
+                        ))}
+                      </ul>
+                    )
                   : Array.isArray(item)
                   ? `${item.length} ${item.length === 1 ? "item" : "items"}`
                   : isRecord(item)

@@ -784,6 +784,13 @@ export function TodayInbox() {
             // Keyed so "Edit" on one card and "Review" on another never share
             // an editor's half-typed state.
             key={`${reviewingAction.id}-${reviewEditing ? "edit" : "review"}`}
+            // Today's own stack, so Undo brings back the card it came from.
+            onHeld={(send) => {
+              const inquiry = [...inbox.act].find(
+                (item) => item.action.kind === "inquiry" && item.action.reply?.actionId === reviewingAction.id,
+              );
+              hold(inquiry?.id ?? `ai-${reviewingAction.id}`)(send);
+            }}
             onDecision={(id) => {
               // Approve-lane cards are keyed `ai-<actionId>`; clearing the bare
               // id left the decided card on screen until the next refresh.

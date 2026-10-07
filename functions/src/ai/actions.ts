@@ -388,6 +388,9 @@ export const aiActionCommand = onRequest(
           downstreamConsequence: consequence,
           emailQueued: Boolean(emailJobId),
           emailJobId,
+          // Who it actually went to — the client's corrected address, when
+          // the draft still named an old one — so the banner says it.
+          recipient: emailJobId ? recipient : null,
           // The browser counts the window from when this answer arrives, not
           // from its own clock against ours.
           undoWindowMs: heldUntil ? UNDO_SEND_WINDOW_MS : null,

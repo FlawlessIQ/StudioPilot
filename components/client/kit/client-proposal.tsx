@@ -33,6 +33,7 @@ import {
   number,
   proposalErrorMessage,
   PROPOSAL_ERROR_FALLBACK,
+  refreshClientRecords,
   text,
   useProjectRecords,
   useBookingNeeds,
@@ -129,13 +130,18 @@ export function ClientProposal() {
           decision === "declined" ? reason.trim() : null,
         );
         setLocalStatus(result.status);
+        // The rest of the page re-reads the job now, and again once the
+        // agreement has had a moment to go out — it is usually sent within a
+        // second of acceptance — so the next step names it and links to it.
+        refreshClientRecords();
+        window.setTimeout(refreshClientRecords, 4_000);
       }
       setMode("idle");
       setNotice(
         decision === "accepted"
           ? needs.agreement
-            ? "Proposal accepted. Your studio can now prepare the agreement."
-            : "Proposal accepted."
+            ? "Proposal accepted! Next, your agreement: check your email for the link to sign it. It can take a minute to arrive."
+            : "Proposal accepted!"
           : "Your change request was sent to your studio.",
       );
       window.scrollTo({ top: 0 });

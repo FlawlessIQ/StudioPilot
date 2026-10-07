@@ -28,6 +28,7 @@ import { CueMark } from "@/components/brand/logo";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { HowToButton } from "@/components/help/how-to";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
+import { HeldSendStack } from "@/components/communications/held-sends";
 import { openFeedback } from "@/components/feedback/feedback-events";
 import { PlatformReturnLink } from "@/components/layout/platform-return-link";
 import { cn } from "@/lib/utils";
@@ -585,6 +586,7 @@ function StudioShell({
         </div>
       </div>
       <FeedbackLauncher />
+      <HeldSendStack />
     </div>
   );
 }

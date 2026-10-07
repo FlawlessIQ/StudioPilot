@@ -228,6 +228,14 @@
   white-space: pre-wrap;
 }
 
+.ds-root .structured-preview .structured-preview-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+  white-space: normal;
+}
+
 .ds-root .studio-import-friendly-fields {
   display: grid;
   gap: 8px;

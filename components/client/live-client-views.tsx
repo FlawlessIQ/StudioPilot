@@ -352,6 +352,21 @@ export function useProject(): Loadable<ClientPortalProject | null> {
   return state;
 }
 
+/**
+ * Re-read every portal list on the page.
+ *
+ * Each screen holds its own copy of the job's records, so a write made by one
+ * part of the page left the others stale. Accepting a proposal changed the
+ * proposal card's copy only; the next-step card beside it kept reading the
+ * proposal as unanswered and asked the couple to accept it again — "It almost
+ * seems like it freezes there" (GR, 2026-10-07).
+ */
+const CLIENT_RECORDS_REFRESH = "studiocue:client-records-refresh";
+
+export function refreshClientRecords() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(CLIENT_RECORDS_REFRESH));
+}
+
 export function useProjectRecords(
   collectionName: ClientPortalCollection,
 ): Loadable<RecordValue[]> {
@@ -371,6 +386,10 @@ export function useProjectRecords(
     setState((current) => ({ ...current, loading: true, error: null }));
     setAttempt((current) => current + 1);
   }, []);
+  useEffect(() => {
+    window.addEventListener(CLIENT_RECORDS_REFRESH, refresh);
+    return () => window.removeEventListener(CLIENT_RECORDS_REFRESH, refresh);
+  }, [refresh]);
   useEffect(() => {
     if (!dataIsLive || workspace.loading) return;
     if (!workspace.tenantId || !workspace.projectId) {

@@ -134,13 +134,13 @@ export function bookingSteps(input: BookingStepsInput): BookingStepsView {
         ? agreementSent
           ? {
               title: "Sign your agreement",
-              detail: "Your agreement has been sent for signature. Look for the email with your secure signing link.",
+              detail: "It's ready to sign. We've emailed you the link too, so you can sign here or from the email.",
               href: "/client/contract",
-              actionLabel: "Agreement status",
+              actionLabel: "Sign your agreement",
             }
           : {
               title: "Your agreement is on its way",
-              detail: "You accepted your proposal. Your agreement will arrive by email for signature shortly.",
+              detail: "You accepted your proposal. Check your email: your agreement will arrive there to sign, and it will appear here too.",
               href: null,
               actionLabel: null,
             }

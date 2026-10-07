@@ -41,6 +41,8 @@ import {
   StructuredContentPreview,
 } from "@/components/ai/structured-content-fields";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
+import { heldSendFrom, type HeldSend } from "@/components/communications/undo-send";
+import { announceHeldSend } from "@/components/communications/held-sends";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { PreparedCompactRow } from "@/components/ai/prepared-compact-row";
 import { TrustDialOffers } from "@/components/communications/trust-dial-offers";
@@ -72,13 +74,39 @@ function relativeTime(value: unknown) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+/**
+ * The prepared work without what the card already shows as a warning above
+ * it: a questionnaire review's missing details and contradictions are its
+ * validation issues too, and were printed twice.
+ */
+export function withoutShownIssues(
+  value: Record<string, unknown>,
+  issues: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  const shown = new Set(issues.map((issue) => text(issue.message)).filter(Boolean));
+  if (!shown.size) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) =>
+      Array.isArray(item) && item.every((entry) => typeof entry === "string")
+        ? [key, (item as string[]).filter((entry) => !shown.has(entry))]
+        : [key, item],
+    ),
+  );
+}
+
 export function AiQueueCard({
   action,
   onDecision,
+  onHeld,
   startEditing = false,
 }: {
   action: RecordValue;
   onDecision: (id: string, status: string) => void;
+  /**
+   * Told when an approved email is on its way, so the page can say so after
+   * the card closes. Without it, the studio shell's stack says it.
+   */
+  onHeld?: (held: HeldSend) => void;
   /** Open with the editor showing — Today's inquiry card "Edit" button. */
   startEditing?: boolean;
 }) {
@@ -117,7 +145,6 @@ export function AiQueueCard({
   const [approvedReplyDraftId, setApprovedReplyDraftId] = useState<
     string | null
   >(null);
-  const [dispatched, setDispatched] = useState(false);
   const confidence = object(action.confidence);
   /** The only part of `confidence` that says anything actionable. */
   const uncertainFields = list(confidence.uncertainFields)
@@ -165,31 +192,41 @@ export function AiQueueCard({
       } else if (editing) {
         editDelta = editor;
       }
+      const sending =
+        decision === "approved" &&
+        sendsOnApproval(text(action.capability)) &&
+        typeof output.recipientEmail === "string" &&
+        Boolean(output.recipientEmail);
       const result = await runAiQueueCommand({
         type: "decideAiAction",
         input: {
           actionId: action.id,
           decision,
           editDelta,
+          // Held a few seconds so the banner can offer Undo, as Today's
+          // one-tap send does (communications/undo-send.ts).
+          ...(sending ? { holdForUndo: true } : {}),
         },
       });
       setNotice(text(result.downstreamConsequence));
       if (decision === "rejected") setRejectedActionId(action.id);
-      if (
-        decision === "approved" &&
-        sendsOnApproval(text(action.capability)) &&
-        result.alreadyDecided !== true &&
-        typeof output.recipientEmail === "string" &&
-        output.recipientEmail
-      ) {
-        // Keep the card visible so the reply can be re-sent if needed. When
-        // the draft was complete the server has already dispatched it as part
-        // of the approval, so the button must not still offer to send it —
-        // that is what made the card contradict itself.
+      if (sending && result.alreadyDecided !== true && result.emailQueued === true) {
+        // Sent: the card's work is done, so it closes with the one click.
+        // It used to stay open on "Queued to send" with a Done button, and a
+        // second step read as the first having done nothing (GR, 2026-10-07:
+        // "had to hit reply twice"). What went, and to whom, is said by the
+        // banner that outlives the card.
+        const to =
+          text(result.recipient) || text(output.recipientName) || text(output.recipientEmail);
+        const label = `your ${text(action.capability).includes("follow_up") ? "follow-up" : "reply"} to ${to}`;
+        const held = heldSendFrom(result, label);
+        if (held && onHeld) onHeld(held);
+        else announceHeldSend(held ?? { label });
+        onDecision(action.id, decision);
+      } else if (sending && result.alreadyDecided !== true) {
+        // Approved but not queued (the server found nothing it could send):
+        // keep the card, with the send offered by hand.
         setApprovedReplyDraftId(`ai_reply_${action.id}`);
-        // The server says whether it queued the email; the card's own guess
-        // (approvingSends) is only a forecast.
-        if (result.emailQueued === true) setDispatched(true);
       } else if (decision === "approved" && isProposedStudioCommand(output)) {
         // A non-email studio command: run it through the normal command endpoint
         // now that the owner has approved, then record the execution on the
@@ -262,10 +299,13 @@ export function AiQueueCard({
       });
       if (result.mode === "preview") {
         setNotice("Preview: the approved reply would be sent to the client.");
-      } else {
-        setNotice("Reply queued for delivery.");
+        return;
       }
-      setDispatched(true);
+      // Sent: closed with the click, said by the shell's banner.
+      announceHeldSend({
+        label: `your reply to ${text(output.recipientName) || text(output.recipientEmail) || "the client"}`,
+      });
+      onDecision(action.id, "approved");
     } catch (caught: unknown) {
       setNotice(
         caught instanceof Error
@@ -481,20 +521,19 @@ export function AiQueueCard({
           <StructuredContentFields onChange={setEditor} value={editor} />
         </div>
       ) : !isMessageDraft && text(output.kind) !== "studio_command" ? (
-        <StructuredContentPreview value={object(action.structuredOutput)} />
+        <StructuredContentPreview value={withoutShownIssues(object(action.structuredOutput), issues)} />
       ) : null}
 
       {approvedReplyDraftId ? (
         <footer>
           <button
             className="is-primary"
-            disabled={Boolean(busy) || dispatched}
+            disabled={Boolean(busy)}
             onClick={() => void dispatchReply()}
             type="button"
           >
             {busy === "dispatch" ? <LoaderCircle className="spin" /> : <Send />}
-            {/* Queued, not yet delivered: the worker sends it a moment later. */}
-            {dispatched ? "Queued to send" : "Send reply now"}
+            Send reply now
           </button>
           <button
             disabled={Boolean(busy)}
