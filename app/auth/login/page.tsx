@@ -36,11 +36,17 @@ export default async function LoginPage({
           <ArrowLeft size={16} /> {fromInvitation ? "Back to invitation" : "Back to StudioCue"}
         </Link>
         <div className="auth-quote">
-          <Logo />
+          {/* Back to the website, as the logo is everywhere else (Conor, 2026-10-07). */}
+          <Link aria-label="StudioCue home" className="auth-quote-logo" href="/">
+            <Logo />
+          </Link>
           <blockquote>
             {isClientArrival
               ? "Your studio invited you to one secure place for project details, next steps, schedules, and delivery."
-              : "“I can see exactly what’s ready, what’s blocked, and who owns the next move—without opening six different tools.”"}
+              : // The one line GR Productions has cleared for us, verbatim
+                // (components/marketing/studio-proof.tsx). This was a made-up
+                // studio and a made-up quote.
+                "“I review it and send it.”"}
           </blockquote>
           {isClientArrival ? (
             <div className="quote-author client-auth-assurance">
@@ -52,10 +58,10 @@ export default async function LoginPage({
             </div>
           ) : (
             <div className="quote-author">
-              <span>AM</span>
+              <span>GR</span>
               <div>
-                <strong>Alex Morgan</strong>
-                <small>Owner, Alder &amp; Muse Photography</small>
+                <strong>Gabriel Rhodes</strong>
+                <small>GR Productions, Madison, New Jersey</small>
               </div>
             </div>
           )}

@@ -11196,6 +11196,19 @@ textarea:focus-visible {
   width: 56px;
 }
 
+/* The sign-in panel's logo is a link home; it keeps the logo's look. */
+.auth-quote-logo {
+  color: inherit;
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.auth-quote-logo:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+
 .auth-quote .brand-logo {
   margin-bottom: 34px;
 }
