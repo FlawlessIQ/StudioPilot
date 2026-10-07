@@ -5,6 +5,9 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import {
   invitationIdFor,
+  invitationAnswersTo,
+  inviteJustSent,
+  liveInvitationLinks,
   mintClientInvitation,
 } from "./invitation-mint.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -63,6 +66,29 @@ const equalHash = (left: string, right: string) => {
   const b = Buffer.from(right);
   return a.length === b.length && timingSafeEqual(a, b);
 };
+
+/**
+ * The invitation a link belongs to: by its newest link, else by one sent
+ * earlier (invitation-mint.ts). Every link still answers until the invitation
+ * expires or is revoked.
+ */
+async function invitationForToken(
+  db: FirebaseFirestore.Firestore,
+  tokenHash: string,
+): Promise<FirebaseFirestore.DocumentReference | null> {
+  const newest = await db
+    .collection("clientInvitations")
+    .where("tokenHash", "==", tokenHash)
+    .limit(1)
+    .get();
+  if (newest.docs[0]) return newest.docs[0].ref;
+  const earlier = await db
+    .collection("clientInvitations")
+    .where("tokenHashes", "array-contains", tokenHash)
+    .limit(1)
+    .get();
+  return earlier.docs[0]?.ref ?? null;
+}
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const maskedEmail = (value: string) => {
   const [local = "", domain = ""] = normalizeEmail(value).split("@");
@@ -97,13 +123,12 @@ export const clientInvitationCommand = onRequest(
 
       if (parsed.type === "preview") {
         const tokenHash = hash(parsed.input.token);
-        const invitations = await db
-          .collection("clientInvitations")
-          .where("tokenHash", "==", tokenHash)
-          .limit(1)
-          .get();
-        const invitation = invitations.docs[0];
-        if (!invitation || !equalHash(String(invitation.get("tokenHash")), tokenHash)) {
+        const found = await invitationForToken(db, tokenHash);
+        const invitation = found ? await found.get() : null;
+        if (
+          !invitation?.exists ||
+          !invitationAnswersTo(invitation.data() ?? {}, tokenHash, equalHash)
+        ) {
           throw new Error("INVITATION_NOT_FOUND");
         }
         const tenantId = String(invitation.get("tenantId"));
@@ -177,18 +202,13 @@ export const clientInvitationCommand = onRequest(
           throw new Error("VERIFIED_EMAIL_REQUIRED");
         }
         const tokenHash = hash(parsed.input.token);
-        const invitations = await db
-          .collection("clientInvitations")
-          .where("tokenHash", "==", tokenHash)
-          .limit(1)
-          .get();
-        const invitationReference = invitations.docs[0]?.ref;
+        const invitationReference = await invitationForToken(db, tokenHash);
         if (!invitationReference) throw new Error("INVITATION_NOT_FOUND");
         const result = await db.runTransaction(async (transaction) => {
           const invitation = await transaction.get(invitationReference);
           if (
             !invitation.exists ||
-            !equalHash(String(invitation.get("tokenHash")), tokenHash)
+            !invitationAnswersTo(invitation.data() ?? {}, tokenHash, equalHash)
           ) {
             throw new Error("INVITATION_NOT_FOUND");
           }
@@ -458,6 +478,8 @@ export const clientInvitationCommand = onRequest(
         batch.update(reference, {
           status: "revoked",
           revokedAt: now,
+          // Every link sent so far dies with it (invitation-mint.ts).
+          tokenHashes: [],
           updatedAt: now,
           updatedBy: identity.uid,
         });
@@ -520,6 +542,24 @@ export const clientInvitationCommand = onRequest(
       const existing = await reference.get();
       const isResend =
         existing.exists && existing.get("status") === "pending";
+      // A second tap seconds after the first is the same request, not a
+      // resend: Gabe's two invites to Albert went 2.7 seconds apart. The first
+      // email is on its way; answer as it did and send nothing more.
+      if (
+        isResend &&
+        inviteJustSent(existing.get("lastSentAt"), existing.get("normalizedEmail"), email, Date.parse(now))
+      ) {
+        response.status(200).json({
+          invitationId,
+          email,
+          expiresAt: String(existing.get("expiresAt")),
+          status: "pending",
+          deliveryStatus: "queued",
+          resent: false,
+          alreadySent: true,
+        });
+        return;
+      }
       const emailJobId = `client_invite_${invitationId}_${Date.now()}`;
       const batch = db.batch();
       batch.set(reference, {
@@ -531,6 +571,7 @@ export const clientInvitationCommand = onRequest(
         normalizedEmail: email,
         status: "pending",
         tokenHash: minted.tokenHash,
+        tokenHashes: liveInvitationLinks(existing.data(), minted.tokenHash),
         expiresAt,
         acceptedAt: null,
         acceptedBy: null,

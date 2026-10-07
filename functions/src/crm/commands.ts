@@ -33,9 +33,11 @@ import { holdResumeStates } from "./hold-resume.js";
 import {
   amendmentFollows,
   emailChanged,
+  withPreviousEmail,
   invitationRetires,
   retargetContractSigners,
 } from "./email-change.js";
+import { followEmailToInquiries } from "./email-change-follow.js";
 import { billingAddressInputSchema, sameBillingAddress } from "../contacts/billing-address.js";
 import {
   evidenceControlledTransitions,
@@ -3606,7 +3608,7 @@ export const crmCommand = onRequest(
             }
             for (const invitation of pendingInvitations?.docs ?? []) {
               if (!invitationRetires(invitation.data(), fromEmail)) continue;
-              transaction.update(invitation.ref, { status: "revoked", revokedAt: timestamp, updatedAt: timestamp, updatedBy: identity.uid });
+              transaction.update(invitation.ref, { status: "revoked", revokedAt: timestamp, tokenHashes: [], updatedAt: timestamp, updatedBy: identity.uid });
               followed.invitationsRetired.push(invitation.id);
             }
           }
@@ -3621,6 +3623,12 @@ export const crmCommand = onRequest(
             // `findContactByEmail` matches on the normalised form, so leaving
             // it stale would make a corrected email unfindable.
             normalizedEmail: email?.toLowerCase() ?? null,
+            // What an approval checks a draft's copy of the address against
+            // (followedRecipient): a draft to an address on this list goes to
+            // the one they have now.
+            ...(moving
+              ? { previousEmails: withPreviousEmail(contact.get("previousEmails"), fromEmail, toEmail) }
+              : {}),
             phone: command.input.phone,
             normalizedPhone: command.input.phone?.replace(/\D/g, "") ?? null,
             company: command.input.company,
@@ -3675,7 +3683,7 @@ export const crmCommand = onRequest(
           const output = {
             contactId: command.input.contactId,
             updated: true,
-            ...(moving ? { emailFollowed: followed } : {}),
+            ...(moving ? { emailFollowed: followed, emailMoved: { from: fromEmail, to: toEmail } } : {}),
           };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
@@ -5163,6 +5171,28 @@ export const crmCommand = onRequest(
           });
         } catch (caught: unknown) {
           console.warn(`[crm] converting the edited inquiry failed: ${String(caught).slice(0, 160)}`);
+        }
+      }
+      /**
+       * A corrected address reaches the inquiry and the reply drafted from it
+       * (email-change-follow.ts). Keyed off the result, like the rest here.
+       */
+      const movedEmail = result as {
+        contactId?: string;
+        emailMoved?: { from: string; to: string };
+      };
+      if (movedEmail.contactId && movedEmail.emailMoved) {
+        try {
+          await followEmailToInquiries(db, {
+            tenantId: command.tenantId,
+            contactId: movedEmail.contactId,
+            from: movedEmail.emailMoved.from,
+            to: movedEmail.emailMoved.to,
+            actorId: identity.uid,
+            now: new Date().toISOString(),
+          });
+        } catch (caught: unknown) {
+          console.warn(`[crm] moving the inquiry to the corrected email failed: ${String(caught).slice(0, 160)}`);
         }
       }
       /**

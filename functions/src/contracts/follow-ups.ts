@@ -1,6 +1,6 @@
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { mintClientInvitation } from "../client/invitation-mint.js";
+import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { clientOutreachStop, mayContactClient } from "../post-event/client-outreach.js";
 import { requireOwnerOrAdmin, stableId, type CommandContext } from "./commands.js";
@@ -142,7 +142,7 @@ export async function resendContract(context: CommandContext, input: z.infer<typ
           email: invitation.email,
           normalizedEmail: invitation.email,
           status: "pending",
-          tokenHash: invitation.tokenHash,
+          ...invitationLinkFields(invitation.tokenHash),
           expiresAt: invitation.expiresAt,
           revokedAt: null,
           lastSentAt: context.timestamp,

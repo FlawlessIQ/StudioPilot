@@ -5,7 +5,7 @@ import { getFirestore, type Transaction } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
-import { mintClientInvitation } from "../client/invitation-mint.js";
+import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { commandTypeOf, respondToCommandError } from "../security/command-errors.js";
@@ -1630,7 +1630,7 @@ export const proposalCommand = onRequest(
                   email: invitation.email,
                   normalizedEmail: invitation.email,
                   status: "pending",
-                  tokenHash: invitation.tokenHash,
+                  ...invitationLinkFields(invitation.tokenHash),
                   expiresAt: invitation.expiresAt,
                   acceptedAt: null,
                   acceptedBy: null,

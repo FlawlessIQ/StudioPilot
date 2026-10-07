@@ -49,6 +49,9 @@ export const UNDELIVERED_STATUSES: readonly string[] = [
   "bounced",
   "blocked",
   "dropped",
+  // SendGrid's Activity API spelling of "dropped". Recorded as written until
+  // 2026-10-07, so thirteen undelivered emails on prod never reached Today.
+  "drop",
 ];
 
 function failedReason(code: string): string {
@@ -69,11 +72,11 @@ function undeliveredCopy(status: string): { title: string; reason: string } {
       title: "An email was refused",
       reason: "Their mail server refused it. Check the address, or ask them for another.",
     };
-  if (status === "dropped")
+  if (status === "dropped" || status === "drop")
     return {
       title: "An email was not delivered",
       reason:
-        "It was never delivered — this address has bounced or opted out before. Check it with them.",
+        "It was never delivered. The address may have a typo, or it has bounced or opted out before. Check it with them.",
     };
   return {
     title: "An email bounced",

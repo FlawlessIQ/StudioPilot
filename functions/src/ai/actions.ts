@@ -20,6 +20,7 @@ import { studioHubCors } from "../security/cors.js";
 import { consultationPrepStale } from "../booking/consultation-prep.js";
 import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
 import { proposalStillOpen } from "../booking/proposal-follow-ups.js";
+import { followedRecipient } from "../crm/email-change.js";
 
 const commandSchema = z.object({
   tenantId: z.string().min(1),
@@ -43,6 +44,31 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 const hash = (value: string): string =>
   createHash("sha256").update(value).digest("hex");
+
+/**
+ * The draft's recipient, or the client's corrected address when the draft
+ * still names one they were corrected away from. The client is the draft's own
+ * contact, else its inquiry's couple.
+ */
+async function currentRecipient(
+  db: Firestore,
+  tenantId: string,
+  output: Record<string, unknown>,
+  editDelta: Record<string, unknown>,
+): Promise<string | null> {
+  const stored = text(output.recipientEmail) || null;
+  if (text(editDelta.recipientEmail)) return stored;
+  let contactId = text(output.contactId);
+  if (!contactId && text(output.leadId)) {
+    const lead = await db.doc(`leads/${text(output.leadId)}`).get();
+    if (lead.exists && lead.get("tenantId") === tenantId)
+      contactId = text(lead.get("primaryContactId"));
+  }
+  if (!contactId) return stored;
+  const contact = await db.doc(`contacts/${contactId}`).get();
+  if (!contact.exists || contact.get("tenantId") !== tenantId) return stored;
+  return followedRecipient(stored, contact.data() ?? null);
+}
 
 async function requireReviewer(
   db: Firestore,
@@ -298,6 +324,12 @@ export const aiActionCommand = onRequest(
             throw new Error("PROPOSAL_NO_LONGER_OPEN");
         }
         const followUpUrl = text(proposalFollowUp.actionUrl);
+        // The client's address as it is now, when the draft's copy is one the
+        // studio has since corrected (crm/email-change.ts). An address typed
+        // into the draft itself is the studio's choice and stands.
+        const recipient = communicationApproval
+          ? await currentRecipient(db, parsed.tenantId, structuredOutput, editDelta)
+          : null;
         const communicationDraftId = communicationApproval
           ? `ai_reply_${actionId}`
           : null;
@@ -313,7 +345,7 @@ export const aiActionCommand = onRequest(
               projectId,
               leadId: text(structuredOutput.leadId) || null,
               contactId: text(structuredOutput.contactId) || null,
-              recipient: text(structuredOutput.recipientEmail) || null,
+              recipient,
               recipientName: text(structuredOutput.recipientName) || null,
               projectName: text(structuredOutput.projectName) || null,
               subject: text(structuredOutput.subject),
@@ -449,7 +481,7 @@ export const aiActionCommand = onRequest(
                     ? text(leadSource.entityId)
                     : text(structuredOutput.leadId) || null,
                   contactId: text(structuredOutput.contactId) || null,
-                  recipient: structuredOutput.recipientEmail ?? null,
+                  recipient: recipient ?? structuredOutput.recipientEmail ?? null,
                   recipientName: structuredOutput.recipientName ?? null,
                   projectName: structuredOutput.projectName ?? null,
                   subject: structuredOutput.subject,

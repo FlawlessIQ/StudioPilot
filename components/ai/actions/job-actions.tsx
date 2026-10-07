@@ -629,7 +629,7 @@ export function PortalInviteCard({ action }: ActionCardProps) {
       detail={
         revoking
           ? "Their invitation link stops working. Anything they already opened stays as it is."
-          : "They get an email with a link to their portal. Sending again replaces the earlier link."
+          : "They get an email with a link to their portal. Sending again keeps the earlier link working."
       }
       icon={<MailPlus size={15} />}
       title={`${title}${job ? ` · ${jobName(job)}` : ""}`}

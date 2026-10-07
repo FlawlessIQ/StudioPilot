@@ -10,7 +10,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { mintClientInvitation } from "../client/invitation-mint.js";
+import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { pricePackage, type SalesTaxTreatment } from "../pricing/package-price.js";
@@ -1098,7 +1098,7 @@ export async function sendAmendment(context: CommandContext, input: z.infer<type
         email: invitation.email,
         normalizedEmail: invitation.email,
         status: "pending",
-        tokenHash: invitation.tokenHash,
+        ...invitationLinkFields(invitation.tokenHash),
         expiresAt: invitation.expiresAt,
         acceptedAt: null,
         acceptedBy: null,
@@ -1357,7 +1357,7 @@ export async function resendAmendment(context: CommandContext, input: z.infer<ty
           email: invitation.email,
           normalizedEmail: invitation.email,
           status: "pending",
-          tokenHash: invitation.tokenHash,
+          ...invitationLinkFields(invitation.tokenHash),
           expiresAt: invitation.expiresAt,
           revokedAt: null,
           lastSentAt: context.timestamp,

@@ -78,3 +78,79 @@ export function invitationRetires(
     normal(invitation.normalizedEmail ?? invitation.email) === normal(from)
   );
 }
+
+/**
+ * The inquiry side, which the list above missed (GR, 2026-10-07). Albert typed
+ * gamil.com on the inquiry form; Gabe corrected it on the client at 11:03 and
+ * approved the drafted reply at 11:06 — and it went to gamil.com. The draft
+ * held a copy of the address taken when the inquiry arrived, and the inquiry
+ * itself still did, so its follow-ups would have gone there too.
+ *
+ *  - the inquiry (lead) whose couple this is, still at the old address;
+ *  - a reply or follow-up waiting for approval, addressed to the old address.
+ *
+ * The same rule as the rest: only what names the old address moves.
+ */
+
+/** A lead still at the old address, belonging to this client. */
+export function leadFollows(
+  lead: { primaryContactId?: unknown; email?: unknown },
+  contactId: string,
+  from: string,
+): boolean {
+  return lead.primaryContactId === contactId && normal(lead.email) === normal(from);
+}
+
+/** A draft still waiting for approval that would mail this client's old address. */
+export function draftFollows(
+  draft: { status?: unknown; structuredOutput?: unknown },
+  scope: { contactId: string; leadIds: readonly string[] },
+  from: string,
+): boolean {
+  if (draft.status !== "review_required") return false;
+  const output = (draft.structuredOutput ?? {}) as Record<string, unknown>;
+  const theirs =
+    output.contactId === scope.contactId ||
+    (typeof output.leadId === "string" && scope.leadIds.includes(output.leadId));
+  return theirs && normal(output.recipientEmail) === normal(from);
+}
+
+/**
+ * The addresses this client has been corrected away from, newest last. The
+ * address they now have is never on it: a correction undone is no longer one.
+ */
+export function withPreviousEmail(previous: unknown, from: string, to: string): string[] {
+  const list = Array.isArray(previous)
+    ? previous.map(normal).filter(Boolean)
+    : [];
+  const old = normal(from);
+  const now = normal(to);
+  return [...list.filter((item) => item !== old && item !== now), old].slice(-10);
+}
+
+/**
+ * Who an approved draft goes to, decided as it is approved.
+ *
+ * The draft's copy wins unless it names an address this client has since been
+ * corrected away from — then their address as it is now. A reply drafted to
+ * someone else on the thread (a partner, a planner) is never redirected.
+ */
+export function followedRecipient(
+  stored: unknown,
+  contact: { email?: unknown; previousEmails?: unknown; archivedAt?: unknown } | null,
+): string | null {
+  const recipient = typeof stored === "string" ? stored.trim() : "";
+  if (!contact || contact.archivedAt) return recipient || null;
+  const current = typeof contact.email === "string" ? contact.email.trim() : "";
+  const previous = Array.isArray(contact.previousEmails)
+    ? contact.previousEmails.map(normal)
+    : [];
+  if (
+    recipient &&
+    current &&
+    normal(current) !== normal(recipient) &&
+    previous.includes(normal(recipient))
+  )
+    return current;
+  return recipient || null;
+}

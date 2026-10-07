@@ -3,8 +3,11 @@ import test from "node:test";
 
 import {
   activityEntriesFromRows,
+  activityEventName,
+  decisiveActivityEvent,
   messageIdPrefix,
 } from "../functions/src/communications/delivery-reconciler.js";
+import { emailProblemOf } from "../features/today/email-problems.js";
 
 test("an activity id reduces to the message id we stored", () => {
   // Verbatim from production: the job recorded the left-hand side, the
@@ -66,4 +69,24 @@ test("the newest row wins, and unusable rows are skipped", () => {
       ?.lastEventTime,
     "",
   );
+});
+
+test("the Activity API's `drop` is a dropped email, and Today says so", () => {
+  // GR, 2026-10-07: Albert's acknowledgement and the reply to his typo'd
+  // gamil.com address were recorded as "drop" — a word nothing counted as
+  // undelivered, so the studio was never told. Thirteen such on prod.
+  assert.equal(activityEventName("drop"), "dropped");
+  assert.equal(activityEventName("bounce"), "bounce");
+  const detail = decisiveActivityEvent([
+    { event_name: "processed", processed: "2026-10-07T15:06:24Z" },
+    { event_name: "drop", processed: "2026-10-07T15:06:25Z", reason: "Bounced Address" },
+  ]);
+  assert.equal(detail.event, "dropped");
+  assert.equal(detail.reason, "Bounced Address");
+  // Recorded before the fix, still shown.
+  for (const deliveryStatus of ["drop", "dropped"]) {
+    const problem = emailProblemOf({ id: "j1", status: "succeeded", deliveryStatus, recipient: "albertgersh20@gamil.com", leadId: "lead1" });
+    assert.equal(problem?.title, "An email was not delivered", deliveryStatus);
+    assert.match(problem?.reason ?? "", /may have a typo/);
+  }
 });

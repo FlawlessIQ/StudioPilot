@@ -50,6 +50,7 @@ export const undeliveredStatuses: readonly string[] = [
   "bounce",
   "blocked",
   "dropped",
+  "drop",
   "spamreport",
 ];
 function validSignature(

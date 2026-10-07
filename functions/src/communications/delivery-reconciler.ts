@@ -1,6 +1,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { undeliveredStatuses } from "./sendgrid-events.js";
 
 /**
  * What actually happened to the mail StudioCue sent.
@@ -162,18 +163,37 @@ async function failureDetail(
   const body = (await response.json()) as {
     events?: Array<Record<string, unknown>>;
   };
-  const events = body.events ?? [];
-  // The last event that explains a failure, not merely the last event.
+  return decisiveActivityEvent(body.events ?? []);
+}
+
+/**
+ * The Activity API's name for an event, in the Event Webhook's vocabulary.
+ *
+ * The two do not agree: the webhook says `dropped`, the Activity API `drop`.
+ * Read as written, a dropped email was recorded as "drop", which nothing
+ * counted as undelivered — so Albert's inquiry acknowledgement and the reply
+ * to his typo'd address (gamil.com, GR 2026-10-07) failed with no word to the
+ * studio, along with eleven others on prod.
+ */
+export function activityEventName(name: unknown): string {
+  const event = text(name);
+  return event === "drop" ? "dropped" : event;
+}
+
+/** The last event that explains a failure, not merely the last event. */
+export function decisiveActivityEvent(
+  events: ReadonlyArray<Record<string, unknown>>,
+): { event: string; occurredAt: string; reason: string | null } {
   const decisive = [...events]
     .reverse()
     .find((event) =>
       ["bounce", "blocked", "dropped", "spamreport", "deferred"].includes(
-        text(event.event_name),
+        activityEventName(event.event_name),
       ),
     );
   const chosen = decisive ?? events.at(-1) ?? {};
   return {
-    event: text(chosen.event_name) || "not_delivered",
+    event: activityEventName(chosen.event_name) || "not_delivered",
     occurredAt: text(chosen.processed) || new Date().toISOString(),
     reason: text(chosen.reason) || null,
   };
@@ -284,9 +304,7 @@ export const emailDeliveryReconciler = onSchedule(
       // The same field shape the Event Webhook writes, so a studio reading a
       // message cannot tell which route learned it — and so this keeps working
       // if StudioCue ever gets a webhook slot of its own.
-      const failed = ["bounce", "blocked", "dropped", "spamreport"].includes(
-        status,
-      );
+      const failed = undeliveredStatuses.includes(status);
       const update = {
         deliveryStatus: status,
         lastDeliveryEventAt: occurredAt,

@@ -6,6 +6,7 @@ import type {
   SetOptions,
 } from "firebase-admin/firestore";
 import {
+  invitationLinkFields,
   mintClientInvitation,
   normalizeInviteEmail,
 } from "./invitation-mint.js";
@@ -248,7 +249,7 @@ export async function preparePartnerSends(
               email: invitation.email,
               normalizedEmail: invitation.email,
               status: "pending",
-              tokenHash: invitation.tokenHash,
+              ...invitationLinkFields(invitation.tokenHash),
               expiresAt: invitation.expiresAt,
               acceptedAt: null,
               acceptedBy: null,

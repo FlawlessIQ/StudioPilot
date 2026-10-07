@@ -177,7 +177,7 @@ export function ClientPortalInvite({
         status: String(result.status ?? "pending"),
         expiresAt: String(result.expiresAt ?? ""),
         lastSentAt: new Date().toISOString(),
-        sendCount: Number(selectedInvitation?.sendCount ?? 0) + 1,
+        sendCount: Number(selectedInvitation?.sendCount ?? 0) + (result.alreadySent === true ? 0 : 1),
         deliveryStatus: null,
         emailJobStatus: "queued",
       };
@@ -186,9 +186,11 @@ export function ClientPortalInvite({
         [effectiveProjectId]: next,
       }));
       setNotice(
-        result.resent === true
-          ? "A fresh branded invitation was queued. The earlier link is no longer valid."
-          : "The branded client invitation was queued for SendGrid delivery.",
+        result.alreadySent === true
+          ? "The invitation went a moment ago, so no second email was sent."
+          : result.resent === true
+            ? "Sent again. The link in their earlier invitation still works too."
+            : "Invitation sent. It's on its way to their inbox.",
       );
     } catch (caught: unknown) {
       setNotice(

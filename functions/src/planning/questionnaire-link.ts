@@ -4,6 +4,7 @@ import type {
   Firestore,
 } from "firebase-admin/firestore";
 import {
+  invitationLinkFields,
   mintClientInvitation,
   normalizeInviteEmail,
 } from "../client/invitation-mint.js";
@@ -174,7 +175,7 @@ export async function questionnaireLinkFor(
         email: invitation.email,
         normalizedEmail: invitation.email,
         status: "pending",
-        tokenHash: invitation.tokenHash,
+        ...invitationLinkFields(invitation.tokenHash),
         expiresAt: invitation.expiresAt,
         acceptedAt: null,
         acceptedBy: null,

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { signedCopyDocumentId } from "./signed-copy-document.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { mintClientInvitation } from "../client/invitation-mint.js";
+import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { requireProviderForTenant } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
@@ -727,7 +727,7 @@ export async function sendContract(
           email: invitation.email,
           normalizedEmail: invitation.email,
           status: "pending",
-          tokenHash: invitation.tokenHash,
+          ...invitationLinkFields(invitation.tokenHash),
           expiresAt: invitation.expiresAt,
           acceptedAt: null,
           acceptedBy: null,

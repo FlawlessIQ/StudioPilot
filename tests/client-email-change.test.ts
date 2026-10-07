@@ -3,9 +3,13 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   amendmentFollows,
+  draftFollows,
   emailChanged,
+  followedRecipient,
   invitationRetires,
+  leadFollows,
   retargetContractSigners,
+  withPreviousEmail,
 } from "../functions/src/crm/email-change";
 
 /**
@@ -74,4 +78,59 @@ test("the proposal card names where it went and flags a changed email", () => {
   const card = read("components/proposals/studio-proposal-workspace.tsx");
   assert.match(card, /text\(proposal\.lastSentTo, ""\)/);
   assert.match(card, /Their email changed to \{currentClientEmail\}\. Resend goes there\./);
+});
+
+/**
+ * GR, 2026-10-07: Albert typed gamil.com on the inquiry form. Gabe corrected
+ * the client at 11:03, approved the drafted reply at 11:06, and it went to
+ * gamil.com — the draft and the inquiry both kept the address it arrived with.
+ */
+const TYPO = "albertgersh20@gamil.com";
+const FIXED = "albertgersh20@gmail.com";
+
+test("the inquiry follows its couple's corrected address, and only theirs", () => {
+  assert.equal(leadFollows({ primaryContactId: "c1", email: TYPO }, "c1", TYPO), true);
+  assert.equal(leadFollows({ primaryContactId: "c2", email: TYPO }, "c1", TYPO), false);
+  assert.equal(leadFollows({ primaryContactId: "c1", email: "partner@example.com" }, "c1", TYPO), false);
+});
+
+test("a waiting reply to the old address moves; a decided or someone else's does not", () => {
+  const scope = { contactId: "c1", leadIds: ["lead1"] };
+  const reply = { status: "review_required", structuredOutput: { leadId: "lead1", contactId: null, recipientEmail: TYPO } };
+  assert.equal(draftFollows(reply, scope, TYPO), true);
+  assert.equal(draftFollows({ ...reply, structuredOutput: { contactId: "c1", recipientEmail: TYPO } }, scope, TYPO), true);
+  assert.equal(draftFollows({ ...reply, status: "approved" }, scope, TYPO), false);
+  assert.equal(draftFollows({ ...reply, structuredOutput: { leadId: "lead1", recipientEmail: "planner@example.com" } }, scope, TYPO), false);
+  assert.equal(draftFollows({ ...reply, structuredOutput: { leadId: "other", recipientEmail: TYPO } }, scope, TYPO), false);
+});
+
+test("an approved draft goes to the corrected address, never redirecting anyone else", () => {
+  const contact = { email: FIXED, previousEmails: withPreviousEmail([], TYPO, FIXED) };
+  assert.equal(followedRecipient(TYPO, contact), FIXED);
+  assert.equal(followedRecipient(" AlbertGersh20@Gamil.com ", contact), FIXED);
+  // A partner or planner on the thread is not the client's old address.
+  assert.equal(followedRecipient("planner@example.com", contact), "planner@example.com");
+  assert.equal(followedRecipient(FIXED, contact), FIXED);
+  assert.equal(followedRecipient(TYPO, { email: FIXED }), TYPO, "no correction recorded: the draft stands");
+  assert.equal(followedRecipient(TYPO, null), TYPO);
+  assert.equal(followedRecipient(TYPO, { ...contact, archivedAt: "2026-10-07" }), TYPO);
+});
+
+test("a correction undone is no longer one", () => {
+  const once = withPreviousEmail([], TYPO, FIXED);
+  assert.deepEqual(once, [TYPO]);
+  const back = withPreviousEmail(once, FIXED, TYPO);
+  assert.deepEqual(back, [FIXED]);
+  assert.equal(followedRecipient(TYPO, { email: TYPO, previousEmails: back }), TYPO);
+  assert.equal(followedRecipient(FIXED, { email: TYPO, previousEmails: back }), TYPO);
+});
+
+test("the client save moves the inquiry and its drafts, and approval checks again", () => {
+  const crm = read("functions/src/crm/commands.ts");
+  assert.match(crm, /previousEmails: withPreviousEmail\(contact\.get\("previousEmails"\), fromEmail, toEmail\)/);
+  assert.match(crm, /await followEmailToInquiries\(db, \{/);
+  const actions = read("functions/src/ai/actions.ts");
+  assert.match(actions, /await currentRecipient\(db, parsed\.tenantId, structuredOutput, editDelta\)/);
+  assert.match(actions, /^\s+recipient,$/m);
+  assert.match(actions, /recipient: recipient \?\? structuredOutput\.recipientEmail \?\? null/);
 });
