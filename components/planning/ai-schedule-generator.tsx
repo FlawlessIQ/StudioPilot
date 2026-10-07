@@ -187,6 +187,8 @@ export function AiScheduleGenerator({
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   /** What the laid-out day wants the studio to check, said once above the lines. */
   const [planNotes, setPlanNotes] = useState<string[]>([]);
+  // Suggested lines the answered-only layout left out (day-plan.ts, `withheld`).
+  const [withheld, setWithheld] = useState(0);
   const [coverageMinutes, setCoverageMinutes] = useState(480);
   const [projectId, setProjectId] = useState(initialProjectId);
   const [coverageStartsAt, setCoverageStartsAt] = useState("");
@@ -600,6 +602,7 @@ export function AiScheduleGenerator({
       const items = sortScheduleItems(result.items);
       setPinned(pinnedEnds(items, endsAt));
       setPlanNotes([]);
+      setWithheld(0);
       setDraft({ ...result, items });
       setAskResult(null);
       setPublishNotice(null);
@@ -793,6 +796,7 @@ export function AiScheduleGenerator({
     );
     setPinned(pinnedEnds(seeded as ScheduleItem[], localToIso(coverageEndsAt)));
     setPlanNotes([]);
+    setWithheld(0);
     setDraft({
       items: seeded as ScheduleItem[],
       assumptions: [],
@@ -831,6 +835,40 @@ export function AiScheduleGenerator({
    * from the couple's form, the studio's timing rule, or the usual timing — in
    * that order (features/schedules/day-plan.ts).
    */
+  function dayPlanInput() {
+    return {
+      answers: jobAnswers,
+      coverageMinutes: packageMinutes ?? null,
+      venue: String(selectedProject?.venueName ?? "").trim() || null,
+      secondTeam: crewTags.teams.second.length > 0,
+    };
+  }
+
+  /**
+   * The suggested lines, added to the draft as it stands.
+   *
+   * Merged rather than laid out again, so anything already changed by hand
+   * stays changed. Each comes in marked "Suggested — check it".
+   */
+  function suggestGaps() {
+    if (!draft || !eventDay) return;
+    const full = planDay(dayPlanInput());
+    const suggested = (planItems(full, {
+      eventDate: eventDay,
+      timeZone: zone,
+      idFor: () => crypto.randomUUID(),
+      teams: crewTags.teams,
+    }) as ScheduleItem[]).filter((item) => item.sourceReferences[0]?.type === "assumption");
+    const have = new Set(draft.items.map((item) => item.title.trim().toLowerCase()));
+    const added = suggested.filter((item) => !have.has(item.title.trim().toLowerCase()));
+    setDraft({
+      ...draft,
+      items: sortScheduleItems([...draft.items, ...added]),
+      sourceTrace: { ...draft.sourceTrace, assumptionItemCount: draft.sourceTrace.assumptionItemCount + added.length },
+    });
+    setWithheld(0);
+  }
+
   function layOutDay() {
     setFailed(false);
     setAskResult(null);
@@ -840,14 +878,11 @@ export function AiScheduleGenerator({
       return;
     }
     // The couple's form, and nothing else of the studio's: timing rules "don't
-    // work for every wedding" (GR, 2026-10-06). Gaps get a suggestion, marked.
-    const plan = planDay({
-      answers: jobAnswers,
-      coverageMinutes: packageMinutes ?? null,
-      venue: String(selectedProject?.venueName ?? "").trim() || null,
-      secondTeam: crewTags.teams.second.length > 0,
-    });
+    // work for every wedding" (GR, 2026-10-06). Only what they answered, too:
+    // the gaps' suggestions come on request ("Suggest times for the gaps").
+    const plan = planDay({ ...dayPlanInput(), answeredOnly: true });
     setPlanNotes(plan.notes);
+    setWithheld(plan.withheld);
     if (!plan.rows.length) {
       setNotice(plan.notes.join(" "));
       return;
@@ -987,6 +1022,7 @@ export function AiScheduleGenerator({
     const lastEnd = items.reduce((latest, item) => (String(item.endAt) > latest ? String(item.endAt) : latest), "");
     setPinned(pinnedEnds(items, lastEnd || null));
     setPlanNotes([]);
+    setWithheld(0);
     setDraft({
       items: sortScheduleItems(
         items.map((item) => ({
@@ -1109,8 +1145,8 @@ export function AiScheduleGenerator({
               <>
                 <h2>Lay out the day</h2>
                 <p>
-                  Built from the couple&rsquo;s Final Schedule answers. Anything they didn&rsquo;t time is marked
-                  as a suggestion. Every line is yours to change.
+                  Built from the couple&rsquo;s Final Schedule answers, and only those. Ask for suggested
+                  times for anything they left out. Every line is yours to change.
                 </p>
               </>
             ) : (
@@ -1339,6 +1375,16 @@ export function AiScheduleGenerator({
               </div>
               <AlertTriangle />
             </div>
+            {weddingDay && withheld > 0 ? (
+              <p className="schedule-plan-gaps">
+                <span>
+                  {`Only what the couple gave is here. ${withheld === 1 ? "One part of the day has" : `${withheld} parts of the day have`} no time from them yet.`}
+                </span>
+                <button className="button button-light" disabled={busy} onClick={suggestGaps} type="button">
+                  Suggest times for the gaps
+                </button>
+              </p>
+            ) : null}
             {planNotes.length ? (
               <ul className="schedule-plan-notes" role="status">
                 {planNotes.map((note) => (

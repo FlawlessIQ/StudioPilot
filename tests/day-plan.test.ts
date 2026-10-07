@@ -413,3 +413,29 @@ test("the wedding schedule page has one way to build the day: no timing rules, n
   assert.match(editor, /if \(weddingDay\) \{\s*event\.preventDefault\(\);\s*layOutDay\(\);/);
   assert.doesNotMatch(read("app/studio/schedules/new/page.tsx"), /<TimingRuleEditor/);
 });
+
+test("answered only: the couple's times and TBDs, no suggested lines, and a count of what was left out", () => {
+  // GR, 2026-10-07: the editor lays out only what the couple gave; suggestions come on request.
+  const answers = {
+    "ceremony-time": "16:30",
+    "reception-time": "18:30",
+    "cocktail-hour-time": "TBD",
+    "ceremony-location": "The Madison Hotel",
+    "reception-location": "The Madison Hotel",
+  };
+  const full = planDay({ answers });
+  const answered = planDay({ answers, answeredOnly: true });
+  assert.ok(full.rows.some((row) => row.source === "usual"), "the full plan suggests the gaps");
+  assert.equal(answered.rows.filter((row) => row.source === "usual" && !row.tbd).length, 0);
+  assert.ok(answered.rows.some((row) => row.key === "ceremony"));
+  assert.ok(answered.rows.some((row) => row.tbd), "a TBD the couple gave stays");
+  assert.equal(answered.withheld, full.rows.length - answered.rows.length);
+  assert.ok(answered.withheld > 0);
+  assert.equal(full.withheld, 0);
+});
+
+test("the editor lays out answered only, with a button for the rest", () => {
+  const editor = readFileSync("components/planning/ai-schedule-generator.tsx", "utf8");
+  assert.match(editor, /planDay\(\{ \.\.\.dayPlanInput\(\), answeredOnly: true \}\)/);
+  assert.match(editor, /Suggest times for the gaps/);
+});

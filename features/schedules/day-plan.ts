@@ -91,6 +91,8 @@ export type DayPlan = {
   coverageEnd: string | null;
   /** What the studio should know about how it was built, plainly. */
   notes: string[];
+  /** Suggested lines left out by `answeredOnly`, for "Suggest times for the gaps". */
+  withheld: number;
 };
 
 const TITLES: Record<MilestoneKey, string> = {
@@ -211,6 +213,12 @@ export function planDay(input: {
   venue?: string | null;
   /** A second photo/video team is booked: the groom gets them, and the day runs in two tracks. */
   secondTeam?: boolean;
+  /**
+   * Only what the couple gave (and their TBDs), no "Suggested — check it"
+   * lines. The editor's default since GR, 2026-10-07: lines nobody asked for
+   * read as the software deciding the day; the suggestions come on request.
+   */
+  answeredOnly?: boolean;
 }): DayPlan {
   const answers = input.answers;
   const rules = (input.rules ?? []).filter((rule) => rule.active !== false);
@@ -243,6 +251,7 @@ export function planDay(input: {
       coverageStart: null,
       coverageEnd: null,
       notes: ["There's no ceremony time yet. The day is laid out from it once the couple gives one."],
+      withheld: 0,
     };
   }
   const C = clockMinutes(ceremony);
@@ -514,6 +523,22 @@ export function planDay(input: {
     });
   }
   rows.sort((left, right) => clockMinutes(left.time) - clockMinutes(right.time) || order.indexOf(left.key as MilestoneKey) - order.indexOf(right.key as MilestoneKey));
+  // Answered only: drop the guesses before the ends are worked out, so each
+  // line runs to the next thing the couple actually named.
+  let withheld = 0;
+  if (input.answeredOnly) {
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const row = rows[index]!;
+      if (row.source === "usual" && !row.tbd) {
+        rows.splice(index, 1);
+        withheld += 1;
+      }
+    }
+    if (!rows.some((row) => row.key === "leave_for_reception")) {
+      const travel = notes.findIndex((note) => note.startsWith("Travel between the church and the reception"));
+      if (travel >= 0) notes.splice(travel, 1);
+    }
+  }
   /**
    * A block runs to the next one — unless that would stretch it across free
    * time. A first look at 12:45 with nothing until the hide at 3:30 is a
@@ -548,7 +573,7 @@ export function planDay(input: {
   }
   const startClock = minutesClock(arrive.minutes);
   const endClock = minutesClock(Math.min(end, 24 * 60 - 1));
-  return { churchDay, firstLook, rows, coverageStart: startClock, coverageEnd: endClock, notes };
+  return { churchDay, firstLook, rows, coverageStart: startClock, coverageEnd: endClock, notes, withheld };
 }
 
 /** The tail every view shows on a line whose time isn't settled. */
