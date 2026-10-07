@@ -93,10 +93,13 @@ function friendlyError(message: string) {
 export function AcceptClientInvitation({
   token,
   landing,
+  studioId,
 }: {
   token: string;
   /** Optional in-portal path the invitation was issued for. */
   landing?: string;
+  /** The studio the link names, for its brand when the link no longer opens. */
+  studioId?: string;
 }) {
   const router = useRouter();
   const acceptStarted = useRef(false);
@@ -106,6 +109,8 @@ export function AcceptClientInvitation({
     authIsLive ? null : previewFallback,
   );
   const [previewError, setPreviewError] = useState("");
+  /** The studio's brand alone, when the invitation itself can't be read. */
+  const [brandOnly, setBrandOnly] = useState<Studio | null>(null);
   const [activation, setActivation] = useState<ActivationState>("idle");
   const [message, setMessage] = useState("");
   const [verificationState, setVerificationState] = useState<
@@ -125,7 +130,7 @@ export function AcceptClientInvitation({
   // carrying the destination with it.
   const next = `/auth/client-invite?token=${encodeURIComponent(token)}${
     destination === "/client" ? "" : `&next=${encodeURIComponent(destination)}`
-  }`;
+  }${studioId ? `&studio=${encodeURIComponent(studioId)}` : ""}`;
   const loginHref = `/auth/login?next=${encodeURIComponent(next)}`;
   const registerHref = `/auth/register?next=${encodeURIComponent(next)}`;
   const eventDate = formatDate(preview?.eventDate ?? null);
@@ -159,16 +164,34 @@ export function AcceptClientInvitation({
         setPreview(result as ClientInvitationPreview);
       })
       .catch(() => {
-        if (active) {
-          setPreviewError(
-            "This invitation is no longer available. Ask the studio to send a new secure link.",
-          );
-        }
+        if (!active) return;
+        setPreviewError(
+          "This invitation is no longer available. Ask the studio to send a new secure link.",
+        );
+        // Who to ask, in their own look, when the link says.
+        if (!studioId) return;
+        void runClientInvitation({
+          type: "brand",
+          idempotencyKey: crypto.randomUUID(),
+          input: { studio: studioId },
+        })
+          .then((brand) => {
+            if (!active || typeof brand.studioName !== "string" || !brand.studioName) return;
+            setBrandOnly({
+              name: brand.studioName,
+              color: typeof brand.brandAccentColor === "string" ? brand.brandAccentColor : null,
+              logoUrl: typeof brand.brandLogoUrl === "string" ? brand.brandLogoUrl : null,
+            });
+            setPreviewError(
+              `This invitation is no longer available. Ask ${brand.studioName} to send you a new link.`,
+            );
+          })
+          .catch(() => undefined);
       });
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, studioId]);
 
   const acceptInvitation = useCallback(async () => {
     acceptStarted.current = true;
@@ -292,11 +315,15 @@ export function AcceptClientInvitation({
     router.replace(loginHref);
   }
 
-  const studio: Studio = {
-    name: preview?.studioName ?? "Your photography studio",
-    color: preview?.brandAccentColor ?? null,
-    logoUrl: preview?.brandLogoUrl ?? null,
-  };
+  // The studio when it is known; otherwise no invented one. "Your
+  // photography studio" under a "Y" monogram read as a studio named Y.
+  const studio: Studio | null = preview
+    ? {
+        name: preview.studioName,
+        color: preview.brandAccentColor ?? null,
+        logoUrl: preview.brandLogoUrl ?? null,
+      }
+    : brandOnly;
 
   // The studio's welcome leads, in its brand and the mobile kit (M2 of
   // docs/mobile-first-client-crew-plan-2026-09-28.md). The desktop layout it
@@ -305,11 +332,13 @@ export function AcceptClientInvitation({
   return (
     <KitRoot studio={studio}>
       <Screen>
-        <AppBar studio={studio} />
+        {studio ? <AppBar studio={studio} /> : <AppBar title="Your client portal" />}
         <Main label="Your invitation">
           <div className="kit-stack" style={{ alignItems: "center", textAlign: "center", paddingTop: 12 }}>
-            <StudioMark size={64} studio={studio} />
-            <p className="kit-eyebrow">A private invitation from {studio.name}</p>
+            {studio ? <StudioMark size={64} studio={studio} /> : null}
+            <p className="kit-eyebrow">
+              {studio ? `A private invitation from ${studio.name}` : "A private invitation from your studio"}
+            </p>
             <h1 className="kit-title">
               {preview?.projectName ? `Welcome to ${preview.projectName}` : "Welcome"}
             </h1>
@@ -326,7 +355,7 @@ export function AcceptClientInvitation({
           {previewError ? (
             <Card>
               <p className="kit-eyebrow">Invitation unavailable</p>
-              <h2 className="kit-section">Ask your studio for a new link</h2>
+              <h2 className="kit-section">Ask {studio ? studio.name : "your studio"} for a new link</h2>
               <p className="kit-body" role="alert">{previewError}</p>
             </Card>
           ) : !preview || !authResolved ? (

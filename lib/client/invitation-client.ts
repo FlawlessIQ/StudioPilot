@@ -52,11 +52,17 @@ export async function runClientInvitation(
         tenantId: string;
         idempotencyKey: string;
         input: { invitationId: string };
+      }
+    | {
+        /** The studio's public name and look, for a link that no longer opens. */
+        type: "brand";
+        idempotencyKey: string;
+        input: { studio: string };
       },
 ) {
   const { auth } = getFirebaseClient();
   const user = auth.currentUser;
-  if (!user && body.type !== "preview") throw new Error("AUTHENTICATION_REQUIRED");
+  if (!user && body.type !== "preview" && body.type !== "brand") throw new Error("AUTHENTICATION_REQUIRED");
   const appCheckToken = await getAppCheckToken();
   const response = await fetch("/api/functions/clientInvitationCommand", {
     method: "POST",

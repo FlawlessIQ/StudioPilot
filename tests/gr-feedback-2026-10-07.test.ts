@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { bookingSteps } from "@/features/client/booking-steps";
 import { StructuredContentPreview } from "@/components/ai/structured-content-fields";
 import { withoutShownIssues } from "@/components/ai/ai-approval-queue";
+import { autosaveDelayMs, saveFailureIsFinal } from "@/features/inquiries/autosave";
+import { mintClientInvitation } from "../functions/src/client/invitation-mint.ts";
 
 /** Gabe and Albert's test, 2026-10-07: the three asks after the email fixes. */
 const read = (path: string) => readFileSync(path, "utf8");
@@ -96,4 +98,48 @@ test("the preview is styled inside a review sheet too, which sits outside .ds-ro
   // to `list-style:outside` and the bullets went (verified in .next output).
   assert.match(css, /\.ai-queue-card \.structured-preview \.structured-preview-list \{[^}]*list-style-type: disc;/);
   assert.match(read("app/studiocue-reimagined.css"), /\.ai-queue-card > \.structured-preview-body \{\s+padding: 0 18px 12px;/);
+});
+
+
+test("a form whose inquiry is gone stops saving; a passing failure waits longer each time", () => {
+  // Albert's tab sent ~400 refused saves in ten minutes after Gabe deleted the job.
+  for (const code of ["INQUIRY_LINK_NOT_FOUND", "INQUIRY_LINK_CLOSED", "INQUIRY_FORM_NOT_AVAILABLE"]) {
+    assert.equal(saveFailureIsFinal(code), true, code);
+  }
+  assert.equal(saveFailureIsFinal("RATE_LIMITED"), false);
+  assert.equal(saveFailureIsFinal(""), false);
+  assert.deepEqual([0, 1, 2, 3, 10].map(autosaveDelayMs), [1_500, 3_000, 6_000, 12_000, 60_000]);
+  const page = read("components/inquiries/couple-inquiry-page.tsx");
+  assert.match(page, /if \(saveFailureIsFinal\(code\)\) \{/);
+  assert.match(page, /autosaveDelayMs\(saveFailures\)/);
+  assert.match(page, /Not saved yet\. Trying again in a moment…/);
+});
+
+test("the inquiry form offers the corrected address once they leave the field", () => {
+  const form = read("components/crm/lead-intake-form.tsx");
+  assert.match(form, /\{\.\.\.register\("email", \{ onBlur: \(\) => setEmailLeft\(true\) \}\)\}/);
+  assert.match(form, /Did you mean\{" "\}/);
+  assert.match(form, /setValue\("email", emailFix, \{ shouldDirty: true, shouldValidate: true \}\)/);
+});
+
+test("an invite link names its studio, so a dead one still shows who to ask", () => {
+  const minted = mintClientInvitation({
+    tenantId: "tenant_gr",
+    projectId: "p1",
+    email: "albertgersh20@gmail.com",
+    appUrl: "https://studio-cue.com",
+    next: "/client/proposal",
+  });
+  const url = new URL(minted.inviteUrl);
+  assert.equal(url.searchParams.get("studio"), "tenant_gr");
+  // The sign-in round trip and the login page still recognise it.
+  assert.ok(`${url.pathname}${url.search}`.startsWith("/auth/client-invite?token="));
+  const invitations = read("functions/src/client/invitations.ts");
+  // Public, before any identity is asked for, and only the brand.
+  assert.ok(invitations.indexOf('parsed.type === "brand"') < invitations.indexOf("await requireIdentity(request)"));
+  const page = read("features/auth/accept-client-invitation.tsx");
+  assert.doesNotMatch(page, /"Your photography studio"/);
+  assert.match(page, /type: "brand",/);
+  assert.match(page, /Ask \$\{brand\.studioName\} to send you a new link\./);
+  assert.match(read("app/auth/client-invite/page.tsx"), /studioId=\{studio\}/);
 });

@@ -58,6 +58,11 @@ const input = z.discriminatedUnion("type", [
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ token: z.string().min(32).max(200) }),
   }),
+  z.object({
+    type: z.literal("brand"),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ studio: z.string().min(1).max(128) }),
+  }),
 ]);
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -120,6 +125,27 @@ export const clientInvitationCommand = onRequest(
       const parsed = input.parse(request.body);
       const db = getFirestore();
       const now = new Date().toISOString();
+
+      /**
+       * The studio's name and look, for a link that no longer opens.
+       *
+       * Without it the page could only say "Your photography studio" under a
+       * "Y" monogram (GR, 2026-10-07). An invitation link names its studio
+       * (invitation-mint.ts), and a studio's brand is public — its inquiry
+       * form shows it to anyone. Nothing about the invitation is returned.
+       */
+      if (parsed.type === "brand") {
+        const tenant = await db.doc(`tenants/${parsed.input.studio}`).get();
+        if (!tenant.exists || tenant.get("deletedAt")) throw new Error("INVITATION_NOT_FOUND");
+        const brand = resolveTenantBrand(tenant.data(), "");
+        if (!brand.brandName) throw new Error("INVITATION_NOT_FOUND");
+        response.status(200).json({
+          studioName: brand.brandName,
+          brandAccentColor: brand.primaryColor,
+          brandLogoUrl: brand.logoUrl,
+        });
+        return;
+      }
 
       if (parsed.type === "preview") {
         const tokenHash = hash(parsed.input.token);

@@ -47,6 +47,9 @@ export function mintClientInvitation(input: {
   const token = randomBytes(32).toString("base64url");
   const query = new URLSearchParams({ token });
   if (input.next) query.set("next", input.next);
+  // Whose invitation it is, so a link that no longer opens can still show
+  // the studio's name and look (client/invitations.ts "brand").
+  query.set("studio", input.tenantId);
   return {
     invitationId: invitationIdFor(input.tenantId, input.projectId, email),
     token,

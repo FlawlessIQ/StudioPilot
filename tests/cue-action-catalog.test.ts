@@ -203,7 +203,7 @@ const REACHED: Record<string, string> = {
 /** Commands that are not a studio user's to take, and why. */
 const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // The couple's own acts, in their portal.
-  markReviewOpened: "couple", accept: "couple or invitee", preview: "invitee",
+  markReviewOpened: "couple", accept: "couple or invitee", preview: "invitee", brand: "invitee whose link no longer opens",
   status_batch: "read by the clients list, not an act",
   // H2 one-send agreement: behind a per-studio platform flag until counsel has
   // seen the two-signature ceremony, so not offered through Cue yet.

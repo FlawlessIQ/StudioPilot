@@ -35,6 +35,7 @@ import {
   type Studio,
 } from "@/components/kit/kit";
 import { placeCity, placeLabel } from "@/features/places/place-text";
+import { suggestEmailFix } from "@/features/leads/email-typo";
 import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useEmbedFrame } from "@/components/crm/use-embed-frame";
@@ -279,6 +280,10 @@ export function LeadIntakeForm({
   const budget = useWatch({ control, name: "budgetRange" });
   const coiRequired = useWatch({ control, name: "coiRequired" });
   const answers = (useWatch({ control, name: "customAnswers" }) ?? {}) as Record<string, string | undefined>;
+  // "Did you mean …@gmail.com?" once they've left the field (email-typo.ts).
+  const email = useWatch({ control, name: "email" }) ?? "";
+  const [emailLeft, setEmailLeft] = useState(false);
+  const emailFix = emailLeft ? suggestEmailFix(String(email)) : null;
   const chosenType = types.find((type) => type.id === typeKey) ?? null;
   const day = dayFieldsFor(chosenType);
   const steps: StepKey[] = inquirySkipsDetails(chosenType) ? ["you", "more"] : ["you", "day", "more"];
@@ -525,11 +530,26 @@ export function LeadIntakeForm({
                 <Field
                   autoComplete="email"
                   error={errors.email?.message}
+                  hint={
+                    emailFix ? (
+                      <>
+                        Did you mean{" "}
+                        <button
+                          className="kit-link-button"
+                          onClick={() => setValue("email", emailFix, { shouldDirty: true, shouldValidate: true })}
+                          type="button"
+                        >
+                          {emailFix}
+                        </button>
+                        ?
+                      </>
+                    ) : undefined
+                  }
                   icon={Mail}
                   inputMode="email"
                   label={<>Email <span className="required-mark">Required</span></>}
                   type="email"
-                  {...register("email")}
+                  {...register("email", { onBlur: () => setEmailLeft(true) })}
                 />
                 <Field
                   autoComplete="tel"

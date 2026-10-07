@@ -37,6 +37,7 @@ import {
 import { outstandingRequired } from "@/features/questionnaires/outstanding";
 import { isJobKind, vocab } from "@/features/job-kinds/job-kinds";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
+import { autosaveDelayMs, saveFailureIsFinal } from "@/features/inquiries/autosave";
 
 /**
  * The couple's own page: tell us about your day, then pick a time to talk.
@@ -189,6 +190,8 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   // Set by a Send with required answers missing: flags each one where it is.
   const [showMissing, setShowMissing] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  /** Autosaves failed in a row, for the back-off. */
+  const [saveFailures, setSaveFailures] = useState(0);
   const answersRef = useRef(answers);
   const changeVersion = useRef(0);
   useEffect(() => {
@@ -342,13 +345,22 @@ export function CoupleInquiryPage({ token }: { token: string }) {
           // Straight on to the times (or back to the booked call).
           setReloadKey((key) => key + 1);
         }
+        setSaveFailures(0);
         return true;
       } catch (caught: unknown) {
+        const code = caught instanceof Error ? caught.message : "";
         setNotice(
           message(caught, submit ? "Your answers couldn’t be sent. Please try again." : "Your answers couldn’t be saved. Check your connection."),
         );
-        if (caught instanceof Error && caught.message === "QUESTIONNAIRE_ALREADY_SUBMITTED")
-          setReloadKey((key) => key + 1);
+        if (saveFailureIsFinal(code)) {
+          // Nothing more can be saved here: stop, and say so in place of the
+          // form, or move on to where the couple now stands.
+          setDirty(false);
+          if (code === "INQUIRY_LINK_NOT_FOUND" || code === "INQUIRY_LINK_CLOSED") setStep("error");
+          else setReloadKey((key) => key + 1);
+        } else {
+          setSaveFailures((count) => count + 1);
+        }
         return false;
       } finally {
         if (submit) setSending(false);
@@ -358,12 +370,13 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     [token],
   );
 
-  // Autosave a moment after the couple stops typing.
+  // Autosave a moment after the couple stops typing; longer after a failure
+  // (features/inquiries/autosave.ts).
   useEffect(() => {
     if (step !== "form" || !dirty || formSent || saving || sending) return;
-    const timer = window.setTimeout(() => void persist(false), 1_500);
+    const timer = window.setTimeout(() => void persist(false), autosaveDelayMs(saveFailures));
     return () => window.clearTimeout(timer);
-  }, [step, dirty, formSent, persist, saving, sending]);
+  }, [step, dirty, formSent, persist, saving, sending, saveFailures]);
 
   function answer(fieldId: string, value: unknown) {
     if (formSent) return;
@@ -813,7 +826,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                   : saving
                   ? "Saving…"
                   : dirty
-                    ? "Saving shortly…"
+                    ? saveFailures
+                      ? "Not saved yet. Trying again in a moment…"
+                      : "Saving shortly…"
                     : savedAt
                       ? `Saved ${savedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
                       : "Your answers save as you type."
