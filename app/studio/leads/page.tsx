@@ -27,8 +27,9 @@ export default async function LeadsPage({
         <LiveMaybeInquiries />
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
-            <div className="crm-tabs">{inquiryViews.map(([value, label]) => <Link className={view === value ? "active" : ""} href={`?view=${value}`} key={value}>{label}</Link>)}</div>
-            <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Search size={15} /><input aria-label="Search inquiries" defaultValue={q} name="q" placeholder="Search by name or email" /><button type="submit">Search</button></form>
+            {/* A tab keeps the search: the couple someone is looking for may have closed. */}
+            <div className="crm-tabs">{inquiryViews.map(([value, label]) => <Link className={view === value ? "active" : ""} href={`?${new URLSearchParams(q ? { view: value, q } : { view: value })}`} key={value}>{label}</Link>)}</div>
+            <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Search size={15} />{/* Keyed on the query, so an in-app visit to another ?q= shows its words, not the last ones. */}<input aria-label="Search inquiries" defaultValue={q} key={q} name="q" placeholder="Name or email" /><button type="submit">Search</button></form>
           </div>
           <div className="crm-table crm-leads-table inquiry-pipeline-table">
             {/* "Owner" read "Unassigned" on every row — pure noise in a

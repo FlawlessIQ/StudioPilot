@@ -6,6 +6,7 @@ import { LiveRecordsState, useTenantDocuments } from "@/components/live/tenant-r
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
 import { inquiryPipeline, type InquiryRow } from "@/features/inquiries/pipeline";
+import { inquirySearchEmptyState, searchInquiries } from "@/features/inquiries/search";
 import { inquiryStageLabel } from "@/features/inquiries/stages";
 import { waitingDays } from "@/features/ordering/attention";
 import { formatEventDate } from "@/lib/format/event-date";
@@ -44,21 +45,22 @@ export function InquiryPipelineRows({ view, q }: { view: string; q: string }) {
   if (error) {
     return <LiveRecordsState kind="error" state="Inquiries could not be loaded" detail={error} />;
   }
-  const needle = q.trim().toLowerCase();
-  const rows = inquiryPipeline({
-    projects: projects.records ?? [],
-    leads: leads.records ?? [],
-    conversations: conversations.records ?? [],
-  })
-    .filter((row) =>
-      view === "open" ? row.stage !== "closed" : row.stage === view,
-    )
-    .filter(
-      (row) =>
-        !needle ||
-        row.name.toLowerCase().includes(needle) ||
-        (row.email ?? "").toLowerCase().includes(needle),
-    );
+  // Every word, in the name or email, with a pointer to the tab that has the
+  // match when this one doesn't (features/inquiries/search.ts).
+  const search = searchInquiries(
+    inquiryPipeline({
+      projects: projects.records ?? [],
+      leads: leads.records ?? [],
+      conversations: conversations.records ?? [],
+    }),
+    view,
+    q,
+  );
+  const rows = search.rows;
+  const searching = inquirySearchEmptyState(view, q, search.elsewhere);
+  if (rows.length === 0 && searching) {
+    return <LiveRecordsState kind="empty" {...searching} />;
+  }
   if (rows.length === 0) {
     return (
       <LiveRecordsState
