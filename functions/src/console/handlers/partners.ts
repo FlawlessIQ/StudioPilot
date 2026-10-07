@@ -11,7 +11,8 @@ import { codeTaken } from "./codes.js";
  *
  * Conor and GR Productions, 2026-10-07: Gabe's network of DJs, hair and
  * makeup artists and planners each get their own code. A studio signing up
- * with it gets its first year on the annual plan at $900 instead of $1,500;
+ * with it gets its first year on the annual plan at $900: sold as half the
+ * $1,800 list price (12 x $150), billed as 40% off the $1,500 annual plan;
  * the partner earns $100 for each studio once that first annual payment
  * clears, and at ten every one of them is worth $200 (features/console/
  * partners.ts). Later the same program runs the other way, with photographers
@@ -26,7 +27,7 @@ import { codeTaken } from "./codes.js";
 
 const CODE = /^[A-Z0-9][A-Z0-9_-]{2,30}$/;
 
-/** Year 1 on the annual plan: $900 of the $1,500 list price. */
+/** Year 1 for $900: 40% off the $1,500 annual plan, which is 50% off the $1,800 list price. */
 export const PARTNER_PERCENT_OFF = 40;
 /** Long enough to cover a 14-day trial and the first annual invoice, and no renewal. */
 export const PARTNER_DISCOUNT_MONTHS = 12;
@@ -44,7 +45,7 @@ async function partnerCoupon(db: Firestore): Promise<string> {
     ? `mock_partner_coupon_${randomBytes(4).toString("hex")}`
     : (
         await stripeRequest<{ id: string }>("POST", "coupons", {
-          name: "Partner referral: year 1",
+          name: "Partner offer: 50% off the $1,800 list price",
           percent_off: PARTNER_PERCENT_OFF,
           duration: "repeating",
           duration_in_months: PARTNER_DISCOUNT_MONTHS,
@@ -112,7 +113,7 @@ export const partnerHandlers = {
         code: input.code,
         couponId,
         label: `Partner: ${input.name}`,
-        summary: `${PARTNER_PERCENT_OFF}% off the first year, annual plan`,
+        summary: "Year 1 for $900 (50% off the $1,800 list price), annual plan",
         percentOff: PARTNER_PERCENT_OFF,
         amountOffCents: null,
         duration: "repeating",

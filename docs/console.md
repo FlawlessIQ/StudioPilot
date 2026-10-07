@@ -291,6 +291,7 @@ Added 2026-10-07 (Conor and GR Productions). Vendors such as DJs, hair and makeu
 
 - **Codes.** Billing → Partners → Add partner creates the partner (`saasPartners`) and their Stripe promotion code. Every code points at one shared coupon (`saasSettings/partnerProgram`):
   - 40% off for 12 months on both plans. That covers the 14-day trial and the first annual invoice, so year 1 of Studio is $900 instead of $1,500. Renewal is at full price.
+  - We sell it as **50% off the $1,800 list price** (12 × $150; the $1,500 annual plan is already two months free). The coupon is named that way so Stripe Checkout says the same thing as the pitch.
   - Codes are tagged `metadata[kind]=partner`.
   - They're mirrored into `saasDiscounts`, so Discount codes lists them and can deactivate them.
 - **Annual only.** Checkout puts any studio using a partner code on the yearly price (`ResolvedPromotion.annualOnly` in `saas/stripe-checkout.ts`). A Stripe coupon can be limited to a product, not to a price.
