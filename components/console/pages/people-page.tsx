@@ -121,7 +121,7 @@ export function PeoplePage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "CRM" }, { label: "People" }]}>
+      <Topbar crumbs={[{ label: "Customers" }, { label: "People" }]}>
         <Button
           disabled={!rows?.length}
           onClick={() =>

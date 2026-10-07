@@ -22,7 +22,7 @@ export function SettingsPage() {
   const [section, setSection] = useState<Section>("admins");
   return (
     <>
-      <Topbar crumbs={[{ label: "Platform" }, { label: "Settings" }]} />
+      <Topbar crumbs={[{ label: "System" }, { label: "Settings" }]} />
       <div className="cx-content">
         <PageHead title="Settings" />
         <Tabs

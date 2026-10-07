@@ -106,7 +106,7 @@ export function IntegrationsPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Operations" }, { label: "Integrations" }]} />
+      <Topbar crumbs={[{ label: "System" }, { label: "Integrations" }]} />
       <div className="cx-content">
         <PageHead title="Integrations">
           <StatStrip>

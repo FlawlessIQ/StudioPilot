@@ -23,8 +23,8 @@ test("commission: $100 each, then every one at $200 from the tenth", () => {
 });
 
 test("a partner code is suggested from their name", () => {
-  assert.equal(suggestPartnerCode("Albert Gershengoren"), "GERSHE40");
-  assert.equal(suggestPartnerCode("Chuck"), "CHUCK40");
+  assert.equal(suggestPartnerCode("Albert Gershengoren"), "GERSHE50");
+  assert.equal(suggestPartnerCode("Chuck"), "CHUCK50");
 });
 
 test("a partner's code puts the studio on the annual price", () => {

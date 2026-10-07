@@ -130,7 +130,7 @@ export function TasksPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "CRM" }, { label: "Tasks" }]}>
+      <Topbar crumbs={[{ label: "Customers" }, { label: "Tasks" }]}>
         {can("crm.write") ? (
           <Button onClick={() => setCreating(true)} variant="primary">
             <Plus size={13} /> New task

@@ -36,10 +36,10 @@ export const PARTNER_KIND_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-/** A code suggested from a name: "Albert Gershengoren" → "GERSH40". */
+/** A code suggested from a name: "Albert Gershengoren" → "GERSH50". */
 export function suggestPartnerCode(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   const last = (words[words.length - 1] ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const stem = last.slice(0, 6) || "PARTNER";
-  return `${stem}40`;
+  return `${stem}50`;
 }

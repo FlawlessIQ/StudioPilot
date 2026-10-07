@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Fraunces, Instrument_Sans } from "next/font/google";
 import { RegisterServiceWorker } from "@/components/pwa/register-service-worker";
 import { ErrorReporter } from "@/components/observability/error-reporter";
+import { AttributionCapture } from "@/components/growth/attribution-capture";
 import { IconButtonTitles } from "@/components/ui/icon-button-titles";
 import { SITE_URL } from "@/lib/site";
 // No stylesheets here: each section's layout imports ./app-styles, so the
@@ -105,6 +106,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${instrumentSans.variable} antialiased`}
       >
         <ErrorReporter />
+        <AttributionCapture />
         <RegisterServiceWorker />
         <IconButtonTitles />
         {children}

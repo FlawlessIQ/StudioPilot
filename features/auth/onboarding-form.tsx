@@ -7,6 +7,8 @@ import { invalidateMembershipCache } from "@/lib/firebase/membership-cache";
 import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { pendingInvitations, type PendingInvitation } from "@/lib/auth/pending-invitations";
+import { HEARD_ASKS_WHO, HEARD_OPTIONS, rememberedAttribution, type HeardValue } from "@/features/growth/attribution";
+import { rememberedPromotionCode } from "@/features/subscriptions/promotion-code";
 
 /** What each kind of invitation lets the person do, in a sentence. */
 const INVITED_TO: Record<PendingInvitation["kind"], string> = {
@@ -88,6 +90,7 @@ function OnboardingFlow() {
     "idle",
   );
   const [checkoutNext, setCheckoutNext] = useState(true);
+  const [heard, setHeard] = useState<HeardValue | "">("");
 
   /**
    * Who is here, before they type anything.
@@ -221,6 +224,14 @@ function OnboardingFlow() {
             legalName: String(data.get("businessName")),
             timezone: String(data.get("timezone")),
             currency: String(data.get("currency")),
+            // Where the studio came from, for the Console's Sources page
+            // (features/growth/attribution.ts). Never required.
+            attribution: {
+              heard: heard || null,
+              heardDetail: String(data.get("heardDetail") ?? "").trim().slice(0, 120) || null,
+              ...rememberedAttribution(),
+              promotionCode: rememberedPromotionCode(),
+            },
           }),
         },
       );
@@ -390,6 +401,23 @@ function OnboardingFlow() {
           <option value="AUD">AUD</option>
         </select>
       </label>
+      <label>
+        How did you hear about StudioCue?
+        <select name="heard" onChange={(event) => setHeard(event.target.value as HeardValue | "")} value={heard}>
+          <option value="">Choose one</option>
+          {HEARD_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {heard && HEARD_ASKS_WHO[heard] ? (
+        <label>
+          {HEARD_ASKS_WHO[heard]}
+          <input maxLength={120} name="heardDetail" />
+        </label>
+      ) : null}
       {notice ? (
         <p className="form-error" role="status">
           {notice}

@@ -86,7 +86,7 @@ export function HealthPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Operations" }, { label: "System health" }]} />
+      <Topbar crumbs={[{ label: "System" }, { label: "System health" }]} />
       <div className="cx-content">
         <PageHead title="System health">
           <StatStrip>

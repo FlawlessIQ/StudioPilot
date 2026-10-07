@@ -271,7 +271,7 @@ export function StudiosPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "CRM" }, { label: "Studios" }]}>
+      <Topbar crumbs={[{ label: "Customers" }, { label: "Studios" }]}>
         <Button busy={busy === "refreshAll"} onClick={() => void run("refreshAll", {}, { done: "Studio and people rows refreshed." })} variant="ghost">
           <RefreshCw size={13} />
           Refresh

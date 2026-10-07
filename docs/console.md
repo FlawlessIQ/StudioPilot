@@ -10,25 +10,31 @@ through one audited command endpoint.
 
 ## Sections
 
+The rail leads with growth and customers (Conor, 2026-10-07). **System** is
+folded until opened, or while one of its pages is open; it shows a count when
+something inside it waits.
+
 | Rail | Route | What it is |
 | --- | --- | --- |
-| Home | `/platform-admin` | The morning check: MRR, trials ending, past due, inbox, failed jobs, and **Needs you**, every item that wants a person today |
-| Studios | `/studios`, `/studios/[tenantId]` | Every studio as a CRM account. The record has Overview, Timeline, Team, Billing, Usage, Integrations, Feedback, Jobs, Notes, Audit |
-| People | `/people`, `/people/[uid]` | Every account: studio staff, couples, crew, Console admins. Password reset, verification, sign out everywhere, disable |
-| Inbox | `/inbox` | Feedback from studios, a thread per item: team replies by email, internal notes, studio replies threaded back in |
-| Issues | `/issues`, `/issues/[id]` | Bugs and requests, each gathering every piece of feedback about it. Table or board |
-| Tasks | `/tasks` | The team's follow-ups on studios, people and issues |
-| Subscriptions | `/subscriptions` | Plan and billing state per studio, with the subscription actions |
-| Discount codes | `/codes` | Stripe promotion codes, single or in batches, with signup links |
-| Revenue | `/revenue` | MRR trend, money collected by month, signup cohorts, invoices |
-| Jobs | `/jobs` | Failed background jobs grouped by cause, with what fixes each |
-| Integrations | `/integrations` | Every studio's connected apps, and a studios × providers matrix |
-| System health | `/health` | Queues against objectives, email delivery, webhooks, the Console's own rollup |
-| Data requests | `/data-requests` | Exports and deletion requests; approve deletion once the export is done |
-| Feature access | `/features` | Features held back per studio: off, some studios, or every studio |
-| Audit log | `/audit` | What happened, who did it, in what role, and why |
-| Support sessions | `/support` | Time-boxed, reasoned, read-only summaries of one studio |
-| Settings | `/settings` | Console admins and roles, saved replies, health weights, tags, preferences |
+| Home | `/platform-admin` | The morning check: MRR, signups, trial → paid, trials ending, past due, where the month's signups came from, and **Needs you**, every item that wants a person today |
+| **Grow** · Sources | `/sources` | Where studios come from, by channel, partner type, partner, link and campaign, and which go on to pay. File a studio under a channel by hand |
+| Grow · Partners | `/partners` | Vendors who sell StudioCue with their own code, and their commission |
+| Grow · Discount codes | `/codes` | Stripe promotion codes, single or in batches, with signup links |
+| **Customers** · Studios | `/studios`, `/studios/[tenantId]` | Every studio as a CRM account. The record has Overview, Timeline, Team, Billing, Usage, Integrations, Feedback, Jobs, Notes, Audit |
+| Customers · People | `/people`, `/people/[uid]` | Every account: studio staff, couples, crew, Console admins. Password reset, verification, sign out everywhere, disable |
+| Customers · Inbox | `/inbox` | Feedback from studios, a thread per item: team replies by email, internal notes, studio replies threaded back in |
+| Customers · Issues | `/issues`, `/issues/[id]` | Bugs and requests, each gathering every piece of feedback about it. Table or board |
+| Customers · Tasks | `/tasks` | The team's follow-ups on studios, people and issues |
+| **Money** · Revenue | `/revenue` | MRR trend, money collected by month, signup cohorts, invoices |
+| Money · Subscriptions | `/subscriptions` | Plan and billing state per studio, with the subscription actions |
+| **System** · Jobs | `/jobs` | Failed background jobs grouped by cause, with what fixes each |
+| System · Integrations | `/integrations` | Every studio's connected apps, and a studios × providers matrix |
+| System · System health | `/health` | Queues against objectives, email delivery, webhooks, the Console's own rollup |
+| System · Data requests | `/data-requests` | Exports and deletion requests; approve deletion once the export is done |
+| System · Feature access | `/features` | Features held back per studio: off, some studios, or every studio |
+| System · Audit log | `/audit` | What happened, who did it, in what role, and why |
+| System · Support sessions | `/support` | Time-boxed, reasoned, read-only summaries of one studio |
+| System · Settings | `/settings` | Console admins and roles, saved replies, health weights, tags, preferences |
 
 Old routes redirect: `tenants`→`studios`, `users`→`people`,
 `failed-jobs`→`jobs`, `feature-flags`→`features`, `audit-logs`→`audit`,
@@ -289,7 +295,7 @@ The usual emulator recipe works. With `BILLING_MOCK_MODE=true` in
 
 Added 2026-10-07 (Conor and GR Productions). Vendors such as DJs, hair and makeup artists, planners and venues sell StudioCue to the studios they work with. Later the same program runs the other way: photographers selling to DJs and to hair and makeup, once those journeys exist.
 
-- **Codes.** Billing → Partners → Add partner creates the partner (`saasPartners`) and their Stripe promotion code. Every code points at one shared coupon (`saasSettings/partnerProgram`):
+- **Codes.** Grow → Partners → Add partner creates the partner (`saasPartners`) and their Stripe promotion code. Every code points at one shared coupon (`saasSettings/partnerProgram`):
   - 40% off for 12 months on both plans. That covers the 14-day trial and the first annual invoice, so year 1 of Studio is $900 instead of $1,500. Renewal is at full price.
   - We sell it as **50% off the $1,800 list price** (12 × $150; the $1,500 annual plan is already two months free). The coupon is named that way so Stripe Checkout says the same thing as the pitch.
   - Codes are tagged `metadata[kind]=partner`.
@@ -302,3 +308,38 @@ Added 2026-10-07 (Conor and GR Productions). Vendors such as DJs, hair and makeu
   - Payouts are recorded on the partner's drawer (`saasPartnerPayouts`), never sent from the Console.
   - Owed = earned − paid out.
 - **Access.** Owners and operators (`partners.write`). Everything is staff-read in the rules and written only by `saasAdminCommand` and the webhook.
+
+## Sources
+
+Added 2026-10-07 (Conor): which channels and partners bring studios in, and
+which of those studios pay. Grow → Sources, plus a panel on Home.
+
+- **Recorded at signup**, once, to `saasAttribution/{tenantId}` by
+  `tenantOnboardingCommand` (staff-read, never studio-readable):
+  - **The link.** `components/growth/attribution-capture.tsx` runs on every
+    page and keeps, in the visitor's browser only, the first and latest page
+    load that said anything: `utm_source/medium/campaign/content`, an outside
+    referring site (host only), and `?code=`/`?ref=`. Nothing is kept for a
+    browser sending Global Privacy Control. It reaches us only if they create
+    a studio. Disclosed in the cookie notice (1.1).
+  - **What they said.** "How did you hear about StudioCue?" on the
+    create-your-studio step, optional, with "Who?" for a photographer or vendor.
+  - The promotion code they carried.
+  - A malformed record is dropped; it never stops a signup.
+- **One channel per studio** (`features/console/sources.ts`): filed by hand,
+  then a partner's code (`saasReferrals`, or a partner's code on the link),
+  then what they said, then the link, then Direct. Studios from before
+  2026-10-07 show as **Before tracking** until someone files them.
+  - What they said beats the link because a link records the last click:
+    someone told by another photographer often arrives by searching.
+  - The page also shows the link on its own ("The link they arrived on").
+- **Funnel.** Signed up → added a card (in a trial or beyond) → paying
+  (`active`, `past_due`, `unpaid`, `paused`). Comped studios are left out of
+  every rate.
+- **Partners by type** compares DJs, planners, hair and makeup over all time:
+  studios, paying studios, commission earned, and commission per paying studio.
+- **File by hand.** Click a studio: the drawer shows everything recorded and
+  lets staff (`crm.write`) file it under a channel with a detail
+  (`setStudioSource`, audited). Clearing it goes back to what was recorded.
+- **Tag your links.** Instagram bio, posts and ads should carry
+  `?utm_source=instagram&utm_campaign=<name>` so they show by campaign.

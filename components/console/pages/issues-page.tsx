@@ -130,7 +130,7 @@ export function IssuesPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "CRM" }, { label: "Issues" }]}>
+      <Topbar crumbs={[{ label: "Customers" }, { label: "Issues" }]}>
         <Link className="cx-btn" data-variant="ghost" href="/platform-admin/inbox">
           Inbox
         </Link>

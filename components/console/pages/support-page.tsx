@@ -109,7 +109,7 @@ export function SupportPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Platform" }, { label: "Support sessions" }]}>
+      <Topbar crumbs={[{ label: "System" }, { label: "Support sessions" }]}>
         {can("support.session") ? (
           <Button onClick={() => setStarting(true)} variant="primary">
             <Plus size={13} /> Start a session

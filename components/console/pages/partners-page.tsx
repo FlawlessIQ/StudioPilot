@@ -132,7 +132,7 @@ export function PartnersPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Billing" }, { label: "Partners" }]}>
+      <Topbar crumbs={[{ label: "Grow" }, { label: "Partners" }]}>
         {can("partners.write") ? (
           <Button onClick={() => setAdding(true)} variant="primary">
             <Plus size={13} /> Add partner
@@ -142,7 +142,7 @@ export function PartnersPage() {
       <div className="cx-content">
         <PageHead count={rows?.length ?? null} title="Partners" />
         <p className="cx-page-intro">
-          {`Vendors who sell StudioCue to the studios they work with. A studio using a partner's code gets its first year on the annual plan for $900. The partner earns $100 a studio once that first payment clears, and at ${PARTNER_BOOST_AT} every one is worth $200.`}
+          {`Vendors who sell StudioCue to the studios they work with. A studio using a partner's code gets its first year on the annual plan for $900, half the $1,800 list price. The partner earns $100 a studio once that first payment clears, and at ${PARTNER_BOOST_AT} every one is worth $200.`}
         </p>
         {partners.error || referrals.error ? <Notice tone="bad">{partners.error ?? referrals.error}</Notice> : null}
         {rows && rows.length ? (

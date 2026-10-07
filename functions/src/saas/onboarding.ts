@@ -8,6 +8,7 @@ import { studioHubCors } from "../security/cors.js";
 import { legalAcceptance } from "../legal/versions.js";
 import { starterTemplates } from "../workflow/starter-templates.js";
 import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
+import { attributionSchema } from "./attribution-schema.js";
 
 const inputSchema = z.object({
   businessName: z.string().trim().min(2).max(120),
@@ -94,6 +95,11 @@ export const tenantOnboardingCommand = onRequest(
       )
         throw new Error("VERIFIED_EMAIL_REQUIRED");
       const input = inputSchema.parse(request.body);
+      // Where the studio came from (Console → Sources). Parsed on its own so
+      // a malformed record is dropped rather than stopping the signup.
+      const attribution = attributionSchema.safeParse(
+        (request.body as { attribution?: unknown } | undefined)?.attribution,
+      );
       const db = getFirestore();
       const now = new Date().toISOString();
       const comped = compedOwnerEmails.has(identity.email.toLowerCase());
@@ -133,6 +139,14 @@ export const tenantOnboardingCommand = onRequest(
           },
           { merge: true },
         );
+        if (attribution.success)
+          transaction.set(db.doc(`saasAttribution/${tenantId}`), {
+            id: tenantId,
+            tenantId,
+            ...attribution.data,
+            manual: null,
+            createdAt: now,
+          });
         transaction.create(db.doc(`tenants/${tenantId}`), {
           id: tenantId,
           tenantId,

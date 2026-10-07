@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
-import { Building2, Menu, Monitor, Moon, Search, Sun } from "lucide-react";
+import { Building2, ChevronRight, Menu, Monitor, Moon, Search, Sun } from "lucide-react";
 import { CueMark } from "@/components/brand/logo";
 import { AuthBoundary, SignOutButton } from "@/features/auth/auth-boundary";
 import { isStudioMembership } from "@/features/auth/workspace-routing";
@@ -120,12 +120,46 @@ function StudioShortcut() {
   );
 }
 
+const NAV_OPEN_KEY = "cx.nav.open";
+const noSubscribe = () => () => undefined;
+
+function readOpenGroups(): string {
+  try {
+    return window.localStorage.getItem(NAV_OPEN_KEY) ?? "[]";
+  } catch {
+    return "[]";
+  }
+}
+
+function parseGroups(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 function Rail() {
   const pathname = usePathname() ?? "";
   const { role, user, setPaletteOpen, theme, setTheme, setNavOpen } = useConsole();
   const counts = useNavCounts();
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
   const nextTheme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+  // Folded groups the operator opened, remembered in this browser. Read after
+  // hydration (the server can't see it), then owned by this component.
+  const saved = useSyncExternalStore(noSubscribe, readOpenGroups, () => "[]");
+  const [toggled, setToggled] = useState<string[] | null>(null);
+  const openGroups = toggled ?? parseGroups(saved);
+  const toggleGroup = (group: string) => {
+    const next = openGroups.includes(group) ? openGroups.filter((item) => item !== group) : [...openGroups, group];
+    setToggled(next);
+    try {
+      window.localStorage.setItem(NAV_OPEN_KEY, JSON.stringify(next));
+    } catch {
+      // Blocked storage: the group just folds again next visit.
+    }
+  };
   return (
     <aside aria-label="Console" className="cx-rail" id="console-navigation">
       <Link className="cx-rail-brand" href="/platform-admin" onClick={() => setNavOpen(false)}>
@@ -139,32 +173,53 @@ function Rail() {
         <kbd className="cx-kbd">⌘K</kbd>
       </button>
       <nav aria-label="Console sections">
-        {CONSOLE_NAV.map((section) => (
-          <div className="cx-nav-group" key={section.group ?? "top"}>
-            {section.group ? <span className="cx-nav-label">{section.group}</span> : null}
-            {section.items.map((item) => {
-              const Icon = item.icon;
-              const count = item.count ? counts[item.count] : null;
-              return (
-                <Link
-                  aria-current={isActive(pathname, item.href) ? "page" : undefined}
-                  className="cx-nav-item"
-                  href={item.href}
-                  key={item.href}
-                  onClick={() => setNavOpen(false)}
+        {CONSOLE_NAV.map((section) => {
+          const here = section.items.some((item) => isActive(pathname, item.href));
+          const shown = !section.collapsible || here || openGroups.includes(section.group ?? "");
+          const waiting = section.items.reduce((sum, item) => sum + (item.count ? counts[item.count]?.value ?? 0 : 0), 0);
+          return (
+            <div className="cx-nav-group" key={section.group ?? "top"}>
+              {section.group && section.collapsible ? (
+                <button
+                  aria-expanded={shown}
+                  className="cx-nav-label cx-nav-toggle"
+                  disabled={here}
+                  onClick={() => toggleGroup(section.group ?? "")}
+                  type="button"
                 >
-                  <Icon size={15} strokeWidth={1.8} />
-                  {item.label}
-                  {count && count.value ? (
-                    <span className="cx-nav-count" data-tone={count.tone}>
-                      {count.value}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+                  <ChevronRight aria-hidden size={11} />
+                  {section.group}
+                  {!shown && waiting ? <span className="cx-nav-count" data-tone="warn">{waiting}</span> : null}
+                </button>
+              ) : section.group ? (
+                <span className="cx-nav-label">{section.group}</span>
+              ) : null}
+              {shown
+                ? section.items.map((item) => {
+                    const Icon = item.icon;
+                    const count = item.count ? counts[item.count] : null;
+                    return (
+                      <Link
+                        aria-current={isActive(pathname, item.href) ? "page" : undefined}
+                        className="cx-nav-item"
+                        href={item.href}
+                        key={item.href}
+                        onClick={() => setNavOpen(false)}
+                      >
+                        <Icon size={15} strokeWidth={1.8} />
+                        {item.label}
+                        {count && count.value ? (
+                          <span className="cx-nav-count" data-tone={count.tone}>
+                            {count.value}
+                          </span>
+                        ) : null}
+                      </Link>
+                    );
+                  })
+                : null}
+            </div>
+          );
+        })}
       </nav>
       <div className="cx-rail-foot">
         <StudioShortcut />

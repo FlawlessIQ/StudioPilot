@@ -1004,6 +1004,13 @@ service cloud.firestore {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }
+    // Where each studio came from (Console → Sources): the signup link and
+    // "How did you hear about StudioCue?", written by tenantOnboardingCommand,
+    // and the channel an operator filed it under. Never readable by a studio.
+    match /saasAttribution/{tenantId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
     match /saasPartnerPayouts/{payoutId} {
       allow read: if isPlatformAdmin();
       allow write: if false;

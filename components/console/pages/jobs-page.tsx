@@ -153,7 +153,7 @@ export function JobsPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Operations" }, { label: "Jobs" }]} />
+      <Topbar crumbs={[{ label: "System" }, { label: "Jobs" }]} />
       <div className="cx-content">
         <PageHead title="Jobs">
           <StatStrip>

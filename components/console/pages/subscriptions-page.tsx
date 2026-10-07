@@ -137,7 +137,7 @@ export function SubscriptionsPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Billing" }, { label: "Subscriptions" }]}>
+      <Topbar crumbs={[{ label: "Money" }, { label: "Subscriptions" }]}>
         <Button
           disabled={!rows?.length}
           onClick={() =>

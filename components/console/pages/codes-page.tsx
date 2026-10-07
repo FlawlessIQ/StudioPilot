@@ -166,7 +166,7 @@ export function CodesPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Billing" }, { label: "Discount codes" }]}>
+      <Topbar crumbs={[{ label: "Grow" }, { label: "Discount codes" }]}>
         <Button busy={busy === "syncCodes"} onClick={() => void run("syncCodes", {}, { done: (result: { updated?: number }) => (result.updated ? `${result.updated} codes refreshed from Stripe.` : "Codes are up to date.") })} variant="ghost">
           <RefreshCw size={13} /> Sync
         </Button>

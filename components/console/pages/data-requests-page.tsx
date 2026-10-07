@@ -76,7 +76,7 @@ export function DataRequestsPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Operations" }, { label: "Data requests" }]} />
+      <Topbar crumbs={[{ label: "System" }, { label: "Data requests" }]} />
       <div className="cx-content">
         <PageHead count={waiting.length} title="Data requests" />
         <p className="cx-page-intro">A studio that asks to be deleted waits 30 days, and the platform approves only once its export is complete. Approving starts the deletion; it can&apos;t be undone.</p>

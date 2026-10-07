@@ -114,7 +114,7 @@ export function RevenuePage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Billing" }, { label: "Revenue" }]} />
+      <Topbar crumbs={[{ label: "Money" }, { label: "Revenue" }]} />
       <div className="cx-content">
         <PageHead title="Revenue">
           <StatStrip>

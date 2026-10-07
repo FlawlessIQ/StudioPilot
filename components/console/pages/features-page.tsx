@@ -52,7 +52,7 @@ export function FeaturesPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Platform" }, { label: "Feature access" }]} />
+      <Topbar crumbs={[{ label: "System" }, { label: "Feature access" }]} />
       <div className="cx-content">
         <PageHead title="Feature access" />
         <p className="cx-page-intro">Features held back per studio. Turning one on for every studio also reaches studios that sign up later.</p>

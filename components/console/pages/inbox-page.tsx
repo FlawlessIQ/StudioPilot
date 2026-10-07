@@ -137,7 +137,7 @@ export function InboxPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "CRM" }, { label: "Inbox" }]}>
+      <Topbar crumbs={[{ label: "Customers" }, { label: "Inbox" }]}>
         <Link className="cx-btn" data-variant="ghost" href="/platform-admin/issues">
           Issues
         </Link>

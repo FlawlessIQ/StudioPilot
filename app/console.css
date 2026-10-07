@@ -265,6 +265,33 @@
   padding: 8px 8px 5px;
 }
 
+.cx-nav-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cx-nav-toggle:disabled {
+  cursor: default;
+}
+
+.cx-nav-toggle svg {
+  transition: transform 120ms ease;
+}
+
+.cx-nav-toggle[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+.cx-nav-toggle:hover:not(:disabled) {
+  color: var(--cx-ink-2);
+}
+
 .cx-nav-item {
   display: flex;
   align-items: center;

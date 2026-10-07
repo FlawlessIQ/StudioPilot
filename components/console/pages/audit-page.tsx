@@ -90,7 +90,7 @@ export function AuditPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Platform" }, { label: "Audit log" }]}>
+      <Topbar crumbs={[{ label: "System" }, { label: "Audit log" }]}>
         <Button
           disabled={!rows?.length}
           onClick={() =>

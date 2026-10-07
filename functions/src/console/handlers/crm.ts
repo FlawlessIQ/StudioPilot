@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { consoleHandler, fail, type ConsoleAudit } from "../command-kit.js";
+import { SOURCE_CHANNELS } from "../../saas/attribution-schema.js";
 import { platformEmailJob, safeActionUrl, shortToken, studioOwner, teamReplyAddress } from "../studio-owner.js";
 
 /**
@@ -30,6 +31,25 @@ export function normaliseTag(value: string): string {
 }
 
 export const crmHandlers = {
+  /**
+   * File a studio under a channel by hand (Console → studio → Source): one
+   * that signed up before tracking, or one whose owner said on a call how
+   * they found us. A null channel goes back to what was recorded at signup.
+   */
+  setStudioSource: consoleHandler({
+    capability: "crm.write",
+    input: z.object({ tenantId, channel: z.enum(SOURCE_CHANNELS).nullable(), detail: z.string().trim().max(120).nullable().optional() }),
+    async run({ db, identity, now }, input) {
+      const reference = db.doc(`saasAttribution/${input.tenantId}`);
+      const existing = await reference.get();
+      const manual = input.channel ? { channel: input.channel, detail: input.detail || null, by: identity.uid, at: now } : null;
+      await reference.set({ id: input.tenantId, tenantId: input.tenantId, manual, ...(existing.exists ? {} : { createdAt: now }) }, { merge: true });
+      return {
+        result: { tenantId: input.tenantId },
+        audit: { tenantId: input.tenantId, entityType: "studio_source", entityId: input.tenantId, before: { manual: existing.get("manual") ?? null }, after: { manual } },
+      };
+    },
+  }),
   addNote: consoleHandler({
     capability: "crm.write",
     input: z.object({ subjectKey, body: z.string().trim().min(1).max(4000), pinned: z.boolean().optional() }),

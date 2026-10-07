@@ -16,11 +16,14 @@ import { Topbar } from "../console-frame";
 import { Empty, PageHead, Panel, Pill, Stat, StatStrip } from "../ui";
 import { dueState, type ConsoleTask } from "../tasks";
 import { type Feedback, KindIcon } from "./inbox-page";
+import { useSourcedStudios } from "./sources-page";
+import { CHANNEL_LABELS, funnelBy, funnelStage, rate } from "@/features/console/sources";
 
 /**
- * Home (docs/console.md): the morning check on one screen. The numbers that
- * matter, then "Needs you" — every item that wants a person today, each with
- * the place to act on it.
+ * Home (docs/console.md): the morning check on one screen. Growth first
+ * (Conor, 2026-10-07): money, signups and how trials convert, and where the
+ * month's signups came from; then "Needs you", every item that wants a person
+ * today, each with the place to act on it.
  */
 type Need = { key: string; tone: Tone; tag: string; title: string; detail: string; href: string; action: string; order: number };
 
@@ -32,8 +35,20 @@ export function HomePage() {
   const metrics = useLiveQuery<{ id: string; day: string; mrrCents: number }>("home:metrics", (firestore) => query(collection(firestore, "consoleMetrics"), orderBy("day"), limitToLast(31)));
   const rollup = useLiveDoc<{ lastRunAt?: string }>("consoleSettings/rollup");
   const jobs = useJobs("failed");
+  const sourced = useSourcedStudios();
   const all = studios.rows ?? [];
   const now = useNow();
+  const DAY = 86_400_000;
+  const ageOf = (iso: string | null) => (iso ? now - Date.parse(iso) : Infinity);
+  const counted = all.filter((studio) => !studio.comped && !studio.removed);
+  const signups30 = counted.filter((studio) => ageOf(studio.createdAt) <= 30 * DAY).length;
+  // Trials that have had time to end: studios 14 to 104 days old.
+  const matured = counted.filter((studio) => ageOf(studio.createdAt) > 14 * DAY && ageOf(studio.createdAt) <= 104 * DAY);
+  const converted = matured.filter((studio) => funnelStage(studio) === "paying").length;
+  const channels30 = funnelBy(
+    (sourced.rows ?? []).filter((row) => ageOf(row.studio.createdAt) <= 30 * DAY),
+    (row) => ({ key: row.source.channel, label: CHANNEL_LABELS[row.source.channel] }),
+  );
 
   const mrr = all.reduce((sum, studio) => sum + studio.mrrCents, 0);
   const monthAgo = metrics.rows?.[0];
@@ -101,10 +116,10 @@ export function HomePage() {
           <StatStrip>
             <Stat label="MRR" value={money(mrr)} />
             <Stat label="Net new, 30d" tone={netNew === null ? undefined : netNew < 0 ? "bad" : netNew > 0 ? "ok" : undefined} value={netNew === null ? "—" : `${netNew >= 0 ? "+" : "−"}${money(Math.abs(netNew))}`} />
+            <Stat label="Signups, 30d" value={signups30} />
+            <Stat label="Trial → paid, 90d" value={matured.length ? `${rate(converted, matured.length)} · ${converted} of ${matured.length}` : "—"} />
             <Stat label="Trials ending ≤7d" tone={trialsEnding.length ? "warn" : undefined} value={trialsEnding.length} />
             <Stat label="Past due" tone={pastDue.length ? "bad" : undefined} value={pastDue.length} />
-            <Stat label="New feedback" value={newFeedback.length} />
-            <Stat label="Failed jobs" tone={deadJobs.length ? "bad" : undefined} value={jobs.rows ? deadJobs.length : "…"} />
           </StatStrip>
         </PageHead>
         <div className="cx-record-body" style={{ padding: 0 }}>
@@ -131,6 +146,23 @@ export function HomePage() {
           <aside className="cx-stack">
             <Panel title="Signups, last 14 days">
               <BarChart format={(value) => String(Math.round(value))} height={150} label="Studio signups by day" points={signups} />
+            </Panel>
+            <Panel actions={<Link className="cx-link" href="/platform-admin/sources?period=30">Sources</Link>} flush title="Where signups came from, 30 days">
+              {sourced.rows === null ? (
+                <Empty title="Loading…" />
+              ) : channels30.length ? (
+                <div className="cx-timeline">
+                  {channels30.map((row) => (
+                    <Link className="cx-item" href={`/platform-admin/sources?period=30&channel=${row.key}`} key={row.key}>
+                      <span className="cx-item-title">{row.label}</span>
+                      <span className="cx-item-time">{`${row.studios} ${row.studios === 1 ? "signup" : "signups"}`}</span>
+                      <span className="cx-item-snippet">{`${rate(row.carded, row.studios)} added a card · ${row.paying} paying`}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <Empty title="No signups in 30 days" />
+              )}
             </Panel>
             <Panel flush title="Newest studios">
               {recent.length ? (
