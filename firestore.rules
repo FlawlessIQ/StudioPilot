@@ -1007,6 +1007,23 @@ service cloud.firestore {
     // Where each studio came from (Console → Sources): the signup link and
     // "How did you hear about StudioCue?", written by tenantOnboardingCommand,
     // and the channel an operator filed it under. Never readable by a studio.
+    // Console → Pipeline: photographers who might become studios. Written by
+    // saasAdminCommand, by the demo form's server route, and by onboarding
+    // when one signs up.
+    match /saasLeads/{leadId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    // Console → Lifecycle: a studio's stage changes, written by the rollup.
+    match /consoleLifecycleEvents/{eventId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    // A partner's statement link, by the hash of its token. Read only by the
+    // server rendering app/partner/[token]; nobody reads it from a browser.
+    match /saasPartnerLinks/{tokenHash} {
+      allow read, write: if false;
+    }
     match /saasAttribution/{tenantId} {
       allow read: if isPlatformAdmin();
       allow write: if false;

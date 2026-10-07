@@ -27,6 +27,7 @@ const publicRoutes: Array<{
     priority: 0.6,
   })),
   { path: "/about", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/demo", changeFrequency: "monthly", priority: 0.7 },
   { path: "/support", changeFrequency: "monthly", priority: 0.5 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },

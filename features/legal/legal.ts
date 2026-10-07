@@ -21,8 +21,8 @@ export const LEGAL_ENTITY = {
 
 export const TERMS_VERSION = "1.0";
 export const TERMS_EFFECTIVE = "2026-10-05";
-export const PRIVACY_VERSION = "2.0";
-export const PRIVACY_EFFECTIVE = "2026-10-05";
+export const PRIVACY_VERSION = "2.1";
+export const PRIVACY_EFFECTIVE = "2026-10-07";
 export const DPA_VERSION = "1.0";
 export const DPA_EFFECTIVE = "2026-10-05";
 export const AUP_VERSION = "1.0";

@@ -43,3 +43,12 @@ export function suggestPartnerCode(name: string): string {
   const stem = last.slice(0, 6) || "PARTNER";
   return `${stem}50`;
 }
+
+/**
+ * The IRS reporting line for nonemployee pay (1099-NEC) in a calendar year:
+ * $600 through 2025, $2,000 for payments made from 2026 (the 2025 tax act),
+ * indexed for inflation after 2026. Confirm each January with an accountant.
+ */
+export function form1099Cents(year: number): number {
+  return year >= 2026 ? 200_000 : 60_000;
+}

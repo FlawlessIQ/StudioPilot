@@ -231,7 +231,21 @@ export async function refreshStudioSummary(
   }
   const weights = options.weights ?? (await healthWeights(db));
   const summary = buildStudioSummary(await gatherStudio(db, auth, tenant, now), now, weights);
-  await db.doc(`consoleStudios/${tenantId}`).set(summary, { merge: true });
+  const reference = db.doc(`consoleStudios/${tenantId}`);
+  const before = (await reference.get()).get("lifecycle") as string | undefined;
+  await reference.set(summary, { merge: true });
+  // Console → Lifecycle shows who moved, and where: activated, at risk,
+  // churned. Recorded when the stage changes, from the first rebuild after
+  // 2026-10-07 on; a studio's first row is not a move.
+  if (before && before !== summary.lifecycle)
+    await db.collection("consoleLifecycleEvents").add({
+      tenantId,
+      name: summary.name,
+      from: before,
+      to: summary.lifecycle,
+      healthScore: summary.health.score,
+      at: now.toISOString(),
+    });
   return summary;
 }
 

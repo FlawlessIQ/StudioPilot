@@ -45,6 +45,7 @@ export const PRIVACY_POLICY: LegalDocument = {
           rows: [
             ["Account and contact details", "Name, business name, email address, phone number, role, password or single-sign-on identifier, business address", "Studio Users when they register or are invited"],
             ["Billing information", "Plan, billing address, transaction history, last four digits and type of payment card (full card details are held by Stripe, not by StudioCue)", "Studio Users at checkout, and our payment processor"],
+            ["Demo requests and how you found us", "Name, studio name, email, phone, website or Instagram, what you would like to see, good times to talk, and how you heard about StudioCue; for a Studio that signs up, the link that brought it to StudioCue and any partner or promotion code used", "Photographers who request a demo or create a Studio"],
             ["Inquiry information", "Name, email, phone, event date, location, venue, guest count, budget, how they heard about the Studio, message and answers to the Studio’s questions", "People who submit a Studio’s inquiry form or email a Studio’s forwarding address"],
             ["Job and planning information", "Event details, schedules, locations, questionnaires, shot lists, preferences, special requests, crew assignments and the names of people to be photographed", "Studios, their clients and crew"],
             ["Agreements and signatures", "Proposals, agreements, amendments, the signer’s typed name, email, date and time, IP address, device and browser, consent version and document fingerprint", "Studios and the clients who sign"],
@@ -80,6 +81,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             ["AI-assisted features", "Drafting replies and documents, summarizing inquiries and consultations, proposing schedules and extracting details from documents, always for a person’s review (Section 5)"],
             ["Electronic signatures", "Presenting agreements, capturing signatures and keeping evidence that they were made (Section 6)"],
             ["Billing", "Processing subscription payments, managing trials, renewals and cancellations, and keeping financial records"],
+            ["Sales and partners", "Responding to demo requests; understanding which channels and referral partners bring Studios to StudioCue; and calculating partner commission. A referral partner sees how many Studios signed up with their code and when, never which Studios they are"],
             ["Support and communication", "Responding to requests, sending service and account notices (such as trial reminders, security alerts and changes to our terms), and handling feedback"],
             ["Security and integrity", "Authenticating users, preventing fraud, spam and abuse, monitoring and investigating security incidents, and enforcing our terms"],
             ["Improving the Service", "Understanding how features are used, diagnosing errors and developing improvements, using de-identified or aggregated information wherever possible"],

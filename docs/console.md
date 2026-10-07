@@ -17,10 +17,12 @@ something inside it waits.
 | Rail | Route | What it is |
 | --- | --- | --- |
 | Home | `/platform-admin` | The morning check: MRR, signups, trial → paid, trials ending, past due, where the month's signups came from, and **Needs you**, every item that wants a person today |
-| **Grow** · Sources | `/sources` | Where studios come from, by channel, partner type, partner, link and campaign, and which go on to pay. File a studio under a channel by hand |
-| Grow · Partners | `/partners` | Vendors who sell StudioCue with their own code, and their commission |
+| **Grow** · Pipeline | `/pipeline` | Photographers who might become studios: Book a demo requests and anyone added by hand, as a board or table, each with an owner and a next step |
+| Grow · Sources | `/sources` | Where studios come from, by channel, partner type, partner, link and campaign, and which go on to pay. File a studio under a channel by hand |
+| Grow · Partners | `/partners` | Vendors who sell StudioCue with their own code, their commission, payouts, W-9s and 1099s, and each one's statement link |
 | Grow · Discount codes | `/codes` | Stripe promotion codes, single or in batches, with signup links |
 | **Customers** · Studios | `/studios`, `/studios/[tenantId]` | Every studio as a CRM account. The record has Overview, Timeline, Team, Billing, Usage, Integrations, Feedback, Jobs, Notes, Audit |
+| Customers · Lifecycle | `/lifecycle` | Studios at risk with one play each, trials by days left, and who moved between stages |
 | Customers · People | `/people`, `/people/[uid]` | Every account: studio staff, couples, crew, Console admins. Password reset, verification, sign out everywhere, disable |
 | Customers · Inbox | `/inbox` | Feedback from studios, a thread per item: team replies by email, internal notes, studio replies threaded back in |
 | Customers · Issues | `/issues`, `/issues/[id]` | Bugs and requests, each gathering every piece of feedback about it. Table or board |
@@ -343,3 +345,64 @@ which of those studios pay. Grow → Sources, plus a panel on Home.
   (`setStudioSource`, audited). Clearing it goes back to what was recorded.
 - **Tag your links.** Instagram bio, posts and ads should carry
   `?utm_source=instagram&utm_campaign=<name>` so they show by campaign.
+
+## Pipeline
+
+Added 2026-10-07 (Conor): selling StudioCue, before a studio exists.
+
+- **Leads** are `saasLeads/{id}` (staff-read). Stages New → Contacted → Demo
+  booked → Lost are set by a person (`createLead`, `updateLead`, `deleteLead`,
+  `crm.write`, audited). Once the photographer signs up with the same email,
+  `tenantOnboardingCommand` links the lead to the studio and the studio
+  decides the stage: In trial, Won (paying or comped), Lost (canceled)
+  (`features/console/pipeline.ts`).
+- **Book a demo** is `studio-cue.com/demo` (marketing nav, hero and footer;
+  hidden from the phone header, where Sign in stays). It posts to
+  `app/api/public/demo` (a Next route, not a Function): App Check, a honeypot
+  and five an hour per visitor. It files a New lead with "Reply and book the
+  demo" due today, or reopens a Lost one with the same email. Nothing is sent
+  to the address typed in.
+- **Who hears.** System → Settings → Book a demo (`setGrowthSettings`,
+  `consoleSettings/growth`): the address that gets a `platform_demo_requested`
+  email (Reply-To the photographer) and an optional calendar link offered as
+  "Pick a time" after the form. Unset, nobody is emailed and the request still
+  shows on Pipeline, Home and the rail count.
+- **Needs you.** A New lead, or a next step due today or earlier, counts on the
+  rail and shows on Home.
+- Notes on a lead use `consoleNotes` with `subjectKey` `lead:<id>`.
+
+## Lifecycle
+
+Added 2026-10-07. Customers → Lifecycle.
+
+- **At risk**: stalled, at risk, or a Poor health score; comped, suspended and
+  churned studios are left out. Payment trouble first, then trials ending
+  within three days, then the lowest score. Each row has one play
+  (`features/console/lifecycle.ts`): the biggest thing costing the studio
+  points, what to do about it, the record tab to do it on, and a Task button
+  that writes the task.
+- **Trials**: every studio in a trial by days left, with setup, jobs and last
+  activity.
+- **Moves**: `consoleLifecycleEvents`, written by the rollup
+  (`refreshStudioSummary`) when a studio's stage changes. Recorded from
+  2026-10-07; a studio's first row is not a move.
+
+## Partner payouts and statements
+
+Added 2026-10-07, on top of **Partners** above.
+
+- **How they're paid** and **W-9 status** (Not asked, Asked for, On file) are
+  on the partner (`updatePartner`). The W-9 itself, with the taxpayer ID, is
+  kept outside StudioCue.
+- **Payouts tab**: everyone owed, ticked by default, recorded in one go
+  (`recordPartnerPayouts`, one `saasPartnerPayouts` record each, with method
+  and reference), or exported to CSV to pay from. Warns when a W-9 isn't on
+  file. Paying happens in Venmo or the bank; the Console records it.
+- **1099s tab**: payouts by calendar year (by paid-on date), flagged at the
+  1099-NEC line: $600 through 2025, $2,000 for payments from 2026
+  (`form1099Cents`). CSV export. Confirm each January with an accountant.
+- **Statement link**: `issuePartnerLink` makes `/partner/<token>`
+  (`saasPartnerLinks/{sha256(token)}`, unreadable from any browser). The page
+  shows their code and link, signups and paid studios **by date, not by
+  name**, earnings, payouts and how far they are from $200 a studio. A new
+  link replaces the old; `revokePartnerLink` turns it off. Not indexed.

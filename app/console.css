@@ -2642,3 +2642,11 @@ button.cx-stat:hover {
   gap: 8px;
   justify-content: space-between;
 }
+
+/* A row's own buttons (Lifecycle → At risk): side by side, right-aligned. */
+.cx-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}

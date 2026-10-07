@@ -20,6 +20,7 @@ export function MarketingNav() {
         <Link href="/how-to">How to</Link>
       </nav>
       <div className="marketing-actions">
+        <Link className="text-link marketing-demo-link" href="/demo">Book a demo</Link>
         <Link className="text-link" href="/auth/login">Sign in</Link>
         <Link className="button button-dark button-sm" href="/auth/register">Start free trial</Link>
       </div>
@@ -51,6 +52,7 @@ export function MarketingFooter() {
         <Link href="/virtual-assistant-for-photographers">A virtual assistant for photographers</Link>
         <Link href="/how-to">How to use StudioCue</Link>
         <Link href="/about">About</Link>
+        <Link href="/demo">Book a demo</Link>
         <Link href="/support">Support</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
@@ -92,6 +94,7 @@ export function MarketingLayout({
                 Start a 14-day trial <ArrowRight />
               </Link>
               {pricingLink ? <Link className="button button-light" href="/pricing">View pricing</Link> : null}
+              <Link className="button button-light" href="/demo">Book a demo</Link>
             </div>
           ) : null}
         </section>

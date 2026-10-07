@@ -42,6 +42,12 @@ export const FEEDBACK_EMAIL_TYPES = [
 export const TEAM_EMAIL_TYPES = ["platform_message", "feedback_reply"] as const;
 
 /**
+ * StudioCue's own sales mail, to the team inbox: a photographer asked for a
+ * demo on studio-cue.com/demo (app/api/public/demo). Platform mail.
+ */
+export const GROWTH_EMAIL_TYPES = ["platform_demo_requested"] as const;
+
+/**
  * StudioCue writing to a studio owner about their own subscription
  * (saas/billing-notices.ts). Platform mail: StudioCue's letterhead, and never
  * held when a studio's billing lapses — it is how they find out.
@@ -68,6 +74,7 @@ export const isPlatformEmailType = (type: string): boolean =>
   isAuthEmailType(type) ||
   (FEEDBACK_EMAIL_TYPES as readonly string[]).includes(type) ||
   (TEAM_EMAIL_TYPES as readonly string[]).includes(type) ||
+  (GROWTH_EMAIL_TYPES as readonly string[]).includes(type) ||
   (BILLING_EMAIL_TYPES as readonly string[]).includes(type) ||
   (TRIAL_EMAIL_TYPES as readonly string[]).includes(type);
 
@@ -162,6 +169,8 @@ export const emailTemplateKeys = [
   "feedback_shipped",
   // StudioCue team → studio, from the Console. Platform mail.
   "platform_message",
+  // studio-cue.com/demo → the team inbox. Platform mail.
+  "platform_demo_requested",
   "feedback_reply",
   // StudioCue → studio owner, about their own subscription. Platform mail.
   "billing_trial_ending",
@@ -1685,6 +1694,30 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     // The owner's own morning brief — a personal internal note, so it skips the
     // client-facing "note from your studio" shell. The heading greets by name;
     // the body carries the items, so it must NOT repeat the greeting.
+    case "platform_demo_requested": {
+      // To the team inbox. Reply-To is the photographer, so answering is one tap.
+      const name = stringValue(values, "leadName") || "A photographer";
+      const studio = stringValue(values, "leadStudioName");
+      const lines = [
+        stringValue(values, "leadMessage"),
+        "",
+        `From: ${name}${studio ? `, ${studio}` : ""}`,
+        stringValue(values, "leadEmail") ? `Email: ${stringValue(values, "leadEmail")}` : "",
+        stringValue(values, "leadPhone") ? `Phone: ${stringValue(values, "leadPhone")}` : "",
+        stringValue(values, "leadWebsite") ? `Website or Instagram: ${stringValue(values, "leadWebsite")}` : "",
+        stringValue(values, "leadPreferredTimes") ? `Good times: ${stringValue(values, "leadPreferredTimes")}` : "",
+        stringValue(values, "leadHeard") ? `Heard about us: ${stringValue(values, "leadHeard")}` : "",
+      ];
+      return {
+        subject: `[Demo request] ${name}${studio ? ` · ${studio}` : ""}`,
+        preheader: `${name} asked for a demo of StudioCue.`,
+        eyebrow: "Demo request",
+        heading: `${name} would like a demo`,
+        paragraphs: lines.flatMap((line) => line.split(/\r?\n/)).map((line) => line.trim()).filter(Boolean),
+        action: actionUrl ? { label: "Open in Pipeline", url: actionUrl } : undefined,
+        note: "Reply to this email to answer them directly.",
+      };
+    }
     case "feedback_received": {
       // To the team inbox. Everything needed to answer without opening
       // anything else; the screenshot rides as an attachment.

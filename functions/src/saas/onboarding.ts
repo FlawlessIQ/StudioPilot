@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
@@ -75,6 +75,18 @@ const slug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 48) || "studio";
+
+/**
+ * A photographer on the Console's pipeline who signs up with the same email:
+ * the lead is linked to the new studio, and from then on the studio decides
+ * where it stands (features/console/pipeline.ts). Best effort; a missed link
+ * costs a manual one, never a signup.
+ */
+async function linkLead(db: Firestore, email: string, tenantId: string, now: string): Promise<void> {
+  const leads = await db.collection("saasLeads").where("email", "==", email.trim().toLowerCase()).limit(5).get();
+  const lead = leads.docs.find((doc) => !doc.get("tenantId"));
+  if (lead) await lead.ref.update({ tenantId, stage: "trial", stageChangedAt: now, updatedAt: now });
+}
 
 export const tenantOnboardingCommand = onRequest(
   {
@@ -332,6 +344,10 @@ export const tenantOnboardingCommand = onRequest(
         });
         return { tenantId, created: true, checkoutRequired: !comped };
       });
+      if (result.created)
+        await linkLead(db, identity.email, result.tenantId, now).catch((caught: unknown) =>
+          console.error(JSON.stringify({ severity: "ERROR", event: "onboarding.lead_link_failed", tenantId: result.tenantId, message: String(caught) })),
+        );
       response.status(200).json(result);
     } catch (caught: unknown) {
       respondToCommandError(response, caught, {

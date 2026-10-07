@@ -10,12 +10,14 @@ import {
   CreditCard,
   DatabaseZap,
   Flag,
+  HeartPulse,
   House,
   Inbox,
   LifeBuoy,
   Plug,
   ScrollText,
   Settings,
+  Target,
   TriangleAlert,
   Users,
 } from "lucide-react";
@@ -27,13 +29,14 @@ import {
  * Customers come first; the machinery (jobs, integrations, health, flags,
  * audit) sits in System, folded away until something there needs a person.
  */
-type NavItem = { label: string; href: string; icon: typeof House; count?: "inbox" | "tasks" | "jobs" | "data" | "studios" };
+type NavItem = { label: string; href: string; icon: typeof House; count?: "inbox" | "tasks" | "jobs" | "data" | "studios" | "pipeline" };
 
 export const CONSOLE_NAV: Array<{ group: string | null; collapsible?: boolean; items: NavItem[] }> = [
   { group: null, items: [{ label: "Home", href: "/platform-admin", icon: House }] },
   {
     group: "Grow",
     items: [
+      { label: "Pipeline", href: "/platform-admin/pipeline", icon: Target, count: "pipeline" },
       { label: "Sources", href: "/platform-admin/sources", icon: Compass },
       { label: "Partners", href: "/platform-admin/partners", icon: Handshake },
       { label: "Discount codes", href: "/platform-admin/codes", icon: BadgePercent },
@@ -43,6 +46,7 @@ export const CONSOLE_NAV: Array<{ group: string | null; collapsible?: boolean; i
     group: "Customers",
     items: [
       { label: "Studios", href: "/platform-admin/studios", icon: Building2, count: "studios" },
+      { label: "Lifecycle", href: "/platform-admin/lifecycle", icon: HeartPulse },
       { label: "People", href: "/platform-admin/people", icon: Users },
       { label: "Inbox", href: "/platform-admin/inbox", icon: Inbox, count: "inbox" },
       { label: "Issues", href: "/platform-admin/issues", icon: CircleDot },

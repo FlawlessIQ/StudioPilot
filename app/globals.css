@@ -22884,3 +22884,39 @@ label {
     grid-column: 1 / -1;
   }
 }
+
+/* A partner's statement page (app/partner/[token]). */
+.partner-statement-code {
+  font: 600 28px/1.2 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.04em;
+}
+
+.partner-statement-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.partner-statement-stats > div {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.partner-statement-stats dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.partner-statement-stats dd {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.partner-statement-note {
+  margin-top: 28px;
+  color: var(--muted);
+  font-size: 14px;
+}

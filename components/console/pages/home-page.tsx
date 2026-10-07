@@ -17,6 +17,7 @@ import { Empty, PageHead, Panel, Pill, Stat, StatStrip } from "../ui";
 import { dueState, type ConsoleTask } from "../tasks";
 import { type Feedback, KindIcon } from "./inbox-page";
 import { useSourcedStudios } from "./sources-page";
+import { usePipeline } from "./pipeline-page";
 import { CHANNEL_LABELS, funnelBy, funnelStage, rate } from "@/features/console/sources";
 
 /**
@@ -36,6 +37,7 @@ export function HomePage() {
   const rollup = useLiveDoc<{ lastRunAt?: string }>("consoleSettings/rollup");
   const jobs = useJobs("failed");
   const sourced = useSourcedStudios();
+  const pipeline = usePipeline();
   const all = studios.rows ?? [];
   const now = useNow();
   const DAY = 86_400_000;
@@ -76,6 +78,12 @@ export function HomePage() {
         order: ready ? 3 : 1,
       });
     }
+    const waiting = (pipeline.rows ?? []).filter((lead) => lead.needs === "new");
+    const due = (pipeline.rows ?? []).filter((lead) => lead.needs === "due");
+    if (waiting.length)
+      list.push({ key: "leads:new", tone: "warn", tag: "Pipeline", title: `${waiting.length} ${waiting.length === 1 ? "photographer is" : "photographers are"} waiting for a reply`, detail: waiting.slice(0, 3).map((lead) => lead.studioName || lead.name).join(" · "), href: waiting.length === 1 ? `/platform-admin/pipeline?lead=${waiting[0]!.id}` : "/platform-admin/pipeline", action: "Reply", order: 0 });
+    if (due.length)
+      list.push({ key: "leads:due", tone: "info", tag: "Pipeline", title: `${due.length} next ${due.length === 1 ? "step" : "steps"} due`, detail: due.slice(0, 2).map((lead) => `${lead.name}: ${lead.nextStep ?? "follow up"}`).join(" · "), href: "/platform-admin/pipeline?layout=table", action: "Open pipeline", order: 1 });
     const old = newFeedback.filter((item) => now - Date.parse(item.createdAt) > 2 * 86_400_000);
     if (newFeedback.length)
       list.push({ key: "feedback", tone: old.length ? "warn" : "info", tag: "Inbox", title: `${newFeedback.length} new piece${newFeedback.length === 1 ? "" : "s"} of feedback`, detail: old.length ? `${old.length} waiting more than 2 days` : "All from the last 2 days", href: "/platform-admin/inbox", action: "Open inbox", order: old.length ? 1 : 4 });
@@ -95,7 +103,7 @@ export function HomePage() {
       list.push({ key: "rollup", tone: "warn", tag: "Console", title: "Studio rows are stale", detail: `Last rebuilt ${relative(rollup.data?.lastRunAt, now)}`, href: "/platform-admin/health", action: "Check", order: 2 });
     return list.sort((a, b) => a.order - b.order);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all, feedback.rows, tasks.rows, deletions.rows, jobs.rows, rollup.data, user?.uid]);
+  }, [all, feedback.rows, tasks.rows, deletions.rows, jobs.rows, rollup.data, user?.uid, pipeline.rows]);
 
   const signups = useMemo(() => {
     const days: Array<{ label: string; value: number }> = [];

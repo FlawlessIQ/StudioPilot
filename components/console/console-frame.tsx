@@ -11,6 +11,7 @@ import { isStudioMembership } from "@/features/auth/workspace-routing";
 import type { Role } from "@/features/auth/roles";
 import { CONSOLE_ROLE_LABELS } from "@/features/console/roles";
 import { triageOf } from "@/features/console/inbox";
+import { leadNeedsYou, type Lead } from "@/features/console/pipeline";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { useLiveQuery } from "@/lib/console/live";
@@ -43,7 +44,10 @@ function useNavCounts() {
   );
   const jobs = useJobs("failed");
   const now = useNow();
+  const leads = useLiveQuery<Lead>("console:leads", (firestore) => query(collection(firestore, "saasLeads"), limit(5000)));
+  const pipeline = (leads.rows ?? []).filter((lead) => !lead.tenantId && leadNeedsYou(lead, lead.stage, now)).length;
   return {
+    pipeline: { value: pipeline, tone: "bad" as const },
     studios: { value: studios.rows?.filter((studio) => studio.lifecycle !== "churned").length ?? null, tone: undefined },
     inbox: { value: (feedback.rows ?? []).filter((item) => triageOf(item) === "new").length, tone: "bad" as const },
     tasks: {

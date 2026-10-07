@@ -16,7 +16,7 @@ import { useCommand } from "../use-command";
 
 /** Console settings (docs/console.md): admins, saved replies, health weights, tags, preferences. */
 type Admin = { id: string; uid: string; email?: string | null; name?: string | null; role?: string | null; active?: boolean; syncedAt?: string };
-type Section = "admins" | "replies" | "health" | "tags" | "preferences";
+type Section = "admins" | "replies" | "health" | "tags" | "preferences" | "growth";
 
 export function SettingsPage() {
   const [section, setSection] = useState<Section>("admins");
@@ -32,6 +32,7 @@ export function SettingsPage() {
             { key: "admins" as const, label: "Console admins" },
             { key: "replies" as const, label: "Saved replies" },
             { key: "health" as const, label: "Health score" },
+            { key: "growth" as const, label: "Book a demo" },
             { key: "tags" as const, label: "Tags" },
             { key: "preferences" as const, label: "Your preferences" },
           ]}
@@ -40,6 +41,7 @@ export function SettingsPage() {
         {section === "admins" ? <AdminsSection /> : null}
         {section === "replies" ? <RepliesSection /> : null}
         {section === "health" ? <HealthSection /> : null}
+        {section === "growth" ? <GrowthSection /> : null}
         {section === "tags" ? <TagsSection /> : null}
         {section === "preferences" ? <PreferencesSection /> : null}
       </div>
@@ -265,6 +267,56 @@ function HealthForm({ stored: storedData }: { stored: { weights?: Partial<Record
         open={confirm}
         title="Save health weights"
       />
+    </Panel>
+  );
+}
+
+type GrowthSettings = { demoNotifyEmail?: string | null; demoBookingUrl?: string | null; updatedAt?: string };
+
+/** Book a demo (docs/console.md, "Pipeline"): who hears about a request, and the calendar link offered after it. */
+function GrowthSection() {
+  const stored = useLiveDoc<GrowthSettings>("consoleSettings/growth");
+  if (stored.loading) return null;
+  return <GrowthForm key={stored.data?.updatedAt ?? "unset"} stored={stored.data} />;
+}
+
+function GrowthForm({ stored }: { stored: GrowthSettings | null }) {
+  const { can } = useConsole();
+  const { run, busy } = useCommand();
+  const [email, setEmail] = useState(stored?.demoNotifyEmail ?? "");
+  const [url, setUrl] = useState(stored?.demoBookingUrl ?? "");
+  const validEmail = !email || /\S+@\S+\.\S+/.test(email);
+  const validUrl = !url || /^https:\/\/\S+$/.test(url);
+  return (
+    <Panel
+      actions={
+        can("settings.write") ? (
+          <Button
+            busy={busy === "setGrowthSettings"}
+            disabled={!validEmail || !validUrl}
+            onClick={() => void run("setGrowthSettings", { demoNotifyEmail: email.trim() || null, demoBookingUrl: url.trim() || null }, { done: "Saved." })}
+            size="sm"
+            variant="primary"
+          >
+            Save
+          </Button>
+        ) : null
+      }
+      title="Book a demo"
+    >
+      <span className="cx-hint">A request on studio-cue.com/demo lands on Grow → Pipeline. These decide who hears about it, and what the photographer is offered next.</span>
+      <div className="cx-grid-2">
+        <div className="cx-field">
+          <label className="cx-label" htmlFor="growth-email">Email each request to</label>
+          <input className="cx-input" disabled={!can("settings.write")} id="growth-email" onChange={(event) => setEmail(event.target.value)} placeholder="team@studio-cue.com" type="email" value={email} />
+          <span className="cx-hint">{email ? "Reply to the email to answer them." : "Nobody is emailed. Requests still show on Pipeline and Home."}</span>
+        </div>
+        <div className="cx-field">
+          <label className="cx-label" htmlFor="growth-url">Calendar link (optional)</label>
+          <input className="cx-input" disabled={!can("settings.write")} id="growth-url" onChange={(event) => setUrl(event.target.value)} placeholder="https://calendar.app.google/…" type="url" value={url} />
+          <span className="cx-hint">Offered as Pick a time once they send the form. A Google Calendar booking page or Calendly link.</span>
+        </div>
+      </div>
     </Panel>
   );
 }
