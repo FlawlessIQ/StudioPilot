@@ -678,16 +678,23 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // The trade the role names: a videographer offered "a photography
       // assignment" reads it as the wrong email (GR Productions staffs both).
       const trade = /video|cinema|film/i.test(role) ? "video" : "photography";
+      // The same offer again for the last name on the list, held open rather
+      // than expired (crew/commands.ts, remindLastCandidate).
+      const reminder = values.reminder === true;
       return {
-        subject: `${role ? `${role} — ` : ""}${trade === "video" ? "Video" : "Photography"} assignment from ${brand.studioName}`,
-        preheader: respondBy
-          ? `Review the job details and respond by ${humanDate(respondBy, zone)}.`
-          : "Review and respond to your assignment.",
-        eyebrow: "Crew assignment",
-        heading: `A new assignment is ready`,
+        subject: `${reminder ? "Reminder: " : ""}${role ? `${role} — ` : ""}${trade === "video" ? "Video" : "Photography"} assignment from ${brand.studioName}`,
+        preheader: reminder
+          ? "The studio is still holding this job for you."
+          : respondBy
+            ? `Review the job details and respond by ${humanDate(respondBy, zone)}.`
+            : "Review and respond to your assignment.",
+        eyebrow: reminder ? "Still waiting on you" : "Crew assignment",
+        heading: reminder ? "Can you take this job?" : `A new assignment is ready`,
         paragraphs: [
           greeting,
-          `We'd like you to review a ${trade} assignment${project}.`,
+          reminder
+            ? `Just checking in about the ${trade} assignment${project}. ${brand.studioName} is still holding it for you — let them know either way.`
+            : `We'd like you to review a ${trade} assignment${project}.`,
           ...details,
           "Open the secure job brief to review responsibilities and requirements before accepting or declining.",
         ],

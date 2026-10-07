@@ -62,10 +62,27 @@ export function cascadeAssignment(input: {
   now: string;
   actorId: string;
 }) {
-  const expiresAt = new Date(
+  const respondBy = new Date(
     Date.parse(input.now) +
       Number(input.cascade.responseWindowHours ?? 24) * 60 * 60 * 1000,
   ).toISOString();
+  /**
+   * The last name on the list doesn't expire into a dead end.
+   *
+   * The window exists to move on to the next person. With nobody next, it
+   * only stranded the offer: GR's one second shooter missed a 24-hour window
+   * and nothing could re-offer it (2026-10-06). So the last candidate's offer
+   * stays open until the details lock, four weeks out, and the window becomes
+   * the point at which they're reminded and the studio told
+   * (crewCascadeExpiryScheduler). Too close to the date for that, the usual
+   * window stands.
+   */
+  const candidateIds = Array.isArray(input.cascade.candidateIds) ? input.cascade.candidateIds : [];
+  const lastCandidate = candidateIds.length > 0 && input.candidateIndex >= candidateIds.length - 1;
+  const arrival = Date.parse(String(input.cascade.arrivalAt ?? ""));
+  const lockAt = Number.isFinite(arrival) ? arrival - LAST_CANDIDATE_LOCK_DAYS * 86_400_000 : NaN;
+  const heldOpen = lastCandidate && Number.isFinite(lockAt) && lockAt > Date.parse(respondBy);
+  const expiresAt = heldOpen ? new Date(lockAt).toISOString() : respondBy;
   return {
     assignment: {
       id: input.id,
@@ -117,6 +134,10 @@ export function cascadeAssignment(input: {
         : [],
       inviteTokenHash: hash(input.token),
       inviteExpiresAt: expiresAt,
+      // Held open as the last name on the list: reminded at `remindAt`.
+      lastCandidate: heldOpen,
+      remindAt: heldOpen ? respondBy : null,
+      remindedAt: null,
       cascadeId: input.cascadeId,
       cascadeCandidateIndex: input.candidateIndex,
       createdAt: input.now,
@@ -140,7 +161,7 @@ export function cascadeAssignment(input: {
         role: input.cascade.role,
         arrivalAt: input.cascade.arrivalAt,
         departureAt: input.cascade.departureAt,
-        respondBy: expiresAt,
+        respondBy,
         locations: input.cascade.locations,
         responsibilities: input.cascade.responsibilities,
         compensationCents: input.cascade.compensationCents,
@@ -154,6 +175,11 @@ export function cascadeAssignment(input: {
       updatedAt: input.now,
     },
     expiresAt,
+    /** When to remind a held-open last candidate; null otherwise. */
+    remindAt: heldOpen ? respondBy : null,
   };
 }
+
+/** How far before the date a last candidate's offer finally closes: the details lock. */
+export const LAST_CANDIDATE_LOCK_DAYS = 28;
 

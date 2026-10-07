@@ -440,6 +440,8 @@ export async function prepareCrewStaffing(input: {
       batch.create(db.doc(`crewCascades/${cascadeId}`), {
         ...cascadeRecord,
         currentOfferExpiresAt: prepared.expiresAt,
+        currentRemindAt: prepared.remindAt,
+        currentRemindedAt: null,
       });
       batch.create(
         db.doc(`crewAssignments/${assignmentId}`),

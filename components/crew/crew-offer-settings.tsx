@@ -149,7 +149,9 @@ export function CrewOfferSettings() {
               value={effectiveWindow}
             />
             <small>
-              How long each person has before the offer moves to the next name.
+              How long each person has before the offer moves to the next name. The last name on
+              your list isn&rsquo;t timed out: they&rsquo;re reminded, Today tells you, and the offer stays
+              open until the details lock.
             </small>
           </label>
         </div>

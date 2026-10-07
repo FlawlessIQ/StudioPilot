@@ -1164,6 +1164,8 @@ export const crewCommand = onRequest(
           batch.create(db.doc(`crewCascades/${cascadeId}`), {
             ...cascadeRecord,
             currentOfferExpiresAt: prepared.expiresAt,
+            currentRemindAt: prepared.remindAt,
+            currentRemindedAt: null,
           });
           batch.create(
             db.doc(`crewAssignments/${assignmentId}`),
@@ -1178,6 +1180,8 @@ export const crewCommand = onRequest(
             assignmentId,
             role: cascade.role,
             currentOfferExpiresAt: prepared.expiresAt,
+            currentRemindAt: prepared.remindAt,
+            currentRemindedAt: null,
           });
         }
         batch.create(db.doc(`aiActions/ai_crew_plan_${planId}`), {
@@ -1329,6 +1333,8 @@ export const crewCommand = onRequest(
         batch.create(db.doc(`crewCascades/${cascadeId}`), {
           ...cascadeRecord,
           currentOfferExpiresAt: prepared.expiresAt,
+          currentRemindAt: prepared.remindAt,
+          currentRemindedAt: null,
         });
         batch.create(
           db.doc(`crewAssignments/${assignmentId}`),
@@ -1406,6 +1412,8 @@ export const crewCommand = onRequest(
           status: "active",
           currentCandidateIndex: 0,
           currentOfferExpiresAt: prepared.expiresAt,
+          currentRemindAt: prepared.remindAt,
+          currentRemindedAt: null,
         };
       } else if (parsed.type === "inviteAssignment") {
         if (!internalRoles.has(role) || !hasProject(parsed.input.projectId))
@@ -1795,6 +1803,8 @@ export const crewCommand = onRequest(
               currentCandidateIndex: nextIndex,
               currentAssignmentId: nextAssignmentId,
               currentOfferExpiresAt: prepared.expiresAt,
+              currentRemindAt: prepared.remindAt,
+              currentRemindedAt: null,
               acceptedAssignmentId: null,
               handlingCompletedAt: null,
               updatedAt: now,
@@ -1817,6 +1827,7 @@ export const crewCommand = onRequest(
             transaction.update(ownCascade.ref, {
               status: "cancelled",
               currentOfferExpiresAt: null,
+              currentRemindAt: null,
               handlingCompletedAt: now,
               updatedAt: now,
               updatedBy: identity.uid,
@@ -2124,6 +2135,7 @@ export const crewCommand = onRequest(
                   acceptedAssignmentId: reference.id,
                   handlingCompletedAt: now,
                   currentOfferExpiresAt: null,
+                  currentRemindAt: null,
                   updatedAt: now,
                   updatedBy: identity.uid,
                 });
@@ -2245,6 +2257,8 @@ export const crewCommand = onRequest(
                     currentCandidateIndex: nextIndex,
                     currentAssignmentId: nextAssignmentId,
                     currentOfferExpiresAt: prepared.expiresAt,
+                    currentRemindAt: prepared.remindAt,
+                    currentRemindedAt: null,
                     updatedAt: now,
                     updatedBy: identity.uid,
                   });
@@ -2252,6 +2266,7 @@ export const crewCommand = onRequest(
                   transaction.update(cascadeReference, {
                     status: "exhausted",
                     currentOfferExpiresAt: null,
+                    currentRemindAt: null,
                     handlingCompletedAt: now,
                     escalatedAt: now,
                     updatedAt: now,
@@ -2611,6 +2626,66 @@ export const crewCommand = onRequest(
   },
 );
 
+/**
+ * The last name on the list, reminded once their window has passed.
+ *
+ * Their offer is held open to the details lock (crew/offer.ts) rather than
+ * expiring into a dead end, so when the usual window runs out they get the
+ * offer again as a reminder, and the cascade records who the studio is
+ * waiting on — Today shows it with a way to offer the role to someone else
+ * (features/today/inbox.ts).
+ */
+async function remindLastCandidate(
+  db: FirebaseFirestore.Firestore,
+  cascadeReference: FirebaseFirestore.DocumentReference,
+  now: string,
+): Promise<void> {
+  await db.runTransaction(async (transaction) => {
+    const cascade = await transaction.get(cascadeReference);
+    if (!cascade.exists || cascade.get("status") !== "active" || cascade.get("currentRemindedAt")) return;
+    const assignmentId = String(cascade.get("currentAssignmentId") ?? "");
+    if (!assignmentId) return;
+    const assignmentReference = db.doc(`crewAssignments/${assignmentId}`);
+    const offerEmailReference = db.doc(`emailJobs/crew_invite_${assignmentId}`);
+    const [assignment, offerEmail] = await Promise.all([
+      transaction.get(assignmentReference),
+      transaction.get(offerEmailReference),
+    ]);
+    if (!assignment.exists || !["invited", "viewed"].includes(String(assignment.get("status")))) {
+      transaction.update(cascadeReference, { currentRemindedAt: now, updatedAt: now, updatedBy: "crew-cascade-expiry" });
+      return;
+    }
+    if (offerEmail.exists && offerEmail.get("inviteToken")) {
+      const reminderId = `crew_invite_reminder_${assignmentId}`;
+      transaction.set(db.doc(`emailJobs/${reminderId}`), {
+        ...offerEmail.data(),
+        id: reminderId,
+        reminder: true,
+        // Held open to the lock, so no "respond by" — just a nudge.
+        respondBy: null,
+        status: "queued",
+        attempts: 0,
+        providerMessageId: null,
+        sentAt: null,
+        lastError: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    transaction.update(assignmentReference, { remindedAt: now, updatedAt: now, updatedBy: "crew-cascade-expiry" });
+    transaction.update(cascadeReference, {
+      currentRemindedAt: now,
+      waitingOn: {
+        crewProfileId: assignment.get("crewProfileId") ?? null,
+        name: offerEmail.get("recipientName") ?? null,
+        offeredAt: assignment.get("invitationSentAt") ?? null,
+      },
+      updatedAt: now,
+      updatedBy: "crew-cascade-expiry",
+    });
+  });
+}
+
 export const crewCascadeExpiryScheduler = onSchedule(
   {
     schedule: "every 15 minutes",
@@ -2626,6 +2701,16 @@ export const crewCascadeExpiryScheduler = onSchedule(
       .limit(100)
       .get();
     for (const cascadeSnapshot of active.docs) {
+      const remindAt = String(cascadeSnapshot.get("currentRemindAt") ?? "");
+      if (
+        remindAt &&
+        !cascadeSnapshot.get("currentRemindedAt") &&
+        Date.parse(remindAt) <= Date.parse(now)
+      ) {
+        await remindLastCandidate(db, cascadeSnapshot.ref, now).catch((caught: unknown) => {
+          console.error(JSON.stringify({ severity: "ERROR", event: "crew_offer.remind_failed", cascadeId: cascadeSnapshot.id, reason: caught instanceof Error ? caught.message : String(caught) }));
+        });
+      }
       if (
         Date.parse(String(cascadeSnapshot.get("currentOfferExpiresAt"))) >
         Date.parse(now)
@@ -2696,6 +2781,8 @@ export const crewCascadeExpiryScheduler = onSchedule(
             currentCandidateIndex: nextIndex,
             currentAssignmentId: nextAssignmentId,
             currentOfferExpiresAt: prepared.expiresAt,
+            currentRemindAt: prepared.remindAt,
+            currentRemindedAt: null,
             updatedAt: now,
             updatedBy: "crew-cascade-expiry",
           });
@@ -2703,6 +2790,7 @@ export const crewCascadeExpiryScheduler = onSchedule(
           transaction.update(cascade.ref, {
             status: "exhausted",
             currentOfferExpiresAt: null,
+            currentRemindAt: null,
             handlingCompletedAt: now,
             escalatedAt: now,
             updatedAt: now,

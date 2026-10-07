@@ -1571,6 +1571,31 @@ export function todayInbox(input: TodayInput): TodayInbox {
   }
 
   for (const cascade of rows(input.crewCascades)) {
+    /**
+     * The last name on the list, reminded and still quiet.
+     *
+     * Their offer is held open to the details lock instead of expiring
+     * (functions/src/crew/offer.ts), so the studio hears about the wait here
+     * rather than finding a dead offer later (GR and Albert, 2026-10-06).
+     */
+    const waitingOn = (cascade.waitingOn ?? null) as { name?: unknown; offeredAt?: unknown } | null;
+    if (text(cascade.status) === "active" && text(cascade.currentRemindedAt) && waitingOn) {
+      const who = text(waitingOn.name) || "Your crew member";
+      const role = text(cascade.role).toLowerCase() || "this role";
+      exception({
+        id: `cascade-waiting-${cascade.id}`,
+        kind: "crew",
+        title: `${who} hasn't answered`,
+        detail: `Offered the ${role} and reminded. They're the last name on your list; the offer stays open until the details lock.`,
+        href: `/studio/crew?project=${text(cascade.projectId)}`,
+        projectId: text(cascade.projectId) || null,
+        projectName: nameFor(cascade.projectId),
+        eventDate: eventFor(cascade.projectId),
+        updatedAt: changedAt(cascade),
+        label: "Offer to someone else",
+      });
+      continue;
+    }
     if (text(cascade.status) !== "exhausted") continue;
     exception({
       id: `cascade-${cascade.id}`,
