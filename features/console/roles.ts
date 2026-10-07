@@ -32,6 +32,7 @@ export type ConsoleCapability =
   | "inbox.write"
   | "billing.write"
   | "codes.write"
+  | "partners.write"
   | "ops.write"
   | "features.write"
   | "support.session"
@@ -53,6 +54,7 @@ export const CONSOLE_CAPABILITIES: Record<ConsoleCapability, readonly ConsoleRol
   "inbox.write": STAFF,
   "billing.write": OPERATORS,
   "codes.write": OPERATORS,
+  "partners.write": OPERATORS,
   "ops.write": OPERATORS,
   "features.write": OPERATORS,
   "support.session": STAFF,

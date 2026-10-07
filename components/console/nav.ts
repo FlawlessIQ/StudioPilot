@@ -1,6 +1,7 @@
 import {
   Activity,
   BadgePercent,
+  Handshake,
   Building2,
   ChartColumn,
   CircleCheckBig,
@@ -38,6 +39,7 @@ export const CONSOLE_NAV: Array<{ group: string | null; items: NavItem[] }> = [
     items: [
       { label: "Subscriptions", href: "/platform-admin/subscriptions", icon: CreditCard },
       { label: "Discount codes", href: "/platform-admin/codes", icon: BadgePercent },
+      { label: "Partners", href: "/platform-admin/partners", icon: Handshake },
       { label: "Revenue", href: "/platform-admin/revenue", icon: ChartColumn },
     ],
   },

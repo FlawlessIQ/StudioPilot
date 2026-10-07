@@ -284,3 +284,20 @@ The usual emulator recipe works. With `BILLING_MOCK_MODE=true` in
   (`docs/security.md` prohibits routine impersonation).
 - **Bulk announcements to studios** are not built. One-to-one email from a
   record is; bulk product mail needs unsubscribe handling first.
+
+## Partners
+
+Added 2026-10-07 (Conor and GR Productions). Vendors such as DJs, hair and makeup artists, planners and venues sell StudioCue to the studios they work with. Later the same program runs the other way: photographers selling to DJs and to hair and makeup, once those journeys exist.
+
+- **Codes.** Billing → Partners → Add partner creates the partner (`saasPartners`) and their Stripe promotion code. Every code points at one shared coupon (`saasSettings/partnerProgram`):
+  - 40% off for 12 months on both plans. That covers the 14-day trial and the first annual invoice, so year 1 of Studio is $900 instead of $1,500. Renewal is at full price.
+  - Codes are tagged `metadata[kind]=partner`.
+  - They're mirrored into `saasDiscounts`, so Discount codes lists them and can deactivate them.
+- **Annual only.** Checkout puts any studio using a partner code on the yearly price (`ResolvedPromotion.annualOnly` in `saas/stripe-checkout.ts`). A Stripe coupon can be limited to a product, not to a price.
+- **Tracking.**
+  - The Stripe webhook writes `saasReferrals/{tenantId}` when a subscription first carries a partner code. The first partner keeps the studio.
+  - The referral counts when that studio's first invoice is paid with an amount above zero (`saas/partner-referrals.ts`). A studio that cancels in its trial earns nothing.
+- **Commission.** $100 a paid studio. At ten, every one is worth $200, so the first ten earn $2,000 (`features/console/partners.ts`).
+  - Payouts are recorded on the partner's drawer (`saasPartnerPayouts`), never sent from the Console.
+  - Owed = earned − paid out.
+- **Access.** Owners and operators (`partners.write`). Everything is staff-read in the rules and written only by `saasAdminCommand` and the webhook.

@@ -21,6 +21,7 @@ import {
 import { STRIPE_ADMIN_API_VERSION, fromUnix } from "../console/stripe-admin.js";
 import { staleStripeEvent } from "./stripe-event-order.js";
 import { graceEndsAt, longDateIn, queueBillingNotice } from "./billing-notices.js";
+import { creditReferral, recordReferral } from "./partner-referrals.js";
 
 const billingCommandSchema = z.object({
   type: z.enum(["createCheckout", "createPortal", "confirmCheckout"]),
@@ -298,7 +299,11 @@ export const billingCommand = onRequest(
       let params: URLSearchParams;
       if (operation === "createCheckout") {
         if (!parsed.plan || !parsed.cadence) throw new Error("PLAN_REQUIRED");
-        const priceId = priceFor(parsed.plan, parsed.cadence);
+        // Beta codes: a code from the signup link is applied up front; with
+        // none (or one Stripe won't honour) Checkout offers its own field. A
+        // partner's code is for the annual plan, so it takes the yearly price.
+        const promotion = await lookupPromotion(secret, parsed.promotionCode);
+        const priceId = priceFor(parsed.plan, promotion?.annualOnly ? "yearly" : parsed.cadence);
         if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
         // A comped studio choosing to pay starts paying now: its stored
         // period end is the comp's (once 2099), which Stripe refuses as a
@@ -337,9 +342,7 @@ export const billingCommand = onRequest(
             !overrideLive &&
             normalizeStatus(existingStatus) === "incomplete" &&
             !subscriptionId,
-          // Beta codes: a code from the signup link is applied up front; with
-          // none (or one Stripe won't honour) Checkout offers its own field.
-          promotion: await lookupPromotion(secret, parsed.promotionCode),
+          promotion,
         });
         // A discount the team applied in the Console before the card was
         // added rides into this Checkout instead. Stripe takes one discount
@@ -443,6 +446,17 @@ export const stripeWebhook = onRequest(
           createdAt: now,
         });
         await batch.commit();
+        // A referred studio's first paid invoice counts for its partner.
+        if (invoiceTenant && event.type === "invoice.paid") {
+          await creditReferral(db, {
+            tenantId: invoiceTenant,
+            amountPaidCents: Number(object.amount_paid ?? 0),
+            invoiceId: typeof object.id === "string" ? object.id : null,
+            now,
+          }).catch((caught: unknown) => {
+            console.error(JSON.stringify({ severity: "ERROR", event: "partner_referral.credit_failed", tenantId: invoiceTenant, reason: caught instanceof Error ? caught.message : String(caught) }));
+          });
+        }
         response.status(200).json({ received: true });
         return;
       }
@@ -605,6 +619,12 @@ export async function writeSubscriptionFromStripe(
     "studio";
   const status = deleted ? "cancelled" : normalizeStatus(object.status);
   const discount = await discountFromStripe(subscriptionReference.firestore, object);
+  // A partner's code ties the studio to the partner (saas/partner-referrals.ts).
+  if (discount?.code) {
+    await recordReferral(subscriptionReference.firestore, { tenantId, code: discount.code, status, now }).catch((caught: unknown) => {
+      console.error(JSON.stringify({ severity: "ERROR", event: "partner_referral.record_failed", tenantId, reason: caught instanceof Error ? caught.message : String(caught) }));
+    });
+  }
   // A studio the team comped locally (no Stripe subscription) that then pays
   // is no longer comped. One comped with a 100% coupon keeps its flag: that
   // subscription is how the comp is carried.

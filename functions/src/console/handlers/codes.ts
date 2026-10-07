@@ -119,7 +119,7 @@ function randomSuffix(length = 6): string {
   return [...bytes].map((byte) => alphabet[byte % alphabet.length]).join("");
 }
 
-async function codeTaken(db: Firestore, code: string): Promise<boolean> {
+export async function codeTaken(db: Firestore, code: string): Promise<boolean> {
   const mirrorHit = await db.collection("saasDiscounts").where("code", "==", code).limit(1).get();
   if (!mirrorHit.empty) return true;
   if (stripeMock()) return false;

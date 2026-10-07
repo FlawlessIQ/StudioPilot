@@ -993,6 +993,21 @@ service cloud.firestore {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }
+    // Partners who sell StudioCue, the studios they referred, and what they
+    // were paid (Console → Partners). Written only by saasAdminCommand and the
+    // Stripe webhook.
+    match /saasPartners/{partnerId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /saasReferrals/{tenantId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /saasPartnerPayouts/{payoutId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
     // The thread on a piece of feedback. The team reads all of it; the person
     // who sent the feedback reads only the replies the team sent them, never an
     // internal note.

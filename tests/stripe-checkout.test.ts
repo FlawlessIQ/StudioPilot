@@ -170,7 +170,7 @@ test("A partial-discount code is applied up front; card and trial unchanged", ()
     priceId: "price_live",
     tenantId: "tenant_a",
     firstCheckout: true,
-    promotion: { promotionCodeId: "promo_half", freeForever: false },
+    promotion: { promotionCodeId: "promo_half", freeForever: false, annualOnly: false },
   });
   assert.equal(params.get("discounts[0][promotion_code]"), "promo_half");
   // Stripe rejects allow_promotion_codes together with discounts.
@@ -186,7 +186,7 @@ test("A 100%-off-forever code skips the card and the trial", () => {
     tenantId: "tenant_a",
     firstCheckout: true,
     trialEndIso: new Date(Date.now() + 9 * 86400000).toISOString(),
-    promotion: { promotionCodeId: "promo_beta", freeForever: true },
+    promotion: { promotionCodeId: "promo_beta", freeForever: true, annualOnly: false },
   });
   assert.equal(params.get("discounts[0][promotion_code]"), "promo_beta");
   assert.equal(params.has("allow_promotion_codes"), false);
@@ -212,15 +212,15 @@ test("Only a live, valid, unexpired, unexhausted code resolves", () => {
   const now = Date.parse("2026-10-01T00:00:00Z");
   const code = { id: "promo_beta", active: true, expires_at: null, max_redemptions: 5, times_redeemed: 1 };
   const free = { id: "BETA", valid: true, percent_off: 100, duration: "forever" };
-  assert.deepEqual(resolvePromotion(code, free, now), { promotionCodeId: "promo_beta", freeForever: true });
+  assert.deepEqual(resolvePromotion(code, free, now), { promotionCodeId: "promo_beta", freeForever: true, annualOnly: false });
   // 100% for three months is a discount, not free forever: card still needed.
   assert.deepEqual(
     resolvePromotion(code, { ...free, duration: "repeating", duration_in_months: 3 }, now),
-    { promotionCodeId: "promo_beta", freeForever: false },
+    { promotionCodeId: "promo_beta", freeForever: false, annualOnly: false },
   );
   assert.deepEqual(
     resolvePromotion(code, { ...free, percent_off: 50 }, now),
-    { promotionCodeId: "promo_beta", freeForever: false },
+    { promotionCodeId: "promo_beta", freeForever: false, annualOnly: false },
   );
   // Revoked (inactive) code, invalid coupon, expired, used up → null.
   assert.equal(resolvePromotion({ ...code, active: false }, free, now), null);
