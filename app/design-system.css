@@ -193,45 +193,52 @@
   margin-bottom: 8px;
 }
 
-.ds-root .structured-preview {
-  background: var(--ds-paper);
-  border: 1px solid var(--ds-line);
-  border-radius: var(--ds-r-sm);
+.ds-root .structured-preview,
+.ai-queue-card .structured-preview {
+  background: var(--ds-paper, #fffdf8);
+  border: 1px solid var(--ds-line, #e9e1d4);
+  border-radius: var(--ds-r-sm, 11px);
   display: grid;
   gap: 0;
   margin: 0;
   padding: 4px 12px;
 }
 
-.ds-root .structured-preview > div {
+.ds-root .structured-preview > div,
+.ai-queue-card .structured-preview > div {
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(110px, .35fr) minmax(0, 1fr);
   padding: 9px 0;
 }
 
-.ds-root .structured-preview > div + div {
-  border-top: 1px solid var(--ds-line);
+.ds-root .structured-preview > div + div,
+.ai-queue-card .structured-preview > div + div {
+  border-top: 1px solid var(--ds-line, #e9e1d4);
 }
 
-.ds-root .structured-preview dt {
-  color: var(--ds-muted);
+.ds-root .structured-preview dt,
+.ai-queue-card .structured-preview dt {
+  color: var(--ds-muted, #97897a);
   font-size: 11.5px;
   font-weight: 750;
 }
 
-.ds-root .structured-preview dd {
-  color: var(--ds-ink);
+.ds-root .structured-preview dd,
+.ai-queue-card .structured-preview dd {
+  color: var(--ds-ink, #221c16);
   font-size: 13px;
   margin: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-.ds-root .structured-preview .structured-preview-list {
+.ds-root .structured-preview .structured-preview-list,
+.ai-queue-card .structured-preview .structured-preview-list {
   display: grid;
   gap: 4px;
   margin: 0;
+  list-style-type: disc;
   padding-left: 16px;
   white-space: normal;
 }
@@ -243,7 +250,8 @@
 }
 
 @media (max-width: 720px) {
-  .ds-root .structured-preview > div {
+  .ds-root .structured-preview > div,
+  .ai-queue-card .structured-preview > div {
     gap: 3px;
     grid-template-columns: 1fr;
   }

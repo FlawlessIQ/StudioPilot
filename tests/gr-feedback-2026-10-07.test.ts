@@ -86,3 +86,14 @@ test("accepting re-reads the whole page, so the next step stops asking them to a
   const views = read("components/client/live-client-views.tsx");
   assert.match(views, /window\.addEventListener\(CLIENT_RECORDS_REFRESH, refresh\)/);
 });
+
+test("the preview is styled inside a review sheet too, which sits outside .ds-root", () => {
+  // Walked on prod: in the job page's sheet the findings ran to the edges,
+  // unboxed, with no bullets — every rule was scoped to .ds-root.
+  const css = read("app/design-system.css");
+  assert.match(css, /\.ai-queue-card \.structured-preview \{\s+background: var\(--ds-paper, #fffdf8\);/);
+  // Not the `list-style` shorthand: Next's CSS build rewrote `list-style: disc`
+  // to `list-style:outside` and the bullets went (verified in .next output).
+  assert.match(css, /\.ai-queue-card \.structured-preview \.structured-preview-list \{[^}]*list-style-type: disc;/);
+  assert.match(read("app/studiocue-reimagined.css"), /\.ai-queue-card > \.structured-preview-body \{\s+padding: 0 18px 12px;/);
+});

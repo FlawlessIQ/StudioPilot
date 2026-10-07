@@ -2105,6 +2105,14 @@
   padding: 12px 18px;
 }
 
+/* Prepared work that isn't a message (a questionnaire review, a package
+   recommendation) sits in line with the card's other sections. It ran to the
+   sheet's edges, and outside .ds-root its list styles never applied (GR walk,
+   2026-10-07). */
+.ai-queue-card > .structured-preview-body {
+  padding: 0 18px 12px;
+}
+
 .ai-queue-explanation summary {
   align-items: center;
   color: #67556e;
