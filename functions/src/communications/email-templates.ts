@@ -120,6 +120,8 @@ export const emailTemplateKeys = [
   "coi_correction",
   "coi_venue_delivery",
   "crew_reminder",
+  // Each crew member's monthly list of the jobs they've accepted (crew/monthly-roundup.ts).
+  "crew_monthly_roundup",
   "crew_assignment_cancelled",
   // The studio called the wedding off and chose to tell the couple (Wave 3):
   // their own words, or a plain default. Never sent unless they tick it.
@@ -1328,6 +1330,61 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : `Sign in to your ${brand.studioName} crew account to see your day sheet.`,
       };
     }
+    case "crew_monthly_roundup": {
+      /**
+       * The first days of each month (crew/monthly-roundup.ts), to each crew
+       * member with a job still ahead: every job they've accepted with this
+       * studio, soonest first. "Once accepted they should be getting a
+       * reminder every few months" (Albert, GR, 2026-10-07). The list is the
+       * one read as the email sends.
+       */
+      const jobs = (Array.isArray(values.jobs) ? values.jobs : []).filter(
+        (entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null,
+      );
+      const listed = jobs.slice(0, 20);
+      const more = jobs.length - listed.length;
+      const shortDay = (date: string) => {
+        const parsed = new Date(`${date}T12:00:00Z`);
+        return Number.isNaN(parsed.valueOf())
+          ? date
+          : new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(parsed);
+      };
+      const count = jobs.length === 1 ? "one job" : `${jobs.length} jobs`;
+      return {
+        subject: `Your upcoming jobs with ${brand.studioName}`,
+        preheader: jobs.length
+          ? `You're booked for ${count}. The next is ${shortDay(stringValue(jobs[0]!, "date"))}.`
+          : "The jobs you've accepted.",
+        eyebrow: "Monthly reminder",
+        heading: jobs.length === 1 ? "Your upcoming job" : "Your upcoming jobs",
+        paragraphs: [
+          greeting,
+          `A monthly reminder of what you've accepted with ${brand.studioName}: ${count} still ahead, soonest first.`,
+        ],
+        details: [
+          ...listed.map((entry) => {
+            const role = stringValue(entry, "role");
+            const arrivalAt = stringValue(entry, "arrivalAt");
+            const where = stringValue(entry, "locationName");
+            const entryZone = stringValue(entry, "timezone") || zone;
+            return {
+              label: shortDay(stringValue(entry, "date")),
+              value: [
+                stringValue(entry, "jobName") || "Your job",
+                role,
+                arrivalAt ? `call ${humanClock(arrivalAt, entryZone)}` : "",
+                where,
+              ]
+                .filter(Boolean)
+                .join(" · "),
+            };
+          }),
+          ...(more > 0 ? [{ label: "And", value: `${more} more on your jobs page` }] : []),
+        ],
+        action: actionUrl ? { label: "Open your jobs", url: actionUrl } : undefined,
+        note: `If anything here looks wrong, or you can no longer make a date, message ${brand.studioName} from the job.`,
+      };
+    }
     case "project_cancelled": {
       /**
        * Written by the studio on the cancel form, or this default. Says the
@@ -2328,7 +2385,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
 
 /** Mail a crew member reads. */
 export const CREW_EMAIL_TYPES: ReadonlySet<string> = new Set([
-  "crew_invitation", "crew_directory_invitation", "crew_reminder", "crew_assignment_cancelled",
+  "crew_invitation", "crew_directory_invitation", "crew_reminder", "crew_monthly_roundup", "crew_assignment_cancelled",
 ]);
 
 /**

@@ -71,6 +71,7 @@ const PERISHABLE_EMAIL_TYPES: readonly string[] = [
   ),
   "consultation_reminder",
   "crew_reminder",
+  "crew_monthly_roundup",
   "album_selection_reminder",
   "review_request",
 ];

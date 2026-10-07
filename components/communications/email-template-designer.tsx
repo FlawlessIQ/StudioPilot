@@ -41,6 +41,7 @@ const templateKeys = [
   "coi_correction",
   "coi_venue_delivery",
   "crew_reminder",
+  "crew_monthly_roundup",
   "final_invoice",
   "final_payment_reminder",
   "schedule_review",

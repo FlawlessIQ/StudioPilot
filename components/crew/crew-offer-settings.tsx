@@ -34,6 +34,7 @@ export function CrewOfferSettings() {
 
   const [autoOffer, setAutoOffer] = useState<boolean | null>(null);
   const [requireInsurance, setRequireInsurance] = useState<boolean | null>(null);
+  const [monthlyRoundup, setMonthlyRoundup] = useState<boolean | null>(null);
   const [windowHours, setWindowHours] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -52,6 +53,8 @@ export function CrewOfferSettings() {
   // Off unless the studio says otherwise: most operate under their own policy.
   const effectiveInsurance =
     requireInsurance ?? stored.requireInsurance === true;
+  // On unless switched off (functions/src/crew/monthly-roundup-core.ts).
+  const effectiveRoundup = monthlyRoundup ?? stored.monthlyRoundup !== false;
 
   async function save() {
     const hours = Math.round(Number(effectiveWindow));
@@ -67,6 +70,7 @@ export function CrewOfferSettings() {
         autoOfferOnBooking: effectiveAuto,
         responseWindowHours: hours,
         requireInsurance: effectiveInsurance,
+        monthlyRoundup: effectiveRoundup,
       });
       setSaved(true);
     } catch (caught: unknown) {
@@ -135,6 +139,22 @@ export function CrewOfferSettings() {
               a separate thing set on each job.
             </small>
           </label>
+          <label className="form-checkbox">
+            <input
+              checked={effectiveRoundup}
+              onChange={(event) => {
+                setMonthlyRoundup(event.target.checked);
+                setSaved(false);
+              }}
+              type="checkbox"
+            />
+            <span>Remind crew of their upcoming jobs every month</span>
+            <small>
+              On the 1st, each crew member gets one email listing every job they&rsquo;ve accepted
+              with you that&rsquo;s still ahead — date, role, call time and place. They still get their
+              call-time reminder two days before each job.
+            </small>
+          </label>
           <label>
             Response window (hours)
             <input
@@ -162,8 +182,8 @@ export function CrewOfferSettings() {
         ) : null}
         {saved ? (
           <p className="form-notice" role="status">
-            <CheckCircle2 size={15} /> Saved. This applies to jobs booked from
-            now on.
+            <CheckCircle2 size={15} /> Saved. Offer changes apply to jobs booked
+            from now on; the monthly reminder follows the switch from its next send.
           </p>
         ) : null}
         <button className="button button-dark" disabled={busy} type="submit">

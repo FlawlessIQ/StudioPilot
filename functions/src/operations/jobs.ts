@@ -1,3 +1,4 @@
+import { crewRoundupPlanFor } from "../crew/monthly-roundup.js";
 import { contractStillAwaitingSignature } from "../contracts/reminders.js";
 import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
 import {
@@ -956,6 +957,14 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   }
   if (type === "crew_reminder" && document.get("callDate") && document.get("assignmentId")) {
     const plan = await crewReminderPlanFor(getFirestore(), document);
+    if ("hold" in plan) return { held: plan.hold, type };
+    reminderValues = plan.values;
+  }
+  // The monthly crew list is read again as it goes (crew/monthly-roundup.ts):
+  // a job called off or released since it was queued is not on it, and a
+  // list with nothing left ahead is not sent.
+  if (type === "crew_monthly_roundup" && Array.isArray(document.get("assignmentIds"))) {
+    const plan = await crewRoundupPlanFor(getFirestore(), document);
     if ("hold" in plan) return { held: plan.hold, type };
     reminderValues = plan.values;
   }

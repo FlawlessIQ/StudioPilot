@@ -136,6 +136,12 @@ const command = z.discriminatedUnion("type", [
        * tenant already holds rather than silently clearing it.
        */
       requireInsurance: z.boolean().optional(),
+      /**
+       * Each crew member's monthly list of their upcoming jobs
+       * (crew/monthly-roundup.ts). On unless switched off; optional so an
+       * older client leaves it as it is.
+       */
+      monthlyRoundup: z.boolean().optional(),
     }),
   }),
   z.object({

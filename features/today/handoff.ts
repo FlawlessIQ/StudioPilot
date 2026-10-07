@@ -163,6 +163,13 @@ const HANDLED: Record<string, (lookup: Lookup) => string | null> = {
     const name = text(job.recipientName);
     return name ? `Reminded ${name} of their call time for ${client}` : `Reminded the crew of their call time for ${client}`;
   },
+  // crew/monthly-roundup.ts: one email per crew member, no single job.
+  crew_monthly_roundup: ({ job }) => {
+    const name = text(job.recipientName);
+    const jobs = Array.isArray(job.jobs) ? job.jobs.length : 0;
+    const what = jobs === 1 ? "their upcoming job" : jobs ? `their ${jobs} upcoming jobs` : "their upcoming jobs";
+    return `Reminded ${name || "a crew member"} of ${what}`;
+  },
   // Only the re-offer made when the last offer ran out (crew/commands.ts,
   // crewCascadeExpiryScheduler). The first offer is the studio's.
   crew_invitation: ({ job, byId, client }) => {
@@ -288,7 +295,7 @@ export function handoffWhen(at: string, now: Date | string, timeZone?: string): 
 }
 
 /** Emails that go to someone other than the client: the crew, the insurance agent. */
-const NOT_TO_THE_CLIENT = new Set(["crew_reminder", "crew_invitation", "coi_request"]);
+const NOT_TO_THE_CLIENT = new Set(["crew_reminder", "crew_monthly_roundup", "crew_invitation", "coi_request"]);
 
 /**
  * Who a line names. A message to the client names the client (the email's

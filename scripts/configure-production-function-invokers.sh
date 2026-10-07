@@ -167,6 +167,10 @@ scheduler_services=(
   # reminder (communications/event-reminders.ts). Missing here, it 403s after
   # the next invoker reset and both go quiet again.
   eventreminderscheduler
+  # Each crew member's monthly list of the jobs they've accepted
+  # (crew/monthly-roundup.ts). Missing here, it 403s after the next invoker
+  # reset and the list stops with nothing to say so.
+  crewroundupscheduler
   # Asks SendGrid what became of the mail we sent, because StudioCue has no
   # Event Webhook slot to be told. Missing from this list, it would 403 after
   # the org's next invoker-IAM reset and delivery status would silently stop
