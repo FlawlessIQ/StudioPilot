@@ -104,9 +104,13 @@ export async function referralCoupon(db: Firestore, cadence: "monthly" | "yearly
         name: cadence === "yearly" ? "Referral: first year $900 ($75/month)" : "Referral: $100/month for 12 months",
         amount_off: amountOff,
         currency: price.currency ?? "usd",
-        // Yearly: the first annual invoice only. Monthly: the first 12.
-        duration: cadence === "yearly" ? "once" : "repeating",
-        ...(cadence === "monthly" ? { duration_in_months: OFFER_MONTHS } : {}),
+        // Twelve months from checkout, for both. Monthly: the first 12
+        // charges. Yearly: the first annual invoice, 14 days in, and not the
+        // renewal a year after that. Not "once": the first invoice of a
+        // trial is the $0 one at checkout, and a once-off discount spent
+        // there would leave the studio paying $1,500.
+        duration: "repeating",
+        duration_in_months: OFFER_MONTHS,
         "applies_to[products]": [price.product],
         "metadata[app]": STUDIOCUE_METADATA.app,
         "metadata[kind]": "referral",

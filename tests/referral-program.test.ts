@@ -68,6 +68,9 @@ test("the referral price is applied on a first checkout of the Studio plan only,
   const referrals = read("functions/src/saas/referrals.ts");
   assert.match(referrals, /`referral-credit-\$\{creditId\}`/, "a retried settlement can't credit twice");
   assert.match(referrals, /schedule: "0 14 1 1,4,7,10 \*"/);
+  // A once-off coupon is spent on the trial's $0 first invoice.
+  assert.match(referrals, /duration: "repeating",\s*duration_in_months: OFFER_MONTHS,/);
+  assert.doesNotMatch(referrals, /duration: [^\n]*"once"/);
 });
 
 test("Partners is gone: no page, handler, rule or statement link left", () => {

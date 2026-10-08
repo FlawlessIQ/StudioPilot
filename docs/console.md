@@ -300,7 +300,7 @@ Added 2026-10-08 (Conor). It replaces Partners (2026-10-07), whose codes, payout
 - **Every studio has a code.** It's made the first time anything asks for it (`ensureReferralCode`, `saas/referrals.ts`), from the studio's name (GRPRODUCTIONS). It lives in `saasReferralCodes/{CODE}` and `tenants/{id}.referralCode`, and shows with its link on the studio's Subscription page (Refer a studio, owners only).
 - **The offer** is for the Studio plan, on a studio's first checkout, never with its own code:
   - 14 days free, then $75/month billed yearly for the first year ($900), or $100/month billed monthly for the first 12 months. After that, list price.
-  - It isn't a Stripe promotion code. `billingCommand` looks the code up and applies one of two amount-off coupons made once (`saasSettings/referralProgram`): $600 off the first $1,500 annual invoice, or $50 off for 12 months. A single coupon can't be both.
+  - It isn't a Stripe promotion code. `billingCommand` looks the code up and applies one of two amount-off coupons made once (`saasSettings/referralProgram`): $600 off the annual price, or $50 off the monthly. Both last 12 months from checkout, which covers the first annual invoice (14 days in) but not its renewal. Not `duration: once`, which a trial's $0 first invoice would use up. A single coupon can't be both.
   - The code rides on the subscription's metadata, so the webhook records `saasReferrals/{tenantId}` only once Checkout completes. The first referrer keeps it.
 - **The credit.** $50 per referred studio, on the referrer's Stripe customer balance, which comes off their next invoice.
   - The referral counts from the referred studio's first paid invoice above $0.
