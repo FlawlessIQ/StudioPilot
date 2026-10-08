@@ -31,7 +31,7 @@ import {
   referralCoupon,
   updateReferralStatus,
 } from "./referrals.js";
-import { OFFER_SUMMARY, REFERRAL_CREDIT_CENTS } from "./referral-program.js";
+import { OFFER_SUMMARY, REFERRAL_CREDIT_CENTS, creditDueAt } from "./referral-program.js";
 import { appUrl } from "../console/studio-owner.js";
 
 const billingCommandSchema = z.object({
@@ -234,8 +234,10 @@ async function referralStatus(db: FirebaseFirestore.Firestore, tenantId: string)
   const rows = referrals.docs
     .map((referral) => {
       const status = String(referral.get("status") ?? "");
+      const paidAt = referral.get("paidAt") as string | undefined;
       return {
         signedUpAt: (referral.get("signedUpAt") as string | undefined) ?? null,
+        creditDueAt: paidAt && !referral.get("creditedAt") ? creditDueAt(paidAt) : null,
         via: (referral.get("via") as string | undefined) ?? "code",
         state: referral.get("creditedAt")
           ? "credited"

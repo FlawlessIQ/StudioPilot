@@ -6,10 +6,11 @@
  * - **A studio that signs up with it** gets the 14-day trial, then its first
  *   year of the Studio plan at $75/month billed yearly ($900), or $100/month
  *   billed monthly. After that year it pays the list price.
- * - **The studio whose code it was** earns $50 of StudioCue credit for each
- *   one that pays. Credits are settled once a quarter for the quarter before,
- *   and only for studios still paying when it's settled, so a sign-up that
- *   cancels in its trial, or straight after its first payment, earns nothing.
+ * - **The studio whose code it was** earns $100 of StudioCue credit, once,
+ *   for each one still paying three months after its first payment (Conor,
+ *   2026-10-08: "make sure its clear that its once off and will be paid after
+ *   the referral is live for 3 months"). A sign-up that cancels in its trial,
+ *   or inside those three months, earns nothing.
  * - **The vendors on a studio's booked jobs** (DJs, planners, florists, hair
  *   and makeup) are invited automatically with that studio's code, once each.
  *
@@ -17,7 +18,9 @@
  * from features/); tests/referral-program.test.ts fails on a drift.
  */
 
-export const REFERRAL_CREDIT_CENTS = 5_000;
+export const REFERRAL_CREDIT_CENTS = 10_000;
+/** How long a referred studio has to have been paying before its referrer's credit. */
+export const REFERRAL_LIVE_MONTHS = 3;
 
 /** The Studio plan for a referred studio's first year. */
 export const OFFER_YEARLY_CENTS = 90_000;
@@ -42,19 +45,15 @@ export function referralCodeStem(studioName: string): string {
   return stem.length >= 4 ? stem : `${stem}STUDIO`.slice(0, 14);
 }
 
-/** The calendar quarter an instant falls in: "2026-Q4". */
-export function quarterKey(iso: string): string {
-  const date = new Date(iso);
-  return `${date.getUTCFullYear()}-Q${Math.floor(date.getUTCMonth() / 3) + 1}`;
-}
-
-/** The quarter before the one `nowIso` falls in, with its bounds (UTC). */
-export function previousQuarter(nowIso: string): { key: string; startIso: string; endIso: string } {
-  const now = new Date(nowIso);
-  const thisStart = Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth() / 3) * 3, 1);
-  const start = new Date(thisStart);
-  start.setUTCMonth(start.getUTCMonth() - 3);
-  return { key: quarterKey(start.toISOString()), startIso: start.toISOString(), endIso: new Date(thisStart).toISOString() };
+/** When a referral's credit is due: three months after the referred studio first paid. */
+export function creditDueAt(paidAtIso: string): string {
+  const due = new Date(paidAtIso);
+  const day = due.getUTCDate();
+  due.setUTCMonth(due.getUTCMonth() + REFERRAL_LIVE_MONTHS, 1);
+  // Nov 30 + 3 months is Feb 28, not March 2.
+  const lastDay = new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth() + 1, 0)).getUTCDate();
+  due.setUTCDate(Math.min(day, lastDay));
+  return due.toISOString();
 }
 
 export type ReferralRecord = {
@@ -66,26 +65,25 @@ export type ReferralRecord = {
 };
 
 /**
- * What the quarterly settlement does with one referral.
+ * What the daily settlement does with one referral.
  *
- * - **"credit"**: it paid before this quarter began, the studio is still
- *   paying, and it hasn't been credited.
- * - **"forfeit"**: the studio has since canceled.
- * - **"hold"**: not yet paid, behind on payment, or paid inside the quarter
- *   now running. A held referral is looked at again next quarter.
- * - **"done"**: already settled.
+ * - **"credit"**: it has been paying for three months, is still paying, and
+ *   hasn't been credited.
+ * - **"forfeit"**: the studio canceled before its credit was due.
+ * - **"hold"**: still in its trial, inside its three months, or behind on
+ *   payment. Looked at again tomorrow.
+ * - **"done"**: already credited or forfeited. Each referral is credited once.
  */
 export function settlement(
   referral: ReferralRecord,
   referredStatus: string,
-  settleBeforeIso: string,
+  nowIso: string,
 ): "credit" | "forfeit" | "hold" | "done" {
   if (referral.creditedAt || referral.forfeitedAt) return "done";
-  if (!referral.paidAt) return "hold";
-  if (referral.paidAt >= settleBeforeIso) return "hold";
-  if (referredStatus === "active") return "credit";
   if (["cancelled", "canceled", "incomplete_expired"].includes(referredStatus)) return "forfeit";
-  return "hold";
+  if (!referral.paidAt) return "hold";
+  if (creditDueAt(referral.paidAt) > nowIso) return "hold";
+  return referredStatus === "active" ? "credit" : "hold";
 }
 
 /** Vendor types invited to try StudioCue. Venues, insurers and clients' own contacts are not vendors. */

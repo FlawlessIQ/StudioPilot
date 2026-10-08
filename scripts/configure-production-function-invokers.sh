@@ -167,8 +167,9 @@ scheduler_services=(
   # reminder (communications/event-reminders.ts). Missing here, it 403s after
   # the next invoker reset and both go quiet again.
   eventreminderscheduler
-  # Last quarter's $50 referral credits, on the 1st of Jan/Apr/Jul/Oct
-  # (saas/referrals.ts). Missing here, it 403s and credits silently stop.
+  # The one-off $100 referral credits, daily, once a referred studio has paid
+  # for three months (saas/referrals.ts). Missing here, it 403s and credits
+  # silently stop.
   referralcreditscheduler
   # Invites the vendors on studios' booked jobs to try StudioCue, once each
   # (saas/vendor-invites.ts).

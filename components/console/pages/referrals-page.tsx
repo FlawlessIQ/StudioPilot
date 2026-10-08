@@ -16,7 +16,8 @@ import { Empty, Notice, PageHead, Panel, Pill, Stat, StatStrip } from "../ui";
 
 /**
  * Referrals (docs/console.md, "Referrals"): every studio's code, who signed up
- * with one, and the $50 credits settled each quarter (saas/referrals.ts). It
+ * with one, and the one-off $100 credits, each paid once the new studio has
+ * been paying for three months (saas/referrals.ts). It
  * replaces Partners (2026-10-07), so there is nothing to run here: codes are
  * made for every studio, credits go on by themselves, and vendor invites send
  * themselves. This page is where to check they did.
@@ -34,14 +35,13 @@ type Referral = {
   signedUpAt?: string | null;
   paidAt?: string | null;
   creditedAt?: string | null;
-  creditQuarter?: string | null;
   forfeitedAt?: string | null;
 };
-type Credit = { id: string; referrerTenantId: string; quarter: string; count: number; amountCents: number; createdAt: string };
+type Credit = { id: string; referrerTenantId: string; referredTenantId: string; amountCents: number; createdAt: string };
 type Invite = { id: string; tenantId: string; vendorType?: string; createdAt: string; signedUpTenantId?: string | null };
 
 type State = "trial" | "paying" | "credited" | "forfeited";
-const STATE_LABEL: Record<State, string> = { trial: "In trial", paying: "Paying, credit due", credited: "Credited", forfeited: "Canceled, no credit" };
+const STATE_LABEL: Record<State, string> = { trial: "In trial", paying: "Paying, credit at 3 months", credited: "Credited", forfeited: "Canceled, no credit" };
 const STATE_TONE = { trial: "info", paying: "warn", credited: "ok", forfeited: "neutral" } as const;
 const stateOf = (row: Referral): State => (row.creditedAt ? "credited" : row.forfeitedAt ? "forfeited" : row.paidAt ? "paying" : "trial");
 
@@ -93,7 +93,7 @@ export function ReferralsPage() {
         header: "Credit",
         accessorFn: (row) => stateOf(row),
         meta: { width: 170 },
-        cell: ({ row }) => <Pill tone={STATE_TONE[stateOf(row.original)]}>{stateOf(row.original) === "credited" && row.original.creditQuarter ? `Credited ${row.original.creditQuarter}` : STATE_LABEL[stateOf(row.original)]}</Pill>,
+        cell: ({ row }) => <Pill tone={STATE_TONE[stateOf(row.original)]}>{stateOf(row.original) === "credited" && row.original.creditedAt ? `Credited ${shortDate(row.original.creditedAt, now)}` : STATE_LABEL[stateOf(row.original)]}</Pill>,
       },
     ],
     [names, now],
@@ -106,7 +106,7 @@ export function ReferralsPage() {
         <PageHead title="Referrals">
           <StatStrip>
             <Stat label="Referred studios" value={rows.length} />
-            <Stat label="Credit due next quarter" tone={paying ? "warn" : undefined} value={money(paying * REFERRAL_CREDIT_CENTS)} />
+            <Stat label="Credit still to come" tone={paying ? "warn" : undefined} value={money(paying * REFERRAL_CREDIT_CENTS)} />
             <Stat label="Credited so far" tone={creditedCents ? "ok" : undefined} value={money(creditedCents)} />
             <Stat label="Vendors invited" value={invited.length} />
             <Stat label="Signed up from an invite" value={inviteSignups} />
@@ -114,7 +114,7 @@ export function ReferralsPage() {
         </PageHead>
         {referrals.error ?? credits.error ?? invites.error ? <Notice tone="bad">{referrals.error ?? credits.error ?? invites.error}</Notice> : null}
         <p className="cx-page-intro">
-          {`Every studio has a referral code on its Subscription page. A studio that signs up with one gets ${OFFER_SUMMARY}. The studio whose code it was earns ${money(REFERRAL_CREDIT_CENTS)} of credit once the new studio pays, added to its Stripe balance on the 1st of each quarter for the quarter before, if the new studio is still paying. Vendors on studios' booked jobs are invited once, by themselves, with the studio's code.`}
+          {`Every studio has a referral code on its Subscription page. A studio that signs up with one gets ${OFFER_SUMMARY}. The studio whose code it was earns a one-off ${money(REFERRAL_CREDIT_CENTS)} credit, added to its Stripe balance once the new studio has been paying for 3 months and is still paying. Vendors on studios' booked jobs are invited once, by themselves, with the studio's code.`}
         </p>
         <div className="cx-grid-2">
           <Panel flush title="Studios bringing others in">
@@ -132,22 +132,22 @@ export function ReferralsPage() {
               <Empty title="Nobody referred yet">Studios show here once one signs up with another&apos;s code, or once vendor invites go out.</Empty>
             )}
           </Panel>
-          <Panel flush title="Credits by quarter">
+          <Panel flush title="Credits added">
             {(credits.rows ?? []).length ? (
               <div className="cx-timeline">
                 {[...(credits.rows ?? [])]
-                  .sort((a, b) => b.quarter.localeCompare(a.quarter) || b.amountCents - a.amountCents)
+                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
                   .slice(0, 12)
                   .map((credit) => (
                     <Link className="cx-item" href={studioHref(credit.referrerTenantId)} key={credit.id}>
                       <span className="cx-item-title">{names.get(credit.referrerTenantId) ?? credit.referrerTenantId}</span>
-                      <span className="cx-item-time">{credit.quarter}</span>
-                      <span className="cx-item-snippet">{`${money(credit.amountCents)} for ${credit.count} ${credit.count === 1 ? "studio" : "studios"}`}</span>
+                      <span className="cx-item-time">{shortDate(credit.createdAt, now)}</span>
+                      <span className="cx-item-snippet">{`${money(credit.amountCents)} for referring ${names.get(credit.referredTenantId) ?? "a studio"}`}</span>
                     </Link>
                   ))}
               </div>
             ) : (
-              <Empty title="No credits yet">The first are settled on the 1st of the quarter after a referred studio first pays.</Empty>
+              <Empty title="No credits yet">Each is added three months after a referred studio first pays.</Empty>
             )}
           </Panel>
         </div>

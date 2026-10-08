@@ -4,8 +4,8 @@ import test from "node:test";
 import {
   INVITED_VENDOR_TYPES,
   normalizeReferralCode,
-  previousQuarter,
-  quarterKey,
+  REFERRAL_CREDIT_CENTS,
+  creditDueAt,
   referralCodeStem,
   settlement,
 } from "../features/subscriptions/referral-program";
@@ -27,21 +27,24 @@ test("a studio's code comes from its name, without the filler", () => {
   assert.equal(normalizeReferralCode("no"), null);
 });
 
-test("credits settle the quarter before, for studios still paying", () => {
-  assert.equal(quarterKey("2026-11-14T00:00:00Z"), "2026-Q4");
-  assert.deepEqual(previousQuarter("2027-01-01T14:00:00Z"), { key: "2026-Q4", startIso: "2026-10-01T00:00:00.000Z", endIso: "2027-01-01T00:00:00.000Z" });
-  assert.equal(previousQuarter("2026-10-01T14:00:00Z").key, "2026-Q3");
-  const base = { tenantId: "t", referrerTenantId: "r" };
-  const before = "2027-01-01T00:00:00.000Z";
-  assert.equal(settlement({ ...base, paidAt: "2026-11-02T00:00:00Z" }, "active", before), "credit");
-  // Paid, then canceled before the settlement: no credit.
-  assert.equal(settlement({ ...base, paidAt: "2026-11-02T00:00:00Z" }, "cancelled", before), "forfeit");
-  // Behind on payment: looked at again next quarter.
-  assert.equal(settlement({ ...base, paidAt: "2026-11-02T00:00:00Z" }, "past_due", before), "hold");
-  // Still in the trial, or paid inside the quarter now running.
-  assert.equal(settlement({ ...base, paidAt: null }, "trialing", before), "hold");
-  assert.equal(settlement({ ...base, paidAt: "2027-01-01T00:00:01Z" }, "active", before), "hold");
-  assert.equal(settlement({ ...base, paidAt: "2026-11-02T00:00:00Z", creditedAt: "2027-01-01T14:00:00Z" }, "active", before), "done");
+test("the referrer gets $100, once, after the studio has been paying three months", () => {
+  assert.equal(REFERRAL_CREDIT_CENTS, 10_000);
+  assert.equal(creditDueAt("2026-11-02T10:00:00.000Z"), "2027-02-02T10:00:00.000Z");
+  // Nov 30 + 3 months is the end of February, not March 2.
+  assert.equal(creditDueAt("2026-11-30T10:00:00.000Z"), "2027-02-28T10:00:00.000Z");
+  const base = { tenantId: "t", referrerTenantId: "r", paidAt: "2026-11-02T10:00:00.000Z" };
+  assert.equal(settlement(base, "active", "2027-02-02T10:00:00.000Z"), "credit");
+  // A day short of three months: not yet.
+  assert.equal(settlement(base, "active", "2027-02-01T10:00:00.000Z"), "hold");
+  // Canceled inside the three months, or in the trial: no credit, ever.
+  assert.equal(settlement(base, "cancelled", "2027-01-05T00:00:00.000Z"), "forfeit");
+  assert.equal(settlement({ ...base, paidAt: null }, "cancelled", "2027-01-05T00:00:00.000Z"), "forfeit");
+  // Behind on payment, or leaving at period end: held, looked at again tomorrow.
+  assert.equal(settlement(base, "past_due", "2027-03-01T00:00:00.000Z"), "hold");
+  assert.equal(settlement(base, "cancel_scheduled", "2027-03-01T00:00:00.000Z"), "hold");
+  assert.equal(settlement({ ...base, paidAt: null }, "trialing", "2027-03-01T00:00:00.000Z"), "hold");
+  // Once-off: a credited referral is never credited again.
+  assert.equal(settlement({ ...base, creditedAt: "2027-02-02T14:00:00Z" }, "active", "2027-06-01T00:00:00Z"), "done");
 });
 
 test("vendor invites never go to venues, insurers or a client's own contacts", () => {
@@ -66,8 +69,9 @@ test("the referral price is applied on a first checkout of the Studio plan only,
   assert.match(stripe, /subscription_data\[metadata\]\[referrerTenantId\]/);
   assert.doesNotMatch(stripe, /annualOnly/);
   const referrals = read("functions/src/saas/referrals.ts");
-  assert.match(referrals, /`referral-credit-\$\{creditId\}`/, "a retried settlement can't credit twice");
-  assert.match(referrals, /schedule: "0 14 1 1,4,7,10 \*"/);
+  assert.match(read("components/saas/referral-card.tsx"), /one-off \$\{dollars\(status\.creditCents\)\} off your StudioCue bill for each one, once it has been paying for 3 months/);
+  assert.match(referrals, /`referral-credit-\$\{referral\.id\}`/, "a retried settlement can't credit twice");
+  assert.match(referrals, /schedule: "every day 14:00"/);
   // A once-off coupon is spent on the trial's $0 first invoice.
   assert.match(referrals, /duration: "repeating",\s*duration_in_months: OFFER_MONTHS,/);
   assert.doesNotMatch(referrals, /duration: [^\n]*"once"/);

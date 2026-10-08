@@ -2077,8 +2077,6 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     }
     case "billing_referral_credit": {
       const amount = stringValue(values, "amountText");
-      const count = Number(values.count ?? 0);
-      const studios = count === 1 ? "One studio" : `${count} studios`;
       return {
         subject: `You've earned ${amount || "a"} StudioCue credit`,
         preheader: "It comes off your next bill automatically.",
@@ -2086,7 +2084,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `${amount || "Your credit"} is on your account`,
         paragraphs: [
           greeting,
-          `Thanks for spreading the word. ${studios} you referred ${count === 1 ? "is" : "are"} now paying for StudioCue, so we've added ${amount || "your credit"} to your account.`,
+          `Thanks for spreading the word. A studio you referred has now been with StudioCue for three months, so we've added a one-off ${amount || "credit"} to your account.`,
           "It comes off your next bill automatically. Nothing to do.",
         ],
         action: actionUrl ? { label: "See your referrals", url: actionUrl } : undefined,

@@ -12,7 +12,7 @@ type Status = {
   link: string;
   offer: string;
   creditCents: number;
-  referrals: Array<{ signedUpAt: string | null; via: string; state: ReferralState }>;
+  referrals: Array<{ signedUpAt: string | null; creditDueAt?: string | null; via: string; state: ReferralState }>;
   creditedCents: number;
   pendingCents: number;
   vendorInvites: { enabled: boolean; sent: number };
@@ -20,7 +20,7 @@ type Status = {
 
 const STATE_LABEL: Record<ReferralState, string> = {
   trial: "In their free trial",
-  paying: "Paying: your credit is added next quarter",
+  paying: "Paying",
   credited: "Credited",
   canceled: "Canceled before the credit",
 };
@@ -84,8 +84,8 @@ export function ReferralCard() {
           <h2 id="referral-heading">Refer a studio, get {dollars(REFERRAL_CREDIT_CENTS)}</h2>
           <p>
             {status
-              ? `Studios that sign up with your code get ${status.offer}. You get ${dollars(status.creditCents)} off your StudioCue bill for each one that pays, added every quarter.`
-              : `Studios that sign up with your code get up to half off their first year. You get ${dollars(REFERRAL_CREDIT_CENTS)} off your bill for each one that pays.`}
+              ? `Studios that sign up with your code get ${status.offer}. You get a one-off ${dollars(status.creditCents)} off your StudioCue bill for each one, once it has been paying for 3 months.`
+              : `Studios that sign up with your code get up to half off their first year. You get a one-off ${dollars(REFERRAL_CREDIT_CENTS)} off your bill for each one, once it has been paying for 3 months.`}
           </p>
         </span>
       </div>
@@ -114,7 +114,11 @@ export function ReferralCard() {
               {status.referrals.map((referral, index) => (
                 <li key={`${referral.signedUpAt}-${index}`}>
                   <span>{`Signed up ${day(referral.signedUpAt)}${referral.via === "vendor_invite" ? " from a vendor invite" : ""}`}</span>
-                  <small>{STATE_LABEL[referral.state]}</small>
+                  <small>
+                    {referral.state === "paying" && referral.creditDueAt
+                      ? `Paying: your ${dollars(status.creditCents)} is added ${day(referral.creditDueAt)} if they're still with us`
+                      : STATE_LABEL[referral.state]}
+                  </small>
                 </li>
               ))}
             </ul>

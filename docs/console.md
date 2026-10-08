@@ -19,7 +19,7 @@ something inside it waits.
 | Home | `/platform-admin` | The morning check: MRR, signups, trial → paid, trials ending, past due, where the month's signups came from, and **Needs you**, every item that wants a person today |
 | **Grow** · Pipeline | `/pipeline` | Photographers who might become studios: Book a demo requests and anyone added by hand, as a board or table, each with an owner and a next step |
 | Grow · Sources | `/sources` | Where studios come from, by channel, referring studio, link and campaign, and which go on to pay. File a studio under a channel by hand |
-| Grow · Referrals | `/referrals` | Studios referred with another studio's code, the quarterly $50 credits, and the vendors invited |
+| Grow · Referrals | `/referrals` | Studios referred with another studio's code, the one-off $100 credits, and the vendors invited |
 | Grow · Discount codes | `/codes` | Stripe promotion codes, single or in batches, with signup links |
 | **Customers** · Studios | `/studios`, `/studios/[tenantId]` | Every studio as a CRM account. The record has Overview, Timeline, Team, Billing, Usage, Integrations, Feedback, Jobs, Notes, Audit |
 | Customers · Lifecycle | `/lifecycle` | Studios at risk with one play each, trials by days left, and who moved between stages |
@@ -302,17 +302,17 @@ Added 2026-10-08 (Conor). It replaces Partners (2026-10-07), whose codes, payout
   - 14 days free, then $75/month billed yearly for the first year ($900), or $100/month billed monthly for the first 12 months. After that, list price.
   - It isn't a Stripe promotion code. `billingCommand` looks the code up and applies one of two amount-off coupons made once (`saasSettings/referralProgram`): $600 off the annual price, or $50 off the monthly. Both last 12 months from checkout, which covers the first annual invoice (14 days in) but not its renewal. Not `duration: once`, which a trial's $0 first invoice would use up. A single coupon can't be both.
   - The code rides on the subscription's metadata, so the webhook records `saasReferrals/{tenantId}` only once Checkout completes. The first referrer keeps it.
-- **The credit.** $50 per referred studio, on the referrer's Stripe customer balance, which comes off their next invoice.
-  - The referral counts from the referred studio's first paid invoice above $0.
-  - `referralCreditScheduler` runs on the 1st of January, April, July and October, for referrals paid before that quarter began whose studio is still `active`. Canceled ones are forfeited; past-due ones, and referrers with no Stripe customer, are held to the next quarter.
-  - One balance credit per referrer per quarter (`saasReferralCredits/{referrer}_{quarter}`, Stripe idempotency key to match), then a `billing_referral_credit` email.
+- **The credit.** $100 per referred studio, once, on the referrer's Stripe customer balance, which comes off their next invoice. Conor, 2026-10-08: raised from $50, and paid only once the referral has been live three months.
+  - Due three months after the referred studio's first paid invoice above $0 (`creditDueAt`), if it's still `active` and hasn't scheduled its cancellation.
+  - `referralCreditScheduler` runs daily at 14:00 UTC. Canceled before then = forfeited; past due, or a referrer with no Stripe customer = held, looked at again the next day.
+  - One balance credit per referral (`saasReferralCredits/{referred tenant}`, Stripe idempotency key to match), then a `billing_referral_credit` email.
 - **Vendor invites.** `vendorInviteScheduler` runs daily at 15:30 UTC over vendors changed in the last three days.
   - Who gets one: a vendor (planner, florist, DJ, band, videographer, hair and makeup, caterer, transportation, other; never venues, insurers or clients' contacts) on an upcoming booked job that isn't an imported, quiet one.
   - Which studios: trialing or active, with invites on (the default; the studio's Refer a studio card turns them off).
   - Once per address, ever (`vendorInvites/{sha256(email)}`). Never to an existing StudioCue user, a client of that studio, or anyone unsubscribed.
   - At most 10 per studio and 200 per run.
   - The email is StudioCue's letterhead, `tenantId: "platform"`, naming the studio, with a one-click unsubscribe header and link (`/api/public/unsubscribe` → `emailSuppressions`), which the sender checks again before sending.
-- **Console → Grow → Referrals** is read-only: referred studios and their credit state, credits by quarter, vendors invited and signups from them. Sources files these studios under **Studio referral**.
+- **Console → Grow → Referrals** is read-only: referred studios and their credit state, credits added, vendors invited and signups from them. Sources files these studios under **Studio referral**.
 
 ## Sources
 

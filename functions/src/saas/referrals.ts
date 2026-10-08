@@ -11,7 +11,6 @@ import {
   OFFER_YEARLY_CENTS,
   REFERRAL_CREDIT_CENTS,
   normalizeReferralCode,
-  previousQuarter,
   referralCodeStem,
   settlement,
 } from "./referral-program.js";
@@ -22,9 +21,9 @@ import {
  * Every studio's code lives in `saasReferralCodes/{CODE}` → tenantId, and on
  * `tenants/{id}.referralCode`. It is not a Stripe promotion code: billingCommand
  * looks it up here and applies one of two coupons, one per cadence, because a
- * single Stripe coupon can't take $900 off a year and $50 off a month.
+ * single Stripe coupon can't take $600 off a year and $50 off a month.
  * `saasReferrals/{tenantId}`: the referred studio, who referred it, when it
- * first paid, and when its $50 was credited (or forfeited). It replaces the
+ * first paid, and when its $100 was credited (or forfeited). It replaces the
  * partner records of 2026-10-07.
  */
 
@@ -191,113 +190,106 @@ export async function creditReferral(
 const money = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 /**
- * Settle the quarter before `nowIso`: $50 of credit per referred studio that
- * paid before this quarter began and is still paying, as one Stripe customer
- * balance credit per referrer, which Stripe takes off their next invoice.
+ * Credit every referral that's due: $100, once, to the referrer's Stripe
+ * customer balance, which Stripe takes off their next invoice. Due means the
+ * referred studio first paid three months ago and is still paying, and hasn't
+ * scheduled its cancellation (referral-program.ts, `settlement`).
  *
- * Idempotent: a credit is recorded in `saasReferralCredits/{referrer}_{quarter}`
- * and sent to Stripe under that key, so a rerun after a partial failure neither
- * credits twice nor skips anyone. A referrer with no Stripe customer yet (still
- * before checkout) or no longer subscribed is held, not forfeited: their
- * referrals are looked at again next quarter.
+ * One credit per referral, recorded in `saasReferralCredits/{referred tenant}`
+ * and sent to Stripe under that key, so a rerun after a partial failure
+ * neither credits twice nor skips one. A referrer with no Stripe customer, or
+ * no longer subscribed, is held, not forfeited: it's looked at again tomorrow.
  */
 export async function settleReferralCredits(db: Firestore, nowIso: string): Promise<{ credited: number; forfeited: number; held: number }> {
-  const quarter = previousQuarter(nowIso);
   const open = await db.collection("saasReferrals").where("creditedAt", "==", null).get();
-  const byReferrer = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
+  let credited = 0;
   let forfeited = 0;
   let held = 0;
   for (const referral of open.docs) {
-    const subscription = await db.doc(`subscriptions/${referral.id}`).get();
-    const decision = settlement(
-      {
-        tenantId: referral.id,
-        referrerTenantId: String(referral.get("referrerTenantId") ?? ""),
-        paidAt: referral.get("paidAt") ?? null,
-        creditedAt: referral.get("creditedAt") ?? null,
-        forfeitedAt: referral.get("forfeitedAt") ?? null,
-      },
-      String(subscription.get("status") ?? ""),
-      quarter.endIso,
-    );
-    if (decision === "forfeit") {
-      await referral.ref.update({ forfeitedAt: nowIso, forfeitReason: "canceled", updatedAt: nowIso });
-      forfeited += 1;
-    } else if (decision === "credit") {
-      const referrerTenantId = String(referral.get("referrerTenantId"));
-      byReferrer.set(referrerTenantId, [...(byReferrer.get(referrerTenantId) ?? []), referral]);
-    } else if (decision === "hold") {
-      held += 1;
-    }
-  }
-  let credited = 0;
-  for (const [referrerTenantId, referrals] of byReferrer) {
     try {
-      const creditId = `${referrerTenantId}_${quarter.key}`;
-      const creditReference = db.doc(`saasReferralCredits/${creditId}`);
+      if (referral.get("forfeitedAt")) continue;
+      const subscription = await db.doc(`subscriptions/${referral.id}`).get();
+      // A studio that has already asked to leave isn't one to pay for.
+      const status = subscription.get("cancelAtPeriodEnd") === true ? "cancel_scheduled" : String(subscription.get("status") ?? "");
+      const referrerTenantId = String(referral.get("referrerTenantId") ?? "");
+      const decision = settlement(
+        {
+          tenantId: referral.id,
+          referrerTenantId,
+          paidAt: referral.get("paidAt") ?? null,
+          creditedAt: referral.get("creditedAt") ?? null,
+          forfeitedAt: referral.get("forfeitedAt") ?? null,
+        },
+        status,
+        nowIso,
+      );
+      if (decision === "forfeit") {
+        await referral.ref.update({ forfeitedAt: nowIso, forfeitReason: "canceled", updatedAt: nowIso });
+        forfeited += 1;
+        continue;
+      }
+      if (decision !== "credit") {
+        if (decision === "hold") held += 1;
+        continue;
+      }
+      const creditReference = db.doc(`saasReferralCredits/${referral.id}`);
       const prior = await creditReference.get();
-      const amountCents = referrals.length * REFERRAL_CREDIT_CENTS;
       let transactionId = prior.exists ? String(prior.get("stripeBalanceTransactionId") ?? "") : "";
       if (!prior.exists) {
-        const subscription = await db.doc(`subscriptions/${referrerTenantId}`).get();
-        const customerId = String(subscription.get("stripeCustomerId") ?? "");
-        const status = String(subscription.get("status") ?? "");
-        if (!customerId || !["trialing", "active", "past_due"].includes(status)) {
-          logger.info("referral_credit_held", { referrerTenantId, count: referrals.length, reason: customerId ? status : "no_customer" });
-          held += referrals.length;
+        const referrer = await db.doc(`subscriptions/${referrerTenantId}`).get();
+        const customerId = String(referrer.get("stripeCustomerId") ?? "");
+        if (!customerId || !["trialing", "active", "past_due"].includes(String(referrer.get("status") ?? ""))) {
+          logger.info("referral_credit_held", { referrerTenantId, tenantId: referral.id, reason: customerId ? referrer.get("status") : "no_customer" });
+          held += 1;
           continue;
         }
         transactionId = stripeMock()
-          ? `mock_cbtxn_${creditId}`
+          ? `mock_cbtxn_${referral.id}`
           : (
               await stripeRequest<{ id: string }>(
                 "POST",
                 `customers/${encodeURIComponent(customerId)}/balance_transactions`,
                 {
-                  amount: -amountCents,
+                  amount: -REFERRAL_CREDIT_CENTS,
                   currency: "usd",
-                  description: `Referral credit: ${referrals.length} ${referrals.length === 1 ? "studio" : "studios"}, ${quarter.key}`,
+                  description: `Referral credit: ${String(referral.get("studioName") ?? "") || "a studio you referred"}`,
                   "metadata[app]": STUDIOCUE_METADATA.app,
                   "metadata[kind]": "referral_credit",
-                  "metadata[quarter]": quarter.key,
+                  "metadata[referredTenantId]": referral.id,
                   "metadata[tenantId]": referrerTenantId,
                 },
-                `referral-credit-${creditId}`,
+                `referral-credit-${referral.id}`,
               )
             ).id;
       }
       const batch = db.batch();
       batch.set(creditReference, {
-        id: creditId,
+        id: referral.id,
+        referredTenantId: referral.id,
         referrerTenantId,
-        quarter: quarter.key,
-        referralIds: referrals.map((referral) => referral.id),
-        count: referrals.length,
-        amountCents,
+        amountCents: REFERRAL_CREDIT_CENTS,
         stripeBalanceTransactionId: transactionId,
         createdAt: prior.get("createdAt") ?? nowIso,
       });
-      for (const referral of referrals) {
-        batch.update(referral.ref, { creditedAt: nowIso, creditQuarter: quarter.key, creditId, updatedAt: nowIso });
-      }
+      batch.update(referral.ref, { creditedAt: nowIso, creditId: referral.id, updatedAt: nowIso });
       await batch.commit();
-      credited += referrals.length;
+      credited += 1;
       await queueBillingNotice(db, {
         tenantId: referrerTenantId,
         type: "billing_referral_credit",
-        dedupeKey: quarter.key,
-        values: { amountText: money(amountCents), count: referrals.length, quarter: quarter.key },
+        dedupeKey: referral.id,
+        values: { amountText: money(REFERRAL_CREDIT_CENTS) },
       }).catch((caught: unknown) => logger.warn("referral_credit_notice_failed", { referrerTenantId, error: caught instanceof Error ? caught.message : String(caught) }));
     } catch (caught: unknown) {
-      logger.error("referral_credit_failed", { referrerTenantId, error: caught instanceof Error ? caught.message : String(caught) });
+      logger.error("referral_credit_failed", { tenantId: referral.id, error: caught instanceof Error ? caught.message : String(caught) });
     }
   }
   return { credited, forfeited, held };
 }
 
-/** On the 1st of January, April, July and October: last quarter's referral credits. */
+/** Once a day: the referrals that reached three months of paying. */
 export const referralCreditScheduler = onSchedule(
-  { schedule: "0 14 1 1,4,7,10 *", timeZone: "UTC", retryCount: 2, secrets: ["STRIPE_SECRET_KEY"] },
+  { schedule: "every day 14:00", timeZone: "UTC", retryCount: 2, secrets: ["STRIPE_SECRET_KEY"] },
   async () => {
     const result = await settleReferralCredits(getFirestore(), new Date().toISOString());
     logger.info("referral_credits_settled", result);
