@@ -478,7 +478,7 @@ export function StudioCalendar() {
                         ))}
                         {bookedCount > 0 ? (
                           <small>
-                            {bookedCount} consultation{bookedCount === 1 ? "" : "s"}{" "} booked
+                            {bookedCount} call{bookedCount === 1 ? "" : "s"}{" "} booked
                           </small>
                         ) : null}
                       </span>
@@ -684,6 +684,8 @@ export function StudioCalendar() {
                       </span>
                       <span className="ds-cal-row-name">
                         {project ? String(project.name) : "Booked"}
+                        {/* Which call it is (features/consultations/purpose.ts). */}
+                        {booking.purpose === "final_details" ? <em> · Final details call</em> : null}
                       </span>
                       {/* A video call the provider worker could not give a
                           Zoom link (not connected): the studio sends one. */}

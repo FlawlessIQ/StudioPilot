@@ -34,6 +34,7 @@ const phaseByStep: Record<JourneyStepKey, JourneyPhase> = {
 
   schedule_form: "prepare",
   run_of_show: "prepare",
+  final_call: "prepare",
   crew: "prepare",
   coi: "prepare",
 

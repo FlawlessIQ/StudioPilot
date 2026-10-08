@@ -78,7 +78,7 @@ export function DashboardPriorityStrip() {
       )}
       <Link href="/studio/calendar">
         <CalendarDays />
-        <span><small>Consultations today</small><strong>{todayConsultations.length}</strong></span>
+        <span><small>Calls today</small><strong>{todayConsultations.length}</strong></span>
         <ArrowRight />
       </Link>
       <Link href="/studio/questionnaires">

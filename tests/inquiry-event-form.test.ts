@@ -417,7 +417,7 @@ test("submit queues the read only when the call is already booked; booking queue
   const book = source.slice(source.indexOf("// inquiry_book"), source.indexOf("async function handleInquiryForm("));
   assert.match(book, /await batch\.commit\(\);\s*(\/\/[^\n]*\n\s*)*await queueInquiryFormAnalysis\(db, \{ tenantId: context\.tenantId, projectId: project\.id, now \}\)/);
   // A studio-sent scheduling link books a call too.
-  assert.match(source, /await batch\.commit\(\);\s*(\/\/[^\n]*\n\s*)*await queueInquiryFormAnalysis\(db, \{\s*tenantId: String\(link\.get\("tenantId"\)\)/);
+  assert.match(source, /await batch\.commit\(\);\s*(\/\/[^\n]*\n\s*)*if \(!finalCall\) await queueInquiryFormAnalysis\(db, \{\s*tenantId: String\(link\.get\("tenantId"\)\)/);
   // The studio booking the call, and a proposal with no call booked here.
   const commands = read("functions/src/booking/commands.ts");
   const schedule = commands.slice(

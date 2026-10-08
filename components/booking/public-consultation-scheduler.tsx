@@ -36,11 +36,15 @@ type Preview = {
   eventDate: string | null;
   expiresAt: string;
   mode: string;
+  /** "final_details": the call a month out (features/consultations/purpose.ts). */
+  purpose?: string;
 };
 type Slot = { startsAt: string; endsAt: string };
 
 export function PublicConsultationScheduler({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
+  const finalCall = preview?.purpose === "final_details";
+  const callWord = finalCall ? "final details call" : "consultation";
   const [slots, setSlots] = useState<Slot[]>([]);
   const [timezone, setTimezone] = useState("");
   const [selected, setSelected] = useState("");
@@ -126,7 +130,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       // a slash-date — to a couple, in whatever zone their laptop is set to.
       // The studio's zone is the one the appointment is in.
       setMessage(
-        `Your consultation is confirmed for ${new Intl.DateTimeFormat("en-US", {
+        `Your ${callWord} is confirmed for ${new Intl.DateTimeFormat("en-US", {
           weekday: "long",
           month: "long",
           day: "numeric",
@@ -152,19 +156,21 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
     <KitRoot studio={brand}>
       <Screen>
         <AppBar studio={brand} />
-        <Main label="Choose a consultation time">
+        <Main label={`Choose a ${callWord} time`}>
           <div className="kit-stack-tight">
-            <p className="kit-eyebrow">Photography consultation</p>
+            <p className="kit-eyebrow">{finalCall ? "Final details call" : "Photography consultation"}</p>
             <h1 className="kit-title">
               {status === "complete"
                 ? "You’re booked in"
                 : preview
                   ? `Choose a time with ${preview.studioName}`
-                  : "Choose a consultation time"}
+                  : `Choose a ${callWord} time`}
             </h1>
             {status === "complete" ? null : (
               <p className="kit-body">
-                Pick one of the studio’s openings. Nothing is booked until you confirm.
+                {finalCall
+                  ? "A short call to go over your final details and timeline together. Pick one of the studio’s openings — nothing is booked until you confirm."
+                  : "Pick one of the studio’s openings. Nothing is booked until you confirm."}
               </p>
             )}
           </div>

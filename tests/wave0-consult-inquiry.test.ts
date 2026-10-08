@@ -363,7 +363,8 @@ test("only scheduled or completed consultations count", () => {
   ]);
   assert.equal(picked?.id, "a", "the newest cancelled one is not the current one");
   for (const path of ["components/projects/use-project-journey.ts", "components/today/use-today-inbox.ts"]) {
-    assert.match(read(path), /hasConsultation: forProject\([^)]*\)\.some\(isLiveConsultation\)/, path);
+    // The sales call that is on or happened (tests/final-details-call.test.ts).
+    assert.match(read(path), /hasConsultation: forProject\([^)]*\)\.some\(\s*\(record\) => isSalesConsultation\(record\) && isLiveConsultation\(record\),?\s*\)/, path);
   }
 });
 

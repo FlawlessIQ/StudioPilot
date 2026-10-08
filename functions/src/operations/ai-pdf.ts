@@ -232,6 +232,8 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
   if(!consultation.exists)throw new Error("CONSULTATION_NOT_FOUND");
   if(consultation.get("tenantId")!==job.get("tenantId"))throw new Error("FORBIDDEN");
   if(consultation.get("status")!=="completed")throw new Error("CONSULTATION_NOT_COMPLETED");
+  // Never a brief from the final details call (booking/consultation-purpose.ts).
+  if(consultation.get("purpose")==="final_details")return{consultationId,skipped:"final_details_call"};
   if(job.get("humanReviewRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");
   // A newer run was asked for since this job was queued (booking/brief-rerun.ts):
   // its actions are the current ones, and writing this run's would bring back

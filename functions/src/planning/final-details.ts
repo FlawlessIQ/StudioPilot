@@ -6,7 +6,10 @@ import { contractFormAnswers } from "../contracts/form-answers.js";
 import { eventDetailsFrom, type EventDetailRow } from "../contracts/event-details.js";
 import { formatContractDate } from "../contracts/document.js";
 import { isReturned } from "./questionnaire-lifecycle.js";
-import { detailsLockOn, resolvePlanningTimeline } from "./planning-timeline.js";
+import { detailsLockOn, resolvePlanningTimeline, type PlanningTimeline } from "./planning-timeline.js";
+import { mintBookingLink } from "../booking/booking-link.js";
+import { FINAL_DETAILS_PURPOSE } from "../booking/consultation-purpose.js";
+import { getConsultationSettings } from "../booking/availability.js";
 import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
 
 /**
@@ -108,13 +111,67 @@ export async function finalDetailsSnapshot(db: Firestore, tenantId: string, proj
 
 const appUrl = () => (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
 
-async function openSignoff(db: Firestore, project: DocumentSnapshot, lockOn: string, now: string): Promise<string> {
+/**
+ * The couple's link to book their final details call, minted with the
+ * sign-off (GR, 2026-10-08: "after the schedule is set 1 month out a
+ * zoom/phone call should be part of the journey… the client and studio go
+ * over any final details and make changes to the final schedule"). Booked
+ * through the same page as a consultation, and kept apart from it by its
+ * purpose (booking/consultation-purpose.ts). Null when the studio has it off,
+ * or the couple has no address.
+ */
+async function finalCallLink(
+  db: Firestore,
+  project: DocumentSnapshot,
+  timeline: PlanningTimeline,
+  now: string,
+): Promise<{ linkId: string; bookingUrl: string; record: Record<string, unknown> } | null> {
+  if (!timeline.finalCall) return null;
+  const tenantId = text(project.get("tenantId"));
+  const ids = Array.isArray(project.get("clientContactIds")) ? (project.get("clientContactIds") as unknown[]) : [];
+  for (const id of ids) {
+    const contact = await db.doc(`contacts/${text(id)}`).get();
+    const email = text(contact.get("email")).toLowerCase();
+    if (!contact.exists || contact.get("tenantId") !== tenantId || !email.includes("@")) continue;
+    const settings = await getConsultationSettings(db, tenantId);
+    // A call, on video if the studio meets that way, else by phone.
+    const formats = settings.meetingFormats as readonly string[];
+    const mode = formats.includes("zoom") ? "zoom" : formats.includes("phone") ? "phone" : "zoom";
+    const days = Math.max(3, timeline.lockDaysBefore - 3);
+    return mintBookingLink({
+      tenantId,
+      projectId: project.id,
+      contactId: contact.id,
+      email,
+      mode,
+      purpose: FINAL_DETAILS_PURPOSE,
+      actorId: "final-details-scheduler",
+      now,
+      days,
+    });
+  }
+  return null;
+}
+
+async function openSignoff(
+  db: Firestore,
+  project: DocumentSnapshot,
+  lockOn: string,
+  timeline: PlanningTimeline,
+  now: string,
+): Promise<string> {
   const tenantId = text(project.get("tenantId"));
   const reference = db.doc(`detailSignoffs/${detailSignoffId(tenantId, project.id)}`);
   if ((await reference.get()).exists) return "exists";
   const snapshot = await finalDetailsSnapshot(db, tenantId, project.id);
   const emailId = `final_details_request_${tenantId}_${project.id}`;
+  const call = await finalCallLink(db, project, timeline, now).catch((caught: unknown) => {
+    // The sign-off goes out regardless; the call can be offered by hand.
+    console.error(JSON.stringify({ severity: "ERROR", event: "final_call.link_failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));
+    return null;
+  });
   const batch = db.batch();
+  if (call) batch.set(db.doc(`consultationBookingLinks/${call.linkId}`), call.record);
   batch.create(reference, {
     id: reference.id,
     tenantId,
@@ -135,6 +192,8 @@ async function openSignoff(db: Firestore, project: DocumentSnapshot, lockOn: str
     projectId: project.id,
     type: "final_details_request",
     portalUrl: `${appUrl()}/client?final-details=1`,
+    // The second button: book the final details call.
+    finalCallUrl: call?.bookingUrl ?? null,
     clientOutreachGuard: true,
     status: "queued",
     attempts: 0,
@@ -170,9 +229,10 @@ export const finalDetailsScheduler = onSchedule(
       try {
         if (!timelines.has(tenantId))
           timelines.set(tenantId, db.doc(`tenants/${tenantId}`).get().then((tenant) => resolvePlanningTimeline(tenant.get("planningTimeline"))));
-        const lockOn = detailsLockOn(text(data.eventDate), await timelines.get(tenantId)!);
+        const timeline = await timelines.get(tenantId)!;
+        const lockOn = detailsLockOn(text(data.eventDate), timeline);
         if (!lockOn || today < lockOn) continue;
-        const outcome = await openSignoff(db, project, lockOn, now);
+        const outcome = await openSignoff(db, project, lockOn, timeline, now);
         tally[outcome] = (tally[outcome] ?? 0) + 1;
       } catch (caught) {
         tally.failed = (tally.failed ?? 0) + 1;

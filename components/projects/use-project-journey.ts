@@ -1,5 +1,7 @@
 "use client";
 
+import { isSalesConsultation } from "@/features/consultations/purpose";
+import { finalCallState } from "@/features/consultations/final-call";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
@@ -80,6 +82,8 @@ export function useProjectJourney({
   const deliveries = useTenantDocuments("deliveryRecords");
   const aiActions = useTenantDocuments("aiActions");
   const packageSnapshots = useTenantDocuments("packageSnapshots");
+  // The studio's planning timeline: whether the final details call is on.
+  const tenants = useTenantDocuments("tenants");
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -187,7 +191,16 @@ export function useProjectJourney({
             }
           : null,
     // A cancelled or replaced consultation is not a booked meeting.
-    hasConsultation: forProject(consultations.records).some(isLiveConsultation),
+    // The final details call a month out (features/consultations/final-call.ts).
+    finalCall: finalCallState({
+      project: journeyProject ?? null,
+      planningTimeline: (tenants.records ?? []).find((tenant) => tenant.id === text(journeyProject?.tenantId))?.planningTimeline,
+      consultations: forProject(consultations.records),
+      today: todayLocalIso(),
+      now: new Date().toISOString(),
+    }),
+    // The sales call; the final details call a month out is its own step.
+    hasConsultation: forProject(consultations.records).some((record) => isSalesConsultation(record) && isLiveConsultation(record)),
     proposalStatus:
       text(
         forProject(proposals.records).sort((left, right) =>

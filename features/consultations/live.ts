@@ -25,3 +25,11 @@ export function currentConsultation<T extends ConsultationLike>(consultations: r
       .sort((left, right) => String(right.startsAt ?? "").localeCompare(String(left.startsAt ?? "")))[0] ?? null
   );
 }
+
+/**
+ * The latest sales consultation that is on or happened, or null — never the
+ * final details call a month out (features/consultations/purpose.ts).
+ */
+export function currentSalesConsultation<T extends ConsultationLike>(consultations: readonly T[]): T | null {
+  return currentConsultation(consultations.filter((consultation) => consultation.purpose !== "final_details"));
+}

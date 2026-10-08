@@ -17,6 +17,9 @@ export const consultationSchema = auditFieldsSchema.extend({
   contactId: z.string().min(1),
   mode: consultationModeSchema,
   status: consultationStatusSchema,
+  // "final_details": the call a month out (features/consultations/purpose.ts).
+  // Absent on the sales consultation and every record from before.
+  purpose: z.enum(["consultation", "final_details"]).optional(),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   timezone: z.string().min(1),

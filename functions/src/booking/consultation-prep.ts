@@ -1,3 +1,4 @@
+import { isFinalDetailsCall } from "./consultation-purpose.js";
 import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
@@ -156,6 +157,9 @@ async function prepareOne(db: Firestore, consultation: DocumentSnapshot, now: Da
   const tenantId = text(data.tenantId);
   const projectId = text(data.projectId);
   if (!tenantId || !projectId || data.archivedAt || text(data.status) !== "scheduled") return "skipped";
+  // "Ahead of our call" is for the sales consultation. The final details call
+  // a month out has its own email at the details lock (consultation-purpose.ts).
+  if (isFinalDetailsCall(data)) return "skipped";
   const actionId = `ai_consultation_prep_${consultation.id}`;
   const actionReference = db.doc(`aiActions/${actionId}`);
   if ((await actionReference.get()).exists) return "skipped";

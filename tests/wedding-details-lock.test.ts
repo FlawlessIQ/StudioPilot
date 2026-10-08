@@ -42,6 +42,8 @@ test("the timeline: six months and four weeks unless the studio picks", () => {
     reviewAtFormDate: false,
     // No shot list unless the studio picks one (tests/shot-list.test.ts).
     shotListTemplateId: null,
+    // The final details call is on unless turned off (tests/final-details-call.test.ts).
+    finalCall: true,
   });
   assert.equal(resolvePlanningTimeline({ formMonthsBefore: 30, lockDaysBefore: 2 }).formMonthsBefore, 6);
   assert.equal(resolvePlanningTimeline({ formMonthsBefore: 30, lockDaysBefore: 2 }).lockDaysBefore, 28);

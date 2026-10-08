@@ -226,7 +226,7 @@ export const zoomWebhook = onRequest(
         updatedBy: "zoom-webhook",
       };
       transaction.update(consultation.ref, consultationUpdate);
-      if (event.event === "meeting.summary_completed") {
+      if (event.event === "meeting.summary_completed" && consultation.get("purpose") !== "final_details") {
         const jobReference = db.doc(
           `providerJobs/zoom_summary_${safeId(`${tenantId}:${event.meetingId}`).slice(0, 32)}`,
         );

@@ -2426,6 +2426,8 @@ export const aiCopilotCommand = onRequest(
           throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
         const consultation = consultations.docs
           .map((item) => asRecord(item.data()))
+          // The sales call's brief, never the final details call's.
+          .filter((record) => record.purpose !== "final_details")
           .sort((left, right) =>
             String(right.startsAt ?? "").localeCompare(String(left.startsAt ?? "")),
           )[0];

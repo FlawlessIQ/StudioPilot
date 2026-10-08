@@ -1,3 +1,4 @@
+import { consultationPurpose, isFinalDetailsCall } from "./consultation-purpose.js";
 import { createHash } from "node:crypto";
 import { signedCopyDocument, signedCopyDocumentId, signedCopyPrefix } from "../contracts/signed-copy-document.js";
 import { getFirestore } from "firebase-admin/firestore";
@@ -620,6 +621,11 @@ function assertProjectAccess(
   if (!projectIds.includes(projectId)) throw new Error("FORBIDDEN");
 }
 
+/** What a consultation record is for (consultation-purpose.ts). */
+async function purposeOf(firestore: FirebaseFirestore.Firestore, consultationId: string) {
+  return consultationPurpose((await firestore.doc(`consultations/${consultationId}`).get()).data());
+}
+
 export const bookingCommand = onRequest(
   {
     cors: studioHubCors,
@@ -689,6 +695,8 @@ export const bookingCommand = onRequest(
             consultation.get("projectId") !== command.input.projectId
           )
             throw new Error("CONSULTATION_NOT_FOUND");
+          // The final details call has no brief, package fit or proposal.
+          if (isFinalDetailsCall(consultation.data())) throw new Error("FINAL_DETAILS_CALL_NOT_A_CONSULTATION");
           if (
             !project.exists ||
             project.get("tenantId") !== command.tenantId ||
@@ -799,6 +807,7 @@ export const bookingCommand = onRequest(
             consultation.get("projectId") !== projectId
           )
             throw new Error("CONSULTATION_NOT_FOUND");
+          if (isFinalDetailsCall(consultation.data())) throw new Error("FINAL_DETAILS_CALL_NOT_A_CONSULTATION");
           if (!project.exists || project.get("tenantId") !== command.tenantId)
             throw new Error("PROJECT_NOT_FOUND");
           const currentRun = briefRunOf(consultation.get("briefRun"));
@@ -1129,12 +1138,16 @@ export const bookingCommand = onRequest(
               consultationId: command.input.consultationId,
               type: "consultation_cancelled",
               startsAt: cancelled.tell.startsAt,
-              // Where they can pick another time, when the job has one.
-              rescheduleUrl: await coupleInquiryUrl(firestore, {
-                tenantId: command.tenantId,
-                projectId: command.input.projectId,
-                now: timestamp,
-              }).catch(() => null),
+              purpose: await purposeOf(firestore, command.input.consultationId),
+              // Where they can pick another time, when the job has one. Not
+              // for the final details call: the inquiry page books the sales one.
+              rescheduleUrl: (await purposeOf(firestore, command.input.consultationId)) === "final_details"
+                ? null
+                : await coupleInquiryUrl(firestore, {
+                    tenantId: command.tenantId,
+                    projectId: command.input.projectId,
+                    now: timestamp,
+                  }).catch(() => null),
               status: "queued",
               attempts: 0,
               createdAt: timestamp,
@@ -1343,11 +1356,14 @@ export const bookingCommand = onRequest(
             consultationId: command.input.consultationId,
             type: "consultation_rescheduled",
             startsAt: command.input.startsAt,
-            rescheduleUrl: await coupleInquiryUrl(firestore, {
-              tenantId: command.tenantId,
-              projectId: command.input.projectId,
-              now: timestamp,
-            }).catch(() => null),
+            purpose: await purposeOf(firestore, command.input.consultationId),
+            rescheduleUrl: (await purposeOf(firestore, command.input.consultationId)) === "final_details"
+              ? null
+              : await coupleInquiryUrl(firestore, {
+                  tenantId: command.tenantId,
+                  projectId: command.input.projectId,
+                  now: timestamp,
+                }).catch(() => null),
             status: "queued",
             attempts: 0,
             createdAt: timestamp,

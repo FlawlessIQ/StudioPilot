@@ -1,3 +1,4 @@
+import { consultationPurpose } from "./consultation-purpose.js";
 import type { Firestore } from "firebase-admin/firestore";
 import { inquiryLinkFor, studioTakesBookings } from "../intake/inquiry-link.js";
 
@@ -99,6 +100,8 @@ export function consultationEmailPlan(input: {
     // meeting failed. The email says the studio will send it, rather than
     // implying there is nothing to join.
     meetingDetailsPending: zoomExpected,
+    // The final details call reads as itself, not "your consultation".
+    purpose: consultationPurpose(consultation),
   };
   const selfServe = text(consultation.selfServeUrl);
   if (selfServe && !text(job.rescheduleUrl)) values.rescheduleUrl = selfServe;

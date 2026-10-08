@@ -1,5 +1,6 @@
 "use client";
 
+import { isSalesConsultation } from "@/features/consultations/purpose";
 import {
   describeCoverage,
   resolveCoverage,
@@ -204,9 +205,10 @@ export function BookingAutopilotWorkspace({
         throw new Error("Project not found in this workspace.");
       // The latest one that is on or happened: a cancelled call is not the
       // one to write notes against.
-      const consultationValues = consultationSnapshot.docs.map(
-        (item): Value => ({ id: item.id, ...item.data() }),
-      );
+      // The sales call: the final details call has no brief or proposal.
+      const consultationValues = consultationSnapshot.docs
+        .map((item): Value => ({ id: item.id, ...item.data() }))
+        .filter((item) => isSalesConsultation(item));
       const consultationValue = currentConsultation(consultationValues);
       // A no-show newer than anything on or held: the page offers "invite
       // them to rebook" rather than "schedule the consultation first".

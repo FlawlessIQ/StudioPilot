@@ -529,7 +529,11 @@ export async function jobHasConsultation(
     .where("projectId", "==", input.projectId)
     .limit(20)
     .get();
-  return consultations.docs.some((document) => consultationStands(document.get("status")));
+  // The sales call: the final details call a month out is not "the meeting
+  // the brief is for" (booking/consultation-purpose.ts).
+  return consultations.docs.some(
+    (document) => document.get("purpose") !== "final_details" && consultationStands(document.get("status")),
+  );
 }
 
 /**

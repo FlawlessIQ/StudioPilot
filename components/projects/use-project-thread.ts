@@ -1,5 +1,6 @@
 "use client";
 
+import { isSalesConsultation } from "@/features/consultations/purpose";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { projectThread, type ThreadEntry } from "@/features/journey/thread";
 
@@ -40,8 +41,10 @@ export function useProjectThread(input: {
   const projectConsultations = mine(consultations.records);
   // Still to happen: "Log a call" writes against this one, and a cancelled
   // or replaced consultation is not a call to log.
+  // The sales call only: "Log a call" runs the consultation brief, which the
+  // final details call must never do (features/consultations/purpose.ts).
   const openConsultation = projectConsultations
-    .filter((item) => text(item.status) === "scheduled" && !item.archivedAt)
+    .filter((item) => isSalesConsultation(item) && text(item.status) === "scheduled" && !item.archivedAt)
     .sort((left, right) =>
       text(right.startsAt).localeCompare(text(left.startsAt)),
     )[0];

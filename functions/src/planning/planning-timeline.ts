@@ -34,11 +34,17 @@ export type PlanningTimeline = {
    */
   reviewAtFormDate: boolean;
   /**
-   * The shot list, sent with the planning form and due when the details lock
+   * The shot list, sent with the planning form and due a week before the day
    * (GR, 2026-10-05: "its own form", 4 weeks out, crew must have it). Null:
    * none is sent.
    */
   shotListTemplateId: string | null;
+  /**
+   * At the details lock, invite the couple to book a short final details call
+   * (GR, 2026-10-08: "a zoom/phone call should be part of the journey to
+   * close out the job readiness"). On unless the studio turns it off.
+   */
+  finalCall: boolean;
 };
 
 export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
@@ -49,6 +55,7 @@ export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
   formAtBooking: false,
   reviewAtFormDate: false,
   shotListTemplateId: null,
+  finalCall: true,
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -67,6 +74,7 @@ export function resolvePlanningTimeline(raw: unknown): PlanningTimeline {
     reviewAtFormDate: value.reviewAtFormDate === true,
     shotListTemplateId:
       typeof value.shotListTemplateId === "string" && value.shotListTemplateId.trim() ? value.shotListTemplateId.trim() : null,
+    finalCall: value.finalCall !== false,
   };
 }
 

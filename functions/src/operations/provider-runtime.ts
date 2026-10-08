@@ -1,3 +1,4 @@
+import { isFinalDetailsCall } from "../booking/consultation-purpose.js";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
@@ -889,6 +890,9 @@ export async function createConsultationResourcesWith(
   const { db, connect } = deps;
   const consultationId = job.id.replace(/^consultation_/, "");
   const consultationReference = db.doc(`consultations/${consultationId}`);
+  // A final details call's summary is not a consultation brief: no analysis,
+  // no "review the brief" (booking/consultation-purpose.ts).
+  if (isFinalDetailsCall((await consultationReference.get()).data())) return { consultationId, skipped: "final_details_call" };
   let consultation = await consultationReference.get();
   if (!consultation.exists) throw new Error("CONSULTATION_NOT_FOUND");
   const tenantId = String(job.get("tenantId"));
@@ -930,7 +934,7 @@ export async function createConsultationResourcesWith(
             method: "POST",
             headers: { authorization: `Bearer ${zoom.credential?.accessToken}`, "content-type": "application/json" },
             body: JSON.stringify({
-              topic: "Photography consultation",
+              topic: isFinalDetailsCall(consultation.data()) ? "Final details call" : "Photography consultation",
               type: 2,
               start_time: consultation.get("startsAt"),
               duration: Math.max(
@@ -984,7 +988,7 @@ export async function createConsultationResourcesWith(
         headers: { authorization: `Bearer ${calendar.credential?.accessToken}`, "content-type": "application/json" },
         body: JSON.stringify({
           id: providerEventId,
-          summary: "Photography consultation",
+          summary: isFinalDetailsCall(consultation.data()) ? "Final details call" : "Photography consultation",
           description: joinUrl ?? (meetingSkipReason ? "Video call — send the couple a meeting link." : "StudioCue consultation"),
           start: { dateTime: consultation.get("startsAt"), timeZone: consultation.get("timezone") },
           end: { dateTime: consultation.get("endsAt"), timeZone: consultation.get("timezone") },

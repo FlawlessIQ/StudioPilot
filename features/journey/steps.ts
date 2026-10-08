@@ -24,6 +24,7 @@ export type JourneyStepKey =
   | "retainer"
   | "schedule_form"
   | "run_of_show"
+  | "final_call"
   | "crew"
   | "coi"
   | "final_balance"
@@ -94,6 +95,9 @@ export const journeyStepRequires: Record<
   retainer: ["contract"],
   schedule_form: [],
   run_of_show: [],
+  // Booked by the couple from the link the details lock sends: nothing the
+  // studio does first, and nothing it offers before then.
+  final_call: [],
   crew: [],
   coi: [],
   final_balance: [],
@@ -245,6 +249,15 @@ export type JourneyInput = {
    */
   questionnaireSource?: string | null;
   scheduleStatus: string | null;
+  /**
+   * The final details call a month out (features/consultations/final-call.ts).
+   * Absent or null: the job has none, and no step is shown.
+   */
+  finalCall?: {
+    state: "not_yet" | "invited" | "booked" | "held";
+    lockOn: string | null;
+    startsAt: string | null;
+  } | null;
   /**
    * The couple's answer to the current version: "client_pending",
    * "client_approved" or "changes_requested".
@@ -853,6 +866,42 @@ export function projectJourney(input: JourneyInput): {
         }),
   });
 
+  /**
+   * The final details call, a month out (GR, 2026-10-08: "after the schedule
+   * is set… a zoom/phone call should be part of the journey to close out the
+   * job readiness"). The couple books it from the link the details lock
+   * sends; booked is as done as the studio can make it.
+   */
+  if (input.finalCall) {
+    const call = input.finalCall;
+    const when = call.startsAt ? formatCallTime(call.startsAt) : null;
+    push({
+      key: "final_call",
+      title: "Final details call",
+      detail:
+        call.state === "held"
+          ? `Held${when ? ` ${when}` : ""}`
+          : call.state === "booked"
+            ? `Booked${when ? ` for ${when}` : ""}`
+            : call.state === "invited"
+              ? `Invited — waiting for ${who} to pick a time`
+              : `${Who} are invited to book it when the details lock`,
+      status:
+        call.state === "held" || call.state === "booked"
+          ? "complete"
+          : call.state === "invited"
+            ? prepStatus("waiting_client")
+            : prepStatus("upcoming"),
+      action: null,
+      record: null,
+      owner: null,
+      unlock: null,
+      advance: null,
+      explain: call.state === "invited" || call.state === "booked",
+      files: [],
+    });
+  }
+
   // Both optional: a caller that does not know about checkpoints or crew
   // demand must not have its journey change shape. Absent `crewRequired`
   // means "no opinion", which is not the same as "solo".
@@ -1226,6 +1275,7 @@ export function projectJourney(input: JourneyInput): {
       href: project("/studio/questionnaires"),
     },
     run_of_show: { label: "Open schedule", href: project("/studio/schedules") },
+    final_call: { label: "Open calendar", href: project("/studio/calendar") },
     crew: { label: "Open crew", href: project("/studio/crew") },
     coi: { label: "Open insurance", href: project("/studio/insurance") },
     final_balance: { label: "Open invoices", href: project("/studio/invoices") },
@@ -1235,6 +1285,9 @@ export function projectJourney(input: JourneyInput): {
     album_review: { label: "Open reviews", href: project("/studio/reviews") },
   };
   const unlockCopy: Partial<Record<JourneyStepKey, string>> = {
+    final_call: input.finalCall?.lockOn
+      ? `The invitation goes out on ${formatCallTime(`${input.finalCall.lockOn}T12:00:00Z`, true)}, when the details lock.`
+      : "The invitation goes out when the details lock.",
     final_balance: "Unlocks four weeks before the event.",
     day_before: "Unlocks two days before the event.",
     event_day: input.eventDate
@@ -1277,4 +1330,17 @@ export function projectJourney(input: JourneyInput): {
     return { steps, current: null };
   }
   return { steps, current: steps.find((step) => step.status === "current") ?? null };
+}
+
+
+/** "Tue, Oct 20, 3:00 PM", or the date alone. */
+function formatCallTime(iso: string, dateOnly = false): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.valueOf())) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(dateOnly ? { timeZone: "UTC" } : { hour: "numeric", minute: "2-digit" }),
+  }).format(date);
 }

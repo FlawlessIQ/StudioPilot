@@ -1,5 +1,6 @@
 "use client";
 
+import { isSalesConsultation } from "@/features/consultations/purpose";
 import { useMemo, useState } from "react";
 import { todayLocalIso } from "@/lib/format/event-date";
 import Link from "next/link";
@@ -128,7 +129,8 @@ export function LiveReports() {
       const linkedProject = String(record.projectId ?? "");
       return !linkedProject || projectIds.has(linkedProject);
     });
-  const consultations = scoped(consultationsState.records);
+  // The funnel counts sales calls, not the final details call (features/consultations/purpose.ts).
+  const consultations = scoped(consultationsState.records).filter((record) => isSalesConsultation(record));
   const proposals = scoped(proposalsState.records);
   const contracts = scoped(contractsState.records);
   const crewAssignments = scoped(crewState.records);

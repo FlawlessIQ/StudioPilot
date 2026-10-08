@@ -1,5 +1,6 @@
 "use client";
 
+import { isSalesConsultation } from "@/features/consultations/purpose";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CalendarClock, CalendarX, FileSignature, FileText, HandCoins, Landmark, PackageOpen, Receipt, Send, ShieldCheck } from "lucide-react";
@@ -241,7 +242,9 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
   const statuses = kind === "complete_consultation" ? ["scheduled", "completed"] : ["scheduled"];
+  // Completing runs the consultation brief: never on the final details call.
   const booked = onJob(consultations, job.id)
+    .filter((item) => kind !== "complete_consultation" || isSalesConsultation(item))
     .filter((item) => statuses.includes(str(item.status)) && !item.archivedAt)
     .sort((a, b) => str(b.startsAt).localeCompare(str(a.startsAt)));
   const consultation = booked[0] ?? null;

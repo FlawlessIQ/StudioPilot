@@ -34,6 +34,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PROPOSAL_EXPIRATION_MUST_BE_FUTURE: "The offer has to stay open until a date after today.",
   SEND_PERMISSION_REQUIRED: "Only the studio's owners and admins can send a proposal.",
   PROJECT_NOT_IN_CONSULTATION: "Consultation notes are recorded while the job is at the consultation stage.",
+  FINAL_DETAILS_CALL_NOT_A_CONSULTATION: "That's the final details call, not the consultation — there's no brief or proposal to make from it.",
   INVALID_BOOKING_STATE: "This job isn't waiting to be booked.",
   // Thrown when the accepted proposal and its package both ask for no
   // retainer. "Check the package" pointed at something locked once the

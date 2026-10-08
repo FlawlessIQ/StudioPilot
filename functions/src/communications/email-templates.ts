@@ -851,6 +851,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "consultation_confirmation":
     case "consultation_reminder":
     case "consultation_rescheduled": {
+      // "final details call" for the call a month out (booking/consultation-purpose.ts).
+      const call = stringValue(values, "purpose") === "final_details" ? "final details call" : "consultation";
+      const Call = call.charAt(0).toUpperCase() + call.slice(1);
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const isReminder = input.key === "consultation_reminder";
       const isMove = input.key === "consultation_rescheduled";
@@ -862,35 +865,35 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const primary = details.joinUrl
         ? { label: "Join the video call", url: details.joinUrl }
         : actionUrl
-          ? { label: "View consultation", url: actionUrl }
+          ? { label: `View ${call}`, url: actionUrl }
           : undefined;
       const manage = rescheduleUrl
         ? { label: "Reschedule or cancel", url: rescheduleUrl }
         : undefined;
       return {
         subject: isMove
-          ? `New time for your consultation with ${brand.studioName}`
-          : `${isReminder ? "Reminder: " : ""}Consultation with ${brand.studioName}`,
+          ? `New time for your ${call} with ${brand.studioName}`
+          : `${isReminder ? "Reminder: " : ""}${Call} with ${brand.studioName}`,
         preheader: isMove
-          ? `Your consultation has moved${startsAt ? ` to ${startsAt}` : ""}.`
+          ? `Your ${call} has moved${startsAt ? ` to ${startsAt}` : ""}.`
           : isReminder
-            ? "Your consultation is coming up."
-            : "Your consultation is confirmed.",
+            ? `Your ${call} is coming up.`
+            : `Your ${call} is confirmed.`,
         eyebrow: isMove
-          ? "Consultation moved"
+          ? `${Call} moved`
           : isReminder
-            ? "Consultation reminder"
-            : "Consultation confirmed",
+            ? `${Call} reminder`
+            : `${Call} confirmed`,
         heading: isMove
-          ? "Your consultation has a new time"
+          ? `Your ${call} has a new time`
           : isReminder
             ? "We’ll see you soon"
-            : "Your consultation is booked",
+            : `Your ${call} is booked`,
         paragraphs: [
           greeting,
           isMove
-            ? `We've moved your consultation${startsAt ? ` to ${startsAt}` : ""}. Everything else stays the same.`
-            : `We${isReminder ? "'re looking forward to" : " confirmed"} your consultation${startsAt ? ` on ${startsAt}` : ""}.`,
+            ? `We've moved your ${call}${startsAt ? ` to ${startsAt}` : ""}. Everything else stays the same.`
+            : `We${isReminder ? "'re looking forward to" : " confirmed"} your ${call}${startsAt ? ` on ${startsAt}` : ""}.`,
           details.line,
         ],
         action: primary ?? manage,
@@ -901,16 +904,18 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "consultation_cancelled": {
+      const call = stringValue(values, "purpose") === "final_details" ? "final details call" : "consultation";
+      const Call = call.charAt(0).toUpperCase() + call.slice(1);
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
       return {
-        subject: `Your consultation with ${brand.studioName} is canceled`,
-        preheader: `Your consultation${startsAt ? ` on ${startsAt}` : ""} is no longer happening.`,
-        eyebrow: "Consultation canceled",
-        heading: "Your consultation is canceled",
+        subject: `Your ${call} with ${brand.studioName} is canceled`,
+        preheader: `Your ${call}${startsAt ? ` on ${startsAt}` : ""} is no longer happening.`,
+        eyebrow: `${Call} canceled`,
+        heading: `Your ${call} is canceled`,
         paragraphs: [
           greeting,
-          `We've canceled your consultation${startsAt ? ` on ${startsAt}` : ""}, so there's no need to join.`,
+          `We've canceled your ${call}${startsAt ? ` on ${startsAt}` : ""}, so there's no need to join.`,
           rescheduleUrl
             ? "If you'd still like to talk, pick another time that suits you."
             : "If you'd still like to talk, reply to this email and we'll find another time.",
@@ -921,6 +926,21 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "consultation_invitation":
+      // The details lock sends this one with the final-details email; a studio
+      // can also send it by hand (planning/final-details.ts).
+      if (stringValue(values, "purpose") === "final_details")
+        return {
+          subject: `Book your final details call with ${brand.studioName}`,
+          preheader: "A short call to go over your final details and timeline.",
+          eyebrow: "Final details call",
+          heading: "Let’s go over the final details",
+          paragraphs: [
+            greeting,
+            `Your day is close! Pick a time for a short call${project} — we'll go over your final details and timeline together and make any last changes.`,
+          ],
+          action: actionUrl ? { label: "Pick a time", url: actionUrl } : undefined,
+          note: "Times remain available until someone else books them.",
+        };
       return {
         subject: `Choose a consultation time with ${brand.studioName}`,
         preheader: "Select a convenient time for your photography consultation.",
@@ -1698,8 +1718,15 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             ? `Here's everything we have for your day${project}: where you're getting ready, the ceremony and reception, any photo stops, and the timeline.`
             : `Here's everything we have for your day${project}: every location and time, and the timeline.`,
           "Please check it and confirm. From here, small things you can still change yourself; a change to a location or time comes to us to agree.",
+          ...(safeUrl(stringValue(values, "finalCallUrl"))
+            ? ["Let's also find a time for a short call to go over everything together and make any last changes to your timeline."]
+            : []),
         ],
         action: portalUrl ? { label: "Check and confirm", url: portalUrl } : undefined,
+        // The final details call (planning/final-details.ts finalCallLink).
+        moreActions: safeUrl(stringValue(values, "finalCallUrl"))
+          ? [{ label: "Book your final details call", url: safeUrl(stringValue(values, "finalCallUrl")) }]
+          : undefined,
         note: portalUrl ? undefined : `Sign in to your ${brand.studioName} client portal to confirm them.`,
       };
     case "billing_address_request":

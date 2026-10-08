@@ -187,6 +187,8 @@ const command = z.discriminatedUnion("type", [
       reviewAtFormDate: z.boolean().optional(),
       /** The shot list sent with the planning form (planning-timeline.ts). */
       shotListTemplateId: z.string().min(1).max(200).nullable().optional(),
+      /** Invite the couple to book a final details call at the lock. */
+      finalCall: z.boolean().optional(),
     }),
   }),
   z.object({

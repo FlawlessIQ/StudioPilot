@@ -29,6 +29,7 @@ export function PlanningTimelineSettings() {
   const [lockWeeks, setLockWeeks] = useState<number | null>(null);
   const [atBooking, setAtBooking] = useState<boolean | null>(null);
   const [review, setReview] = useState<boolean | null>(null);
+  const [finalCall, setFinalCall] = useState<boolean | null>(null);
   const [shotListId, setShotListId] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -41,6 +42,7 @@ export function PlanningTimelineSettings() {
   const effectiveAtBooking = atBooking ?? stored.formAtBooking;
   const effectiveReview = review ?? stored.reviewAtFormDate;
   const effectiveShotList = shotListId === undefined ? stored.shotListTemplateId : shotListId;
+  const effectiveFinalCall = finalCall ?? stored.finalCall;
   const forms = (templates ?? [])
     .filter((template) => template.status === "active" && !template.archivedAt)
     .map((template) => ({ id: template.id, name: String(template.name ?? "Questionnaire") }))
@@ -59,6 +61,7 @@ export function PlanningTimelineSettings() {
         formAtBooking: effectiveAtBooking,
         reviewAtFormDate: effectiveReview,
         shotListTemplateId: effectiveShotList,
+        finalCall: effectiveFinalCall,
       });
       setSaved(true);
     } catch (caught: unknown) {
@@ -194,7 +197,7 @@ export function PlanningTimelineSettings() {
             </select>
             <small>
               {effectiveSend === "auto"
-                ? "Goes out with the planning form, due when the details lock. Your crew see the answers on their day sheet."
+                ? "Goes out with the planning form, due a week before the day. Your crew see the answers on their day sheet."
                 : "Sent with the planning form when that goes out automatically. Until then, send it from the job's forms."}
             </small>
           </label>
@@ -215,6 +218,22 @@ export function PlanningTimelineSettings() {
             <small>
               From then the couple confirms their final details, and changes to locations or times come to you as a request.
               Little things — guest count, phone numbers, family groups — they can still change themselves.
+            </small>
+          </label>
+          <label className="form-checkbox">
+            <input
+              checked={effectiveFinalCall}
+              disabled={!mayEdit}
+              onChange={(event) => {
+                setFinalCall(event.target.checked);
+                touch();
+              }}
+              type="checkbox"
+            />
+            <span>Invite them to book a final details call</span>
+            <small>
+              When the details lock, they get a link to book a short call with you — on your consultation
+              hours — to go over the final details and timeline together. It shows on the job when it&rsquo;s booked.
             </small>
           </label>
         </div>

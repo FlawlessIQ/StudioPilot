@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { isJobKind, journeyProfile, projectProfile } from "../job-kinds/job-kinds.js";
 import { onRequest } from "firebase-functions/v2/https";
@@ -16,6 +16,8 @@ import {
   type InquiryLinkContext,
 } from "../intake/inquiry-link.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
+import { mintBookingLink } from "./booking-link.js";
+import { consultationPurpose, isFinalDetailsCall } from "./consultation-purpose.js";
 import {
   dayFieldsFor,
   normaliseInquiryFormConfig,
@@ -53,6 +55,7 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       contactId: z.string().min(1),
       mode: z.enum(["zoom", "in_person", "phone", "custom"]).default("zoom"),
+      purpose: z.enum(["consultation", "final_details"]).default("consultation"),
     }),
   }),
   z.object({
@@ -265,27 +268,21 @@ export const publicConsultationScheduling = onRequest(
         if (!z.string().email().safeParse(email).success) {
           throw new Error("CLIENT_EMAIL_REQUIRED");
         }
-        const token = randomBytes(32).toString("base64url");
-        const linkId = `consult_${hash(`${command.tenantId}:${command.input.projectId}:${email}`).slice(0, 32)}`;
-        const expiresAt = new Date(Date.now() + 14 * 86400000).toISOString();
-        const bookingUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/schedule/consultation?token=${encodeURIComponent(token)}`;
-        const emailJobId = `consultation_invite_${linkId}_${Date.now()}`;
-        const batch = db.batch();
-        batch.set(db.doc(`consultationBookingLinks/${linkId}`), {
-          id: linkId,
+        const minted = mintBookingLink({
           tenantId: command.tenantId,
           projectId: command.input.projectId,
           contactId: command.input.contactId,
+          email,
           mode: command.input.mode,
-          tokenHash: hash(token),
-          status: "pending",
-          expiresAt,
-          bookedConsultationId: null,
-          createdAt: now,
-          updatedAt: now,
-          createdBy: identity.uid,
-          updatedBy: identity.uid,
+          purpose: command.input.purpose,
+          actorId: identity.uid,
+          now,
+          days: 14,
         });
+        const { linkId, bookingUrl, expiresAt } = minted;
+        const emailJobId = `consultation_invite_${linkId}_${Date.now()}`;
+        const batch = db.batch();
+        batch.set(db.doc(`consultationBookingLinks/${linkId}`), minted.record);
         batch.create(db.doc(`emailJobs/${emailJobId}`), {
           id: emailJobId,
           tenantId: command.tenantId,
@@ -295,6 +292,7 @@ export const publicConsultationScheduling = onRequest(
           recipientName: String(contact.get("displayName") ?? ""),
           projectName: String(project.get("name") ?? ""),
           type: "consultation_invitation",
+          purpose: command.input.purpose,
           actionUrl: bookingUrl,
           status: "queued",
           attempts: 0,
@@ -360,6 +358,8 @@ export const publicConsultationScheduling = onRequest(
           eventDate: project.get("eventDate") ?? null,
           expiresAt: link.get("expiresAt"),
           mode: link.get("mode"),
+          // The page says "final details call" for one (consultation-purpose.ts).
+          purpose: consultationPurpose(link.data()),
         });
         return;
       }
@@ -380,6 +380,7 @@ export const publicConsultationScheduling = onRequest(
         projectId: link.get("projectId"),
         contactId: link.get("contactId"),
         mode: link.get("mode"),
+        purpose: consultationPurpose(link.data()),
         status: "scheduled",
         startsAt: selected.startsAt,
         endsAt: selected.endsAt,
@@ -407,7 +408,8 @@ export const publicConsultationScheduling = onRequest(
         updatedAt: now,
         updatedBy: "public-consultation-scheduler",
       });
-      if (project.get("state") === "LEAD") {
+      const finalCall = isFinalDetailsCall(link.data());
+      if (!finalCall && project.get("state") === "LEAD") {
         batch.update(project.ref, {
           state: "CONSULTATION",
           stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
@@ -438,6 +440,7 @@ export const publicConsultationScheduling = onRequest(
         // link the provider worker makes after this (booking/consultation-email.ts).
         consultationId,
         type: "consultation_confirmation",
+        purpose: consultationPurpose(link.data()),
         startsAt: selected.startsAt,
         status: "queued",
         attempts: 0,
@@ -446,7 +449,7 @@ export const publicConsultationScheduling = onRequest(
       });
       await batch.commit();
       // An event form the couple sent from their inquiry page waited for this.
-      await queueInquiryFormAnalysis(db, {
+      if (!finalCall) await queueInquiryFormAnalysis(db, {
         tenantId: String(link.get("tenantId")),
         projectId: String(link.get("projectId")),
         now,
@@ -498,8 +501,11 @@ async function upcomingConsultation(
     .limit(20)
     .get();
   const now = new Date().toISOString();
+  // The sales call only: the inquiry page must never move or cancel the
+  // final details call a month out (consultation-purpose.ts).
   return (
     consultations.docs
+      .filter((document) => !isFinalDetailsCall(document.data()))
       .filter((document) => document.get("status") === "scheduled" && text(document.get("startsAt")) > now)
       .sort((left, right) => text(left.get("startsAt")).localeCompare(text(right.get("startsAt"))))[0] ?? null
   );

@@ -89,6 +89,13 @@ function* journeys(): Generator<JourneyInput> {
                   dayBeforeDraftStatus: null,
                   hasDelivery: false,
                   albumOrReviewDone: false,
+                  // The final details call, in each of its states (features/consultations/final-call.ts).
+                  finalCall: [
+                    null,
+                    { state: "not_yet", lockOn: "2027-05-15", startsAt: null },
+                    { state: "invited", lockOn: "2027-05-15", startsAt: null },
+                    { state: "booked", lockOn: "2027-05-15", startsAt: "2027-05-20T19:00:00Z" },
+                  ][(STATES.indexOf(state) + PROPOSAL.indexOf(proposalStatus)) % 4] as JourneyInput["finalCall"],
                 };
               }
             }

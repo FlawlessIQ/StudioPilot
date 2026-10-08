@@ -1,5 +1,6 @@
 "use client";
 
+import { isSalesConsultation } from "@/features/consultations/purpose";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deliverables";
@@ -235,7 +236,9 @@ export function useTodayInbox(): {
             }
           : null,
         // A cancelled or replaced consultation is not a booked meeting.
-        hasConsultation: forProject(consultations.records, projectId).some(isLiveConsultation),
+        hasConsultation: forProject(consultations.records, projectId).some(
+          (record) => isSalesConsultation(record) && isLiveConsultation(record),
+        ),
         proposalStatus:
           text(
             forProject(proposals.records, projectId).sort((left, right) =>

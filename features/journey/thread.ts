@@ -157,6 +157,8 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
   for (const consultation of rows(input.consultations)) {
     const booked = firstAt(consultation, "createdAt");
     const status = text(consultation.status);
+    // The call a month out reads as itself (features/consultations/purpose.ts).
+    const finalCall = consultation.purpose === "final_details";
     push(
       booked
         ? {
@@ -164,7 +166,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at: booked,
             actor: "studio",
             kind: "artifact",
-            title: "Consultation booked",
+            title: finalCall ? "Final details call booked" : "Consultation booked",
             detail: text(consultation.startsAt)
               ? `${readable(consultation.mode)} · ${formatDueDate(text(consultation.startsAt))}`
               : readable(consultation.mode),
@@ -196,7 +198,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               at: done,
               actor: "studio",
               kind: "message",
-              title: "You logged the consultation",
+              title: finalCall ? "Final details call held" : "You logged the consultation",
               detail: text(consultation.internalNotes) || null,
               artifact: null,
             }

@@ -79,6 +79,9 @@ function triggerFor(
 ): Trigger | null {
   if (collectionId === "leads" && !before) return "lead_created";
   if (collectionId === "consultations") {
+    // A studio's "after the consultation" rules are about the sales call,
+    // not the final details call a month out (booking/consultation-purpose.ts).
+    if ((after as Record<string, unknown> | undefined)?.purpose === "final_details") return null;
     if (!before) return "consultation_scheduled";
     if (changed(before, after, "status", "completed")) {
       return "consultation_completed";
