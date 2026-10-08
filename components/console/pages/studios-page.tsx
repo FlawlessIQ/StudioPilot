@@ -1,5 +1,6 @@
 "use client";
 
+import { TRADES, TRADE_LABELS, tradeOf } from "@/features/trades/trades";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
@@ -63,6 +64,7 @@ export function StudiosPage() {
   const view = (STUDIO_VIEWS.some((item) => item.key === params.get("view")) ? params.get("view") : "all") as View;
   const [search, setSearch] = useState("");
   const [plan, setPlan] = useState<string>("");
+  const [trade, setTrade] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [lifecycle, setLifecycle] = useState<string>("");
   const [tag, setTag] = useState<string>("");
@@ -70,10 +72,11 @@ export function StudiosPage() {
   const saved = useSavedViews("studios");
   const [naming, setNaming] = useState(false);
   const [viewName, setViewName] = useState("");
-  const filtersNow = { view, plan, status, lifecycle, tag, search };
+  const filtersNow = { view, plan, trade, status, lifecycle, tag, search };
   const filtered = Boolean(plan || status || lifecycle || tag || search);
   const applySaved = (filters: Record<string, string>) => {
     setPlan(filters.plan ?? "");
+    setTrade(filters.trade ?? "");
     setStatus(filters.status ?? "");
     setLifecycle(filters.lifecycle ?? "");
     setTag(filters.tag ?? "");
@@ -100,13 +103,14 @@ export function StudiosPage() {
       (studio) =>
         test(studio, now) &&
         (!plan || studio.plan === plan) &&
+        (!trade || tradeOf(studio.trade) === trade) &&
         (!status || (status === "comped" ? studio.comped : studio.subscriptionStatus === status)) &&
         (!lifecycle || studio.lifecycle === lifecycle) &&
         (!tag || (studio.tags ?? []).includes(tag)) &&
         matches(search, studio.name, studio.ownerName, studio.ownerEmail, studio.slug, studio.tenantId, studio.legalName),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all, view, plan, status, lifecycle, tag, search]);
+  }, [all, view, plan, trade, status, lifecycle, tag, search]);
 
   const stats = useMemo(() => {
     const list = all ?? [];
@@ -176,6 +180,12 @@ export function StudiosPage() {
         accessorFn: (studio) => LIFECYCLE_STAGES.indexOf(studio.lifecycle),
         meta: { width: 112, priority: 5 },
         cell: ({ row }) => <Pill tone={LIFECYCLE_TONES[row.original.lifecycle]}>{LIFECYCLE_LABELS[row.original.lifecycle]}</Pill>,
+      },
+      {
+        id: "trade",
+        header: "Trade",
+        accessorFn: (studio) => TRADE_LABELS[tradeOf(studio.trade)],
+        meta: { width: 104, priority: 4 },
       },
       {
         id: "plan",
@@ -345,6 +355,7 @@ export function StudiosPage() {
         ) : (
           <FilterBar>
             <SearchInput id="studio-search" onChange={setSearch} placeholder="Filter by studio, owner or email" value={search} />
+            <ChipSelect label="Trade" onChange={setTrade} options={TRADES.map((value) => ({ value, label: TRADE_LABELS[value] }))} value={trade} />
             <ChipSelect label="Plan" onChange={setPlan} options={Object.entries(PLAN_LABELS).map(([value, label]) => ({ value, label }))} value={plan} />
             <ChipSelect
               label="Subscription"

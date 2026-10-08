@@ -1219,6 +1219,7 @@ export function StudioDomainPage({
  */
 export function ProjectContextBar({ projectId }: { projectId: string }) {
   const { records, loading } = useTenantDocuments("projects");
+  const trade = useWorkspace().tenantTrade;
   // The job's own checkpoints, not the capped tenant-wide cache.
   const checkpoints = useProjectCheckpoints(projectId);
   const project = records?.find((entry) => entry.id === projectId);
@@ -1303,7 +1304,7 @@ export function ProjectContextBar({ projectId }: { projectId: string }) {
             <span className="project-context-status">
               {state ? (
                 <StatusBadge dot tone={stateTone(state)}>
-                  {projectStateLabel(state)}
+                  {projectStateLabel(state, trade)}
                 </StatusBadge>
               ) : null}
               {/* What is left, in the words the job's own header uses. A bare

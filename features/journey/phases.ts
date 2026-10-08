@@ -1,3 +1,4 @@
+import { tradeVocab } from "@/features/trades/trades";
 import type { JourneyStep, JourneyStepKey } from "@/features/journey/steps";
 
 /**
@@ -22,6 +23,11 @@ export const journeyPhaseLabel: Record<JourneyPhase, string> = {
   the_day: "The day",
   deliver: "Delivery",
 };
+
+/** A phase's name for this studio's trade: a DJ has nothing to deliver, so its last phase is "Afterwards". */
+export function journeyPhaseLabelFor(phase: JourneyPhase, trade?: unknown): string {
+  return phase === "deliver" ? tradeVocab(trade).afterPhase : journeyPhaseLabel[phase];
+}
 
 const phaseByStep: Record<JourneyStepKey, JourneyPhase> = {
   inquiry: "enquire",
@@ -83,13 +89,13 @@ export type JourneyPhaseGroup = {
  * Group a journey into its phases, preserving step order and dropping
  * phases the engine produced no steps for.
  */
-export function groupJourneyByPhase(steps: JourneyStep[]): JourneyPhaseGroup[] {
+export function groupJourneyByPhase(steps: JourneyStep[], trade?: unknown): JourneyPhaseGroup[] {
   return journeyPhaseOrder
     .map((phase) => {
       const inPhase = steps.filter((step) => journeyPhase(step.key) === phase);
       return {
         phase,
-        label: journeyPhaseLabel[phase],
+        label: journeyPhaseLabelFor(phase, trade),
         steps: inPhase,
         complete: inPhase.filter((step) => step.status === "complete").length,
         missed: inPhase.filter((step) => step.status === "passed").length,

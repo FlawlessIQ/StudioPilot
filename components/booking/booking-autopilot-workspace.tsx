@@ -699,7 +699,7 @@ export function BookingAutopilotWorkspace({
         <header className="booking-autopilot-hero is-settled">
           <div>
             <p className="eyebrow">
-              <Check size={14} /> {projectStateLabel(liveState)}
+              <Check size={14} /> {projectStateLabel(liveState, workspace.tenantTrade)}
             </p>
             {/* "Chen Wedding is past the proposal" was shown at Proposal out,
                 on a job whose couple had not answered — above a contract step

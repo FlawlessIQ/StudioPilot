@@ -28,9 +28,13 @@ test("no plan is capped at a single seat", () => {
   // refusal — INTERNAL_USER_LIMIT_REACHED — so a one-seat plan stopped a
   // studio the first time it brought in a second shooter, which is the
   // moment StudioCue is meant to earn its keep.
+  //
+  // A vendor (a DJ, a makeup artist) is usually one person and an assistant,
+  // whose team are crew, not seats: two, never one (Conor, 2026-10-08).
   for (const [key, entitlements] of Object.entries(planEntitlements)) {
+    const floor = key === "vendor" ? 2 : 3;
     assert.ok(
-      entitlements.maxInternalUsers >= 3,
+      entitlements.maxInternalUsers >= floor,
       `${key} seats ${entitlements.maxInternalUsers}; the floor is a studio, not a person`,
     );
   }

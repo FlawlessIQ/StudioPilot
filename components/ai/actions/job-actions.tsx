@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Archive, Briefcase, CircleSlash, Inbox, MailPlus, PencilLine, RotateCcw, Route, Trash2, UserPlus } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeMoves } from "@/features/trades/trades";
 import {
   allowedProjectTransitions,
   transitionAuthority,
@@ -682,12 +683,14 @@ export function PortalInviteCard({ action }: ActionCardProps) {
 }
 
 /** Stages a job can be moved to by hand from where it is. */
-export function manualTargets(state: string, hold: HoldRecord = {}): ProjectState[] {
+export function manualTargets(state: string, hold: HoldRecord = {}, trade?: unknown): ProjectState[] {
   const from = state as ProjectState;
   // A held job only goes back where it was held from — Cue offered PLANNING
   // to a job held at PROPOSAL, which skipped the booking gate.
   const resumable = from === "POSTPONED" ? holdResumeStates(hold) : null;
-  return (allowedProjectTransitions[from] ?? []).filter(
+  // A trade with nothing to deliver goes from the day to the review (trades.ts).
+  const moves = [...(tradeMoves(trade, from) as ProjectState[]), ...(allowedProjectTransitions[from] ?? [])];
+  return moves.filter(
     (to) =>
       !transitionAuthority(from, to) &&
       to !== "ARCHIVED" &&
@@ -713,11 +716,17 @@ function stageFromWords(words: string | null, targets: ProjectState[]): ProjectS
 export function MoveStageCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
   const runner = useRunner();
+  const trade = useWorkspace().tenantTrade;
+  const label = (state: string) => projectStateLabel(state, trade);
   const targets = job
-    ? manualTargets(str(job.state), {
-        postponedFromState: job.postponedFromState,
-        bookingCompletedAt: job.bookingCompletedAt,
-      })
+    ? manualTargets(
+        str(job.state),
+        {
+          postponedFromState: job.postponedFromState,
+          bookingCompletedAt: job.bookingCompletedAt,
+        },
+        trade,
+      )
     : [];
   const [target, setTarget] = useState<string>("");
   const [reason, setReason] = useState("");
@@ -729,18 +738,18 @@ export function MoveStageCard({ action }: ActionCardProps) {
   const needsReason = chosen === "CANCELLED" || chosen === "POSTPONED";
   return (
     <ActionShell
-      detail={`It is ${projectStateLabel(str(job.state))} now. Steps that need proof — an accepted proposal, a signature, a paid retainer, a delivery — move on their own when that happens and can't be set here.`}
+      detail={`It is ${label(str(job.state))} now. Steps that need proof — an accepted proposal, a signature, a paid retainer, a delivery — move on their own when that happens and can't be set here.`}
       icon={<Route size={15} />}
       title={title}
     >
       {!targets.length ? (
-        <Blocked>{`From ${projectStateLabel(str(job.state))}, the next step happens on its own when its evidence arrives.`}</Blocked>
+        <Blocked>{`From ${label(str(job.state))}, the next step happens on its own when its evidence arrives.`}</Blocked>
       ) : (
         <Form>
           <SelectField
             label="Move it to"
             onChange={setTarget}
-            options={targets.map((value) => ({ value, label: projectStateLabel(value) }))}
+            options={targets.map((value) => ({ value, label: label(value) }))}
             value={chosen}
           />
           {needsReason ? (
@@ -759,7 +768,7 @@ export function MoveStageCard({ action }: ActionCardProps) {
           busy={runner.busy}
           danger={needsReason}
           disabled={!chosen || (needsReason && reason.trim().length < 10)}
-          label={`Move to ${projectStateLabel(chosen)}`}
+          label={`Move to ${label(chosen)}`}
           onClick={() =>
             void runner.run(
               async () => {
@@ -770,7 +779,7 @@ export function MoveStageCard({ action }: ActionCardProps) {
                   targetState: chosen,
                   reason: reason.trim() || null,
                 });
-                return `${jobName(job)} is now ${projectStateLabel(chosen)}.`;
+                return `${jobName(job)} is now ${label(chosen)}.`;
               },
               { refresh: ["projects", "readinessAssessments", "crewAssignments"] },
             )

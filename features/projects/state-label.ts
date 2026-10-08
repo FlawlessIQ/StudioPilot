@@ -1,3 +1,5 @@
+import { tradeVocab } from "@/features/trades/trades";
+
 /**
  * Project states, in the words a photographer uses.
  *
@@ -7,9 +9,9 @@
  * couple's names, where "RETAINER PENDING" reads as a system status rather
  * than "they haven't paid the deposit yet".
  *
- * Pure lookup, no I/O.
+ * Pure lookup, no I/O. The trade (features/trades/trades.ts) names the day
+ * itself: a photographer's job is "Shot", a DJ's "Played".
  */
-
 const LABELS: Record<string, string> = {
   INQUIRY: "New inquiry",
   CONSULTATION: "Talking",
@@ -29,8 +31,9 @@ const LABELS: Record<string, string> = {
   LOST: "Closed inquiry",
 };
 
-/** The plain-English name of a project state. */
-export function projectStateLabel(state: string): string {
+/** The plain-English name of a project state, in the studio's trade's words when it's given. */
+export function projectStateLabel(state: string, trade?: unknown): string {
+  if (state === "EVENT_COMPLETE") return tradeVocab(trade).doneLabel;
   return (
     LABELS[state] ??
     state

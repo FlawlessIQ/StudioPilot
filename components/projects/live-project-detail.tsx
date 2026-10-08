@@ -38,6 +38,7 @@ import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoint
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeMoves, tradeVocab } from "@/features/trades/trades";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
 import {
   ArchiveJobWithCrew,
@@ -68,7 +69,7 @@ import {
   projectStateLabel,
 } from "@/features/projects/state-label";
 import { readinessSummary } from "@/features/projects/readiness-summary";
-import { journeyPhaseLabel, journeyPhaseOrder } from "@/features/journey/phases";
+import { journeyPhaseLabelFor, journeyPhaseOrder } from "@/features/journey/phases";
 import { projectPhaseIndex } from "@/features/projects/lifecycle";
 import { jobIsOver } from "@/features/projects/job-moment";
 import { describeEventProximity } from "@/lib/format/event-date";
@@ -243,7 +244,7 @@ function mockCheckpoints(projectId: string): CheckpointRecord[] {
   ];
 }
 
-const stateLabel = (state: ProjectState): string => projectStateLabel(state);
+const stateLabel = (state: ProjectState, trade?: unknown): string => projectStateLabel(state, trade);
 
 function displayDate(value: unknown): string {
   const source = String(value ?? "");
@@ -287,12 +288,17 @@ function ProjectStageControl({
   /** Where a held job was held from; see features/projects/hold-resume.ts. */
   hold?: HoldRecord;
 }) {
+  const trade = useWorkspace().tenantTrade;
+  // Nothing to deliver (a DJ, a makeup artist): from the day to the review.
+  const tradeTargets = tradeMoves(trade, state) as readonly ProjectState[];
   const target =
-    state === "POSTPONED" ? resumeTargetFor(state, hold ?? {}) : forwardStage[state];
+    state === "POSTPONED"
+      ? resumeTargetFor(state, hold ?? {})
+      : (tradeTargets[0] ?? forwardStage[state]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  if (!target || !allowedProjectTransitions[state].includes(target)) {
+  if (!target || !(allowedProjectTransitions[state].includes(target) || tradeTargets.includes(target))) {
     return null;
   }
   if (bookingAgreementOut && state === "PROPOSAL") return null;
@@ -326,10 +332,10 @@ function ProjectStageControl({
       if (response.persisted) {
         const version = Number(response.result.stateVersion ?? stateVersion + 1);
         onTransition(nextStage, version);
-        setNotice(`Project moved to ${stateLabel(nextStage)}.`);
+        setNotice(`Project moved to ${stateLabel(nextStage, trade)}.`);
       } else {
         setNotice(
-          `Development preview: the project would move to ${stateLabel(nextStage)}.`,
+          `Development preview: the project would move to ${stateLabel(nextStage, trade)}.`,
         );
       }
     } catch (caught: unknown) {
@@ -350,12 +356,12 @@ function ProjectStageControl({
       <form onSubmit={(event) => void submit(event)}>
         <span>
           <small>Now</small>
-          <strong>{stateLabel(state)}</strong>
+          <strong>{stateLabel(state, trade)}</strong>
         </span>
         <ArrowRight aria-hidden="true" size={16} />
         <span>
           <small>Next</small>
-          <strong>{stateLabel(nextStage)}</strong>
+          <strong>{stateLabel(nextStage, trade)}</strong>
         </span>
         {/* The example used to be a consultation at every stage, so a booked
             job about to enter planning was told "for example a consultation
@@ -1581,10 +1587,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           {/* The five arcs, not fifteen states — the same model as the Jobs
               table's track (features/journey/phases.ts). The precise state is
               the small print. */}
-          <div className="project-phase" aria-label={`Stage: ${stateLabel(state)}`}>
+          <div className="project-phase" aria-label={`Stage: ${stateLabel(state, workspace.tenantTrade)}`}>
             {projectPhaseIndex(state) === 0 ? (
               <StatusBadge tone={stateTone(state)} dot>
-                {stateLabel(state)}
+                {stateLabel(state, workspace.tenantTrade)}
               </StatusBadge>
             ) : null}
             {projectPhaseIndex(state) > 0 ? (
@@ -1605,14 +1611,14 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
                     key={phase}
                   >
                     <span aria-hidden="true" />
-                    {journeyPhaseLabel[phase]}
+                    {journeyPhaseLabelFor(phase, workspace.tenantTrade)}
                   </li>
                 );
               })}
             </ol>
             ) : null}
             {projectPhaseIndex(state) > 0 ? (
-              <small>{stateLabel(state)}</small>
+              <small>{stateLabel(state, workspace.tenantTrade)}</small>
             ) : null}
           </div>
         </div>
@@ -1654,7 +1660,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         </span>
         <span>
           <UserRound size={17} />
-          <small>Lead photographer</small>
+          <small>{tradeVocab(workspace.tenantTrade).lead}</small>
           {/* "Unassigned" is noise on a solo studio, which is the shape a pilot
               ships to — the same reason the leads Owner column was removed. It
               says who when it knows, and "You" when there is nobody else. */}

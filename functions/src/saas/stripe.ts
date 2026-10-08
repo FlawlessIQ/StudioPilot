@@ -1,3 +1,4 @@
+import { tradeProfile } from "../trades/trades.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
 import {
@@ -51,7 +52,7 @@ const billingCommandSchema = z.object({
   enabled: z.boolean().optional(),
   /** confirmCheckout: the Checkout Session Stripe returned to (session_id). */
   sessionId: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(200).optional(),
-  plan: z.enum(["studio", "multi_brand"]).optional(),
+  plan: z.enum(["studio", "multi_brand", "vendor"]).optional(),
   cadence: z.enum(["monthly", "yearly"]).optional(),
   /**
    * createCheckout: a code carried from the signup link
@@ -119,6 +120,19 @@ export const entitlements = {
     advancedReportingEnabled: true,
     apiAccessEnabled: false,
     prioritySupportEnabled: true,
+  },
+  // DJs, makeup artists and hair stylists, $75 a month (config/saas-plans.ts).
+  vendor: {
+    maxInternalUsers: 2,
+    maxBrands: 1,
+    maxActiveSubcontractors: 10,
+    aiActionsMonthly: 1000,
+    smsEnabled: true,
+    coiEnabled: true,
+    customWorkflowsEnabled: true,
+    advancedReportingEnabled: false,
+    apiAccessEnabled: false,
+    prioritySupportEnabled: false,
   },
   multi_brand: {
     maxInternalUsers: 15,
@@ -408,6 +422,10 @@ export const billingCommand = onRequest(
       let params: URLSearchParams;
       if (operation === "createCheckout") {
         if (!parsed.plan || !parsed.cadence) throw new Error("PLAN_REQUIRED");
+        // A studio buys its own trade's plans: a DJ isn't sold the
+        // photographer's Studio plan, nor a photographer the vendor one.
+        const tenantForPlan = await db.doc(`tenants/${parsed.tenantId}`).get();
+        if (!tradeProfile(tenantForPlan.get("trade")).plans.includes(parsed.plan)) throw new Error("PLAN_NOT_FOR_TRADE");
         const comped = subscription.get("comped") === true;
         const override = subscription.get("trialEndOverride") as string | undefined;
         const overrideLive = Boolean(override && Date.parse(override) > Date.now() + 60_000);

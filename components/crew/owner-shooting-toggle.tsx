@@ -1,5 +1,6 @@
 "use client";
 
+import { tradeVocab } from "@/features/trades/trades";
 import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
@@ -38,6 +39,7 @@ export function OwnerShootingToggle({
   const [error, setError] = useState<string | null>(null);
   // The job page reads the project once; show the answer just given.
   const [given, setGiven] = useState<boolean | null>(null);
+  const words = tradeVocab(useWorkspace().tenantTrade);
   const shooting = given ?? ownerShooting;
   const change = async () => {
     setBusy(true);
@@ -56,14 +58,14 @@ export function OwnerShootingToggle({
       <p>
         {shooting
           ? crewByDefault
-            ? "You're shooting this one — StudioCue books the rest of the crew."
-            : "You're shooting this one."
+            ? `${words.ownerOn} — StudioCue books the rest of the crew.`
+            : `${words.ownerOn}.`
           : "Not you this time — every role is booked from your crew."}
       </p>
       {canChange ? (
         <button className="button button-light button-sm" disabled={busy} onClick={() => void change()} type="button">
           {busy ? <LoaderCircle className="spin" size={14} /> : null}
-          {shooting ? "Not me this time" : "I'm shooting it"}
+          {shooting ? "Not me this time" : words.ownerOnAction}
         </button>
       ) : null}
       {error ? <small role="alert">{error}</small> : null}

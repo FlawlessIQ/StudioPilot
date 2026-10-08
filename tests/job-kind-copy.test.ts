@@ -35,7 +35,7 @@ const files = globSync([
   "features/help/**/*.ts",
 ]).sort();
 
-function visibleWordCount(file: string): number {
+function visibleWordCount(file: string, words: RegExp = WORDS): number {
   const source = readFileSync(file, "utf8");
   const parsed = ts.createSourceFile(
     file,
@@ -46,7 +46,7 @@ function visibleWordCount(file: string): number {
   );
   let count = 0;
   const countIn = (text: string) => {
-    count += text.match(WORDS)?.length ?? 0;
+    count += text.match(words)?.length ?? 0;
   };
   const visit = (node: ts.Node) => {
     // Not read by anyone: module paths, class names, keys and ids.
@@ -107,6 +107,51 @@ test("wedding words only come down", () => {
 
 test("the pins name real files", () => {
   const pinned = JSON.parse(readFileSync(ALLOWLIST, "utf8")) as Record<string, number>;
+  const known = new Set(files);
+  assert.deepEqual(
+    Object.keys(pinned).filter((file) => !known.has(file)),
+    [],
+    "a pinned file was moved or deleted — drop its line",
+  );
+});
+
+/**
+ * Photo words, the same way (docs/vendor-journeys-plan.md, 1.7).
+ *
+ * A DJ's couple reading "your gallery" or "photography begins on time" is the
+ * same failure for trades as "your wedding" is for a family. Words that change
+ * with the studio's trade come from features/trades (tradeVocab(),
+ * tradeProfile()); what is left is photographer-only on purpose or not swept
+ * yet. Pinned per file in tests/trade-copy-allowlist.json; the pins only come
+ * down. Swept a file? Run
+ *   TRADE_COPY_WRITE=1 npx tsx --test tests/job-kind-copy.test.ts
+ */
+const TRADE_ALLOWLIST = "tests/trade-copy-allowlist.json";
+const PHOTO_WORDS = /\b(photos?|photographs?|photography|photographers?|photographing|galler(?:y|ies)|shoots?|shot lists?|albums?)\b/gi;
+
+test("photo words only come down", () => {
+  const pinned = JSON.parse(readFileSync(TRADE_ALLOWLIST, "utf8")) as Record<string, number>;
+  const counts = new Map(files.map((file) => [file, visibleWordCount(file, PHOTO_WORDS)] as const));
+  const over = [...counts]
+    .filter(([file, count]) => count > (pinned[file] ?? 0))
+    .map(([file, count]) => `${file}: ${count} (pinned ${pinned[file] ?? 0})`);
+  if (process.env.TRADE_COPY_WRITE === "1") {
+    assert.deepEqual(over, [], "the pins only come down: these files gained photo words");
+    const next = Object.fromEntries([...counts].filter(([, count]) => count > 0));
+    writeFileSync(TRADE_ALLOWLIST, `${JSON.stringify(next, null, 2)}\n`);
+    return;
+  }
+  assert.deepEqual(
+    over,
+    [],
+    "Photo words in copy a DJ, makeup artist or hair stylist, or their clients, may read. Use " +
+      "tradeVocab()/tradeProfile() from features/trades, or neutral words. Photographer-only copy " +
+      "belongs behind a trade check.",
+  );
+});
+
+test("the photo-word pins name real files", () => {
+  const pinned = JSON.parse(readFileSync(TRADE_ALLOWLIST, "utf8")) as Record<string, number>;
   const known = new Set(files);
   assert.deepEqual(
     Object.keys(pinned).filter((file) => !known.has(file)),

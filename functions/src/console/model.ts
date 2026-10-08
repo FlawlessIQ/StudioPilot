@@ -92,11 +92,14 @@ export const HEALTH_WEIGHT_LABELS: Record<HealthWeightKey, string> = {
 export const PLAN_LIST_PRICE_CENTS: Record<string, { monthly: number; yearly: number }> = {
   studio: { monthly: 15_000, yearly: 150_000 },
   multi_brand: { monthly: 29_900, yearly: 299_000 },
+  // DJs, makeup and hair (vendorPlanCards).
+  vendor: { monthly: 7_500, yearly: 75_000 },
 };
 
 export const PLAN_LABELS: Record<string, string> = {
   studio: "Studio",
   multi_brand: "Multi-Brand",
+  vendor: "Pro",
 };
 
 export type DiscountSummary = {

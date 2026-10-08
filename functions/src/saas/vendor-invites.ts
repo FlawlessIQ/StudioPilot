@@ -5,6 +5,7 @@ import { logger } from "firebase-functions";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { isReservedTestAddress } from "../communications/test-address.js";
 import { appUrl, platformEmailJob } from "../console/studio-owner.js";
+import { vendorTypeIsLive } from "../trades/trades.js";
 import { BOOKED_JOB_STATES, INVITED_VENDOR_TYPES } from "./referral-program.js";
 import { emailHash, ensureReferralCode } from "./referrals.js";
 
@@ -19,6 +20,8 @@ import { emailHash, ensureReferralCode } from "./referrals.js";
  * - it is a vendor (INVITED_VENDOR_TYPES: not a venue, insurer or a client's
  *   own contact) with an email, on an upcoming booked job that isn't an
  *   imported, quiet one;
+ * - its trade has a live StudioCue journey (trades.ts `LIVE_TRADES`): until
+ *   the DJ, makeup and hair journeys launch, only videographers qualify;
  * - the studio is trialing or paying and hasn't turned invites off
  *   (Subscription → Refer a studio);
  * - the address has never been invited by anyone, never unsubscribed, and
@@ -103,7 +106,11 @@ export async function sweepVendorInvites(db: Firestore, nowIso: string): Promise
       const tenantId = String(vendor.get("tenantId") ?? "");
       const email = String(vendor.get("email") ?? "").trim().toLowerCase();
       if (!tenantId || !email || vendor.get("archivedAt")) continue;
-      if (!(INVITED_VENDOR_TYPES as readonly string[]).includes(String(vendor.get("type") ?? ""))) continue;
+      const vendorType = String(vendor.get("type") ?? "");
+      if (!(INVITED_VENDOR_TYPES as readonly string[]).includes(vendorType)) continue;
+      // Only to a trade with a journey: a DJ invited before the DJ journey
+      // exists would land in a photographer's studio (trades.ts LIVE_TRADES).
+      if (!vendorTypeIsLive(vendorType)) continue;
       if (isReservedTestAddress(email)) continue;
       if ((sentToday.get(tenantId) ?? 0) >= PER_STUDIO_DAILY) continue;
       const hash = emailHash(email);

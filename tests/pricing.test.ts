@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { planCards } from "../config/saas-plans";
+import { allPlanCards, planCards } from "../config/saas-plans";
 import { planEntitlements } from "../features/subscriptions/entitlements";
 
 test("public StudioCue prices match the approved plan ladder", () => {
@@ -36,7 +36,7 @@ test("every published plan is sellable, and nothing sellable is unpublished", ()
   // entitlement with no card is a plan nobody can buy. Removing Solo touched
   // both tables and a third copy inside functions/, so this checks they came
   // out of it agreeing rather than trusting that they did.
-  const published = planCards.map((plan) => plan.key).sort();
+  const published = allPlanCards.map((plan) => plan.key).sort();
   const entitled = Object.keys(planEntitlements).sort();
   assert.deepEqual(published, entitled);
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRADES } from "@/features/trades/trades";
 
 export const auditFieldsSchema = z.object({
   createdAt: z.string().datetime(),
@@ -17,7 +18,9 @@ export const tenantSchema = auditFieldsSchema.extend({
   currency: z.string().length(3),
   dateFormat: z.string().min(1),
   status: z.enum(["trial", "active", "past_due", "suspended", "cancelled"]),
-  subscriptionPlan: z.enum(["studio", "multi_brand"]),
+  subscriptionPlan: z.enum(["studio", "multi_brand", "vendor"]),
+  /** What the studio does (features/trades/trades.ts). Absent on studios from before trades: a photographer. */
+  trade: z.enum(TRADES).optional(),
   archivedAt: z.string().datetime().nullable(),
 });
 

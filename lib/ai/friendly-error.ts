@@ -532,6 +532,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   STRIPE_REQUEST_FAILED:
     "Stripe couldn't complete that request. Try again in a moment.",
   PLAN_REQUIRED: "Choose a plan and a billing period first.",
+  PLAN_NOT_FOR_TRADE: "That plan isn't for your kind of studio. Choose one of the plans shown here.",
   ENABLED_REQUIRED: "Choose whether vendor invites are on or off, then try again.",
   REFERRAL_CODE_UNAVAILABLE: "We couldn't make your referral code just now. Try again in a minute.",
   BILLING_COMMAND_FAILED:

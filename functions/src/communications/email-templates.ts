@@ -1,3 +1,4 @@
+import { TRADE_LABELS, tradeProfile } from "../trades/trades.js";
 import { releaseHeadline } from "../post-event/deliverables.js";
 import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
@@ -739,11 +740,15 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // The trade the role names: a videographer offered "a photography
       // assignment" reads it as the wrong email (GR Productions staffs both).
       const trade = /video|cinema|film/i.test(role) ? "video" : "photography";
+      // A DJ's or a makeup artist's crew get their own trade's word (trades.ts).
+      const studioTrade = tradeProfile(values.trade);
+      const offerTrade =
+        studioTrade.family === "photo" ? (trade === "video" ? "Video" : "Photography") : TRADE_LABELS[studioTrade.trade];
       // The same offer again for the last name on the list, held open rather
       // than expired (crew/commands.ts, remindLastCandidate).
       const reminder = values.reminder === true;
       return {
-        subject: `${reminder ? "Reminder: " : ""}${role ? `${role} — ` : ""}${trade === "video" ? "Video" : "Photography"} assignment from ${brand.studioName}`,
+        subject: `${reminder ? "Reminder: " : ""}${role ? `${role} — ` : ""}${offerTrade} assignment from ${brand.studioName}`,
         preheader: reminder
           ? "The studio is still holding this job for you."
           : respondBy
@@ -1576,10 +1581,14 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               : "Your portal has everything we have for the day: please check it"
           }, and reply to this email if anything has changed.`,
           // A wedding's words exactly; every other kind its own (job-kinds.ts).
-          // A family was being asked to hang up the wedding dress.
-          eventKind === "wedding"
-            ? "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive."
-            : `To help photography begin on time, it helps to have ready: ${vocab(eventKind).dayBeforeChecklist.join("; ")}.`,
+          // A family was being asked to hang up the wedding dress. Only for a
+          // photographer: a DJ's couple has no dress to hang up for the DJ
+          // (trades.ts; each trade's own prep comes with its journey).
+          ...(!tradeProfile(values.trade).clientDayBefore
+            ? []
+            : eventKind === "wedding"
+              ? ["To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive."]
+              : [`To help photography begin on time, it helps to have ready: ${vocab(eventKind).dayBeforeChecklist.join("; ")}.`]),
         ],
         action: primary,
         secondaryAction:
@@ -1599,7 +1608,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "It was a privilege to be there",
         paragraphs: [
           greeting,
-          `We're grateful for the trust you placed in us${project}. We'll keep your portal updated as post-production progresses.`,
+          tradeProfile(values.trade).delivery
+            ? `We're grateful for the trust you placed in us${project}. We'll keep your portal updated as post-production progresses.`
+            : `We're grateful for the trust you placed in us${project}. We loved being part of it.`,
         ],
       };
     case "delivery": {

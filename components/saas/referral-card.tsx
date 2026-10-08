@@ -133,7 +133,7 @@ export function ReferralCard() {
             <span>
               <strong>Invite the vendors on my jobs</strong>
               <small>
-                {`Once a job is booked, its planner, DJ, florist, hair and makeup and other vendors get one email from StudioCue with your code. Never venues, and never anyone twice. ${status.vendorInvites.sent} invited so far.`}
+                {`Once a job is booked, the vendors on it get one email from StudioCue with your code, as soon as StudioCue is built for their line of work: videographers today, DJs, hair and makeup next. Never venues, and never anyone twice. ${status.vendorInvites.sent} invited so far.`}
               </small>
             </span>
           </label>

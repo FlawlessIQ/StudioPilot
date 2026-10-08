@@ -1,5 +1,5 @@
 import {
-  journeyPhaseLabel,
+  journeyPhaseLabelFor,
   journeyPhaseOrder,
 } from "@/features/journey/phases";
 import { projectPhase, projectPhaseIndex } from "@/features/projects/lifecycle";
@@ -17,14 +17,14 @@ import { projectPhase, projectPhaseIndex } from "@/features/projects/lifecycle";
  * — cancelled, archived — draws nothing rather than an empty track that
  * would read as "not started".
  */
-export function PhaseTrack({ state }: { state: string }) {
+export function PhaseTrack({ state, trade }: { state: string; trade?: unknown }) {
   const phase = projectPhase(state);
   if (!phase) return null;
   const reached = projectPhaseIndex(state);
   return (
     <span
       className="phase-track"
-      title={`${journeyPhaseLabel[phase]} · arc ${reached} of ${journeyPhaseOrder.length}`}
+      title={`${journeyPhaseLabelFor(phase, trade)} · arc ${reached} of ${journeyPhaseOrder.length}`}
     >
       {journeyPhaseOrder.map((entry, index) => (
         <i
@@ -39,7 +39,7 @@ export function PhaseTrack({ state }: { state: string }) {
         />
       ))}
       <span className="ds-sr-only">
-        {journeyPhaseLabel[phase]} — arc {reached} of {journeyPhaseOrder.length}
+        {journeyPhaseLabelFor(phase, trade)} — arc {reached} of {journeyPhaseOrder.length}
       </span>
     </span>
   );

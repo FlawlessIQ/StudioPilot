@@ -220,6 +220,7 @@ export function useTodayInbox(): {
       const { current } = projectJourney({
         projectId,
         profile: projectProfile(project),
+        trade: workspace.tenantTrade,
         state: text(project.state),
         eventDate: text(project.eventDate) || null,
         today,

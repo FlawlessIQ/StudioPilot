@@ -9,6 +9,8 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { pendingInvitations, type PendingInvitation } from "@/lib/auth/pending-invitations";
 import { HEARD_ASKS_WHO, HEARD_OPTIONS, rememberedAttribution, type HeardValue } from "@/features/growth/attribution";
 import { rememberedPromotionCode } from "@/features/subscriptions/promotion-code";
+import { chosenTrade } from "@/features/trades/chosen-trade";
+import { LIVE_TRADES, TRADE_OPTIONS, type Trade } from "@/features/trades/trades";
 
 /** What each kind of invitation lets the person do, in a sentence. */
 const INVITED_TO: Record<PendingInvitation["kind"], string> = {
@@ -91,6 +93,14 @@ function OnboardingFlow() {
   );
   const [checkoutNext, setCheckoutNext] = useState(true);
   const [heard, setHeard] = useState<HeardValue | "">("");
+  // "What do you do?" (features/trades/trades.ts). Live trades are offered;
+  // one not yet live shows only when the visitor arrived with it (`?trade=`).
+  const arrivedWith = useSyncExternalStore(noSubscribe, chosenTrade, () => null);
+  const [trade, setTrade] = useState<Trade | "">("");
+  const pickedTrade: Trade = trade || arrivedWith || "photographer";
+  const tradeChoices = TRADE_OPTIONS.filter(
+    (option) => LIVE_TRADES.includes(option.value) || option.value === arrivedWith,
+  );
 
   /**
    * Who is here, before they type anything.
@@ -224,6 +234,7 @@ function OnboardingFlow() {
             legalName: String(data.get("businessName")),
             timezone: String(data.get("timezone")),
             currency: String(data.get("currency")),
+            trade: pickedTrade,
             // Where the studio came from, for the Console's Sources page
             // (features/growth/attribution.ts). Never required.
             attribution: {
@@ -370,6 +381,19 @@ function OnboardingFlow() {
     <>
     <SetupHeading invited={false} />
     <form className="sign-in-form" onSubmit={submit}>
+      {tradeChoices.length > 1 ? (
+        <label>
+          What do you do? <span className="required-mark">Required</span>
+          <select name="trade" onChange={(event) => setTrade(event.target.value as Trade)} value={pickedTrade}>
+            {tradeChoices.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <small>{tradeChoices.find((option) => option.value === pickedTrade)?.hint}</small>
+        </label>
+      ) : null}
       <label>
         Studio name <span className="required-mark">Required</span>
         <input
@@ -377,7 +401,7 @@ function OnboardingFlow() {
           required
           minLength={2}
           maxLength={120}
-          placeholder="Alder & Muse Photography"
+          placeholder={pickedTrade === "dj" ? "Spin Theory DJs" : pickedTrade === "makeup" ? "Glow by Ana" : pickedTrade === "hair" ? "Jess Styles Bridal" : "Alder & Muse Photography"}
         />
         <small>Your legal business name for agreements can be changed any time in Studio details.</small>
       </label>

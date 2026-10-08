@@ -7,7 +7,7 @@
  * lifecycle, MRR) is made on the server and read here as data.
  */
 
-import { planCards } from "@/config/saas-plans";
+import { allPlanCards } from "@/config/saas-plans";
 
 export const SETUP_KEYS = ["inquiries", "availability", "packages", "agreement", "questionnaire", "insurance"] as const;
 export type SetupKey = (typeof SETUP_KEYS)[number];
@@ -47,6 +47,7 @@ export const LIFECYCLE_LABELS: Record<LifecycleStage, string> = {
 export const PLAN_LABELS: Record<string, string> = {
   studio: "Studio",
   multi_brand: "Multi-Brand",
+  vendor: "Pro",
 };
 
 /**
@@ -55,7 +56,7 @@ export const PLAN_LABELS: Record<string, string> = {
  * than copied: a copy here said $250 for a month after the price changed.
  */
 export const PLAN_LIST_PRICE_CENTS: Record<string, { monthly: number; yearly: number }> = Object.fromEntries(
-  planCards.map((plan) => [plan.key, { monthly: plan.monthlyCents, yearly: plan.yearlyCents }]),
+  allPlanCards.map((plan) => [plan.key, { monthly: plan.monthlyCents, yearly: plan.yearlyCents }]),
 );
 
 export type HealthWeightKey =
@@ -131,6 +132,8 @@ export type ConsoleStudio = {
   tenantId: string;
   name: string;
   legalName: string | null;
+  /** What the studio does (features/trades/trades.ts). Absent on rows built before trades: a photographer. */
+  trade?: string;
   slug: string | null;
   timezone: string | null;
   createdAt: string | null;

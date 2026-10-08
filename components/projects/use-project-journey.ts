@@ -4,6 +4,7 @@ import { isSalesConsultation } from "@/features/consultations/purpose";
 import { finalCallState } from "@/features/consultations/final-call";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { projectProfile } from "@/features/job-kinds/job-kinds";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
 import {
@@ -64,6 +65,7 @@ export function useProjectJourney({
    */
   readinessEvidence: ReadinessEvidence;
 } {
+  const tenantTrade = useWorkspace().tenantTrade;
   const leads = useTenantDocuments("leads");
   const conversations = useTenantDocuments("conversations");
   const consultations = useTenantDocuments("consultations");
@@ -175,6 +177,8 @@ export function useProjectJourney({
     projectId,
     // Which steps this kind of job has (job-kinds.ts).
     profile: journeyProject ? projectProfile(journeyProject) : undefined,
+    // What the studio does (trades.ts): a DJ has nothing to deliver.
+    trade: tenantTrade,
     state: projectState,
     eventDate,
     today: todayLocalIso(),

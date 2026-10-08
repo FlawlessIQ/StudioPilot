@@ -772,6 +772,7 @@ export function LiveProjectRows({
   view: string;
 }) {
   const { records, error, loading } = useTenantDocuments("projects");
+  const trade = useWorkspace().tenantTrade;
   // The same journey engine Today runs, so the two screens can never name
   // different next steps for the same job. The document cache is shared, so
   // this costs no extra reads.
@@ -961,9 +962,9 @@ export function LiveProjectRows({
               "advancing" was three different moments wearing one green. */}
           <span className="state-cell">
             <StatusBadge tone={stateTone(project.state)}>
-              {projectStateLabel(project.state)}
+              {projectStateLabel(project.state, trade)}
             </StatusBadge>
-            <PhaseTrack state={project.state} />
+            <PhaseTrack state={project.state} trade={trade} />
           </span>
           {/* What the job is worth, and what is still owed on it — the two
               questions a photographer scans this list for. Readiness moved

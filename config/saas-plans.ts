@@ -46,3 +46,42 @@ export const planCards = [
     ],
   },
 ] as const;
+
+/**
+ * The plan for the vendors who work alongside photographers: DJs, makeup
+ * artists and hair stylists (features/trades/trades.ts). Conor, 2026-10-08:
+ * $75 a month full price, because their journey has fewer steps and fewer
+ * features than a photographer's; discounts come later. Kept apart from
+ * `planCards` so the photographer's pricing page, homepage and structured data
+ * never show it; a studio sees only its trade's plans (`plansForTrade`).
+ */
+export const vendorPlanCards = [
+  {
+    key: "vendor",
+    name: "Pro",
+    monthlyCents: 7_500,
+    yearlyCents: 75_000,
+    monthly: "$75",
+    yearly: "$750",
+    description: "Bookings, planning and payments for wedding and event vendors.",
+    users: "2 internal users",
+    ai: "1,000 AI actions",
+    highlight: true,
+    features: [
+      "Unlimited clients and jobs, up to 10 crew",
+      "Proposals, agreements and payments",
+      "Planning forms and the plan for the day",
+      "Cue drafts every next step for you to approve",
+    ],
+  },
+] as const;
+
+/** Every plan StudioCue sells, for the Console's revenue figures and plan lookups. */
+export const allPlanCards = [...planCards, ...vendorPlanCards];
+
+export type PlanCard = (typeof allPlanCards)[number];
+
+/** The plans a studio of this trade can buy, by key (trades.ts `plans`). */
+export function plansForTrade(planKeys: readonly string[]): PlanCard[] {
+  return allPlanCards.filter((card) => planKeys.includes(card.key));
+}

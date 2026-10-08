@@ -964,7 +964,7 @@ export function ThreadMinimap({ steps }: { steps: JourneyStep[] }) {
   // Fifteen identical ticks is an accurate index and a poor map. The arcs
   // are what a photographer thinks in: am I still selling this, or am I
   // shooting it in a fortnight?
-  const groups = groupJourneyByPhase(steps);
+  const groups = groupJourneyByPhase(steps, useWorkspace().tenantTrade);
   return (
     <aside className="thread-minimap" aria-label="Journey">
       <div className="thread-minimap-head">

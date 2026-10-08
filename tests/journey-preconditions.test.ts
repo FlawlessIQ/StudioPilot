@@ -7,6 +7,7 @@ import {
   type JourneyStepKey,
 } from "@/features/journey/steps";
 import { projectStateSchema } from "@/features/projects/schema";
+import { TRADES } from "@/features/trades/trades";
 
 /**
  * The rule this file exists to hold: the next move is always a move the studio
@@ -96,6 +97,9 @@ function* journeys(): Generator<JourneyInput> {
                     { state: "invited", lockOn: "2027-05-15", startsAt: null },
                     { state: "booked", lockOn: "2027-05-15", startsAt: "2027-05-20T19:00:00Z" },
                   ][(STATES.indexOf(state) + PROPOSAL.indexOf(proposalStatus)) % 4] as JourneyInput["finalCall"],
+                  // Each trade (features/trades/trades.ts): a DJ or makeup
+                  // artist has no delivery, so the review follows the day.
+                  trade: TRADES[(STATES.indexOf(state) + CONTRACT.indexOf(contractStatus)) % TRADES.length],
                 };
               }
             }
@@ -115,6 +119,7 @@ const describe = (input: JourneyInput) =>
     `retainer=${input.retainerInvoiceStatus}`,
     `form=${input.questionnaireStatus}`,
     `schedule=${input.scheduleStatus}`,
+    `trade=${String(input.trade)}`,
   ].join(" ");
 
 /** The first few offenders, so a failure reads as a diagnosis not a dump. */

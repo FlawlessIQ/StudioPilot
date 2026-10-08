@@ -3,6 +3,7 @@
 import { BadgeCheck, CalendarDays, Camera, MapPin, MessageCircle, Sparkles } from "lucide-react";
 import { Button, Card, List, Main, Note, PoweredBy, Row } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { eventHasPassed } from "@/features/client/portal-day";
 import { portalStageIsBehind } from "@/features/client/portal-stage";
 import { todayLocalIso } from "@/lib/format/event-date";
@@ -55,7 +56,7 @@ export function ClientEvent() {
         <Row icon={Sparkles} subtitle="Event" title={sentenceCase(text(value.eventType, words.event).replaceAll("_", " "))} />
         <Row
           icon={Camera}
-          subtitle="Lead photographer"
+          subtitle={tradeVocab(workspace.tenantTrade).lead}
           title={text(
             value.leadPhotographerName,
             past ? "Ask your studio who covered your day" : "Your studio will confirm this",

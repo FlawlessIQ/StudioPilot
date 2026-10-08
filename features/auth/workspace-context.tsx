@@ -41,6 +41,7 @@ import {
   type WorkspaceBootstrap,
 } from "@/lib/firebase/workspace-bootstrap";
 import { resolveTenantBrand, type TenantBrand } from "@/features/branding/tenant-brand";
+import { tradeOf, type Trade } from "@/features/trades/trades";
 
 type WorkspaceArea = "studio" | "client" | "crew";
 
@@ -73,6 +74,12 @@ type WorkspaceState = {
   tenantBrand?: TenantBrand | null;
   tenantSlug: string;
   tenantPlan: string;
+  /**
+   * What the studio does (features/trades/trades.ts): its words and which
+   * steps its journey has. Optional, and a photographer when absent, so
+   * workspaces built by hand in tests read as they always did.
+   */
+  tenantTrade?: Trade;
   /**
    * Billing status from subscriptions/{tenantId} (studio area only). Drives the
    * app gate: card-required onboarding leaves this `incomplete` until Checkout,
@@ -416,9 +423,11 @@ export function WorkspaceProvider({
             ),
             tenantBrand: resolveTenantBrand(tenant),
             tenantSlug: String(tenant.publicSlug ?? ""),
+            tenantTrade: tradeOf(tenant.trade),
             tenantPlan: String(
               tenant.subscriptionPlan
-                ? `${tenant.subscriptionPlan} plan`
+                ? // The vendor plan is sold as "Pro" (config/saas-plans.ts).
+                  `${tenant.subscriptionPlan === "vendor" ? "Pro" : tenant.subscriptionPlan} plan`
                 : roleLabel(membership.role),
             ),
             subscriptionStatus,

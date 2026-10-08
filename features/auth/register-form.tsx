@@ -12,6 +12,7 @@ import { requestBrandedAuthEmail } from "@/lib/auth/email-client";
 import { GoogleSignIn } from "@/features/auth/google-sign-in";
 import { rememberChosenPlan } from "@/features/subscriptions/chosen-plan";
 import { rememberPromotionCode } from "@/features/subscriptions/promotion-code";
+import { rememberChosenTrade } from "@/features/trades/chosen-trade";
 import { authIsLive } from "@/lib/runtime-mode";
 export function RegisterForm({
   next,
@@ -40,6 +41,8 @@ export function RegisterForm({
     const search = new URLSearchParams(window.location.search);
     rememberChosenPlan(search.get("plan"));
     if (intent === "studio") rememberPromotionCode(search.get("code"));
+    // A DJ, makeup or hair landing page: "What do you do?" starts there.
+    if (intent === "studio") rememberChosenTrade(search.get("trade"));
   }, [intent]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

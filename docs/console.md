@@ -308,6 +308,7 @@ Added 2026-10-08 (Conor). It replaces Partners (2026-10-07), whose codes, payout
   - One balance credit per referral (`saasReferralCredits/{referred tenant}`, Stripe idempotency key to match), then a `billing_referral_credit` email.
 - **Vendor invites.** `vendorInviteScheduler` runs daily at 15:30 UTC over vendors changed in the last three days.
   - Who gets one: a vendor (planner, florist, DJ, band, videographer, hair and makeup, caterer, transportation, other; never venues, insurers or clients' contacts) on an upcoming booked job that isn't an imported, quiet one.
+  - Only when the vendor's trade has a live journey (`LIVE_TRADES`, `VENDOR_TYPE_TRADES` in `features/trades/trades.ts`). Until the DJ, makeup and hair journeys launch (docs/vendor-journeys-plan.md), that means videographers only. The daily sweep only looks back three days, so launching a trade includes a one-off sweep of vendors on upcoming booked jobs (plan, Phase 6).
   - Which studios: trialing or active, with invites on (the default; the studio's Refer a studio card turns them off).
   - Once per address, ever (`vendorInvites/{sha256(email)}`). Never to an existing StudioCue user, a client of that studio, or anyone unsubscribed.
   - At most 10 per studio and 200 per run.

@@ -246,7 +246,7 @@ export const billingNoticeScheduler = onSchedule(
         dedupeKey: trialEndsAt.slice(0, 10),
         values: {
           trialEndText: longDateIn(trialEndsAt, zone),
-          planName: subscription.get("plan") === "multi_brand" ? "Multi-Brand" : "Studio",
+          planName: subscription.get("plan") === "multi_brand" ? "Multi-Brand" : subscription.get("plan") === "vendor" ? "Pro" : "Studio",
           priceText: planPriceText(subscription.get("unitAmountCents"), subscription.get("cadence")),
         },
       });

@@ -1,3 +1,4 @@
+import { tradeOf } from "../trades/trades.js";
 import {
   DEFAULT_HEALTH_WEIGHTS,
   SETUP_KEYS,
@@ -124,6 +125,8 @@ export function buildStudioSummary(
     name,
     nameLower: name.toLowerCase(),
     legalName: text(tenant.legalName),
+    // What the studio does (trades.ts): photographer, DJ, makeup or hair.
+    trade: tradeOf(tenant.trade),
     slug: text(tenant.publicSlug) ?? text(tenant.slug),
     timezone: text(tenant.timezone),
     createdAt: text(tenant.createdAt),

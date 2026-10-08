@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { tradeMoves } from "../trades/trades.js";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -1649,6 +1650,9 @@ export const crmCommand = onRequest(
             `projects/${command.input.projectId}`,
           );
           const projectSnapshot = await transaction.get(projectReference);
+          // A trade with nothing to deliver (a DJ, a makeup artist) goes from
+          // the day straight to the review, or closed (trades.ts).
+          const tenantSnapshot = await transaction.get(db.doc(`tenants/${command.tenantId}`));
           const project = projectSnapshot.data() as
             | {
                 tenantId: string;
@@ -1669,11 +1673,15 @@ export const crmCommand = onRequest(
           if (project.stateVersion !== command.input.expectedVersion) {
             throw new Error("VERSION_CONFLICT");
           }
-          if (!transitions[project.state].includes(command.input.targetState)) {
+          const allowedTargets = [
+            ...transitions[project.state],
+            ...(tradeMoves(tenantSnapshot.get("trade"), project.state) as ProjectStateName[]),
+          ];
+          if (!allowedTargets.includes(command.input.targetState)) {
             // Says where the job can go, so the refusal is an answer
             // (friendly-error.ts reads the list after the colon).
             throw new Error(
-              `INVALID_TRANSITION:${project.state}>${transitions[project.state]
+              `INVALID_TRANSITION:${project.state}>${allowedTargets
                 .filter((target) => transitionRoute(project.state, target) === "transitionProject")
                 .join(",")}`,
             );

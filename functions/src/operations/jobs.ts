@@ -1,4 +1,5 @@
 import { emailHash } from "../communications/email-hash.js";
+import { tradeOf } from "../trades/trades.js";
 import { crewRoundupPlanFor } from "../crew/monthly-roundup.js";
 import { contractStillAwaitingSignature } from "../contracts/reminders.js";
 import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
@@ -821,6 +822,9 @@ async function emailContext(
           project?.get("timezone"),
           tenant?.get("timezone"),
         ) ?? "UTC",
+      // What the studio does (trades.ts), so a DJ's couple isn't told about
+      // post-production or the photography starting on time.
+      trade: firstString(document.get("trade")) ?? tradeOf(tenant?.get("trade")),
       // The kind of work, so the words fit it: a family is never told about
       // their wedding (job-kinds.ts). The email's own value wins; a lead's
       // email carries the kind it was captured with.

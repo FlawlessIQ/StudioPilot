@@ -6,7 +6,7 @@ import { buildStudioSummary, discountFrom, type StudioRaw } from "../functions/s
 import { CONSOLE_CAPABILITIES, roleCan, roleFromClaims } from "../functions/src/console/roles.ts";
 import * as browserRoles from "../features/console/roles.ts";
 import * as browser from "../features/console/model.ts";
-import { planCards } from "../config/saas-plans.ts";
+import { allPlanCards } from "../config/saas-plans.ts";
 
 /**
  * The Console's judgements (docs/console.md): health, lifecycle, MRR, the
@@ -195,9 +195,9 @@ test("the browser's labels and prices are the server's", () => {
   assert.deepEqual(browser.PLAN_LIST_PRICE_CENTS, server.PLAN_LIST_PRICE_CENTS);
   // Both are the published prices. The server copy said $250 for a month
   // after Stripe and the pricing page moved to $150.
-  for (const plan of planCards)
+  for (const plan of allPlanCards)
     assert.deepEqual(server.PLAN_LIST_PRICE_CENTS[plan.key], { monthly: plan.monthlyCents, yearly: plan.yearlyCents }, plan.key);
-  assert.deepEqual(Object.keys(server.PLAN_LIST_PRICE_CENTS).sort(), planCards.map((plan) => plan.key).sort());
+  assert.deepEqual(Object.keys(server.PLAN_LIST_PRICE_CENTS).sort(), allPlanCards.map((plan) => plan.key).sort());
   assert.deepEqual(browser.DEFAULT_HEALTH_WEIGHTS, server.DEFAULT_HEALTH_WEIGHTS);
   assert.deepEqual(browser.HEALTH_WEIGHT_LABELS, server.HEALTH_WEIGHT_LABELS);
   assert.deepEqual([...browser.SETUP_KEYS], [...server.SETUP_KEYS]);

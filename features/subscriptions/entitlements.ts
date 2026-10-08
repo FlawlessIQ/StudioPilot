@@ -19,7 +19,7 @@ export type Entitlements = z.infer<typeof entitlementSchema>;
  * charged a studio for growing, and the seat cap refuses rather than
  * prompts.
  */
-export type PlanKey = "studio" | "multi_brand";
+export type PlanKey = "studio" | "multi_brand" | "vendor";
 
 export const planEntitlements: Readonly<Record<PlanKey, Entitlements>> = {
   studio: {
@@ -33,6 +33,19 @@ export const planEntitlements: Readonly<Record<PlanKey, Entitlements>> = {
     advancedReportingEnabled: true,
     apiAccessEnabled: false,
     prioritySupportEnabled: true,
+  },
+  // DJs, makeup artists and hair stylists (config/saas-plans.ts, $75 a month).
+  vendor: {
+    maxInternalUsers: 2,
+    maxBrands: 1,
+    maxActiveSubcontractors: 10,
+    aiActionsMonthly: 1000,
+    smsEnabled: true,
+    coiEnabled: true,
+    customWorkflowsEnabled: true,
+    advancedReportingEnabled: false,
+    apiAccessEnabled: false,
+    prioritySupportEnabled: false,
   },
   multi_brand: {
     maxInternalUsers: 15,

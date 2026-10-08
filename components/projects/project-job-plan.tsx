@@ -1,5 +1,6 @@
 "use client";
 
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { Check, ChevronRight, UserRound } from "lucide-react";
 import Link from "next/link";
 import { groupJourneyByPhase } from "@/features/journey/phases";
@@ -117,7 +118,7 @@ export function ProjectJobPlan({
 }) {
   const complete = steps.filter((step) => step.status === "complete").length;
   const missed = steps.filter((step) => step.status === "passed").length;
-  const groups = groupJourneyByPhase(steps);
+  const groups = groupJourneyByPhase(steps, useWorkspace().tenantTrade);
 
   return (
     <section className="project-job-plan" id="project-checkpoints">

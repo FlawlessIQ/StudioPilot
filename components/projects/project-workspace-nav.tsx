@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -24,12 +26,14 @@ export function ProjectWorkspaceNav({
   compact?: boolean;
 }) {
   const pathname = usePathname();
+  // Nothing to deliver (a DJ, a makeup artist): no Delivery tab (trades.ts).
+  const delivers = tradeProfile(useWorkspace().tenantTrade).delivery;
   return (
     <nav
       aria-label="Project workspace"
       className={compact ? "project-workspace-nav is-contextual" : "project-workspace-nav"}
     >
-      {links.map((item) => {
+      {links.filter((item) => delivers || item.route !== "delivery").map((item) => {
         const Icon = item.icon;
         const href =
           item.route === "projects"

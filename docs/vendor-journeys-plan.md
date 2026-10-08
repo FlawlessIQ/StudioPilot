@@ -7,6 +7,12 @@ Conor, 2026-10-08:
 
 The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
 
+## Status
+
+- **Phase 0 and Phase 1 shipped 2026-10-08.** Trades live in `features/trades/trades.ts`. `LIVE_TRADES` is still photographer only, so nobody can sign up as a DJ, makeup artist or hair stylist except through a `?trade=` link. Stripe has the Pro product (`prod_VPAbQ7qidGVYdW`, $75/mo, $750/yr).
+- **Walked in the emulator.** A DJ studio signed up through the real onboarding function and started on Pro, with only the event details form and no gallery or day-before email. Its job reads Played → Afterwards → Review. The server allowed the move from the day to the review for DJ and makeup studios and refused it for a photographer.
+- **Phase 2 found this for the backlog:** setup ("2 of 7 answered") still asks photographer questions. Check each setup step per trade.
+
 ## Principles
 
 - **One engine, labelled per trade.** Steps, records and commands are shared;
@@ -29,7 +35,8 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
 - **0.1 Pause vendor invites for trades that aren't live.** Add `LIVE_TRADES`
   to `referral-program.ts`. `vendorInviteScheduler` invites a vendor only when
   the trade its `type` maps to is live. Photographers and videographers are
-  live today. Records stay, so invites go out when the trade launches.
+  live today. The daily sweep looks back three days, so Phase 6 runs a
+  one-off sweep of vendors on upcoming booked jobs when a trade launches.
 - **0.2 Backlog entries:** DJ overtime billing; vendor-plan discounts and
   referral offers; the referral button on Today; referrals between trades;
   linking timelines across vendors; one studio offering both hair and makeup.
@@ -117,7 +124,7 @@ end to end in the emulator.
 
 - Landing pages `/dj`, `/makeup` and `/hair`, with sign-up links carrying `?trade=`. Pricing page shows $75.
 - How-to guides per trade, and Cue's help.
-- **Vendor invites back on per trade** (`LIVE_TRADES`), with invite copy that names the vendor's own trade. Referrals resume after that (backlog).
+- **Vendor invites back on per trade** (`LIVE_TRADES`), with invite copy that names the vendor's own trade, plus a one-off sweep of vendors on upcoming booked jobs for the newly live trade. Referrals resume after that (backlog).
 - **Pilot:** one real DJ, one makeup artist and one hair stylist, ideally from Gabe's network, walk their own next wedding.
 - Monitoring: in Console → Studios, filter by trade to watch activation.
 

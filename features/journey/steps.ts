@@ -1,4 +1,5 @@
 import { vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import type { ProjectState } from "@/features/projects/schema";
 import type { FileRef } from "@/features/documents/file-ref";
 import { projectStateLabel } from "@/features/projects/state-label";
@@ -332,6 +333,12 @@ export type JourneyInput = {
     JourneyProfile,
     "kind" | "consultation" | "agreement" | "payment" | "runOfShow" | "crew" | "coi"
   > & { album?: boolean };
+  /**
+   * What the studio does (features/trades/trades.ts): its words for the crew,
+   * the plan of the day and the day itself, and whether anything is delivered
+   * afterwards. Absent is a photographer, the journey as it always was.
+   */
+  trade?: unknown;
 };
 
 const STATE_RANK: Record<string, number> = {
@@ -390,8 +397,6 @@ export function invoiceIsOverdue(
  * history of the job is still its history.
  */
 function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
-  const profile = input.profile;
-  if (!profile) return;
   const drop = (key: JourneyStepKey) => {
     const index = steps.findIndex((step) => step.key === key);
     if (index >= 0) steps.splice(index, 1);
@@ -400,6 +405,15 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
     const step = steps.find((candidate) => candidate.key === key);
     if (step) step.title = title;
   };
+  // The studio's trade (trades.ts): a DJ or a makeup artist delivers nothing
+  // afterwards, so the day leads straight to the review. A delivery already
+  // recorded stays, as every step with a record does.
+  const trade = tradeProfile(input.trade);
+  if (!trade.delivery && !input.hasDelivery) drop("delivery");
+  if (!trade.album) retitle("album_review", "Review");
+  if (!trade.clientDayBefore && !input.dayBeforeDraftStatus) drop("day_before");
+  const profile = input.profile;
+  if (!profile) return;
   if (!profile.agreement && !input.contractStatus) drop("contract");
   if (!profile.consultation && !input.hasConsultation) drop("consultation");
   if (!profile.coi && !input.coiStatus) drop("coi");
@@ -442,6 +456,8 @@ export function projectJourney(input: JourneyInput): {
   // The kind's words: "the family", "Session details" (job-kinds.ts). No
   // profile is the wedding journey, as it always was.
   const words = vocab(input.profile?.kind ?? "wedding");
+  const tradeWords = tradeVocab(input.trade);
+  const delivers = tradeProfile(input.trade).delivery;
   const who = words.clientFallback;
   const Who = `${who.charAt(0).toUpperCase()}${who.slice(1)}`;
   const days = daysUntil(input.eventDate, input.today);
@@ -818,7 +834,7 @@ export function projectJourney(input: JourneyInput): {
   const scheduleWaiting = input.scheduleStatus === "client_review";
   push({
     key: "run_of_show",
-    title: "Run of show",
+    title: tradeWords.planOfDay ?? "Run of show",
     // "Published" is shared, not approved: publishing asks the couple to
     // approve (approvalState client_pending), and this said "Approved and
     // shared" from the moment it went out.
@@ -941,7 +957,7 @@ export function projectJourney(input: JourneyInput): {
     settled("crew-acknowledged");
   push({
     key: "crew",
-    title: "Crew confirmed",
+    title: tradeWords.crewStep,
     // A tick on a job with no crew. Either it is solo or the studio settled
     // the checkpoint by hand; both need the sentence.
     explain:
@@ -1152,9 +1168,9 @@ export function projectJourney(input: JourneyInput): {
     key: "event_day",
     title: needsReconciling ? "Did this go ahead?" : "Event day",
     detail: needsReconciling
-      ? `The date passed ${Math.abs(days ?? 0)} days ago and this job is still marked ${projectStateLabel(String(input.state)).toLowerCase()}.`
+      ? `The date passed ${Math.abs(days ?? 0)} days ago and this job is still marked ${projectStateLabel(String(input.state), input.trade).toLowerCase()}.`
       : eventBehindThem
-        ? "Covered"
+        ? tradeWords.dayDone
         : input.eventDate ?? "Date pending",
     status: needsReconciling
       ? "current"
@@ -1163,11 +1179,12 @@ export function projectJourney(input: JourneyInput): {
         : "upcoming",
     action: null,
     advance: needsReconciling
-      ? { targetState: "EVENT_COMPLETE", label: "Yes, we shot it" }
+      ? { targetState: "EVENT_COMPLETE", label: tradeWords.didIt }
       : null,
   });
 
-  const deliveryDone = input.hasDelivery || stateRank >= 10;
+  // Nothing to deliver (a DJ, a makeup artist): the review follows the day.
+  const deliveryDone = input.hasDelivery || stateRank >= 10 || (!delivers && eventBehindThem);
   push({
     key: "delivery",
     title: "Gallery delivered",
@@ -1205,7 +1222,9 @@ export function projectJourney(input: JourneyInput): {
     title: "Album & review",
     detail: input.albumOrReviewDone
       ? "Selections and review requested"
-      : "Selection reminders, then a Google review ask",
+      : tradeProfile(input.trade).album
+        ? "Selection reminders, then a Google review ask"
+        : "A thank-you, then a Google review ask",
     status: input.albumOrReviewDone
       ? "complete"
       : deliveryDone

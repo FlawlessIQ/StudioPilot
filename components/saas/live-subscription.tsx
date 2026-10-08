@@ -6,7 +6,8 @@ import { BrainCircuit, CheckCircle2, CreditCard, UsersRound } from "lucide-react
 import { doc, onSnapshot } from "firebase/firestore";
 import { BillingAction } from "@/components/saas/billing-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { planCards } from "@/config/saas-plans";
+import { allPlanCards, plansForTrade } from "@/config/saas-plans";
+import { tradeProfile } from "@/features/trades/trades";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { planEntitlements } from "@/features/subscriptions/entitlements";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -44,7 +45,9 @@ export function LiveSubscription() {
       unsubscribeUsage();
     };
   }, [workspace.tenantId]);
-  const plan = String(subscription?.plan ?? "studio");
+  // A DJ, a makeup artist or a hair stylist sees only their trade's plan (trades.ts).
+  const tradeCards = plansForTrade(tradeProfile(workspace.tenantTrade).plans);
+  const plan = String(subscription?.plan ?? tradeCards[0]?.key ?? "studio");
   // Before a trial there is no current plan, only the one picked on the
   // website (if any); after, the subscription says.
   const picked = useSyncExternalStore(noSubscribe, chosenPlan, () => null);
@@ -184,7 +187,7 @@ export function LiveSubscription() {
           <StatusBadge tone={["active", "trialing"].includes(status) ? "success" : "warning"}>
             {preTrial
               ? statusLabel
-              : `${statusLabel} · ${planCards.find((card) => card.key === plan)?.name ?? plan.replaceAll("_", " ")}`}
+              : `${statusLabel} · ${allPlanCards.find((card) => card.key === plan)?.name ?? plan.replaceAll("_", " ")}`}
           </StatusBadge>
           {/* Before checkout the date is the trial end the studio hasn't
               started yet — "Trial not started" beside "Current period ends…"
@@ -271,13 +274,13 @@ export function LiveSubscription() {
             </h2>
             <p>
               {preTrial
-                ? "Both start with a 14-day free trial. Switch plan or cadence any time — nothing is charged until the trial ends."
+                ? `${tradeCards.length > 1 ? "Each plan starts" : "It starts"} with a 14-day free trial. Switch plan or cadence any time — nothing is charged until the trial ends.`
                 : "Upgrade or change cadence without contacting support."}
             </p>
           </div>
         </div>
         <div className="plan-grid">
-          {planCards.map((card) => (
+          {tradeCards.map((card) => (
             <article
               className={`panel plan-card plan-card-${card.key} ${(preTrial ? card.key === picked : card.key === plan) ? "is-current" : ""}`}
               key={card.key}
@@ -318,7 +321,9 @@ export function LiveSubscription() {
           ))}
         </div>
       </section>
-      {!preTrial && trialActive && workspace.role === "studio_owner" ? <ReferralCard /> : null}
+      {/* Referrals are a photographer's for now: the offer is on the Studio
+          plan, and referrals between trades are parked (docs/vendor-journeys-plan.md). */}
+      {!preTrial && trialActive && workspace.role === "studio_owner" && tradeProfile(workspace.tenantTrade).family === "photo" ? <ReferralCard /> : null}
       <section className="panel billing-boundary" hidden={preTrial}>
         <div>
           <CreditCard />

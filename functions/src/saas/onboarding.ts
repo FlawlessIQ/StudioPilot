@@ -11,6 +11,8 @@ import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
 import { recommendedQuestionnaires } from "../planning/recommended-templates.js";
 import { INQUIRY_FORM_EVENT_TYPES, INQUIRY_FORM_SETTINGS_PATH } from "../intake/inquiry-form.js";
 import { attributionSchema } from "./attribution-schema.js";
+import { TRADES, TRADE_LABELS, tradeProfile } from "../trades/trades.js";
+import { entitlements as planEntitlements } from "./stripe.js";
 
 const inputSchema = z.object({
   businessName: z.string().trim().min(2).max(120),
@@ -33,6 +35,12 @@ const inputSchema = z.object({
     .string()
     .length(3)
     .transform((value) => value.toUpperCase()),
+  /**
+   * What the studio does (trades.ts): "What do you do?" at signup, or the
+   * `?trade=` it arrived with. Missing is a photographer, as every studio was
+   * before trades.
+   */
+  trade: z.enum(TRADES).default("photographer"),
 });
 /**
  * What a brand new tenant gets before it has chosen anything.
@@ -161,22 +169,39 @@ export const tenantOnboardingCommand = onRequest(
             manual: null,
             createdAt: now,
           });
+        // What the studio does, and so what it starts with (trades.ts). A
+        // photographer starts exactly as before. A DJ, makeup artist or hair
+        // stylist starts on the vendor plan, with nothing photographic: no
+        // shot list, no final schedule built around photos, no gallery
+        // defaults, no day-before "dress on a hanger" email. Their own forms
+        // (the music planner, the party list) come with their journeys
+        // (docs/vendor-journeys-plan.md).
+        const trade = tradeProfile(input.trade);
+        const photographer = trade.trade === "photographer";
+        const planKey = trade.plans[0] as keyof typeof planEntitlements;
+        const startingEntitlements = photographer ? trialEntitlements : planEntitlements[planKey];
         // The recommended wedding forms' ids, chosen now so the tenant's
         // planning timeline can name them (see "Weddings start with" below).
+        const recommended = recommendedQuestionnaires().filter(
+          (form) => photographer || form.id === "wedding-event-details",
+        );
         const preloaded: Record<string, string> = Object.fromEntries(
-          recommendedQuestionnaires().map((form) => [form.id, randomUUID()]),
+          recommended.map((form) => [form.id, randomUUID()]),
         );
         transaction.create(db.doc(`tenants/${tenantId}`), {
           // The final schedule is the planning form, and the shot list goes
           // with it; the rest of the timeline keeps its defaults.
           planningTimeline: {
-            formTemplateId: preloaded["wedding-final-schedule"] ?? null,
+            // A vendor's planning form is the event details form until its
+            // own arrives with its journey.
+            formTemplateId: preloaded["wedding-final-schedule"] ?? preloaded["wedding-event-details"] ?? null,
             shotListTemplateId: preloaded["wedding-shot-list"] ?? null,
             updatedAt: now,
             updatedBy: identity.uid,
           },
           id: tenantId,
           tenantId,
+          trade: trade.trade,
           businessName: input.businessName,
           legalName: input.legalName,
           brandName: input.businessName,
@@ -195,13 +220,29 @@ export const tenantOnboardingCommand = onRequest(
             facebook: null,
             custom: null,
           },
-          deliveryDefaults: {
-            galleryProvider: "manual",
-            galleryExpirationDays: 90,
-            albumInstructionsUrl: null,
-          },
+          ...(trade.delivery
+            ? {
+                deliveryDefaults: {
+                  galleryProvider: "manual",
+                  galleryExpirationDays: 90,
+                  albumInstructionsUrl: null,
+                },
+              }
+            : {}),
+          // The client's day-before email is a photographer's ("the dress on
+          // a hanger, ready to photograph"); off for every other trade.
+          ...(trade.clientDayBefore
+            ? {}
+            : {
+                lifecycleMessaging: {
+                  schedule_confirmation: { enabled: true, offsetDays: -30, autoSend: false },
+                  final_invoice_notice: { enabled: true, offsetDays: -30, autoSend: false },
+                  day_before_checklist: { enabled: false, offsetDays: -1, autoSend: false },
+                  consultation_prep: { enabled: true, offsetDays: -1, autoSend: false },
+                },
+              }),
           status: "trial",
-          subscriptionPlan: "studio",
+          subscriptionPlan: planKey,
           trialEndAt,
           legalAcceptance: legalAcceptance(identity.uid, now),
           createdAt: now,
@@ -227,7 +268,7 @@ export const tenantOnboardingCommand = onRequest(
         transaction.create(db.doc(`subscriptions/${tenantId}`), {
           id: tenantId,
           tenantId,
-          plan: "studio",
+          plan: planKey,
           cadence: "monthly",
           // A comped owner (COMPED_OWNER_EMAILS) is granted access immediately:
           // `active` with no Stripe ids, no Checkout, no trial to end. Nothing
@@ -251,7 +292,7 @@ export const tenantOnboardingCommand = onRequest(
           currentPeriodStart: now,
           currentPeriodEnd: trialEndAt,
           cancelAtPeriodEnd: false,
-          entitlements: trialEntitlements,
+          entitlements: startingEntitlements,
           internalUserCount: 1,
           brandCount: 1,
           activeSubcontractorCount: 0,
@@ -280,8 +321,9 @@ export const tenantOnboardingCommand = onRequest(
           transaction.create(db.doc(`workflowTemplates/${templateId}`), {
             id: templateId,
             tenantId,
-            name: starter.name,
-            description: starter.description,
+            // "Wedding Photography" is a photographer's; a DJ's is "Wedding (DJ)".
+            name: photographer ? starter.name : `${starter.eventTypeLabel} (${TRADE_LABELS[trade.trade]})`,
+            description: photographer ? starter.description : starter.description.replace(/ shoot\b/, " event"),
             eventTypeId: starter.eventTypeId,
             eventTypeLabel: starter.eventTypeLabel,
             checkpointTemplates: starter.checkpointTemplates,
@@ -319,7 +361,7 @@ export const tenantOnboardingCommand = onRequest(
          * need a shot list form for the wedding options too"). Other kinds
          * keep their starter brief.
          */
-        for (const form of recommendedQuestionnaires()) {
+        for (const form of recommended) {
           const questionnaireId = preloaded[form.id]!;
           transaction.create(db.doc(`questionnaireTemplates/${questionnaireId}`), {
             id: questionnaireId,
@@ -352,7 +394,9 @@ export const tenantOnboardingCommand = onRequest(
             },
             updatedAt: now,
           }, { merge: true });
-        for (const starter of starterQuestionnaires()) {
+        // The other kinds' starter briefs ask about photos ("Groups we must
+        // photograph"): a photographer's only, for now.
+        for (const starter of photographer ? starterQuestionnaires() : []) {
           // The wedding set above replaces the generic wedding questionnaire.
           if (starter.eventTypeId === "wedding") continue;
           const questionnaireId = randomUUID();
@@ -394,7 +438,8 @@ export const tenantOnboardingCommand = onRequest(
           before: null,
           after: {
             businessName: input.businessName,
-            plan: "studio",
+            trade: trade.trade,
+            plan: planKey,
             status: "trial",
           },
           ipAddress: request.ip ?? null,

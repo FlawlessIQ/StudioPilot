@@ -1,4 +1,4 @@
-import { planCards } from "@/config/saas-plans";
+import { allPlanCards } from "@/config/saas-plans";
 
 /**
  * The plan a studio picked on the website, carried to the plan picker.
@@ -12,7 +12,7 @@ import { planCards } from "@/config/saas-plans";
 const KEY = "studiocue.chosenPlan";
 
 export function rememberChosenPlan(plan: string | null | undefined): void {
-  if (!plan || !planCards.some((card) => card.key === plan)) return;
+  if (!plan || !allPlanCards.some((card) => card.key === plan)) return;
   try {
     window.localStorage.setItem(KEY, plan);
   } catch {
@@ -23,7 +23,7 @@ export function rememberChosenPlan(plan: string | null | undefined): void {
 export function chosenPlan(): string | null {
   try {
     const plan = window.localStorage.getItem(KEY);
-    return plan && planCards.some((card) => card.key === plan) ? plan : null;
+    return plan && allPlanCards.some((card) => card.key === plan) ? plan : null;
   } catch {
     return null;
   }

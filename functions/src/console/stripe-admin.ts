@@ -69,6 +69,8 @@ export async function studiocueProductIds(): Promise<string[]> {
     process.env.STRIPE_PRICE_STUDIO_YEARLY,
     process.env.STRIPE_PRICE_MULTI_BRAND_MONTHLY,
     process.env.STRIPE_PRICE_MULTI_BRAND_YEARLY,
+    process.env.STRIPE_PRICE_VENDOR_MONTHLY,
+    process.env.STRIPE_PRICE_VENDOR_YEARLY,
   ].filter((value): value is string => Boolean(value));
   const products = await Promise.all(
     priceIds.map((id) => stripeRequest<{ product?: string }>("GET", `prices/${encodeURIComponent(id)}`).then((price) => price.product ?? null)),
