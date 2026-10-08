@@ -90,6 +90,16 @@ const item = z.object({
   vendorContactIds: z.array(z.string()),
   equipment: z.array(z.string()),
   notes: z.string().nullable(),
+  // A DJ's MC script for the moment: the song, what's said on the mic, and
+  // how to say the names (features/schedules/mc-script.ts). Optional, and
+  // dropped by nobody: zod strips keys it doesn't know.
+  mc: z
+    .object({
+      song: z.string().max(200).nullable(),
+      announcement: z.string().max(600).nullable(),
+      pronunciation: z.string().max(300).nullable(),
+    })
+    .optional(),
   visibility: z.enum(["studio", "client", "crew", "shared"]),
   blockingIssues: z.array(z.string()),
   sourceReferences: z

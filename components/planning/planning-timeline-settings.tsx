@@ -16,6 +16,14 @@ import { recommendedQuestionnaires } from "@/features/questionnaires/recommended
  * before (couples get nervous), lock the final details four weeks before.
  * Owner or admin, audited server-side (planningCommand, setPlanningTimeline).
  */
+/** How far out the final details lock, in days: whole weeks, and ten days for a DJ's final planning. */
+const LOCK_DAY_CHOICES = [7, 10, 14, 21, 28, 35, 42, 56];
+
+function lockLabel(days: number): string {
+  if (days % 7 === 0) return days === 7 ? "1 week" : `${days / 7} weeks`;
+  return `${days} days`;
+}
+
 export function PlanningTimelineSettings() {
   const workspace = useWorkspace();
   const mayEdit = workspace.role === "studio_owner" || workspace.role === "studio_admin";
@@ -27,7 +35,7 @@ export function PlanningTimelineSettings() {
   const [months, setMonths] = useState<number | null>(null);
   const [send, setSend] = useState<PlanningFormSend | null>(null);
   const [templateId, setTemplateId] = useState<string | null | undefined>(undefined);
-  const [lockWeeks, setLockWeeks] = useState<number | null>(null);
+  const [lockDays, setLockDays] = useState<number | null>(null);
   const [atBooking, setAtBooking] = useState<boolean | null>(null);
   const [review, setReview] = useState<boolean | null>(null);
   const [finalCall, setFinalCall] = useState<boolean | null>(null);
@@ -39,7 +47,9 @@ export function PlanningTimelineSettings() {
   const effectiveMonths = months ?? stored.formMonthsBefore;
   const effectiveSend = send ?? stored.formSend;
   const effectiveTemplate = templateId === undefined ? stored.formTemplateId : templateId;
-  const effectiveLockWeeks = lockWeeks ?? Math.round(stored.lockDaysBefore / 7);
+  // In days: a DJ locks ten days out (trades.ts), which weeks would round to seven.
+  const effectiveLockDays = lockDays ?? stored.lockDaysBefore;
+  const lockChoices = [...new Set([...LOCK_DAY_CHOICES, effectiveLockDays])].sort((a, b) => a - b);
   const effectiveAtBooking = atBooking ?? stored.formAtBooking;
   const effectiveReview = review ?? stored.reviewAtFormDate;
   const effectiveShotList = shotListId === undefined ? stored.shotListTemplateId : shotListId;
@@ -58,7 +68,7 @@ export function PlanningTimelineSettings() {
         formMonthsBefore: effectiveMonths,
         formSend: effectiveSend,
         formTemplateId: effectiveTemplate,
-        lockDaysBefore: effectiveLockWeeks * 7,
+        lockDaysBefore: effectiveLockDays,
         formAtBooking: effectiveAtBooking,
         reviewAtFormDate: effectiveReview,
         shotListTemplateId: effectiveShotList,
@@ -97,7 +107,7 @@ export function PlanningTimelineSettings() {
         formMonthsBefore: effectiveMonths,
         formSend: effectiveSend,
         formTemplateId: effectiveTemplate,
-        lockDaysBefore: effectiveLockWeeks * 7,
+        lockDaysBefore: effectiveLockDays,
         formAtBooking: effectiveAtBooking,
         reviewAtFormDate: effectiveReview,
         shotListTemplateId: templateId,
@@ -257,13 +267,13 @@ export function PlanningTimelineSettings() {
             <select
               disabled={!mayEdit}
               onChange={(event) => {
-                setLockWeeks(Number(event.target.value));
+                setLockDays(Number(event.target.value));
                 touch();
               }}
-              value={effectiveLockWeeks}
+              value={effectiveLockDays}
             >
-              {[2, 3, 4, 5, 6, 8].map((weeks) => (
-                <option key={weeks} value={weeks}>{`${weeks} weeks before the wedding`}</option>
+              {lockChoices.map((days) => (
+                <option key={days} value={days}>{`${lockLabel(days)} before the wedding`}</option>
               ))}
             </select>
             <small>

@@ -1,3 +1,5 @@
+import { tradeInstruction } from "../trades/trade-instruction.js";
+import { tradeProfile } from "../trades/trades.js";
 import { randomUUID } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
 import { jobKindFromLabel, jobKindOf } from "../job-kinds/job-kinds.js";
@@ -1019,6 +1021,8 @@ function finalAnswerBody(
   contents: unknown[],
   citationCandidates: ReadonlyArray<{ label: string; href: string }>,
   voice?: string | null,
+  /** The studio's trade (trades.ts): a DJ's Cue never talks about photos. */
+  trade?: unknown,
 ) {
   const voiceNote =
     voice && voice.trim()
@@ -1030,6 +1034,7 @@ function finalAnswerBody(
         {
           text:
             COPILOT_SYSTEM_INSTRUCTION +
+            tradeInstruction(trade) +
             voiceNote +
             " Cite only from these citation targets (use their exact href, or omit citations if none apply): " +
             JSON.stringify(citationCandidates) +
@@ -2833,7 +2838,7 @@ export const aiCopilotCommand = onRequest(
         },
         prepare,
       );
-      const finalBody = finalAnswerBody(retrievalContents, citationCandidates, copilotVoice);
+      const finalBody = finalAnswerBody(retrievalContents, citationCandidates, copilotVoice, tenantDoc.get("trade"));
       const result = streaming
         ? await streamStructuredBody(finalBody, (delta) => writeSSE({ token: delta }))
         : await generateStructuredBody(finalBody);
@@ -3046,21 +3051,29 @@ export const aiCopilotCommand = onRequest(
        * on screen with nothing opening — the announce-then-produce-nothing
        * shape this file has been bitten by before.
        */
+      // The roles this studio staffs (trades.ts): a photographer's
+      // photographers and videographers, a DJ's DJs.
+      const staffedRoles = tradeProfile(tenantDoc.get("trade")).coverageRoles;
+      const namedTrade =
+        result.flow?.type === "crew_offer" && typeof result.flow.role === "string" ? coverageTradeNamed(result.flow.role) : null;
       const unstaffableRole =
         result.flow?.type === "crew_offer" &&
         typeof result.flow.role === "string" &&
         result.flow.role.trim() !== "" &&
-        coverageTradeNamed(result.flow.role) === null
+        (namedTrade === null || !staffedRoles.includes(namedTrade))
           ? result.flow.role.trim()
           : null;
       if (unstaffableRole) {
+        const djs = staffedRoles.length === 1 && staffedRoles[0] === "dj";
         result.flow = null;
-        result.answer = `StudioCue staffs photographers and videographers, so I cannot open a crew offer for "${unstaffableRole}". Nobody on your roster is recorded as doing that work — book them outside StudioCue, or tell me which of the two trades you want and I will prepare the offer.`;
+        result.answer = djs
+          ? `StudioCue staffs DJs for your studio, so I cannot open a crew offer for "${unstaffableRole}". Nobody on your roster is recorded as doing that work — book them outside StudioCue, or ask me to staff a DJ.`
+          : `StudioCue staffs photographers and videographers, so I cannot open a crew offer for "${unstaffableRole}". Nobody on your roster is recorded as doing that work — book them outside StudioCue, or tell me which of the two trades you want and I will prepare the offer.`;
         result.facts = [
-          "StudioCue crew roles are photographer and videographer.",
+          djs ? "StudioCue crew roles for this studio are DJs." : "StudioCue crew roles are photographer and videographer.",
           `No crew member is recorded for "${unstaffableRole}".`,
         ];
-        result.suggestions = ["Staff a photographer", "Staff a videographer"];
+        result.suggestions = djs ? ["Staff a DJ"] : ["Staff a photographer", "Staff a videographer"];
       }
       /**
        * A job the studio put away is not a job to act on.

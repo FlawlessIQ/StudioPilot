@@ -150,6 +150,45 @@ export function defaultInquiryFormConfig(): InquiryFormConfig {
   };
 }
 
+/**
+ * A new studio's inquiry form, by its trade (features/trades/trades.ts). A
+ * DJ is asked about weddings, corporate events and parties, how many hours of
+ * music, and whether the ceremony is theirs too — the first things a DJ
+ * prices on (docs/vendor-journeys.md). Every other trade starts on the
+ * default.
+ */
+export function defaultInquiryFormFor(trade: string | null | undefined): InquiryFormConfig {
+  const base = defaultInquiryFormConfig();
+  if (trade !== "dj") return base;
+  return {
+    ...base,
+    eventTypes: [
+      defaultType("wedding", "Wedding", "wedding"),
+      defaultType("corporate", "Corporate event", "corporate"),
+      defaultType("party", "Party", "other"),
+      defaultType("general", "General question", "general"),
+    ],
+    questions: [
+      {
+        id: "music-hours",
+        label: "How many hours of music would you like?",
+        type: "choice",
+        options: ["4 hours", "5 hours", "6 hours", "7 hours or more", "Not sure yet"],
+        required: false,
+        eventTypeIds: [],
+      },
+      {
+        id: "ceremony-music",
+        label: "Would you like us to play your ceremony too?",
+        type: "yes_no",
+        options: [],
+        required: false,
+        eventTypeIds: ["wedding"],
+      },
+    ],
+  };
+}
+
 const TYPE_ID = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 const QUESTION_ID = /^[a-z0-9][a-z0-9_-]{0,59}$/;
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;

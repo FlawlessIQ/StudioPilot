@@ -1,5 +1,8 @@
 "use client";
 
+import { fillMcScript, patchMcScript, type McScript } from "@/features/schedules/mc-script";
+import { DJ_MOMENTS, planNight } from "@/features/schedules/night-plan";
+import { tradeProfile } from "@/features/trades/trades";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -8,6 +11,7 @@ import {
   ListPlus,
   LoaderCircle,
   PencilLine,
+  Music,
   Plus,
   Sparkles,
   Trash2,
@@ -71,6 +75,8 @@ type ScheduleItem = {
   vendorContactIds: string[];
   equipment: string[];
   notes: string | null;
+  /** A DJ's MC script for the moment (features/schedules/mc-script.ts). */
+  mc?: McScript;
   visibility: "studio" | "client" | "crew" | "shared";
   blockingIssues: string[];
   sourceReferences: Array<{
@@ -170,6 +176,8 @@ export function AiScheduleGenerator({
   initialProjectId?: string;
 }) {
   const workspace = useWorkspace();
+  // A DJ scripts the mic on each line (trades.ts `musicPlanner`).
+  const mcScript = tradeProfile(workspace.tenantTrade).musicPlanner;
   const { records: projects, loading } = useTenantDocuments("projects");
   const { records: questionnaires } = useTenantDocuments(
     "questionnaireResponses",
@@ -880,19 +888,25 @@ export function AiScheduleGenerator({
     // The couple's form, and nothing else of the studio's: timing rules "don't
     // work for every wedding" (GR, 2026-10-06). Only what they answered, too:
     // the gaps' suggestions come on request ("Suggest times for the gaps").
-    const plan = planDay({ ...dayPlanInput(), answeredOnly: true });
+    // A DJ's night is the ceremony music and the reception's running order,
+    // not a photographer's day (night-plan.ts).
+    const plan = mcScript
+      ? planNight({ answers: jobAnswers, coverageMinutes: packageMinutes ?? null, venue: dayPlanInput().venue })
+      : planDay({ ...dayPlanInput(), answeredOnly: true });
     setPlanNotes(plan.notes);
     setWithheld(plan.withheld);
     if (!plan.rows.length) {
       setNotice(plan.notes.join(" "));
       return;
     }
-    const items = planItems(plan, {
+    const planned = planItems(plan, {
       eventDate: eventDay,
       timeZone: zone,
       idFor: () => crypto.randomUUID(),
       teams: crewTags.teams,
     }) as ScheduleItem[];
+    // The couple's songs and names onto the lines they belong to (mc-script.ts).
+    const items = mcScript ? fillMcScript(planned, jobAnswers).items : planned;
     if (plan.coverageStart) setCoverageStartsAt(`${eventDay}T${plan.coverageStart}`);
     if (plan.coverageEnd) setCoverageEndsAt(`${eventDay}T${plan.coverageEnd}`);
     const coverageEnd = plan.coverageEnd ? wallClockToIso(eventDay, plan.coverageEnd, zone) : null;
@@ -1143,10 +1157,11 @@ export function AiScheduleGenerator({
             <p className="eyebrow">Draft · nothing is sent yet</p>
             {weddingDay ? (
               <>
-                <h2>Lay out the day</h2>
+                <h2>{mcScript ? "Lay out the night" : "Lay out the day"}</h2>
                 <p>
-                  Built from the couple&rsquo;s Final Schedule answers, and only those. Ask for suggested
-                  times for anything they left out. Every line is yours to change.
+                  {mcScript
+                    ? "Built from the couple’s times and their Music & moments planner: the running order, with their songs and names on each line. Every line is yours to change."
+                    : "Built from the couple’s Final Schedule answers, and only those. Ask for suggested times for anything they left out. Every line is yours to change."}
                 </p>
               </>
             ) : (
@@ -1306,7 +1321,7 @@ export function AiScheduleGenerator({
           <div className="schedule-generate-actions">
             {weddingDay ? (
               <button className="button button-dark" disabled={busy || !projectId} onClick={layOutDay} type="button">
-                <CalendarClock /> {draft ? "Start over from their answers" : "Lay out the day"}
+                <CalendarClock /> {draft ? "Start over from their answers" : mcScript ? "Lay out the night" : "Lay out the day"}
               </button>
             ) : null}
             {weddingDay ? null : (
@@ -1479,6 +1494,28 @@ export function AiScheduleGenerator({
                       </span>
                     ))}
                     {item.blockingIssues.length ? <small>{item.blockingIssues.join(" · ")}</small> : null}
+                    {mcScript ? (
+                      <span className="schedule-line-mc" role="group" aria-label={`MC script for ${item.title || `line ${index + 1}`}`}>
+                        <input
+                          aria-label="Song"
+                          onChange={(event) => updateItem(index, { mc: patchMcScript(item.mc, { song: event.target.value }) })}
+                          placeholder="Song"
+                          value={item.mc?.song ?? ""}
+                        />
+                        <input
+                          aria-label="Say on the mic"
+                          onChange={(event) => updateItem(index, { mc: patchMcScript(item.mc, { announcement: event.target.value }) })}
+                          placeholder="Say on the mic"
+                          value={item.mc?.announcement ?? ""}
+                        />
+                        <input
+                          aria-label="How to say the names"
+                          onChange={(event) => updateItem(index, { mc: patchMcScript(item.mc, { pronunciation: event.target.value }) })}
+                          placeholder="How to say the names"
+                          value={item.mc?.pronunciation ?? ""}
+                        />
+                      </span>
+                    ) : null}
                     {/*
                       * Who covers it, as chips: P1 V1 with the bride, P2 V2
                       * with the groom. None picked is everyone. A line runs
@@ -1522,7 +1559,31 @@ export function AiScheduleGenerator({
               * ceremony, reception and coverage times above. See
               * features/schedules/standard-moments.ts.
               */}
-            {isWeddingJob(selectedProject) ? (
+            {mcScript ? (
+              // A DJ's moments, each with room for its song and announcement.
+              <div className="schedule-moments" role="group" aria-label="Add a moment">
+                <span>Add a moment</span>
+                {DJ_MOMENTS.map((moment) => (
+                  <button
+                    className="schedule-moment-chip"
+                    key={moment.title}
+                    onClick={() => addKindMoment(moment)}
+                    type="button"
+                  >
+                    <Plus aria-hidden size={13} /> {moment.label}
+                  </button>
+                ))}
+                {Object.keys(jobAnswers).length ? (
+                  <button
+                    className="schedule-moment-chip"
+                    onClick={() => changeItems((items) => fillMcScript(items, jobAnswers).items)}
+                    type="button"
+                  >
+                    <Music aria-hidden size={13} /> Fill songs and names from their planner
+                  </button>
+                ) : null}
+              </div>
+            ) : isWeddingJob(selectedProject) ? (
               <div className="schedule-moments" role="group" aria-label="Add a moment">
                 <span>Add a moment</span>
                 {WEDDING_STANDARD_MOMENTS.map((moment) => (

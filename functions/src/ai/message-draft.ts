@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { tradeInstruction } from "../trades/trade-instruction.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -192,7 +193,7 @@ function fallbackDraft(input: {
       .reverse()
       .find((entry) => text(entry.from) === "client");
     return {
-      subject: text(conversation.subject) || "Re: your photography",
+      subject: text(conversation.subject) || "Re: your inquiry",
       body: [
         `Hi ${who},`,
         "Thanks for getting back to me — I'll come back to you on this shortly.",
@@ -287,9 +288,12 @@ export function messageDraftSystemInstruction(input: {
   trigger: string;
   voice?: unknown;
   firstReply?: unknown;
+  /** The studio's trade (trades.ts): a DJ's email never mentions photography. */
+  trade?: unknown;
 }): string {
   return (
     MESSAGE_DRAFT_RULES +
+    tradeInstruction(input.trade) +
     studioPreferencesSection({
       voice: input.voice,
       firstReply: FIRST_REPLY_TRIGGERS.includes(input.trigger)
@@ -306,6 +310,8 @@ async function generateDraft(input: {
   /** The studio's saved voice and first-reply instructions, from the tenant. */
   voice?: unknown;
   firstReply?: unknown;
+  /** The studio's trade (trades.ts). */
+  trade?: unknown;
 }): Promise<z.infer<typeof modelOutputSchema>> {
   if (process.env.PROVIDER_MOCK_MODE === "true")
     return fallbackDraft({ trigger: input.trigger, context: input.context });
@@ -331,6 +337,7 @@ async function generateDraft(input: {
                 trigger: input.trigger,
                 voice: input.voice,
                 firstReply: input.firstReply,
+                trade: input.trade,
               }),
             },
             US_ENGLISH_PART,
@@ -666,6 +673,7 @@ export const aiMessageDraftCommand = onRequest(
           paymentsOnRecord: balance?.paymentsOnRecord,
           scheduleUrl: null,
           eventKind: jobKindOf(context.project),
+          trade: text(tenant.get("trade")) || null,
           recipientEmail,
           recipientName,
         };
@@ -793,6 +801,7 @@ export const aiMessageDraftCommand = onRequest(
             context,
             voice: tenant.get("copilotVoice"),
             firstReply: tenant.get("firstReplyInstructions"),
+            trade: tenant.get("trade"),
           });
           modelUsed =
             process.env.VERTEX_AI_MESSAGE_MODEL ??

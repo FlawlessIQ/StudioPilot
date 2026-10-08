@@ -1,5 +1,7 @@
 "use client";
 
+import { tradeProfile } from "@/features/trades/trades";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   COVERAGE_ROLES,
   coverageRoleLabel,
@@ -32,11 +34,16 @@ export function TradeField({
   value?: readonly string[] | null;
 }) {
   const selected = new Set((value ?? []).map(String));
+  // A studio's own roles (trades.ts): a photographer's crew shoot photo or
+  // video, a DJ's crew are DJs. A role already set stays shown.
+  const tradeRoles = tradeProfile(useWorkspace().tenantTrade).coverageRoles;
+  const roles = COVERAGE_ROLES.filter((role) => tradeRoles.includes(role) || selected.has(role));
+  const djs = roles.length === 1 && roles[0] === "dj";
   return (
     <fieldset className={className ? `crew-trade-field ${className}` : "crew-trade-field"}>
-      <legend>Shoots</legend>
+      <legend>{djs ? "Works as" : "Shoots"}</legend>
       <span className="crew-trade-options">
-        {COVERAGE_ROLES.map((role) => (
+        {roles.map((role) => (
           <label key={role}>
             <input
               defaultChecked={selected.has(role)}

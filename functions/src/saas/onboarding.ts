@@ -8,8 +8,9 @@ import { studioHubCors } from "../security/cors.js";
 import { legalAcceptance } from "../legal/versions.js";
 import { starterTemplates } from "../workflow/starter-templates.js";
 import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
-import { recommendedQuestionnaires } from "../planning/recommended-templates.js";
+import { recommendedFor } from "../planning/recommended-templates.js";
 import { INQUIRY_FORM_EVENT_TYPES, INQUIRY_FORM_SETTINGS_PATH } from "../intake/inquiry-form.js";
+import { defaultInquiryFormFor } from "../intake/inquiry-form-config.js";
 import { attributionSchema } from "./attribution-schema.js";
 import { TRADES, TRADE_LABELS, tradeProfile } from "../trades/trades.js";
 import { entitlements as planEntitlements } from "./stripe.js";
@@ -182,9 +183,8 @@ export const tenantOnboardingCommand = onRequest(
         const startingEntitlements = photographer ? trialEntitlements : planEntitlements[planKey];
         // The recommended wedding forms' ids, chosen now so the tenant's
         // planning timeline can name them (see "Weddings start with" below).
-        const recommended = recommendedQuestionnaires().filter(
-          (form) => photographer || form.id === "wedding-event-details",
-        );
+        // A photographer's three; a DJ's event details and music planner.
+        const recommended = recommendedFor(trade.trade);
         const preloaded: Record<string, string> = Object.fromEntries(
           recommended.map((form) => [form.id, randomUUID()]),
         );
@@ -192,10 +192,15 @@ export const tenantOnboardingCommand = onRequest(
           // The final schedule is the planning form, and the shot list goes
           // with it; the rest of the timeline keeps its defaults.
           planningTimeline: {
-            // A vendor's planning form is the event details form until its
-            // own arrives with its journey.
-            formTemplateId: preloaded["wedding-final-schedule"] ?? preloaded["wedding-event-details"] ?? null,
+            // The trade's own planning form: a photographer's final schedule,
+            // a DJ's music planner; otherwise the event details form until
+            // the trade's own arrives with its journey.
+            formTemplateId:
+              preloaded["wedding-final-schedule"] ?? preloaded["dj-music-planner"] ?? preloaded["wedding-event-details"] ?? null,
             shotListTemplateId: preloaded["wedding-shot-list"] ?? null,
+            // A DJ sends the planner at booking and locks ten days out, so
+            // the final planning call falls about a week before (trades.ts).
+            ...(trade.planning ?? {}),
             updatedAt: now,
             updatedBy: identity.uid,
           },
@@ -385,6 +390,8 @@ export const tenantOnboardingCommand = onRequest(
         if (eventDetailsId)
           transaction.set(db.doc(INQUIRY_FORM_SETTINGS_PATH(tenantId)), {
             tenantId,
+            // A DJ's inquiry form asks what a DJ prices on (inquiry-form-config.ts).
+            ...(trade.trade === "dj" ? { inquiryForm: defaultInquiryFormFor(trade.trade) } : {}),
             inquiryEventForm: {
               templateId: eventDetailsId,
               templateName: "Event details form",

@@ -1,4 +1,4 @@
-import { TRADE_LABELS, tradeProfile } from "../trades/trades.js";
+import { TRADE_LABELS, tradeProfile, tradeVocab } from "../trades/trades.js";
 import { releaseHeadline } from "../post-event/deliverables.js";
 import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
@@ -863,7 +863,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "consultation_reminder":
     case "consultation_rescheduled": {
       // "final details call" for the call a month out (booking/consultation-purpose.ts).
-      const call = stringValue(values, "purpose") === "final_details" ? "final details call" : "consultation";
+      // A DJ's are a vibe call and a final planning call (trades.ts).
+      const call = (stringValue(values, "purpose") === "final_details" ? tradeVocab(values.trade).finalCall : tradeVocab(values.trade).consultation).toLowerCase();
       const Call = call.charAt(0).toUpperCase() + call.slice(1);
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const isReminder = input.key === "consultation_reminder";
@@ -915,7 +916,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "consultation_cancelled": {
-      const call = stringValue(values, "purpose") === "final_details" ? "final details call" : "consultation";
+      // A DJ's are a vibe call and a final planning call (trades.ts).
+      const call = (stringValue(values, "purpose") === "final_details" ? tradeVocab(values.trade).finalCall : tradeVocab(values.trade).consultation).toLowerCase();
       const Call = call.charAt(0).toUpperCase() + call.slice(1);
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
@@ -941,9 +943,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // can also send it by hand (planning/final-details.ts).
       if (stringValue(values, "purpose") === "final_details")
         return {
-          subject: `Book your final details call with ${brand.studioName}`,
+          subject: `Book your ${tradeVocab(values.trade).finalCall.toLowerCase()} with ${brand.studioName}`,
           preheader: "A short call to go over your final details and timeline.",
-          eyebrow: "Final details call",
+          eyebrow: tradeVocab(values.trade).finalCall,
           heading: "Let’s go over the final details",
           paragraphs: [
             greeting,
@@ -953,25 +955,29 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           note: "Times remain available until someone else books them.",
         };
       return {
-        subject: `Choose a consultation time with ${brand.studioName}`,
-        preheader: "Select a convenient time for your photography consultation.",
-        eyebrow: "Consultation invitation",
+        subject: `Choose a ${tradeVocab(values.trade).consultation.toLowerCase()} time with ${brand.studioName}`,
+        preheader: tradeProfile(values.trade).family === "photo"
+          ? "Select a convenient time for your photography consultation."
+          : `Select a convenient time for your ${tradeVocab(values.trade).consultation.toLowerCase()}.`,
+        eyebrow: `${tradeVocab(values.trade).consultation} invitation`,
         heading: "Let’s find a time to talk",
         paragraphs: [
           greeting,
-          `We'd like you to choose a consultation time${project}.`,
+          `We'd like you to choose a ${tradeVocab(values.trade).consultation.toLowerCase()} time${project}.`,
           "Open the secure scheduler to see our current availability. A confirmation will be sent after you choose a time.",
         ],
         action: actionUrl
-          ? { label: "Choose a consultation time", url: actionUrl }
+          ? { label: `Choose a ${tradeVocab(values.trade).consultation.toLowerCase()} time`, url: actionUrl }
           : undefined,
         note: "Times remain available until another client confirms them.",
       };
-    case "package_follow_up":
+    case "package_follow_up": {
+      // A DJ's couple is choosing music packages, not photography (trades.ts).
+      const photo = tradeProfile(values.trade).family === "photo";
       return {
-        subject: `Photography options from ${brand.studioName}`,
-        preheader: "Review the coverage options prepared for your event.",
-        eyebrow: "Your photography options",
+        subject: photo ? `Photography options from ${brand.studioName}` : `Your options from ${brand.studioName}`,
+        preheader: photo ? "Review the coverage options prepared for your event." : "Review the packages prepared for your event.",
+        eyebrow: photo ? "Your photography options" : "Your options",
         heading: "Let’s find the right coverage",
         paragraphs: [
           greeting,
@@ -981,6 +987,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? { label: "Review packages", url: portalUrl }
           : undefined,
       };
+    }
     case "proposal_sent":
       return {
         subject: `Your proposal from ${brand.studioName}`,
@@ -1586,7 +1593,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           // (trades.ts; each trade's own prep comes with its journey).
           ...(!tradeProfile(values.trade).clientDayBefore
             ? []
-            : eventKind === "wedding"
+            : tradeVocab(values.trade).dayBefore
+              ? [`${tradeVocab(values.trade).dayBefore!.lead}, it helps to have: ${tradeVocab(values.trade).dayBefore!.items.join("; ")}.`]
+              : eventKind === "wedding"
               ? ["To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive."]
               : [`To help photography begin on time, it helps to have ready: ${vocab(eventKind).dayBeforeChecklist.join("; ")}.`]),
         ],

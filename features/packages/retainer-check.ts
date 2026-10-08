@@ -15,7 +15,7 @@ import { coverageCount, type CoverageItem, type CoverageRole } from "./coverage"
  * the server — and flagged on any package that already has it.
  */
 
-const ROLE_WORDS: Record<CoverageRole, string> = { photographer: "photographers", videographer: "videographers" };
+const ROLE_WORDS: Record<CoverageRole, string> = { photographer: "photographers", videographer: "videographers", dj: "DJs" };
 
 /** How many of the package's own crew the rule's roles cover (no floor). */
 export function crewTheRuleCounts(coverage: readonly CoverageItem[], billedRoles: readonly CoverageRole[] | undefined): number {

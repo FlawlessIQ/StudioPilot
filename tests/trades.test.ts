@@ -76,7 +76,9 @@ test("a DJ's job goes from the day to the review: no gallery, no album", () => {
   const dj = projectJourney({ ...base, trade: "dj" });
   const djKeys = dj.steps.map((step) => step.key);
   assert.ok(!djKeys.includes("delivery"), "nothing to deliver");
-  assert.ok(!djKeys.includes("day_before"), "no 'dress on a hanger' email for a DJ's couple");
+  // A DJ's couple gets a DJ's checklist the day before (song changes, load-in), a makeup client none yet.
+  assert.ok(djKeys.includes("day_before"));
+  assert.ok(!projectJourney({ ...base, trade: "makeup" }).steps.some((step) => step.key === "day_before"));
   const review = dj.steps.find((step) => step.key === "album_review");
   assert.equal(review?.title, "Review");
   assert.equal(dj.current?.key, "album_review", "the review is next, straight after the day");
@@ -132,7 +134,7 @@ test("a new studio starts with its trade's plan and nothing photographic", () =>
   const onboarding = read("functions/src/saas/onboarding.ts");
   assert.match(onboarding, /trade: z\.enum\(TRADES\)\.default\("photographer"\)/);
   assert.match(onboarding, /trade: trade\.trade,/);
-  assert.match(onboarding, /\(form\) => photographer \|\| form\.id === "wedding-event-details"/);
+  assert.match(onboarding, /recommendedFor\(trade\.trade\)/);
   assert.match(onboarding, /subscriptionPlan: planKey/);
   assert.match(onboarding, /day_before_checklist: \{ enabled: false/);
   assert.match(onboarding, /for \(const starter of photographer \? starterQuestionnaires\(\) : \[\]\)/);

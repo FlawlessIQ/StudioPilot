@@ -1,3 +1,5 @@
+import { tradeInstruction } from "../trades/trade-instruction.js";
+import { tradeVocab } from "../trades/trades.js";
 import { randomUUID } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
 import { getFirestore } from "firebase-admin/firestore";
@@ -56,6 +58,8 @@ async function cloudAccessToken() {
 async function generateCommunication(input: {
   instruction: string;
   category: string;
+  /** The studio's trade (trades.ts): a DJ's email never mentions photography. */
+  trade?: unknown;
   currentSubject?: string | null;
   currentBody?: string | null;
   context: Json;
@@ -79,7 +83,9 @@ async function generateCommunication(input: {
           parts: [
             {
               text:
-                "You are StudioCue's client email assistant for a professional photography studio. Draft or revise the email requested by the user using only supplied tenant-scoped facts. Preserve accurate dates, amounts, people, links, and statuses. Never claim a contract is signed, payment received, insurance approved, staff confirmed, or delivery completed unless the supplied facts explicitly say so. Put any uncertain claim in needsConfirmation instead of the email. Return only the message body: do not include a greeting, recipient name, closing, signature, or sign-off because StudioCue adds those in the branded renderer. Use short plain-text paragraphs that are warm and direct. Do not send anything.",
+                `You are StudioCue's client email assistant for a professional ${tradeVocab(input.trade).business}.` +
+                tradeInstruction(input.trade) +
+                " Draft or revise the email requested by the user using only supplied tenant-scoped facts. Preserve accurate dates, amounts, people, links, and statuses. Never claim a contract is signed, payment received, insurance approved, staff confirmed, or delivery completed unless the supplied facts explicitly say so. Put any uncertain claim in needsConfirmation instead of the email. Return only the message body: do not include a greeting, recipient name, closing, signature, or sign-off because StudioCue adds those in the branded renderer. Use short plain-text paragraphs that are warm and direct. Do not send anything.",
             },
             US_ENGLISH_PART,
           ],
@@ -185,6 +191,7 @@ export const aiCommunicationsCommand = onRequest(
         "nextAction",
       ];
       const generated = await generateCommunication({
+        trade: (await db.doc(`tenants/${input.tenantId}`).get()).get("trade"),
         instruction: input.instruction,
         category: input.category,
         currentSubject: input.currentSubject,

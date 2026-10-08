@@ -1,3 +1,4 @@
+import { tradeInstruction } from "../trades/trade-instruction.js";
 /**
  * The studio's own voice in the replies Cue drafts.
  *
@@ -91,8 +92,10 @@ export const INQUIRY_REPLY_RULES =
 export function inquiryReplySystemInstruction(preferences: {
   voice?: unknown;
   firstReply?: unknown;
+  /** The studio's trade (trades.ts): a DJ's reply never mentions photography. */
+  trade?: unknown;
 }): string {
-  return INQUIRY_REPLY_RULES + studioPreferencesSection(preferences);
+  return INQUIRY_REPLY_RULES + tradeInstruction(preferences.trade) + studioPreferencesSection(preferences);
 }
 
 /**

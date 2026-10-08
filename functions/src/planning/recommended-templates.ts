@@ -61,6 +61,12 @@ export type RecommendedQuestionnaire = {
   /** Where a studio puts it to work, on the card. */
   useIt: string;
   eventTypeId: string;
+  /**
+   * The trades it's for (features/trades/trades.ts). Absent: every trade —
+   * the event details form is anyone's. The final schedule and shot list are
+   * a photographer's; the music planner a DJ's.
+   */
+  trades?: readonly string[];
   dueDaysBeforeEvent: number;
   reminderDaysBeforeDue: number[];
   sections: RecommendedSection[];
@@ -252,6 +258,88 @@ const SHOT_LIST: RecommendedSection[] = [
   },
 ];
 
+/** A radio question with its answers. */
+const choice = (id: string, label: string, options: string[], extras: Extras = {}): RecommendedField => ({
+  ...field(id, label, "radio", false, extras),
+  options,
+});
+
+/**
+ * A DJ's music and moments planner (docs/vendor-journeys.md, from Check
+ * Cherry's study of 765 real DJ questionnaires and DJ planning forms).
+ *
+ * The songs for each moment, the names the DJ says on the microphone with
+ * how to say them, the order of the toasts, and the dance floor. The phonetic
+ * names are the point: a mispronounced name is a DJ's signature failure.
+ * Ids match the moments of the run of show (features/schedules/mc-script.ts),
+ * so the songs and announcements land on the right lines of the MC script.
+ */
+const MUSIC_PLANNER: RecommendedSection[] = [
+  {
+    id: "ceremony-music",
+    title: "Ceremony music",
+    fields: [
+      field("prelude-music", "Music while guests arrive", "long_text", false, {
+        help: "A playlist link, a few artists, or a feeling. Skip this if we're not playing your ceremony.",
+      }),
+      field("processional-song", "Processional — the wedding party walks in", "text", false, { help: "Song and artist, and the version if it matters." }),
+      field("entrance-song", "Your entrance — the bride, or the two of you", "text", false),
+      field("recessional-song", "Recessional — walking out married", "text", false),
+      field("ceremony-mics", "Who speaks at the ceremony and needs a microphone", "long_text", false, {
+        help: "The officiant, readers, anyone singing or playing.",
+      }),
+    ],
+  },
+  {
+    id: "entrances",
+    title: "Grand entrance",
+    fields: [
+      field("grand-entrance-song", "Grand entrance song", "text", false),
+      field("entrance-names", "Who we introduce, in order, and how to say each name", "long_text", true, {
+        help: "One per line, as you'd like it said, with how it sounds. For example: \"Maid of honor, Siobhan Murphy (shi-VAWN)\". End with how we introduce the two of you.",
+      }),
+    ],
+  },
+  {
+    id: "key-moments",
+    title: "Key moments",
+    fields: [
+      field("first-dance-song", "First dance", "text", false, { help: "Song and artist, and whether to fade early." }),
+      field("parent-dance-songs", "Parent dances", "long_text", false, {
+        help: "Who dances with whom, and the song for each.",
+      }),
+      field("toast-order", "Toasts and speeches, in order", "long_text", false, {
+        help: "Who speaks, how to say their name, and how they know you.",
+      }),
+      field("cake-cutting-song", "Cake cutting", "text", false),
+      choice("bouquet-garter", "Bouquet and garter toss", ["Both", "Bouquet only", "Garter only", "Neither"]),
+      field("last-dance-song", "Last dance", "text", false),
+      field("exit-plan", "Your exit or send-off", "text", false, { help: "Sparklers, bubbles, a song to walk out to." }),
+    ],
+  },
+  {
+    id: "dance-floor",
+    title: "The dance floor",
+    fields: [
+      field("must-play", "Must-play songs", "long_text", false, { help: "Up to ten. These are the ones we'll make sure happen." }),
+      field("do-not-play", "Do-not-play songs", "long_text", false, { help: "Anything you never want to hear, guaranteed." }),
+      field("genres", "Genres you love, and any you don't", "long_text", false),
+      choice("guest-requests", "Guest requests", ["Yes, take requests", "Only if they fit the night", "No requests"]),
+      choice("explicit-lyrics", "Explicit lyrics", ["Clean versions only", "Fine after dinner", "Anything goes"]),
+    ],
+  },
+  {
+    id: "on-the-day",
+    title: "On the day",
+    fields: [
+      field("venue-coordinator", "Venue coordinator — name and phone", "text", false),
+      field("load-in-notes", "Load-in, parking and power at your venue", "long_text", false, {
+        help: "Where we unload, any sound limit, and the time we can get in.",
+      }),
+    ],
+  },
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -273,6 +361,7 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
         "Their event details again (filled in from what they already gave), family names, and the day in order with suggested times.",
       useIt: "Use it as your planning form, sent six months before.",
       eventTypeId: "wedding",
+      trades: ["photographer"],
       // In before the details lock four weeks out, with a week to read it.
       dueDaysBeforeEvent: 35,
       reminderDaysBeforeDue: [14, 3],
@@ -285,13 +374,32 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
         "The pictures that matter most to them: family groups in the order to call them, must-take moments, people to find, and anyone to avoid. Your crew see it on their day sheet.",
       useIt: "Choose it as your shot list in Settings → Planning timeline, and it goes out with the planning form.",
       eventTypeId: "wedding",
+      trades: ["photographer"],
       // A week before the day (Gabe, GR 2026-10-08): couples settle family
       // groups late, and the crew need it for the day sheet, not the lock.
       dueDaysBeforeEvent: 7,
       reminderDaysBeforeDue: [14, 3],
       sections: SHOT_LIST,
     },
+    {
+      id: "dj-music-planner",
+      name: "Music & moments planner",
+      summary:
+        "The songs for every moment, the names you'll say on the mic with how to say them, the toast order, and the dance floor: must-plays, do-not-plays and requests.",
+      useIt: "Your planning form: it goes out when they book, and locks ten days before.",
+      eventTypeId: "wedding",
+      trades: ["dj"],
+      // In a month out, so the final planning call has it to go through.
+      dueDaysBeforeEvent: 30,
+      reminderDaysBeforeDue: [14, 3],
+      sections: MUSIC_PLANNER,
+    },
   ];
+}
+
+/** The recommended forms for a studio of this trade. */
+export function recommendedFor(trade: string): RecommendedQuestionnaire[] {
+  return recommendedQuestionnaires().filter((form) => !form.trades || form.trades.includes(trade));
 }
 
 /** How many questions a form asks. */

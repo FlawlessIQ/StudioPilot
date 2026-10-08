@@ -1,5 +1,6 @@
 "use client";
 
+import { mcScriptLine, type McScript } from "@/features/schedules/mc-script";
 import { useEffect, useState } from "react";
 import { AlertTriangle, CalendarPlus, CheckCircle2, MapPin, Navigation, Phone, WifiOff } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
@@ -535,6 +536,10 @@ function Timeline({
               </span>
             ) : null}
             {text(item.description) ? <span className="kit-caption">{text(item.description)}</span> : null}
+            {/* The DJ's script for the moment: song, what to say, and how to say the names. */}
+            {mcScriptLine(item.mc as Partial<McScript> | undefined) ? (
+              <span className="kit-caption">{mcScriptLine(item.mc as Partial<McScript> | undefined)}</span>
+            ) : null}
           </span>
         </li>
       ))}

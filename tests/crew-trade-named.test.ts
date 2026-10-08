@@ -20,8 +20,11 @@ test("the trades a studio staffs are recognised however they are titled", () => 
  * deliberately total, would have ranked photographers against it.
  */
 test("a specialism the studio does not staff names no trade", () => {
-  for (const label of ["drone operator", "aerial", "DJ", "florist", "planner"])
+  for (const label of ["drone operator", "aerial", "florist", "planner"])
     assert.equal(coverageTradeNamed(label), null, label);
+  // A DJ is a trade now (a DJ studio's, features/trades/trades.ts); whether
+  // this studio staffs one is Cue's check against the studio's own roles.
+  assert.equal(coverageTradeNamed("DJ"), "dj");
   // The old function still answers photographer, which is why it cannot be the
   // one asked this question.
   assert.equal(coverageRoleForLabel("drone operator"), "photographer");
@@ -53,7 +56,10 @@ test("an unstaffable role drops the flow AND replaces the answer", () => {
     copilot.indexOf("const unstaffableRole ="),
     copilot.indexOf("const flowDirective ="),
   );
-  assert.match(block, /coverageTradeNamed\(result\.flow\.role\) === null/);
+  // A role naming no trade, or a trade this studio doesn't staff (trades.ts:
+  // a photographer asked for a DJ, a DJ asked for a videographer).
+  assert.match(copilot, /coverageTradeNamed\(result\.flow\.role\) : null/);
+  assert.match(block, /namedTrade === null \|\| !staffedRoles\.includes\(namedTrade\)/);
   assert.match(block, /result\.flow = null;/);
   assert.match(block, /result\.answer =/);
   assert.match(block, /result\.facts =/);

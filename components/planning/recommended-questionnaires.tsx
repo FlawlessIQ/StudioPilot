@@ -6,9 +6,10 @@ import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tena
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   recommendedFieldCount,
-  recommendedQuestionnaires,
+  recommendedFor,
   type RecommendedQuestionnaire,
 } from "@/features/questionnaires/recommended-templates";
+import { tradeOf } from "@/features/trades/trades";
 import { allowsTbd } from "@/features/questionnaires/field-extras";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
@@ -75,12 +76,13 @@ export function RecommendedQuestionnaires() {
         </p>
         <h2 id="recommended-forms-title">Ready-to-use wedding forms</h2>
         <p>
-          Written by a working wedding studio to cover nearly every wedding. Use them as they are, or make a copy and
-          change anything — your copy is yours to edit.
+          {tradeOf(workspace.tenantTrade) === "photographer"
+            ? "Written by a working wedding studio to cover nearly every wedding. Use them as they are, or make a copy and change anything — your copy is yours to edit."
+            : "Written from what working DJs and vendors ask. Use them as they are, or make a copy and change anything — your copy is yours to edit."}
         </p>
       </div>
       <div className="recommended-forms-list">
-        {recommendedQuestionnaires().map((form) => {
+        {recommendedFor(tradeOf(workspace.tenantTrade)).map((form) => {
           const copies = rows.filter((row) => row.recommendedId === form.id && live(row));
           return (
             <article key={form.id}>

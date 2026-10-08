@@ -578,7 +578,7 @@ export function projectJourney(input: JourneyInput): {
   const enquiryDatePassed = !consulted && afterEvent;
   push({
     key: "consultation",
-    title: "Consultation",
+    title: tradeWords.consultation,
     // Honesty: a stage advanced by hand is not a booked meeting. Say what
     // actually happened instead of claiming a record that doesn't exist.
     detail: input.hasConsultation
@@ -593,7 +593,7 @@ export function projectJourney(input: JourneyInput): {
       ? null
       : {
           kind: "link",
-          label: "Schedule consultation",
+          label: `Schedule ${tradeWords.consultation === "Consultation" ? "consultation" : `the ${tradeWords.consultation.toLowerCase()}`}`,
           href: project("/studio/calendar"),
         },
     // Consultations often happen over the phone; completing this step is a
@@ -770,7 +770,7 @@ export function projectJourney(input: JourneyInput): {
   );
   push({
     key: "schedule_form",
-    title: `${words.detailsForm} form`,
+    title: tradeWords.detailsForm ?? `${words.detailsForm} form`,
     detail: formDone
       ? input.questionnaireSource === "inquiry_page"
         ? `${Who} filled it in before the consultation`
@@ -893,7 +893,7 @@ export function projectJourney(input: JourneyInput): {
     const when = call.startsAt ? formatCallTime(call.startsAt) : null;
     push({
       key: "final_call",
-      title: "Final details call",
+      title: tradeWords.finalCall,
       detail:
         call.state === "held"
           ? `Held${when ? ` ${when}` : ""}`
@@ -1124,8 +1124,12 @@ export function projectJourney(input: JourneyInput): {
     key: "day_before",
     title: "Day-before checklist",
     detail: dayBeforeDone
-      ? "Sent — saves 20 minutes on site"
-      : "Dress, shoes, flowers, rings, invitations ready",
+      ? tradeWords.dayBefore
+        ? "Sent — last song changes and load-in"
+        : "Sent — saves 20 minutes on site"
+      : tradeWords.dayBefore
+        ? "Last song changes, venue contact, load-in"
+        : "Dress, shoes, flowers, rings, invitations ready",
     status: dayBeforeDone
       ? "complete"
       : eventBehindThem

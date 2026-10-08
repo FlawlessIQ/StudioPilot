@@ -15413,6 +15413,13 @@ form:has(> .address-field) > .address-field,
 .schedule-line-chip.is-videographer-1[aria-pressed="true"]{background:#F4EAD6;border-color:#E6D3AE;color:#87672A}
 .schedule-line-chip.is-photographer-2[aria-pressed="true"]{background:#E1EAF4;border-color:#C4D3E6;color:#3A5878}
 .schedule-line-chip.is-videographer-2[aria-pressed="true"]{background:#F3E2EA;border-color:#E3C4D2;color:#7A3B5A}
+/* A DJ's crew: D1, D2 (crew-labels.ts). */
+.schedule-line-chip.is-dj-1[aria-pressed="true"]{background:#E7E3F4;border-color:#CEC6E6;color:#4B3E7A}
+.schedule-line-chip.is-dj-2[aria-pressed="true"]{background:#E0F0EE;border-color:#C2DEDA;color:#2F6A62}
+/* A DJ's MC script on each line (features/schedules/mc-script.ts). */
+.schedule-line-mc{flex-basis:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1.3fr);gap:6px}
+.schedule-line-mc input{min-width:0;min-height:30px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:4px 8px;color:var(--ink);font:inherit;font-size:12px}
+@media(max-width:720px){.schedule-line-mc{grid-template-columns:1fr}}
 /* "Only what the couple gave is here" and the button that adds suggested
    times for the rest (components/planning/ai-schedule-generator.tsx). */
 .schedule-plan-gaps {

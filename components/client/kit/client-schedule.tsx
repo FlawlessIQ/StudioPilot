@@ -1,5 +1,6 @@
 "use client";
 
+import { mcScriptLine, type McScript } from "@/features/schedules/mc-script";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Clock3, MapPin, MessageCircle, PencilLine } from "lucide-react";
@@ -191,6 +192,10 @@ export function ClientSchedule() {
                   </span>
                   <span className="kit-timeline-body">
                     <span className="kit-timeline-title">{text(item.title, "Detail to be confirmed")}</span>
+                    {/* A DJ's song and announcement for the moment, so the couple can check names. */}
+                    {mcScriptLine(item.mc as Partial<McScript> | undefined) ? (
+                      <span className="kit-timeline-place">{mcScriptLine(item.mc as Partial<McScript> | undefined)}</span>
+                    ) : null}
                     {item.location ? (
                       <span className="kit-timeline-place">
                         <MapPin aria-hidden size={13} /> {text(item.location)}

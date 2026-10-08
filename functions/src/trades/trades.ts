@@ -88,6 +88,18 @@ export type TradeVocabulary = {
   ownerOnAction: string;
   /** The phase after the day: "Delivery" when something is delivered, otherwise "Afterwards". */
   afterPhase: string;
+  /** The sales call before the proposal: "Consultation", a DJ's "Vibe call". */
+  consultation: string;
+  /** The call before the day: "Final details call", a DJ's "Final planning call". */
+  finalCall: string;
+  /** The planning form's name, when the trade names it its own way; null keeps the job kind's ("Wedding details"). */
+  detailsForm: string | null;
+  /**
+   * The client's day-before checklist, when the trade has its own: the ask and
+   * what to have ready. Null keeps a photographer's (the dress on a hanger,
+   * the rings together), which reads by the kind of job.
+   */
+  dayBefore: { lead: string; ask: string; items: readonly string[] } | null;
 };
 
 const VOCAB: Record<Trade, TradeVocabulary> = {
@@ -104,6 +116,10 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     ownerOn: "You're shooting this one",
     ownerOnAction: "I'm shooting it",
     afterPhase: "Delivery",
+    consultation: "Consultation",
+    finalCall: "Final details call",
+    detailsForm: null,
+    dayBefore: null,
   },
   dj: {
     provider: "DJ",
@@ -118,6 +134,18 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     ownerOn: "You're playing this one",
     ownerOnAction: "I'm playing it",
     afterPhase: "Afterwards",
+    consultation: "Vibe call",
+    finalCall: "Final planning call",
+    detailsForm: "Music & moments planner",
+    dayBefore: {
+      lead: "To help the night run smoothly",
+      ask: "One small ask so everything runs to time — before we arrive, please make sure we have:",
+      items: [
+        "any last song changes, by replying to this email today",
+        "the venue coordinator's name and number for the day",
+        "where we load in and park, if the venue has told you",
+      ],
+    },
   },
   makeup: {
     provider: "makeup artist",
@@ -132,6 +160,10 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     ownerOn: "You're doing this one",
     ownerOnAction: "I'm doing it",
     afterPhase: "Afterwards",
+    consultation: "Consultation",
+    finalCall: "Final details call",
+    detailsForm: null,
+    dayBefore: null,
   },
   hair: {
     provider: "hair stylist",
@@ -146,6 +178,10 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     ownerOn: "You're styling this one",
     ownerOnAction: "I'm styling it",
     afterPhase: "Afterwards",
+    consultation: "Consultation",
+    finalCall: "Final details call",
+    detailsForm: null,
+    dayBefore: null,
   },
 };
 
@@ -166,9 +202,9 @@ export type TradeProfile = {
   /** A shot list is part of planning. */
   shotList: boolean;
   /**
-   * The client's day-before checklist email ("the dress on a hanger, ready to
-   * photograph"). Photography's for now; DJs get load-in details (Phase 2) and
-   * makeup and hair a prep guide (Phase 3) instead.
+   * The client's day-before checklist email: a photographer's dress on a
+   * hanger, a DJ's last song changes and load-in (tradeVocab `dayBefore`).
+   * Makeup and hair get a prep guide instead (Phase 3).
    */
   clientDayBefore: boolean;
   /** A trial appointment before the day (Phase 3). */
@@ -179,8 +215,13 @@ export type TradeProfile = {
   chairSchedule: boolean;
   /** The planning form is a music and moments planner (Phase 2). */
   musicPlanner: boolean;
-  /** Days before the event the final details call is offered; null keeps the studio's planning timeline. */
-  finalCallDaysBefore: number | null;
+  /**
+   * The planning timeline a new studio of this trade starts with
+   * (planning-timeline.ts). A DJ sends the planner at booking and locks it
+   * ten days out, so the final planning call falls about a week before.
+   * Null keeps the defaults (a photographer's six months and four weeks).
+   */
+  planning: { formAtBooking: boolean; lockDaysBefore: number } | null;
   /** The roles a package's coverage is staffed with. */
   coverageRoles: readonly string[];
   /** The subscription plans this trade can buy (config/saas-plans.ts). */
@@ -197,7 +238,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     perPersonPricing: false,
     chairSchedule: false,
     musicPlanner: false,
-    finalCallDaysBefore: null,
+    planning: null,
     coverageRoles: ["photographer", "videographer"],
     plans: ["studio", "multi_brand"],
   },
@@ -205,12 +246,12 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     delivery: false,
     album: false,
     shotList: false,
-    clientDayBefore: false,
+    clientDayBefore: true,
     trial: false,
     perPersonPricing: false,
     chairSchedule: false,
     musicPlanner: true,
-    finalCallDaysBefore: 7,
+    planning: { formAtBooking: true, lockDaysBefore: 10 },
     coverageRoles: ["dj"],
     plans: ["vendor"],
   },
@@ -223,7 +264,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     perPersonPricing: true,
     chairSchedule: true,
     musicPlanner: false,
-    finalCallDaysBefore: null,
+    planning: null,
     coverageRoles: ["makeup_artist"],
     plans: ["vendor"],
   },
@@ -236,7 +277,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     perPersonPricing: true,
     chairSchedule: true,
     musicPlanner: false,
-    finalCallDaysBefore: null,
+    planning: null,
     coverageRoles: ["hair_stylist"],
     plans: ["vendor"],
   },

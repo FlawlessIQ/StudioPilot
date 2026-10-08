@@ -2,6 +2,8 @@
 
 import { EXPLAINERS } from "@/features/help/explainers";
 import { glossaryFor } from "@/features/help/glossary";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeOf } from "@/features/trades/trades";
 import { HELP_STAGES, HELP_STAGE_LABELS, type HelpAudience } from "@/features/help/types";
 import { GuideLabel } from "@/components/help/how-to";
 import { openHowTo } from "@/components/help/how-to-events";
@@ -46,9 +48,11 @@ export function GuideLibrary({ audience }: { audience: HelpAudience }) {
 
 /** The audience's words, A–Z, each linkable as #term-<id>. */
 export function GlossaryList({ audience }: { audience: HelpAudience }) {
+  // A DJ studio also gets a DJ's words (glossary.ts `trades`).
+  const workspace = useWorkspace();
   return (
     <dl className="help-glossary">
-      {glossaryFor(audience).map((term) => (
+      {glossaryFor(audience, tradeOf(workspace.tenantTrade)).map((term) => (
         <div id={`term-${term.id}`} key={term.id}>
           <dt>{term.term}</dt>
           <dd>

@@ -46,13 +46,15 @@ type Block =
   | { type: "paragraph"; content: Inline[] }
   | { type: "list"; items: Array<{ content: Inline[] }> };
 
-type Category = "getting_ready" | "ceremony" | "reception" | "photo_locations" | "times" | "guests" | "contacts";
+type Category = "getting_ready" | "ceremony" | "reception" | "photo_locations" | "venue_logistics" | "times" | "guests" | "contacts";
 
 const CATEGORY_LABEL: Record<Category, string> = {
   getting_ready: "Getting ready",
   ceremony: "Ceremony",
   reception: "Reception",
   photo_locations: "Photo locations",
+  // A DJ's: where to load in, power, the venue's sound limit, a vendor meal.
+  venue_logistics: "Load-in and power",
   times: "Times",
   guests: "Guests",
   contacts: "Contacts",
@@ -60,6 +62,9 @@ const CATEGORY_LABEL: Record<Category, string> = {
 
 /** The parts a wedding agreement should carry from booking (GR, 2026-10-02). */
 export const REQUIRED_WEDDING_PARTS: readonly Category[] = ["getting_ready", "ceremony", "reception", "times"];
+
+/** A DJ's wedding: no getting ready, but the room's load-in and power (trades.ts). */
+export const REQUIRED_DJ_WEDDING_PARTS: readonly Category[] = ["ceremony", "reception", "times"];
 
 const normalise = (value: string) =>
   ` ${value
@@ -74,6 +79,8 @@ export function eventDetailCategory(question: string): Category | null {
   const has = (...words: string[]) => words.some((word) => n.includes(` ${word}`));
   if (has("date") && !has("time")) return null;
   if (has("restriction", "rule", "note", "anything", "accessib", "allergi", "describe", "how important")) return null;
+  // Before times: "Load-in time" is about load-in.
+  if (has("load in", "loading", "unload", "power", "outlet", "sound limit", "decibel", "vendor meal")) return "venue_logistics";
   if (has("time", "times", "start", "end", "finish", "arrive", "arrival", "hours")) return "times";
   if (has("getting ready", "prep", "preparation", "bridal suite", "dressing")) return "getting_ready";
   if (has("photo", "portrait", "pictures") && has("location", "locations", "stop", "stops", "spot", "spots", "where", "address", "place"))
@@ -116,8 +123,11 @@ export function eventDetailsFrom(input: {
    * days, anything else doesn't.
    */
   lockDaysBefore?: number | null;
+  /** The studio's trade (trades.ts): a DJ's wedding doesn't need getting ready. */
+  trade?: string | null;
 }): EventDetails {
   const wedding = input.eventKind ? input.eventKind === "wedding" : /wedding/i.test(input.eventType);
+  const required = input.trade === "dj" ? REQUIRED_DJ_WEDDING_PARTS : REQUIRED_WEDDING_PARTS;
   const sorted = new Map<Category, EventDetailRow[]>();
   for (const row of input.answers) {
     const question = row.question.trim();
@@ -137,14 +147,14 @@ export function eventDetailsFrom(input: {
   const rows: EventDetailRow[] = [];
   if (input.date) rows.push({ label: "Date", value: input.date });
   if (input.coverage) rows.push({ label: "Coverage", value: input.coverage });
-  const order: Category[] = ["getting_ready", "ceremony", "reception", "photo_locations", "times", "guests", "contacts"];
+  const order: Category[] = ["getting_ready", "ceremony", "reception", "photo_locations", "venue_logistics", "times", "guests", "contacts"];
   const missing: string[] = [];
   for (const category of order) {
     const entries = sorted.get(category) ?? [];
-    if (wedding && REQUIRED_WEDDING_PARTS.includes(category) && entries.length && entries.every((entry) => entry.value === "To be confirmed"))
+    if (wedding && required.includes(category) && entries.length && entries.every((entry) => entry.value === "To be confirmed"))
       missing.push(CATEGORY_LABEL[category]);
     if (!entries.length) {
-      if (wedding && REQUIRED_WEDDING_PARTS.includes(category)) {
+      if (wedding && required.includes(category)) {
         missing.push(CATEGORY_LABEL[category]);
         rows.push({ label: CATEGORY_LABEL[category], value: "To be confirmed" });
       }

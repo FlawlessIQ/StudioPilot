@@ -4,7 +4,9 @@ import {
   billedRolesFrom,
   coverageFrom,
 } from "@/components/crm/package-coverage-fields";
-import { coverageCount, resolveCoverage } from "@/features/packages/coverage";
+import { coverageCount, coverageRoleLabel, resolveCoverage, type CoverageRole } from "@/features/packages/coverage";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { perCrewRetainerProblem } from "@/features/packages/retainer-check";
 import { useState } from "react";
@@ -41,6 +43,9 @@ type RetainerMode = "percentage" | "fixed" | "per_crew_member";
  * zero deposit and hidden from clients, permanently.
  */
 export function EditPackageForm({ packageId }: { packageId: string }) {
+  // The studio's own crew roles and whether it delivers anything (trades.ts).
+  const tradeShape = tradeProfile(useWorkspace().tenantTrade);
+  const roles = tradeShape.coverageRoles as readonly CoverageRole[];
   const router = useRouter();
   const { records, loading } = useTenantDocuments("packages");
   const record = (records ?? []).find((row) => row.id === packageId);
@@ -105,10 +110,10 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
   const amount = edits.amount ?? String(storedAmount);
   const photographers =
     edits.photographers ??
-    String(coverageCount(storedCoverage, "photographer"));
+    String(coverageCount(storedCoverage, roles[0] ?? "photographer"));
   const videographers =
     edits.videographers ??
-    String(coverageCount(storedCoverage, "videographer"));
+    String(roles[1] ? coverageCount(storedCoverage, roles[1]) : 0);
   // A stored per-crew rule shows what it bills: its roles, or — with none
   // named — photographers, which is what it meant before roles existed.
   // A package switching to per-crew starts on everyone it sends: ticking
@@ -118,12 +123,12 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
   const billPhotographers =
     edits.billPhotographers ??
     (storedPerCrew
-      ? storedBilledRoles ? storedBilledRoles.includes("photographer") : true
+      ? storedBilledRoles ? storedBilledRoles.includes(roles[0] ?? "photographer") : true
       : Number(photographers || 0) > 0);
   const billVideographers =
     edits.billVideographers ??
     (storedPerCrew
-      ? storedBilledRoles ? storedBilledRoles.includes("videographer") : false
+      ? storedBilledRoles && roles[1] ? storedBilledRoles.includes(roles[1]) : false
       : Number(videographers || 0) > 0);
   // Stored when the studio has set them; until then, what the package's
   // coverage and wording imply — the same list a job would get.
@@ -171,8 +176,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             coverageFrom({
               photographers: Math.max(0, Math.round(Number(photographers || 0))),
               videographers: Math.max(0, Math.round(Number(videographers || 0))),
-            }),
-            billedRolesFrom({ billPhotographers, billVideographers }),
+            }, roles),
+            billedRolesFrom({ billPhotographers, billVideographers }, roles),
           );
 
   const perCrewProblem =
@@ -181,8 +186,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           coverage: coverageFrom({
             photographers: Math.max(0, Math.round(Number(photographers || 0))),
             videographers: Math.max(0, Math.round(Number(videographers || 0))),
-          }),
-          billedRoles: billedRolesFrom({ billPhotographers, billVideographers }),
+          }, roles),
+          billedRoles: billedRolesFrom({ billPhotographers, billVideographers }, roles),
         })
       : null;
 
@@ -235,7 +240,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         includedCoverage: coverageFrom({
           photographers: Math.max(0, Math.round(Number(photographers || 0))),
           videographers: Math.max(0, Math.round(Number(videographers || 0))),
-        }),
+        }, roles),
         deliverables: deliverables.map((item) => ({
           kind: item.kind,
           label: item.label,
@@ -374,24 +379,26 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
                 }
                 type="checkbox"
               />
-              <span>Charge this per photographer</span>
+              <span>{`Charge this per ${coverageRoleLabel(roles[0] ?? "photographer", 1)}`}</span>
             </label>
-            <label className="form-checkbox">
-              <input
-                checked={billVideographers}
-                onChange={(event) =>
-                  set("billVideographers", event.target.checked)
-                }
-                type="checkbox"
-              />
-              <span>Charge this per videographer</span>
-            </label>
+            {roles[1] ? (
+              <label className="form-checkbox">
+                <input
+                  checked={billVideographers}
+                  onChange={(event) =>
+                    set("billVideographers", event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span>{`Charge this per ${coverageRoleLabel(roles[1], 1)}`}</span>
+              </label>
+            ) : null}
           </>
         ) : null}
         </>
         ) : null}
         <label>
-          Photographers
+          {roleHeading(roles[0])}
           <input
             min="0"
             onChange={(event) => set("photographers", event.target.value)}
@@ -399,19 +406,24 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             value={photographers}
           />
         </label>
-        <label>
-          Videographers
-          <input
-            min="0"
-            onChange={(event) => set("videographers", event.target.value)}
-            type="number"
-            value={videographers}
-          />
-        </label>
+        {roles[1] ? (
+          <label>
+            {roleHeading(roles[1])}
+            <input
+              min="0"
+              onChange={(event) => set("videographers", event.target.value)}
+              type="number"
+              value={videographers}
+            />
+          </label>
+        ) : null}
         <p className="field-hint form-span">
-          Who your studio sends. At least one, in either row.
+          {roles[1] ? "Who your studio sends. At least one, in either row." : "Who your studio sends. At least one."}
         </p>
-        <PackageDeliverablesEditor onChange={(next) => set("deliverables", next)} value={deliverables} />
+        {/* Nothing is delivered after a DJ's night (trades.ts): no gallery or film to list. */}
+        {tradeShape.delivery ? (
+          <PackageDeliverablesEditor onChange={(next) => set("deliverables", next)} value={deliverables} />
+        ) : null}
         <PackageAddOnPicker
           currency={String(record?.currency ?? "USD")}
           onChange={(next) => set("addOnIds", next)}
@@ -457,4 +469,10 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
       </button>
     </form>
   );
+}
+
+/** "Photographers", "DJs": a count's heading. */
+function roleHeading(role: CoverageRole | undefined): string {
+  const label = coverageRoleLabel(role ?? "photographer", 2);
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }

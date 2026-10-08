@@ -288,6 +288,35 @@ export const GLOSSARY: readonly HelpTerm[] = [
     explainer: "crew-closeout",
     hint: "Your hours, expenses and file links for a job. The studio reviews them, then schedules your payment.",
   },
+  // ── A DJ's words (docs/vendor-journeys.md) ─────────────────────────────
+  {
+    id: "vibe-call",
+    term: "Vibe call",
+    audience: "studio",
+    trades: ["dj"],
+    hint: "The call before you send a proposal: the crowd, the music they love, and how much talking on the mic they want.",
+  },
+  {
+    id: "music-planner",
+    term: "Music & moments planner",
+    audience: "studio",
+    trades: ["dj"],
+    hint: "Your client's planning form: songs for every moment, who you introduce and how to say each name, toasts, and the dance floor.",
+  },
+  {
+    id: "mc-script",
+    term: "MC script",
+    audience: "studio",
+    trades: ["dj"],
+    hint: "The song, what you say and how to say the names, on each line of the run of show. It prints on the PDF and your DJs' day sheet.",
+  },
+  {
+    id: "final-planning-call",
+    term: "Final planning call",
+    audience: "studio",
+    trades: ["dj"],
+    hint: "Your client books it when their planner locks, ten days out, so you go through the script together about a week before.",
+  },
 ];
 
 const byId = new Map(GLOSSARY.map((term) => [term.id, term]));
@@ -296,8 +325,8 @@ export function glossaryTerm(id: string): HelpTerm | undefined {
   return byId.get(id);
 }
 
-export function glossaryFor(audience: HelpAudience): HelpTerm[] {
-  return GLOSSARY.filter((term) => term.audience === audience).sort((a, b) =>
+export function glossaryFor(audience: HelpAudience, trade?: string): HelpTerm[] {
+  return GLOSSARY.filter((term) => term.audience === audience && (!term.trades || (trade !== undefined && term.trades.includes(trade)))).sort((a, b) =>
     a.term.localeCompare(b.term),
   );
 }

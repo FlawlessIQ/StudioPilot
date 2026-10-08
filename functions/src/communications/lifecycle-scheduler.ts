@@ -49,7 +49,7 @@ export const lifecycleMessageScheduler = onSchedule(
 
     const tenantSettings = new Map<
       string,
-      { settings: ReturnType<typeof resolveLifecycleSettings>; studioName: string }
+      { settings: ReturnType<typeof resolveLifecycleSettings>; studioName: string; trade: string | null }
     >();
 
     for (const project of projects.docs) {
@@ -69,6 +69,7 @@ export const lifecycleMessageScheduler = onSchedule(
             text(tenant.get("brandName")) ||
             text(tenant.get("businessName")) ||
             "Your studio",
+          trade: text(tenant.get("trade")) || null,
         };
         tenantSettings.set(tenantId, tenantEntry);
       }
@@ -149,6 +150,7 @@ export const lifecycleMessageScheduler = onSchedule(
           paymentsOnRecord: balance.paymentsOnRecord,
           scheduleUrl,
           eventKind: jobKindOf(project.data()),
+          trade: tenantEntry.trade,
           recipientEmail,
           recipientName,
         };

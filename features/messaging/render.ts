@@ -1,3 +1,4 @@
+import { tradeVocab } from "@/features/trades/trades";
 import type {
   MessageDraftOutput,
   MessageTrigger,
@@ -34,6 +35,8 @@ export type LifecycleFacts = {
   scheduleUrl: string | null;
   /** The job's kind (job-kinds.ts): wedding words only for a wedding. */
   eventKind?: string | null;
+  /** The studio's trade (trades.ts): a DJ's couple gets a DJ's checklist. */
+  trade?: string | null;
   recipientEmail: string | null;
   recipientName: string | null;
 };
@@ -111,6 +114,32 @@ export function renderLifecycleDraft(
       recipientEmail: facts.recipientEmail,
       recipientName: facts.recipientName,
       highlights: ["Deterministic balance math", "Invoice follows separately"],
+      missingInformation: missing,
+    };
+  }
+
+  // A DJ's couple has no dress to hang up for the DJ: their own checklist
+  // (trades.ts `dayBefore`). A photographer's stays as it was.
+  const own = tradeVocab(facts.trade).dayBefore;
+  if (own) {
+    return {
+      subject: `Tomorrow's the day! A quick checklist`,
+      body: [
+        greeting(facts),
+        "",
+        `We are so excited for ${facts.projectName} tomorrow${facts.venueName ? ` at ${facts.venueName}` : ""}. It's going to be a great night.`,
+        "",
+        own.ask,
+        "",
+        ...own.items.map((item) => `• ${item.charAt(0).toUpperCase()}${item.slice(1)}`),
+        "",
+        "See you tomorrow!",
+        "",
+        `— ${facts.studioName}`,
+      ].join("\n"),
+      recipientEmail: facts.recipientEmail,
+      recipientName: facts.recipientName,
+      highlights: ["Day-before checklist", "Last song changes and load-in"],
       missingInformation: missing,
     };
   }

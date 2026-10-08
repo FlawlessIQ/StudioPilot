@@ -37,7 +37,7 @@ import { z } from "zod";
  * `createPackageSnapshot` calls it on every write.
  */
 
-export const coverageRoleSchema = z.enum(["photographer", "videographer"]);
+export const coverageRoleSchema = z.enum(["photographer", "videographer", "dj"]);
 
 export type CoverageRole = z.infer<typeof coverageRoleSchema>;
 
@@ -45,11 +45,14 @@ export type CoverageRole = z.infer<typeof coverageRoleSchema>;
 export const COVERAGE_ROLES: readonly CoverageRole[] = [
   "photographer",
   "videographer",
+  // A DJ studio's crew (features/trades/trades.ts `coverageRoles`).
+  "dj",
 ];
 
 const COVERAGE_ROLE_LABELS: Record<CoverageRole, { one: string; many: string }> = {
   photographer: { one: "photographer", many: "photographers" },
   videographer: { one: "videographer", many: "videographers" },
+  dj: { one: "DJ", many: "DJs" },
 };
 
 export function coverageRoleLabel(role: CoverageRole, count: number): string {

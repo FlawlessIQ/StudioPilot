@@ -199,7 +199,11 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // Bumped 2026-10-02 (job kinds): every job carries `eventKind`, and Cue is
   // told to use that kind's words — no "couple" on a family session. A2/A4
   // and a family-job turn re-run on production in the job-kinds walk.
-  const EXPECTED = 19532;
+  // Bumped 2026-10-08 (trades): the final answer appends tradeInstruction()
+  // for a DJ, makeup or hair studio. It is empty for a photographer, so a
+  // photographer's prompt text is unchanged; the size moved with the
+  // parameter. DJ scenarios run in the Phase 2 walk.
+  const EXPECTED = 19673;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,

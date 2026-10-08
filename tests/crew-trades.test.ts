@@ -165,7 +165,8 @@ test("every crew profile form offers the trade", () => {
 /** The crew member's own screen (M6) offers it as chips and sends it back. */
 test("the crew member's own profile offers the trade", () => {
   const source = readFileSync(`${process.cwd()}/components/crew/kit/crew-me.tsx`, "utf8");
-  assert.match(source, /options=\{COVERAGE_ROLES\.map/);
+  // Filtered to the studio's own roles (trades.ts): no "DJ" for a photographer's crew.
+  assert.match(source, /options=\{COVERAGE_ROLES\.filter\(/);
   assert.match(source, /updateCrewProfile[\s\S]*trades,/);
 });
 

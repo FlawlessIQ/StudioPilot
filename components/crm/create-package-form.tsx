@@ -4,9 +4,12 @@ import {
   billedRolesFrom,
   coverageFrom,
 } from "@/components/crm/package-coverage-fields";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { perCrewRetainerProblem } from "@/features/packages/retainer-check";
-import { EXAMPLE_PACKAGES, type ExamplePackage } from "@/features/job-kinds/example-packages";
+import { examplePackagesFor, type ExamplePackage } from "@/features/job-kinds/example-packages";
+import { COVERAGE_ROLES, coverageRoleLabel, type CoverageRole } from "@/features/packages/coverage";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeOf, tradeProfile } from "@/features/trades/trades";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -140,6 +143,10 @@ export function CreatePackageForm({
   returnTo?: string | null;
 } = {}) {
   const router = useRouter();
+  // The studio's own crew roles (trades.ts): a photographer's photographers
+  // and videographers, a DJ's DJs. The form's two counts are these.
+  const trade = useWorkspace().tenantTrade;
+  const roles = tradeProfile(trade).coverageRoles as readonly CoverageRole[];
   const [outcome, setOutcome] = useState<{
     persisted: boolean;
     name: string;
@@ -148,8 +155,18 @@ export function CreatePackageForm({
   const [addOnIds, setAddOnIds] = useState<string[]>([]);
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: 8, photographers: 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
+    defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: roles[0] === "dj" ? 5 : 8, photographers: roles[0] === "dj" ? 1 : 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: roles[0] === "dj" ? "Reception sound, Dance floor lighting, MC" : "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
+  // The workspace (and so the trade) loads after the form's defaults are
+  // taken: a DJ's start as one DJ, five hours and what a DJ includes, not a
+  // photographer's two photographers and a gallery. Only while untouched.
+  const djStudio = roles[0] === "dj";
+  useEffect(() => {
+    if (!djStudio) return;
+    if (watch("deliverables") === "Online gallery, High-resolution downloads") setValue("deliverables", "Reception sound, Dance floor lighting, MC");
+    if (Number(watch("coverageHours")) === 8) setValue("coverageHours", 5);
+    if (Number(watch("photographers")) === 2) setValue("photographers", 1);
+  }, [djStudio, setValue, watch]);
   const retainerMode = watch("retainerMode");
   const kind = watch("eventType");
   /** An example's shape, never its price: the studio sets that (example-packages.ts). */
@@ -189,10 +206,10 @@ export function CreatePackageForm({
               : {
                   type: "per_crew_member" as const,
                   amountPerCrewCents: Math.round(values.retainerAmount * 100),
-                  billedRoles: billedRolesFrom(values),
+                  billedRoles: billedRolesFrom(values, roles),
                 },
         includedCoverageMinutes: Math.round(values.coverageHours * 60),
-        includedCoverage: coverageFrom(values),
+        includedCoverage: coverageFrom(values, roles),
         includedDeliverables: values.deliverables.split(",").map((item) => item.trim()).filter(Boolean),
         includedTravelArea: values.travelArea,
         addOns: [],
@@ -282,7 +299,7 @@ export function CreatePackageForm({
         {/* After the kind it follows: the examples change with it. */}
         <div className="form-span package-examples" role="group" aria-label="Start from an example">
           <span>Start from an example</span>
-          {EXAMPLE_PACKAGES[kind].map((example) => (
+          {examplePackagesFor(tradeOf(trade), kind).map((example) => (
             <button className="schedule-moment-chip" key={example.name} onClick={() => startFrom(example)} type="button">
               {example.name}
             </button>
@@ -325,13 +342,15 @@ export function CreatePackageForm({
           <>
             <label className="form-checkbox">
               <input {...register("billPhotographers")} type="checkbox" />
-              <span>Charge this per photographer</span>
+              <span>{`Charge this per ${coverageRoleLabel(roles[0] ?? COVERAGE_ROLES[0]!, 1)}`}</span>
               <small>{errors.billPhotographers?.message}</small>
             </label>
-            <label className="form-checkbox">
-              <input {...register("billVideographers")} type="checkbox" />
-              <span>Charge this per videographer</span>
-            </label>
+            {roles[1] ? (
+              <label className="form-checkbox">
+                <input {...register("billVideographers")} type="checkbox" />
+                <span>{`Charge this per ${coverageRoleLabel(roles[1], 1)}`}</span>
+              </label>
+            ) : null}
           </>
         ) : null}
         </>
@@ -349,17 +368,20 @@ export function CreatePackageForm({
           actually enforces is in the superRefine above: at least one person.
         */}
         <label>
-          Photographers
+          {roleHeading(roles[0])}
           <input {...register("photographers")} min="0" type="number" />
           <small>{errors.photographers?.message}</small>
         </label>
-        <label>
-          Videographers
-          <input {...register("videographers")} min="0" type="number" />
-          <small>{errors.videographers?.message}</small>
-        </label>
+        {roles[1] ? (
+          <label>
+            {roleHeading(roles[1])}
+            <input {...register("videographers")} min="0" type="number" />
+            <small>{errors.videographers?.message}</small>
+          </label>
+        ) : null}
         <p className="field-hint form-span">
-          Who your studio sends. At least one, in either row. <InfoHint term="coverage" />
+          {roles[1] ? "Who your studio sends. At least one, in either row." : "Who your studio sends. At least one."}{" "}
+          <InfoHint term="coverage" />
         </p>
         <label>
           Travel area <span className="required-mark">Required</span>
@@ -367,7 +389,7 @@ export function CreatePackageForm({
           <small>{errors.travelArea?.message}</small>
         </label>
         <label className="form-span">
-          Deliverables (comma separated){" "}
+          {djStudio ? "What's included (comma separated)" : "Deliverables (comma separated)"}{" "}
           <span className="required-mark">Required</span>
           <input {...register("deliverables")} />
           <small>{errors.deliverables?.message}</small>
@@ -383,4 +405,10 @@ export function CreatePackageForm({
       <button className="button button-dark" disabled={isSubmitting} type="submit">{isSubmitting ? <LoaderCircle className="spin" size={16} /> : null}Create package</button>
     </form>
   );
+}
+
+/** "Photographers", "DJs": a count's heading. */
+function roleHeading(role: CoverageRole | undefined): string {
+  const label = coverageRoleLabel(role ?? COVERAGE_ROLES[0]!, 2);
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }

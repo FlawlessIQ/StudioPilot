@@ -23,6 +23,7 @@ import { setSignatureMode, startProviderConnect } from "@/lib/integrations/comma
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeOf } from "@/features/trades/trades";
 import {
   INQUIRY_FORM_SETTING_HREF,
   SETUP_ORDER,
@@ -32,7 +33,7 @@ import {
 } from "@/features/today/setup-gaps";
 import { InquiryEventFormSetting } from "@/components/planning/inquiry-event-form-setting";
 import { JOB_KIND_LABELS, JOB_KINDS, type JobKind } from "@/features/job-kinds/job-kinds";
-import { defaultInquiryFormConfig } from "@/features/leads/inquiry-form-config";
+import { defaultInquiryFormFor } from "@/features/leads/inquiry-form-config";
 import { runCrmCommand } from "@/lib/crm/command-client";
 
 /**
@@ -143,6 +144,31 @@ const INQUIRY_FORM_WHY =
 
 // Asked in the one shared order Today's "Next:" also follows.
 const ORDERED = SETUP_ORDER.map((key) => QUESTIONS.find((question) => question.key === key)!);
+
+/**
+ * A DJ's words for the same questions (features/trades/trades.ts): what they
+ * play, a vibe call, and the music planner they start with.
+ */
+const DJ_COPY: Partial<Record<Question["key"], Partial<Pick<Question, "ask" | "why" | "doneLabel">>>> = {
+  work: {
+    ask: "What events do you play?",
+    why: "Check everything you take on. Your inquiry form offers just these, and each kind gets its own steps and words.",
+    doneLabel: "StudioCue knows what you play.",
+  },
+  availability: {
+    why: "Pick your hours and clients book a vibe call themselves. Connect Google Calendar too, and times you're busy are never offered.",
+  },
+  questionnaire: {
+    ask: "What do you ask clients before the night?",
+    why: "StudioCue's Music & moments planner is ready: songs for every moment, the names you'll say with how to say them, and the dance floor. Or paste the form you already send.",
+    doneLabel: "Your Music & moments planner is ready to send — or use your own.",
+  },
+};
+
+/** A question in the studio's trade's words. */
+function inTradeWords(question: Question, trade: unknown): Question {
+  return tradeOf(trade) === "dj" ? { ...question, ...DJ_COPY[question.key] } : question;
+}
 
 const IMPORT_PRICES = fromSetup("/studio/import?kind=Package");
 const IMPORT_FORM = fromSetup("/studio/import?kind=Questionnaire");
@@ -280,16 +306,16 @@ export function SetupConversation() {
                   )}
                 </span>
                 <div className="setup-question-body">
-                  <strong>{question.ask}</strong>
+                  <strong>{inTradeWords(question, workspace.tenantTrade).ask}</strong>
                   <p>
                     {done
-                      ? question.doneLabel
+                      ? inTradeWords(question, workspace.tenantTrade).doneLabel
                       : question.key === "agreement" &&
                           gap?.href === NATIVE_AGREEMENT_HREF
                         ? NATIVE_AGREEMENT_WHY
                         : gap?.href === INQUIRY_FORM_SETTING_HREF
                           ? INQUIRY_FORM_WHY
-                          : question.why}
+                          : inTradeWords(question, workspace.tenantTrade).why}
                   </p>
                   {gap?.blocking ? (
                     <span className="setup-blocking">
@@ -386,6 +412,9 @@ function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
  * the form editor. Weddings start ticked; nothing is saved until Save.
  */
 function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
+  // A DJ plays weddings, corporate events and parties (inquiry-form-config.ts).
+  const trade = tradeOf(useWorkspace().tenantTrade);
+  const kinds: readonly JobKind[] = trade === "dj" ? JOB_KINDS.filter((kind) => kind !== "portraits" && kind !== "sports") : JOB_KINDS;
   // The first kind (weddings) starts ticked.
   const [chosen, setChosen] = useState<JobKind[]>([JOB_KINDS[0]]);
   const [busy, setBusy] = useState(false);
@@ -394,11 +423,11 @@ function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
     setChosen((current) => (current.includes(kind) ? current.filter((entry) => entry !== kind) : [...current, kind]));
   return (
     <div className="setup-answer-row setup-kinds">
-      <div className="setup-kind-options" role="group" aria-label="What you shoot">
-        {JOB_KINDS.map((kind) => (
+      <div className="setup-kind-options" role="group" aria-label={trade === "dj" ? "What you play" : "What you shoot"}>
+        {kinds.map((kind) => (
           <label className="form-checkbox" key={kind}>
             <input checked={chosen.includes(kind)} onChange={() => toggle(kind)} type="checkbox" />
-            <span>{JOB_KIND_LABELS[kind]}</span>
+            <span>{trade === "dj" && kind === "other" ? "Parties and other events" : JOB_KIND_LABELS[kind]}</span>
           </label>
         ))}
       </div>
@@ -408,7 +437,7 @@ function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
         onClick={() => {
           setBusy(true);
           setNotice(null);
-          const base = defaultInquiryFormConfig();
+          const base = defaultInquiryFormFor(trade);
           const config = {
             ...base,
             eventTypes: base.eventTypes.filter(

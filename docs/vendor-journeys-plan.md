@@ -11,7 +11,14 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
 
 - **Phase 0 and Phase 1 shipped 2026-10-08.** Trades live in `features/trades/trades.ts`. `LIVE_TRADES` is still photographer only, so nobody can sign up as a DJ, makeup artist or hair stylist except through a `?trade=` link. Stripe has the Pro product (`prod_VPAbQ7qidGVYdW`, $75/mo, $750/yr).
 - **Walked in the emulator.** A DJ studio signed up through the real onboarding function and started on Pro, with only the event details form and no gallery or day-before email. Its job reads Played → Afterwards → Review. The server allowed the move from the day to the review for DJ and makeup studios and refused it for a photographer.
-- **Phase 2 found this for the backlog:** setup ("2 of 7 answered") still asks photographer questions. Check each setup step per trade.
+- **Phase 2 (DJ) shipped 2026-10-08.**
+  - **Forms and timeline:** the Music & moments planner (`dj-music-planner`) is sent at booking and locks 10 days out, so the final planning call lands about a week before.
+  - **Run of show:** "Lay out the night" (`features/schedules/night-plan.ts`). MC-script fields on each line (`features/schedules/mc-script.ts`) are filled from the planner and shown on the PDF, the day sheet and the couple's timeline.
+  - **Crew and packages:** a DJ crew role (D1/D2), DJ packages, and the agreement's Schedule A load-in and power section.
+  - **Inquiry form:** hours of music and ceremony music.
+  - **Words everywhere:** vibe call and final planning call (journey and emails), the DJ's day-before checklist, Cue's prompts (`functions/src/trades/trade-instruction.ts`), setup, and DJ glossary terms.
+  - **Walked in the emulator:** onboarding, laying out the night, the MC script filled from the planner, publishing (the server kept the script on 9 lines), the job page, setup and the package form.
+  - **Not yet:** the PDF draws DJ crew chips in grey (`cloud-run/pdf/run_of_show.py` needs a D colour and a Cloud Run deploy); "Plan the day" stays as the page title.
 
 ## Principles
 

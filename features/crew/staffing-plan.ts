@@ -179,6 +179,8 @@ function offerLabel(
  * which is what an unrecognised role has always been treated as.
  */
 export function coverageRoleForLabel(label: string): CoverageRole {
+  // A DJ studio's crew (trades.ts): "DJ", "Second DJ", "MC".
+  if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return "dj";
   return /video/i.test(label) ? "videographer" : "photographer";
 }
 
@@ -201,6 +203,7 @@ export function coverageRoleForLabel(label: string): CoverageRole {
  * person asking.
  */
 export function coverageTradeNamed(label: string): CoverageRole | null {
+  if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return "dj";
   if (/video|cinema|film|drone|aerial/i.test(label)) {
     // Drone and aerial work name a camera, not this studio's video trade.
     return /drone|aerial/i.test(label) ? null : "videographer";

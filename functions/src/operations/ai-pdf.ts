@@ -1,3 +1,4 @@
+import { mcScriptLine, type McScript } from "../planning/mc-script.js";
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
 import { US_ENGLISH_PART } from "../ai/language.js";
 import { enrichCapturedLead } from "../intake/enrich.js";
@@ -130,7 +131,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
       body:JSON.stringify({
         // The rules as they have always been, then the studio's own
         // preferences, quoted — style guidance that cannot override them.
-        systemInstruction:{parts:[{text:inquiryReplySystemInstruction({voice:tenant.get("copilotVoice"),firstReply:tenant.get("firstReplyInstructions")})},US_ENGLISH_PART]},
+        systemInstruction:{parts:[{text:inquiryReplySystemInstruction({voice:tenant.get("copilotVoice"),firstReply:tenant.get("firstReplyInstructions"),trade:tenant.get("trade")})},US_ENGLISH_PART]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{
           temperature:0,
@@ -821,7 +822,8 @@ async function runOfShowFor(db:FirebaseFirestore.Firestore,schedule:DocumentSnap
       endAt:String(item.endAt),
       title:String(item.title??""),
       location:typeof item.location==="string"?item.location:null,
-      notes:typeof item.notes==="string"?item.notes:null,
+      // A DJ's MC script rides on the line's note: the song, what's said, and how to say the names.
+      notes:[typeof item.notes==="string"?item.notes:null,mcScriptLine(item.mc as Partial<McScript>|undefined)].filter(Boolean).join(" · ")||null,
       crewIds:itemCrewIds(item as {crewIds?:unknown;photographerIds?:unknown}),
     })),
     timeZone:eventZone(schedule.get("timezone"),project.get("timezone")),

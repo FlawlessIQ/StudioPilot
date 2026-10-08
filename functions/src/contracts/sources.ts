@@ -241,6 +241,8 @@ export async function loadContractSources(
     lockDaysBefore: finalDetailsLockApplies(project.data())
       ? resolvePlanningTimeline(tenant.get("planningTimeline")).lockDaysBefore
       : null,
+    // A DJ's agreement asks for load-in, not getting ready (trades.ts).
+    trade: text(tenant.get("trade")) || null,
   });
 
   return {

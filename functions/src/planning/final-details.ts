@@ -78,10 +78,11 @@ export function coupleTimeline(schedule: Row | null): TimelineRow[] {
 
 /** What the couple confirms: their forms' details (newest answer to each question wins) and the published timeline. */
 export async function finalDetailsSnapshot(db: Firestore, tenantId: string, projectId: string): Promise<FinalDetailsSnapshot> {
-  const [project, responses, schedules] = await Promise.all([
+  const [project, responses, schedules, tenant] = await Promise.all([
     db.doc(`projects/${projectId}`).get(),
     db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", projectId).limit(20).get(),
     db.collection("schedules").where("tenantId", "==", tenantId).where("projectId", "==", projectId).orderBy("version", "desc").limit(5).get(),
+    db.doc(`tenants/${tenantId}`).get(),
   ]);
   const returned = responses.docs
     .filter((response) => isReturned(response.get("status")) && !response.get("archivedAt"))
@@ -98,6 +99,7 @@ export async function finalDetailsSnapshot(db: Firestore, tenantId: string, proj
     venue: text(project.get("venueName")) || null,
     coverage: null,
     answers: [...byQuestion.values()],
+    trade: text(tenant.get("trade")) || null,
   });
   const schedule = schedules.docs.find((candidate) => !["superseded", "draft"].includes(text(candidate.get("status")))) ?? null;
   return {

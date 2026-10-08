@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { useState, type KeyboardEvent } from "react";
 import { CalendarDays, CheckCircle2, Plus, ShieldCheck, X } from "lucide-react";
 import { Actions, Button, Card, Choices, Field, List, Main, Note, Pill, PoweredBy, Row } from "@/components/kit/kit";
@@ -50,6 +52,7 @@ export function CrewMe() {
 }
 
 function Profile({ data, profile }: { data: CrewData; profile: Value }) {
+  const workspace = useWorkspace();
   const emergency = record(profile.emergencyContact);
   const [phone, setPhone] = useState(text(profile.phone));
   // What this person shoots, so the studio asks the right people. See
@@ -128,10 +131,12 @@ function Profile({ data, profile }: { data: CrewData; profile: Value }) {
         <section aria-label="Your work" className="kit-stack">
           <h2 className="kit-subsection">Your work</h2>
           <Choices
-            legend="You shoot"
+            legend={tradeProfile(workspace.tenantTrade).family === "music" ? "You work as" : "You shoot"}
             multiple
             onChange={(next) => touch(setTrades)(next as CoverageRole[])}
-            options={COVERAGE_ROLES.map((role) => ({ value: role, label: capitalise(coverageRoleLabel(role, 1)) }))}
+            options={COVERAGE_ROLES.filter(
+              (role) => tradeProfile(workspace.tenantTrade).coverageRoles.includes(role) || trades.includes(role),
+            ).map((role) => ({ value: role, label: capitalise(coverageRoleLabel(role, 1)) }))}
             value={trades}
           />
           <ChipInput

@@ -11,6 +11,9 @@ export const scheduleItemSchema = z.object({
   crewIds: z.array(z.string()).optional(),
   photographerIds: z.array(z.string()).default([]), participants: z.array(z.string()),
   vendorContactIds: z.array(z.string()), equipment: z.array(z.string()), notes: z.string().nullable(),
+  // A DJ's MC script for the moment (features/schedules/mc-script.ts): the
+  // song, what's said on the mic, and how to say the names in it.
+  mc: z.object({ song: z.string().max(200).nullable(), announcement: z.string().max(600).nullable(), pronunciation: z.string().max(300).nullable() }).optional(),
   visibility: z.enum(["studio","client","crew","shared"]), blockingIssues: z.array(z.string()),
   sourceReferences: z.array(z.object({
     type: z.enum(["project_fact","questionnaire_answer","timing_rule","package_fact","crew_fact","assumption"]),

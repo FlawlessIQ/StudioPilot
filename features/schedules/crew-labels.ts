@@ -13,7 +13,7 @@
  * Mirrored at functions/src/planning/crew-labels.ts; the test fails on drift.
  */
 
-export type CrewTrade = "photographer" | "videographer";
+export type CrewTrade = "photographer" | "videographer" | "dj";
 
 export type LabelledCrew = {
   id: string;
@@ -27,6 +27,8 @@ export type CrewLabel = { id: string; label: string; trade: CrewTrade; number: n
 
 /** Video in the role's name is video; anything else is photography (as staffing reads it). */
 export function crewTrade(role: string): CrewTrade {
+  // A DJ studio's crew: D1, D2 (trades.ts).
+  if (/\bdj\b|disc jockey|\bmc\b/i.test(role)) return "dj";
   return /video/i.test(role) ? "videographer" : "photographer";
 }
 
@@ -34,7 +36,7 @@ const rank = (role: string) => (/lead|main|primary|first|\b1\b/i.test(role) ? 0 
 
 export function crewLabels(members: readonly LabelledCrew[]): Map<string, CrewLabel> {
   const labels = new Map<string, CrewLabel>();
-  for (const trade of ["photographer", "videographer"] as const) {
+  for (const trade of ["photographer", "videographer", "dj"] as const) {
     const ofTrade = members
       .map((member, index) => ({ member, index }))
       .filter(({ member }) => crewTrade(member.role) === trade)
@@ -46,7 +48,7 @@ export function crewLabels(members: readonly LabelledCrew[]): Map<string, CrewLa
       );
     ofTrade.forEach(({ member }, index) => {
       if (labels.has(member.id)) return;
-      labels.set(member.id, { id: member.id, label: `${trade === "photographer" ? "P" : "V"}${index + 1}`, trade, number: index + 1 });
+      labels.set(member.id, { id: member.id, label: `${trade === "photographer" ? "P" : trade === "dj" ? "D" : "V"}${index + 1}`, trade, number: index + 1 });
     });
   }
   return labels;
@@ -59,5 +61,5 @@ export function sortLabels(labels: readonly string[]): string[] {
 
 /** "Photo 1", "Video 2" for a label. */
 export function labelName(label: string): string {
-  return `${label.startsWith("V") ? "Video" : "Photo"} ${label.slice(1)}`;
+  return `${label.startsWith("V") ? "Video" : label.startsWith("D") ? "DJ" : "Photo"} ${label.slice(1)}`;
 }

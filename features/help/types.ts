@@ -46,6 +46,8 @@ export type HelpTerm = {
   audience: HelpAudience;
   /** An explainer that covers this term in depth ("Learn more"). */
   explainer?: string;
+  /** The trades it's for (features/trades/trades.ts); absent, every trade. */
+  trades?: readonly string[];
 };
 
 export type Explainer = {

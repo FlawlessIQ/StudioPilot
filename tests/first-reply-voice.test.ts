@@ -102,7 +102,7 @@ const copilot = readFileSync(`${process.cwd()}/functions/src/ai/copilot.ts`, "ut
 test("the inquiry drafter reads both settings from the tenant", () => {
   assert.match(
     intake,
-    /inquiryReplySystemInstruction\(\{voice:tenant\.get\("copilotVoice"\),firstReply:tenant\.get\("firstReplyInstructions"\)\}\)/,
+    /inquiryReplySystemInstruction\(\{voice:tenant\.get\("copilotVoice"\),firstReply:tenant\.get\("firstReplyInstructions"\),trade:tenant\.get\("trade"\)\}\)/,
   );
   // Read before the model is called, not after.
   assert.ok(

@@ -118,3 +118,56 @@ export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
     },
   ],
 };
+
+/**
+ * A DJ's examples (docs/vendor-journeys.md: a reception package of 4–6
+ * hours, ceremony and cocktail hour as add-ons or a fuller package). The
+ * counts are the studio's own first role (trades.ts `coverageRoles`), so
+ * `photographers` here is DJs; "deliverables" reads as what's included.
+ */
+const DJ_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
+  wedding: [
+    {
+      name: "Reception",
+      description: "Your reception, from the grand entrance to the last dance, with your DJ as MC.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Reception sound, Dance floor lighting, MC, Online music planner",
+    },
+    {
+      name: "Ceremony and reception",
+      description: "Ceremony sound with wireless microphones, cocktail hour music, and the reception.",
+      coverageHours: 6,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Ceremony sound and microphones, Cocktail hour music, Reception sound, MC, Online music planner",
+    },
+  ],
+  corporate: [
+    {
+      name: "Corporate event",
+      description: "Background music, announcements and the dance floor for your event.",
+      coverageHours: 4,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Sound system, Wireless microphone, MC announcements",
+    },
+  ],
+  other: [
+    {
+      name: "Party",
+      description: "Music and MC for your party, start to finish.",
+      coverageHours: 4,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Sound system, Dance floor lighting, MC",
+    },
+  ],
+};
+
+/** The examples for a studio of this trade and a job of this kind. */
+export function examplePackagesFor(trade: string, kind: JobKind): readonly ExamplePackage[] {
+  if (trade === "dj") return DJ_EXAMPLES[kind] ?? DJ_EXAMPLES.other ?? [];
+  return EXAMPLE_PACKAGES[kind];
+}

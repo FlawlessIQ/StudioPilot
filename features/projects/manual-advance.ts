@@ -118,7 +118,8 @@ const STAGE_EXAMPLES: Partial<Record<ProjectState, string>> = {
   PROPOSAL: "sending the proposal",
   PLANNING: "starting the planning",
   READY: "getting the job ready",
-  EVENT_COMPLETE: "shooting the event",
+  // "the event", not "shooting the event": a DJ plays it (trades.ts).
+  EVENT_COMPLETE: "the event",
   POST_PRODUCTION: "starting the edit",
   REVIEW_REQUESTED: "asking for the review",
   CLOSED: "closing the job out",
