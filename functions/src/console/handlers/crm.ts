@@ -10,8 +10,8 @@ import { platformEmailJob, safeActionUrl, shortToken, studioOwner, teamReplyAddr
  * by a studio (firestore.rules), and every email is signed by the team.
  */
 
-/** "studio:<tenantId>", "person:<uid>", "issue:<id>", "lead:<id>" or "partner:<id>". */
-const subjectKey = z.string().regex(/^(studio|person|issue|lead|partner):[A-Za-z0-9_\-.:@]+$/).max(260);
+/** "studio:<tenantId>", "person:<uid>", "issue:<id>", or "lead:<id>". */
+const subjectKey = z.string().regex(/^(studio|person|issue|lead):[A-Za-z0-9_\-.:@]+$/).max(260);
 const tenantId = z.string().min(1).max(200);
 
 function tenantOf(key: string | null | undefined): string | null {

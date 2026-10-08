@@ -42,10 +42,12 @@ export const FEEDBACK_EMAIL_TYPES = [
 export const TEAM_EMAIL_TYPES = ["platform_message", "feedback_reply"] as const;
 
 /**
- * StudioCue's own sales mail, to the team inbox: a photographer asked for a
- * demo on studio-cue.com/demo (app/api/public/demo). Platform mail.
+ * StudioCue's own sales mail. To the team inbox when a photographer asks for a
+ * demo on studio-cue.com/demo (app/api/public/demo); and to a vendor on a
+ * studio's booked job, inviting them to try StudioCue with that studio's
+ * referral code (saas/vendor-invites.ts). Platform mail.
  */
-export const GROWTH_EMAIL_TYPES = ["platform_demo_requested"] as const;
+export const GROWTH_EMAIL_TYPES = ["platform_demo_requested", "platform_vendor_invite"] as const;
 
 /**
  * StudioCue writing to a studio owner about their own subscription
@@ -56,6 +58,7 @@ export const BILLING_EMAIL_TYPES = [
   "billing_trial_ending",
   "billing_payment_failed",
   "billing_payment_recovered",
+  "billing_referral_credit",
 ] as const;
 
 /**
@@ -178,6 +181,9 @@ export const emailTemplateKeys = [
   "billing_trial_ending",
   "billing_payment_failed",
   "billing_payment_recovered",
+  "billing_referral_credit",
+  // StudioCue → a vendor on a studio's booked job: try StudioCue.
+  "platform_vendor_invite",
   // StudioCue → studio owner during the trial: "Cue's first two weeks".
   "trial_cue_starts",
   "trial_cue_so_far",
@@ -2067,6 +2073,44 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "Update your card and the payment is tried again right away.",
         ],
         action: actionUrl ? { label: "Update your card", url: actionUrl } : undefined,
+      };
+    }
+    case "billing_referral_credit": {
+      const amount = stringValue(values, "amountText");
+      const count = Number(values.count ?? 0);
+      const studios = count === 1 ? "One studio" : `${count} studios`;
+      return {
+        subject: `You've earned ${amount || "a"} StudioCue credit`,
+        preheader: "It comes off your next bill automatically.",
+        eyebrow: "Referral credit",
+        heading: `${amount || "Your credit"} is on your account`,
+        paragraphs: [
+          greeting,
+          `Thanks for spreading the word. ${studios} you referred ${count === 1 ? "is" : "are"} now paying for StudioCue, so we've added ${amount || "your credit"} to your account.`,
+          "It comes off your next bill automatically. Nothing to do.",
+        ],
+        action: actionUrl ? { label: "See your referrals", url: actionUrl } : undefined,
+      };
+    }
+    case "platform_vendor_invite": {
+      const studio = stringValue(values, "studioName") || "A studio you work with";
+      const code = stringValue(values, "code");
+      const unsubscribeUrl = stringValue(values, "unsubscribeUrl");
+      return {
+        subject: `${studio} invited you to try StudioCue`,
+        preheader: "14 days free, then half price for your first year.",
+        eyebrow: "An invitation",
+        heading: `${studio} thinks you'd like StudioCue`,
+        paragraphs: [
+          greeting,
+          `${studio} runs their bookings on StudioCue, and you're on one of their upcoming events. They'd like you to try it too.`,
+          "StudioCue looks after the office side: inquiries, proposals, contracts, payments, forms and the day's timeline, with an assistant that drafts the next step for you to approve.",
+          `With ${possessive(studio)} code you get 14 days free, then $75/month billed yearly for your first year, half the usual $150. Or $100/month if you'd rather pay monthly.`,
+        ],
+        details: code ? [{ label: "Your code", value: code }] : undefined,
+        action: actionUrl ? { label: "Start your free trial", url: actionUrl } : undefined,
+        note: `You're getting this once because ${studio} added you to a job on StudioCue. We won't email you about it again.`,
+        secondaryAction: unsubscribeUrl ? { label: "Don't email me about StudioCue", url: unsubscribeUrl } : undefined,
       };
     }
     case "billing_payment_recovered": {

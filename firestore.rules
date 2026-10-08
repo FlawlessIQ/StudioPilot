@@ -993,16 +993,31 @@ service cloud.firestore {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }
-    // Partners who sell StudioCue, the studios they referred, and what they
-    // were paid (Console → Partners). Written only by saasAdminCommand and the
-    // Stripe webhook.
-    match /saasPartners/{partnerId} {
-      allow read: if isPlatformAdmin();
-      allow write: if false;
-    }
+    // Studio referrals (Console → Referrals, saas/referrals.ts): every
+    // studio's code, the studios that signed up with one, the quarterly
+    // credits, and the vendors invited. Written only by billingCommand, the
+    // Stripe webhook and the schedulers. A studio sees its own through
+    // billingCommand, never these documents.
     match /saasReferrals/{tenantId} {
       allow read: if isPlatformAdmin();
       allow write: if false;
+    }
+    match /saasReferralCodes/{code} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /saasReferralCredits/{creditId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /vendorInvites/{emailHash} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    // Addresses that opted out of StudioCue's own sales mail. Written by the
+    // unsubscribe route; read only by the server.
+    match /emailSuppressions/{emailHash} {
+      allow read, write: if false;
     }
     // Where each studio came from (Console → Sources): the signup link and
     // "How did you hear about StudioCue?", written by tenantOnboardingCommand,
@@ -1019,16 +1034,7 @@ service cloud.firestore {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }
-    // A partner's statement link, by the hash of its token. Read only by the
-    // server rendering app/partner/[token]; nobody reads it from a browser.
-    match /saasPartnerLinks/{tokenHash} {
-      allow read, write: if false;
-    }
     match /saasAttribution/{tenantId} {
-      allow read: if isPlatformAdmin();
-      allow write: if false;
-    }
-    match /saasPartnerPayouts/{payoutId} {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }

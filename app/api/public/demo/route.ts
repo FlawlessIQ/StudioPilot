@@ -110,7 +110,6 @@ export async function POST(request: Request): Promise<Response> {
       sourceDetail: null,
       heard: input.heard ?? null,
       attribution: attribution.success ? attribution.data : null,
-      partnerId: null,
       ownerUid: null,
       ownerEmail: null,
       nextStep: "Reply and book the demo",

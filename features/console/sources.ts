@@ -2,13 +2,13 @@ import type { HeardValue, Touch } from "@/features/growth/attribution";
 import type { ConsoleStudio } from "./model";
 
 /**
- * Console → Sources (docs/console.md): which channels and partners bring
- * studios in, and which of those studios go on to pay.
+ * Console → Sources (docs/console.md): which channels and referring studios
+ * bring studios in, and which of those studios go on to pay.
  *
  * One channel per studio, chosen in this order:
  * 1. what an operator filed it under by hand;
- * 2. a partner's code (the referral the Stripe webhook recorded, or a code on
- *    the signup link that belongs to a partner);
+ * 2. another studio's referral code (the referral the Stripe webhook
+ *    recorded, or a studio's code on the signup link);
  * 3. what the owner told us at signup ("How did you hear about StudioCue?");
  * 4. the link they arrived on (campaign tags, then the referring site);
  * 5. "Direct" when we were listening and heard nothing, "Before tracking"
@@ -22,7 +22,7 @@ import type { ConsoleStudio } from "./model";
  */
 
 export const SOURCE_CHANNELS = [
-  "partner",
+  "referral",
   "vendor",
   "instagram",
   "facebook",
@@ -41,7 +41,7 @@ export const SOURCE_CHANNELS = [
 export type SourceChannel = (typeof SOURCE_CHANNELS)[number] | "unknown";
 
 export const CHANNEL_LABELS: Record<SourceChannel, string> = {
-  partner: "Partner code",
+  referral: "Studio referral",
   vendor: "A vendor, no code",
   instagram: "Instagram",
   facebook: "Facebook",
@@ -58,11 +58,11 @@ export const CHANNEL_LABELS: Record<SourceChannel, string> = {
   unknown: "Before tracking",
 };
 
-export type SourceBasis = "manual" | "partner" | "told" | "link" | "none";
+export type SourceBasis = "manual" | "referral" | "told" | "link" | "none";
 
 export const BASIS_LABELS: Record<SourceBasis, string> = {
   manual: "Filed by hand",
-  partner: "Partner code",
+  referral: "Referral code",
   told: "They told us",
   link: "From the link",
   none: "Nothing recorded",
@@ -81,16 +81,18 @@ export type AttributionRecord = {
   createdAt?: string;
 };
 
-export type PartnerRef = { id: string; name: string; kind: string; code: string };
-export type ReferralRef = { tenantId: string; partnerId: string; paidAt?: string | null };
+/** `saasReferrals/{tenantId}`: who referred the studio (saas/referrals.ts). */
+export type ReferralRef = { tenantId: string; referrerTenantId: string; referrerName?: string | null; via?: string | null; paidAt?: string | null };
+/** `saasReferralCodes/{code}`: whose code it is. */
+export type ReferralCodeRef = { code: string; tenantId: string };
 
 export type StudioSource = {
   channel: SourceChannel;
   basis: SourceBasis;
-  /** A partner, a campaign, a site, a name: whatever narrows the channel. */
+  /** A referring studio, a campaign, a site, a name: whatever narrows the channel. */
   detail: string | null;
-  partnerId: string | null;
-  partnerKind: string | null;
+  /** The studio whose code it signed up with. */
+  referrerTenantId: string | null;
   /** The link, described on its own, whatever channel won. */
   linkChannel: SourceChannel | null;
   linkDetail: string | null;
@@ -141,27 +143,35 @@ export function classifyStudio(input: {
   tenantId: string;
   attribution: AttributionRecord | null | undefined;
   referral: ReferralRef | null | undefined;
-  partners: PartnerRef[];
+  /** Every studio's code, and the studio names, to name a referrer from a code on the link alone. */
+  codes?: ReadonlyMap<string, string>;
+  studioName?: (tenantId: string) => string | null;
 }): StudioSource {
-  const { attribution, referral, partners } = input;
+  const { attribution, referral } = input;
   const link = channelOfTouch(attribution?.first) ?? channelOfTouch(attribution?.last);
   const campaign = attribution?.first?.campaign ?? attribution?.last?.campaign ?? null;
   const landing = attribution?.first?.landing ?? attribution?.last?.landing ?? null;
   const base = { linkChannel: link?.channel ?? null, linkDetail: link?.detail ?? null, campaign, landing };
   const codes = [attribution?.promotionCode, attribution?.first?.code, attribution?.last?.code].filter((code): code is string => Boolean(code));
-  const partner =
-    (referral ? partners.find((candidate) => candidate.id === referral.partnerId) : undefined) ??
-    partners.find((candidate) => codes.includes(candidate.code));
-  const partnerFields = { partnerId: partner?.id ?? referral?.partnerId ?? null, partnerKind: partner?.kind ?? null };
+  const referrerTenantId =
+    referral?.referrerTenantId ?? codes.map((code) => input.codes?.get(code)).find((id) => id && id !== input.tenantId) ?? null;
+  const referrerName = referral?.referrerName ?? (referrerTenantId ? input.studioName?.(referrerTenantId) ?? null : null);
+  const referrerFields = { referrerTenantId };
 
   if (attribution?.manual?.channel)
-    return { channel: attribution.manual.channel, basis: "manual", detail: attribution.manual.detail ?? null, ...partnerFields, ...base };
-  if (partner || referral)
-    return { channel: "partner", basis: "partner", detail: partner?.name ?? null, ...partnerFields, ...base };
+    return { channel: attribution.manual.channel, basis: "manual", detail: attribution.manual.detail ?? null, ...referrerFields, ...base };
+  if (referrerTenantId)
+    return {
+      channel: "referral",
+      basis: "referral",
+      detail: [referrerName, referral?.via === "vendor_invite" ? "vendor invite" : null].filter(Boolean).join(" · ") || null,
+      ...referrerFields,
+      ...base,
+    };
   if (attribution?.heard)
-    return { channel: HEARD_CHANNEL[attribution.heard] ?? "other", basis: "told", detail: attribution.heardDetail ?? null, ...partnerFields, ...base };
-  if (link) return { channel: link.channel, basis: "link", detail: link.detail, ...partnerFields, ...base };
-  return { channel: attribution ? "direct" : "unknown", basis: "none", detail: codes[0] ? `Code ${codes[0]}` : null, ...partnerFields, ...base };
+    return { channel: HEARD_CHANNEL[attribution.heard] ?? "other", basis: "told", detail: attribution.heardDetail ?? null, ...referrerFields, ...base };
+  if (link) return { channel: link.channel, basis: "link", detail: link.detail, ...referrerFields, ...base };
+  return { channel: attribution ? "direct" : "unknown", basis: "none", detail: codes[0] ? `Code ${codes[0]}` : null, ...referrerFields, ...base };
 }
 
 const PAYING = new Set(["active", "past_due", "unpaid", "paused"]);

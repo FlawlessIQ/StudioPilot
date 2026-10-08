@@ -1,7 +1,6 @@
 import type { ConsoleHandler } from "../command-kit.js";
 import { billingHandlers } from "./billing.js";
 import { codeHandlers } from "./codes.js";
-import { partnerHandlers } from "./partners.js";
 import { leadHandlers } from "./leads.js";
 import { crmHandlers } from "./crm.js";
 import { inboxHandlers } from "./inbox.js";
@@ -19,7 +18,6 @@ export const consoleHandlers: Record<string, ConsoleHandler> = {
   ...peopleHandlers,
   ...billingHandlers,
   ...codeHandlers,
-  ...partnerHandlers,
   ...leadHandlers,
   ...inboxHandlers,
   ...supportHandlers,

@@ -4,7 +4,7 @@
  * tests/legal-pages.test.ts fails if the two disagree.
  */
 export const TERMS_VERSION = "1.0";
-export const PRIVACY_VERSION = "2.1";
+export const PRIVACY_VERSION = "2.2";
 
 /** What is stored on the tenant and the owner when the workspace is created. */
 export function legalAcceptance(uid: string, at: string) {

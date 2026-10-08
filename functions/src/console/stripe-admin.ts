@@ -38,6 +38,8 @@ export async function stripeRequest<T = Record<string, unknown>>(
   method: "GET" | "POST" | "DELETE",
   path: string,
   params: Params = {},
+  /** A POST Stripe must apply at most once, however often it is retried. */
+  idempotencyKey?: string,
 ): Promise<T> {
   const secret = process.env.STRIPE_SECRET_KEY;
   if (!secret) throw new Error("STRIPE_NOT_CONFIGURED");
@@ -48,6 +50,7 @@ export async function stripeRequest<T = Record<string, unknown>>(
       authorization: `Bearer ${secret}`,
       "stripe-version": STRIPE_ADMIN_API_VERSION,
       ...(method === "POST" ? { "content-type": "application/x-www-form-urlencoded" } : {}),
+      ...(method === "POST" && idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
     },
     body: method === "POST" ? encode(params) : undefined,
   });

@@ -192,6 +192,8 @@ const REACHED: Record<string, string> = {
   setBillingSettings: "/studio/integrations", setUpItems: "/studio/integrations", sendTestInvoice: "/studio/integrations",
   requestExport: "DataControls", requestDeletion: "DataControls", cancelDeletion: "DataControls",
   createCheckout: "/studio/subscription", createPortal: "/studio/subscription", confirmCheckout: "/studio/subscription",
+  // Subscription → Refer a studio (components/saas/referral-card.tsx).
+  referralStatus: "/studio/subscription", setVendorInvites: "/studio/subscription", previewCode: "/studio/subscription",
   createSession: "/studio/import", createSourceSession: "/studio/import", getSession: "/studio/import",
   getReview: "/studio/import", simulateSession: "/studio/import", reviewDraft: "/studio/import",
   splitDraft: "/studio/import", mergeDrafts: "/studio/import", activateSession: "/studio/import",

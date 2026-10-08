@@ -26,21 +26,25 @@ test("a link alone says which channel", () => {
   assert.equal(channelOfTouch({ ...base, code: "BETA" }), null);
 });
 
-test("one channel per studio: by hand, then a partner, then what they said, then the link", () => {
-  const partners = [{ id: "p1", name: "Albert", kind: "dj", code: "GERSH50" }];
+test("one channel per studio: by hand, then a studio's referral code, then what they said, then the link", () => {
+  const codes = new Map([["GRPRODUCTIONS", "gr"]]);
+  const studioName = (id: string) => (id === "gr" ? "GR Productions" : null);
   const first = { source: "instagram", medium: null, campaign: null, content: null, referrer: null, landing: "/", code: null, at: AT };
   const told = { id: "t", heard: "photographer" as const, heardDetail: "Gabe", first, last: first, promotionCode: null };
-  assert.equal(classifyStudio({ tenantId: "t", attribution: told, referral: null, partners }).channel, "photographer");
-  const linkOnly = classifyStudio({ tenantId: "t", attribution: { ...told, heard: null }, referral: null, partners });
+  assert.equal(classifyStudio({ tenantId: "t", attribution: told, referral: null, codes, studioName }).channel, "photographer");
+  const linkOnly = classifyStudio({ tenantId: "t", attribution: { ...told, heard: null }, referral: null, codes, studioName });
   assert.equal(linkOnly.channel, "instagram");
   assert.equal(linkOnly.basis, "link");
-  const coded = classifyStudio({ tenantId: "t", attribution: { ...told, promotionCode: "GERSH50" }, referral: null, partners });
-  assert.deepEqual([coded.channel, coded.detail, coded.partnerKind], ["partner", "Albert", "dj"]);
-  assert.equal(classifyStudio({ tenantId: "t", attribution: null, referral: { tenantId: "t", partnerId: "p1" }, partners }).channel, "partner");
-  const filed = classifyStudio({ tenantId: "t", attribution: { ...told, promotionCode: "GERSH50", manual: { channel: "event", detail: "WPPI" } }, referral: null, partners });
+  const coded = classifyStudio({ tenantId: "t", attribution: { ...told, promotionCode: "GRPRODUCTIONS" }, referral: null, codes, studioName });
+  assert.deepEqual([coded.channel, coded.detail, coded.referrerTenantId], ["referral", "GR Productions", "gr"]);
+  // A studio's own code on its own signup is not a referral.
+  assert.equal(classifyStudio({ tenantId: "gr", attribution: { ...told, promotionCode: "GRPRODUCTIONS" }, referral: null, codes, studioName }).channel, "photographer");
+  const invited = classifyStudio({ tenantId: "t", attribution: null, referral: { tenantId: "t", referrerTenantId: "gr", referrerName: "GR Productions", via: "vendor_invite" }, codes, studioName });
+  assert.deepEqual([invited.channel, invited.detail], ["referral", "GR Productions · vendor invite"]);
+  const filed = classifyStudio({ tenantId: "t", attribution: { ...told, promotionCode: "GRPRODUCTIONS", manual: { channel: "event", detail: "WPPI" } }, referral: null, codes, studioName });
   assert.deepEqual([filed.channel, filed.basis, filed.linkChannel], ["event", "manual", "instagram"]);
-  assert.equal(classifyStudio({ tenantId: "t", attribution: { id: "t" }, referral: null, partners }).channel, "direct");
-  assert.equal(classifyStudio({ tenantId: "t", attribution: null, referral: null, partners }).channel, "unknown");
+  assert.equal(classifyStudio({ tenantId: "t", attribution: { id: "t" }, referral: null }).channel, "direct");
+  assert.equal(classifyStudio({ tenantId: "t", attribution: null, referral: null }).channel, "unknown");
 });
 
 test("the funnel leaves comped studios out and counts card and paying", () => {

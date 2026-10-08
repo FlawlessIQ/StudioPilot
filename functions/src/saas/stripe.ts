@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getAuth } from "firebase-admin/auth";
 import {
   getFirestore,
   type DocumentReference,
@@ -21,19 +22,42 @@ import {
 import { STRIPE_ADMIN_API_VERSION, fromUnix } from "../console/stripe-admin.js";
 import { staleStripeEvent } from "./stripe-event-order.js";
 import { graceEndsAt, longDateIn, queueBillingNotice } from "./billing-notices.js";
-import { creditReferral, recordReferral } from "./partner-referrals.js";
+import {
+  creditReferral,
+  emailHash,
+  ensureReferralCode,
+  lookupReferral,
+  recordReferral,
+  referralCoupon,
+  updateReferralStatus,
+} from "./referrals.js";
+import { OFFER_SUMMARY, REFERRAL_CREDIT_CENTS } from "./referral-program.js";
+import { appUrl } from "../console/studio-owner.js";
 
 const billingCommandSchema = z.object({
-  type: z.enum(["createCheckout", "createPortal", "confirmCheckout"]),
+  type: z.enum([
+    "createCheckout",
+    "createPortal",
+    "confirmCheckout",
+    // The studio's referral code, what it has earned, and whether the vendors
+    // on its jobs are invited (saas/referrals.ts, saas/vendor-invites.ts).
+    "referralStatus",
+    "setVendorInvites",
+    // What a code carried from a signup link is, before Checkout.
+    "previewCode",
+  ]),
   tenantId: z.string(),
+  /** setVendorInvites. */
+  enabled: z.boolean().optional(),
   /** confirmCheckout: the Checkout Session Stripe returned to (session_id). */
   sessionId: z.string().regex(/^cs_[A-Za-z0-9_]+$/).max(200).optional(),
   plan: z.enum(["studio", "multi_brand"]).optional(),
   cadence: z.enum(["monthly", "yearly"]).optional(),
   /**
-   * createCheckout: a promotion code carried from the signup link
+   * createCheckout: a code carried from the signup link
    * (`/auth/register?code=BETA`). Optional and never trusted for anything but
-   * a lookup — Stripe decides whether it is valid and what it is worth.
+   * a lookup: a studio's referral code is looked up here (saas/referrals.ts),
+   * anything else in Stripe, which decides whether it is valid and its worth.
    */
   promotionCode: z.string().max(64).optional(),
 });
@@ -173,6 +197,68 @@ export const signatureValid = (raw: string, header: string, secret: string) => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
+/**
+ * The referral a first checkout carries, when the code is another studio's.
+ * Never the studio's own, and never one whose owner also owns the referring
+ * studio. `via` says whether it came from a vendor invite (vendor-invites.ts).
+ */
+async function referredBy(
+  db: FirebaseFirestore.Firestore,
+  rawCode: string | undefined,
+  tenantId: string,
+  uid: string,
+): Promise<{ code: string; referrerTenantId: string; via: string } | null> {
+  const referral = await lookupReferral(db, rawCode).catch(() => null);
+  if (!referral || referral.referrerTenantId === tenantId) return null;
+  const ownsReferrer = await db.doc(`memberships/${referral.referrerTenantId}_${uid}`).get();
+  if (ownsReferrer.exists && ownsReferrer.get("role") === "studio_owner") return null;
+  const user = await getAuth().getUser(uid).catch(() => null);
+  const invite = user?.email ? await db.doc(`vendorInvites/${emailHash(user.email)}`).get() : null;
+  const viaInvite = Boolean(invite?.exists && invite.get("code") === referral.code);
+  if (invite?.exists && viaInvite) {
+    await invite.ref.update({ signedUpTenantId: tenantId, signedUpAt: new Date().toISOString() }).catch(() => undefined);
+  }
+  return { code: referral.code, referrerTenantId: referral.referrerTenantId, via: viaInvite ? "vendor_invite" : "code" };
+}
+
+/** What a studio's Subscription page shows about its referrals. */
+async function referralStatus(db: FirebaseFirestore.Firestore, tenantId: string) {
+  const code = await ensureReferralCode(db, tenantId);
+  const [referrals, tenant, invited] = await Promise.all([
+    db.collection("saasReferrals").where("referrerTenantId", "==", tenantId).limit(500).get(),
+    db.doc(`tenants/${tenantId}`).get(),
+    db.collection("vendorInvites").where("tenantId", "==", tenantId).count().get(),
+  ]);
+  // Counts and dates, never which studios: a referred studio's choice to use
+  // StudioCue is its own business (Privacy Policy, "Sales and referrals").
+  const rows = referrals.docs
+    .map((referral) => {
+      const status = String(referral.get("status") ?? "");
+      return {
+        signedUpAt: (referral.get("signedUpAt") as string | undefined) ?? null,
+        via: (referral.get("via") as string | undefined) ?? "code",
+        state: referral.get("creditedAt")
+          ? "credited"
+          : referral.get("forfeitedAt") || ["cancelled", "canceled"].includes(status)
+            ? "canceled"
+            : referral.get("paidAt")
+              ? "paying"
+              : "trial",
+      };
+    })
+    .sort((a, b) => String(b.signedUpAt).localeCompare(String(a.signedUpAt)));
+  return {
+    code,
+    link: appUrl(`/auth/register?code=${encodeURIComponent(code)}`),
+    offer: OFFER_SUMMARY,
+    creditCents: REFERRAL_CREDIT_CENTS,
+    referrals: rows,
+    creditedCents: rows.filter((row) => row.state === "credited").length * REFERRAL_CREDIT_CENTS,
+    pendingCents: rows.filter((row) => row.state === "paying").length * REFERRAL_CREDIT_CENTS,
+    vendorInvites: { enabled: tenant.get("vendorInvitesEnabled") !== false, sent: invited.data().count },
+  };
+}
+
 export const billingCommand = onRequest(
   {
     cors: studioHubCors,
@@ -198,6 +284,27 @@ export const billingCommand = onRequest(
         membership.get("role") !== "studio_owner"
       )
         throw new Error("FORBIDDEN");
+      if (parsed.type === "referralStatus") {
+        response.status(200).json(await referralStatus(db, parsed.tenantId));
+        return;
+      }
+      if (parsed.type === "setVendorInvites") {
+        if (typeof parsed.enabled !== "boolean") throw new Error("ENABLED_REQUIRED");
+        await db.doc(`tenants/${parsed.tenantId}`).update({ vendorInvitesEnabled: parsed.enabled, updatedAt: new Date().toISOString() });
+        response.status(200).json({ enabled: parsed.enabled });
+        return;
+      }
+      if (parsed.type === "previewCode") {
+        const referral = await lookupReferral(db, parsed.promotionCode);
+        response.status(200).json(
+          referral
+            ? referral.referrerTenantId === parsed.tenantId
+              ? { kind: "own" }
+              : { kind: "referral", referrerName: referral.referrerName, offer: OFFER_SUMMARY }
+            : { kind: parsed.promotionCode ? "code" : null },
+        );
+        return;
+      }
       if (process.env.BILLING_MOCK_MODE === "true") {
         response
           .status(200)
@@ -299,20 +406,37 @@ export const billingCommand = onRequest(
       let params: URLSearchParams;
       if (operation === "createCheckout") {
         if (!parsed.plan || !parsed.cadence) throw new Error("PLAN_REQUIRED");
+        const comped = subscription.get("comped") === true;
+        const override = subscription.get("trialEndOverride") as string | undefined;
+        const overrideLive = Boolean(override && Date.parse(override) > Date.now() + 60_000);
+        // First checkout (never subscribed) starts a fresh 14-day trial
+        // anchored at checkout; see buildStripeCheckoutParams. Only a studio
+        // that has never had a Stripe subscription qualifies: status alone
+        // was not enough, because records written before `unpaid` and
+        // `incomplete_expired` were mapped say `incomplete` too, and those
+        // studios have had their trial. A returning studio is charged from
+        // checkout (its stored period end is in the past).
+        const firstCheckout =
+          !comped &&
+          !overrideLive &&
+          normalizeStatus(existingStatus) === "incomplete" &&
+          !subscriptionId;
+        // Another studio's referral code: the Studio plan's first year at the
+        // referral price, on a studio's first checkout only, never its own.
+        const referral =
+          firstCheckout && parsed.plan === "studio"
+            ? await referredBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
+            : null;
         // Beta codes: a code from the signup link is applied up front; with
-        // none (or one Stripe won't honour) Checkout offers its own field. A
-        // partner's code is for the annual plan, so it takes the yearly price.
-        const promotion = await lookupPromotion(secret, parsed.promotionCode);
-        const priceId = priceFor(parsed.plan, promotion?.annualOnly ? "yearly" : parsed.cadence);
+        // none (or one Stripe won't honour) Checkout offers its own field.
+        const promotion = referral ? null : await lookupPromotion(secret, parsed.promotionCode);
+        const priceId = priceFor(parsed.plan, parsed.cadence);
         if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
         // A comped studio choosing to pay starts paying now: its stored
         // period end is the comp's (once 2099), which Stripe refuses as a
         // trial end, and it has had the product already. A trial extended in
         // the Console before the card was added is honoured instead of the
         // fresh 14 days (docs/console.md, "Billing").
-        const comped = subscription.get("comped") === true;
-        const override = subscription.get("trialEndOverride") as string | undefined;
-        const overrideLive = Boolean(override && Date.parse(override) > Date.now() + 60_000);
         params = buildStripeCheckoutParams({
           appUrl,
           customerId,
@@ -330,20 +454,18 @@ export const billingCommand = onRequest(
               : ((subscription.get("currentPeriodEnd") as string | undefined) ??
                 (subscription.get("trialEndAt") as string | undefined) ??
                 null),
-          // First checkout (never subscribed) starts a fresh 14-day trial
-          // anchored at checkout; see buildStripeCheckoutParams. Only a studio
-          // that has never had a Stripe subscription qualifies: status alone
-          // was not enough, because records written before `unpaid` and
-          // `incomplete_expired` were mapped say `incomplete` too, and those
-          // studios have had their trial. A returning studio is charged from
-          // checkout (its stored period end is in the past).
-          firstCheckout:
-            !comped &&
-            !overrideLive &&
-            normalizeStatus(existingStatus) === "incomplete" &&
-            !subscriptionId,
+          firstCheckout,
           promotion,
         });
+        if (referral) {
+          params.delete("allow_promotion_codes");
+          params.set("discounts[0][coupon]", await referralCoupon(db, parsed.cadence));
+          // Carried on the subscription, so the webhook ties the studio to its
+          // referrer only once Checkout has actually completed.
+          params.set("subscription_data[metadata][referralCode]", referral.code);
+          params.set("subscription_data[metadata][referrerTenantId]", referral.referrerTenantId);
+          params.set("subscription_data[metadata][referralVia]", referral.via);
+        }
         // A discount the team applied in the Console before the card was
         // added rides into this Checkout instead. Stripe takes one discount
         // and refuses it alongside the promotion-code field.
@@ -446,7 +568,7 @@ export const stripeWebhook = onRequest(
           createdAt: now,
         });
         await batch.commit();
-        // A referred studio's first paid invoice counts for its partner.
+        // A referred studio's first paid invoice counts for its referrer.
         if (invoiceTenant && event.type === "invoice.paid") {
           await creditReferral(db, {
             tenantId: invoiceTenant,
@@ -454,7 +576,7 @@ export const stripeWebhook = onRequest(
             invoiceId: typeof object.id === "string" ? object.id : null,
             now,
           }).catch((caught: unknown) => {
-            console.error(JSON.stringify({ severity: "ERROR", event: "partner_referral.credit_failed", tenantId: invoiceTenant, reason: caught instanceof Error ? caught.message : String(caught) }));
+            console.error(JSON.stringify({ severity: "ERROR", event: "referral.credit_failed", tenantId: invoiceTenant, reason: caught instanceof Error ? caught.message : String(caught) }));
           });
         }
         response.status(200).json({ received: true });
@@ -619,12 +741,22 @@ export async function writeSubscriptionFromStripe(
     "studio";
   const status = deleted ? "cancelled" : normalizeStatus(object.status);
   const discount = await discountFromStripe(subscriptionReference.firestore, object);
-  // A partner's code ties the studio to the partner (saas/partner-referrals.ts).
-  if (discount?.code) {
-    await recordReferral(subscriptionReference.firestore, { tenantId, code: discount.code, status, now }).catch((caught: unknown) => {
-      console.error(JSON.stringify({ severity: "ERROR", event: "partner_referral.record_failed", tenantId, reason: caught instanceof Error ? caught.message : String(caught) }));
-    });
-  }
+  // Another studio's referral code ties this studio to it (saas/referrals.ts).
+  const subscriptionMetadata = (object.metadata ?? {}) as Record<string, unknown>;
+  const referrerTenantId = typeof subscriptionMetadata.referrerTenantId === "string" ? subscriptionMetadata.referrerTenantId : "";
+  await (referrerTenantId
+    ? recordReferral(subscriptionReference.firestore, {
+        tenantId,
+        referrerTenantId,
+        code: String(subscriptionMetadata.referralCode ?? ""),
+        via: typeof subscriptionMetadata.referralVia === "string" ? subscriptionMetadata.referralVia : null,
+        status,
+        now,
+      })
+    : updateReferralStatus(subscriptionReference.firestore, tenantId, status, now)
+  ).catch((caught: unknown) => {
+    console.error(JSON.stringify({ severity: "ERROR", event: "referral.record_failed", tenantId, reason: caught instanceof Error ? caught.message : String(caught) }));
+  });
   // A studio the team comped locally (no Stripe subscription) that then pays
   // is no longer comped. One comped with a 100% coupon keeps its flag: that
   // subscription is how the comp is carried.

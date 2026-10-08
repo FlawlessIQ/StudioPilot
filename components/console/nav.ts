@@ -38,7 +38,7 @@ export const CONSOLE_NAV: Array<{ group: string | null; collapsible?: boolean; i
     items: [
       { label: "Pipeline", href: "/platform-admin/pipeline", icon: Target, count: "pipeline" },
       { label: "Sources", href: "/platform-admin/sources", icon: Compass },
-      { label: "Partners", href: "/platform-admin/partners", icon: Handshake },
+      { label: "Referrals", href: "/platform-admin/referrals", icon: Handshake },
       { label: "Discount codes", href: "/platform-admin/codes", icon: BadgePercent },
     ],
   },

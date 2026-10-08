@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MANUAL_LEAD_STAGES, effectiveLeadStage, leadNeedsYou, normalizeEmail, pipelineSummary, type Lead } from "../features/console/pipeline";
 import { isAtRisk, moveDirection, playFor, riskOrder } from "../features/console/lifecycle";
-import { form1099Cents } from "../features/console/partners";
 import type { ConsoleStudio } from "../features/console/model";
 import { MANUAL_LEAD_STAGES as FUNCTION_STAGES } from "../functions/src/console/handlers/leads";
 
@@ -57,7 +56,3 @@ test("a play answers the biggest thing costing a studio points", () => {
   assert.equal(moveDirection({ from: "at_risk", to: "paying" }), "up");
 });
 
-test("the 1099-NEC line is $600 through 2025 and $2,000 from 2026", () => {
-  assert.equal(form1099Cents(2025), 60_000);
-  assert.equal(form1099Cents(2026), 200_000);
-});

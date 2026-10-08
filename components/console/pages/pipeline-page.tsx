@@ -17,7 +17,7 @@ import {
   type Lead,
   type LeadStage,
 } from "@/features/console/pipeline";
-import { CHANNEL_LABELS, SOURCE_CHANNELS, type PartnerRef } from "@/features/console/sources";
+import { CHANNEL_LABELS, SOURCE_CHANNELS } from "@/features/console/sources";
 import { HEARD_OPTIONS } from "@/features/growth/attribution";
 import { relative, shortDate } from "@/lib/console/format";
 import { useLiveQuery } from "@/lib/console/live";
@@ -201,7 +201,6 @@ function LeadDrawer({ lead, onClose, onCreated }: { lead: Row | null; onClose: (
   const { can } = useConsole();
   const { run, busy } = useCommand();
   const admins = useAdmins(true);
-  const partners = useLiveQuery<PartnerRef>("console:partners", (firestore) => query(collection(firestore, "saasPartners"), limit(2000)));
   const editable = can("crm.write");
   const [form, setForm] = useState({
     name: lead?.name ?? "",
@@ -213,7 +212,6 @@ function LeadDrawer({ lead, onClose, onCreated }: { lead: Row | null; onClose: (
     location: lead?.location ?? "",
     source: lead?.source ?? "",
     sourceDetail: lead?.sourceDetail ?? "",
-    partnerId: lead?.partnerId ?? "",
     ownerUid: lead?.ownerUid ?? "",
     nextStep: lead?.nextStep ?? "",
     nextStepAt: lead?.nextStepAt ?? "",
@@ -234,7 +232,6 @@ function LeadDrawer({ lead, onClose, onCreated }: { lead: Row | null; onClose: (
     location: form.location.trim() || null,
     source: form.source || null,
     sourceDetail: form.sourceDetail.trim() || null,
-    partnerId: form.partnerId || null,
     ownerUid: form.ownerUid || null,
     nextStep: form.nextStep.trim() || null,
     nextStepAt: form.nextStepAt || null,
@@ -339,19 +336,7 @@ function LeadDrawer({ lead, onClose, onCreated }: { lead: Row | null; onClose: (
               ))}
             </select>
           </div>
-          {form.source === "partner" ? (
-            <div className="cx-field">
-              <label className="cx-label" htmlFor="lead-partner">Partner</label>
-              <select className="cx-input" id="lead-partner" onChange={field("partnerId")} value={form.partnerId}>
-                <option value="">Choose a partner</option>
-                {(partners.rows ?? []).map((partner) => (
-                  <option key={partner.id} value={partner.id}>{`${partner.name} · ${partner.code}`}</option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <LeadInput id="lead-source-detail" label="Detail" onChange={field("sourceDetail")} placeholder="Who or what" value={form.sourceDetail} />
-          )}
+          <LeadInput id="lead-source-detail" label="Detail" onChange={field("sourceDetail")} placeholder="Who or what" value={form.sourceDetail} />
         </div>
         {lead ? <NotesPanel subjectKey={`lead:${lead.id}`} title="Notes" /> : null}
       </div>

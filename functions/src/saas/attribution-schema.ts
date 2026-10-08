@@ -35,7 +35,7 @@ export type AttributionInput = z.infer<typeof attributionSchema>;
 
 /** The channels a studio can be filed under by hand (Console → studio → Source). */
 export const SOURCE_CHANNELS = [
-  "partner",
+  "referral",
   "vendor",
   "instagram",
   "facebook",

@@ -7,7 +7,6 @@ import { collection, limit, query } from "firebase/firestore";
 import type { ColumnDef } from "@tanstack/react-table";
 import { HEARD_OPTIONS } from "@/features/growth/attribution";
 import type { ConsoleStudio } from "@/features/console/model";
-import { PARTNER_KIND_LABELS, partnerEarnedCents } from "@/features/console/partners";
 import {
   BASIS_LABELS,
   CHANNEL_LABELS,
@@ -18,7 +17,7 @@ import {
   rate,
   type AttributionRecord,
   type FunnelRow,
-  type PartnerRef,
+  type ReferralCodeRef,
   type ReferralRef,
   type SourceChannel,
   type StudioSource,
@@ -36,11 +35,10 @@ import { useCommand } from "../use-command";
 
 /**
  * Sources (docs/console.md, "Sources"): where studios come from, and which
- * of those channels and partners turn into paying studios.
+ * of those channels and referring studios turn into paying studios.
  *
- * Conor, 2026-10-07: the Console should lead with growth: which partners work
- * best (DJs against hair and makeup), and whether studios come from the
- * website or Instagram. Each studio gets one channel
+ * Conor, 2026-10-07: the Console should lead with growth: which referrals work
+ * best, and whether studios come from the website or Instagram. Each studio gets one channel
  * (features/console/sources.ts); the drawer shows everything recorded and
  * lets an operator file it by hand.
  */
@@ -60,15 +58,17 @@ const STAGE_TONE = { signed_up: "warn", card: "info", paying: "ok", churned: "ne
 const HEARD_LABEL = Object.fromEntries(HEARD_OPTIONS.map((option) => [option.value, option.label])) as Record<string, string>;
 
 /** Every studio with its source. Shared with Home. */
-export function useSourcedStudios(): { rows: SourcedStudio[] | null; partners: PartnerRef[]; referrals: ReferralRef[]; error: string | null } {
+export function useSourcedStudios(): { rows: SourcedStudio[] | null; referrals: ReferralRef[]; error: string | null } {
   const { studios } = useConsole();
   const attributions = useLiveQuery<AttributionRecord>("console:attribution", (firestore) => query(collection(firestore, "saasAttribution"), limit(10000)));
-  const partners = useLiveQuery<PartnerRef>("console:partners", (firestore) => query(collection(firestore, "saasPartners"), limit(2000)));
+  const codes = useLiveQuery<ReferralCodeRef & { id: string }>("console:referral-codes", (firestore) => query(collection(firestore, "saasReferralCodes"), limit(10000)));
   const referrals = useLiveQuery<ReferralRef & { id: string }>("console:referrals", (firestore) => query(collection(firestore, "saasReferrals"), limit(10000)));
   const rows = useMemo<SourcedStudio[] | null>(() => {
-    if (!studios.rows || !attributions.rows || !partners.rows || !referrals.rows) return null;
+    if (!studios.rows || !attributions.rows || !codes.rows || !referrals.rows) return null;
     const byTenant = new Map(attributions.rows.map((record) => [record.tenantId ?? record.id, record]));
     const referralByTenant = new Map(referrals.rows.map((referral) => [referral.tenantId ?? referral.id, referral]));
+    const codeOwners = new Map(codes.rows.map((code) => [code.code ?? code.id, code.tenantId]));
+    const names = new Map(studios.rows.map((studio) => [studio.tenantId, studio.name]));
     return studios.rows
       .filter((studio) => !studio.removed)
       .map((studio) => {
@@ -76,11 +76,17 @@ export function useSourcedStudios(): { rows: SourcedStudio[] | null; partners: P
         return {
           studio,
           attribution,
-          source: classifyStudio({ tenantId: studio.tenantId, attribution, referral: referralByTenant.get(studio.tenantId), partners: partners.rows! }),
+          source: classifyStudio({
+            tenantId: studio.tenantId,
+            attribution,
+            referral: referralByTenant.get(studio.tenantId),
+            codes: codeOwners,
+            studioName: (tenantId) => names.get(tenantId) ?? null,
+          }),
         };
       });
-  }, [studios.rows, attributions.rows, partners.rows, referrals.rows]);
-  return { rows, partners: partners.rows ?? [], referrals: referrals.rows ?? [], error: attributions.error ?? partners.error ?? referrals.error };
+  }, [studios.rows, attributions.rows, codes.rows, referrals.rows]);
+  return { rows, referrals: referrals.rows ?? [], error: attributions.error ?? codes.error ?? referrals.error };
 }
 
 export function SourcesPage() {
@@ -88,7 +94,7 @@ export function SourcesPage() {
   const pathname = usePathname();
   const params = useSearchParams();
   const now = useNow();
-  const { rows, partners, referrals, error } = useSourcedStudios();
+  const { rows, error } = useSourcedStudios();
   const period = (PERIODS.find((item) => item.key === params.get("period"))?.key ?? "90") as PeriodKey;
   const channel = params.get("channel") as SourceChannel | null;
   const openId = params.get("studio");
@@ -108,35 +114,23 @@ export function SourcesPage() {
   const counted = inPeriod.filter((row) => !row.studio.comped);
   const carded = counted.filter((row) => funnelStage(row.studio) !== "signed_up").length;
   const paying = counted.filter((row) => funnelStage(row.studio) === "paying").length;
-  const fromPartners = counted.filter((row) => row.source.channel === "partner").length;
+  const fromReferrals = counted.filter((row) => row.source.channel === "referral").length;
   const known = counted.filter((row) => row.source.channel !== "unknown" && row.source.channel !== "direct").length;
 
   const byChannel = funnelBy(inPeriod, (row) => ({ key: row.source.channel, label: CHANNEL_LABELS[row.source.channel] }));
   const byLink = funnelBy(inPeriod, (row) => (row.source.linkChannel ? { key: row.source.linkChannel, label: CHANNEL_LABELS[row.source.linkChannel] } : null));
   const byCampaign = funnelBy(inPeriod, (row) => (row.source.campaign ? { key: row.source.campaign, label: row.source.campaign } : null));
 
-  // Partners are judged on everything they've brought in, not just this period:
-  // commission is earned for all time.
-  const kinds = useMemo(() => {
-    const partnerRows = (rows ?? []).filter((row) => row.source.partnerId);
-    const table = funnelBy(partnerRows, (row) => {
-      const kind = row.source.partnerKind ?? partners.find((partner) => partner.id === row.source.partnerId)?.kind ?? "other";
-      return { key: kind, label: PARTNER_KIND_LABELS[kind] ?? kind };
-    });
-    return table.map((row) => {
-      const mine = partners.filter((partner) => partner.kind === row.key);
-      const earned = mine.reduce((sum, partner) => sum + partnerEarnedCents(referrals.filter((referral) => referral.partnerId === partner.id && referral.paidAt).length), 0);
-      return { ...row, partners: mine.length, earnedCents: earned };
-    });
-  }, [rows, partners, referrals]);
+  // Referring studios are judged on everything they've brought in, not just this period.
   const leaders = useMemo(
     () =>
       funnelBy(
-        (rows ?? []).filter((row) => row.source.partnerId),
-        (row) => ({ key: row.source.partnerId!, label: partners.find((partner) => partner.id === row.source.partnerId)?.name ?? "Unknown partner" }),
+        (rows ?? []).filter((row) => row.source.referrerTenantId),
+        (row) => ({ key: row.source.referrerTenantId!, label: (rows ?? []).find((other) => other.studio.tenantId === row.source.referrerTenantId)?.studio.name ?? "A studio" }),
       ).slice(0, 8),
-    [rows, partners],
+    [rows],
   );
+  const viaInvites = useMemo(() => (rows ?? []).filter((row) => row.source.channel === "referral" && row.source.detail?.endsWith("vendor invite")), [rows]);
 
   const listed = channel ? inPeriod.filter((row) => row.source.channel === channel) : inPeriod;
   const open = (rows ?? []).find((row) => row.studio.tenantId === openId) ?? null;
@@ -178,67 +172,38 @@ export function SourcesPage() {
             <Stat label="Signups" value={counted.length} />
             <Stat label="Added a card" value={`${carded} · ${rate(carded, counted.length)}`} />
             <Stat label="Paying" tone={paying ? "ok" : undefined} value={`${paying} · ${rate(paying, counted.length)}`} />
-            <Stat label="From partners" value={fromPartners} />
+            <Stat label="From referrals" value={fromReferrals} />
             <Stat label="Source known" value={rate(known, counted.length)} />
           </StatStrip>
         </PageHead>
         <Tabs label="Period" onChange={(key) => set("period", key === "90" ? null : key)} tabs={PERIODS.map((item) => ({ key: item.key, label: item.label }))} value={period} />
         {error ? <Notice tone="bad">{error}</Notice> : null}
         <p className="cx-page-intro">
-          {"Each studio counts once, under what an operator filed it as, then a partner's code, then what the owner told us at signup, then the link they arrived on. Comped studios are left out of the numbers. Studios from before October 7, 2026 show as Before tracking until someone files them."}
+          {"Each studio counts once, under what an operator filed it as, then another studio's referral code, then what the owner told us at signup, then the link they arrived on. Comped studios are left out of the numbers. Studios from before October 7, 2026 show as Before tracking until someone files them."}
         </p>
         <div className="cx-grid-2">
           <Panel flush title="By channel">
             <FunnelTable active={channel} empty="No signups in this period." label="Signups by channel" onPick={(key) => set("channel", key === channel ? null : key)} rows={byChannel} />
           </Panel>
-          <Panel flush title="Partners by type, all time">
-            {kinds.length ? (
-              <div className="cx-table-wrap" style={{ border: 0, borderRadius: 0 }}>
-                <table aria-label="Partners by type" className="cx-table">
-                  <thead>
-                    <tr>
-                      <th className="cx-th">Type</th>
-                      <th className="cx-th" data-align="right">Partners</th>
-                      <th className="cx-th" data-align="right">Studios</th>
-                      <th className="cx-th" data-align="right">Paying</th>
-                      <th className="cx-th" data-align="right">Earned</th>
-                      <th className="cx-th" data-align="right">Per paying studio</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {kinds.map((row) => (
-                      <tr className="cx-row" key={row.key}>
-                        <td className="cx-td">{row.label}</td>
-                        <td className="cx-td" data-align="right">{row.partners}</td>
-                        <td className="cx-td" data-align="right">{row.studios}</td>
-                        <td className="cx-td" data-align="right">{row.paying}</td>
-                        <td className="cx-td" data-align="right">{money(row.earnedCents)}</td>
-                        <td className="cx-td" data-align="right">{row.paying ? money(Math.round(row.earnedCents / row.paying)) : "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <Empty title="No partner studios yet" action={<Link className="cx-btn" data-size="sm" href="/platform-admin/partners">Open Partners</Link>}>
-                Once a studio signs up with a partner&apos;s code, this compares DJs, planners, hair and makeup.
-              </Empty>
-            )}
-          </Panel>
-          <Panel flush title="Top partners, all time">
+          <Panel flush title="Top referring studios, all time">
             {leaders.length ? (
               <div className="cx-timeline">
                 {leaders.map((row) => (
-                  <Link className="cx-item" href={`/platform-admin/partners?partner=${row.key}`} key={row.key}>
+                  <Link className="cx-item" href={studioHref(row.key)} key={row.key}>
                     <span className="cx-item-title">{row.label}</span>
                     <span className="cx-item-time">{`${row.paying} paying`}</span>
-                    <span className="cx-item-snippet">{`${row.studios} ${row.studios === 1 ? "studio" : "studios"} · ${rate(row.paying, row.studios)} paying`}</span>
+                    <span className="cx-item-snippet">{`${row.studios} ${row.studios === 1 ? "studio" : "studios"} referred · ${rate(row.paying, row.studios)} paying`}</span>
                   </Link>
                 ))}
               </div>
             ) : (
-              <Empty title="No partner studios yet" />
+              <Empty title="No referred studios yet" action={<Link className="cx-btn" data-size="sm" href="/platform-admin/referrals">Open Referrals</Link>}>
+                Once a studio signs up with another studio&apos;s code, the studios bringing them in show here.
+              </Empty>
             )}
+          </Panel>
+          <Panel flush title="From vendor invites, all time">
+            <FunnelTable empty="No studios from vendor invites yet." label="Studios from vendor invites" rows={funnelBy(viaInvites, () => ({ key: "vendor_invite", label: "Vendor invites" }))} />
           </Panel>
           <Panel flush title="The link they arrived on">
             <FunnelTable empty="No tracked links in this period. Tag links with utm_source and utm_campaign to see them here." label="Signups by link" rows={byLink} />

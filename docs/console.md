@@ -18,8 +18,8 @@ something inside it waits.
 | --- | --- | --- |
 | Home | `/platform-admin` | The morning check: MRR, signups, trial → paid, trials ending, past due, where the month's signups came from, and **Needs you**, every item that wants a person today |
 | **Grow** · Pipeline | `/pipeline` | Photographers who might become studios: Book a demo requests and anyone added by hand, as a board or table, each with an owner and a next step |
-| Grow · Sources | `/sources` | Where studios come from, by channel, partner type, partner, link and campaign, and which go on to pay. File a studio under a channel by hand |
-| Grow · Partners | `/partners` | Vendors who sell StudioCue with their own code, their commission, payouts, W-9s and 1099s, and each one's statement link |
+| Grow · Sources | `/sources` | Where studios come from, by channel, referring studio, link and campaign, and which go on to pay. File a studio under a channel by hand |
+| Grow · Referrals | `/referrals` | Studios referred with another studio's code, the quarterly $50 credits, and the vendors invited |
 | Grow · Discount codes | `/codes` | Stripe promotion codes, single or in batches, with signup links |
 | **Customers** · Studios | `/studios`, `/studios/[tenantId]` | Every studio as a CRM account. The record has Overview, Timeline, Team, Billing, Usage, Integrations, Feedback, Jobs, Notes, Audit |
 | Customers · Lifecycle | `/lifecycle` | Studios at risk with one play each, trials by days left, and who moved between stages |
@@ -293,27 +293,30 @@ The usual emulator recipe works. With `BILLING_MOCK_MODE=true` in
 - **Bulk announcements to studios** are not built. One-to-one email from a
   record is; bulk product mail needs unsubscribe handling first.
 
-## Partners
+## Referrals
 
-Added 2026-10-07 (Conor and GR Productions). Vendors such as DJs, hair and makeup artists, planners and venues sell StudioCue to the studios they work with. Later the same program runs the other way: photographers selling to DJs and to hair and makeup, once those journeys exist.
+Added 2026-10-08 (Conor). It replaces Partners (2026-10-07), whose codes, payouts, 1099s and statement links are gone: no partner was ever created.
 
-- **Codes.** Grow → Partners → Add partner creates the partner (`saasPartners`) and their Stripe promotion code. Every code points at one shared coupon (`saasSettings/partnerProgram`):
-  - 40% off for 12 months on both plans. That covers the 14-day trial and the first annual invoice, so year 1 of Studio is $900 instead of $1,500. Renewal is at full price.
-  - We sell it as **50% off the $1,800 list price** (12 × $150; the $1,500 annual plan is already two months free). The coupon is named that way so Stripe Checkout says the same thing as the pitch.
-  - Codes are tagged `metadata[kind]=partner`.
-  - They're mirrored into `saasDiscounts`, so Discount codes lists them and can deactivate them.
-- **Annual only.** Checkout puts any studio using a partner code on the yearly price (`ResolvedPromotion.annualOnly` in `saas/stripe-checkout.ts`). A Stripe coupon can be limited to a product, not to a price.
-- **Tracking.**
-  - The Stripe webhook writes `saasReferrals/{tenantId}` when a subscription first carries a partner code. The first partner keeps the studio.
-  - The referral counts when that studio's first invoice is paid with an amount above zero (`saas/partner-referrals.ts`). A studio that cancels in its trial earns nothing.
-- **Commission.** $100 a paid studio. At ten, every one is worth $200, so the first ten earn $2,000 (`features/console/partners.ts`).
-  - Payouts are recorded on the partner's drawer (`saasPartnerPayouts`), never sent from the Console.
-  - Owed = earned − paid out.
-- **Access.** Owners and operators (`partners.write`). Everything is staff-read in the rules and written only by `saasAdminCommand` and the webhook.
+- **Every studio has a code.** It's made the first time anything asks for it (`ensureReferralCode`, `saas/referrals.ts`), from the studio's name (GRPRODUCTIONS). It lives in `saasReferralCodes/{CODE}` and `tenants/{id}.referralCode`, and shows with its link on the studio's Subscription page (Refer a studio, owners only).
+- **The offer** is for the Studio plan, on a studio's first checkout, never with its own code:
+  - 14 days free, then $75/month billed yearly for the first year ($900), or $100/month billed monthly for the first 12 months. After that, list price.
+  - It isn't a Stripe promotion code. `billingCommand` looks the code up and applies one of two amount-off coupons made once (`saasSettings/referralProgram`): $600 off the first $1,500 annual invoice, or $50 off for 12 months. A single coupon can't be both.
+  - The code rides on the subscription's metadata, so the webhook records `saasReferrals/{tenantId}` only once Checkout completes. The first referrer keeps it.
+- **The credit.** $50 per referred studio, on the referrer's Stripe customer balance, which comes off their next invoice.
+  - The referral counts from the referred studio's first paid invoice above $0.
+  - `referralCreditScheduler` runs on the 1st of January, April, July and October, for referrals paid before that quarter began whose studio is still `active`. Canceled ones are forfeited; past-due ones, and referrers with no Stripe customer, are held to the next quarter.
+  - One balance credit per referrer per quarter (`saasReferralCredits/{referrer}_{quarter}`, Stripe idempotency key to match), then a `billing_referral_credit` email.
+- **Vendor invites.** `vendorInviteScheduler` runs daily at 15:30 UTC over vendors changed in the last three days.
+  - Who gets one: a vendor (planner, florist, DJ, band, videographer, hair and makeup, caterer, transportation, other; never venues, insurers or clients' contacts) on an upcoming booked job that isn't an imported, quiet one.
+  - Which studios: trialing or active, with invites on (the default; the studio's Refer a studio card turns them off).
+  - Once per address, ever (`vendorInvites/{sha256(email)}`). Never to an existing StudioCue user, a client of that studio, or anyone unsubscribed.
+  - At most 10 per studio and 200 per run.
+  - The email is StudioCue's letterhead, `tenantId: "platform"`, naming the studio, with a one-click unsubscribe header and link (`/api/public/unsubscribe` → `emailSuppressions`), which the sender checks again before sending.
+- **Console → Grow → Referrals** is read-only: referred studios and their credit state, credits by quarter, vendors invited and signups from them. Sources files these studios under **Studio referral**.
 
 ## Sources
 
-Added 2026-10-07 (Conor): which channels and partners bring studios in, and
+Added 2026-10-07 (Conor): which channels and referrals bring studios in, and
 which of those studios pay. Grow → Sources, plus a panel on Home.
 
 - **Recorded at signup**, once, to `saasAttribution/{tenantId}` by
@@ -329,7 +332,7 @@ which of those studios pay. Grow → Sources, plus a panel on Home.
   - The promotion code they carried.
   - A malformed record is dropped; it never stops a signup.
 - **One channel per studio** (`features/console/sources.ts`): filed by hand,
-  then a partner's code (`saasReferrals`, or a partner's code on the link),
+  then another studio's referral code (`saasReferrals`, or a studio's code on the link),
   then what they said, then the link, then Direct. Studios from before
   2026-10-07 show as **Before tracking** until someone files them.
   - What they said beats the link because a link records the last click:
@@ -338,8 +341,8 @@ which of those studios pay. Grow → Sources, plus a panel on Home.
 - **Funnel.** Signed up → added a card (in a trial or beyond) → paying
   (`active`, `past_due`, `unpaid`, `paused`). Comped studios are left out of
   every rate.
-- **Partners by type** compares DJs, planners, hair and makeup over all time:
-  studios, paying studios, commission earned, and commission per paying studio.
+- **Top referring studios** and **From vendor invites** count all time:
+  studios referred, and how many pay.
 - **File by hand.** Click a studio: the drawer shows everything recorded and
   lets staff (`crm.write`) file it under a channel with a detail
   (`setStudioSource`, audited). Clearing it goes back to what was recorded.
@@ -387,22 +390,3 @@ Added 2026-10-07. Customers → Lifecycle.
   (`refreshStudioSummary`) when a studio's stage changes. Recorded from
   2026-10-07; a studio's first row is not a move.
 
-## Partner payouts and statements
-
-Added 2026-10-07, on top of **Partners** above.
-
-- **How they're paid** and **W-9 status** (Not asked, Asked for, On file) are
-  on the partner (`updatePartner`). The W-9 itself, with the taxpayer ID, is
-  kept outside StudioCue.
-- **Payouts tab**: everyone owed, ticked by default, recorded in one go
-  (`recordPartnerPayouts`, one `saasPartnerPayouts` record each, with method
-  and reference), or exported to CSV to pay from. Warns when a W-9 isn't on
-  file. Paying happens in Venmo or the bank; the Console records it.
-- **1099s tab**: payouts by calendar year (by paid-on date), flagged at the
-  1099-NEC line: $600 through 2025, $2,000 for payments from 2026
-  (`form1099Cents`). CSV export. Confirm each January with an accountant.
-- **Statement link**: `issuePartnerLink` makes `/partner/<token>`
-  (`saasPartnerLinks/{sha256(token)}`, unreadable from any browser). The page
-  shows their code and link, signups and paid studios **by date, not by
-  name**, earnings, payouts and how far they are from $200 a studio. A new
-  link replaces the old; `revokePartnerLink` turns it off. Not indexed.

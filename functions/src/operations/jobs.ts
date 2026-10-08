@@ -1,3 +1,4 @@
+import { emailHash } from "../communications/email-hash.js";
 import { crewRoundupPlanFor } from "../crew/monthly-roundup.js";
 import { contractStillAwaitingSignature } from "../contracts/reminders.js";
 import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
@@ -1058,6 +1059,9 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   // with someone else's invitation, which refuses them.
   // Reserved test domains never receive live mail (communications/test-address.ts).
   if (isReservedTestAddress(recipient)) return { held: "reserved_test_address", type };
+  // StudioCue's own sales mail stops for anyone who opted out (saas/vendor-invites.ts).
+  if (type === "platform_vendor_invite" && (await getFirestore().doc(`emailSuppressions/${emailHash(recipient)}`).get()).exists)
+    return { held: "unsubscribed", type };
   const partnerRecipients = context.recipientIsClient && document.get("soleRecipient") !== true
     ? [...context.clientContactEmails]
         .filter((email) => email !== recipient.trim().toLowerCase())
@@ -1090,6 +1094,15 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     ],
     categories: ["studiocue-transactional", type].slice(0, 10),
   };
+  // Sales mail carries a one-click unsubscribe (RFC 8058) the inbox shows
+  // beside the sender; it posts to the same link as the one in the email.
+  const unsubscribeUrl = firstString(document.get("unsubscribeUrl"));
+  if (unsubscribeUrl) {
+    payload.headers = {
+      "List-Unsubscribe": `<${unsubscribeUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+  }
   // Auth links must not be redirect-wrapped. SendGrid click-tracking rewrites
   // every URL to `*.ct.sendgrid.net/ls/click?...`, so a verification / reset
   // link no longer visibly points at studio-cue.com (phishing-adjacent) and a

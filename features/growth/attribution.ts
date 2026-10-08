@@ -1,13 +1,13 @@
 /**
  * Where a studio came from (docs/console.md, "Sources").
  *
- * Conor, 2026-10-07: the Console should say which channels and which partners
+ * Conor, 2026-10-07: the Console should say which channels and which referrals
  * bring studios in: Instagram, the website, a DJ's code. Two records answer
  * it, both written once at signup to `saasAttribution/{tenantId}`:
  *
  * - **The link.** The first page someone opened on studio-cue.com with
  *   anything to say about how they got there (campaign tags, an outside
- *   referring site, a partner or promo code), and the latest one. Kept in this
+ *   referring site, a referral or promo code), and the latest one. Kept in this
  *   browser only, and sent to us only if they go on to create a studio.
  * - **What they told us.** "How did you hear about StudioCue?" on the
  *   create-your-studio step.

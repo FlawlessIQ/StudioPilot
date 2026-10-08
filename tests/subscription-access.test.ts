@@ -152,7 +152,7 @@ test("a studio that has had a Stripe subscription never gets a second free trial
   const stripe = readFileSync("functions/src/saas/stripe.ts", "utf8");
   assert.match(
     stripe,
-    /firstCheckout:\s*!comped &&\s*!overrideLive &&\s*normalizeStatus\(existingStatus\) === "incomplete" &&\s*!subscriptionId,/,
+    /const firstCheckout =\s*!comped &&\s*!overrideLive &&\s*normalizeStatus\(existingStatus\) === "incomplete" &&\s*!subscriptionId;/,
   );
   assert.match(stripe, /\["trialing", "active", "past_due", "unpaid", "paused"\]\.includes\(\s*String\(existingStatus\)/);
 });

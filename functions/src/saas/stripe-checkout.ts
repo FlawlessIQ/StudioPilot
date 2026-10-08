@@ -58,13 +58,6 @@ export type ResolvedPromotion = {
    * Checkout neither collects a card nor starts a trial (see below).
    */
   freeForever: boolean;
-  /**
-   * A partner referral code (Console → Partners): its discount is for the
-   * annual plan only, so Checkout puts the studio on the yearly price whatever
-   * cadence was picked. A coupon can be limited to a product, not to a price,
-   * so this is where "annual only" is kept.
-   */
-  annualOnly: boolean;
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
@@ -118,13 +111,10 @@ export const resolvePromotion = (
     code.times_redeemed >= code.max_redemptions
   )
     return null;
-  const codeMetadata = asRecord(code.metadata) ?? {};
-  const couponMetadata = asRecord(couponRecord.metadata) ?? {};
   return {
     promotionCodeId: code.id,
     freeForever:
       couponRecord.percent_off === 100 && couponRecord.duration === "forever",
-    annualOnly: codeMetadata.kind === "partner" || couponMetadata.kind === "partner",
   };
 };
 

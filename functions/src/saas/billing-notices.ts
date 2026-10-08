@@ -30,6 +30,8 @@ export { TRIAL_NOTICE_DAYS };
  * - `billing_trial_ending` — three days before a trial ends (daily scheduler).
  * - `billing_payment_failed` — each failed attempt (Stripe webhook).
  * - `billing_payment_recovered` — the first payment after a failure.
+ * - `billing_referral_credit` — the quarter's referral credit was added
+ *   (saas/referrals.ts).
  * - `trial_cue_*` — "Cue's first two weeks", days 0, 2 and 7 of the trial
  *   (trial-series.ts), from the same daily scheduler.
  *
@@ -42,6 +44,7 @@ export const BILLING_NOTICE_TYPES = [
   "billing_trial_ending",
   "billing_payment_failed",
   "billing_payment_recovered",
+  "billing_referral_credit",
 ] as const;
 export type BillingNoticeType = (typeof BILLING_NOTICE_TYPES)[number];
 

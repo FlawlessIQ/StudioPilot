@@ -193,6 +193,7 @@ const PRIVATE_AREAS = new Set([
  */
 const PUBLIC_STANDALONE = new Map<string, string>([
   ["/inquiry", "a studio's own public lead form, shared by them under their tenant — not StudioCue navigation"],
+  ["/unsubscribe", "reached from the unsubscribe link in StudioCue's own sales mail (app/api/public/unsubscribe), never from navigation"],
   ["/offline", "PWA fallback, served by the service worker when the network drops"],
   ["/subprocessors", "linked from the /legal hub, the Privacy Policy, the Terms and the DPA, whose links live in the document data (features/legal/documents)"],
 ]);

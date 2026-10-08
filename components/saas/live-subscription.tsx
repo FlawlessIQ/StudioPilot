@@ -16,6 +16,8 @@ import { rememberedPromotionCode } from "@/features/subscriptions/promotion-code
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { activeMembership } from "@/lib/firebase/active-membership";
 import { TrialTeaser } from "@/components/marketing/trial-teaser";
+import { ReferralCard } from "@/components/saas/referral-card";
+import { billingCommand } from "@/lib/billing/command-client";
 
 const noSubscribe = () => () => undefined;
 
@@ -49,6 +51,22 @@ export function LiveSubscription() {
   // A beta link's code, applied at Checkout (billingCommand resolves it).
   const promotionCode = useSyncExternalStore(noSubscribe, rememberedPromotionCode, () => null);
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
+  // Another studio's referral code: name the studio and the offer before
+  // Checkout, since Stripe's page only shows the discount line.
+  const [referredBy, setReferredBy] = useState<{ referrerName: string; offer: string } | null>(null);
+  useEffect(() => {
+    if (status !== "incomplete" || !promotionCode) return;
+    let active = true;
+    billingCommand<{ kind: string | null; referrerName?: string; offer?: string }>("previewCode", { promotionCode })
+      .then((result) => {
+        if (active && result?.kind === "referral" && result.referrerName && result.offer)
+          setReferredBy({ referrerName: result.referrerName, offer: result.offer });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [status, promotionCode]);
   // How the studio arrived: back from Stripe Checkout (?checkout=success — the
   // trial is being provisioned by the webhook and this live page flips to
   // trialing on its own) or a cancelled session. Drives the banner below.
@@ -155,9 +173,11 @@ export function LiveSubscription() {
             {preTrial
               ? "Pick the plan that fits your studio to open your workspace. Your card is collected now but nothing is charged until the trial ends — cancel any time before then."
               : "Manage your plan and billing securely through Stripe."}
-            {preTrial && promotionCode
-              ? ` Your code ${promotionCode} is applied at checkout — if it covers everything, Stripe won't ask for a card.`
-              : null}
+            {preTrial && referredBy
+              ? ` ${referredBy.referrerName} referred you: on the Studio plan you get ${referredBy.offer}.`
+              : preTrial && promotionCode
+                ? ` Your code ${promotionCode} is applied at checkout — if it covers everything, Stripe won't ask for a card.`
+                : null}
           </p>
         </div>
         <div className="subscription-status">
@@ -274,8 +294,17 @@ export function LiveSubscription() {
                   <StatusBadge tone="success">Current</StatusBadge>
                 ) : null}
               </div>
-              <strong>{card.monthly}<small>/month</small></strong>
-              <p>or {card.yearly} annually · two months free</p>
+              {preTrial && referredBy && card.key === "studio" ? (
+                <>
+                  <strong>$75<small>/month, billed yearly</small></strong>
+                  <p>$900 your first year, or $100/month billed monthly · referred by {referredBy.referrerName}</p>
+                </>
+              ) : (
+                <>
+                  <strong>{card.monthly}<small>/month</small></strong>
+                  <p>or {card.yearly} annually · two months free</p>
+                </>
+              )}
               <ul>
                 <li>{card.users}</li>
                 <li>{card.ai}</li>
@@ -289,6 +318,7 @@ export function LiveSubscription() {
           ))}
         </div>
       </section>
+      {!preTrial && trialActive && workspace.role === "studio_owner" ? <ReferralCard /> : null}
       <section className="panel billing-boundary" hidden={preTrial}>
         <div>
           <CreditCard />

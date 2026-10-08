@@ -7,7 +7,7 @@ import { funnelStage, type SourceChannel } from "./sources";
  *
  * Conor, 2026-10-07: the Console should work as a CRM for selling StudioCue.
  * A lead arrives from "Book a demo" on the website, or is added by hand: a
- * photographer Gabe met, one a partner mentioned. It moves New → Contacted →
+ * photographer Gabe met, one a vendor mentioned. It moves New → Contacted →
  * Demo booked by hand. Once the photographer signs up with the same email the
  * lead is linked to their studio, and from then on the studio decides where it
  * stands: in a trial, paying (won), or canceled (lost). Nobody has to move it.
@@ -52,7 +52,6 @@ export type Lead = {
   stage: LeadStage;
   source?: SourceChannel | null;
   sourceDetail?: string | null;
-  partnerId?: string | null;
   ownerUid?: string | null;
   ownerEmail?: string | null;
   nextStep?: string | null;
