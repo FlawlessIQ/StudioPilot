@@ -704,13 +704,15 @@ export function LeadIntakeForm({
                     chosenType?.kind === "general" ? (
                       <>Your message <span className="required-mark">Required</span></>
                     ) : (
-                      <>What are you planning? <span className="required-mark">Required</span></>
+                      // Gabe (GR, 2026-10-08): what a studio needs first is
+                      // which package to talk about, not a description of the day.
+                      <>What type of package are you looking for? <span className="required-mark">Required</span></>
                     )
                   }
                   placeholder={
                     chosenType?.kind === "general"
                       ? "Tell us what you’d like to know."
-                      : "Tell us what matters most, the atmosphere, and anything we should know."
+                      : "Photo, video or both, how many hours, an album — and anything else we should know."
                   }
                   rows={5}
                   {...register("message")}

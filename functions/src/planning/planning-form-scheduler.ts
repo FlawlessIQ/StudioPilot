@@ -72,9 +72,16 @@ async function loadStudio(db: Firestore, tenantId: string): Promise<Studio> {
 }
 
 /**
+ * The shot list is due a week before the day, whatever the template says.
+ * Gabe (GR, 2026-10-08): "Shot-list should be due one week prior." It used to
+ * take the template's own date, which for GR's copy was the 4-week lock.
+ */
+export const SHOT_LIST_DUE_DAYS_BEFORE = 7;
+
+/**
  * The shot list, on the planning form's day (planning-timeline.ts,
  * `shotListTemplateId`). Weddings only, once per job, never a second copy, and
- * due when the details lock — the template's own due date. A failure here is
+ * due a week before the day (SHOT_LIST_DUE_DAYS_BEFORE). A failure here is
  * logged and never costs the couple their planning form.
  */
 async function sendShotList(db: Firestore, project: DocumentSnapshot, studio: Studio, today: string, now: string): Promise<void> {
@@ -98,6 +105,7 @@ async function sendShotList(db: Firestore, project: DocumentSnapshot, studio: St
       actorId: "planning-form-scheduler",
       now,
       allowAi: false,
+      dueDaysBeforeEvent: SHOT_LIST_DUE_DAYS_BEFORE,
     });
   } catch (caught) {
     // ALREADY_EXISTS: yesterday's run sent it.

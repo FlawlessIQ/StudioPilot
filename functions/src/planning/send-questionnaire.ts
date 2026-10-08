@@ -34,6 +34,8 @@ export async function sendNewQuestionnaire(
     now: string;
     /** The studio sending it may spend AI on reading the form; a scheduler doesn't. */
     allowAi: boolean;
+    /** When this send has its own due date, not the template's (the shot list). */
+    dueDaysBeforeEvent?: number;
   },
 ) {
   const { project, template, now } = input;
@@ -41,7 +43,7 @@ export async function sendNewQuestionnaire(
   // value" here (questionnaire-due.ts).
   const due = questionnaireDueDate({
     eventDate: project.get("eventDate"),
-    dueDaysBeforeEvent: template.get("dueDaysBeforeEvent"),
+    dueDaysBeforeEvent: input.dueDaysBeforeEvent ?? template.get("dueDaysBeforeEvent"),
     today: now,
   });
   const id = stable(

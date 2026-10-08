@@ -16,9 +16,10 @@ import { resolvePlanningTimeline as functionsResolvePlanningTimeline } from "../
 const read = (path: string) => readFileSync(path, "utf8");
 const shotList = recommendedQuestionnaires().find((form) => form.id === "wedding-shot-list")!;
 
-test("a recommended Shot list, due when the details lock", () => {
+test("a recommended Shot list, due a week before the day", () => {
+  // Gabe (GR, 2026-10-08): "Shot-list should be due one week prior."
   assert.equal(shotList.name, "Shot list");
-  assert.equal(shotList.dueDaysBeforeEvent, 28);
+  assert.equal(shotList.dueDaysBeforeEvent, 7);
   assert.deepEqual(shotList.reminderDaysBeforeDue, [14, 3]);
   const ids = shotList.sections.flatMap((section) => section.fields.map((field) => field.id));
   assert.deepEqual(ids, ["must-have-groups", "must-have-shots", "people-to-capture", "details-to-capture", "no-photo-list", "sensitivities"]);
@@ -68,4 +69,14 @@ test("booked inside the planning window, the shot list goes at booking with the 
   const atBooking = scheduler.slice(scheduler.indexOf("export async function sendPlanningFormAtBooking"));
   assert.match(atBooking, /if \(planningFormDue\(data, studio\.timeline, today\)\) await sendShotList\(db, project, studio, today, now\);/);
   assert.match(atBooking, /return withShotList\("sent"\);/);
+});
+
+test("the shot list the scheduler sends is due a week before, whatever the studio's copy says", () => {
+  const scheduler = read("functions/src/planning/planning-form-scheduler.ts");
+  assert.match(scheduler, /export const SHOT_LIST_DUE_DAYS_BEFORE = 7;/);
+  assert.match(scheduler, /dueDaysBeforeEvent: SHOT_LIST_DUE_DAYS_BEFORE,/);
+  assert.match(
+    read("functions/src/planning/send-questionnaire.ts"),
+    /dueDaysBeforeEvent: input\.dueDaysBeforeEvent \?\? template\.get\("dueDaysBeforeEvent"\)/,
+  );
 });

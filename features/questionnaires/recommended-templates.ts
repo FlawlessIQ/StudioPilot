@@ -281,8 +281,9 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
         "The pictures that matter most to them: family groups in the order to call them, must-take moments, people to find, and anyone to avoid. Your crew see it on their day sheet.",
       useIt: "Choose it as your shot list in Settings → Planning timeline, and it goes out with the planning form.",
       eventTypeId: "wedding",
-      // Due when the details lock, four weeks out.
-      dueDaysBeforeEvent: 28,
+      // A week before the day (Gabe, GR 2026-10-08): couples settle family
+      // groups late, and the crew need it for the day sheet, not the lock.
+      dueDaysBeforeEvent: 7,
       reminderDaysBeforeDue: [14, 3],
       sections: SHOT_LIST,
     },
