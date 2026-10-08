@@ -1,63 +1,25 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  CheckCircle2,
-  Clock3,
-  Eye,
-  LoaderCircle,
-  MailCheck,
-  Palette,
-  Save,
-  Send,
-} from "lucide-react";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LoaderCircle, MailCheck, RotateCcw, Save, Send } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
-import { getFirebaseClient } from "@/lib/firebase/client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { EDITABLE_EMAILS, EMAIL_GROUPS } from "@/features/communications/email-catalog";
 
-const templateKeys = [
-  "staff_invitation",
-  "client_invitation",
-  "crew_invitation",
-  "email_verification",
-  "password_reset",
-  "inquiry_acknowledgement",
-  "consultation_confirmation",
-  "consultation_invitation",
-  "consultation_reminder",
-  "consultation_rescheduled",
-  "consultation_cancelled",
-  "package_follow_up",
-  "proposal_sent",
-  "contract_sent",
-  "retainer_invoice",
-  "booking_confirmation",
-  "questionnaire_request",
-  "questionnaire_reminder",
-  "coi_request",
-  "coi_correction",
-  "coi_venue_delivery",
-  "crew_reminder",
-  "crew_monthly_roundup",
-  "final_invoice",
-  "final_payment_reminder",
-  "schedule_review",
-  "final_schedule_published",
-  "event_reminder",
-  "thank_you",
-  "delivery",
-  "review_request",
-  "manual_message",
-] as const;
+/**
+ * Settings → Email templates: change the words of the emails StudioCue sends.
+ *
+ * GR, 2026-10-08: "I see where but it doesn't let me adjust." The old editor
+ * opened every email on the same placeholder copy, never the email itself;
+ * saving made a draft that did nothing until a separate button further down
+ * made it live; and a saved body replaced every
+ * date, time and amount the email carried. Now the email shows as it arrives,
+ * the studio's words go above StudioCue's unless they choose to replace them,
+ * and one tap saves and starts using it.
+ */
 
-type TemplateKey = (typeof templateKeys)[number];
-type TemplateRecord = {
-  id: string;
-  key: TemplateKey;
-  name: string;
+type Copy = {
   subject: string;
   preheader: string;
   eyebrow: string;
@@ -65,195 +27,203 @@ type TemplateRecord = {
   paragraphs: string[];
   actionLabel: string | null;
   note: string | null;
-  version: number;
-  status: string;
-  createdAt: string;
+  mode?: "add" | "replace";
 };
 
-// Stored keys keep their original spelling; the name a studio reads is US English.
-const US_SPELLING: Record<string, string> = { acknowledgement: "acknowledgment", cancelled: "canceled" };
+type Preview = {
+  subject: string;
+  html: string;
+  defaults: Copy;
+  active: { templateId: string; version: number; createdAt: string | null; content: Copy } | null;
+};
 
-const label = (key: string) =>
-  key
-    .split("_")
-    .map((part) => US_SPELLING[part] ?? part)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(" ");
+type Fields = {
+  subject: string;
+  heading: string;
+  words: string;
+  mode: "add" | "replace";
+  actionLabel: string;
+  note: string;
+};
 
-const starter = (key: TemplateKey, studioName: string) => ({
-  name: label(key),
-  subject: `${label(key)} from {{studioName}}`,
-  preheader: `An update from ${studioName}.`,
-  eyebrow: label(key),
-  heading: `A thoughtful next step from {{studioName}}`,
-  paragraphs: [
-    "Hi {{recipientName}},",
-    "We have an update for {{projectName}}. Review the details below and use the secure button when you are ready.",
-  ],
-  actionLabel: "Open secure details",
-  note: "Questions? Reply to this email and our studio team will help.",
-});
+const EMPTY: Fields = { subject: "", heading: "", words: "", mode: "add", actionLabel: "", note: "" };
 
-function dateLabel(value: string) {
-  const date = new Date(value);
+const fieldsFrom = (copy: Copy | null | undefined): Fields =>
+  copy
+    ? {
+        subject: copy.subject ?? "",
+        heading: copy.heading ?? "",
+        words: (copy.paragraphs ?? []).join("\n\n"),
+        mode: copy.mode === "add" ? "add" : "replace",
+        actionLabel: copy.actionLabel ?? "",
+        note: copy.note ?? "",
+      }
+    : EMPTY;
+
+const paragraphsOf = (words: string) =>
+  words
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+function contentOf(key: string, label: string, fields: Fields) {
+  return {
+    key,
+    name: label,
+    subject: fields.subject.trim(),
+    preheader: "",
+    eyebrow: "",
+    heading: fields.heading.trim(),
+    paragraphs: paragraphsOf(fields.words).slice(0, 8),
+    actionLabel: fields.actionLabel.trim() || null,
+    note: fields.note.trim() || null,
+    mode: fields.mode,
+  };
+}
+
+const changed = (fields: Fields) =>
+  Boolean(fields.subject.trim() || fields.heading.trim() || fields.words.trim() || fields.actionLabel.trim() || fields.note.trim());
+
+function dateLabel(value: string | null) {
+  const date = new Date(value ?? "");
   return Number.isNaN(date.valueOf())
-    ? "Recently"
-    : new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }).format(date);
+    ? null
+    : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
 export function EmailTemplateDesigner() {
   const workspace = useWorkspace();
-  const [key, setKey] = useState<TemplateKey>("client_invitation");
-  const [templates, setTemplates] = useState<TemplateRecord[]>([]);
-  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
-  const [preheader, setPreheader] = useState("");
-  const [eyebrow, setEyebrow] = useState("");
-  const [heading, setHeading] = useState("");
-  const [paragraphs, setParagraphs] = useState("");
-  const [actionLabel, setActionLabel] = useState("");
-  const [note, setNote] = useState("");
-  const [testRecipient, setTestRecipient] = useState(workspace.userEmail);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const mayEdit = ["studio_owner", "studio_admin"].includes(workspace.role ?? "");
+  const [key, setKey] = useState(EDITABLE_EMAILS[0]!.key);
+  const email = EDITABLE_EMAILS.find((entry) => entry.key === key)!;
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fields, setFields] = useState<Fields>(EMPTY);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState<"save" | "reset" | "test" | null>(null);
+  const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [testRecipient, setTestRecipient] = useState(workspace.userEmail ?? "");
+  const requestId = useRef(0);
 
-  const load = useCallback(async () => {
-    if (!workspace.tenantId) return;
-    const { firestore } = getFirebaseClient();
-    const [versions, pointers] = await Promise.all([
-      getDocs(
-        query(
-          collection(firestore, "messageTemplates"),
-          where("tenantId", "==", workspace.tenantId),
-        ),
-      ),
-      getDocs(
-        query(
-          collection(firestore, "messageTemplatePointers"),
-          where("tenantId", "==", workspace.tenantId),
-        ),
-      ),
-    ]);
-    setTemplates(
-      versions.docs
-        .map((item) => ({ id: item.id, ...item.data() }) as TemplateRecord)
-        .sort((left, right) => right.version - left.version),
-    );
-    const pointer = pointers.docs.find((item) => item.get("key") === key);
-    setActiveTemplateId(
-      typeof pointer?.get("activeTemplateId") === "string"
-        ? pointer.get("activeTemplateId")
-        : null,
-    );
-  }, [key, workspace.tenantId]);
-
-  useEffect(() => {
-    if (!workspace.loading && workspace.tenantId) {
-      queueMicrotask(() => {
-        void load().catch((error: unknown) =>
-          setNotice(
-            friendlyError(error, "Template history could not be loaded."),
-          ),
-        );
+  const runPreview = useCallback(
+    async (content: ReturnType<typeof contentOf> | null) => {
+      const id = ++requestId.current;
+      const response = await sendCommunicationsCommand({
+        type: "previewTemplate",
+        idempotencyKey: crypto.randomUUID(),
+        input: { key, content },
       });
-    }
-  }, [load, workspace.loading, workspace.tenantId]);
-
-  const keyTemplates = useMemo(
-    () => templates.filter((template) => template.key === key),
-    [key, templates],
+      // A slower answer for an earlier keystroke or email never overwrites a newer one.
+      if (id !== requestId.current) return null;
+      const payload = response.payload as Partial<Preview>;
+      return typeof payload.html === "string" ? (payload as Preview) : null;
+    },
+    [key],
   );
 
+  // Each email opens as it is now: theirs if they have one, else StudioCue's.
   useEffect(() => {
-    const current =
-      keyTemplates.find((template) => template.id === activeTemplateId) ??
-      keyTemplates[0];
-    const value = current ?? starter(key, workspace.tenantName);
+    if (!mayEdit || workspace.loading || !workspace.tenantId) return;
+    let active = true;
     queueMicrotask(() => {
-      setName(value.name);
-      setSubject(value.subject);
-      setPreheader(value.preheader);
-      setEyebrow(value.eyebrow);
-      setHeading(value.heading);
-      setParagraphs(value.paragraphs.join("\n\n"));
-      setActionLabel(value.actionLabel ?? "");
-      setNote(value.note ?? "");
+      setLoading(true);
+      setNotice(null);
+      setDirty(false);
     });
-  }, [activeTemplateId, key, keyTemplates, workspace.tenantName]);
+    void runPreview(null)
+      .then((result) => {
+        if (!active || !result) return;
+        setPreview(result);
+        setFields(fieldsFrom(result.active?.content));
+      })
+      .catch((caught: unknown) => {
+        if (active) setNotice({ tone: "error", text: friendlyError(caught, "That email couldn't be loaded. Try again.") });
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mayEdit, runPreview, workspace.loading, workspace.tenantId]);
 
-  const content = {
-    key,
-    name,
-    subject,
-    preheader,
-    eyebrow,
-    heading,
-    paragraphs: paragraphs
-      .split(/\n\s*\n/)
-      .map((paragraph) => paragraph.trim())
-      .filter(Boolean),
-    actionLabel: actionLabel.trim() || null,
-    note: note.trim() || null,
-  };
+  // As they type, the preview follows — a moment after they pause.
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = window.setTimeout(() => {
+      const content = changed(fields) ? contentOf(key, email.label, fields) : null;
+      // Replacing with nothing yet: show StudioCue's until there are words.
+      if (content && content.mode === "replace" && !content.paragraphs.length) return;
+      void runPreview(content)
+        .then((result) => {
+          if (result) setPreview((current) => (current ? { ...current, subject: result.subject, html: result.html } : result));
+        })
+        .catch(() => undefined);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [dirty, email.label, fields, key, runPreview]);
 
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function set<K extends keyof Fields>(name: K, value: Fields[K]) {
+    setFields((current) => ({ ...current, [name]: value }));
+    setDirty(true);
+    setNotice(null);
+  }
+
+  async function reload(message: string) {
+    const result = await runPreview(null);
+    if (result) {
+      setPreview(result);
+      setFields(fieldsFrom(result.active?.content));
+    }
+    setDirty(false);
+    setNotice({ tone: "ok", text: message });
+  }
+
+  async function save() {
+    if (fields.mode === "replace" && !paragraphsOf(fields.words).length) {
+      setNotice({ tone: "error", text: "Write the message first — replacing StudioCue's wording with nothing would send an empty email." });
+      return;
+    }
+    if (!changed(fields)) {
+      setNotice({ tone: "error", text: "Nothing's changed yet. To use StudioCue's wording, there's nothing to save." });
+      return;
+    }
     setBusy("save");
     setNotice(null);
     try {
-      const response = await sendCommunicationsCommand({
+      await sendCommunicationsCommand({
         type: "saveTemplateVersion",
         idempotencyKey: crypto.randomUUID(),
-        input: content,
+        input: { ...contentOf(key, email.label, fields), activate: true },
       });
-      const result = response.payload as { templateId?: string };
-      setNotice("A new draft version was saved. Activate it when approved.");
-      await load();
-      if (result.templateId) setBusy(null);
-    } catch (error: unknown) {
-      setNotice(
-        error instanceof Error
-          ? error.message.replaceAll("_", " ")
-          : "The template could not be saved.",
-      );
+      await reload(`Saved. Every “${email.label}” email from now on uses your version.`);
+    } catch (caught: unknown) {
+      setNotice({ tone: "error", text: friendlyError(caught, "That couldn't be saved. Nothing was changed.") });
     } finally {
       setBusy(null);
     }
   }
 
-  async function activate(templateId: string) {
-    setBusy(templateId);
+  async function reset() {
+    setBusy("reset");
     setNotice(null);
     try {
       await sendCommunicationsCommand({
-        type: "activateTemplateVersion",
+        type: "resetTemplate",
         idempotencyKey: crypto.randomUUID(),
-        input: { templateId },
+        input: { key },
       });
-      setNotice("This version is now used for future matching emails.");
-      await load();
-    } catch (error: unknown) {
-      setNotice(
-        error instanceof Error
-          ? error.message.replaceAll("_", " ")
-          : "The version could not be activated.",
-      );
+      await reload(`Back to StudioCue's wording for “${email.label}”.`);
+    } catch (caught: unknown) {
+      setNotice({ tone: "error", text: friendlyError(caught, "That couldn't be changed back. Try again.") });
     } finally {
       setBusy(null);
     }
   }
 
   async function sendTest() {
-    const templateId = keyTemplates[0]?.id;
-    if (!templateId) {
-      setNotice("Save a draft version before sending a test.");
-      return;
-    }
+    const templateId = preview?.active?.templateId;
+    if (!templateId) return;
     setBusy("test");
     setNotice(null);
     try {
@@ -262,206 +232,187 @@ export function EmailTemplateDesigner() {
         idempotencyKey: crypto.randomUUID(),
         input: { templateId, recipient: testRecipient },
       });
-      setNotice(`A branded test was queued for ${testRecipient}.`);
-    } catch (error: unknown) {
-      setNotice(
-        error instanceof Error
-          ? error.message.replaceAll("_", " ")
-          : "The test email could not be queued.",
-      );
+      setNotice({ tone: "ok", text: `A test is on its way to ${testRecipient}.` });
+    } catch (caught: unknown) {
+      setNotice({ tone: "error", text: friendlyError(caught, "The test couldn't be sent.") });
     } finally {
       setBusy(null);
     }
   }
 
-  if (!["studio_owner", "studio_admin"].includes(workspace.role ?? "")) {
-    return null;
-  }
+  const defaults = preview?.defaults;
+  const grouped = useMemo(
+    () => EMAIL_GROUPS.map((group) => ({ group, emails: EDITABLE_EMAILS.filter((entry) => entry.group === group) })),
+    [],
+  );
+
+  if (!mayEdit)
+    return <p className="form-notice">Only the studio owner or an admin can change email wording.</p>;
+
+  const customSince = preview?.active ? dateLabel(preview.active.createdAt) : null;
 
   return (
-    <section className="email-designer">
-      <header className="email-designer-heading">
-        <div>
-          <p className="eyebrow">Email design system</p>
-          <h2>Branded template studio</h2>
-          <p>
-            Refine transactional email, preview it in context, and publish an
-            immutable version without changing messages already sent.
-          </p>
-        </div>
-        <span className="email-designer-icon">
-          <Palette aria-hidden="true" />
-        </span>
+    <section className="email-editor" aria-labelledby="email-editor-title">
+      <header className="email-editor-head">
+        <h2 id="email-editor-title">Email wording</h2>
+        <p>
+          Every email your clients and crew get, as it arrives. Add your own words, or replace ours — your logo,
+          colors and sign-off come from Email branding.
+        </p>
       </header>
 
-      <div className="email-designer-grid">
-        <form className="panel email-designer-form" onSubmit={(event) => void save(event)}>
-          <label>
-            Email journey
-            <select
-              onChange={(event) => setKey(event.target.value as TemplateKey)}
-              value={key}
-            >
-              {templateKeys.map((templateKey) => (
-                <option key={templateKey} value={templateKey}>
-                  {label(templateKey)}
+      <label className="email-editor-pick">
+        <span>Email</span>
+        <select onChange={(event) => setKey(event.target.value)} value={key}>
+          {grouped.map(({ group, emails }) => (
+            <optgroup key={group} label={group}>
+              {emails.map((entry) => (
+                <option key={entry.key} value={entry.key}>
+                  {entry.label}
                 </option>
               ))}
-            </select>
-          </label>
-          <div className="email-designer-fields">
+            </optgroup>
+          ))}
+        </select>
+        <small>
+          {email.when}.{" "}
+          {preview?.active
+            ? `Using your version${customSince ? ` since ${customSince}` : ""}.`
+            : "Using StudioCue's wording."}
+        </small>
+      </label>
+
+      <div className="email-editor-body">
+        <form
+          className="email-editor-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <fieldset className="email-editor-mode">
+            <legend>Your words</legend>
             <label>
-              Internal name
-              <input onChange={(event) => setName(event.target.value)} required value={name} />
+              <input checked={fields.mode === "add"} name="email-mode" onChange={() => set("mode", "add")} type="radio" />
+              <span>
+                <strong>Add them above ours</strong>
+                <small>Recommended. Dates, times, amounts and links stay in.</small>
+              </span>
             </label>
             <label>
-              Eyebrow
-              <input onChange={(event) => setEyebrow(event.target.value)} required value={eyebrow} />
+              <input checked={fields.mode === "replace"} name="email-mode" onChange={() => set("mode", "replace")} type="radio" />
+              <span>
+                <strong>Replace ours</strong>
+                <small>Your words are the whole message. The details in ours below won&rsquo;t be included — the button still is.</small>
+              </span>
             </label>
-          </div>
+          </fieldset>
           <label>
-            Subject line
-            <input onChange={(event) => setSubject(event.target.value)} required value={subject} />
-          </label>
-          <label>
-            Inbox preview
-            <input onChange={(event) => setPreheader(event.target.value)} value={preheader} />
-          </label>
-          <label>
-            Headline
-            <input onChange={(event) => setHeading(event.target.value)} required value={heading} />
-          </label>
-          <label>
-            Body paragraphs
+            <span>{fields.mode === "add" ? "What you'd like to say" : "Your message"}</span>
             <textarea
-              onChange={(event) => setParagraphs(event.target.value)}
-              required
-              rows={7}
-              value={paragraphs}
+              onChange={(event) => set("words", event.target.value)}
+              placeholder={
+                fields.mode === "add"
+                  ? "Goes under the greeting, before our wording. Leave it empty to add nothing."
+                  : "Write the whole message. Separate paragraphs with a blank line."
+              }
+              rows={6}
+              value={fields.words}
             />
-            <small>Separate paragraphs with a blank line.</small>
+            <small>
+              You can use {"{{recipientName}}"}, {"{{studioName}}"} and {"{{projectName}}"}. Separate paragraphs with a blank line.
+            </small>
           </label>
-          <div className="email-designer-fields">
+          {fields.mode === "replace" && defaults?.paragraphs.length ? (
+            <div className="email-editor-reference">
+              <span>Our wording, for reference (shown with sample details)</span>
+              {defaults.paragraphs.map((paragraph, index) => (
+                <p key={`${index}-${paragraph.slice(0, 12)}`}>{paragraph}</p>
+              ))}
+            </div>
+          ) : null}
+          <label>
+            <span>Subject line</span>
+            <input onChange={(event) => set("subject", event.target.value)} placeholder={defaults?.subject ?? ""} value={fields.subject} />
+          </label>
+          <label>
+            <span>Headline</span>
+            <input onChange={(event) => set("heading", event.target.value)} placeholder={defaults?.heading ?? ""} value={fields.heading} />
+          </label>
+          <div className="email-editor-pair">
             <label>
-              Button label
-              <input onChange={(event) => setActionLabel(event.target.value)} value={actionLabel} />
+              <span>Button</span>
+              <input
+                onChange={(event) => set("actionLabel", event.target.value)}
+                placeholder={defaults?.actionLabel ?? "No button"}
+                value={fields.actionLabel}
+              />
             </label>
             <label>
-              Footer note
-              <input onChange={(event) => setNote(event.target.value)} value={note} />
+              <span>Footer note</span>
+              <input onChange={(event) => set("note", event.target.value)} placeholder={defaults?.note ?? "None"} value={fields.note} />
             </label>
           </div>
-          <p className="email-designer-tokens">
-            Available variables: {"{{studioName}}"}, {"{{recipientName}}"},{" "}
-            {"{{projectName}}"}, and secure destination variables.
-          </p>
-          <button className="button" disabled={busy !== null} type="submit">
-            {busy === "save" ? <LoaderCircle className="spin" /> : <Save />}
-            Save new version
-          </button>
+          <p className="email-editor-hint">Anything you leave empty keeps StudioCue&rsquo;s wording.</p>
+          {notice ? (
+            <p className={notice.tone === "error" ? "form-error" : "form-notice"} role="status">
+              {notice.text}
+            </p>
+          ) : null}
+          <div className="email-editor-actions">
+            <button className="button button-dark" disabled={busy !== null || loading} type="submit">
+              {busy === "save" ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}
+              Save &amp; use
+            </button>
+            {preview?.active ? (
+              <button className="button button-light" disabled={busy !== null} onClick={() => void reset()} type="button">
+                {busy === "reset" ? <LoaderCircle className="spin" size={16} /> : <RotateCcw size={16} />}
+                Back to StudioCue&rsquo;s wording
+              </button>
+            ) : null}
+          </div>
         </form>
 
-        <div className="email-designer-preview-column">
-          <article className="email-designer-preview">
-            <div className="email-preview-inbox">
-              <span>
-                <strong>{subject || "Your email subject"}</strong>
-                <small>{preheader || "Inbox preview appears here."}</small>
-              </span>
-              <Eye aria-hidden="true" />
-            </div>
-            <div className="email-preview-canvas">
-              <div className="email-preview-brand">
-                <span>SC</span>
-                <strong>{workspace.tenantName}</strong>
-              </div>
-              <div className="email-preview-content">
-                <small>{eyebrow}</small>
-                <h3>{heading}</h3>
-                {content.paragraphs.map((paragraph, index) => (
-                  <p key={`${paragraph}-${index}`}>{paragraph}</p>
-                ))}
-                {actionLabel ? <span className="email-preview-button">{actionLabel}</span> : null}
-                {note ? <em>{note}</em> : null}
-              </div>
-            </div>
-          </article>
-
-          <section className="panel email-designer-test">
-            <div>
-              <MailCheck aria-hidden="true" />
-              <span>
-                <strong>Test before publishing</strong>
-                <small>The latest saved version is sent with sample project data.</small>
-              </span>
-            </div>
-            <div>
+        <div className="email-editor-preview">
+          <p className="email-editor-subject">
+            <span>Subject</span>
+            {preview?.subject ?? "…"}
+          </p>
+          {loading && !preview ? (
+            <p className="email-editor-loading">
+              <LoaderCircle className="spin" size={16} /> Loading the email…
+            </p>
+          ) : (
+            <iframe
+              className="email-editor-frame"
+              sandbox=""
+              srcDoc={preview?.html ?? ""}
+              title={`${email.label} email preview`}
+            />
+          )}
+          <p className="email-editor-hint">Shown with sample details. Real emails use the job&rsquo;s own.</p>
+          {preview?.active ? (
+            <div className="email-editor-test">
+              <MailCheck aria-hidden="true" size={16} />
               <input
+                aria-label="Send a test to"
                 onChange={(event) => setTestRecipient(event.target.value)}
-                placeholder="you@studio.com"
                 type="email"
                 value={testRecipient}
               />
               <button
-                className="button button-secondary"
-                disabled={busy !== null || !testRecipient}
+                className="button button-light"
+                disabled={busy !== null || !testRecipient.includes("@")}
                 onClick={() => void sendTest()}
                 type="button"
               >
-                {busy === "test" ? <LoaderCircle className="spin" /> : <Send />}
-                Send test
+                {busy === "test" ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}
+                Send me a test
               </button>
             </div>
-          </section>
+          ) : null}
         </div>
       </div>
-
-      <section className="panel email-version-history">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Immutable history</p>
-            <h3>{label(key)} versions</h3>
-          </div>
-          <Clock3 aria-hidden="true" />
-        </div>
-        {keyTemplates.length ? (
-          <div className="email-version-list">
-            {keyTemplates.map((template) => {
-              const active = template.id === activeTemplateId;
-              return (
-                <article key={template.id}>
-                  <span>
-                    <strong>Version {template.version}</strong>
-                    <small>
-                      {template.subject} · {dateLabel(template.createdAt)}
-                    </small>
-                  </span>
-                  {active ? (
-                    <StatusBadge tone="success">
-                      <CheckCircle2 size={13} /> Active
-                    </StatusBadge>
-                  ) : (
-                    <button
-                      className="button button-small button-secondary"
-                      disabled={busy !== null}
-                      onClick={() => void activate(template.id)}
-                      type="button"
-                    >
-                      {busy === template.id ? <LoaderCircle className="spin" /> : null}
-                      Activate
-                    </button>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="email-version-empty">
-            No custom versions yet. StudioCue is using its secure default copy.
-          </p>
-        )}
-      </section>
-      {notice ? <p className="communications-notice" role="status">{notice}</p> : null}
     </section>
   );
 }

@@ -613,6 +613,7 @@ function emailTemplateOverride(
     paragraphs,
     actionLabel: firstString(template.actionLabel),
     note: firstString(template.note),
+    mode: template.mode === "add" ? "add" : "replace",
   };
 }
 

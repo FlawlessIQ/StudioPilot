@@ -9,7 +9,8 @@ import { shortInquiryAddressFor } from "../intake/short-address.js";
 import { detectMailboxProvider } from "../intake/mailbox-provider.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
-import { emailTemplateKeys } from "./email-templates.js";
+import { emailTemplateKeys, type EmailTemplateOverride } from "./email-templates.js";
+import { previewEmail } from "./template-preview.js";
 import { productEvent } from "../operations/product-events.js";
 import { dismissAnsweredReplyDrafts } from "./answered-drafts.js";
 import { conversationIdFor } from "./conversation.js";
@@ -34,17 +35,31 @@ const messageInput = z.object({
   scheduledFor: z.string().datetime().nullable(),
 });
 
-const templateContent = z.object({
+/**
+ * A studio's version of one email. Every field may be left blank, which keeps
+ * StudioCue's own (email-templates.ts customizedCopy); `mode` says whether
+ * their words go above StudioCue's ("add", the default) or replace them.
+ */
+const templateFields = z.object({
   key: z.enum(emailTemplateKeys),
-  name: z.string().trim().min(2).max(80),
-  subject: z.string().trim().min(2).max(180),
-  preheader: z.string().trim().max(160),
-  eyebrow: z.string().trim().min(2).max(80),
-  heading: z.string().trim().min(2).max(180),
-  paragraphs: z.array(z.string().trim().min(1).max(2_000)).min(1).max(8),
-  actionLabel: z.string().trim().min(1).max(80).nullable(),
-  note: z.string().trim().min(1).max(500).nullable(),
+  name: z.string().trim().max(80).default(""),
+  subject: z.string().trim().max(180).default(""),
+  preheader: z.string().trim().max(160).default(""),
+  eyebrow: z.string().trim().max(80).default(""),
+  heading: z.string().trim().max(180).default(""),
+  paragraphs: z.array(z.string().trim().min(1).max(2_000)).max(8).default([]),
+  actionLabel: z.string().trim().min(1).max(80).nullable().default(null),
+  note: z.string().trim().min(1).max(500).nullable().default(null),
+  mode: z.enum(["add", "replace"]).default("add"),
 });
+// Replacing StudioCue's words with nothing would send an empty email.
+const templateContent = templateFields
+  .refine((content) => content.mode === "add" || content.paragraphs.length > 0, {
+    message: "TEMPLATE_REPLACE_NEEDS_WORDS",
+  })
+  .refine((content) => content.mode === "replace" || content.paragraphs.length > 0 || Boolean(content.subject || content.heading || content.actionLabel || content.note || content.preheader), {
+    message: "TEMPLATE_HAS_NO_CHANGES",
+  });
 
 const commandSchema = z.discriminatedUnion("type", [
   z.object({
@@ -135,7 +150,26 @@ const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("saveTemplateVersion"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
-    input: templateContent,
+    // `activate`: save and start using it, in one step. Saving a draft and
+    // finding "Activate" further down was how nothing ever changed.
+    input: z.intersection(templateContent, z.object({ activate: z.boolean().default(false) })),
+  }),
+  z.object({
+    /** Back to StudioCue's own wording for one email. Versions are kept. */
+    type: z.literal("resetTemplate"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ key: z.enum(emailTemplateKeys) }),
+  }),
+  z.object({
+    /**
+     * Read-only: the email as it would arrive, with sample details — as it
+     * stands (their active version, or StudioCue's), or with `content`.
+     */
+    type: z.literal("previewTemplate"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ key: z.enum(emailTemplateKeys), content: templateFields.nullable().default(null) }),
   }),
   z.object({
     type: z.literal("activateTemplateVersion"),
@@ -261,6 +295,50 @@ export const communicationsCommand = onRequest(
       }
       // Whole-product billing gate (studio commands require a live subscription).
       await requireActiveSubscription(db, command.tenantId);
+      if (command.type === "previewTemplate") {
+        // Read-only, and only for those who can change templates.
+        if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
+        const tenant = await db.doc(`tenants/${command.tenantId}`).get();
+        let template: EmailTemplateOverride | null = command.input.content;
+        let active: {
+          templateId: string;
+          version: number;
+          createdAt: string | null;
+          content: EmailTemplateOverride;
+        } | null = null;
+        const pointer = await db
+          .doc(`messageTemplatePointers/${command.tenantId}_${command.input.key}`)
+          .get();
+        const activeId = String(pointer.get("activeTemplateId") ?? "");
+        if (activeId) {
+          const stored = await db.doc(`messageTemplates/${activeId}`).get();
+          if (stored.exists && stored.get("tenantId") === command.tenantId) {
+            const data = stored.data() ?? {};
+            const content: EmailTemplateOverride = {
+              subject: String(data.subject ?? ""),
+              preheader: String(data.preheader ?? ""),
+              eyebrow: String(data.eyebrow ?? ""),
+              heading: String(data.heading ?? ""),
+              paragraphs: Array.isArray(data.paragraphs) ? data.paragraphs.map(String) : [],
+              actionLabel: typeof data.actionLabel === "string" ? data.actionLabel : null,
+              note: typeof data.note === "string" ? data.note : null,
+              mode: data.mode === "add" ? "add" : "replace",
+            };
+            active = {
+              templateId: stored.id,
+              version: Number(data.version ?? 0),
+              createdAt: typeof data.createdAt === "string" ? data.createdAt : null,
+              content,
+            };
+            template ??= content;
+          }
+        }
+        response.status(200).json({
+          ...previewEmail(tenant.data(), command.input.key, template),
+          active,
+        });
+        return;
+      }
       if (command.type === "getInquiryForwardingAddress") {
         const tenant = await db.doc(`tenants/${command.tenantId}`).get();
         const slug = String(tenant.get("publicSlug") ?? "");
@@ -1135,10 +1213,60 @@ export const communicationsCommand = onRequest(
           );
           return outcome;
         });
-      } else if (command.type === "saveTemplateVersion") {
+      } else if (command.type === "resetTemplate") {
         if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
         const pointerReference = db.doc(
           `messageTemplatePointers/${command.tenantId}_${command.input.key}`,
+        );
+        result = await db.runTransaction(async (transaction) => {
+          const pointer = await transaction.get(pointerReference);
+          const previous = String(pointer.get("activeTemplateId") ?? "");
+          if (previous)
+            transaction.update(db.doc(`messageTemplates/${previous}`), {
+              status: "superseded",
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          if (pointer.exists)
+            transaction.update(pointerReference, {
+              activeTemplateId: null,
+              activeVersion: null,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          transaction.create(executionReference, {
+            tenantId: command.tenantId,
+            userId: identity.uid,
+            commandType: command.type,
+            idempotencyKey: command.idempotencyKey,
+            result: { key: command.input.key, reset: true },
+            createdAt: now,
+          });
+          transaction.create(db.doc(`auditEvents/template_reset_${executionId}`), {
+            id: `template_reset_${executionId}`,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "message_template.reset_to_default",
+            entityType: "messageTemplate",
+            entityId: previous || command.input.key,
+            timestamp: now,
+            before: previous ? { activeTemplateId: previous } : null,
+            after: { activeTemplateId: null },
+            ipAddress: null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId: command.idempotencyKey,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          return { key: command.input.key, reset: true };
+        });
+      } else if (command.type === "saveTemplateVersion") {
+        if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
+        const { activate, ...content } = command.input;
+        const pointerReference = db.doc(
+          `messageTemplatePointers/${command.tenantId}_${content.key}`,
         );
         result = await db.runTransaction(async (transaction) => {
           const pointer = await transaction.get(pointerReference);
@@ -1146,14 +1274,22 @@ export const communicationsCommand = onRequest(
           const version = Number.isSafeInteger(latestVersion)
             ? latestVersion + 1
             : 1;
-          const templateId = `${command.tenantId}_${command.input.key}_v${version}`;
+          const templateId = `${command.tenantId}_${content.key}_v${version}`;
           const templateReference = db.doc(`messageTemplates/${templateId}`);
+          const previousActive = String(pointer.get("activeTemplateId") ?? "");
+          if (activate && previousActive)
+            transaction.update(db.doc(`messageTemplates/${previousActive}`), {
+              status: "superseded",
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
           const templateRecord = {
             id: templateId,
             tenantId: command.tenantId,
-            ...command.input,
+            ...content,
             version,
-            status: "draft",
+            status: activate ? "active" : "draft",
+            ...(activate ? { activatedAt: now, activatedBy: identity.uid } : {}),
             createdAt: now,
             updatedAt: now,
             createdBy: identity.uid,
@@ -1165,11 +1301,11 @@ export const communicationsCommand = onRequest(
             {
               id: pointerReference.id,
               tenantId: command.tenantId,
-              key: command.input.key,
+              key: content.key,
               latestVersion: version,
               latestTemplateId: templateId,
-              activeTemplateId: pointer.get("activeTemplateId") ?? null,
-              activeVersion: pointer.get("activeVersion") ?? null,
+              activeTemplateId: activate ? templateId : (pointer.get("activeTemplateId") ?? null),
+              activeVersion: activate ? version : (pointer.get("activeVersion") ?? null),
               createdAt: pointer.get("createdAt") ?? now,
               createdBy: pointer.get("createdBy") ?? identity.uid,
               updatedAt: now,
@@ -1182,7 +1318,7 @@ export const communicationsCommand = onRequest(
             userId: identity.uid,
             commandType: command.type,
             idempotencyKey: command.idempotencyKey,
-            result: { templateId, version, status: "draft" },
+            result: { templateId, version, status: activate ? "active" : "draft" },
             createdAt: now,
           });
           transaction.create(db.doc(`auditEvents/template_${templateId}`), {
@@ -1197,9 +1333,9 @@ export const communicationsCommand = onRequest(
             timestamp: now,
             before: null,
             after: {
-              key: command.input.key,
+              key: content.key,
               version,
-              status: "draft",
+              status: activate ? "active" : "draft",
             },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
@@ -1207,7 +1343,7 @@ export const communicationsCommand = onRequest(
             automationRunId: null,
             providerEventId: null,
           });
-          return { templateId, version, status: "draft" };
+          return { templateId, version, status: activate ? "active" : "draft" };
         });
       } else {
         if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");

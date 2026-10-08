@@ -233,7 +233,7 @@ test("it is read again as it sends, said on Today, held when billing lapses, and
   assert.match(read("functions/src/index.ts"), /export \{ crewRoundupScheduler \} from "\.\/crew\/monthly-roundup\.js";/);
   assert.match(read("scripts/configure-production-function-invokers.sh"), /^\s+crewroundupscheduler$/m);
   assert.match(read("functions/src/saas/billing-hold.ts"), /"crew_monthly_roundup",/);
-  assert.match(read("components/communications/email-template-designer.tsx"), /"crew_monthly_roundup",/);
+  assert.match(read("features/communications/email-catalog.ts"), /key: "crew_monthly_roundup"/);
   assert.match(read("components/crew/crew-offer-settings.tsx"), /Remind crew of their upcoming jobs every month/);
   assert.match(read("functions/src/crew/commands.ts"), /monthlyRoundup: z\.boolean\(\)\.optional\(\),/);
 

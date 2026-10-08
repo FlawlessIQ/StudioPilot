@@ -721,3 +721,39 @@
 .ds-root .page-heading.page-heading-compact p:not(.eyebrow) {
   margin: 0;
 }
+
+/* Settings → Email templates (components/communications/email-template-designer.tsx).
+   One column at every width: the settings detail is narrower than the page,
+   and the old two-up grid needed 820px it didn't have. */
+.email-editor{display:grid;gap:18px;min-width:0}
+.email-editor-head h2{margin:0 0 6px;font-size:20px}
+.email-editor-head p{margin:0;color:var(--muted);font-size:14px;line-height:1.55;max-width:640px}
+.email-editor-pick{display:grid;gap:6px;max-width:520px}
+.email-editor-pick>span,.email-editor-form label>span,.email-editor-mode legend{font-size:13px;font-weight:700}
+.email-editor-pick select{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper,#fff);font:inherit;font-size:15px;color:var(--ink)}
+.email-editor-pick small,.email-editor-form label small{color:var(--muted);font-size:12.5px;line-height:1.5}
+.email-editor-body{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1180px){.email-editor-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}}
+.email-editor-form{display:grid;gap:14px;min-width:0}
+.email-editor-form label{display:grid;gap:6px}
+.email-editor-form input,.email-editor-form textarea{min-height:44px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper,#fff);font:inherit;font-size:15px;color:var(--ink)}
+.email-editor-form textarea{resize:vertical;line-height:1.55}
+.email-editor-mode{display:grid;gap:8px;margin:0;padding:0;border:0}
+.email-editor-mode label{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.email-editor-mode label:has(input:checked){border-color:var(--ink);background:var(--soft,#f5f7f5)}
+.email-editor-mode input{width:auto;min-height:0;margin-top:3px}
+.email-editor-mode span{display:grid;gap:2px}
+.email-editor-mode strong{font-size:14px}
+.email-editor-reference{display:grid;gap:6px;padding:12px 14px;border-left:3px solid var(--line);background:var(--soft,#f5f7f5);border-radius:6px}
+.email-editor-reference>span{color:var(--muted);font-size:12px;font-weight:700}
+.email-editor-reference p{margin:0;font-size:13.5px;line-height:1.55;color:var(--ink-soft,#3b443f)}
+.email-editor-pair{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.email-editor-hint{margin:0;color:var(--muted);font-size:12.5px}
+.email-editor-actions{display:flex;flex-wrap:wrap;gap:10px}
+.email-editor-preview{display:grid;gap:10px;min-width:0}
+.email-editor-subject{display:grid;gap:2px;margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper,#fff);font-weight:650;overflow-wrap:anywhere}
+.email-editor-subject>span{color:var(--muted);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.email-editor-frame{width:100%;height:640px;border:1px solid var(--line);border-radius:12px;background:#f2f4f2}
+.email-editor-loading{display:flex;gap:8px;align-items:center;margin:0;color:var(--muted)}
+.email-editor-test{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.email-editor-test input{flex:1;min-width:200px;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font:inherit}

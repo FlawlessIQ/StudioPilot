@@ -147,6 +147,7 @@ const REACHED: Record<string, string> = {
   cancelQueuedEmail: "UndoSend",
   saveTemplateVersion: "/studio/settings/email-templates", activateTemplateVersion: "/studio/settings/email-templates",
   sendTemplateTest: "/studio/settings/email-templates",
+  resetTemplate: "/studio/settings/email-templates", previewTemplate: "/studio/settings/email-templates",
   getInquiryForwardingAddress: "InquiryForwardingAddress", getLeadCaptureSetup: "InquiryForwardingSettings",
   startCaptureTest: "InquiryForwardingSettings", saveFormMapping: "InquiryForwardingSettings",
   // The studio's own inquiry form, edited in the same settings panel (InquiryFormEditor).

@@ -658,7 +658,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     next: "New jobs of that type get the workflow when they're booked. **Automation runs** shows each time an automation ran and whether it worked.",
     goodToKnow: [
       "Publishing under the same name replaces the old version; jobs already running keep theirs.",
-      "For email templates, **Save new version** only saves a draft — **Activate** makes it the one that's used.",
+      "To change an email's words, open **Studio settings** → **Email templates**, pick the email, and **Save & use**. Your words go above StudioCue's unless you choose to replace them; **Back to StudioCue's wording** undoes it.",
     ],
     terms: ["workflow", "checkpoint", "readiness"],
   },

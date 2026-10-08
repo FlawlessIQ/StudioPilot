@@ -262,6 +262,15 @@ export type EmailTemplateOverride = {
   paragraphs: string[];
   actionLabel: string | null;
   note: string | null;
+  /**
+   * "add": the studio's words go under the greeting, above StudioCue's own,
+   * which still carry the dates, times, amounts and links each email is for.
+   * "replace": the studio's words are the whole message (a version saved
+   * before modes existed reads this way). Either way a blank field keeps
+   * StudioCue's (GR, 2026-10-08: the editor showed placeholder copy, and a
+   * saved body silently dropped every detail the email carried).
+   */
+  mode?: "add" | "replace";
 };
 
 const stringValue = (
@@ -408,14 +417,27 @@ function customizedCopy(
 ): EmailCopy {
   const template = input.template;
   if (!template) return base;
+  const own = (value: string | null | undefined, fallback: string) =>
+    value?.trim() ? templateValue(value, input) : fallback;
+  const theirs = template.paragraphs
+    .map((paragraph) => templateValue(paragraph, input).trim())
+    .filter(Boolean);
+  const [first, ...rest] = base.paragraphs;
+  const greeting = first && /^(hi|hello|dear|hey)\b/i.test(first) ? first : null;
+  const paragraphs =
+    template.mode === "add"
+      ? greeting
+        ? [greeting, ...theirs, ...rest]
+        : [...theirs, ...base.paragraphs]
+      : theirs.length
+        ? theirs
+        : base.paragraphs;
   return {
-    subject: templateValue(template.subject, input),
-    preheader: templateValue(template.preheader, input),
-    eyebrow: templateValue(template.eyebrow, input),
-    heading: templateValue(template.heading, input),
-    paragraphs: template.paragraphs.map((paragraph) =>
-      templateValue(paragraph, input),
-    ),
+    subject: own(template.subject, base.subject),
+    preheader: own(template.preheader, base.preheader),
+    eyebrow: own(template.eyebrow, base.eyebrow),
+    heading: own(template.heading, base.heading),
+    paragraphs,
     action:
       base.action && template.actionLabel
         ? {
@@ -429,7 +451,29 @@ function customizedCopy(
     details: base.details,
     quote: base.quote,
     secondaryAction: base.secondaryAction,
-    note: template.note ? templateValue(template.note, input) : undefined,
+    note: template.note?.trim() ? templateValue(template.note, input) : base.note,
+  };
+}
+
+/** StudioCue's own wording for an email, before any studio's changes. */
+export function defaultEmailCopy(input: RenderEmailInput): {
+  subject: string;
+  preheader: string;
+  eyebrow: string;
+  heading: string;
+  paragraphs: string[];
+  actionLabel: string | null;
+  note: string | null;
+} {
+  const copy = withStudioCueLink(copyFor({ ...input, template: null }), { ...input, template: null });
+  return {
+    subject: copy.subject,
+    preheader: copy.preheader,
+    eyebrow: copy.eyebrow,
+    heading: copy.heading,
+    paragraphs: copy.paragraphs,
+    actionLabel: copy.action?.label ?? null,
+    note: copy.note ?? null,
   };
 }
 
