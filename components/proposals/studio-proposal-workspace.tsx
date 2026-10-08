@@ -1,5 +1,7 @@
 "use client";
 
+import { quantityText } from "@/features/packages/unit-label";
+import { tradeProfile } from "@/features/trades/trades";
 import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { undatedPaymentDue } from "@/features/contracts/document";
@@ -896,6 +898,8 @@ function ProposalCopyCopilot({
 
 export function StudioProposalComposer() {
   const workspace = useWorkspace();
+  // A makeup artist or hair stylist is paid on the day (trades.ts).
+  const balanceDaysBefore = tradeProfile(workspace.tenantTrade).balanceDueDaysBefore;
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectOption[] | undefined>(
     dataIsLive ? undefined : [mockProject],
@@ -972,7 +976,7 @@ export function StudioProposalComposer() {
           const event = new Date(`${requestedProject.eventDate}T12:00:00`);
           if (!Number.isNaN(event.valueOf())) {
             setBalanceDueDate(
-              dateInput(addDays(event, -14).toISOString()),
+              dateInput(addDays(event, -balanceDaysBefore).toISOString()),
             );
           }
           return;
@@ -1029,7 +1033,7 @@ export function StudioProposalComposer() {
     return () => {
       active = false;
     };
-  }, [workspace.loading, workspace.tenantId]);
+  }, [workspace.loading, workspace.tenantId, balanceDaysBefore]);
 
   const selected = projects?.find((project) => project.id === projectId);
   // How the selected job is paid: a deposit and balance (weddings), or one
@@ -1051,7 +1055,7 @@ export function StudioProposalComposer() {
     setBalanceDueDate(
       Number.isNaN(event.valueOf())
         ? ""
-        : dateInput(addDays(event, -14).toISOString()),
+        : dateInput(addDays(event, -balanceDaysBefore).toISOString()),
     );
   }
 
@@ -1223,7 +1227,7 @@ export function StudioProposalComposer() {
       setTermsSummary(proposalTermsForJob(jobSnapshotsOf(readyProject), bookingGateNeeds(readyProject.profile)));
       const event = new Date(`${readyProject.eventDate}T12:00:00`);
       if (!Number.isNaN(event.valueOf())) {
-        setBalanceDueDate(dateInput(addDays(event, -14).toISOString()));
+        setBalanceDueDate(dateInput(addDays(event, -balanceDaysBefore).toISOString()));
       }
     }
   }
@@ -2536,7 +2540,7 @@ export function StudioProposalWorkspace({
                       </ul>
                     ) : (
                       <small>
-                        {number(line.quantity)} ×{" "}
+                        {quantityText(number(line.quantity), line.unitLabel)} ×{" "}
                         {money(line.unitPriceCents, currency)}
                       </small>
                     )}

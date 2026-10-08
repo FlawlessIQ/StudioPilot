@@ -1,5 +1,6 @@
 "use client";
 
+import { tradeProfile } from "@/features/trades/trades";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import {
   describeCoverage,
@@ -405,9 +406,10 @@ export function BookingAutopilotWorkspace({
     const value = Number.isFinite(eventDate.valueOf())
       ? eventDate
       : futureDate(60);
-    value.setDate(value.getDate() - 30);
+    // Paid on the day for makeup and hair (trades.ts); a month out otherwise.
+    value.setDate(value.getDate() - (tradeProfile(workspace.tenantTrade).balanceDueDaysBefore === 0 ? 0 : 30));
     return value;
-  }, [project?.eventDate]);
+  }, [project?.eventDate, workspace.tenantTrade]);
 
   async function completeConsultation() {
     if (!consultation || notes.trim().length < 20) return;

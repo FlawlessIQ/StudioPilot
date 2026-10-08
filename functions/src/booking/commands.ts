@@ -1,4 +1,4 @@
-import { consultationPurpose, isFinalDetailsCall } from "./consultation-purpose.js";
+import { consultationPurpose, isSalesConsultation } from "./consultation-purpose.js";
 import { createHash } from "node:crypto";
 import { signedCopyDocument, signedCopyDocumentId, signedCopyPrefix } from "../contracts/signed-copy-document.js";
 import { getFirestore } from "firebase-admin/firestore";
@@ -696,7 +696,8 @@ export const bookingCommand = onRequest(
           )
             throw new Error("CONSULTATION_NOT_FOUND");
           // The final details call has no brief, package fit or proposal.
-          if (isFinalDetailsCall(consultation.data())) throw new Error("FINAL_DETAILS_CALL_NOT_A_CONSULTATION");
+          // Nor a makeup or hair trial (consultation-purpose.ts).
+          if (!isSalesConsultation(consultation.data())) throw new Error("FINAL_DETAILS_CALL_NOT_A_CONSULTATION");
           if (
             !project.exists ||
             project.get("tenantId") !== command.tenantId ||
@@ -807,7 +808,8 @@ export const bookingCommand = onRequest(
             consultation.get("projectId") !== projectId
           )
             throw new Error("CONSULTATION_NOT_FOUND");
-          if (isFinalDetailsCall(consultation.data())) throw new Error("FINAL_DETAILS_CALL_NOT_A_CONSULTATION");
+          // Nor a makeup or hair trial (consultation-purpose.ts).
+          if (!isSalesConsultation(consultation.data())) throw new Error("FINAL_DETAILS_CALL_NOT_A_CONSULTATION");
           if (!project.exists || project.get("tenantId") !== command.tenantId)
             throw new Error("PROJECT_NOT_FOUND");
           const currentRun = briefRunOf(consultation.get("briefRun"));
@@ -1141,7 +1143,7 @@ export const bookingCommand = onRequest(
               purpose: await purposeOf(firestore, command.input.consultationId),
               // Where they can pick another time, when the job has one. Not
               // for the final details call: the inquiry page books the sales one.
-              rescheduleUrl: (await purposeOf(firestore, command.input.consultationId)) === "final_details"
+              rescheduleUrl: (await purposeOf(firestore, command.input.consultationId)) !== "consultation"
                 ? null
                 : await coupleInquiryUrl(firestore, {
                     tenantId: command.tenantId,
@@ -1357,7 +1359,7 @@ export const bookingCommand = onRequest(
             type: "consultation_rescheduled",
             startsAt: command.input.startsAt,
             purpose: await purposeOf(firestore, command.input.consultationId),
-            rescheduleUrl: (await purposeOf(firestore, command.input.consultationId)) === "final_details"
+            rescheduleUrl: (await purposeOf(firestore, command.input.consultationId)) !== "consultation"
               ? null
               : await coupleInquiryUrl(firestore, {
                   tenantId: command.tenantId,

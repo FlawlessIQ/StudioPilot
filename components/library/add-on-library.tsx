@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeUnitLabel, quantityText } from "@/features/packages/unit-label";
 import { useState } from "react";
 import { Archive, CheckCircle2, LoaderCircle, Pencil, Plus } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
@@ -15,9 +16,11 @@ type Draft = {
   price: string;
   taxable: boolean;
   allowQuantity: boolean;
+  /** What it's priced per: "person", "hour" (features/packages/unit-label.ts). */
+  unitLabel: string;
 };
 
-const EMPTY: Draft = { addOnId: null, name: "", description: "", price: "", taxable: true, allowQuantity: false };
+const EMPTY: Draft = { addOnId: null, name: "", description: "", price: "", taxable: true, allowQuantity: false, unitLabel: "" };
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 
 function money(cents: number, currency: string) {
@@ -65,6 +68,7 @@ export function AddOnLibrary() {
         unitPriceCents: Number.isFinite(cents) ? cents : 0,
         taxable: next.taxable,
         allowQuantity: next.allowQuantity,
+        unitLabel: next.allowQuantity ? normalizeUnitLabel(next.unitLabel) : null,
         archived,
       });
       refreshTenantRecords("addOns");
@@ -141,8 +145,20 @@ export function AddOnLibrary() {
             onChange={(event) => setDraft({ ...draft, allowQuantity: event.target.checked })}
             type="checkbox"
           />
-          <span>Sold by the unit (hours, prints) — pick how many</span>
+          <span>Sold by the unit (people, hours, prints) — pick how many</span>
         </label>
+        {draft.allowQuantity ? (
+          <label>
+            Priced per
+            <input
+              maxLength={24}
+              onChange={(event) => setDraft({ ...draft, unitLabel: event.target.value })}
+              placeholder="person"
+              value={draft.unitLabel}
+            />
+            <small>{`Shows on the quote as "${quantityText(6, draft.unitLabel || "person")} × ${draft.price ? `$${draft.price}` : "the price"}".`}</small>
+          </label>
+        ) : null}
       </div>
       <footer className="add-on-editor-actions">
         <button className="button button-dark" disabled={busy} type="submit">
@@ -187,7 +203,7 @@ export function AddOnLibrary() {
                 {text(row.description) ? <small>{text(row.description)}</small> : null}
                 <small>
                   {money(Number(row.unitPriceCents ?? 0), currency)}
-                  {row.allowQuantity ? " each" : ""}
+                  {row.allowQuantity ? (normalizeUnitLabel(row.unitLabel) ? ` per ${normalizeUnitLabel(row.unitLabel)}` : " each") : ""}
                   {row.taxable === false ? " · no tax" : ""}
                 </small>
               </span>
@@ -204,6 +220,7 @@ export function AddOnLibrary() {
                         price: (Number(row.unitPriceCents ?? 0) / 100).toString(),
                         taxable: row.taxable !== false,
                         allowQuantity: row.allowQuantity === true,
+                        unitLabel: text(row.unitLabel),
                       })
                     }
                     type="button"
@@ -223,6 +240,7 @@ export function AddOnLibrary() {
                           price: (Number(row.unitPriceCents ?? 0) / 100).toString(),
                           taxable: row.taxable !== false,
                           allowQuantity: row.allowQuantity === true,
+                          unitLabel: text(row.unitLabel),
                         },
                         true,
                       )

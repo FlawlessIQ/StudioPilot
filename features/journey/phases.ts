@@ -37,6 +37,7 @@ const phaseByStep: Record<JourneyStepKey, JourneyPhase> = {
   proposal: "book",
   contract: "book",
   retainer: "book",
+  trial: "book",
 
   schedule_form: "prepare",
   run_of_show: "prepare",

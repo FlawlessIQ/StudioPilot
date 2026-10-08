@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { BadgeCheck, Camera, CheckSquare, ClipboardCheck, Film, Link2, ListChecks, Mail, PackagePlus, Plug, Settings2, Star, UserCog, UserMinus, Users } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { offeredProviders } from "@/features/integrations/schema";
 import type { IntegrationProvider } from "@/features/integrations/schema";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -19,6 +20,7 @@ import { CrewCallOrderPanel } from "@/components/crew/crew-call-order";
 import { CrewCascadeWorkspace } from "@/components/crew/crew-cascade-workspace";
 import { withdrawCrew } from "@/components/crew/withdraw-crew-control";
 import { setOwnerShooting } from "@/components/crew/owner-shooting-toggle";
+import { TrialNotes } from "@/components/crew/trial-notes";
 import { ownerShootsJob } from "@/features/crew/staffing-plan";
 import { isLiveAssignment } from "@/features/crew/job-stopped";
 import { withdrawConsequence, withdrawDoneMessage } from "@/features/crew/withdraw-copy";
@@ -1253,6 +1255,29 @@ export function CrewPlanCard({ action }: ActionCardProps) {
     >
       <Embedded>
         <CrewCascadeWorkspace projectId={job.id} />
+      </Embedded>
+    </ActionShell>
+  );
+}
+
+/**
+ * "Note from Maya's trial: soft glam, warm brown eye." What a makeup or hair
+ * trial settled goes on the job and the crew's brief (TrialNotes); `text`
+ * starts the look when the job has none yet.
+ */
+export function TrialNotesCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const trialWord = tradeVocab(useWorkspace().tenantTrade).trial;
+  const title = `${trialWord ?? "Trial"} notes · ${jobName(job)}`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return <ActionShell title={title}><Blocked>{"I couldn't find that job."}</Blocked></ActionShell>;
+  if (!trialWord) return <ActionShell title={title}><Blocked>{"Trials are for makeup and hair studios."}</Blocked></ActionShell>;
+  const saved = (job.trialNotes ?? null) as { look?: unknown; products?: unknown } | null;
+  const look = typeof saved?.look === "string" && saved.look ? saved.look : str(action.text);
+  return (
+    <ActionShell detail="Check the notes and save — they go on your crew's brief for the day." icon={<Users size={15} />} title={title}>
+      <Embedded>
+        <TrialNotes notes={{ look, products: saved?.products }} projectId={job.id} trialWord={trialWord} />
       </Embedded>
     </ActionShell>
   );

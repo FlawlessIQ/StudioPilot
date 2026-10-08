@@ -1,3 +1,4 @@
+import { normalizeUnitLabel } from "../packages/unit-label.js";
 import { randomUUID } from "node:crypto";
 import { tradeMoves } from "../trades/trades.js";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -713,6 +714,8 @@ const commandSchema = z.discriminatedUnion("type", [
       unitPriceCents: z.number().int().nonnegative().safe(),
       taxable: z.boolean().default(true),
       allowQuantity: z.boolean().default(false),
+      // What it's priced per: "person" for bridesmaid makeup (unit-label.ts).
+      unitLabel: z.string().max(40).nullable().default(null),
       archived: z.boolean().default(false),
     }),
   }),
@@ -1148,6 +1151,7 @@ async function libraryAddOns(
       unitPriceCents: Number(document.get("unitPriceCents") ?? 0),
       taxable: document.get("taxable") !== false,
       allowQuantity: document.get("allowQuantity") === true,
+      unitLabel: normalizeUnitLabel(document.get("unitLabel")),
       active: true,
     };
   });
@@ -2255,6 +2259,7 @@ export const crmCommand = onRequest(
             unitPriceCents: command.input.unitPriceCents,
             taxable: command.input.taxable,
             allowQuantity: command.input.allowQuantity,
+            unitLabel: normalizeUnitLabel(command.input.unitLabel),
             archivedAt: command.input.archived ? (existing.get("archivedAt") ?? timestamp) : null,
           };
           transaction.set(
@@ -2549,6 +2554,8 @@ export const crmCommand = onRequest(
                 unitPriceCents: Number(definition.unitPriceCents ?? 0),
                 lineTotalCents: Number(definition.unitPriceCents ?? 0) * item.quantity,
                 taxable: definition.taxable !== false,
+                // "6 people" on the quote (unit-label.ts).
+                unitLabel: normalizeUnitLabel(definition.unitLabel),
               };
             }
             if (!item.name || item.unitPriceCents === undefined) throw new Error("CUSTOM_ADD_ON_INCOMPLETE");

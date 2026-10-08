@@ -1,5 +1,6 @@
 "use client";
 
+import { quantityText } from "@/features/packages/unit-label";
 import { detailsForLine } from "@/features/packages/inclusions";
 import {
   balanceWithSalesTax,
@@ -260,8 +261,8 @@ export function ClientProposal() {
                         <span key={item}>{item}</span>
                       ))}
                     </span>
-                  ) : number(line.quantity) > 1
-                    ? `${number(line.quantity)} × ${money(line.unitPriceCents, currency)}`
+                  ) : number(line.quantity) > 1 || line.unitLabel
+                    ? `${quantityText(number(line.quantity), line.unitLabel)} × ${money(line.unitPriceCents, currency)}`
                     : undefined
                 }
                 title={text(line.description, "Photography services")}

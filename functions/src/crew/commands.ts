@@ -195,6 +195,21 @@ const command = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * What a makeup or hair trial settled: the look and the products used
+     * (docs/vendor-journeys-plan.md, 3.2). Kept on the job and put on the
+     * crew's brief, so whoever sits the bride on the day does what was tried.
+     */
+    type: z.literal("setTrialNotes"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string(),
+      look: z.string().trim().max(1500).default(""),
+      products: z.string().trim().max(1500).default(""),
+    }),
+  }),
+  z.object({
     type: z.literal("withdrawAssignment"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -1553,6 +1568,43 @@ export const crewCommand = onRequest(
           projectId: parsed.input.projectId,
           ownerShooting: parsed.input.ownerShooting,
         };
+      } else if (parsed.type === "setTrialNotes") {
+        if (
+          !["studio_owner", "studio_admin", "studio_coordinator"].includes(role) ||
+          !hasProject(parsed.input.projectId)
+        )
+          throw new Error("FORBIDDEN");
+        const projectReference = db.doc(`projects/${parsed.input.projectId}`);
+        const projectDoc = await projectReference.get();
+        if (!projectDoc.exists || projectDoc.get("tenantId") !== parsed.tenantId)
+          throw new Error("PROJECT_NOT_FOUND");
+        const now = new Date().toISOString();
+        const { look, products } = parsed.input;
+        const briefReference = db.doc(`crewBriefs/trial_${parsed.input.projectId}`);
+        const batch = db.batch();
+        batch.update(projectReference, {
+          trialNotes: look || products ? { look: look || null, products: products || null, updatedAt: now, updatedBy: identity.uid } : null,
+          updatedAt: now,
+          updatedBy: identity.uid,
+        });
+        // On the crew's brief with the client's own answers (crew/client-brief.tsx).
+        if (look || products)
+          batch.set(briefReference, {
+            id: briefReference.id,
+            tenantId: parsed.tenantId,
+            projectId: parsed.input.projectId,
+            questionnaireName: "From the trial",
+            beforeYouShoot: [],
+            onTheDay: [
+              ...(look ? [{ fieldId: "trial-look", label: "The look", text: look }] : []),
+              ...(products ? [{ fieldId: "trial-products", label: "Products used", text: products }] : []),
+            ],
+            submittedAt: now,
+            updatedAt: now,
+          });
+        else batch.delete(briefReference);
+        await batch.commit();
+        result = { projectId: parsed.input.projectId, saved: Boolean(look || products) };
       } else if (parsed.type === "withdrawAssignment") {
         /**
          * Withdraw one crew member, or replace them.

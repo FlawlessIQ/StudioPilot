@@ -2,6 +2,7 @@
 
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { finalCallState } from "@/features/consultations/final-call";
+import { trialState } from "@/features/consultations/trial";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -203,6 +204,8 @@ export function useProjectJourney({
       today: todayLocalIso(),
       now: new Date().toISOString(),
     }),
+    // A makeup or hair trial, when the trade has one (trades.ts).
+    trial: trialState({ consultations: forProject(consultations.records), now: new Date().toISOString() }),
     // The sales call; the final details call a month out is its own step.
     hasConsultation: forProject(consultations.records).some((record) => isSalesConsultation(record) && isLiveConsultation(record)),
     proposalStatus:

@@ -2,7 +2,9 @@
 
 import { fillMcScript, patchMcScript, type McScript } from "@/features/schedules/mc-script";
 import { DJ_MOMENTS, planNight } from "@/features/schedules/night-plan";
-import { tradeProfile } from "@/features/trades/trades";
+import { chairDayPlan, planChairs } from "@/features/schedules/chair-plan";
+import { parsePartyList, type BeautyService } from "@/features/schedules/party-list";
+import { tradeOf, tradeProfile } from "@/features/trades/trades";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -34,7 +36,7 @@ import {
 import { liveProjects } from "@/features/projects/put-away";
 import { itemCrewIds, withCrewIds } from "@/features/schedules/item-crew";
 import { sortScheduleItems } from "@/features/schedules/run-of-show-order";
-import { eventZone, isoToWallClock, spokenClock, wallClockToIso } from "@/features/schedules/day-clock";
+import { clockOf, eventZone, isoToWallClock, spokenClock, wallClockToIso } from "@/features/schedules/day-clock";
 import {
   flowEnds,
   pinnedEnds,
@@ -128,8 +130,9 @@ const SOURCE_WORDS: Record<string, string> = {
   crew_fact: "From the crew",
   assumption: "Suggested — check it",
 };
+// A makeup or hair morning names whose chair each line is (chair-plan.ts).
 const sourceWords = (source: { type: string; label: string }) =>
-  /^(From their|Their form|Their second|Your timing|Suggested|Coverage starts)/.test(source.label)
+  /^(From their|Their form|Their second|Your timing|Suggested|Coverage starts|Chair \d)/.test(source.label)
     ? source.label
     : (SOURCE_WORDS[source.type] ?? "Suggested — check it");
 
@@ -178,6 +181,9 @@ export function AiScheduleGenerator({
   const workspace = useWorkspace();
   // A DJ scripts the mic on each line (trades.ts `musicPlanner`).
   const mcScript = tradeProfile(workspace.tenantTrade).musicPlanner;
+  // A makeup artist or hair stylist lays out a morning of chairs (`chairSchedule`).
+  const chairs = tradeProfile(workspace.tenantTrade).chairSchedule;
+  const chairService: BeautyService = tradeOf(workspace.tenantTrade) === "hair" ? "hair" : "makeup";
   const { records: projects, loading } = useTenantDocuments("projects");
   const { records: questionnaires } = useTenantDocuments(
     "questionnaireResponses",
@@ -877,6 +883,23 @@ export function AiScheduleGenerator({
     setWithheld(0);
   }
 
+  /**
+   * A makeup or hair morning, from the client's party list: each person's
+   * chair, worked back from when everyone must be ready (chair-plan.ts).
+   */
+  function chairMorning() {
+    const clockAnswer = (key: string) => clockOf(String(jobAnswers[key] ?? ""));
+    const readyBy = clockAnswer("ready-by-time");
+    const plan = planChairs({
+      people: parsePartyList(jobAnswers["party-list"], chairService),
+      service: chairService,
+      readyBy,
+      earliestStart: clockAnswer("earliest-start-time"),
+    });
+    const place = String(jobAnswers["getting-ready"] ?? "").trim() || dayPlanInput().venue;
+    return chairDayPlan(plan, { service: chairService, place, readyBy });
+  }
+
   function layOutDay() {
     setFailed(false);
     setAskResult(null);
@@ -892,7 +915,9 @@ export function AiScheduleGenerator({
     // not a photographer's day (night-plan.ts).
     const plan = mcScript
       ? planNight({ answers: jobAnswers, coverageMinutes: packageMinutes ?? null, venue: dayPlanInput().venue })
-      : planDay({ ...dayPlanInput(), answeredOnly: true });
+      : chairs
+        ? chairMorning()
+        : planDay({ ...dayPlanInput(), answeredOnly: true });
     setPlanNotes(plan.notes);
     setWithheld(plan.withheld);
     if (!plan.rows.length) {
@@ -1157,10 +1182,12 @@ export function AiScheduleGenerator({
             <p className="eyebrow">Draft · nothing is sent yet</p>
             {weddingDay ? (
               <>
-                <h2>{mcScript ? "Lay out the night" : "Lay out the day"}</h2>
+                <h2>{mcScript ? "Lay out the night" : chairs ? "Lay out the morning" : "Lay out the day"}</h2>
                 <p>
                   {mcScript
                     ? "Built from the couple’s times and their Music & moments planner: the running order, with their songs and names on each line. Every line is yours to change."
+                    : chairs
+                      ? "Built from their party list: everyone's chair, worked back from when they need to be ready, the bride in the middle. Every line is yours to change."
                     : "Built from the couple’s Final Schedule answers, and only those. Ask for suggested times for anything they left out. Every line is yours to change."}
                 </p>
               </>
@@ -1321,7 +1348,7 @@ export function AiScheduleGenerator({
           <div className="schedule-generate-actions">
             {weddingDay ? (
               <button className="button button-dark" disabled={busy || !projectId} onClick={layOutDay} type="button">
-                <CalendarClock /> {draft ? "Start over from their answers" : mcScript ? "Lay out the night" : "Lay out the day"}
+                <CalendarClock /> {draft ? "Start over from their answers" : mcScript ? "Lay out the night" : chairs ? "Lay out the morning" : "Lay out the day"}
               </button>
             ) : null}
             {weddingDay ? null : (
@@ -1583,7 +1610,7 @@ export function AiScheduleGenerator({
                   </button>
                 ) : null}
               </div>
-            ) : isWeddingJob(selectedProject) ? (
+            ) : chairs ? null : isWeddingJob(selectedProject) ? (
               <div className="schedule-moments" role="group" aria-label="Add a moment">
                 <span>Add a moment</span>
                 {WEDDING_STANDARD_MOMENTS.map((moment) => (

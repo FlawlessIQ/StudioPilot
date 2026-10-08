@@ -165,9 +165,34 @@ const DJ_COPY: Partial<Record<Question["key"], Partial<Pick<Question, "ask" | "w
   },
 };
 
+/**
+ * A makeup artist's or hair stylist's words: a trial instead of a call, and
+ * the party list they start with (docs/vendor-journeys-plan.md, Phase 3).
+ */
+const BEAUTY_COPY: Partial<Record<Question["key"], Partial<Pick<Question, "ask" | "why" | "doneLabel">>>> = {
+  work: {
+    ask: "What events do you work?",
+    why: "Check everything you take on. Your inquiry form offers just these, and asks how many people and when everyone must be ready.",
+    doneLabel: "StudioCue knows what you take on.",
+  },
+  availability: {
+    ask: "When can clients book a trial?",
+    why: "Pick your hours and clients book their trial themselves. Connect Google Calendar too, and times you're busy are never offered.",
+    doneLabel: "Clients can book a trial that suits you both.",
+  },
+  questionnaire: {
+    ask: "What do you ask clients before the day?",
+    why: "StudioCue's Party list is ready: who needs what, the ready-by time and where everyone gets ready — your morning is laid out from it. Or paste the form you already send.",
+    doneLabel: "Your Party list is ready to send — or use your own.",
+  },
+};
+
 /** A question in the studio's trade's words. */
 function inTradeWords(question: Question, trade: unknown): Question {
-  return tradeOf(trade) === "dj" ? { ...question, ...DJ_COPY[question.key] } : question;
+  const tradeId = tradeOf(trade);
+  if (tradeId === "dj") return { ...question, ...DJ_COPY[question.key] };
+  if (tradeId === "makeup" || tradeId === "hair") return { ...question, ...BEAUTY_COPY[question.key] };
+  return question;
 }
 
 const IMPORT_PRICES = fromSetup("/studio/import?kind=Package");
@@ -414,7 +439,14 @@ function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
 function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
   // A DJ plays weddings, corporate events and parties (inquiry-form-config.ts).
   const trade = tradeOf(useWorkspace().tenantTrade);
-  const kinds: readonly JobKind[] = trade === "dj" ? JOB_KINDS.filter((kind) => kind !== "portraits" && kind !== "sports") : JOB_KINDS;
+  // A beauty studio's form offers a wedding and a special event (inquiry-form-config.ts).
+  const beauty = trade === "makeup" || trade === "hair";
+  const kinds: readonly JobKind[] =
+    trade === "dj"
+      ? JOB_KINDS.filter((kind) => kind !== "portraits" && kind !== "sports")
+      : beauty
+        ? JOB_KINDS.filter((kind) => kind === "wedding" || kind === "other")
+        : JOB_KINDS;
   // The first kind (weddings) starts ticked.
   const [chosen, setChosen] = useState<JobKind[]>([JOB_KINDS[0]]);
   const [busy, setBusy] = useState(false);
@@ -423,11 +455,17 @@ function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
     setChosen((current) => (current.includes(kind) ? current.filter((entry) => entry !== kind) : [...current, kind]));
   return (
     <div className="setup-answer-row setup-kinds">
-      <div className="setup-kind-options" role="group" aria-label={trade === "dj" ? "What you play" : "What you shoot"}>
+      <div className="setup-kind-options" role="group" aria-label={trade === "dj" ? "What you play" : beauty ? "What you work" : "What you shoot"}>
         {kinds.map((kind) => (
           <label className="form-checkbox" key={kind}>
             <input checked={chosen.includes(kind)} onChange={() => toggle(kind)} type="checkbox" />
-            <span>{trade === "dj" && kind === "other" ? "Parties and other events" : JOB_KIND_LABELS[kind]}</span>
+            <span>
+              {trade === "dj" && kind === "other"
+                ? "Parties and other events"
+                : beauty && kind === "other"
+                  ? "Special events"
+                  : JOB_KIND_LABELS[kind]}
+            </span>
           </label>
         ))}
       </div>

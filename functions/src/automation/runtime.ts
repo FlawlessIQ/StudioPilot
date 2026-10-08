@@ -1,3 +1,4 @@
+import { isSalesConsultation } from "../booking/consultation-purpose.js";
 import { clientAutomationsPaused } from "../imports/existing-booking.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
@@ -81,7 +82,7 @@ function triggerFor(
   if (collectionId === "consultations") {
     // A studio's "after the consultation" rules are about the sales call,
     // not the final details call a month out (booking/consultation-purpose.ts).
-    if ((after as Record<string, unknown> | undefined)?.purpose === "final_details") return null;
+    if (!isSalesConsultation(after as Record<string, unknown> | undefined)) return null;
     if (!before) return "consultation_scheduled";
     if (changed(before, after, "status", "completed")) {
       return "consultation_completed";

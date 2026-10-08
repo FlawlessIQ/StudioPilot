@@ -164,6 +164,8 @@ const REACHED: Record<string, string> = {
   reviewAssignmentCloseout: "\"reviewAssignmentCloseout\"", updateAssignmentPayment: "\"updateAssignmentPayment\"",
   withdrawAssignment: "withdrawCrew(",
   setOwnerShooting: "setOwnerShooting(",
+  // What a makeup or hair trial settled, on the job's trial card (components/crew/trial-notes.tsx).
+  setTrialNotes: "TrialNotes",
   // Tasks and workflows
   createTask: "\"createTask\"", completeTask: "\"completeTask\"", resolveCheckpoint: "ReadinessCheckpoints",
   createWorkflowTemplate: "CreateWorkflowForm",

@@ -1,3 +1,4 @@
+import { normalizeUnitLabel } from "../packages/unit-label.js";
 import { packageDetails } from "../packages/inclusions.js";
 import { expiryOnSend } from "./proposal-expiry.js";
 import { createHash } from "node:crypto";
@@ -313,6 +314,8 @@ function lineItems(packageData: Record<string, unknown>) {
       totalCents: numberValue(item.lineTotalCents),
       kind: "add_on" as const,
       sourceId: stringValue(item.addOnId) || null,
+      // What it's priced per: the quote reads "6 people × $150" (unit-label.ts).
+      unitLabel: normalizeUnitLabel(item.unitLabel),
     })),
   ];
 }

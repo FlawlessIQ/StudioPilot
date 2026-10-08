@@ -153,7 +153,7 @@ test("a DJ's inquiry form asks for hours of music and the ceremony", () => {
   assert.deepEqual(dj.eventTypes.map((type) => type.id), ["wedding", "corporate", "party", "general"]);
   assert.deepEqual(dj.questions.map((question) => question.id), ["music-hours", "ceremony-music"]);
   assert.equal(defaultInquiryFormFor("photographer").questions.length, 0);
-  assert.match(read("functions/src/saas/onboarding.ts"), /trade\.trade === "dj" \? \{ inquiryForm: defaultInquiryFormFor\(trade\.trade\) \}/);
+  assert.match(read("functions/src/saas/onboarding.ts"), /trade\.trade !== "photographer" \? \{ inquiryForm: defaultInquiryFormFor\(trade\.trade\) \}/);
 });
 
 const base: JourneyInput = {

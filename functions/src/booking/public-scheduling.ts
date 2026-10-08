@@ -1,3 +1,4 @@
+import { tradeVocab } from "../trades/trades.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { isJobKind, journeyProfile, projectProfile } from "../job-kinds/job-kinds.js";
@@ -17,7 +18,7 @@ import {
 } from "../intake/inquiry-link.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { mintBookingLink } from "./booking-link.js";
-import { consultationPurpose, isFinalDetailsCall } from "./consultation-purpose.js";
+import { consultationPurpose, isSalesConsultation } from "./consultation-purpose.js";
 import {
   dayFieldsFor,
   normaliseInquiryFormConfig,
@@ -55,7 +56,7 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       contactId: z.string().min(1),
       mode: z.enum(["zoom", "in_person", "phone", "custom"]).default("zoom"),
-      purpose: z.enum(["consultation", "final_details"]).default("consultation"),
+      purpose: z.enum(["consultation", "final_details", "trial"]).default("consultation"),
     }),
   }),
   z.object({
@@ -358,8 +359,15 @@ export const publicConsultationScheduling = onRequest(
           eventDate: project.get("eventDate") ?? null,
           expiresAt: link.get("expiresAt"),
           mode: link.get("mode"),
-          // The page says "final details call" for one (consultation-purpose.ts).
+          // The page says "final details call" for one (consultation-purpose.ts),
+          // and a makeup or hair studio's trial by its own name (trades.ts).
           purpose: consultationPurpose(link.data()),
+          callName:
+            consultationPurpose(link.data()) === "trial"
+              ? tradeVocab(tenant.get("trade")).trial ?? "Trial"
+              : consultationPurpose(link.data()) === "final_details"
+                ? tradeVocab(tenant.get("trade")).finalCall
+                : tradeVocab(tenant.get("trade")).consultation,
         });
         return;
       }
@@ -408,8 +416,10 @@ export const publicConsultationScheduling = onRequest(
         updatedAt: now,
         updatedBy: "public-consultation-scheduler",
       });
-      const finalCall = isFinalDetailsCall(link.data());
-      if (!finalCall && project.get("state") === "LEAD") {
+      // Only the sales call moves a job on: never the final details call or
+      // a makeup or hair trial (consultation-purpose.ts).
+      const salesCall = isSalesConsultation(link.data());
+      if (salesCall && project.get("state") === "LEAD") {
         batch.update(project.ref, {
           state: "CONSULTATION",
           stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
@@ -449,7 +459,7 @@ export const publicConsultationScheduling = onRequest(
       });
       await batch.commit();
       // An event form the couple sent from their inquiry page waited for this.
-      if (!finalCall) await queueInquiryFormAnalysis(db, {
+      if (salesCall) await queueInquiryFormAnalysis(db, {
         tenantId: String(link.get("tenantId")),
         projectId: String(link.get("projectId")),
         now,
@@ -505,7 +515,7 @@ async function upcomingConsultation(
   // final details call a month out (consultation-purpose.ts).
   return (
     consultations.docs
-      .filter((document) => !isFinalDetailsCall(document.data()))
+      .filter((document) => isSalesConsultation(document.data()))
       .filter((document) => document.get("status") === "scheduled" && text(document.get("startsAt")) > now)
       .sort((left, right) => text(left.get("startsAt")).localeCompare(text(right.get("startsAt"))))[0] ?? null
   );

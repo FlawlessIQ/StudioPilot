@@ -1,3 +1,4 @@
+import { tradeProfile } from "../trades/trades.js";
 import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
 import { retainerFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
@@ -62,6 +63,7 @@ export async function raiseFinalInvoice(
   const tenantId = String(project.get("tenantId") ?? "");
   const invoiceReference = db.doc(`invoiceReferences/${options.invoiceId}`);
   if ((await transaction.get(invoiceReference)).exists) return { raised: false, reason: "exists" };
+  const tenant = await transaction.get(db.doc(`tenants/${tenantId}`));
   const snapshotId = String(project.get("packageSnapshotId") ?? "");
   if (!snapshotId) return { raised: false, reason: "no_package" };
   // Every package on the job, for the fallback below when no proposal was
@@ -165,7 +167,8 @@ export async function raiseFinalInvoice(
   if (retainerPaidCents !== retainerExpectedCents) discrepancies.push("RETAINER_EVIDENCE_MISMATCH");
   const readyForProviderDraft = discrepancies.length === 0;
   const due = new Date(`${options.dueDate ?? String(project.get("eventDate"))}T00:00:00Z`);
-  if (!options.dueDate) due.setUTCDate(due.getUTCDate() - 14);
+  // Two weeks before, or on the day for a makeup artist or hair stylist (trades.ts).
+  if (!options.dueDate) due.setUTCDate(due.getUTCDate() - tradeProfile(tenant.get("trade")).balanceDueDaysBefore);
   const calculation = {
     lines: [
       { label: "Approved package and add-ons", amountCents: totalCents - taxCents, source },

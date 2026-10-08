@@ -651,6 +651,15 @@ export function trialActivityLines(activity: TrialActivityCounts): string[] {
 }
 
 /** "GR Productions’" and "Alder & Muse’s": a name ending in s takes the apostrophe alone. */
+/** A booked call by its purpose, in the studio's trade's words (trades.ts). */
+function callNameFor(values: Record<string, unknown>): string {
+  const purpose = typeof values.purpose === "string" ? values.purpose : "";
+  const words = tradeVocab(values.trade);
+  if (purpose === "final_details") return words.finalCall;
+  if (purpose === "trial") return words.trial ?? "Trial";
+  return words.consultation;
+}
+
 function possessive(name: string): string {
   return /s$/i.test(name.trim()) ? `${name.trim()}’` : `${name.trim()}’s`;
 }
@@ -864,7 +873,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "consultation_rescheduled": {
       // "final details call" for the call a month out (booking/consultation-purpose.ts).
       // A DJ's are a vibe call and a final planning call (trades.ts).
-      const call = (stringValue(values, "purpose") === "final_details" ? tradeVocab(values.trade).finalCall : tradeVocab(values.trade).consultation).toLowerCase();
+      const call = callNameFor(values).toLowerCase();
       const Call = call.charAt(0).toUpperCase() + call.slice(1);
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const isReminder = input.key === "consultation_reminder";
@@ -917,7 +926,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     }
     case "consultation_cancelled": {
       // A DJ's are a vibe call and a final planning call (trades.ts).
-      const call = (stringValue(values, "purpose") === "final_details" ? tradeVocab(values.trade).finalCall : tradeVocab(values.trade).consultation).toLowerCase();
+      const call = callNameFor(values).toLowerCase();
       const Call = call.charAt(0).toUpperCase() + call.slice(1);
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
@@ -939,6 +948,20 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "consultation_invitation":
+      // A makeup or hair trial, booked from the studio's link (trades.ts).
+      if (stringValue(values, "purpose") === "trial")
+        return {
+          subject: `Book your ${callNameFor(values).toLowerCase()} with ${brand.studioName}`,
+          preheader: "Pick a time to try your look before the day.",
+          eyebrow: callNameFor(values),
+          heading: "Let’s try your look",
+          paragraphs: [
+            greeting,
+            `Pick a time for your ${callNameFor(values).toLowerCase()}${project}. Bring pictures of looks you love${tradeVocab(values.trade).trial === "Hair trial" ? ", your veil and any accessories" : ""}, and we'll get your look just right before the day.`,
+          ],
+          action: actionUrl ? { label: "Pick a time", url: actionUrl } : undefined,
+          note: "Times remain available until someone else books them.",
+        };
       // The details lock sends this one with the final-details email; a studio
       // can also send it by hand (planning/final-details.ts).
       if (stringValue(values, "purpose") === "final_details")
@@ -1573,12 +1596,16 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         : portalUrl
           ? { label: "Open your portal", url: portalUrl }
           : undefined;
+      // A makeup or hair studio's week-before email is its prep guide (trades.ts).
+      const prepGuide = tradeVocab(values.trade).prepGuide;
       return {
-        subject: `Your event with ${brand.studioName} is coming up`,
-        preheader: scheduleUrl
-          ? "Your timeline and the last few details, in one place."
-          : "The last few details for your day, in your portal.",
-        eyebrow: "Event reminder",
+        subject: prepGuide ? `Your prep guide from ${brand.studioName}` : `Your event with ${brand.studioName} is coming up`,
+        preheader: prepGuide
+          ? "How to arrive for your chair, and your getting-ready times."
+          : scheduleUrl
+            ? "Your timeline and the last few details, in one place."
+            : "The last few details for your day, in your portal.",
+        eyebrow: prepGuide ? "Your prep guide" : "Event reminder",
         heading: "We’re ready for your event",
         paragraphs: [
           greeting,
@@ -1591,7 +1618,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           // A family was being asked to hang up the wedding dress. Only for a
           // photographer: a DJ's couple has no dress to hang up for the DJ
           // (trades.ts; each trade's own prep comes with its journey).
-          ...(!tradeProfile(values.trade).clientDayBefore
+          ...(prepGuide
+            ? [`${prepGuide.lead}, please ${prepGuide.items.join("; ")}.`]
+            : !tradeProfile(values.trade).clientDayBefore
             ? []
             : tradeVocab(values.trade).dayBefore
               ? [`${tradeVocab(values.trade).dayBefore!.lead}, it helps to have: ${tradeVocab(values.trade).dayBefore!.items.join("; ")}.`]

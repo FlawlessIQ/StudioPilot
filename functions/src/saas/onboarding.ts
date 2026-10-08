@@ -196,7 +196,7 @@ export const tenantOnboardingCommand = onRequest(
             // a DJ's music planner; otherwise the event details form until
             // the trade's own arrives with its journey.
             formTemplateId:
-              preloaded["wedding-final-schedule"] ?? preloaded["dj-music-planner"] ?? preloaded["wedding-event-details"] ?? null,
+              preloaded["wedding-final-schedule"] ?? preloaded["dj-music-planner"] ?? preloaded["beauty-party-list"] ?? preloaded["wedding-event-details"] ?? null,
             shotListTemplateId: preloaded["wedding-shot-list"] ?? null,
             // A DJ sends the planner at booking and locks ten days out, so
             // the final planning call falls about a week before (trades.ts).
@@ -390,8 +390,8 @@ export const tenantOnboardingCommand = onRequest(
         if (eventDetailsId)
           transaction.set(db.doc(INQUIRY_FORM_SETTINGS_PATH(tenantId)), {
             tenantId,
-            // A DJ's inquiry form asks what a DJ prices on (inquiry-form-config.ts).
-            ...(trade.trade === "dj" ? { inquiryForm: defaultInquiryFormFor(trade.trade) } : {}),
+            // A vendor trade's inquiry form asks what that trade prices on (inquiry-form-config.ts).
+            ...(trade.trade !== "photographer" ? { inquiryForm: defaultInquiryFormFor(trade.trade) } : {}),
             inquiryEventForm: {
               templateId: eventDetailsId,
               templateName: "Event details form",

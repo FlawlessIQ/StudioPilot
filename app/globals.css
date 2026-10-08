@@ -22730,6 +22730,39 @@ label {
   margin: 0;
 }
 
+/* What a makeup or hair trial settled, on the job's trial card (vendor journeys, 3.2). */
+.trial-notes {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.trial-notes p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.trial-notes label {
+  display: grid;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 4px;
+}
+
+.trial-notes div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trial-notes small {
+  color: var(--muted);
+}
+
 /* Who a task is for, on its row (prod walk, 2026-09-30). */
 .task-row-assignee {
   color: var(--muted);

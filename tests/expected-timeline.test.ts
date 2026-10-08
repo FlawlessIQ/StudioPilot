@@ -14,6 +14,7 @@ import {
   whenLabel,
 } from "@/features/journey/expected-timeline";
 import { boldLabels } from "@/features/help/rich-text";
+import { tradeProfile } from "../functions/src/trades/trades.ts";
 import { helpVideo, helpVideoIds } from "@/features/help/videos";
 import { FIRST_NUDGE_DAYS, SECOND_NUDGE_DAYS, CLOSE_OFFER_DAYS } from "../functions/src/intake/follow-ups.ts";
 import { DEFAULT_CONSULTATION_PREP } from "../functions/src/booking/consultation-prep.ts";
@@ -65,11 +66,14 @@ test("the page's schedule is the schedulers' schedule (numbers inside the code)"
     [SCHEDULE.finalInvoiceRaisedDaysBefore],
     "the final invoice window",
   );
-  assert.deepEqual(
-    captured("booking/final-invoice.ts", /due\.setUTCDate\(due\.getUTCDate\(\) - (\d+)\)/),
-    [SCHEDULE.finalInvoiceDueDaysBefore],
+  // The due date is the studio's trade's (trades.ts): a photographer's is the
+  // page's; a makeup or hair studio is paid on the day.
+  assert.match(
+    source("booking/final-invoice.ts"),
+    /due\.setUTCDate\(due\.getUTCDate\(\) - tradeProfile\(tenant\.get\("trade"\)\)\.balanceDueDaysBefore\)/,
     "the final invoice due date",
   );
+  assert.equal(tradeProfile("photographer").balanceDueDaysBefore, SCHEDULE.finalInvoiceDueDaysBefore, "the final invoice due date");
   assert.deepEqual(
     captured("coi/automation.ts", /const due = Math\.max\(event - (\d+) \* DAY_MS/),
     [SCHEDULE.coiDueDaysBefore],

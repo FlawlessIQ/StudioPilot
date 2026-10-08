@@ -136,6 +136,7 @@ export function defaultInquiryFormConfig(): InquiryFormConfig {
  */
 export function defaultInquiryFormFor(trade: string | null | undefined): InquiryFormConfig {
   const base = defaultInquiryFormConfig();
+  if (trade === "makeup" || trade === "hair") return beautyInquiryForm(base, trade);
   if (trade !== "dj") return base;
   return {
     ...base,
@@ -161,6 +162,50 @@ export function defaultInquiryFormFor(trade: string | null | undefined): Inquiry
         options: [],
         required: false,
         eventTypeIds: ["wedding"],
+      },
+    ],
+  };
+}
+
+/**
+ * A makeup artist's or hair stylist's: how many people, when everyone must be
+ * ready, and whether they want a trial — what a beauty quote is priced and
+ * staffed on (docs/vendor-journeys.md: per person, worked back from the
+ * ready-by time, the trial booked separately).
+ */
+function beautyInquiryForm(base: InquiryFormConfig, trade: "makeup" | "hair"): InquiryFormConfig {
+  const service = trade === "makeup" ? "makeup" : "hair styling";
+  return {
+    ...base,
+    eventTypes: [
+      { ...defaultType("wedding", "Wedding", "wedding"), venue: true, guests: false, coi: false },
+      defaultType("event", "Special event", "other"),
+      defaultType("general", "General question", "general"),
+    ],
+    questions: [
+      {
+        id: "party-size",
+        label: `How many people need ${service}, including you?`,
+        type: "choice",
+        options: ["Just me", "2–3", "4–6", "7–10", "More than 10", "Not sure yet"],
+        required: false,
+        eventTypeIds: [],
+      },
+      {
+        id: "ready-by",
+        label: "What time does everyone need to be ready?",
+        type: "short_text",
+        options: [],
+        required: false,
+        eventTypeIds: ["wedding", "event"],
+      },
+      {
+        id: "trial-wanted",
+        label: `Would you like a ${trade === "makeup" ? "makeup" : "hair"} trial before the day?`,
+        type: "yes_no",
+        options: [],
+        required: false,
+        eventTypeIds: ["wedding", "event"],
       },
     ],
   };

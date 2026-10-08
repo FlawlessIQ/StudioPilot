@@ -25,6 +25,8 @@ export const packageAddOnSchema = z.object({
   taxable: z.boolean(),
   /** The couple may choose how many (hours, prints). From the library (H2). */
   allowQuantity: z.boolean().optional(),
+  /** What it's priced per: "person", "hour" (unit-label.ts). */
+  unitLabel: z.string().max(24).nullable().optional(),
   active: z.boolean(),
 });
 
@@ -168,6 +170,8 @@ export const packageSnapshotSchema = z.object({
       unitPriceCents: centsSchema,
       lineTotalCents: centsSchema,
       taxable: z.boolean(),
+      /** What it's priced per: "person", "hour" (unit-label.ts). */
+      unitLabel: z.string().max(24).nullable().optional(),
     }),
   ),
   discountCents: centsSchema,

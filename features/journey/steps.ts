@@ -23,6 +23,7 @@ export type JourneyStepKey =
   | "proposal"
   | "contract"
   | "retainer"
+  | "trial"
   | "schedule_form"
   | "run_of_show"
   | "final_call"
@@ -94,6 +95,9 @@ export const journeyStepRequires: Record<
   // an accepted proposal, and the retainer is created after signature.
   contract: ["proposal"],
   retainer: ["contract"],
+  // A makeup or hair trial: booked from the studio's link before or after the
+  // agreement, so it waits on nothing.
+  trial: [],
   schedule_form: [],
   run_of_show: [],
   // Booked by the couple from the link the details lock sends: nothing the
@@ -259,6 +263,8 @@ export type JourneyInput = {
     lockOn: string | null;
     startsAt: string | null;
   } | null;
+  /** A makeup or hair trial (features/consultations/trial.ts); only read for a trade with one. */
+  trial?: { state: "not_booked" | "booked" | "held"; startsAt: string | null } | null;
   /**
    * The couple's answer to the current version: "client_pending",
    * "client_approved" or "changes_requested".
@@ -768,6 +774,29 @@ export function projectJourney(input: JourneyInput): {
   const formWaiting = ["assigned", "not_started", "in_progress", "reopened"].includes(
     input.questionnaireStatus ?? "",
   );
+  // A makeup or hair trial (trades.ts `trial`): offered, never demanded —
+  // a bride who didn't want one holds nothing up, so it is never the next
+  // move.
+  const trialWord = tradeWords.trial;
+  if (trialWord) {
+    const trial = input.trial ?? { state: "not_booked", startsAt: null };
+    const trialWhen = trial.startsAt ? formatCallTime(trial.startsAt) : null;
+    push({
+      key: "trial",
+      title: trialWord,
+      detail:
+        trial.state === "held"
+          ? `Done${trialWhen ? ` ${trialWhen}` : ""} — the look goes on their day sheet`
+          : trial.state === "booked"
+            ? `Booked${trialWhen ? ` for ${trialWhen}` : ""}`
+            : `Optional — invite them from the ${trialWord} card on this job whenever suits`,
+      // Never "current": an optional step must not take the next-move card.
+      // The button lives on the job's own trial card.
+      status: trial.state === "held" ? "complete" : prepStatus("upcoming"),
+      action: null,
+    });
+  }
+
   push({
     key: "schedule_form",
     title: tradeWords.detailsForm ?? `${words.detailsForm} form`,
@@ -1293,6 +1322,7 @@ export function projectJourney(input: JourneyInput): {
     proposal: { label: "Open proposal", href: project("/studio/proposals") },
     contract: { label: "Open contract", href: project("/studio/booking") },
     retainer: { label: "Open retainer", href: project("/studio/booking") },
+    trial: { label: "Open calendar", href: project("/studio/calendar") },
     schedule_form: {
       label: "Open form",
       href: project("/studio/questionnaires"),

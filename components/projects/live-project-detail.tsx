@@ -46,6 +46,7 @@ import {
 } from "@/components/projects/archive-job-with-crew";
 import { WithdrawCrewControl } from "@/components/crew/withdraw-crew-control";
 import { OwnerShootingToggle } from "@/components/crew/owner-shooting-toggle";
+import { TrialNotes } from "@/components/crew/trial-notes";
 import { ownerShootsJob } from "@/features/crew/staffing-plan";
 import {
   allowedProjectTransitions,
@@ -817,9 +818,14 @@ function ProjectMoveBackControl({
 function ConsultationInviteAction({
   projectId,
   contactId,
+  purpose,
+  label = "Invite client to choose a time",
 }: {
   projectId: string;
   contactId: string;
+  /** "trial": a makeup or hair trial (features/consultations/purpose.ts). */
+  purpose?: "trial";
+  label?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -833,7 +839,10 @@ function ConsultationInviteAction({
       await runPublicScheduling({
         type: "create_link",
         idempotencyKey: crypto.randomUUID(),
-        input: { projectId, contactId, mode: defaultConsultationMode(zoomConnected) },
+        // A trial is in person, at the studio or the bride's: never a video call.
+        input: purpose
+          ? { projectId, contactId, mode: "in_person", purpose }
+          : { projectId, contactId, mode: defaultConsultationMode(zoomConnected) },
       });
       setNotice("Scheduling invitation queued for delivery.");
     } catch (caught: unknown) {
@@ -854,7 +863,7 @@ function ConsultationInviteAction({
         onClick={() => void send()}
         type="button"
       >
-        {busy ? "Sending…" : "Invite client to choose a time"}
+        {busy ? "Sending…" : label}
       </button>
       {notice ? <small role="status">{notice}</small> : null}
     </div>
@@ -1409,6 +1418,29 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         />
       </aside>
     ) : null;
+  // A makeup or hair trial (trades.ts): the client picks a time from the
+  // studio's link, at any point before the day.
+  const trialWord = tradeVocab(workspace.tenantTrade).trial;
+  const trialInviteEl =
+    trialWord &&
+    !["CANCELLED", "CLOSED", "ARCHIVED", "LOST", "EVENT_COMPLETE", "REVIEW_REQUESTED", "DELIVERED", "POST_PRODUCTION"].includes(state) &&
+    Array.isArray(project.clientContactIds) &&
+    typeof project.clientContactIds[0] === "string" ? (
+      <aside className="job-rail-card" id="trial">
+        <p className="eyebrow">{trialWord}</p>
+        <ConsultationInviteAction
+          contactId={project.clientContactIds[0]}
+          label={`Invite them to book the ${trialWord.toLowerCase()}`}
+          projectId={projectId}
+          purpose="trial"
+        />
+        <TrialNotes
+          notes={project.trialNotes as { look?: unknown; products?: unknown } | null | undefined}
+          projectId={projectId}
+          trialWord={trialWord}
+        />
+      </aside>
+    ) : null;
   // A kind with no consultation (job-kinds.ts) goes from the inquiry to its
   // proposal: "Confirm we've spoken" at Lead is a step it doesn't have.
   const hideLeadStageControl = state === "LEAD" && !projectProfile(project).consultation;
@@ -1688,6 +1720,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           />
           <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />
           {leadInviteEl}
+          {trialInviteEl}
           {hideLeadStageControl ? null : stageControlEl}
           {interruptionEl}
           {threadEl}
@@ -1733,6 +1766,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <div className="job-rail">
             <ThreadMinimap steps={journey.steps} />
             {leadInviteEl}
+            {trialInviteEl}
             {hideLeadStageControl ? null : stageControlEl}
             {interruptionEl}
           </div>

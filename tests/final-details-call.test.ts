@@ -121,16 +121,19 @@ test("the emails say final details call, and the lock's email carries the bookin
 });
 
 test("nothing that means 'the sales consultation' picks up the final call", () => {
+  // One gate, isSalesConsultation (booking/consultation-purpose.ts): since the
+  // makeup and hair trial (Phase 3) it refuses every purpose but the sales
+  // call, so neither the final call nor a trial is ever read as the consultation.
   assert.match(read("functions/src/planning/final-details.ts"), /purpose: FINAL_DETAILS_PURPOSE/);
   assert.match(read("functions/src/planning/final-details.ts"), /finalCallUrl: call\?\.bookingUrl \?\? null/);
-  assert.match(read("functions/src/booking/consultation-prep.ts"), /if \(isFinalDetailsCall\(data\)\) return "skipped";/);
-  assert.equal((read("functions/src/booking/commands.ts").match(/FINAL_DETAILS_CALL_NOT_A_CONSULTATION/g) ?? []).length, 2, "complete and rerun brief");
-  assert.match(read("functions/src/booking/public-scheduling.ts"), /if \(!finalCall && project\.get\("state"\) === "LEAD"\)/);
-  assert.match(read("functions/src/booking/public-scheduling.ts"), /filter\(\(document\) => !isFinalDetailsCall\(document\.data\(\)\)\)/);
-  assert.match(read("functions/src/intake/inquiry-form.ts"), /document\.get\("purpose"\) !== "final_details"/);
-  assert.match(read("functions/src/ai/copilot.ts"), /\.filter\(\(record\) => record\.purpose !== "final_details"\)/);
-  assert.match(read("functions/src/automation/runtime.ts"), /purpose === "final_details"\) return null;/);
-  assert.match(read("functions/src/booking/zoom-webhook.ts"), /consultation\.get\("purpose"\) !== "final_details"/);
+  assert.match(read("functions/src/booking/consultation-prep.ts"), /if \(!isSalesConsultation\(data\)\) return "skipped";/);
+  assert.equal((read("functions/src/booking/commands.ts").match(/if \(!isSalesConsultation\(consultation\.data\(\)\)\) throw new Error\("FINAL_DETAILS_CALL_NOT_A_CONSULTATION"\)/g) ?? []).length, 2, "complete and rerun brief");
+  assert.match(read("functions/src/booking/public-scheduling.ts"), /const salesCall = isSalesConsultation\(link\.data\(\)\);\s*if \(salesCall && project\.get\("state"\) === "LEAD"\)/);
+  assert.match(read("functions/src/booking/public-scheduling.ts"), /filter\(\(document\) => isSalesConsultation\(document\.data\(\)\)\)/);
+  assert.match(read("functions/src/intake/inquiry-form.ts"), /isSalesConsultation\(document\.data\(\)\) && consultationStands/);
+  assert.match(read("functions/src/ai/copilot.ts"), /\.filter\(\(record\) => isSalesConsultation\(record\)\)/);
+  assert.match(read("functions/src/automation/runtime.ts"), /if \(!isSalesConsultation\(after as Record<string, unknown> \| undefined\)\) return null;/);
+  assert.match(read("functions/src/booking/zoom-webhook.ts"), /meeting\.summary_completed" && isSalesConsultation\(consultation\.data\(\)\)/);
   assert.match(read("components/projects/use-project-thread.ts"), /isSalesConsultation\(item\) && text\(item\.status\) === "scheduled"/);
   assert.match(read("components/projects/use-project-journey.ts"), /isSalesConsultation\(record\) && isLiveConsultation\(record\)/);
   assert.match(read("components/today/use-today-inbox.ts"), /isSalesConsultation\(record\) && isLiveConsultation\(record\)/);

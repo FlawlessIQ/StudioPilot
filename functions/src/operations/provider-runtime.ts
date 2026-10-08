@@ -1,4 +1,5 @@
-import { isFinalDetailsCall } from "../booking/consultation-purpose.js";
+import { tradeProfile, tradeVocab } from "../trades/trades.js";
+import { consultationPurpose, isSalesConsultation } from "../booking/consultation-purpose.js";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
@@ -55,6 +56,20 @@ import { quickBooksCompany, studioCueInvoiceItemRefs } from "../integrations/qui
 import { reopenedByProvider, reopenedInvoiceTask } from "../booking/quickbooks-money-events-core.js";
 import { providerVoidJobType } from "../booking/invoice-corrections.js";
 import { landStudioPaymentAtProvider, studioPaymentFor } from "../booking/invoice-payments.js";
+
+/**
+ * A call's name on the studio's calendar and Zoom: a photographer's
+ * "Photography consultation", a DJ's "Vibe call", a makeup studio's "Makeup
+ * trial", and the final details call by its trade's name (trades.ts).
+ */
+async function callTitle(db: Pick<FirebaseFirestore.Firestore, "doc">, tenantId: string, consultation: Record<string, unknown> | undefined): Promise<string> {
+  const trade = (await db.doc(`tenants/${tenantId}`).get()).get("trade");
+  const words = tradeVocab(trade);
+  const purpose = consultationPurpose(consultation);
+  if (purpose === "final_details") return words.finalCall;
+  if (purpose === "trial") return words.trial ?? "Trial";
+  return tradeProfile(trade).family === "photo" ? "Photography consultation" : words.consultation;
+}
 
 export type Provider="google_calendar"|"outlook_calendar"|"apple_calendar"|"zoom"|"dropbox"|"docusign"|"dropbox_sign"|"quickbooks"|"stripe";
 /**
@@ -892,7 +907,8 @@ export async function createConsultationResourcesWith(
   const consultationReference = db.doc(`consultations/${consultationId}`);
   // A final details call's summary is not a consultation brief: no analysis,
   // no "review the brief" (booking/consultation-purpose.ts).
-  if (isFinalDetailsCall((await consultationReference.get()).data())) return { consultationId, skipped: "final_details_call" };
+  // Nor a makeup or hair trial's.
+  if (!isSalesConsultation((await consultationReference.get()).data())) return { consultationId, skipped: "final_details_call" };
   let consultation = await consultationReference.get();
   if (!consultation.exists) throw new Error("CONSULTATION_NOT_FOUND");
   const tenantId = String(job.get("tenantId"));
@@ -934,7 +950,7 @@ export async function createConsultationResourcesWith(
             method: "POST",
             headers: { authorization: `Bearer ${zoom.credential?.accessToken}`, "content-type": "application/json" },
             body: JSON.stringify({
-              topic: isFinalDetailsCall(consultation.data()) ? "Final details call" : "Photography consultation",
+              topic: await callTitle(db, tenantId, consultation.data()),
               type: 2,
               start_time: consultation.get("startsAt"),
               duration: Math.max(
@@ -988,7 +1004,7 @@ export async function createConsultationResourcesWith(
         headers: { authorization: `Bearer ${calendar.credential?.accessToken}`, "content-type": "application/json" },
         body: JSON.stringify({
           id: providerEventId,
-          summary: isFinalDetailsCall(consultation.data()) ? "Final details call" : "Photography consultation",
+          summary: await callTitle(db, tenantId, consultation.data()),
           description: joinUrl ?? (meetingSkipReason ? "Video call — send the couple a meeting link." : "StudioCue consultation"),
           start: { dateTime: consultation.get("startsAt"), timeZone: consultation.get("timezone") },
           end: { dateTime: consultation.get("endsAt"), timeZone: consultation.get("timezone") },

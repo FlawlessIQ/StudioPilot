@@ -36,15 +36,18 @@ type Preview = {
   eventDate: string | null;
   expiresAt: string;
   mode: string;
-  /** "final_details": the call a month out (features/consultations/purpose.ts). */
+  /** "final_details": the call a month out; "trial": a makeup or hair trial (features/consultations/purpose.ts). */
   purpose?: string;
+  /** The call in the studio's trade's words: "Vibe call", "Makeup trial" (trades.ts). */
+  callName?: string;
 };
 type Slot = { startsAt: string; endsAt: string };
 
 export function PublicConsultationScheduler({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const finalCall = preview?.purpose === "final_details";
-  const callWord = finalCall ? "final details call" : "consultation";
+  const trial = preview?.purpose === "trial";
+  const callWord = (preview?.callName ?? (finalCall ? "final details call" : "consultation")).toLowerCase();
   const [slots, setSlots] = useState<Slot[]>([]);
   const [timezone, setTimezone] = useState("");
   const [selected, setSelected] = useState("");
@@ -158,7 +161,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
         <AppBar studio={brand} />
         <Main label={`Choose a ${callWord} time`}>
           <div className="kit-stack-tight">
-            <p className="kit-eyebrow">{finalCall ? "Final details call" : "Photography consultation"}</p>
+            <p className="kit-eyebrow">{preview?.callName ?? (finalCall ? "Final details call" : "Photography consultation")}</p>
             <h1 className="kit-title">
               {status === "complete"
                 ? "You’re booked in"
@@ -170,7 +173,9 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
               <p className="kit-body">
                 {finalCall
                   ? "A short call to go over your final details and timeline together. Pick one of the studio’s openings — nothing is booked until you confirm."
-                  : "Pick one of the studio’s openings. Nothing is booked until you confirm."}
+                  : trial
+                    ? "Your look, tried before the day. Pick one of the studio’s openings — nothing is booked until you confirm."
+                    : "Pick one of the studio’s openings. Nothing is booked until you confirm."}
               </p>
             )}
           </div>

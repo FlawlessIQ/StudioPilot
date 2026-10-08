@@ -1,3 +1,5 @@
+import { isSalesConsultation } from "../booking/consultation-purpose.js";
+import { normalizeUnitLabel, quantityText } from "../packages/unit-label.js";
 import { mcScriptLine, type McScript } from "../planning/mc-script.js";
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
 import { US_ENGLISH_PART } from "../ai/language.js";
@@ -234,7 +236,8 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
   if(consultation.get("tenantId")!==job.get("tenantId"))throw new Error("FORBIDDEN");
   if(consultation.get("status")!=="completed")throw new Error("CONSULTATION_NOT_COMPLETED");
   // Never a brief from the final details call (booking/consultation-purpose.ts).
-  if(consultation.get("purpose")==="final_details")return{consultationId,skipped:"final_details_call"};
+  // Nor from a makeup or hair trial.
+  if(!isSalesConsultation(consultation.data()))return{consultationId,skipped:"final_details_call"};
   if(job.get("humanReviewRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");
   // A newer run was asked for since this job was queued (booking/brief-rerun.ts):
   // its actions are the current ones, and writing this run's would bring back
@@ -911,7 +914,10 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         // The package lines, then the discount and tax that take their sum to
         // the total printed under them (UAT F1).
         line_items:[
-          ...normalizedLines.slice(0,48).map(value=>{const line=record(value);return{description:clipForPdf(string(line.description)||packageName,240),amount:money(line.totalCents,currency),details:detailsForLine(details,string(line.description)).slice(0,30).map(item=>clipForPdf(item,300))}}),
+          ...normalizedLines.slice(0,48).map(value=>{const line=record(value);
+          // "Bridesmaid makeup — 6 people × $150": a per-person extra says how many (unit-label.ts).
+          const counted=line.kind==="add_on"&&(Number(line.quantity)>1||normalizeUnitLabel(line.unitLabel))?` — ${quantityText(Number(line.quantity)||1,line.unitLabel)} × ${money(line.unitPriceCents,currency)}`:"";
+          return{description:clipForPdf((string(line.description)||packageName)+counted,240),amount:money(line.totalCents,currency),details:detailsForLine(details,string(line.description)).slice(0,30).map(item=>clipForPdf(item,300))}}),
           ...proposalPdfAdjustments(pricing).map(item=>({description:item.description,amount:item.cents<0?`−${money(-item.cents,currency)}`:money(item.cents,currency),details:[]})),
         ],
         // The last payment reads "plus sales tax" when QuickBooks adds it on the final invoice.

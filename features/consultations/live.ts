@@ -31,5 +31,6 @@ export function currentConsultation<T extends ConsultationLike>(consultations: r
  * final details call a month out (features/consultations/purpose.ts).
  */
 export function currentSalesConsultation<T extends ConsultationLike>(consultations: readonly T[]): T | null {
-  return currentConsultation(consultations.filter((consultation) => consultation.purpose !== "final_details"));
+  // Never the final details call or a makeup or hair trial (purpose.ts).
+  return currentConsultation(consultations.filter((consultation) => consultation.purpose !== "final_details" && consultation.purpose !== "trial"));
 }

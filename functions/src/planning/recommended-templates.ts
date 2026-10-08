@@ -340,6 +340,46 @@ const MUSIC_PLANNER: RecommendedSection[] = [
   },
 ];
 
+/**
+ * A makeup or hair client's party list (docs/vendor-journeys.md, 3.3): who
+ * is getting ready, what each wants, and the times the chair schedule is
+ * worked back from. One person per line, because a form has no rows to add;
+ * features/schedules/party-list.ts reads the lines.
+ */
+const PARTY_LIST: RecommendedSection[] = [
+  {
+    id: "the-morning",
+    title: "The morning",
+    fields: [
+      field("ready-by-time", "When does everyone need to be ready?", "time", true, {
+        help: "Usually when your photographer arrives for the dress or the first look. Ask them if you're not sure.",
+      }),
+      field("earliest-start-time", "The earliest we can start setting up", "time", false, {
+        help: "When you can let us into the room.",
+      }),
+      field("getting-ready", "Where you're getting ready", "address", true),
+      field("parking-notes", "Room number and parking", "text", false),
+    ],
+  },
+  {
+    id: "your-party",
+    title: "Your party",
+    fields: [
+      field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, {
+        help: "Name — who they are — hair, makeup or both — anything we should know. For example: \"Maya Brooks — bride — hair and makeup — sensitive skin\", \"Jess Lee — bridesmaid — makeup\", \"Ava — flower girl — hair\".",
+      }),
+    ],
+  },
+  {
+    id: "good-to-know",
+    title: "Good to know",
+    fields: [
+      field("allergies-notes", "Allergies, sensitive skin or anything we should be careful with", "long_text", false),
+      field("inspiration-links", "Links to inspiration photos", "long_text", false),
+    ],
+  },
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -393,6 +433,19 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       dueDaysBeforeEvent: 30,
       reminderDaysBeforeDue: [14, 3],
       sections: MUSIC_PLANNER,
+    },
+    {
+      id: "beauty-party-list",
+      name: "Party list",
+      summary:
+        "Everyone getting ready, what each wants, and when they must be ready by. Your getting-ready schedule is laid out from it.",
+      useIt: "Your planning form: it goes out when they book, and the headcount locks a month before.",
+      eventTypeId: "wedding",
+      trades: ["makeup", "hair"],
+      // In before the headcount locks a month out, with a week to read it.
+      dueDaysBeforeEvent: 37,
+      reminderDaysBeforeDue: [14, 3],
+      sections: PARTY_LIST,
     },
   ];
 }

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { FINAL_DETAILS_PURPOSE, type ConsultationPurpose } from "./consultation-purpose.js";
+import { FINAL_DETAILS_PURPOSE, TRIAL_PURPOSE, type ConsultationPurpose } from "./consultation-purpose.js";
 
 /**
  * A link a client uses to book a call: the sales consultation the studio
@@ -28,7 +28,8 @@ export function mintBookingLink(input: {
 }) {
   const token = randomBytes(32).toString("base64url");
   const key = hash(`${input.tenantId}:${input.projectId}:${input.email}`).slice(0, 32);
-  const linkId = input.purpose === FINAL_DETAILS_PURPOSE ? `final_${key}` : `consult_${key}`;
+  const linkId =
+    input.purpose === FINAL_DETAILS_PURPOSE ? `final_${key}` : input.purpose === TRIAL_PURPOSE ? `trial_${key}` : `consult_${key}`;
   const expiresAt = new Date(Date.parse(input.now) + input.days * 86400000).toISOString();
   const bookingUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app"}/schedule/consultation?token=${encodeURIComponent(token)}`;
   return {

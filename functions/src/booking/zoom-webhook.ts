@@ -1,3 +1,4 @@
+import { isSalesConsultation } from "./consultation-purpose.js";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { getFirestore, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
@@ -226,7 +227,8 @@ export const zoomWebhook = onRequest(
         updatedBy: "zoom-webhook",
       };
       transaction.update(consultation.ref, consultationUpdate);
-      if (event.event === "meeting.summary_completed" && consultation.get("purpose") !== "final_details") {
+      // Only the sales call's summary becomes a brief (consultation-purpose.ts).
+      if (event.event === "meeting.summary_completed" && isSalesConsultation(consultation.data())) {
         const jobReference = db.doc(
           `providerJobs/zoom_summary_${safeId(`${tenantId}:${event.meetingId}`).slice(0, 32)}`,
         );

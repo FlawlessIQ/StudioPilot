@@ -100,6 +100,13 @@ export type TradeVocabulary = {
    * the rings together), which reads by the kind of job.
    */
   dayBefore: { lead: string; ask: string; items: readonly string[] } | null;
+  /** The trial before the day, when the trade has one: "Makeup trial". */
+  trial: string | null;
+  /**
+   * The prep guide in the week-before email, when the trade has one: how to
+   * arrive for the chair (a clean face, dry hair, a button-up top).
+   */
+  prepGuide: { lead: string; items: readonly string[] } | null;
 };
 
 const VOCAB: Record<Trade, TradeVocabulary> = {
@@ -120,6 +127,8 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     finalCall: "Final details call",
     detailsForm: null,
     dayBefore: null,
+    trial: null,
+    prepGuide: null,
   },
   dj: {
     provider: "DJ",
@@ -146,6 +155,8 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
         "where we load in and park, if the venue has told you",
       ],
     },
+    trial: null,
+    prepGuide: null,
   },
   makeup: {
     provider: "makeup artist",
@@ -162,8 +173,17 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     afterPhase: "Afterwards",
     consultation: "Consultation",
     finalCall: "Final details call",
-    detailsForm: null,
+    detailsForm: "Party list",
     dayBefore: null,
+    trial: "Makeup trial",
+    prepGuide: {
+      lead: "So your makeup goes on beautifully and lasts all day",
+      items: [
+        "arrive with a clean, moisturized face and no makeup",
+        "wear a button-up or zip-front top, so nothing goes over your head",
+        "have your inspiration photos and any lashes you love with you",
+      ],
+    },
   },
   hair: {
     provider: "hair stylist",
@@ -180,8 +200,17 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     afterPhase: "Afterwards",
     consultation: "Consultation",
     finalCall: "Final details call",
-    detailsForm: null,
+    detailsForm: "Party list",
     dayBefore: null,
+    trial: "Hair trial",
+    prepGuide: {
+      lead: "So your hair holds all day",
+      items: [
+        "come with clean, completely dry hair and no oils or products, unless your stylist told you otherwise",
+        "wear a button-up or zip-front top, so nothing goes over your head",
+        "have your veil and hair accessories with you",
+      ],
+    },
   },
 };
 
@@ -222,6 +251,13 @@ export type TradeProfile = {
    * Null keeps the defaults (a photographer's six months and four weeks).
    */
   planning: { formAtBooking: boolean; lockDaysBefore: number } | null;
+  /**
+   * Days before the event the final balance falls due. Fourteen for a
+   * photographer or a DJ; a makeup artist or hair stylist is paid on the day
+   * (docs/vendor-journeys.md), so zero: the bill still goes out four weeks
+   * ahead, due the morning of.
+   */
+  balanceDueDaysBefore: number;
   /** The roles a package's coverage is staffed with. */
   coverageRoles: readonly string[];
   /** The subscription plans this trade can buy (config/saas-plans.ts). */
@@ -239,6 +275,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     chairSchedule: false,
     musicPlanner: false,
     planning: null,
+    balanceDueDaysBefore: 14,
     coverageRoles: ["photographer", "videographer"],
     plans: ["studio", "multi_brand"],
   },
@@ -252,6 +289,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     chairSchedule: false,
     musicPlanner: true,
     planning: { formAtBooking: true, lockDaysBefore: 10 },
+    balanceDueDaysBefore: 14,
     coverageRoles: ["dj"],
     plans: ["vendor"],
   },
@@ -264,7 +302,8 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     perPersonPricing: true,
     chairSchedule: true,
     musicPlanner: false,
-    planning: null,
+    planning: { formAtBooking: true, lockDaysBefore: 30 },
+    balanceDueDaysBefore: 0,
     coverageRoles: ["makeup_artist"],
     plans: ["vendor"],
   },
@@ -277,7 +316,8 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     perPersonPricing: true,
     chairSchedule: true,
     musicPlanner: false,
-    planning: null,
+    planning: { formAtBooking: true, lockDaysBefore: 30 },
+    balanceDueDaysBefore: 0,
     coverageRoles: ["hair_stylist"],
     plans: ["vendor"],
   },

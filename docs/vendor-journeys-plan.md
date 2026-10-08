@@ -19,6 +19,25 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
   - **Words everywhere:** vibe call and final planning call (journey and emails), the DJ's day-before checklist, Cue's prompts (`functions/src/trades/trade-instruction.ts`), setup, and DJ glossary terms.
   - **Walked in the emulator:** onboarding, laying out the night, the MC script filled from the planner, publishing (the server kept the script on 9 lines), the job page, setup and the package form.
   - **Not yet:** the PDF draws DJ crew chips in grey (`cloud-run/pdf/run_of_show.py` needs a D colour and a Cloud Run deploy); "Plan the day" stays as the page title.
+- **Phase 3 (the beauty core) shipped 2026-10-08.**
+  - **Per-person pricing:** an extra can be priced per person, hour or anything else (`unitLabel`, `features/packages/unit-label.ts`). The proposal, the composer and the PDF read "6 people × $150".
+  - **The trial:** a booking purpose of its own (`purpose: "trial"`). Every site that means "the sales call" now asks `isSalesConsultation`, so a trial is never treated as the consultation. The job has a trial card ("Invite them to book the makeup trial") and a trial step in Booking that is informational and done once the trial is held. Trial notes (the look and the products) save to the job and to the crew's brief (`setTrialNotes`, and Cue's `record_trial_notes`).
+  - **Party list:** a recommended form (`beauty-party-list`) with one person per line, sent at booking and locked 30 days out. `features/schedules/party-list.ts` reads the lines. "Mother of the bride" is a mother, not the bride.
+  - **Chair schedule:** "Lay out the morning" (`features/schedules/chair-plan.ts`) works back from the ready-by time and puts the bride mid-chair, never last. Each line shows its chair, and the notes say how many artists the window needs.
+  - **Balance on the day:** `tradeProfile().balanceDueDaysBefore` is 0 for makeup and hair and 14 for everyone else, in the final invoice and the proposal defaults.
+  - **Prep guide:** the week-before email becomes "Your prep guide" with the trade's own list.
+  - **Crew roles:** makeup artist (M1, M2…) and hair stylist (H1…).
+  - **Inquiry form:** asks how many people, the ready-by time and whether they want a trial. Setup asks "When can clients book a trial?".
+  - **Walked in the emulator** as a makeup studio:
+    - Onboarding seeded the Party list as the planning form, the 30-day lock and the beauty inquiry form.
+    - The job showed the trial card and step.
+    - "Lay out the morning" turned a six-person list into five makeup chairs from 08:45 to 13:00 for one artist, with the bride third of five. The hair-only flower girl was left out.
+    - The trial notes reached `crewBriefs/trial_<job>`.
+  - **Not yet:**
+    - The artists the morning needs are shown as a note, not fed into crew demand.
+    - A package minimum is written in the package's inclusions, not enforced.
+    - Quantities are not prefilled from the headcount.
+    - A trial fee goes as a proposal extra, not its own invoice.
 
 ## Principles
 

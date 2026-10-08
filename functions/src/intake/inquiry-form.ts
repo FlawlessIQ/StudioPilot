@@ -1,3 +1,4 @@
+import { isSalesConsultation } from "../booking/consultation-purpose.js";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { isReturned, liveAssignmentFor } from "../planning/questionnaire-lifecycle.js";
@@ -532,7 +533,7 @@ export async function jobHasConsultation(
   // The sales call: the final details call a month out is not "the meeting
   // the brief is for" (booking/consultation-purpose.ts).
   return consultations.docs.some(
-    (document) => document.get("purpose") !== "final_details" && consultationStands(document.get("status")),
+    (document) => isSalesConsultation(document.data()) && consultationStands(document.get("status")),
   );
 }
 
