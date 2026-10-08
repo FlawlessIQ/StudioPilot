@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { CalendarRange, CheckCircle2, LoaderCircle } from "lucide-react";
-import { useTenantDocuments } from "@/components/live/tenant-records";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { resolvePlanningTimeline, type PlanningFormSend } from "@/features/planning/planning-timeline";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { recommendedQuestionnaires } from "@/features/questionnaires/recommended-templates";
 
 /**
  * When a couple's planning starts, and when their details lock.
@@ -72,6 +73,45 @@ export function PlanningTimelineSettings() {
   }
 
   const touch = () => setSaved(false);
+
+  /** Copy the recommended shot list into the studio's forms, choose it, and save. */
+  async function addRecommendedShotList() {
+    const form = recommendedQuestionnaires().find((entry) => entry.id === "wedding-shot-list");
+    if (!form) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const created = await sendPlanningCommand("createQuestionnaireTemplate", {
+        name: form.name,
+        eventTypeId: form.eventTypeId,
+        status: "active",
+        sections: form.sections,
+        dueDaysBeforeEvent: form.dueDaysBeforeEvent,
+        reminderDaysBeforeDue: form.reminderDaysBeforeDue,
+        recommendedId: form.id,
+      });
+      const templateId = String((created.result as { templateId?: unknown }).templateId ?? "");
+      if (!templateId) throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
+      await sendPlanningCommand("setPlanningTimeline", {
+        formMonthsBefore: effectiveMonths,
+        formSend: effectiveSend,
+        formTemplateId: effectiveTemplate,
+        lockDaysBefore: effectiveLockWeeks * 7,
+        formAtBooking: effectiveAtBooking,
+        reviewAtFormDate: effectiveReview,
+        shotListTemplateId: templateId,
+        finalCall: effectiveFinalCall,
+      });
+      setShotListId(templateId);
+      refreshTenantRecords("questionnaireTemplates", "tenants");
+      setSaved(true);
+    } catch (caught: unknown) {
+      setError(friendlyError(caught, "The shot list couldn't be added."));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section className="panel crew-offer-settings" aria-labelledby="planning-timeline-title">
       <form
@@ -175,9 +215,10 @@ export function PlanningTimelineSettings() {
                 : "Needs “Send it automatically”."}
             </small>
           </label>
-          {/* GR (2026-10-05): the shot list is "its own form", due four
-              weeks out, and the crew must have it — features/questionnaires/
-              recommended-templates.ts has one to copy. */}
+          {/* GR (2026-10-05): the shot list is "its own form", and the crew
+              must have it — features/questionnaires/recommended-templates.ts
+              has one. GR ran for weeks without one because it was a card to
+              copy and this setting to find (2026-10-08), so it's one tap. */}
           <label>
             Shot list
             <select
@@ -198,8 +239,18 @@ export function PlanningTimelineSettings() {
             <small>
               {effectiveSend === "auto"
                 ? "Goes out with the planning form, due a week before the day. Your crew see the answers on their day sheet."
-                : "Sent with the planning form when that goes out automatically. Until then, send it from the job's forms."}
+                : "Goes out with the planning form when you send it, due a week before the day. Your crew see the answers on their day sheet."}
             </small>
+            {!effectiveShotList && mayEdit ? (
+              <button
+                className="button button-light"
+                disabled={busy}
+                onClick={() => void addRecommendedShotList()}
+                type="button"
+              >
+                Use StudioCue&rsquo;s shot list
+              </button>
+            ) : null}
           </label>
           <label>
             Lock the final details

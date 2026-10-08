@@ -31,7 +31,7 @@
  * drift.
  */
 
-import type { SuggestedFrom } from "./field-extras";
+import type { SuggestedFrom } from "./field-extras.js";
 
 export type RecommendedField = {
   id: string;

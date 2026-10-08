@@ -8,6 +8,8 @@ import { studioHubCors } from "../security/cors.js";
 import { legalAcceptance } from "../legal/versions.js";
 import { starterTemplates } from "../workflow/starter-templates.js";
 import { starterQuestionnaires } from "../planning/starter-questionnaires.js";
+import { recommendedQuestionnaires } from "../planning/recommended-templates.js";
+import { INQUIRY_FORM_EVENT_TYPES, INQUIRY_FORM_SETTINGS_PATH } from "../intake/inquiry-form.js";
 import { attributionSchema } from "./attribution-schema.js";
 
 const inputSchema = z.object({
@@ -159,7 +161,20 @@ export const tenantOnboardingCommand = onRequest(
             manual: null,
             createdAt: now,
           });
+        // The recommended wedding forms' ids, chosen now so the tenant's
+        // planning timeline can name them (see "Weddings start with" below).
+        const preloaded: Record<string, string> = Object.fromEntries(
+          recommendedQuestionnaires().map((form) => [form.id, randomUUID()]),
+        );
         transaction.create(db.doc(`tenants/${tenantId}`), {
+          // The final schedule is the planning form, and the shot list goes
+          // with it; the rest of the timeline keeps its defaults.
+          planningTimeline: {
+            formTemplateId: preloaded["wedding-final-schedule"] ?? null,
+            shotListTemplateId: preloaded["wedding-shot-list"] ?? null,
+            updatedAt: now,
+            updatedBy: identity.uid,
+          },
           id: tenantId,
           tenantId,
           businessName: input.businessName,
@@ -293,7 +308,53 @@ export const tenantOnboardingCommand = onRequest(
          * it before their first client.
          * See features/questionnaires/starter-templates.ts.
          */
+        /**
+         * Weddings start with StudioCue's recommended set, switched on — GR
+         * Productions' own forms (planning/recommended-templates.ts):
+         *   - the event details form, on the couple's inquiry link;
+         *   - the final schedule, as the planning form;
+         *   - the shot list, which goes with it and reaches the crew.
+         * GR ran for weeks with no shot list at all, because the recommended
+         * one was a card to copy and a setting to find (2026-10-08: "Definitely
+         * need a shot list form for the wedding options too"). Other kinds
+         * keep their starter brief.
+         */
+        for (const form of recommendedQuestionnaires()) {
+          const questionnaireId = preloaded[form.id]!;
+          transaction.create(db.doc(`questionnaireTemplates/${questionnaireId}`), {
+            id: questionnaireId,
+            tenantId,
+            name: form.name,
+            eventTypeId: form.eventTypeId,
+            status: "active",
+            sections: form.sections,
+            dueDaysBeforeEvent: form.dueDaysBeforeEvent,
+            reminderDaysBeforeDue: form.reminderDaysBeforeDue,
+            recommendedId: form.id,
+            version: 1,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: identity.uid,
+            updatedBy: identity.uid,
+            archivedAt: null,
+          });
+        }
+        const eventDetailsId = preloaded["wedding-event-details"];
+        if (eventDetailsId)
+          transaction.set(db.doc(INQUIRY_FORM_SETTINGS_PATH(tenantId)), {
+            tenantId,
+            inquiryEventForm: {
+              templateId: eventDetailsId,
+              templateName: "Event details form",
+              eventTypes: [...INQUIRY_FORM_EVENT_TYPES],
+              updatedAt: now,
+              updatedBy: identity.uid,
+            },
+            updatedAt: now,
+          }, { merge: true });
         for (const starter of starterQuestionnaires()) {
+          // The wedding set above replaces the generic wedding questionnaire.
+          if (starter.eventTypeId === "wedding") continue;
           const questionnaireId = randomUUID();
           transaction.create(
             db.doc(`questionnaireTemplates/${questionnaireId}`),

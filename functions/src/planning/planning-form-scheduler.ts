@@ -114,6 +114,32 @@ async function sendShotList(db: Firestore, project: DocumentSnapshot, studio: St
   }
 }
 
+/**
+ * The shot list, when the studio sends its planning form by hand ("Send the
+ * form", assignQuestionnaire). A studio on "remind" only ever sent it that
+ * way, and the shot list — which rode only on the automatic send — never went
+ * (GR, 2026-10-08). Only for the studio's planning form, and on the same terms
+ * as the automatic send: weddings, once, before the lock.
+ */
+export async function sendShotListWithForm(
+  db: Firestore,
+  project: DocumentSnapshot,
+  template: DocumentSnapshot,
+  now: string,
+): Promise<string> {
+  const data = project.data() ?? {};
+  const tenantId = text(data.tenantId);
+  if (!tenantId || data.importedAt || clientOutreachStop(data) !== null) return "quiet";
+  const studio = await loadStudio(db, tenantId);
+  const planning = planningFormTemplate(studio, text(data.eventTypeId), true) ?? planningFormTemplate(studio, "wedding", true);
+  const sameForm =
+    planning &&
+    (planning.id === template.id || (text(planning.name) && text(planning.name) === text(template.get("name"))));
+  if (!sameForm) return "not_the_planning_form";
+  await sendShotList(db, project, studio, now.slice(0, 10), now);
+  return "sent";
+}
+
 async function sendOne(db: Firestore, project: DocumentSnapshot, studio: Studio, today: string, now: string): Promise<string> {
   const outcome = await sendPlanningForm(db, project, studio, today, now);
   // With the planning form, on its day — whether that sent it, asked for a

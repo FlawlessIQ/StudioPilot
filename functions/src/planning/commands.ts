@@ -1,3 +1,4 @@
+import { sendShotListWithForm } from "./planning-form-scheduler.js";
 import { createHash, randomBytes } from "node:crypto";
 import {
   coiAgentRequirement,
@@ -1284,6 +1285,11 @@ export const planningCommand = onRequest(
           actorId: identity.uid,
           now,
           allowAi: true,
+        });
+        // The planning form sent by hand takes the shot list with it, as the
+        // automatic send does. Never costs the studio the form it sent.
+        await sendShotListWithForm(db, project, template, now).catch((caught: unknown) => {
+          console.error(JSON.stringify({ severity: "ERROR", event: "shot_list.with_form_failed", projectId: parsed.input.projectId, reason: caught instanceof Error ? caught.message : String(caught) }));
         });
         }
       } else if (parsed.type === "setInquiryEventForm") {
