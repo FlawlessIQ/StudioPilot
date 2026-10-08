@@ -76,6 +76,13 @@ const requestSchema = z.object({
   tenantId: z.string().min(1),
   projectId: z.string().min(1).nullable().optional(),
   question: z.string().trim().min(3).max(1200),
+  /**
+   * False where the screen asking can't show prepared cards (the event-day
+   * brief). The job page's panel once dropped them, and Cue told Gabe a
+   * timeline draft was "ready for your review" that he could never see
+   * (GR, 2026-10-08). Absent means the caller shows them.
+   */
+  cards: z.boolean().optional(),
   // Prior turns of THIS conversation, so a follow-up ("what about the Smith
   // wedding?" → "draft them an update") is understood in context. Capped and
   // length-bounded to keep the call cheap; the browser supplies it, so it is
@@ -2759,6 +2766,12 @@ export const aiCopilotCommand = onRequest(
         projects.filter((project) => project.archivedAt).map((project) => String(project.id)),
       );
       const prepare = (toolArgs: Record<string, unknown>): Json => {
+        if (input.cards === false)
+          return {
+            ok: false,
+            reason:
+              "this screen can't show prepared cards — tell the operator to make the change from Cue (the Cue tab, or Ask Cue on the job). Do not say anything is ready or drafted.",
+          };
         const checked = validatePreparedAction(toolArgs, {
           allowedProjectIds: visibleProjectIds,
           archivedProjectIds,

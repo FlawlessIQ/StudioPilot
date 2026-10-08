@@ -220,6 +220,13 @@ export const membershipCommand = onRequest(
           ]);
           const wasActive =
             membership.exists && membership.get("status") === "active";
+          // One person holds one role per studio. This used to overwrite an
+          // active client or crew membership with the staff role, and their
+          // portal or crew access simply vanished; refuse it, as the client
+          // and crew invitations already do.
+          const existingRole = String(membership.get("role") ?? "");
+          if (wasActive && existingRole && !internalRoles.has(existingRole))
+            throw new Error("MEMBERSHIP_ROLE_CONFLICT");
           transaction.set(
             membershipReference,
             {

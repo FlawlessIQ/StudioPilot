@@ -139,6 +139,9 @@ function invitationErrorMessage(code?: string) {
       return "Your account has no email address on it, so it cannot be matched to this invitation.";
     case "FORBIDDEN":
       return "This invitation cannot be accepted with this account.";
+    case "MEMBERSHIP_ROLE_CONFLICT":
+      // saas/memberships.ts: accepting used to overwrite their client or crew access.
+      return "This address is already the studio's client or one of its crew, so it can't also join the team. Ask the owner to invite you at a different address.";
     default:
       return code && !code.includes("_")
         ? code

@@ -35,7 +35,9 @@ import {
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { askCopilot } from "@/lib/ai/copilot-client";
+import { askCopilot, type CopilotFlow, type PreparedAction } from "@/lib/ai/copilot-client";
+import { PreparedActionCards } from "@/components/ai/actions/prepared-actions";
+import { FlowRunner } from "@/components/ai/flow-runner";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
@@ -602,6 +604,17 @@ function ThreadComposer({
   const [assignee, setAssignee] = useState("role:studio_coordinator");
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
+  /**
+   * What the answer prepared: cards to approve, a flow to step through, and
+   * drafts now waiting in Prepared for you. This panel showed the sentence
+   * alone, so Cue said "a timeline draft is ready for your review" about a
+   * card nobody could see (GR, 2026-10-08).
+   */
+  const [prepared, setPrepared] = useState<{
+    actions: PreparedAction[];
+    flow: CopilotFlow | null;
+    drafts: number;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const suggestions =
@@ -620,6 +633,7 @@ function ThreadComposer({
     setBusy(true);
     setNotice(null);
     setAnswer(null);
+    setPrepared(null);
     try {
       if (mode === "note") {
         if (!consultationId) throw new Error("NO_OPEN_CONSULTATION");
@@ -642,6 +656,14 @@ function ThreadComposer({
           question: body,
         });
         setAnswer(result.answer);
+        const drafts = result.proposalActionIds?.length ?? 0;
+        setPrepared(
+          result.actions?.length || result.flow || drafts
+            ? { actions: result.actions ?? [], flow: result.flow ?? null, drafts }
+            : null,
+        );
+        // Drafts Cue wrote land in this job's Prepared for you.
+        if (drafts) refreshTenantRecords("aiActions");
       } else {
         await runWorkflowCommand("createTask", {
           projectId,
@@ -725,8 +747,8 @@ function ThreadComposer({
               </span>
               Ask Cue{" "}
               <em>
-                <ShieldCheck aria-hidden="true" size={11} /> Reads this
-                job&rsquo;s records · changes nothing
+                <ShieldCheck aria-hidden="true" size={11} /> Answers from this
+                job · nothing changes until you approve
               </em>
             </p>
           </>
@@ -792,12 +814,27 @@ function ThreadComposer({
             <Sparkles aria-hidden="true" size={12} /> StudioCue
           </span>
           <p>{answer}</p>
+          {prepared?.flow ? <FlowRunner flow={prepared.flow} /> : null}
+          <PreparedActionCards actions={prepared?.actions} />
+          {prepared?.drafts ? (
+            <p className="thread-answer-drafts">
+              {`${prepared.drafts === 1 ? "The draft is" : `${prepared.drafts} drafts are`} waiting for you in Prepared for you on this job.`}
+            </p>
+          ) : null}
           <footer>
             <small>
-              <ShieldCheck aria-hidden="true" size={11} /> Answered from this
-              job&rsquo;s records — nothing was changed.
+              <ShieldCheck aria-hidden="true" size={11} />{" "}
+              {prepared
+                ? "Nothing changes until you approve it."
+                : "Answered from this job’s records — nothing was changed."}
             </small>
-            <button onClick={() => setAnswer(null)} type="button">
+            <button
+              onClick={() => {
+                setAnswer(null);
+                setPrepared(null);
+              }}
+              type="button"
+            >
               Ask something else
             </button>
           </footer>

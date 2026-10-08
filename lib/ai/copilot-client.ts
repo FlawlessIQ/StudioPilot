@@ -126,6 +126,11 @@ export async function askCopilot(input: {
   history?: CopilotTurn[];
   /** Existing conversation to append to; omit to start a new one. */
   threadId?: string;
+  /**
+   * False where the caller can't show the cards Cue prepares, so Cue says
+   * where to make the change instead of calling a card "ready" (GR, 2026-10-08).
+   */
+  cards?: boolean;
 }): Promise<CopilotResult> {
   const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
   if (!endpoint) throw new Error("AI Copilot is not configured.");

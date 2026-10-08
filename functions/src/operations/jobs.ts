@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { getStorage } from "firebase-admin/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
+  CREW_EMAIL_TYPES,
   isAuthEmailType,
   isPlatformEmailType,
   renderEmailTemplate,
@@ -794,7 +795,17 @@ async function emailContext(
     // Compared against every client contact on the project, not just the first:
     // a project with two clients would otherwise misfile mail to the second as
     // studio-only. Falls closed — an unmatched recipient stays studio-visible.
-    recipientIsClient: clientContactEmails.has(recipient.trim().toLowerCase()),
+    // Crew mail is never the couple's, whatever its address. A tester using
+    // one inbox for the bride and the photographer (GR, 2026-10-08) had crew
+    // offers shown in the couple's portal, threaded as the couple, and copied
+    // to the partner — all because the address matched a client contact.
+    // A job can say who it is for (`audience`) when its type is shared with
+    // the couple's mail — the schedule a crew member is sent, a vendor's
+    // revised run of show.
+    recipientIsClient:
+      !CREW_EMAIL_TYPES.has(templateKey) &&
+      !["crew", "vendor"].includes(String(document.get("audience") ?? "")) &&
+      clientContactEmails.has(recipient.trim().toLowerCase()),
     clientContactEmails,
     values: {
       ...objectValue(document.data()),

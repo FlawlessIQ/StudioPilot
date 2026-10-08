@@ -13,6 +13,7 @@ import {
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
+import { teamRoleForEmail } from "../crm/team-email.js";
 
 const input = z.discriminatedUnion("type", [
   z.object({
@@ -656,6 +657,9 @@ export const clientInvitationCommand = onRequest(
         providerEventId: null,
       });
       await batch.commit();
+      // Sent, but said now if it can't be accepted: the address is already a
+      // crew member's or the team's, and one address is one person per studio.
+      const teamRole = await teamRoleForEmail(db, parsed.tenantId, email).catch(() => null);
       response.status(200).json({
         invitationId,
         email,
@@ -663,6 +667,7 @@ export const clientInvitationCommand = onRequest(
         status: "pending",
         deliveryStatus: "queued",
         resent: isResend,
+        ...(teamRole ? { emailBelongsToTeamRole: teamRole } : {}),
       });
     } catch (caught: unknown) {
       const message =

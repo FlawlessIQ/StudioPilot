@@ -11,6 +11,8 @@ import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { sendOutcomeCopy } from "@/lib/communications/send-outcome";
 import { AiScheduleGenerator } from "@/components/planning/ai-schedule-generator";
+import { applyTimeEdits, planTimeEdits, twelveHour, type TimeEdit } from "@/features/schedules/time-edits";
+import { isoToWallClock } from "@/features/schedules/day-clock";
 import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
 import { TimelineAuthorityPanel } from "@/components/planning/timeline-authority-panel";
 import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
@@ -71,6 +73,134 @@ export function TimelineCard({ action }: ActionCardProps) {
       <Embedded>
         <AiScheduleGenerator initialProjectId={job.id} />
       </Embedded>
+    </ActionShell>
+  );
+}
+
+/**
+ * Change the times of named lines on the published timeline.
+ *
+ * "Can we make dinner 7–8pm, cake cutting 8:30pm, and night pictures 9pm?"
+ * (Gabe, on a test job, 2026-10-08.) Cue passes those words; this reads them
+ * against the timeline (features/schedules/time-edits.ts), shows every change
+ * with its time editable, and publishing makes the next version — which is
+ * what tells the crew and the client.
+ */
+export function TimelineTimesCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const schedules = useRecords("schedules");
+  const runner = useRunner();
+  const published = onJob(schedules, action.projectId)
+    .filter((schedule) => str(schedule.status) === "published" && !schedule.archivedAt)
+    .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
+  const zone = str(published?.timezone) || str(job?.timezone) || "America/New_York";
+  const lines = arr(published?.items).map((item) => item as Rec);
+  const planned = planTimeEdits(
+    str(action.text),
+    lines.map((item) => ({ id: str(item.id), title: str(item.title), startAt: str(item.startAt), endAt: str(item.endAt) })),
+    zone,
+  );
+  // The studio's own changes to the proposed times, by line.
+  const [overrides, setOverrides] = useState<Record<string, { start: string; end: string | null }>>({});
+  const edits: TimeEdit[] = planned.edits.map((edit) => ({ ...edit, ...(overrides[edit.itemId] ?? {}) }));
+  const title = `Change timeline times · ${jobName(job)}`;
+  if (loading || !schedules) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (!published)
+    return (
+      <ActionShell icon={<CalendarRange size={15} />} title={title}>
+        <Blocked>
+          There&apos;s no published timeline on this job yet. Lay out the day first, then the times can be
+          changed here.
+        </Blocked>
+      </ActionShell>
+    );
+  if (runner.done) return <ActionShell icon={<CalendarRange size={15} />} title={title}><Done href={`/studio/projects/${job.id}`} label="Open the job">{runner.done}</Done></ActionShell>;
+  const day =
+    (str(job.eventDate).slice(0, 10) || isoToWallClock(str(lines[0]?.startAt), zone)?.date) ?? "";
+  const version = Number(published.version ?? 1);
+
+  async function publish() {
+    await runner.run(
+      async () => {
+        const items = applyTimeEdits(lines as Array<Rec & { id: string; title: string; startAt: string; endAt: string }>, edits, day, zone);
+        const starts = items.map((item) => Date.parse(str(item.startAt))).filter(Number.isFinite);
+        const ends = items.map((item) => Date.parse(str(item.endAt))).filter(Number.isFinite);
+        const span = Math.max(1, Math.round((Math.max(...ends) - Math.min(...starts)) / 60_000));
+        const response = await sendPlanningCommand("publishSchedule", {
+          projectId: job!.id,
+          timezone: zone,
+          coverageMinutes: span,
+          items,
+        });
+        if (!response.persisted) return "Preview: the new times were checked, but nothing was published.";
+        return `Published version ${version + 1}. The crew are asked to confirm the new times, the client sees them, and a new PDF is on its way.`;
+      },
+      { refresh: ["schedules"], fallback: "The new times couldn't be published. Nothing was changed." },
+    );
+  }
+
+  return (
+    <ActionShell
+      detail={`Publishing makes version ${version + 1} of the timeline. The crew are asked to confirm it again, the client sees the new times, and the PDF is remade. Vendors you shared it with keep the old one until you send them this.`}
+      icon={<CalendarRange size={15} />}
+      title={title}
+    >
+      {edits.length ? (
+        <div className="cue-time-edits">
+          {edits.map((edit) => (
+            <div className="cue-time-edit" key={edit.itemId}>
+              <strong>{edit.title}</strong>
+              <small>{edit.before === "TBD" ? "Now: time TBD" : `Now: ${edit.before}`}</small>
+              <span>
+                <input
+                  aria-label={`${edit.title} starts`}
+                  onChange={(event) =>
+                    setOverrides((current) => ({ ...current, [edit.itemId]: { start: event.target.value, end: edit.end } }))
+                  }
+                  type="time"
+                  value={edit.start}
+                />
+                <span aria-hidden="true">–</span>
+                <input
+                  aria-label={`${edit.title} ends`}
+                  onChange={(event) =>
+                    setOverrides((current) => ({
+                      ...current,
+                      [edit.itemId]: { start: edit.start, end: event.target.value || null },
+                    }))
+                  }
+                  type="time"
+                  value={edit.end ?? ""}
+                />
+              </span>
+              <em>
+                New: {twelveHour(edit.start)}
+                {edit.end ? ` – ${twelveHour(edit.end)}` : ""}
+              </em>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Blocked>
+          I couldn&apos;t match that to lines on the timeline. Name each line and its time, like
+          &ldquo;dinner 7–8pm, cake cutting 8:30pm&rdquo;.
+        </Blocked>
+      )}
+      {planned.unmatched.length ? (
+        <p className="cue-action-note">
+          Not on the timeline, so left alone: {planned.unmatched.join(", ")}.
+        </p>
+      ) : null}
+      <Notice text={runner.notice} />
+      {edits.length ? (
+        <Actions
+          busy={runner.busy}
+          disabled={!day || edits.some((edit) => !edit.start)}
+          label={`Publish these times (version ${version + 1})`}
+          onClick={() => void publish()}
+        />
+      ) : null}
     </ActionShell>
   );
 }

@@ -6,9 +6,12 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
 import { PlaceTagsField } from "@/components/forms/place-tags-field";
 import { TradeField, tradesFromForm } from "@/components/crew/trade-field";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { crewEmailWarning } from "@/lib/crm/command-client";
 
 export function CreateCrewProfileForm() {
   const [created, setCreated] = useState<string | null>(null);
+  /** Said when the address is already a client's or the team's (crewEmailWarning). */
+  const [addressWarning, setAddressWarning] = useState<string | null>(null);
   const [serviceAreas, setServiceAreas] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,6 +45,7 @@ export function CreateCrewProfileForm() {
           : "Development preview: crew profile validated, but no relationship was created.",
       );
       if (response.persisted) {
+        setAddressWarning(crewEmailWarning(response.result));
         setCreated(String(data.get("name")));
         element.reset();
         setServiceAreas([]);
@@ -71,6 +75,11 @@ export function CreateCrewProfileForm() {
             the dates they&rsquo;re free, and send you their W-9 and insurance.
             The link expires in seven days and you can resend it from their row.
           </p>
+          {addressWarning ? (
+            <p className="form-error" role="alert">
+              {addressWarning}
+            </p>
+          ) : null}
           <p>
             It does not put them on a job yet. To offer them a job, open
             that job&rsquo;s crew plan and StudioCue will rank who to ask.

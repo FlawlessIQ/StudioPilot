@@ -188,6 +188,8 @@ export function EventDayCopilot({
     void askCopilot({
       tenantId: workspace.tenantId,
       projectId,
+      // This brief shows answers only (cards: see lib/ai/copilot-client.ts).
+      cards: false,
       question: quickQuestions[0]!,
     })
       .then(setResult)
@@ -206,6 +208,7 @@ export function EventDayCopilot({
     try {
       setResult(
         await askCopilot({
+          cards: false,
           tenantId: workspace.tenantId,
           projectId,
           question: nextQuestion,

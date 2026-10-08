@@ -234,7 +234,7 @@ const KNOWN_GAPS: Record<string, string> = {
   INVITED_EMAIL_MISMATCH: "client, crew",
   LEAD_CONTACT_MISMATCH: "crm",
   LEAD_OR_PROJECT_REQUIRED: "ai",
-  MEMBERSHIP_ROLE_CONFLICT: "client, crew",
+  MEMBERSHIP_ROLE_CONFLICT: "client, crew, saas",
   MISSING_DATE_ANCHOR: "workflow",
   MISSING_INFORMATION: "ai",
   NOT_FOUND: "planning",

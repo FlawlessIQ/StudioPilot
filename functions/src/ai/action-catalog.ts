@@ -122,6 +122,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "reopen_questionnaire", scope: "project", ownerAdminOnly: true, when: "reopen a questionnaire the couple already sent back, so they can change their answers themselves" },
   { id: "withdraw_questionnaire", scope: "project", when: "withdraw / take back a questionnaire the couple has not sent back (sent by mistake, wrong form)" },
   { id: "draft_timeline", scope: "project", when: "draft the wedding-day timeline / schedule" },
+  { id: "edit_timeline_times", scope: "project", when: "change the time of specific lines on the existing timeline, or set a time on a TBD line (\"make dinner 7–8pm, cake cutting 8:30\") — put the request word for word in `text`" },
   { id: "approve_timeline", scope: "project", when: "approve the drafted timeline (the studio approves by publishing it)" },
   { id: "publish_timeline", scope: "project", when: "publish the approved timeline to the couple and crew" },
   { id: "record_timeline_approval", scope: "project", when: "the couple approved the timeline (or asked for changes) by phone, email, text or in person — record their answer" },

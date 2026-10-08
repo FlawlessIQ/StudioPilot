@@ -1569,6 +1569,7 @@ export const planningCommand = onRequest(
               tenantId: parsed.tenantId,
               projectId: parsed.input.projectId,
               type: "manual_message",
+              audience: "vendor",
               recipient: email,
               recipientName:
                 String(vendor.get("contactName") ?? "").trim() ||
@@ -2374,6 +2375,9 @@ export const planningCommand = onRequest(
                 recipient: profile.get("email"),
                 recipientName: profile.get("name"),
                 type: "final_schedule_published",
+                // A crew member's copy: never the couple's mail, even at the
+                // same address (operations/jobs.ts recipientIsClient).
+                audience: "crew",
                 scheduleId: id,
                 scheduleVersion: version,
                 // To this job's day sheet, not whichever job the page picks.

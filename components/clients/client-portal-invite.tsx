@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { runClientInvitation } from "@/lib/client/invitation-client";
-import { runCrmCommand } from "@/lib/crm/command-client";
+import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
 import { formatDueDate } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { ConfirmStep } from "@/components/ui/confirm-step";
@@ -185,8 +185,11 @@ export function ClientPortalInvite({
         ...current,
         [effectiveProjectId]: next,
       }));
+      const conflict = teamEmailWarning(result);
       setNotice(
-        result.alreadySent === true
+        conflict
+          ? conflict
+          : result.alreadySent === true
           ? "The invitation went a moment ago, so no second email was sent."
           : result.resent === true
             ? "Sent again. The link in their earlier invitation still works too."

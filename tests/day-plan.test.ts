@@ -439,3 +439,45 @@ test("the editor lays out answered only, with a button for the rest", () => {
   assert.match(editor, /planDay\(\{ \.\.\.dayPlanInput\(\), answeredOnly: true \}\)/);
   assert.match(editor, /Suggest times for the gaps/);
 });
+
+test("when getting ready and the reception share an address, evening rows aren't 'Getting ready'", () => {
+  // Albert's test wedding (GR, 2026-10-08): getting ready and the reception
+  // both at 3434 Island Rd, the ceremony "home". Every reception moment in
+  // the PDF said "Getting ready".
+  const z = NY;
+  const day = "2027-01-23";
+  const at = (clock: string) => wallClockToIso(day, clock, z)!;
+  const house = "3434 Island Rd";
+  const line = (start: string, end: string, title: string, location: string) => ({
+    startAt: at(start), endAt: at(end), title, location, crewIds: [], notes: "",
+  });
+  const document = runOfShowDocument({
+    items: [
+      line("12:30", "13:15", "Photo and video arrive", house),
+      line("12:30", "13:15", "Details with the bride", house),
+      line("13:30", "14:00", "Bride in dress", house),
+      line("14:30", "15:00", "Ceremony", "home"),
+      line("15:00", "16:00", "Cocktail hour", house),
+      line("16:00", "17:00", "Entrances, first dance, parent dances and speeches", house),
+      line("19:53", "20:00", "Dinner", house),
+      line("20:30", "20:30", "Cake cutting", house),
+      line("21:00", "21:00", "Night pictures, dessert and dancing", house),
+    ],
+    timeZone: z,
+    version: 1,
+    project: { name: "Albert Gersh Wedding", eventDate: day, eventType: "Wedding" },
+  });
+  const where = Object.fromEntries(document.rows.map((row) => [row.title, row.where]));
+  assert.equal(where["Details with the bride"], "Getting ready");
+  assert.equal(where["Bride in dress"], "Getting ready");
+  assert.equal(where["Ceremony"], "home");
+  for (const evening of [
+    "Cocktail hour",
+    "Entrances, first dance, parent dances and speeches",
+    "Dinner",
+    "Cake cutting",
+    "Night pictures, dessert and dancing",
+  ]) {
+    assert.equal(where[evening], house, evening);
+  }
+});

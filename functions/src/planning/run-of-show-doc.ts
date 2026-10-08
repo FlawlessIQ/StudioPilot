@@ -75,7 +75,10 @@ export function runOfShowDocument(input: {
   // Where the day happens, read off the lines themselves.
   const placeOf = (pattern: RegExp, avoid?: RegExp) =>
     items.find((item) => pattern.test(item.title) && !(avoid?.test(item.title)) && item.location?.trim())?.location?.trim() ?? null;
-  const gettingReady = placeOf(/detail|getting ready|dress|touch|robe|prep|arriv/i);
+  const GETTING_READY_ROW = /detail|getting ready|dress|touch|robe|prep|arriv/i;
+  /** The evening's moments: the reception, wherever it is. */
+  const RECEPTION_ROW = /reception|entrance|cocktail|dinner|dance|cake|toast|speech|night|send.?off|sparkler|dessert|bouquet|garter|exit/i;
+  const gettingReady = placeOf(GETTING_READY_ROW);
   const ceremony = placeOf(/ceremon/i, /travel|hide/i);
   const reception = placeOf(/reception|entrance|cocktail|dinner|first dance/i, /travel/i);
 
@@ -98,14 +101,23 @@ export function runOfShowDocument(input: {
 
   const clock = (iso: string) => isoToWallClock(iso, zone)?.clock ?? null;
   /** A row names the place briefly: the full address is in the box above (as GR's does). */
-  const placeName = (location: string) =>
-    !location
-      ? ""
-      : location === gettingReady
-        ? "Getting ready"
-        : location === ceremony || location === reception
-          ? shortPlace(location)
-          : location;
+  //
+  // When getting ready and the reception share an address (GR, 2026-10-08:
+  // both at 3434 Island Rd), the address alone can't tell them apart, and every
+  // reception moment — cocktails, dinner, cake, night pictures — was labelled
+  // "Getting ready". The line's own name decides then.
+  const placeName = (location: string, title: string) => {
+    if (!location) return "";
+    const eveningRow = RECEPTION_ROW.test(title) && !GETTING_READY_ROW.test(title);
+    const ceremonyRow = /ceremon/i.test(title);
+    if (
+      location === gettingReady &&
+      !(location === reception && eveningRow) &&
+      !(location === ceremony && ceremonyRow)
+    )
+      return "Getting ready";
+    return location === ceremony || location === reception ? shortPlace(location) : location;
+  };
 
   // Each person's hours, from the first line they're on to the last.
   const span = new Map<string, { start: number; end: number; lastIndex: number }>();
@@ -171,7 +183,7 @@ export function runOfShowDocument(input: {
       title: tbd ? item.title.slice(0, -TBD_SUFFIX.length) : item.title,
       // Only when it isn't everyone: a line the whole crew is on needs no tags.
       crew: crew.length && crew.length < everyone.length ? crew : [],
-      where: [placeName(item.location?.trim() ?? ""), note].filter(Boolean).join(" — "),
+      where: [placeName(item.location?.trim() ?? "", item.title), note].filter(Boolean).join(" — "),
       concludes: leaving.length
         ? `${sortLabels(leaving).join(" / ")} conclude${leaving.length === 1 ? "s" : ""}${leavingClock ? ` ${spokenClock(leavingClock)}` : ""}`
         : "",

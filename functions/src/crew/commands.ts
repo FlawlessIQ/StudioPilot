@@ -5,6 +5,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
+import { clientNameForEmail, signedUpRoleForEmail } from "../crm/team-email.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioHubCors } from "../security/cors.js";
 import { findDuplicateProfile } from "./duplicate-profile.js";
@@ -723,10 +724,21 @@ export const crewCommand = onRequest(
           invitation.emailJob.value,
         );
         await created.commit();
+        // Said now, at the add: an address that is already this studio's
+        // client, or someone on its team, can't also accept a crew invite —
+        // one person holds one role per studio. Advisory; the add stands.
+        const [clientName, staffRole] = await Promise.all([
+          clientNameForEmail(db, parsed.tenantId, parsed.input.email).catch(() => null),
+          signedUpRoleForEmail(db, parsed.tenantId, parsed.input.email).catch(() => null),
+        ]);
         result = {
           crewProfileId: id,
           invited: true,
           inviteExpiresAt: invitation.inviteExpiresAt,
+          ...(clientName ? { emailBelongsToClient: clientName } : {}),
+          ...(staffRole && staffRole !== "client" && staffRole !== "subcontractor"
+            ? { emailBelongsToTeamRole: staffRole }
+            : {}),
         };
       } else if (parsed.type === "updateCrewDirectoryEntry") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");

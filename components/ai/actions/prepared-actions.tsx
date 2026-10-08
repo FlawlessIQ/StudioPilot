@@ -62,6 +62,7 @@ import {
   ReplyCard,
   ShareRunOfShowCard,
   TimelineCard,
+  TimelineTimesCard,
   TimelineOwnerCard,
   VendorChangeCard,
 } from "./planning-actions";
@@ -177,6 +178,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   import_booking: ImportBookingCard,
   // Planning
   draft_timeline: TimelineCard,
+  edit_timeline_times: TimelineTimesCard,
   approve_timeline: TimelineCard,
   publish_timeline: TimelineCard,
   set_timeline_owner: TimelineOwnerCard,

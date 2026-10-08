@@ -74,5 +74,24 @@ const TEAM_ROLE_WORDS: Record<string, string> = {
 export function teamEmailWarning(result: CrmCommandResult | Record<string, unknown>): string | null {
   const role = (result as { emailBelongsToTeamRole?: unknown }).emailBelongsToTeamRole;
   if (typeof role !== "string" || !role) return null;
-  return `That email belongs to ${TEAM_ROLE_WORDS[role] ?? "someone on your team"}, so it can't be this client's portal login — invitations, proposals and contracts sent there won't reach a client account. Use the client's own address.`;
+  return `That email belongs to ${TEAM_ROLE_WORDS[role] ?? "someone on your team"}, so it can't be this client's portal login — invitations, proposals and contracts sent there won't reach a client account. Use the client's own address. (Testing with one inbox? A plus address like you+bride@… reaches the same inbox but counts as a different person.)`;
+}
+
+/**
+ * The same check the other way round (crewCommand createCrewProfile): a crew
+ * member added at an address that is already this studio's client, or its own
+ * team's login. One address is one person per studio, so their crew invite
+ * can't be accepted with it (GR, 2026-10-08, one inbox for bride and crew).
+ */
+export function crewEmailWarning(result: Record<string, unknown>): string | null {
+  const client = (result as { emailBelongsToClient?: unknown }).emailBelongsToClient;
+  const role = (result as { emailBelongsToTeamRole?: unknown }).emailBelongsToTeamRole;
+  const whose =
+    typeof client === "string" && client
+      ? `your client ${client}`
+      : typeof role === "string" && role
+        ? TEAM_ROLE_WORDS[role] ?? "someone on your team"
+        : null;
+  if (!whose) return null;
+  return `That email also belongs to ${whose}. One address is one person in your studio, so they won't be able to accept this crew invite with it — use their own address. (Testing with one inbox? A plus address like you+crew@… reaches the same inbox but counts as a different person.)`;
 }

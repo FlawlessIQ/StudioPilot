@@ -244,7 +244,9 @@ function invitationErrorMessage(code?: string) {
     case "VERIFIED_EMAIL_REQUIRED":
       return "Your account has no email address on it, so it cannot be matched to this invitation.";
     case "MEMBERSHIP_ROLE_CONFLICT":
-      return "This address already works at the studio in another role. Ask them to invite a different address.";
+      // Usually the studio's own client, not someone who "works" there
+      // (GR, 2026-10-08: one inbox for the bride and the photographer).
+      return "This address is already the studio's client, or on its team, so it can't also be your crew login. Ask the studio to invite you at a different address.";
     case "SUBCONTRACTOR_LIMIT_REACHED":
       return "The studio has no crew seats left on its plan. Contact the studio.";
     default:

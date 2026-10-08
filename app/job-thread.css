@@ -865,13 +865,24 @@
   text-transform: uppercase;
 }
 
-.thread-answer p {
+.thread-answer > p.thread-answer-drafts {
+  color: var(--muted, #6b7570);
+  font-size: 13px;
+}
+
+/* Cards Cue prepared, shown under its answer (they used to be dropped). */
+.thread-answer > .cue-actions,
+.thread-answer > .copilot-flow {
+  min-width: 0;
+}
+
+.thread-answer > p {
   margin: 0;
   font-size: 14.5px;
   line-height: 1.6;
 }
 
-.thread-answer footer {
+.thread-answer > footer {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
@@ -880,7 +891,7 @@
   padding-top: 4px;
 }
 
-.thread-answer small {
+.thread-answer > footer small {
   display: inline-flex;
   gap: 5px;
   align-items: center;
@@ -888,7 +899,7 @@
   font-size: 11.5px;
 }
 
-.thread-answer footer button {
+.thread-answer > footer button {
   border: 0;
   background: none;
   padding: 0;
@@ -900,7 +911,7 @@
   cursor: pointer;
 }
 
-.thread-answer footer button:hover {
+.thread-answer > footer button:hover {
   text-decoration: underline;
 }
 

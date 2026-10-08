@@ -11721,6 +11721,15 @@ textarea:focus-visible {
 .cue-action-embed>.panel{margin:0;box-shadow:none}
 .cue-action-check{display:flex!important;gap:8px;align-items:center;font-weight:600}
 .cue-action-check input{width:auto}
+/* "Change timeline times": each line, how it reads now, and its new time (editable). */
+.cue-time-edits{display:grid;gap:8px}
+.cue-time-edit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 12px;border:1px solid var(--border,#dfe3de);border-radius:10px;background:var(--surface,#fff)}
+.cue-time-edit>strong{font-size:14px}
+.cue-time-edit>small{grid-column:1;color:var(--muted,#6b7570);font-size:12px}
+.cue-time-edit>span{grid-column:2;grid-row:1/span 2;display:flex;gap:6px;align-items:center}
+.cue-time-edit input[type="time"]{width:auto;min-height:40px;padding:6px 8px;border:1px solid var(--border,#dfe3de);border-radius:8px;font:inherit;font-size:14px;background:var(--surface,#fff)}
+.cue-time-edit>em{grid-column:1/-1;font-style:normal;font-size:12.5px;color:var(--ink,#1d2420);font-weight:600}
+@media (max-width:560px){.cue-time-edit{grid-template-columns:1fr}.cue-time-edit>span{grid-column:1;grid-row:auto}}
 .copilot-flow-form select,.copilot-flow-form textarea{border:1px solid var(--border,#dfe3de);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px;background:var(--surface,#fff)}
 .copilot-flow-form textarea{resize:vertical;min-height:72px}
 
