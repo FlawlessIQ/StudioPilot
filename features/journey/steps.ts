@@ -1,4 +1,4 @@
-import { vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
+import { journeyFor, vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import type { ProjectState } from "@/features/projects/schema";
 import type { FileRef } from "@/features/documents/file-ref";
@@ -32,7 +32,6 @@ export type JourneyStepKey =
   | "coi"
   | "final_balance"
   | "day_before"
-  | "kit"
   | "event_day"
   | "delivery"
   | "album_review";
@@ -111,14 +110,21 @@ export const journeyStepRequires: Record<
   coi: [],
   final_balance: [],
   day_before: [],
-  // A makeup or hair studio's own kit checklist the day before: informational.
-  kit: [],
   event_day: [],
   // There is no gallery to deliver before the event, and nothing to select
   // from or review before a gallery.
   delivery: ["event_day"],
   album_review: ["delivery"],
 };
+
+/**
+ * The requirements for this studio's trade. A DJ's vibe call is offered,
+ * never required, so a DJ's quote needs nothing first; the composer takes a
+ * DJ's job at LEAD (proposals/eligibility.ts) for the same reason.
+ */
+export function journeyStepRequiresFor(trade: unknown): Record<JourneyStepKey, readonly JourneyStepKey[]> {
+  return tradeProfile(trade).journey.callRequired ? journeyStepRequires : { ...journeyStepRequires, proposal: [] };
+}
 
 export type JourneyStepStatus =
   | "complete"
@@ -433,10 +439,15 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
   // A makeup or hair inquiry goes straight to the quote: the trial does the
   // sales call's job (trades.ts `consultation`). A call already booked stays.
   if (!trade.consultation && !input.hasConsultation) drop("consultation");
-  const profile = input.profile;
+  // One profile: the kind, lightened by the trade (job-kinds.ts `journeyFor`).
+  const profile = input.profile
+    ? journeyFor(input.profile, trade, { insuranceRequired: input.insuranceRequired })
+    : null;
   if (!profile) return;
   if (!profile.agreement && !input.contractStatus) drop("contract");
   if (!profile.consultation && !input.hasConsultation) drop("consultation");
+  // Insurance only when the venue asked, for a trade that does not need it
+  // on every job — or when a certificate is already under way.
   if (!profile.coi && !input.coiStatus) drop("coi");
   if (!profile.runOfShow && !input.scheduleStatus) drop("run_of_show");
   if (!profile.crew && !(input.crewRequired ?? 0)) drop("crew");
@@ -468,6 +479,144 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
     default:
       break;
   }
+}
+
+/**
+ * A vendor's journey, lightened (simpler vendor journeys, 2026-10-09).
+ *
+ * The DJ, makeup and hair journeys were built from the photographer's and
+ * came out at fourteen steps to its fifteen. Conor: "the vendor journey is
+ * less complicated … and should be easier and less burdensome." What a
+ * vendor thinks of as one thing is one step: booking is signing and paying,
+ * the party list is the morning's schedule, the planner is the run of show.
+ * Routine moves fold into the step beside them. Nothing is lost: each step
+ * that folds in still speaks through the step it joined while it is the
+ * thing left to do.
+ */
+function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
+  const light = tradeProfile(input.trade).journey;
+  const find = (key: JourneyStepKey) => steps.find((step) => step.key === key);
+  const remove = (key: JourneyStepKey) => {
+    const index = steps.findIndex((step) => step.key === key);
+    if (index >= 0) steps.splice(index, 1);
+  };
+  // Done or gone by: either way, not the thing left to do.
+  const settled = (step: JourneyStep) => step.status === "complete" || step.status === "passed";
+  /**
+   * Two steps as one. The one that stays keeps its place and key (Today, the
+   * plan areas and the portal read keys); it speaks for whichever half comes
+   * first and is not yet done, and once both are, for the later.
+   */
+  const fold = (
+    keepKey: JourneyStepKey,
+    foldKey: JourneyStepKey,
+    title?: string,
+    // Once both halves are done, whose line closes it: the step that stays
+    // ("Party list · filled in"), or the one folded in ("Booked · booking
+    // locked in").
+    closing: "keep" | "folded" = "keep",
+  ) => {
+    const keep = find(keepKey);
+    const folded = find(foldKey);
+    if (keep && title) keep.title = title;
+    if (!keep || !folded) return;
+    const [first, second] = steps.indexOf(keep) < steps.indexOf(folded) ? [keep, folded] : [folded, keep];
+    const bothDone = settled(first) && settled(second);
+    const speaker = bothDone ? (closing === "keep" ? keep : folded) : !settled(first) ? first : second;
+    if (speaker !== keep) {
+      keep.status = speaker.status;
+      keep.detail = speaker.detail;
+      keep.action = speaker.action;
+      keep.advance = speaker.advance;
+      keep.explain = speaker.explain || keep.explain;
+    }
+    // The merged step still waits on what the kept step waits on: "Booked"
+    // is not the next move while the quote itself is unanswered.
+    const waitingOn = journeyStepRequiresFor(input.trade)[keepKey].some((key) => {
+      const required = find(key);
+      return required !== undefined && required.status !== "complete";
+    });
+    if (waitingOn && keep.status === "current") {
+      keep.status = "upcoming";
+      keep.action = null;
+      keep.advance = null;
+    }
+    remove(foldKey);
+  };
+  const words = tradeVocab(input.trade);
+
+  if (light.foldRoutine) {
+    // Cue sends the first reply; it is part of the inquiry arriving.
+    fold("inquiry", "first_reply", "Inquiry", "folded");
+  }
+
+  // An optional call (a DJ's vibe call): offered, never the next move, and
+  // gone once the quote is out without one.
+  const call = find("consultation");
+  if (call && !light.callRequired && !input.hasConsultation) {
+    if (rank(String(input.state)) >= 2 || input.proposalStatus) remove("consultation");
+    else {
+      call.title = `${words.consultation} (optional)`;
+      call.status = "upcoming";
+      call.detail = `Offer one if they'd like to talk first — the ${words.proposal.toLowerCase()} doesn't wait for it`;
+    }
+  }
+
+  if (light.oneLinkBooking) {
+    // Sign and pay the deposit in one link.
+    fold("contract", "retainer", "Booked", "folded");
+  }
+
+  if (light.oneForm) {
+    // The party list builds the morning's schedule; the planner drafts the
+    // run of show. One step, named for the form the client fills in.
+    fold("schedule_form", "run_of_show");
+  }
+
+  if (light.foldRoutine) {
+    // The day-before note belongs to the day itself.
+    fold("event_day", "day_before");
+  }
+
+  // A makeup artist's or hair stylist's kit (trades.ts `kitChecklist`): the
+  // day before, the day says what to pack. It was a step of its own; the
+  // crew's reminder email carries the full list.
+  const kit = words.kitChecklist;
+  const kitDays = daysUntil(input.eventDate, input.today);
+  const morning = find("event_day");
+  if (kit && morning && morning.status === "upcoming" && kitDays !== null && kitDays >= 0 && kitDays <= 1) {
+    morning.detail = `Pack ${kit.items.slice(2, 5).join(", ")} — and check ${kit.items[0]}`;
+  }
+
+  // The balance: collected on the morning (makeup, hair), or invoiced by
+  // itself before the night (a DJ). Either way it is only a step of its own
+  // when it has gone overdue.
+  const balance = find("final_balance");
+  if (balance && light.oneForm && !input.finalInvoiceOverdue) {
+    const paid = input.finalInvoiceStatus === "paid";
+    remove("final_balance");
+    const day = find("event_day");
+    if (day && light.balanceOnTheDay && !paid && day.status === "upcoming") {
+      day.detail = `${day.detail} · collect the balance on the day`;
+    }
+  }
+
+  // Makeup and hair confirm the headcount in one tap when the details lock;
+  // there is no call to book (Phase 2: the one-tap confirmation).
+  const finalCall = find("final_call");
+  if (finalCall && tradeProfile(input.trade).perPersonPricing) {
+    finalCall.title = "Final headcount";
+    const state = input.finalCall?.state;
+    finalCall.detail =
+      state === "held" || state === "booked"
+        ? "Confirmed"
+        : state === "invited"
+          ? "Waiting for them to confirm who's getting ready"
+          : "They confirm who's getting ready when the details lock";
+  }
+
+  const day = find("event_day");
+  if (day && day.title === "Event day") day.title = words.dayName;
 }
 
 export function projectJourney(input: JourneyInput): {
@@ -588,7 +737,10 @@ export function projectJourney(input: JourneyInput): {
     input.hasConsultation ||
     stateRank >= 1 ||
     input.profile?.consultation === false ||
-    !tradeProfile(input.trade).consultation;
+    !tradeProfile(input.trade).consultation ||
+    // A DJ's vibe call is offered, never required: the quote can go first
+    // (trades.ts `journey.callRequired`; simpler vendor journeys).
+    !tradeProfile(input.trade).journey.callRequired;
   /**
    * An enquiry whose date has already gone by.
    *
@@ -835,9 +987,13 @@ export function projectJourney(input: JourneyInput): {
           ? "With the client to fill out"
           : input.hasSendableQuestionnaire === false
             ? "No form exists for this job type yet — build one first"
-            : words.event === "wedding"
-              ? "Prep locations, times, and family names"
-              : "Locations, times, and anything to know",
+            : tradeProfile(input.trade).perPersonPricing
+              ? "Who's getting ready, and by when"
+              : tradeProfile(input.trade).musicPlanner
+                ? "Their songs, the moments and the night's timeline"
+                : words.event === "wedding"
+                  ? "Prep locations, times, and family names"
+                  : "Locations, times, and anything to know",
     status: formDone
       ? "complete"
       : prepStatus(
@@ -1226,21 +1382,6 @@ export function projectJourney(input: JourneyInput): {
             },
   });
 
-  // A makeup artist's or hair stylist's own checklist for the morning
-  // (trades.ts `kitChecklist`): what to pack and where to be. Nothing to
-  // send, so no action; it is the move the day before.
-  const kit = tradeWords.kitChecklist;
-  if (kit) {
-    const kitDue = days !== null && days <= 1 && days >= 0;
-    push({
-      key: "kit",
-      title: kit.title,
-      detail: `Pack ${kit.items.slice(2, 5).join(", ")} — and check ${kit.items[0]}`,
-      status: eventBehindThem ? "complete" : kitDue ? "current" : "upcoming",
-      action: null,
-    });
-  }
-
   /**
    * The date has gone by and the job never moved past preparation.
    *
@@ -1349,6 +1490,7 @@ export function projectJourney(input: JourneyInput): {
    * nothing.
    */
   shapeForProfile(steps, input);
+  shapeForLightJourney(steps, input);
 
   const priorityKey: JourneyStepKey | null = needsReconciling
     ? "event_day"
@@ -1397,8 +1539,6 @@ export function projectJourney(input: JourneyInput): {
     coi: { label: "Open insurance", href: project("/studio/insurance") },
     final_balance: { label: "Open invoices", href: project("/studio/invoices") },
     day_before: { label: "Open the job", href: `/studio/projects/${input.projectId}` },
-    // The morning's schedule is what the kit checklist is packed against.
-    kit: { label: "Open schedule", href: project("/studio/schedules") },
     event_day: { label: "Open event day", href: project("/studio/event-day") },
     delivery: { label: "Open delivery", href: project("/studio/delivery") },
     album_review: { label: "Open reviews", href: project("/studio/reviews") },

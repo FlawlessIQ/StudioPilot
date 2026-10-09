@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   journeyStepRequires,
+  journeyStepRequiresFor,
   projectJourney,
   type JourneyInput,
   type JourneyStepKey,
@@ -164,7 +165,8 @@ test("a next move never depends on a step that has not happened", () => {
     const byKey = new Map(steps.map((step) => [step.key, step]));
     for (const step of steps) {
       if (step.status !== "current") continue;
-      for (const required of journeyStepRequires[step.key]) {
+      // Per trade: a DJ's optional vibe call holds nothing up.
+      for (const required of journeyStepRequiresFor(input.trade)[step.key]) {
         const predecessor = byKey.get(required);
         if (predecessor && predecessor.status !== "complete") {
           failures.push(
@@ -241,7 +243,7 @@ test("the next move the job page renders obeys its own preconditions", () => {
     const { steps, current } = projectJourney(input);
     if (!current) continue;
     const byKey = new Map(steps.map((step) => [step.key, step]));
-    for (const required of journeyStepRequires[current.key]) {
+    for (const required of journeyStepRequiresFor(input.trade)[current.key]) {
       const predecessor = byKey.get(required);
       if (predecessor && predecessor.status !== "complete") {
         failures.push(

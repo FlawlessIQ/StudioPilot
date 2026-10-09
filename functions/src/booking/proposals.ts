@@ -22,7 +22,7 @@ import {
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { isStandingInvoice } from "./invoice-standing.js";
-import { paymentScheduleFor, projectProfile } from "../job-kinds/job-kinds.js";
+import { journeyFor, paymentScheduleFor, projectProfile } from "../job-kinds/job-kinds.js";
 import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
 import { tradeProfile } from "../trades/trades.js";
 
@@ -384,10 +384,12 @@ export const proposalCommand = onRequest(
             // does the sales call's job (trades.ts `consultation`).
             const skipsConsultation =
               String(project.get("state")) === "LEAD" &&
-              !(
-                projectProfile(project.data()).consultation &&
-                tradeProfile((await transaction.get(db.doc(`tenants/${command.tenantId}`))).get("trade")).consultation
-              );
+              // No call to hold the quote up, or an optional one (a DJ's
+              // vibe call): job-kinds.ts `journeyFor`.
+              !journeyFor(
+                projectProfile(project.data()),
+                tradeProfile((await transaction.get(db.doc(`tenants/${command.tenantId}`))).get("trade")),
+              ).callRequired;
             if (
               !canCreateProposalForProject(String(project.get("state"))) &&
               !skipsConsultation

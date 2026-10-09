@@ -136,7 +136,8 @@ test("reports: the funnel and the offer in the trade's words", () => {
 
 test("studio pages are titled StudioCue, not the photography marketing title", () => {
   const layout = read("app/studio/layout.tsx");
-  assert.match(layout, /default: "StudioCue"/);
+  // Absolute, so the root's "%s · StudioCue" doesn't make it "StudioCue · StudioCue".
+  assert.match(layout, /absolute: "StudioCue"/);
   assert.match(layout, /template: "%s · StudioCue"/);
   // The marketing site keeps its photographer title on purpose.
   assert.match(read("app/layout.tsx"), /The office manager for photography studios/);

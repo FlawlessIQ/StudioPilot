@@ -1,6 +1,6 @@
 import { isPutAway } from "../projects/put-away";
 import { stageRank } from "../projects/stage-progress";
-import { projectProfile } from "../job-kinds/job-kinds";
+import { journeyFor, projectProfile } from "../job-kinds/job-kinds";
 import { tradeProfile } from "../trades/trades";
 
 /**
@@ -51,7 +51,9 @@ export function canCreateProposalForProject(state: string, project?: unknown, tr
   return (
     state === "LEAD" &&
     project !== undefined &&
-    !(projectProfile(project).consultation && tradeProfile(trade).consultation)
+    // No call, or one that is optional (a DJ's vibe call): the quote can go
+    // straight from the inquiry (job-kinds.ts `journeyFor`).
+    !journeyFor(projectProfile(project), tradeProfile(trade)).callRequired
   );
 }
 

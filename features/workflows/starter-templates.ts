@@ -168,7 +168,38 @@ const CHECKPOINT_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
   "crew-acknowledged": ["schedule-approved"],
 };
 
-export function starterTemplates(): StarterTemplate[] {
+/**
+ * The four checks a vendor's job carries, under the names a vendor uses.
+ *
+ * A makeup artist's wedding was given all twelve of a photographer's —
+ * venue, travel, locations, crew acknowledging the schedule, a certificate
+ * of insurance — and every one was something to tick or waive (simpler
+ * vendor journeys, 2026-10-09). What matters to a vendor is that the job is
+ * booked, the form is in, the day's plan is set and the balance is paid; the
+ * records answer all four (workflow/checkpoint-evidence.ts), so none is a
+ * chore. The rest stay in the template library for a studio that wants them.
+ */
+const ESSENTIAL_NAMES: Readonly<Record<string, string>> = {
+  "contract-completed": "Booked",
+  "questionnaire-complete": "Planning form in",
+  "schedule-approved": "The day's plan set",
+  "final-balance": "Balance paid",
+};
+
+export function starterTemplates(readiness: "full" | "essentials" = "full"): StarterTemplate[] {
+  if (readiness === "essentials") {
+    return starterTemplates("full").map((template) => ({
+      ...template,
+      name: template.name.replace(" Photography", "").replace(" Sessions", ""),
+      checkpointTemplates: template.checkpointTemplates
+        .filter((checkpoint) => checkpoint.key in ESSENTIAL_NAMES)
+        .map((checkpoint) => ({
+          ...checkpoint,
+          name: ESSENTIAL_NAMES[checkpoint.key]!,
+          dependencies: checkpoint.dependencies.filter((key) => key in ESSENTIAL_NAMES),
+        })),
+    }));
+  }
   const wedding = weddingCheckpointDefinitions.map((definition) =>
     checkpointFrom(definition, [
       ...(CHECKPOINT_DEPENDENCIES[definition[0]] ?? []),

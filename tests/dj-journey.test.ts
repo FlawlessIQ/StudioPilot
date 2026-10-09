@@ -187,11 +187,15 @@ test("a DJ's journey speaks DJ: vibe call, music planner, final planning call, t
   assert.ok(titles.includes("Vibe call"));
   assert.ok(titles.includes("Music & moments planner"));
   assert.ok(titles.includes("Final planning call"));
-  assert.ok(titles.includes("Day-before checklist"));
-  const dayBefore = projectJourney({ ...base, trade: "dj" }).steps.find((step) => step.key === "day_before");
-  assert.match(String(dayBefore?.detail), /song changes/);
+  // The day-before note is part of the night itself (simpler vendor
+  // journeys): the day before, "The night" is the move, in DJ words.
+  assert.ok(!titles.includes("Day-before checklist"));
+  const night = projectJourney({ ...base, trade: "dj" }).steps.find((step) => step.key === "event_day");
+  assert.equal(night?.title, "The night");
+  assert.match(String(night?.detail), /song changes/);
   const photo = projectJourney(base).steps.map((step) => step.title);
   assert.ok(photo.includes("Consultation") && photo.includes("Final details call") && photo.includes("Wedding details form"));
+  assert.ok(photo.includes("Day-before checklist") && photo.includes("Event day"));
 });
 
 const facts = {

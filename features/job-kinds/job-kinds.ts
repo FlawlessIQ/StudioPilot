@@ -400,6 +400,83 @@ export function projectProfile(project: unknown): JourneyProfile {
   return journeyProfile(jobKindOf(project), { payment: record.paymentShape });
 }
 
+/**
+ * The light-journey switches a trade carries (features/trades/trades.ts
+ * `TradeJourney`), restated here so this module keeps no imports.
+ */
+export type TradeJourneyShape = {
+  consultation: boolean;
+  journey: {
+    callRequired: boolean;
+    oneLinkBooking: boolean;
+    insuranceByDefault: boolean;
+    crewByDefault: boolean;
+    scheduleApproval: boolean;
+    oneForm: boolean;
+    balanceOnTheDay: boolean;
+    reviewAfterDay: boolean;
+    readiness: "full" | "essentials";
+    foldRoutine: boolean;
+  };
+};
+
+/** What the light-journey switches add to a kind's profile. */
+export type JourneyExtras = {
+  /** The quote waits for the call. False when there is no call, or it is optional (a DJ's vibe call). */
+  callRequired: boolean;
+  /** Sign and pay the deposit in one link. */
+  oneLinkBooking: boolean;
+  /** The client approves the day's schedule. */
+  scheduleApproval: boolean;
+  /** One planning form, and the day's plan drawn from it. */
+  oneForm: boolean;
+  /** The balance is collected on the day. */
+  balanceOnTheDay: boolean;
+  /** Review asks follow the day, not a delivery. */
+  reviewAfterDay: boolean;
+  /** Which readiness checks the job carries. */
+  readiness: "full" | "essentials";
+  /** The first reply, the day-before note and the kit fold into the steps beside them. */
+  foldRoutine: boolean;
+};
+
+export type JobJourney = JourneyProfile & JourneyExtras;
+
+/** The parts of a kind's profile the trade lightens. */
+type JourneyCore = Pick<JourneyProfile, "consultation" | "agreement" | "payment" | "runOfShow" | "crew" | "coi">;
+
+/**
+ * One profile for a job: what its kind needs, lightened by its studio's trade.
+ *
+ * Every gate used to AND the two itself ("a family session has no call", "a
+ * makeup artist has no call"), and every gate written later had to remember
+ * to. Now the journey, the portal, the checks and the server read this
+ * (simpler vendor journeys, 2026-10-09). Pass `tradeProfile(trade)`; a job's
+ * own facts switch a default back on — a venue that asked for insurance.
+ */
+export function journeyFor<P extends JourneyCore>(
+  profile: P,
+  trade: TradeJourneyShape,
+  job: { insuranceRequired?: unknown } = {},
+): P & JourneyExtras {
+  const light = trade.journey;
+  const consultation = profile.consultation && trade.consultation;
+  return {
+    ...profile,
+    consultation,
+    callRequired: consultation && light.callRequired,
+    coi: profile.coi && (light.insuranceByDefault || job.insuranceRequired === "required"),
+    crew: profile.crew && light.crewByDefault,
+    oneLinkBooking: profile.agreement && light.oneLinkBooking,
+    scheduleApproval: profile.runOfShow && light.scheduleApproval,
+    oneForm: light.oneForm,
+    balanceOnTheDay: profile.payment === "deposit_and_balance" && light.balanceOnTheDay,
+    reviewAfterDay: light.reviewAfterDay,
+    readiness: light.readiness,
+    foldRoutine: light.foldRoutine,
+  };
+}
+
 /** What booking this job needs — the booking gate's `needs` (gate-requirements.ts). */
 export function projectGateNeeds(project: unknown): {
   agreement: boolean;

@@ -146,6 +146,8 @@ export type TradeVocabulary = {
   includedLabel: string;
   /** What the crew does at an event, as a verb: "shoot", "play", "work" ("the kind of event they {verb}"). */
   verb: string;
+  /** The day itself on the journey: a photographer's "Event day", a DJ's "The night", a makeup artist's "The morning". */
+  dayName: string;
 };
 
 const VOCAB: Record<Trade, TradeVocabulary> = {
@@ -177,6 +179,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     hoursLabel: "Coverage hours",
     includedLabel: "Deliverables",
     verb: "shoot",
+    dayName: "Event day",
   },
   dj: {
     provider: "DJ",
@@ -214,6 +217,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     hoursLabel: "Hours of music",
     includedLabel: "What's included",
     verb: "play",
+    dayName: "The night",
   },
   makeup: {
     provider: "makeup artist",
@@ -261,6 +265,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     hoursLabel: "Hours on site",
     includedLabel: "What's included",
     verb: "work",
+    dayName: "The morning",
   },
   hair: {
     provider: "hair stylist",
@@ -308,6 +313,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     hoursLabel: "Hours on site",
     includedLabel: "What's included",
     verb: "work",
+    dayName: "The morning",
   },
 };
 
@@ -317,6 +323,57 @@ export function tradeVocab(trade: unknown): TradeVocabulary {
 }
 
 // ── What applies ─────────────────────────────────────────────────────────
+
+export type TradeJourney = {
+  /** The quote waits for the sales call. A DJ's vibe call is offered, never required. */
+  callRequired: boolean;
+  /** Sign the agreement and pay the deposit in one link (the combined agreement). */
+  oneLinkBooking: boolean;
+  /** Insurance to the venue on every job; otherwise only when the venue asks. */
+  insuranceByDefault: boolean;
+  /** A crew step even when the studio covers the job alone. */
+  crewByDefault: boolean;
+  /** The client approves the day's schedule; otherwise it is published for them to read. */
+  scheduleApproval: boolean;
+  /** One planning form (the party list, the music planner), and the day's plan drawn from it. */
+  oneForm: boolean;
+  /** The balance is collected on the day, not invoiced before it. */
+  balanceOnTheDay: boolean;
+  /** The review is asked after the day itself: nothing is delivered first. */
+  reviewAfterDay: boolean;
+  /** Readiness checks: the photographer's twelve, or the four a vendor needs. */
+  readiness: "full" | "essentials";
+  /** Routine steps (the first reply, the day-before note, the kit) fold into the steps beside them. */
+  foldRoutine: boolean;
+};
+
+/** A photographer's journey, as it has always been. */
+const FULL_JOURNEY: TradeJourney = {
+  callRequired: true,
+  oneLinkBooking: false,
+  insuranceByDefault: true,
+  crewByDefault: true,
+  scheduleApproval: true,
+  oneForm: false,
+  balanceOnTheDay: false,
+  reviewAfterDay: false,
+  readiness: "full",
+  foldRoutine: false,
+};
+
+/** A vendor's: book in one link, one form, nothing to approve, the checks that matter. */
+const LIGHT_JOURNEY: TradeJourney = {
+  callRequired: false,
+  oneLinkBooking: true,
+  insuranceByDefault: false,
+  crewByDefault: false,
+  scheduleApproval: false,
+  oneForm: true,
+  balanceOnTheDay: false,
+  reviewAfterDay: true,
+  readiness: "essentials",
+  foldRoutine: true,
+};
 
 export type TradeProfile = {
   trade: Trade;
@@ -367,6 +424,15 @@ export type TradeProfile = {
    * ahead, due the morning of.
    */
   balanceDueDaysBefore: number;
+  /**
+   * How light this trade's journey is. Conor, 2026-10-09: "the vendor journey
+   * is less complicated than the photographer journey and should be easier
+   * and less burdensome" — and it had been built from the photographer's, 14
+   * steps to 15. Each flag here turns a photographer default off for the
+   * trade; nothing is removed, and a job that needs one turns it back on
+   * (job-kinds.ts `journeyFor` reads them with the kind of job).
+   */
+  journey: TradeJourney;
   /** The roles a package's coverage is staffed with. */
   coverageRoles: readonly string[];
   /** The subscription plans this trade can buy (config/saas-plans.ts). */
@@ -387,6 +453,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     musicPlanner: false,
     planning: null,
     balanceDueDaysBefore: 14,
+    journey: FULL_JOURNEY,
     coverageRoles: ["photographer", "videographer"],
     plans: ["studio", "multi_brand"],
   },
@@ -403,6 +470,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     musicPlanner: true,
     planning: { formAtBooking: true, lockDaysBefore: 10 },
     balanceDueDaysBefore: 14,
+    journey: LIGHT_JOURNEY,
     coverageRoles: ["dj"],
     plans: ["vendor"],
   },
@@ -419,6 +487,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     musicPlanner: false,
     planning: { formAtBooking: true, lockDaysBefore: 30 },
     balanceDueDaysBefore: 0,
+    journey: { ...LIGHT_JOURNEY, balanceOnTheDay: true },
     coverageRoles: ["makeup_artist"],
     plans: ["vendor"],
   },
@@ -435,6 +504,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     musicPlanner: false,
     planning: { formAtBooking: true, lockDaysBefore: 30 },
     balanceDueDaysBefore: 0,
+    journey: { ...LIGHT_JOURNEY, balanceOnTheDay: true },
     coverageRoles: ["hair_stylist"],
     plans: ["vendor"],
   },

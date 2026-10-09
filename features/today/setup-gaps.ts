@@ -44,14 +44,33 @@ export const SETUP_ORDER: ReadonlyArray<SetupGapKey> = [
 ];
 
 /**
+ * A vendor's setup: four questions (simpler vendor journeys, 2026-10-09).
+ *
+ * A makeup artist answered the same seven a photographer does. Her planning
+ * forms come preloaded (the party list), so there is nothing to ask; her
+ * insurance is set when a venue asks, from the job or Settings; and what she
+ * does is known from signup — the kinds of job default from her trade and
+ * stay changeable in Settings. What is left is what she charges, when
+ * clients can book her trial or call, how inquiries reach her, and her
+ * agreement.
+ */
+const LIGHT_SETUP_ORDER: ReadonlyArray<SetupGapKey> = ["packages", "availability", "inquiries", "agreement"];
+
+/** Setup's questions for this studio's trade, in the order they're asked. */
+export function setupOrderFor(trade: unknown): ReadonlyArray<SetupGapKey> {
+  return tradeProfile(trade).journey.readiness === "essentials" ? LIGHT_SETUP_ORDER : SETUP_ORDER;
+}
+
+/**
  * How many questions setup asks, in words, for copy that says so: "Seven
  * questions, most answered right here." The count was stated three ways at
  * once (setup 7, Today "of 5", the journey page "six"), so the screens read it
  * from here, and tests/setup-count-copy.test.ts holds the rest to it.
  */
 const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-export function setupQuestionCount(): string {
-  return COUNT_WORDS[SETUP_ORDER.length] ?? String(SETUP_ORDER.length);
+export function setupQuestionCount(trade?: unknown): string {
+  const order = setupOrderFor(trade);
+  return COUNT_WORDS[order.length] ?? String(order.length);
 }
 
 export const SETUP_STEP_NAME: Record<SetupGapKey, string> = {

@@ -76,19 +76,24 @@ test("a DJ's job goes from the day to the review: no gallery, no album", () => {
   const dj = projectJourney({ ...base, trade: "dj" });
   const djKeys = dj.steps.map((step) => step.key);
   assert.ok(!djKeys.includes("delivery"), "nothing to deliver");
-  // A DJ's couple gets a DJ's checklist the day before (song changes, load-in), a makeup client none yet.
-  assert.ok(djKeys.includes("day_before"));
+  // The DJ's day-before note is part of the night now (simpler vendor
+  // journeys): no step of its own, for a DJ or a makeup artist.
+  assert.ok(!djKeys.includes("day_before"));
   assert.ok(!projectJourney({ ...base, trade: "makeup" }).steps.some((step) => step.key === "day_before"));
   const review = dj.steps.find((step) => step.key === "album_review");
   assert.equal(review?.title, "Review");
   assert.equal(dj.current?.key, "album_review", "the review is next, straight after the day");
   assert.equal(dj.steps.find((step) => step.key === "crew")?.title, "DJ assigned");
-  assert.equal(dj.steps.find((step) => step.key === "run_of_show")?.title, "Run of show & MC script");
+  // The run of show is drafted from the planner: one step, named for the form.
+  assert.ok(!djKeys.includes("run_of_show"));
+  assert.equal(dj.steps.find((step) => step.key === "schedule_form")?.title, "Music & moments planner");
+  assert.equal(dj.steps.find((step) => step.key === "event_day")?.title, "The night");
   assert.equal(dj.steps.find((step) => step.key === "event_day")?.detail, "Played");
 
   const makeup = projectJourney({ ...base, trade: "makeup" });
   assert.equal(makeup.steps.find((step) => step.key === "crew")?.title, "Artists confirmed");
-  assert.equal(makeup.steps.find((step) => step.key === "run_of_show")?.title, "Getting-ready schedule");
+  assert.equal(makeup.steps.find((step) => step.key === "schedule_form")?.title, "Party list");
+  assert.ok(!makeup.steps.some((step) => step.key === "run_of_show"));
 });
 
 test("a delivery already recorded stays on any trade's journey", () => {

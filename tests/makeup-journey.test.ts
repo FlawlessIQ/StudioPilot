@@ -90,7 +90,10 @@ test("the quote can be made from an inquiry, in the composer and on the server",
   assert.equal(proposalStageVerdict(project), "too_early");
   // The server steps the job through CONSULTATION as it creates the quote.
   const server = read("functions/src/booking/proposals.ts");
-  assert.match(server, /projectProfile\(project\.data\(\)\)\.consultation &&\s*tradeProfile\(\(await transaction\.get\(db\.doc\(`tenants\/\$\{command\.tenantId\}`\)\)\)\.get\("trade"\)\)\.consultation/);
+  // One profile decides (job-kinds.ts journeyFor): no call, or an optional one.
+  assert.match(server, /!journeyFor\(\s*projectProfile\(project\.data\(\)\),\s*tradeProfile\(\(await transaction\.get\(db\.doc\(`tenants\/\$\{command\.tenantId\}`\)\)\)\.get\("trade"\)\),\s*\)\.callRequired;/);
+  // A DJ's vibe call is optional: the quote can go first too.
+  assert.equal(canCreateProposalForProject("LEAD", project, "dj"), true);
   for (const path of ["components/proposals/studio-proposal-workspace.tsx", "components/booking/project-booking-workspace.tsx", "components/booking/booking-autopilot-workspace.tsx"])
     assert.match(read(path), /workspace\.tenantTrade\)/, path);
   // No "invite them to book a call" card, and no "Confirm we've spoken".
@@ -146,19 +149,21 @@ test("the crew's reminder carries the kit checklist and the getting-ready schedu
   assert.match(photo.text, /The run of show, who to call/);
 });
 
-test("the kit checklist is the move the day before; the day reads All done", () => {
+test("the kit is what the morning says the day before; the day reads All done", () => {
   const ready = { ...base, state: "READY", hasConsultation: true, proposalStatus: "accepted", contractStatus: "completed", retainerInvoiceStatus: "paid", finalInvoiceStatus: "paid", questionnaireStatus: "submitted", questionnaireHasAnswers: true, scheduleStatus: "approved", scheduleHasUsableItems: true, insuranceRequired: "not_required" };
+  // Not a step of its own any more (simpler vendor journeys): the day before,
+  // "The morning" says what to pack; the crew's reminder carries the list.
   const dayBefore = projectJourney({ ...ready, trade: "makeup", today: "2026-10-19" });
-  const kit = dayBefore.steps.find((step) => step.key === "kit");
-  assert.equal(kit?.title, "Kit checklist");
-  assert.equal(kit?.status, "current");
-  assert.equal(kit?.action ?? null, null);
-  assert.equal(projectJourney({ ...ready, trade: "makeup", today: "2026-10-10" }).steps.find((step) => step.key === "kit")?.status, "upcoming");
+  assert.ok(!dayBefore.steps.some((step) => step.key === ("kit" as never)));
+  const morning = dayBefore.steps.find((step) => step.key === "event_day");
+  assert.equal(morning?.title, "The morning");
+  assert.match(String(morning?.detail), /^Pack .*— and check the address, room number and parking$/);
+  assert.equal(projectJourney({ ...ready, trade: "makeup", today: "2026-10-10" }).steps.find((step) => step.key === "event_day")?.detail, ready.eventDate);
   const after = projectJourney({ ...ready, state: "EVENT_COMPLETE", trade: "makeup", today: "2026-10-21" });
-  assert.equal(after.steps.find((step) => step.key === "kit")?.status, "complete");
   assert.equal(after.steps.find((step) => step.key === "event_day")?.detail, "All done");
+  // A photographer's and a DJ's day say no such thing.
   for (const trade of [undefined, "dj"] as const)
-    assert.ok(!projectJourney({ ...ready, trade, today: "2026-10-19" }).steps.some((step) => step.key === "kit"), String(trade));
+    assert.doesNotMatch(String(projectJourney({ ...ready, trade, today: "2026-10-19" }).steps.find((step) => step.key === "event_day")?.detail), /^Pack /, String(trade));
 });
 
 test("the makeup Party list asks about the bride's skin and lashes; the hair one doesn't", () => {

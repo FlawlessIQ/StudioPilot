@@ -50,7 +50,6 @@ const phaseByStep: Record<JourneyStepKey, JourneyPhase> = {
   // the week of the wedding, which is when a studio chases it.
   final_balance: "the_day",
   day_before: "the_day",
-  kit: "the_day",
   event_day: "the_day",
 
   delivery: "deliver",
