@@ -136,6 +136,13 @@ const schema = z
 type FormInput = z.input<typeof schema>;
 type FormValues = z.output<typeof schema>;
 
+/** A vendor trade's starting hours and what's included, in place of a photographer's. */
+const VENDOR_DEFAULTS: Partial<Record<string, { hours: number; included: string }>> = {
+  dj: { hours: 5, included: "Reception sound, Dance floor lighting, MC" },
+  makeup: { hours: 2, included: "Bridal makeup, Lashes, Touch-up kit" },
+  hair: { hours: 2, included: "Bridal hair, Veil placement" },
+};
+
 export function CreatePackageForm({
   returnTo = null,
 }: {
@@ -158,15 +165,19 @@ export function CreatePackageForm({
     defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: roles[0] === "dj" ? 5 : 8, photographers: roles[0] === "dj" ? 1 : 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: roles[0] === "dj" ? "Reception sound, Dance floor lighting, MC" : "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
   // The workspace (and so the trade) loads after the form's defaults are
-  // taken: a DJ's start as one DJ, five hours and what a DJ includes, not a
+  // taken: a DJ's start as one DJ, five hours and what a DJ includes, a makeup
+  // artist's or hair stylist's as one artist on site for two hours, not a
   // photographer's two photographers and a gallery. Only while untouched.
-  const djStudio = roles[0] === "dj";
+  const tradeId = tradeOf(trade);
+  const djStudio = tradeId === "dj";
+  const photoStudio = tradeId === "photographer";
+  const ownDefaults = VENDOR_DEFAULTS[tradeId];
   useEffect(() => {
-    if (!djStudio) return;
-    if (watch("deliverables") === "Online gallery, High-resolution downloads") setValue("deliverables", "Reception sound, Dance floor lighting, MC");
-    if (Number(watch("coverageHours")) === 8) setValue("coverageHours", 5);
+    if (!ownDefaults) return;
+    if (watch("deliverables") === "Online gallery, High-resolution downloads") setValue("deliverables", ownDefaults.included);
+    if (Number(watch("coverageHours")) === 8) setValue("coverageHours", ownDefaults.hours);
     if (Number(watch("photographers")) === 2) setValue("photographers", 1);
-  }, [djStudio, setValue, watch]);
+  }, [ownDefaults, setValue, watch]);
   const retainerMode = watch("retainerMode");
   const kind = watch("eventType");
   /** An example's shape, never its price: the studio sets that (example-packages.ts). */
@@ -356,7 +367,9 @@ export function CreatePackageForm({
         </>
         ) : null}
         <label>
-          Coverage hours <span className="required-mark">Required</span>
+          {/* "Coverage" is a photographer's word: a DJ plays, an artist is on site. */}
+          {photoStudio ? "Coverage hours" : djStudio ? "Hours of music" : "Hours on site"}{" "}
+          <span className="required-mark">Required</span>
           <input {...register("coverageHours")} min="0.5" step="0.5" type="number" />
           <small>{errors.coverageHours?.message}</small>
         </label>
@@ -389,7 +402,7 @@ export function CreatePackageForm({
           <small>{errors.travelArea?.message}</small>
         </label>
         <label className="form-span">
-          {djStudio ? "What's included (comma separated)" : "Deliverables (comma separated)"}{" "}
+          {photoStudio ? "Deliverables (comma separated)" : "What's included (comma separated)"}{" "}
           <span className="required-mark">Required</span>
           <input {...register("deliverables")} />
           <small>{errors.deliverables?.message}</small>

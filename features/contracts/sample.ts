@@ -14,6 +14,48 @@ export function sampleContractSources(studioName: string, today: string, trade?:
     email: "info@example.com",
     website: "www.example.com",
   };
+  // A DJ's own preview: the reception and the ceremony sound, the room's
+  // load-in and power, and the balance two weeks out.
+  if (trade === "dj") {
+    return {
+      client: { names: "Maya Brooks & Sam Patel", email: "maya@example.com" },
+      event: { name: "Maya & Sam's wedding", type: "Wedding", date: "2027-06-12", venue: "Hollow Oak Inn" },
+      packages: [{ name: "Ceremony and reception", totalCents: 240_000 }],
+      package: {
+        name: "Ceremony and reception",
+        coverage: "1 DJ, 6 hours",
+        deliverables: ["Ceremony sound and microphones", "Cocktail hour music", "Reception sound and dance floor lighting", "MC", "Online music planner"],
+      },
+      pricing: { currency: "USD", totalCents: 240_000, retainerCents: 60_000 },
+      paymentSchedule: [
+        { label: "Retainer", amountCents: 60_000, dueDate: null },
+        { label: "Final balance", amountCents: 180_000, dueDate: "2027-05-29" },
+      ],
+      formAnswers: [
+        { question: "Ceremony start", answer: "4:00 PM" },
+        { question: "Load-in time", answer: "2:30 PM" },
+      ],
+      eventDetails: eventDetailsFrom({
+        eventType: "Wedding",
+        eventKind: "wedding",
+        date: "June 12, 2027",
+        venue: "Hollow Oak Inn",
+        coverage: "1 DJ, 6 hours",
+        answers: [
+          { question: "Ceremony location", answer: "The Orchard Lawn, Hollow Oak Inn" },
+          { question: "Reception location", answer: "The Barn, Hollow Oak Inn" },
+          { question: "Ceremony start", answer: "4:00 PM" },
+          { question: "Reception times", answer: "5:30 PM – 11:00 PM" },
+          { question: "Load-in and power", answer: "Side door by the kitchen; two 20-amp outlets behind the stage" },
+          { question: "Expected guest count", answer: "140" },
+        ],
+        lockDaysBefore: 10,
+        trade: "dj",
+      }),
+      studio,
+      contractDate: today,
+    };
+  }
   // A makeup artist's or hair stylist's own preview: a bride and her party,
   // the morning's address and ready-by time, the balance paid on the day.
   if (trade === "makeup" || trade === "hair") {

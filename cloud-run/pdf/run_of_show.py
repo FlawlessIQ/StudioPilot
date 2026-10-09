@@ -52,12 +52,20 @@ BOX = HexColor("#FAF6EE")
 BOX_EDGE = HexColor("#E4D4B4")
 RED = "#B03A2E"
 
-# P1 green, V1 sand, P2 blue, V2 rose — then round again.
+# P1 green, V1 sand, P2 blue, V2 rose — then round again. A DJ's, makeup
+# artist's and hair stylist's crew (features/schedules/crew-labels.ts) have
+# their own pairs, so D1/D2, M1/M2 and H1/H2 never print in the grey fallback.
 CHIP_COLORS = {
     ("P", 1): ("#E4EFE2", "#3E6A3B"),
     ("V", 1): ("#F4EAD6", "#87672A"),
     ("P", 2): ("#E1EAF4", "#3A5878"),
     ("V", 2): ("#F3E2EA", "#7A3B5A"),
+    ("D", 1): ("#E6E6F6", "#454A9A"),
+    ("D", 2): ("#DFF0EE", "#2F6B66"),
+    ("M", 1): ("#F7E3EC", "#9A3560"),
+    ("M", 2): ("#F8E8DC", "#8F4F24"),
+    ("H", 1): ("#EFE4F3", "#6A3F7E"),
+    ("H", 2): ("#EBEED9", "#5B6524"),
 }
 
 

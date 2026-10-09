@@ -1198,7 +1198,10 @@ export function projectJourney(input: JourneyInput): {
         : "Sent — saves 20 minutes on site"
       : tradeWords.dayBefore
         ? "Last song changes, venue contact, load-in"
-        : "Dress, shoes, flowers, rings, invitations ready",
+        : // A family session or a team day has no dress or rings (job-kinds.ts).
+          input.profile && input.profile.kind !== "wedding"
+          ? `${words.dayBeforeChecklist[0]!.charAt(0).toUpperCase()}${words.dayBeforeChecklist[0]!.slice(1)}`
+          : "Dress, shoes, flowers, rings, invitations ready",
     status: dayBeforeDone
       ? "complete"
       : eventBehindThem

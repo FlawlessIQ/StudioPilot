@@ -1,4 +1,5 @@
 import { tradeVocab } from "../trades/trades.js";
+import { isJobKind, vocab } from "../job-kinds/job-kinds.js";
 // Mirrors features/messaging/schema.ts, features/messaging/lifecycle.ts, and
 // features/messaging/render.ts. functions/ is a separate package (own
 // tsconfig, no "@/features" path), so the deterministic lifecycle core is
@@ -258,6 +259,33 @@ export function renderLifecycleDraft(
       recipientEmail: facts.recipientEmail,
       recipientName: facts.recipientName,
       highlights: ["Day-before checklist", "Last song changes and load-in"],
+      missingInformation: missing,
+    };
+  }
+
+  // A family session, a team day or a corporate event has no dress or rings
+  // to get ready: the kind's own list (job-kinds.ts `dayBeforeChecklist`).
+  // A wedding, or a job from before kinds, keeps the wedding's below.
+  const kind = isJobKind(facts.eventKind) && facts.eventKind !== "wedding" ? facts.eventKind : null;
+  if (kind) {
+    return {
+      subject: `See you tomorrow! A quick checklist`,
+      body: [
+        greeting(facts),
+        "",
+        `We're looking forward to ${facts.projectName} tomorrow${facts.venueName ? ` at ${facts.venueName}` : ""}.`,
+        "",
+        "One small ask so we can start on time — please have these ready when we arrive:",
+        "",
+        ...vocab(kind).dayBeforeChecklist.map((item) => `• ${item.charAt(0).toUpperCase()}${item.slice(1)}`),
+        "",
+        "See you tomorrow!",
+        "",
+        `— ${facts.studioName}`,
+      ].join("\n"),
+      recipientEmail: facts.recipientEmail,
+      recipientName: facts.recipientName,
+      highlights: ["Day-before checklist", `For ${vocab(kind).yourEvent}`],
       missingInformation: missing,
     };
   }
