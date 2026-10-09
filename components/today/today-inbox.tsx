@@ -31,7 +31,7 @@ import { AiQueueCard, AutomationApprovalCard } from "@/components/ai/ai-approval
 import { countdownPhrase } from "@/lib/format/event-date";
 import { formatCents } from "@/lib/format/money";
 import { AppShell } from "@/components/layout/app-shell";
-import { useTodayInbox } from "@/components/today/use-today-inbox";
+import { useTodayInbox, type TodayCall } from "@/components/today/use-today-inbox";
 import { CueHandoff } from "@/components/today/cue-handoff";
 import { LeadCaptureStart } from "@/components/intake/lead-capture-setup";
 import { JourneyTodayCard } from "@/components/help/journey-today-card";
@@ -124,7 +124,7 @@ const BAND_LABEL: Record<TodayBand, string> = {
  */
 export function TodayInbox() {
   const workspace = useWorkspace();
-  const { inbox, metrics, booked, handled, handoff, journeys, loading, setup, aiActions, automationApprovals } =
+  const { inbox, metrics, booked, handled, handoff, journeys, loading, setup, aiActions, automationApprovals, calls } =
     useTodayInbox();
   // A workflow step waiting for approval, decided here rather than on a
   // separate review page.
@@ -740,6 +740,8 @@ export function TodayInbox() {
           inMotion={inbox.inMotion}
           loading={loading}
           upcoming={inbox.upcoming}
+          calls={calls}
+          trade={workspace.tenantTrade}
         />
       </div>
 
@@ -881,6 +883,12 @@ export function TodayInbox() {
   );
 }
 
+function callPurposeWord(purpose: TodayCall["purpose"], trade: unknown): string {
+  if (purpose === "final_details") return "final details";
+  if (purpose === "trial") return "trial";
+  return tradeVocab(trade).consultation.toLowerCase();
+}
+
 /** What is in flight and what is coming — context, not work. */
 function TodayRail({
   headlinedProjectId,
@@ -888,8 +896,12 @@ function TodayRail({
   upcoming,
   loading,
   bands,
+  calls,
+  trade,
 }: {
   inMotion: number;
+  calls: TodayCall[];
+  trade: unknown;
   upcoming: Array<{ projectId: string; name: string; eventDate: string; inDays: number }>;
   loading: boolean;
   bands: Array<{ band: TodayBand; count: number }>;
@@ -923,7 +935,27 @@ function TodayRail({
           </ul>
         </section>
       ) : null}
-      {rest.length || !headlinedProjectId ? (
+      {calls.length ? (
+        <section className="today-rail-card">
+          <p className="eyebrow">Calls</p>
+          <ul className="today-upcoming">
+            {calls.map((call) => (
+              <li key={call.id}>
+                <Link href={`/studio/projects/${call.projectId}`}>
+                  <strong>{call.name}</strong>
+                  <small>
+                    <CalendarDays size={11} />
+                    {call.when}
+                    {" · "}
+                    {callPurposeWord(call.purpose, trade)}
+                  </small>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+            {rest.length || !headlinedProjectId ? (
       <section className="today-rail-card">
         <p className="eyebrow">{headlinedProjectId ? "After that" : "Coming up"}</p>
         {rest.length === 0 ? (

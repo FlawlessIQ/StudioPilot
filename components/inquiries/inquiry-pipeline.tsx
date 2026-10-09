@@ -12,6 +12,8 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { inquiryStageWord } from "@/components/studio/trade-words";
 import { waitingDays } from "@/features/ordering/attention";
 import { formatEventDate } from "@/lib/format/event-date";
+import { callWhen, nextSalesCall } from "@/features/consultations/upcoming";
+import { tradeVocab } from "@/features/trades/trades";
 
 /**
  * Inquiries — everyone who hasn't booked, and whose move it is.
@@ -41,6 +43,8 @@ export function InquiryPipelineRows({ view, q }: { view: string; q: string }) {
   const projects = useTenantDocuments("projects");
   const leads = useTenantDocuments("leads");
   const conversations = useTenantDocuments("conversations");
+  // Only to say when a booked call is; a failed read never holds up the list.
+  const consultations = useTenantDocuments("consultations");
   const loading = projects.loading || leads.loading;
   const error = projects.error ?? leads.error;
   if (loading) {
@@ -61,6 +65,14 @@ export function InquiryPipelineRows({ view, q }: { view: string; q: string }) {
     q,
   );
   const rows = search.rows;
+  const now = new Date();
+  // A booked call is the next thing on an inquiry, and the row said only
+  // "Consult" (GR, 2026-10-09).
+  const bookedCall = (row: InquiryRow): string | null => {
+    if (row.kind !== "job" || row.stage === "closed") return null;
+    const call = nextSalesCall(consultations.records ?? [], row.id, now);
+    return call ? `${tradeVocab(trade).consultation} ${callWhen(call)}` : null;
+  };
   const searching = inquirySearchEmptyState(view, q, search.elsewhere);
   if (rows.length === 0 && searching) {
     return <LiveRecordsState kind="empty" {...searching} />;
@@ -84,7 +96,7 @@ export function InquiryPipelineRows({ view, q }: { view: string; q: string }) {
         <article key={`${row.kind}-${row.id}`}>
           <span className="crm-primary">
             <strong>{row.name}</strong>
-            <small>{whoseMove(row)}</small>
+            <small>{bookedCall(row) ?? whoseMove(row)}</small>
           </span>
           <span>
             <strong>{row.eventDate ? formatEventDate(row.eventDate) : "Date to confirm"}</strong>

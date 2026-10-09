@@ -8,6 +8,8 @@ import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deli
 import { jobExpectedDeliverables } from "@/features/post-event/job-deliverables";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
+import { callWhen, upcomingCalls } from "@/features/consultations/upcoming";
+import { consultationPurpose } from "@/features/consultations/purpose";
 import {
   crewDemand,
   jobCoverage,
@@ -79,6 +81,15 @@ function useKeptWhileReloading(
  * for it — which is what makes running the journey engine for *every* job on
  * the home page affordable.
  */
+export type TodayCall = {
+  id: string;
+  projectId: string;
+  name: string;
+  /** "Sat, Oct 10 at 12:00 PM" on the call's clock. */
+  when: string;
+  purpose: ReturnType<typeof consultationPurpose>;
+};
+
 export function useTodayInbox(): {
   inbox: TodayInbox;
   metrics: HomeMetrics;
@@ -113,6 +124,12 @@ export function useTodayInbox(): {
   aiActions: TodayRecord[];
   /** Raw workflow approvals, for deciding one in a sheet on Today. */
   automationApprovals: TodayRecord[];
+  /**
+   * Calls booked in the next two weeks, soonest first. A couple booking from
+   * their inquiry page moves the job past LEAD, which takes its card off
+   * Today, and the call was then only on the calendar (GR, 2026-10-09).
+   */
+  calls: TodayCall[];
   loading: boolean;
 } {
   const workspace = useWorkspace();
@@ -386,7 +403,19 @@ export function useTodayInbox(): {
   });
 
   const now = new Date();
+  const projectNames = new Map((projects.records ?? []).map((project) => [project.id, text(project.name)]));
+  const calls: TodayCall[] = upcomingCalls(consultations.records ?? [], now)
+    .filter((record) => Date.parse(text(record.startsAt)) - now.valueOf() <= 14 * 86_400_000)
+    .filter((record) => projectNames.has(text(record.projectId)))
+    .map((record) => ({
+      id: record.id,
+      projectId: text(record.projectId),
+      name: projectNames.get(text(record.projectId)) || "A client",
+      when: callWhen(record),
+      purpose: consultationPurpose(record),
+    }));
   return {
+    calls,
     inbox,
     journeys,
     // The raw AI action records, so Today can open a specific prepared action's

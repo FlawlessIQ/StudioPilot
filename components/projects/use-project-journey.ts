@@ -33,6 +33,7 @@ import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { finalHeadcountState } from "@/features/schedules/final-headcount";
 import { todayLocalIso } from "@/lib/format/event-date";
+import { callLabel, nextSalesCall } from "@/features/consultations/upcoming";
 import { depositByStudio } from "@/features/booking/deposit-by-studio";
 
 const text = (value: unknown): string =>
@@ -230,6 +231,10 @@ export function useProjectJourney({
       : null,
     // The sales call; the final details call a month out is its own step.
     hasConsultation: forProject(consultations.records).some((record) => isSalesConsultation(record) && isLiveConsultation(record)),
+    consultationAt: (() => {
+      const call = nextSalesCall(forProject(consultations.records), projectId, new Date());
+      return call ? callLabel(call) : null;
+    })(),
     proposalStatus:
       text(
         forProject(proposals.records).sort((left, right) =>

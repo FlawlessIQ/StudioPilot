@@ -226,6 +226,12 @@ export type JourneyInput = {
    */
   lead: { id: string; status: string; replied?: boolean } | null;
   hasConsultation: boolean;
+  /**
+   * When the booked call is, if it is still ahead ("Sat, Oct 10 at 12:00 PM,
+   * in person"; features/consultations/upcoming.ts). "Meeting booked" alone
+   * left the studio hunting the calendar for it.
+   */
+  consultationAt?: string | null;
   proposalStatus: string | null;
   /**
    * The proposal went out inside a booking agreement (H2) that is waiting for
@@ -775,7 +781,9 @@ export function projectJourney(input: JourneyInput): {
     title: tradeWords.consultation,
     // Honesty: a stage advanced by hand is not a booked meeting. Say what
     // actually happened instead of claiming a record that doesn't exist.
-    detail: input.hasConsultation
+    detail: input.consultationAt
+      ? `Booked for ${input.consultationAt}`
+      : input.hasConsultation
       ? "Meeting booked"
       : consulted
         ? "Marked done — no meeting was recorded"
