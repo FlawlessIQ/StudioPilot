@@ -3,7 +3,8 @@ import { PublicConsultationScheduler } from "@/components/booking/public-consult
 
 export const metadata: Metadata = {
   // Also the final details call a month out (features/consultations/purpose.ts).
-  title: "Choose a time to talk",
+  // Neutral: the same page books a makeup trial and a final details call.
+  title: "Choose a time",
   description: "Choose a time for a call with your photography studio.",
 };
 

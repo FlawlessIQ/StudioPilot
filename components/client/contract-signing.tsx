@@ -15,6 +15,7 @@ import {
   type SigningRefusal,
 } from "@/features/contracts/signing-policy";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
   signClientCombinedAgreement,
   signClientContract,
@@ -79,6 +80,11 @@ export function ClientContractSigning({
   studioColor?: string | null;
 }) {
   const workspace = useWorkspace();
+  // A makeup client signs for what's included and is quoted; a couple's
+  // photographer still covers the day and proposes.
+  const photo = tradeProfile(workspace.tenantTrade).family === "photo";
+  const partTwo = photo ? "your coverage and price" : "what’s included and the price";
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const parsed = contractDocumentSchema.safeParse(contract.document);
   const status = String(contract.status ?? "");
   const signatures = signaturesOf(contract);
@@ -348,7 +354,7 @@ export function ClientContractSigning({
               <div className="kit-stack" aria-label="Sign this agreement">
                 <p className="kit-body">
                   {sections
-                    ? `You’re signing both parts of the booking agreement with ${studioName ?? "your studio"} exactly as shown — the terms, then your coverage and price. This also accepts the proposal.`
+                    ? `You’re signing both parts of the booking agreement with ${studioName ?? "your studio"} exactly as shown — the terms, then ${partTwo}. This also accepts the ${offer}.`
                     : `You’re signing the agreement with ${studioName ?? "your studio"} exactly as shown.`}
                 </p>
                 <BillingAddressStep billing={billing} />
@@ -395,7 +401,7 @@ export function ClientContractSigning({
                 {sections ? (
                   <label className="kit-field">
                     <span className="kit-field-label">
-                      Part 2 — your coverage and price. Type your full name to sign
+                      Part 2 — {partTwo}. Type your full name to sign
                     </span>
                     <input
                       autoComplete="name"

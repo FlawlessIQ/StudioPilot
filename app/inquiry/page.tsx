@@ -7,6 +7,7 @@ import { LeadIntakeForm } from "@/components/crm/lead-intake-form";
 import { resolveTenantBrand, type TenantBrand } from "@/features/branding/tenant-brand";
 import { normaliseInquiryFormConfig, type InquiryFormConfig } from "@/features/leads/inquiry-form-config";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { TRADE_LABELS, tradeOf, type Trade } from "@/features/trades/trades";
 import { adminFirestore } from "@/server/firebase/admin";
 
 type InquiryStudio = {
@@ -15,6 +16,8 @@ type InquiryStudio = {
   brand: TenantBrand;
   /** The studio's own form: its types, questions and colours (Settings → Inquiry capture). */
   form: InquiryFormConfig;
+  /** What the studio does (trades.ts): the page's tab names it. */
+  trade?: Trade;
 };
 
 /**
@@ -72,7 +75,8 @@ async function lookupStudio(slug: string): Promise<InquiryStudio | null> {
     return status === "trial" || status === "active";
   });
   if (!studio) return null;
-  const brand = resolveTenantBrand(studio.data(), "Photography studio");
+  const trade = tradeOf(studio.get("trade"));
+  const brand = resolveTenantBrand(studio.data(), trade === "photographer" ? "Photography studio" : TRADE_LABELS[trade]);
   /**
    * The studio's own form, read here so the first paint already asks the
    * right questions. Unreadable settings are the default form, never an
@@ -83,7 +87,7 @@ async function lookupStudio(slug: string): Promise<InquiryStudio | null> {
     .get()
     .catch(() => null);
   const form = normaliseInquiryFormConfig(settings?.get("inquiryForm"));
-  return { name: brand.brandName, slug, brand, form };
+  return { name: brand.brandName, slug, brand, form, trade };
 }
 
 export async function generateMetadata({
@@ -112,7 +116,8 @@ export async function generateMetadata({
   const description = `Tell ${tenant.name} about your day and check their availability. It takes about two minutes.`;
   const images = tenant.brand.logoUrl ? [{ url: tenant.brand.logoUrl, alt: tenant.name }] : [];
   return {
-    title: `Photography inquiry · ${tenant.name}`,
+    // A makeup artist's client reads "Makeup inquiry", not "Photography inquiry".
+    title: `${!tenant.trade || tenant.trade === "photographer" ? "Photography" : TRADE_LABELS[tenant.trade]} inquiry · ${tenant.name}`,
     description,
     openGraph: { type: "website", siteName: tenant.name, title, description, images },
     twitter: { card: "summary", title, description, images: images.map((image) => image.url) },

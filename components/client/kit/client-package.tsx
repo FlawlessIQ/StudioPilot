@@ -5,6 +5,7 @@ import { Check, LockKeyhole } from "lucide-react";
 import { Actions, Button, Card, KitRoot, List, Main, Note, PoweredBy, Row } from "@/components/kit/kit";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { couplePackageView, snapshotInclusions } from "@/features/packages/job-packages";
 import { salesTaxSentence } from "@/features/billing/sales-tax-pricing";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -180,7 +181,7 @@ export function ClientPackage() {
       <Main label="Choose your package">
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Your package</p>
-          <h1 className="kit-title">Choose your coverage</h1>
+          <h1 className="kit-title">{tradeProfile(workspace.tenantTrade).family === "photo" ? "Choose your coverage" : "Choose your package"}</h1>
           <p className="kit-body">Tap a package to choose it. Your price is fixed once you confirm.</p>
         </div>
         {error && !confirming ? (

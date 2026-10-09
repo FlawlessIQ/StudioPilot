@@ -33,6 +33,7 @@ import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
 import { isCataloguePackage } from "../packages/one-off.js";
 import { proposalPdfAdjustments, proposalPdfPaymentAmount, proposalPdfSalesTax } from "../proposals/pdf-adjustments.js";
+import { TRADE_LABELS, tradeProfile, tradeVocab } from "../trades/trades.js";
 
 /**
  * Fit a field to the PDF service's limit (cloud-run/pdf/main.py). The service
@@ -878,8 +879,12 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
           .filter(Boolean),
       ),
     );
+    // A DJ's, makeup artist's or hair stylist's own word: "MAKEUP QUOTE" (trades.ts).
+    const pdfTrade=tradeProfile(tenant.get("trade"));
     const documentKind=
-      coverageRoles.has("videographer")&&coverageRoles.has("photographer")
+      pdfTrade.family!=="photo"
+        ?`${TRADE_LABELS[pdfTrade.trade].toUpperCase()} ${tradeVocab(pdfTrade.trade).proposal.toUpperCase()}`
+      :coverageRoles.has("videographer")&&coverageRoles.has("photographer")
         ?"PHOTOGRAPHY & VIDEO PROPOSAL"
         :coverageRoles.has("videographer")
           ?"VIDEOGRAPHY PROPOSAL"
@@ -908,7 +913,7 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         // The studio's own mark, from the same place every branded email
         // takes it. Empty is fine: the renderer falls back to the wordmark.
         logo_url:string(record(tenant.get("emailBranding")).logoUrl)||string(tenant.get("logoUrl"))||"",
-        package_description:`${coverageWord} coverage and deliverables as selected.`,
+        package_description:pdfTrade.family!=="photo"?"Services and what's included, as selected.":`${coverageWord} coverage and deliverables as selected.`,
         introduction:clipForPdf(string(proposal.get("notes")),3000),
         terms_summary:clipForPdf(string(proposal.get("termsSummary")),3000),
         // The package lines, then the discount and tax that take their sum to
@@ -986,7 +991,7 @@ export async function runPdfJob(job:DocumentSnapshot){
   const now=new Date().toISOString();
   const documentId=`generated_${job.id}`;
   const generatedName=isProposal
-    ?`${String(input.entity.get("eventSnapshot")?.name??"project").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase()||"project"}-proposal-v${Number(input.entity.get("version")??1)}.pdf`
+    ?`${String(input.entity.get("eventSnapshot")?.name??"project").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase()||"project"}-${tradeVocab((await getFirestore().doc(`tenants/${tenantId}`).get()).get("trade")).proposal.toLowerCase()}-v${Number(input.entity.get("version")??1)}.pdf`
     // "replytest-couple-wedding-run-of-show-v1.pdf", not the job's id.
     :"fileName" in input&&typeof input.fileName==="string"&&input.fileName?input.fileName:`${job.id}.pdf`;
   const db=getFirestore();

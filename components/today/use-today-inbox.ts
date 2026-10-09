@@ -347,6 +347,7 @@ export function useTodayInbox(): {
   const outsideSteps = useOutsideSteps();
   const inbox = todayInbox({
     now: new Date().toISOString(),
+    tenantTrade: workspace.tenantTrade,
     projects: projects.records,
     leads: leads.records,
     conversations: conversations.records,

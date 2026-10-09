@@ -48,6 +48,7 @@ import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
 import type { OutsideStepReminder } from "@/features/outside-steps/registry";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
 import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
@@ -360,6 +361,11 @@ export type TodayInput = {
   invoiceReferences?: TodayRecord[] | null;
   actionReceipts?: TodayRecord[] | null;
   journeys?: TodayJourneyPosition[] | null;
+  /**
+   * The studio's trade (trades.ts): a makeup artist's or hair stylist's
+   * inquiry has no call, so once it is answered the quote is theirs to send.
+   */
+  tenantTrade?: unknown;
   /**
    * Studio setup that isn't done. Only the gaps that block real work reach
    * Today — an empty studio is new, not broken.
@@ -860,6 +866,45 @@ export function todayInbox(input: TodayInput): TodayInbox {
       receivedAt: arrivedAt(lead),
       repliedOutsideAt: text(lead.repliedOutsideAt) || null,
     });
+    /**
+     * Answered, on a job with no call — a makeup or hair inquiry (trades.ts),
+     * a family session or a team day (job-kinds.ts) — and nothing priced yet:
+     * the reply told them the price is coming, so the studio owes it. Without
+     * this Today read "Nothing needs you" while the job page said "Prepare
+     * quote" (UAT on prod, 2026-10-09).
+     */
+    if (
+      job &&
+      nextMove.owner === "couple" &&
+      lead.needsConfirmation !== true &&
+      !(projectProfile(job).consultation && tradeProfile(input.tenantTrade).consultation) &&
+      !rows(input.proposals).some((proposal) => text(proposal.projectId) === job.id && !proposal.archivedAt)
+    ) {
+      const staleReply = replyForLead.get(lead.id) ?? replyForJob.get(job.id);
+      if (staleReply) staleInquiryDrafts.add(staleReply.id);
+      const offer = tradeVocab(input.tenantTrade).proposal.toLowerCase();
+      const quoteName =
+        text(lead.displayName) || `${text(lead.firstName)} ${text(lead.lastName)}`.trim() || text(job.name) || "This inquiry";
+      act.push({
+        id: `quote-owed-${job.id}`,
+        lane: "act",
+        kind: "proposal",
+        title: `Send ${quoteName} your ${offer}`,
+        detail: `Your reply said the price is on its way. Lock a package and send the ${offer}.`,
+        evidence: null,
+        projectId: job.id,
+        projectName: text(job.name) || null,
+        action: { kind: "link", label: `Prepare ${offer}`, href: `/studio/proposals/new?project=${job.id}` },
+        jobHref: `/studio/projects/${job.id}`,
+        facts: [waitingFact(nextMove.waitingSince, now), eventFact(text(lead.eventDate) || null, now)].filter(
+          (fact): fact is string => Boolean(fact),
+        ),
+        band: leadBand(nextMove.waitingSince ?? arrivedAt(lead), now),
+        eventDate: text(lead.eventDate) || null,
+        score: score({ lane: "act", severity: "step", updatedAt: nextMove.waitingSince, now }),
+      });
+      continue;
+    }
     // Answered, and waiting on the couple: nothing for the studio to do —
     // unless a follow-up is drafted, or it has been quiet long enough to close.
     let followUp: TodayRecord | null = null;

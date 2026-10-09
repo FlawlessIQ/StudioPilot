@@ -118,7 +118,8 @@ export function formInquiryDetails(input: {
     ["Venue", input.venue],
     ["City", input.venue && input.city && input.venue.includes(input.city) ? null : input.city],
     ["Guests", input.estimatedGuestCount ? String(input.estimatedGuestCount) : null],
-    ["Looking for", input.servicesRequested.map(service).join(", ")],
+    // A DJ's or makeup artist's inquiry asks for that studio's own work: "Other" says nothing.
+    ["Looking for", input.servicesRequested.every((key) => key === "other") ? null : input.servicesRequested.map(service).join(", ")],
     ["Budget", input.budgetRange],
     ["Heard about you", input.referralSource],
     ["Venue needs insurance", input.coiRequired ? COI_LABELS[input.coiRequired] ?? null : null],

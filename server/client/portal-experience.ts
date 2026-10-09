@@ -1,3 +1,5 @@
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+
 export const clientProjectStates = [
   "LEAD",
   "CONSULTATION",
@@ -58,6 +60,8 @@ type Availability = Partial<Record<
 
 type VisibleCheckpoint = {
   name: string;
+  /** The starter checkpoint it came from (workflows/starter-templates.ts), when it did. */
+  templateKey?: string | null;
   description: string | null;
   status: string;
   dueDate: string | null;
@@ -85,6 +89,15 @@ const stageLabels: Record<string, string> = {
   ARCHIVED: "Archived",
 };
 
+/** The stage, in the studio's own trade's words: a makeup artist sends a quote and delivers nothing. */
+function stageLabel(state: string, trade: unknown): string {
+  const words = tradeVocab(trade);
+  if (state === "PROPOSAL") return `Reviewing your ${words.proposal.toLowerCase()}`;
+  if (state === "CONSULTATION") return words.consultation;
+  if (state === "REVIEW_REQUESTED" && !tradeProfile(trade).delivery) return words.afterPhase;
+  return stageLabels[state] ?? "In progress";
+}
+
 function stateIndex(state: string) {
   const index = clientProjectStates.indexOf(
     state as (typeof clientProjectStates)[number],
@@ -104,6 +117,25 @@ const clientDestinations = new Set([
   "/client/messages",
   "/client/delivery",
   "/client/reviews",
+]);
+
+/**
+ * The starter checkpoints the records answer (workflows/starter-templates.ts).
+ *
+ * Their stored status is never ticked: readiness reads the records each time
+ * (functions/src/workflow/checkpoint-evidence.ts). So here every one read
+ * "ready", and a makeup client booked an hour earlier was told her next step
+ * was "Retainer paid", and after it "Questionnaire complete" for a form she
+ * had sent (UAT, 2026-10-09). This function already reads the same records —
+ * the stage, the form, the schedule and the balance — so those answer, and
+ * only a step the studio wrote itself is taken at its word.
+ */
+const ANSWERED_BY_RECORDS = new Set([
+  "contract-completed",
+  "retainer-paid",
+  "questionnaire-complete",
+  "schedule-approved",
+  "final-balance",
 ]);
 
 function checkpointDestination(checkpoint: VisibleCheckpoint) {
@@ -138,7 +170,12 @@ function checkpointDestination(checkpoint: VisibleCheckpoint) {
   return { href: "/client/project", actionLabel: "View project" };
 }
 
-function defaultNextAction(state: string): ClientNextAction {
+function defaultNextAction(state: string, trade?: unknown): ClientNextAction {
+  // A makeup artist's client is sent a quote, has no sales call and is
+  // delivered nothing; the photographer's words are the ones they always were.
+  const words = tradeVocab(trade);
+  const offer = words.proposal.toLowerCase();
+  const photo = tradeProfile(trade).family === "photo";
   const defaults: Record<string, ClientNextAction> = {
     LEAD: {
       name: "Your studio is reviewing your inquiry",
@@ -151,7 +188,7 @@ function defaultNextAction(state: string): ClientNextAction {
       actionLabel: "View project details",
     },
     CONSULTATION: {
-      name: "Review your consultation details",
+      name: `Review your ${words.consultation.toLowerCase()} details`,
       description:
         "Check the details your studio has shared and send a message if anything needs to change.",
       dueDate: null,
@@ -161,14 +198,15 @@ function defaultNextAction(state: string): ClientNextAction {
       actionLabel: "Review details",
     },
     PROPOSAL: {
-      name: "Review your proposal",
-      description:
-        "Review the exact coverage, price, payment schedule, and terms your studio prepared.",
+      name: `Review your ${offer}`,
+      description: photo
+        ? "Review the exact coverage, price, payment schedule, and terms your studio prepared."
+        : "Review exactly what's included, the price, payment schedule, and terms your studio prepared.",
       dueDate: null,
       ownerType: "client",
       responsibility: "client",
       href: "/client/proposal",
-      actionLabel: "Review proposal",
+      actionLabel: `Review ${offer}`,
     },
     CONTRACT_PENDING: {
       name: "Review your agreement",
@@ -220,10 +258,20 @@ function defaultNextAction(state: string): ClientNextAction {
       href: "/client/schedule",
       actionLabel: "View schedule",
     },
-    EVENT_COMPLETE: {
+    EVENT_COMPLETE: tradeProfile(trade).delivery ? {
       name: "Your studio is backing up your photographs",
       description:
         "No action is needed while your studio secures and prepares your images.",
+      dueDate: null,
+      ownerType: "studio",
+      responsibility: "studio",
+      href: "/client/project",
+      actionLabel: "View project",
+    } : {
+      // Nothing is delivered after a makeup artist's or a DJ's day.
+      name: "That's a wrap",
+      description:
+        "Thank you for having your studio there. There is nothing more you need to do.",
       dueDate: null,
       ownerType: "studio",
       responsibility: "studio",
@@ -295,14 +343,38 @@ export function showsInquiryFormMilestone(state: string, inquiryForm: InquiryFor
   return inquiryForm.returned || stateIndex(state) <= 1;
 }
 
+/**
+ * Whether this job has a sales call before the price: the studio's trade
+ * (a makeup artist has none — the trial does that job) and the kind of job (a
+ * family session has none), both, as everywhere else (journey/steps.ts).
+ */
+function hasSalesCall(trade: unknown, consultation: boolean | undefined): boolean {
+  return tradeProfile(trade).consultation && consultation !== false;
+}
+
 export function buildClientMilestones(
   state: string,
-  options: { inquiryForm?: InquiryFormMilestone } = {},
+  options: {
+    inquiryForm?: InquiryFormMilestone;
+    /** The studio's trade (features/trades). Omitted reads as a photographer. */
+    trade?: unknown;
+    /** The job kind's profile says a consultation is offered (job-kinds.ts). */
+    consultation?: boolean;
+  } = {},
 ): ClientMilestone[] {
   const index = stateIndex(state);
   const inquiryForm = options.inquiryForm ?? null;
   const withForm = showsInquiryFormMilestone(state, inquiryForm);
   const formOwed = withForm && !inquiryForm?.returned;
+  /**
+   * Maya's makeup portal (UAT, 2026-10-09) promised a "Consultation — align on
+   * your plans, priorities, and coverage" that Glow by Ana does not hold, and
+   * a "Delivery — receive and access your finished photographs" of a face.
+   */
+  const words = tradeVocab(options.trade);
+  const call = hasSalesCall(options.trade, options.consultation);
+  const delivers = tradeProfile(options.trade).delivery;
+  const photo = tradeProfile(options.trade).family === "photo";
   const definitions = [
     {
       id: "inquiry",
@@ -316,25 +388,34 @@ export function buildClientMilestones(
           {
             id: "event_form",
             label: "Event form",
-            description: "Tell your studio about your day, ahead of your consultation.",
+            description: call
+              ? `Tell your studio about your day, ahead of your ${words.consultation.toLowerCase()}.`
+              : `Tell your studio about your day, ahead of your ${words.proposal.toLowerCase()}.`,
             current: () => formOwed,
             complete: () => !formOwed,
           },
         ]
       : []),
-    {
-      id: "consultation",
-      label: "Consultation",
-      description: "Align on your plans, priorities, and coverage.",
-      // One step is current at a time: the form comes first.
-      current: () => index <= 1 && !formOwed,
-      complete: () => index > 1,
-    },
+    ...(call
+      ? [
+          {
+            id: "consultation",
+            label: words.consultation,
+            description: photo
+              ? "Align on your plans, priorities, and coverage."
+              : "Talk through your plans and priorities.",
+            // One step is current at a time: the form comes first.
+            current: () => index <= 1 && !formOwed,
+            complete: () => index > 1,
+          },
+        ]
+      : []),
     {
       id: "booking",
       label: "Booking",
       description: "Review your offer, agreement, and retainer.",
-      current: () => index >= 2 && index <= 4,
+      // With no call, booking is where an inquiry goes next.
+      current: () => (call ? index >= 2 : !formOwed) && index <= 4,
       complete: () => index >= 5,
     },
     {
@@ -362,9 +443,13 @@ export function buildClientMilestones(
       complete: () => index >= 8,
     },
     {
+      // The id stays "delivery" with nothing to deliver: it is the after-the-day
+      // milestone the review and delivery pages read (portal-stage.ts).
       id: "delivery",
-      label: "Delivery",
-      description: "Receive and access your finished photographs.",
+      label: delivers ? "Delivery" : words.afterPhase,
+      description: delivers
+        ? "Receive and access your finished photographs."
+        : "A last word from your studio, and a chance to say how it went.",
       current: () => index >= 8 && index <= 11,
       complete: () => index >= 12,
     },
@@ -392,6 +477,8 @@ export function buildClientPortalExperience({
   currentSchedule = null,
   questionnaireStatus = null,
   inquiryForm = null,
+  trade = null,
+  consultation,
 }: {
   state: string;
   availability: Availability;
@@ -436,6 +523,10 @@ export function buildClientPortalExperience({
   questionnaireStatus?: string | null;
   /** The event form from their inquiry page, when the job has one. */
   inquiryForm?: InquiryFormMilestone;
+  /** The studio's trade (features/trades): its words, its call, whether it delivers. Omitted reads as a photographer. */
+  trade?: unknown;
+  /** The job kind offers a consultation (job-kinds.ts `projectProfile`). */
+  consultation?: boolean;
   /**
    * What the client still owes, if anything. Optional so existing callers keep
    * working, but supplying it changes the priority: money that is past its date
@@ -454,6 +545,7 @@ export function buildClientPortalExperience({
   } | null;
 }) {
   const index = stateIndex(state);
+  const offer = tradeVocab(trade).proposal.toLowerCase();
   const eventHasPassed =
     Boolean(eventDate) && Boolean(today) && String(today) > String(eventDate);
   const questionnaireDone = ["submitted", "locked"].includes(
@@ -483,6 +575,7 @@ export function buildClientPortalExperience({
   const clientCheckpoint = checkpoints.find(
     (checkpoint) =>
       !["complete", "waived"].includes(checkpoint.status) &&
+      !ANSWERED_BY_RECORDS.has(String(checkpoint.templateKey ?? "")) &&
       (!checkpoint.ownerType ||
         ["client", "contact"].includes(checkpoint.ownerType)) &&
       // Past the day, a planning checkpoint is a question about a wedding
@@ -509,7 +602,7 @@ export function buildClientPortalExperience({
       ? {
           name: "Your studio is reviewing your requested changes",
           description:
-            "No action is needed while the studio prepares an updated proposal or follows up with you.",
+            `No action is needed while the studio prepares an updated ${offer} or follows up with you.`,
           dueDate: null,
           ownerType: "studio",
           responsibility: "studio",
@@ -518,9 +611,9 @@ export function buildClientPortalExperience({
         }
       : state === "PROPOSAL" && proposalStatus === "expired"
         ? {
-            name: "Ask for an updated proposal",
+            name: `Ask for an updated ${offer}`,
             description:
-              "The current proposal has expired. Send your studio a message before making a decision.",
+              `The current ${offer} has expired. Send your studio a message before making a decision.`,
             dueDate: null,
             ownerType: "client",
             responsibility: "client",
@@ -532,9 +625,9 @@ export function buildClientPortalExperience({
               // Project is in the proposal stage, but the studio has not shared a
               // proposal with the client yet — don't tell them to review something
               // the proposal page reports as "still preparing".
-              name: "Your studio is preparing your proposal",
+              name: `Your studio is preparing your ${offer}`,
               description:
-                "No action is needed yet. You’ll be notified as soon as your proposal is ready to review.",
+                `No action is needed yet. You’ll be notified as soon as your ${offer} is ready to review.`,
               dueDate: null,
               ownerType: "studio",
               responsibility: "studio",
@@ -549,29 +642,36 @@ export function buildClientPortalExperience({
                 // go review it again (audit-2 N3). The ball is with the studio.
                 name: "Your studio is preparing your agreement",
                 description:
-                  "You’ve accepted the proposal — nothing more is needed from you right now. Your studio will send the agreement to sign next.",
+                  `You’ve accepted the ${offer} — nothing more is needed from you right now. Your studio will send the agreement to sign next.`,
                 dueDate: null,
                 ownerType: "studio",
                 responsibility: "studio",
                 href: "/client/proposal",
-                actionLabel: "View accepted proposal",
+                actionLabel: `View accepted ${offer}`,
               }
             : null;
   const stateFallback = (() => {
-    const fallback = defaultNextAction(state);
+    const fallback = defaultNextAction(state, trade);
     // Past the day, a planning ask is a question about a wedding that has
     // happened. Say what is true instead, and hand it to the studio.
     if (eventHasPassed && ["PLANNING", "READY"].includes(state)) {
       return {
         name: "Your day has been and gone",
-        description:
-          "Your studio is finishing up on their side. Your photographs will appear here once they are ready — there is nothing you need to do.",
+        description: tradeProfile(trade).delivery
+          ? "Your studio is finishing up on their side. Your photographs will appear here once they are ready — there is nothing you need to do."
+          : "Your studio is finishing up on their side — there is nothing you need to do.",
         dueDate: null,
         ownerType: "studio",
         responsibility: "studio",
         href: "/client/project",
         actionLabel: "View project",
       } satisfies ClientNextAction;
+    }
+    // Booked, with the studio's planning form already shared: that is theirs
+    // to do now. The checkpoint path said so, under the name "Questionnaire
+    // complete", before the records answered it (ANSWERED_BY_RECORDS).
+    if (state === "BOOKED" && availability.questionnaire && !questionnaireDone) {
+      return defaultNextAction("PLANNING", trade);
     }
     // A finished form is not somewhere to send them back to.
     if (questionnaireDone && fallback.href === "/client/questionnaire") {
@@ -616,11 +716,32 @@ export function buildClientPortalExperience({
         actionLabel: destination?.actionLabel ?? "View project",
       }
     : null;
+  /**
+   * A bill they can pay outranks "nothing needed from you". The "Final
+   * balance paid" checkpoint used to point here whatever the invoices said;
+   * the invoice itself is the truth (ANSWERED_BY_RECORDS).
+   */
+  const balanceDueAction: ClientNextAction | null =
+    outstandingBalance && !outstandingBalance.overdue && index >= stateIndex("BOOKED")
+      ? {
+          name: "Pay your balance",
+          description: `${outstandingBalance.amountLabel} is due${
+            outstandingBalance.dueDateLabel ? ` by ${outstandingBalance.dueDateLabel}` : ""
+          }. Pay it here whenever you are ready.`,
+          dueDate: outstandingBalance.dueDate,
+          ownerType: "client",
+          responsibility: "client",
+          href: "/client/payments",
+          actionLabel: "View payments",
+        }
+      : null;
   const nextClientAction: ClientNextAction =
     scheduleAction ??
     clientCheckpointAction ??
     proposalNextAction ??
-    stateFallback;
+    (stateFallback.responsibility === "studio" && balanceDueAction
+      ? balanceDueAction
+      : stateFallback);
   // An overdue balance is the one thing that outranks the state-derived action.
   // Not merely outstanding — an invoice inside its terms is not yet the client's
   // problem — but past its date, which is when the studio starts chasing.
@@ -640,13 +761,13 @@ export function buildClientPortalExperience({
           actionLabel: "View payments",
         }
       : null;
-  const milestones = buildClientMilestones(state, { inquiryForm });
+  const milestones = buildClientMilestones(state, { inquiryForm, trade, consultation });
   const completedMilestones = milestones.filter(
     (milestone) => milestone.status === "complete",
   ).length;
 
   return {
-    clientStage: stageLabels[state] ?? "In progress",
+    clientStage: stageLabel(state, trade),
     clientProgress: Math.round(
       (completedMilestones / milestones.length) * 100,
     ),

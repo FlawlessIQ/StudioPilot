@@ -1,7 +1,7 @@
 "use client";
 
 import { quantityText } from "@/features/packages/unit-label";
-import { tradeVocab } from "@/features/trades/trades";
+import { TRADE_LABELS, tradeOf, tradeVocab } from "@/features/trades/trades";
 import { detailsForLine } from "@/features/packages/inclusions";
 import {
   balanceWithSalesTax,
@@ -269,7 +269,7 @@ export function ClientProposal() {
                     ? `${quantityText(number(line.quantity), line.unitLabel)} × ${money(line.unitPriceCents, currency)}`
                     : undefined
                 }
-                title={text(line.description, "Photography services")}
+                title={text(line.description, `${TRADE_LABELS[tradeOf(workspace.tenantTrade)]} services`)}
                 // Package snapshots store `lineTotalCents`; proposals rename it
                 // `totalCents`. Reading one name rendered $0.00 on the other.
                 trailing={money(line.lineTotalCents ?? line.totalCents, currency)}
@@ -360,7 +360,7 @@ export function ClientProposal() {
                 {text(proposal.termsSummary, "Your studio will send the full agreement as the next step.")}
                 {/* A studio's own summary often already says this; once is enough. */}
                 {/not this summary/i.test(text(proposal.termsSummary, "")) ? null : (
-                  <> The signed agreement, not this summary, governs the photography.</>
+                  <> The signed agreement, not this summary, governs the booking.</>
                 )}
               </>
             : text(proposal.termsSummary, "Message your studio with any questions before you accept.")}

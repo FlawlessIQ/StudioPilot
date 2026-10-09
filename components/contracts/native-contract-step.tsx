@@ -18,6 +18,7 @@ import { formatSignedAt } from "@/features/contracts/format";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { agreementChangedSincePrepared } from "@/features/contracts/agreement-version";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   prepareContract,
@@ -207,6 +208,11 @@ export function NativeContractStep({
   const weddingAgreementOnOtherWork =
     Boolean(jobKind) && jobKind !== "wedding" && /wedding|bride|groom/i.test(agreementTitle);
   const detailsMissing = draft?.detailsMissing ?? [];
+  // When the final details lock for this studio's trade: a DJ's planner ten
+  // days out, a makeup artist's headcount at thirty (trades.ts), a
+  // photographer's four weeks. It said "four weeks" to everyone.
+  const lockDays = tradeProfile(workspace.tenantTrade).planning?.lockDaysBefore ?? 28;
+  const lockWhen = lockDays % 7 === 0 ? `${["", "one", "two", "three", "four", "five", "six"][lockDays / 7] ?? lockDays / 7} week${lockDays === 7 ? "" : "s"}` : `${lockDays} days`;
   /**
    * The studio edited its agreement after this draft was prepared. Sending
    * resolves against the draft's pinned version, so the old wording would go
@@ -518,7 +524,7 @@ export function NativeContractStep({
       ) : null}
       {detailsMissing.length ? (
         <p className="booking-delivery-warning" role="status">
-          {`Wedding details not given yet: ${detailsMissing.join(", ").toLowerCase()}. They go in Schedule A as "To be confirmed" and are confirmed with the final details four weeks before. Ask the couple now if you'd rather they were in the signed agreement.`}
+          {`Wedding details not given yet: ${detailsMissing.join(", ").toLowerCase()}. They go in Schedule A as "To be confirmed" and are confirmed with the final details ${lockWhen} before. Ask the couple now if you'd rather they were in the signed agreement.`}
         </p>
       ) : null}
       {parsed ? (

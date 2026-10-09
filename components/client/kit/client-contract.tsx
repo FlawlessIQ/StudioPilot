@@ -7,6 +7,7 @@ import { Actions, Button, Card, List, Main, PoweredBy, Row, Steps } from "@/comp
 import { ClientContractSigning } from "@/components/client/contract-signing";
 import { resolveFile } from "@/lib/documents/resolve-file";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { statusLabel } from "@/features/format/status-label";
 import {
   text,
@@ -101,8 +102,10 @@ export function ClientContract() {
                 : contractStatus === "superseded"
                   ? "Your studio has your signed agreement — there's nothing to sign here."
                 : contract.mode === "combined"
-                  ? "Your terms and your coverage and price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
-                  : "Read it through, then tap Review & sign. It’s written from the proposal you accepted."}
+                  ? tradeProfile(workspace.tenantTrade).family === "photo"
+                    ? "Your terms and your coverage and price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
+                    : "Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
+                  : `Read it through, then tap Review & sign. It’s written from the ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} you accepted.`}
           </p>
         </div>
         <ClientContractSigning
@@ -153,7 +156,7 @@ export function ClientContract() {
         <ClientBookingChange />
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Agreement · {statusLabel(contract.status)}</p>
-          <h1 className="kit-title">Photography services agreement</h1>
+          <h1 className="kit-title">{TRADE_LABELS[tradeOf(workspace.tenantTrade)]} services agreement</h1>
           <p className="kit-body">
             {attested
               ? "Your studio recorded this signature and holds the signed copy."

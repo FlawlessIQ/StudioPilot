@@ -16,6 +16,7 @@ import { isReturned } from "../planning/questionnaire-lifecycle.js";
 import { contractFormAnswers } from "./form-answers.js";
 import { eventDetailsFrom, venueFromAnswers } from "./event-details.js";
 import { formatContractDate } from "./document.js";
+import { normalizeUnitLabel, quantityText } from "../packages/unit-label.js";
 
 /**
  * Everything a StudioCue contract is resolved from, read from records.
@@ -313,7 +314,11 @@ export async function loadContractSources(
   };
 }
 
-/** "Engagement shoot (extra, $500.00)"; "Album spreads ×2 (extra, $300.00)". */
+/**
+ * "Engagement shoot (extra, $500.00)"; "Album spreads ×2 (extra, $300.00)";
+ * "Bridesmaid makeup — 4 people (extra, $480.00)" when it is priced per person
+ * (packages/unit-label.ts).
+ */
 export function contractExtras(addOns: unknown, currency: string): string[] {
   if (!Array.isArray(addOns)) return [];
   return addOns
@@ -323,7 +328,8 @@ export function contractExtras(addOns: unknown, currency: string): string[] {
       if (!name) return "";
       const quantity = Math.max(1, Math.round(Number(item.quantity) || 1));
       const lineCents = cents(item.lineTotalCents ?? cents(item.unitPriceCents) * quantity);
-      return `${name}${quantity > 1 ? ` ×${quantity}` : ""} (extra, ${formatMoney(lineCents, currency)})`;
+      const counted = normalizeUnitLabel(item.unitLabel) ? ` — ${quantityText(quantity, item.unitLabel)}` : quantity > 1 ? ` ×${quantity}` : "";
+      return `${name}${counted} (extra, ${formatMoney(lineCents, currency)})`;
     })
     .filter(Boolean)
     .slice(0, 20);

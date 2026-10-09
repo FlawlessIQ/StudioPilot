@@ -21,6 +21,7 @@ const JOINABLE_STATES = [
 ];
 import { studioHubCors } from "../security/cors.js";
 import { findTenantBySlug } from "./tenant-by-slug.js";
+import { TRADE_LABELS, tradeProfile } from "../trades/trades.js";
 import { inquiryLinkFor, studioTakesBookings } from "../intake/inquiry-link.js";
 import {
   dayFieldsFor,
@@ -161,6 +162,14 @@ export const publicLeadIntake = onRequest(
 
     const tenantId = tenantDocument.id;
     /**
+     * The public form asks a photographer's services, and sends "photography"
+     * when nothing is picked. A DJ's, makeup artist's or hair stylist's client
+     * asked for that studio's own work (trades.ts): kept as "other", never
+     * "photography" — it reached the studio's alert as "Looking for:
+     * Photography" and Cue's summary as "requested photography" (UAT, 2026-10-09).
+     */
+    const studioTrade = tradeProfile(tenantDocument.get("trade"));
+    /**
      * The studio's own form (features/leads/inquiry-form-config.ts): what it
      * hides is dropped before anything is checked, and only what the chosen
      * type requires is required — the same three steps the page ran.
@@ -183,6 +192,7 @@ export const publicLeadIntake = onRequest(
     }
 
     const input = parsed.data;
+    const servicesRequested = studioTrade.family === "photo" ? input.servicesRequested : (["other"] as typeof input.servicesRequested);
     const { type: chosenType } = resolveInquiryEventType(formConfig, input);
     const dayFields = dayFieldsFor(chosenType);
     const customAnswers = inquiryAnswersForLead(formConfig, chosenType, input.customAnswers);
@@ -318,9 +328,13 @@ export const publicLeadIntake = onRequest(
       "Who else should participate in planning and approvals?",
     ].slice(0, 6);
     const aiSummary = [
-      `${displayName} requested ${input.servicesRequested
-        .map((service) => service.replaceAll("_", " "))
-        .join(", ")} (${eventTypeLabel})${input.eventDate ? ` on ${input.eventDate}` : ""}${
+      `${displayName} requested ${
+        studioTrade.family === "photo"
+          ? servicesRequested.map((service) => service.replaceAll("_", " ")).join(", ")
+          : TRADE_LABELS[studioTrade.trade].toLowerCase() === "dj"
+            ? "a DJ"
+            : TRADE_LABELS[studioTrade.trade].toLowerCase()
+      } (${eventTypeLabel})${input.eventDate ? ` on ${input.eventDate}` : ""}${
         input.city ? ` in ${input.city}` : ""
       }.`,
       dayFields.venue ? (input.venue ? `Venue: ${input.venue}.` : "Venue is not confirmed.") : null,
@@ -359,7 +373,7 @@ export const publicLeadIntake = onRequest(
       venueContactEmail: input.venueContactEmail,
       city: input.city,
       estimatedGuestCount: input.estimatedGuestCount,
-      servicesRequested: input.servicesRequested,
+      servicesRequested,
       budgetRange: input.budgetRange,
       referralSource: input.referralSource,
       message: input.message,
@@ -489,7 +503,7 @@ export const publicLeadIntake = onRequest(
             venue: input.venuePlace?.formatted ?? input.venue,
             city: input.city,
             estimatedGuestCount: input.estimatedGuestCount,
-            servicesRequested: input.servicesRequested,
+            servicesRequested,
             budgetRange: input.budgetRange,
             referralSource: input.referralSource,
             coiRequired: input.coiRequired,

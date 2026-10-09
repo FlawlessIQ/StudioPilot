@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { InfoHint } from "@/components/ui/info-hint";
+import { normalizeUnitLabel } from "@/features/packages/unit-label";
 
 type Row = Record<string, unknown> & { id: string };
 const text = (value: unknown) => (typeof value === "string" ? value : "");
@@ -57,7 +58,7 @@ export function PackageAddOnPicker({
           />
           <span>
             {text(row.name)} · {money(Number(row.unitPriceCents ?? 0), currency)}
-            {row.allowQuantity ? " each" : ""}
+            {row.allowQuantity ? (normalizeUnitLabel(row.unitLabel) ? ` per ${normalizeUnitLabel(row.unitLabel)}` : " each") : ""}
           </span>
         </label>
       ))}

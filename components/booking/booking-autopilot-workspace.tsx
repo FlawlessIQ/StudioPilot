@@ -1,6 +1,6 @@
 "use client";
 
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import {
   describeCoverage,
@@ -708,7 +708,7 @@ export function BookingAutopilotWorkspace({
                 that could not start until they did. */}
             {proposalSettled ? (
               <>
-                <h1>The proposal is accepted.</h1>
+                <h1>{`The ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} is accepted.`}</h1>
                 {/* Promised "the balance" below, and no balance section
                     followed — it lives on Invoices (UI audit, 2026-10-02). */}
                 <p>
@@ -810,11 +810,11 @@ export function BookingAutopilotWorkspace({
           <section className="booking-autopilot-empty is-quiet">
             <Check />
             <span>
-              <strong>The proposal they accepted is on file.</strong>
+              <strong>{`The ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} they accepted is on file.`}</strong>
             </span>
             {/* A button, not grey text that read as disabled. */}
             <Link className="button button-light button-sm" href={`/studio/proposals/${proposalId}`}>
-              Open proposal <ArrowRight />
+              {`Open ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()}`} <ArrowRight />
             </Link>
           </section>
           ) : null

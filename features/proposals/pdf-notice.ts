@@ -38,10 +38,11 @@ export function proposalPdfNotice(
 }
 
 /** The sub-line under the PDF status panel. */
-export function proposalPdfDetail(pdfState: ProposalPdfState): string {
+export function proposalPdfDetail(pdfState: ProposalPdfState, offer = "proposal"): string {
   switch (pdfState) {
     case "ready":
-      return "Stored privately until this proposal is sent.";
+      // "quote" for a makeup artist or hair stylist (trades.ts).
+      return `Stored privately until this ${offer} is sent.`;
     case "failed":
       /**
        * Not "usually finishes within a minute" — it already stopped.

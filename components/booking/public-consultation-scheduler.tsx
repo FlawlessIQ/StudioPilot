@@ -91,6 +91,11 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
           brandAccentColor:
             typeof previewResult.brandAccentColor === "string" ? previewResult.brandAccentColor : null,
           brandLogoUrl: typeof previewResult.brandLogoUrl === "string" ? previewResult.brandLogoUrl : null,
+          // What the call is for, in the studio's words: a makeup trial, a
+          // final details call (public-scheduling.ts). They were dropped here,
+          // so every trial page read "Photography consultation" (UAT on prod, 2026-10-09).
+          purpose: typeof previewResult.purpose === "string" ? previewResult.purpose : undefined,
+          callName: typeof previewResult.callName === "string" ? previewResult.callName : undefined,
         });
         setSlots(
           Array.isArray(availability.slots)

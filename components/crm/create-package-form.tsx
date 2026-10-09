@@ -9,7 +9,7 @@ import { perCrewRetainerProblem } from "@/features/packages/retainer-check";
 import { examplePackagesFor, type ExamplePackage } from "@/features/job-kinds/example-packages";
 import { COVERAGE_ROLES, coverageRoleLabel, type CoverageRole } from "@/features/packages/coverage";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeOf, tradeProfile } from "@/features/trades/trades";
+import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -249,7 +249,7 @@ export function CreatePackageForm({
       <div className="command-success">
         <CheckCircle2 size={23} />
         <h2>{outcome.name} is ready</h2>
-        <p>Clients can now be offered this package in proposals.</p>
+        <p>{`Clients can now be offered this package in ${tradeVocab(trade).proposal.toLowerCase()}s.`}</p>
         {outcome.persisted ? (
           <Link className="button button-dark" href="/studio/packages">
             View packages <ArrowRight size={15} />

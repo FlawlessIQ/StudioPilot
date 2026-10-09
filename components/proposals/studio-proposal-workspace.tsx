@@ -1941,6 +1941,8 @@ export function StudioProposalWorkspace({
   recordAcceptance?: boolean;
 }) {
   const workspace = useWorkspace();
+  // "quote" for a makeup artist or hair stylist (trades.ts); a photographer's keeps "proposal".
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   // The job, for how its kind books and is paid (job-kinds.ts).
   const { records: proposalProjects } = useTenantDocuments("projects");
   const { records: proposalContacts } = useTenantDocuments("contacts");
@@ -2791,7 +2793,7 @@ export function StudioProposalWorkspace({
                   ) : (
                     <ArrowRight />
                   )}
-                  {canApprove ? "Approve this proposal" : "Send for approval"}
+                  {canApprove ? (offer === "proposal" ? "Approve this proposal" : `Approve this ${offer}`) : "Send for approval"}
                 </button>
                 <small>
                   {canApprove
@@ -2869,7 +2871,7 @@ export function StudioProposalWorkspace({
                           ? "PDF generation failed"
                           : "Generating branded PDF"}
                     </strong>
-                    <small>{proposalPdfDetail(String(proposal.pdfState ?? ""))}</small>
+                    <small>{proposalPdfDetail(String(proposal.pdfState ?? ""), offer)}</small>
                   </span>
                 </div>
                 {pdfUrl ? (
@@ -2948,7 +2950,7 @@ export function StudioProposalWorkspace({
                       ) : (
                         <Send />
                       )}
-                      Send proposal
+                      {offer === "proposal" ? "Send proposal" : `Send ${offer}`}
                     </button>
                     {jobNeeds.agreement ? (
                       <CombinedAgreementSend

@@ -5,6 +5,7 @@ import {
 } from "@/features/packages/coverage";
 import { pendingAmendmentFor, signAmendment } from "@/server/contracts/amendment-signing";
 import { jobKindOf, projectProfile } from "@/features/job-kinds/job-kinds";
+import { TRADE_LABELS, tradeOf, tradeProfile } from "@/features/trades/trades";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
 import { isCataloguePackage } from "@/features/packages/one-off";
@@ -799,7 +800,7 @@ async function clientProject(tenantId: string, projectId: string) {
     delivery: "deliveryRecords",
     reviews: "reviewRequests",
   } as const;
-  const [projectSnapshot, checkpointsSnapshot, ...availabilitySnapshots] =
+  const [projectSnapshot, checkpointsSnapshot, tenantSnapshot, ...availabilitySnapshots] =
     await Promise.all([
     adminFirestore.doc(`projects/${projectId}`).get(),
     adminFirestore
@@ -809,6 +810,9 @@ async function clientProject(tenantId: string, projectId: string) {
       .where("visibility", "in", ["client", "shared"])
       .limit(100)
       .get(),
+    // The studio's trade: a makeup artist's client is quoted, has no sales
+    // call and is delivered nothing (features/trades).
+    adminFirestore.doc(`tenants/${tenantId}`).get(),
     ...Object.values(availabilityCollections).map((collectionName) => {
       const scoped = adminFirestore
         .collection(collectionName)
@@ -830,6 +834,7 @@ async function clientProject(tenantId: string, projectId: string) {
   const checkpoints = checkpointsSnapshot.docs.map((document) => ({
     id: document.id,
     name: safeString(document.get("name")) ?? "Project step",
+    templateKey: safeString(document.get("templateKey")),
     description: safeString(document.get("description")),
     status: safeString(document.get("status")) ?? "not_started",
     dueDate: safeString(
@@ -979,14 +984,16 @@ async function clientProject(tenantId: string, projectId: string) {
     currentSchedule,
     questionnaireStatus,
     inquiryForm,
+    trade: tenantSnapshot.get("trade"),
+    consultation: projectProfile(projectSnapshot.data()).consultation,
   });
   return {
     id: projectId,
-    name: safeString(projectSnapshot.get("name")) ?? "Your photography project",
+    name: safeString(projectSnapshot.get("name")) ?? fallbackProjectName(tenantSnapshot.get("trade")),
     eventType:
       safeString(projectSnapshot.get("eventType")) ??
       safeString(projectSnapshot.get("eventTypeName")) ??
-      "Photography",
+      TRADE_LABELS[tradeOf(tenantSnapshot.get("trade"))],
     // The kind decides the client's steps: no agreement for a family
     // session, nothing to pay before a sports day (job-kinds.ts).
     eventKind: jobKindOf(projectSnapshot.data()),
@@ -1004,22 +1011,29 @@ async function clientProject(tenantId: string, projectId: string) {
   };
 }
 
+/** A job with no name yet: "Your photography project" only for a photographer. */
+function fallbackProjectName(trade: unknown): string {
+  return tradeProfile(trade).family === "photo" ? "Your photography project" : "Your project";
+}
+
 async function clientProjects(tenantId: string, projectIds: string[]) {
-  const snapshots = await Promise.all(
-    projectIds.slice(0, 100).map((projectId) =>
+  const [tenantSnapshot, ...snapshots] = await Promise.all([
+    adminFirestore.doc(`tenants/${tenantId}`).get(),
+    ...projectIds.slice(0, 100).map((projectId) =>
       adminFirestore.doc(`projects/${projectId}`).get(),
     ),
-  );
+  ]);
+  const trade = tenantSnapshot.get("trade");
   return snapshots.flatMap((snapshot, index) => {
     if (!snapshot.exists || snapshot.get("tenantId") !== tenantId) return [];
     const state = String(snapshot.get("state") ?? "LEAD");
     return [{
       id: projectIds[index],
-      name: safeString(snapshot.get("name")) ?? "Your photography project",
+      name: safeString(snapshot.get("name")) ?? fallbackProjectName(trade),
       eventType:
         safeString(snapshot.get("eventType")) ??
         safeString(snapshot.get("eventTypeName")) ??
-        "Photography",
+        TRADE_LABELS[tradeOf(trade)],
       eventDate: safeString(snapshot.get("eventDate")),
       venueName: safeString(snapshot.get("venueName")),
       city: safeString(snapshot.get("city")),
@@ -1027,6 +1041,7 @@ async function clientProjects(tenantId: string, projectIds: string[]) {
         state,
         availability: {},
         checkpoints: [],
+        trade,
       }).clientStage,
     }];
   });

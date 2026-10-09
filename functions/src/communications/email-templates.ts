@@ -1,5 +1,13 @@
 import { TRADE_LABELS, tradeProfile, tradeVocab } from "../trades/trades.js";
 import { COVERAGE_ROLES, coverageRoleLabel, type CoverageRole } from "../packages/coverage.js";
+
+/**
+ * "photography " for a photographer's client, nothing for a DJ's, makeup
+ * artist's or hair stylist's (trades.ts): their client's inbox preview and
+ * footer read "your project", never "your photography project" (UAT, 2026-10-09).
+ */
+const photoWord = (values: Record<string, unknown> | undefined, word = "photography "): string =>
+  tradeProfile(values?.trade).family === "photo" ? word : "";
 import { releaseHeadline } from "../post-event/deliverables.js";
 import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
@@ -690,7 +698,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `Join ${brand.studioName}`,
         paragraphs: [
           greeting,
-          `We've invited you to help manage our photography operations in StudioCue.`,
+          `We've invited you to help manage our ${photoWord(values)}operations in StudioCue.`,
           "Use the invited email address when you create or sign in to your account.",
         ],
         action: inviteUrl
@@ -701,7 +709,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "client_invitation":
       return {
         subject: `${brand.studioName} invited you to your client portal`,
-        preheader: "Your secure photography project portal is ready.",
+        preheader: `Your secure ${photoWord(values)}project portal is ready.`,
         eyebrow: "Client portal",
         heading: `Your project space is ready`,
         paragraphs: [
@@ -1269,7 +1277,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "booking_confirmation":
       return {
         subject: `You’re booked with ${brand.studioName}`,
-        preheader: "Your photography project is officially booked.",
+        preheader: `Your ${photoWord(values)}project is officially booked.`,
         eyebrow: "Booking confirmed",
         heading: "Your date is officially booked",
         paragraphs: [
@@ -1302,7 +1310,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       }
       return {
         subject: `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
-        preheader: "Complete your photography project questionnaire.",
+        preheader: tradeVocab(values.trade).detailsForm ? `Complete your ${tradeVocab(values.trade).detailsForm}.` : "Complete your photography project questionnaire.",
         eyebrow: reminder ? "Questionnaire reminder" : "Planning questionnaire",
         heading: reminder
           ? "A few project details are still needed"
@@ -1340,7 +1348,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       }
       return {
         subject: `Certificate of insurance request from ${brand.studioName}`,
-        preheader: "A certificate is needed for an upcoming photography event.",
+        preheader: `A certificate is needed for an upcoming ${photoWord(values)}event.`,
         eyebrow: "Insurance document request",
         heading: "Please prepare a certificate of insurance",
         paragraphs: [
@@ -1885,7 +1893,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "review_request":
       return {
         subject: `Would you share your experience with ${brand.studioName}?`,
-        preheader: "A short review helps future clients choose their photographer.",
+        preheader: `A short review helps future clients choose their ${tradeVocab(values.trade).provider}.`,
         eyebrow: "Client feedback",
         heading: "Thank you for choosing us",
         paragraphs: [
@@ -2387,7 +2395,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               ? "You already have a job on that date."
               : "A reply is being prepared.",
         eyebrow: returning ? "New message" : "New inquiry",
-        heading: returning ? `${couple} wrote again` : `${couple} would like to talk`,
+        // A makeup or hair inquiry has no call (trades.ts): they want the quote.
+        heading: returning
+          ? `${couple} wrote again`
+          : tradeProfile(values.trade).consultation
+            ? `${couple} would like to talk`
+            : `${couple} would like a ${tradeVocab(values.trade).proposal.toLowerCase()}`,
         paragraphs: [
           [
             when ? `They're asking about ${when}` : "They didn't give a date yet",
@@ -2406,7 +2419,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
                 `Rather answer from your own inbox? Just hit reply — it goes straight to ${firstName || "them"}. Then tap “Replied by email” on Today, so the drafted reply isn't sent as well.`,
               ]
             : [
-                `${wedding ? "Couples" : "People"} often write to several photographers at once; the first thoughtful reply tends to win.`,
+                `${wedding ? "Couples" : "People"} often write to several ${tradeVocab(values.trade).provider}s at once; the first thoughtful reply tends to win.`,
               ]),
         ],
         details,
@@ -2484,7 +2497,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     default:
       return {
         subject: `${brand.studioName} sent you an update`,
-        preheader: "A photography project update is available.",
+        preheader: `A ${photoWord(values)}project update is available.`,
         eyebrow: "Project update",
         heading: "There’s an update from your studio",
         paragraphs: [
@@ -2738,7 +2751,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
         </td></tr>
         <tr><td class="email-footer" style="padding:20px 18px 0;color:#7b837d;font-size:12px;line-height:1.65;text-align:center;">
           ${sentByLine}${contact}<br>
-          This message relates to a private studio workspace or photography project.<br>
+          This message relates to a private studio workspace or ${photoWord(input.values)}project.<br>
           ${escapeHtml(footerAddress)}
         </td></tr>
       </table>
