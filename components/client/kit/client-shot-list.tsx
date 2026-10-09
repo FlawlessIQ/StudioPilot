@@ -193,7 +193,7 @@ export function ClientShotList() {
           ) : null}
 
           <TextArea
-            hint={`Optional. Names help: "Grandma Rose with all the grandkids".`}
+            hint="Optional. Names help: “Grandma Rose with all the grandkids.”"
             label={received ? "Anything to add?" : "Or write it here"}
             maxLength={SHOT_LIST_NOTE_MAX}
             onChange={(event) => setNote(event.target.value)}

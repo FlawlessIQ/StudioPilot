@@ -128,7 +128,7 @@ export function ProjectShotList({
           ) : null}
           {record?.note ? <p className="project-shot-list-note">{`“${record.note}”`}</p> : null}
           {fresh && canAct ? (
-            <button className="project-action-secondary" onClick={() => void markSeen()} type="button">
+            <button className="button button-light" onClick={() => void markSeen()} type="button">
               Got it
             </button>
           ) : null}
@@ -150,7 +150,7 @@ export function ProjectShotList({
               : "They can send their must-take photos from their portal any time."}
           </small>
           {canAct ? (
-            <button className="project-action-secondary" disabled={busy !== null} onClick={() => void askNow()} type="button">
+            <button className="button button-light" disabled={busy !== null} onClick={() => void askNow()} type="button">
               {busy === "ask" ? "Sending…" : "Ask now"}
             </button>
           ) : null}
