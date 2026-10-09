@@ -38,10 +38,11 @@ test("every crew invite link points at a page that exists", () => {
   const links = [...commands.matchAll(/\$\{appUrl\(\)\}(\/[a-z0-9/-]+)\?/g)].map(
     (match) => match[1],
   );
-  // Three places mint one: the roster invite, a direct assignment offer, and
-  // the cascade working down a ranked list of candidates. All three must land
+  // Four places mint one: the roster invite, a direct assignment offer, the
+  // cascade working down a ranked list of candidates, and the claim link of a
+  // direct booking for someone with no account (assignDirectly). All must land
   // on the same page, and nothing may quietly mint a link somewhere else.
-  assert.equal(links.length, 3);
+  assert.equal(links.length, 4);
   assert.deepEqual([...new Set(links)], ["/auth/crew-invite"]);
   for (const link of new Set(links)) {
     assert.ok(

@@ -1787,7 +1787,6 @@ export const crewCommand = onRequest(
           const booked = {
             status: "accepted",
             respondedAt: now,
-            declineReason: null,
             assignedDirectly: true,
             assignedBy: identity.uid,
             calendarStatus: "not_added",

@@ -275,7 +275,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
               <input checked={mode === "book"} name="crew-direct-mode" onChange={() => setMode("book")} type="radio" />
               <span>
                 <strong>Book them now</strong>
-                <small>For your staff, or when you can&rsquo;t wait for an answer. They&rsquo;re on the job straight away.</small>
+                <small>For your staff, or when you can&rsquo;t wait for an answer. They&rsquo;re on the job right away.</small>
               </span>
             </label>
           </fieldset>
@@ -356,7 +356,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
               <span>Email them that they&rsquo;re booked</span>
             </label>
             <p className="crew-direct-invite-note">
-              {`${chosen ? text(chosen.name) : "They"} will be on this job straight away, with the brief, the timeline and the checklist, just as if they had accepted. Any offer still waiting for this role is closed, and whoever it was waiting on is told it's filled.`}
+              {`${chosen ? text(chosen.name) : "They"} will be on this job right away, with the brief, the timeline and the checklist, just as if they had accepted. Any offer still waiting for this role is closed, and whoever it was waiting on is told it's filled.`}
             </p>
           </>
         ) : (
