@@ -111,10 +111,14 @@ test("Today: Not now, Add over a sent proposal and the final bill all confirm", 
   const bill = slice("components/today/today-inbox.tsx", "function FinalBalanceCardActions");
   assert.doesNotMatch(bill, /onClick=\{\(\) => void send\(\)\} type="button"/);
   assert.match(bill, /onClick=\{\(\) => setConfirming\(true\)\}/);
-  assert.match(bill, /goes to \$\{recipient \?\? "the couple"\}/);
+  // Who it goes to, in words that hold for a final checked first too
+  // (features/billing/final-bill-words.ts; tests/final-bill-words.test.ts).
+  assert.match(bill, /finalBillWords\(\{ checkedFirst, amount, recipient \}\)/);
+  assert.match(bill, /\{words\.body\}/);
   const shared = source("components/booking/final-balance-actions.tsx");
   assert.match(shared, /onClick=\{\(\) => setConfirming\(true\)\}/);
-  assert.match(shared, /goes to \$\{recipient \?\? "the couple"\}/);
+  assert.match(shared, /finalBillWords\(\{ checkedFirst, amount: balanceLabel, recipient \}\)/);
+  assert.match(shared, /\{words\.body\}/);
 });
 
 test("the retainer invoice shows its amount and confirms who gets it", () => {

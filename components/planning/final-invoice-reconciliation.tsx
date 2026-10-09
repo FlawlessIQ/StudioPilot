@@ -172,17 +172,26 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                   {inReview ? "Review required" : statusLabel(invoice.status)}
                 </StatusBadge>
               </header>
-              <div className="invoice-calculation-lines">
-                {lines.map((line) => (
-                  <span key={`${String(line.label)}-${String(line.source)}`}>
-                    <small>
-                      {String(line.label)}
-                      <em>{String(line.source)}</em>
-                    </small>
-                    <strong>{money(line.amountCents, invoice.currency)}</strong>
-                  </span>
-                ))}
-              </div>
+              {/* StudioCue's working, shown only until the provider has the
+                  bill. After that, the lines QuickBooks received (below) are
+                  the bill. Shown together, the working's "Sales tax —
+                  calculated by QuickBooks when the invoice is made · $0.00"
+                  sat above QuickBooks' real $582.87, and GR voided a correct
+                  final for having "no sales tax" (2026-10-09). */}
+              {list(record(invoice.providerLines).lines).length ? null : (
+                <div className="invoice-calculation-lines">
+                  {lines.map((line) => (
+                    <span key={`${String(line.label)}-${String(line.source)}`}>
+                      <small>{String(line.label)}</small>
+                      <strong>
+                        {line.source === "quickbooks" && !Number(line.amountCents)
+                          ? "Added by QuickBooks"
+                          : money(line.amountCents, invoice.currency)}
+                      </strong>
+                    </span>
+                  ))}
+                </div>
+              )}
               {/* Once created: the lines QuickBooks received (packages at
                   full price, the retainer taken off, tax on the full
                   package), and a warning when it billed a different total. */}

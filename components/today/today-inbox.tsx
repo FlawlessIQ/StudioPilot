@@ -58,6 +58,8 @@ import {
 import { useRouter } from "next/navigation";
 import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
 import { InfoHint } from "@/components/ui/info-hint";
+import { finalBillWords } from "@/features/billing/final-bill-words";
+import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
 import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
@@ -1717,12 +1719,23 @@ function FinalBalanceCardActions({
     ),
   );
   const amount = typeof action.balanceCents === "number" ? formatCents(action.balanceCents) : null;
+  const checkedFirst = useFinalBillCheckedFirst();
+  const words = finalBillWords({ checkedFirst, amount, recipient });
+  const [made, setMade] = useState(false);
   async function send() {
     setBusy(true);
     setNotice(null);
     try {
       await sendFinalBalance(action.projectId);
       refreshTenantRecords("invoiceReferences", "providerJobs", "projects");
+      // Held for the tax check: the card staying gone read as "sent". Say so,
+      // and the "Check and send" card takes its place on the next read.
+      if (checkedFirst) {
+        setConfirming(false);
+        setBusy(false);
+        setMade(true);
+        return;
+      }
       onCleared?.();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "The final bill couldn't be sent. Open the job to check."));
@@ -1741,6 +1754,18 @@ function FinalBalanceCardActions({
       </>
     );
   }
+  if (made) {
+    return (
+      <>
+        <Link className="today-card-primary" href={`/studio/invoices?project=${action.projectId}`}>
+          Check the tax <ArrowRight size={14} />
+        </Link>
+        <span className="today-card-notice" role="status">
+          {words.done}
+        </span>
+      </>
+    );
+  }
   if (confirming) {
     return (
       <ConfirmStep
@@ -1749,12 +1774,12 @@ function FinalBalanceCardActions({
         cancelLabel="Not now"
         className="today-confirm-step"
         confirmClassName="today-card-primary"
-        confirmLabel={amount ? `Send the ${amount} bill` : "Send the bill"}
+        confirmLabel={words.confirmLabel}
         label="Send the final bill?"
         onCancel={() => setConfirming(false)}
         onConfirm={() => void send()}
       >
-        {`${amount ? `A ${amount}` : "The"} final bill goes to ${recipient ?? "the couple"} by email from your invoicing app. Once it's out it can be voided, not unsent.`}
+        {words.body}
       </ConfirmStep>
     );
   }

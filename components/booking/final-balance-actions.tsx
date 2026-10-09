@@ -9,6 +9,8 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { jobClientRecipient, recipientLabel } from "@/features/projects/client-recipient";
 import { sendFinalBalance } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { finalBillWords } from "@/features/billing/final-bill-words";
+import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
 
 /**
  * The two ways a final balance gets settled, wherever StudioCue says it is due.
@@ -47,12 +49,14 @@ export function FinalBalanceActions({
    * one tap (wave 3). The step names the amount and who gets it.
    */
   const [confirming, setConfirming] = useState(false);
+  const checkedFirst = useFinalBillCheckedFirst();
   const recipient = recipientLabel(
     jobClientRecipient(
       projects?.find((project) => project.id === projectId),
       contacts,
     ),
   );
+  const words = finalBillWords({ checkedFirst, amount: balanceLabel, recipient });
   // sendFinalBalance and recordFinalPayment are owner/admin on the server
   // (BALANCE_ATTESTATION_PERMISSION_REQUIRED): don't offer what it refuses.
   const mayBill = workspace.role === "studio_owner" || workspace.role === "studio_admin";
@@ -67,7 +71,9 @@ export function FinalBalanceActions({
       const provider = payload.provider === "stripe" ? "Stripe" : "QuickBooks";
       const message = payload.reviewRequired
         ? "The final bill is drafted but needs a look: the retainer on record doesn't match what was agreed. Open Invoices to check it before it goes."
-        : `The final bill${balanceLabel ? ` for ${balanceLabel}` : ""} is being raised in ${provider}; the couple gets it by email.`;
+        : provider === "QuickBooks" && checkedFirst
+          ? words.done
+          : `The final bill${balanceLabel ? ` for ${balanceLabel}` : ""} is being raised in ${provider}; the couple gets it by email.`;
       setNotice(message);
       onDone?.(message);
     } catch (caught) {
@@ -94,12 +100,12 @@ export function FinalBalanceActions({
           cancelClassName={secondaryClassName}
           cancelLabel="Not now"
           confirmClassName={buttonClassName}
-          confirmLabel={balanceLabel ? `Send the ${balanceLabel} bill` : "Send the bill"}
+          confirmLabel={words.confirmLabel}
           label="Send the final bill?"
           onCancel={() => setConfirming(false)}
           onConfirm={() => void send()}
         >
-          {`${balanceLabel ? `A ${balanceLabel}` : "The"} final bill goes to ${recipient ?? "the couple"} by email from your invoicing app. Once it's out it can be voided, not unsent.`}
+          {words.body}
         </ConfirmStep>
       ) : null}
       <div className="final-balance-buttons">
