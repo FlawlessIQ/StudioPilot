@@ -14,6 +14,7 @@ import { coverageRoleSchema } from "../packages/coverage.js";
 import { assignmentIcs, assignmentPlace } from "./calendar-ics.js";
 import { isLiveAssignment } from "./job-stopped.js";
 import { withdrawalPlan } from "./withdraw.js";
+import { directBookingPlan } from "./direct-booking.js";
 import {
   EXTENSION_PLANS,
   EXTENSION_PLAN_LABELS,
@@ -68,6 +69,33 @@ const cascadeInput = z.object({
   currentScheduleVersion: z.number().int().nonnegative(),
   requirements: z.array(requirement),
 });
+/** What an offer or a direct booking carries: the job, the role, the hours and the fee. */
+const assignmentInput = z.object({
+  projectId: z.string(),
+  crewProfileId: z.string(),
+  userId: z.string().nullable(),
+  role: z.string().min(1).max(120),
+  compensationCents: z.number().int().nonnegative().nullable(),
+  compensationType: z.enum(["hourly", "event"]).nullable(),
+  currency: z.string().length(3),
+  compensationVisibleToCrew: z.boolean(),
+  arrivalAt: z.string().datetime(),
+  departureAt: z.string().datetime(),
+  locations: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        address: z.string().nullable(),
+      }),
+    )
+    .min(1),
+  responsibilities: z.array(z.string().min(1)),
+  scheduleItemIds: z.array(z.string()),
+  currentScheduleId: z.string().nullable(),
+  currentScheduleVersion: z.number().int().nonnegative(),
+  requirements: z.array(requirement),
+});
+
 const command = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createCrewProfile"),
@@ -90,30 +118,20 @@ const command = z.discriminatedUnion("type", [
     type: z.literal("inviteAssignment"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
-    input: z.object({
-      projectId: z.string(),
-      crewProfileId: z.string(),
-      userId: z.string().nullable(),
-      role: z.string().min(1).max(120),
-      compensationCents: z.number().int().nonnegative().nullable(),
-      compensationType: z.enum(["hourly", "event"]).nullable(),
-      currency: z.string().length(3),
-      compensationVisibleToCrew: z.boolean(),
-      arrivalAt: z.string().datetime(),
-      departureAt: z.string().datetime(),
-      locations: z
-        .array(
-          z.object({
-            name: z.string().min(1),
-            address: z.string().nullable(),
-          }),
-        )
-        .min(1),
-      responsibilities: z.array(z.string().min(1)),
-      scheduleItemIds: z.array(z.string()),
-      currentScheduleId: z.string().nullable(),
-      currentScheduleVersion: z.number().int().nonnegative(),
-      requirements: z.array(requirement),
+    input: assignmentInput,
+  }),
+  z.object({
+    /**
+     * The studio says who is working the job: no offer, no waiting for an
+     * answer. For full-time staff who take the work they're given, or when
+     * there's no time to wait (Conor, 2026-10-09). Owners and admins.
+     */
+    type: z.literal("assignDirectly"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: assignmentInput.extend({
+      /** Email them that they're booked. Off for someone told in person. */
+      notify: z.boolean().default(true),
     }),
   }),
   z.object({
@@ -1685,6 +1703,298 @@ export const crewCommand = onRequest(
         }
         await batch.commit();
         result = { projectId: parsed.input.projectId, saved, extensionTasks: wanted.map((task) => task.id) };
+      } else if (parsed.type === "assignDirectly") {
+        /**
+         * Book someone without an offer (direct-booking.ts has the rules).
+         * They are on the job at once, exactly as if they had accepted: the
+         * job opens to them, the calendar hold is queued and their part of the
+         * run of show is written. Someone with no account yet gets a link to
+         * claim it, which keeps them booked (crew/invitations.ts).
+         */
+        if (
+          !["studio_owner", "studio_admin"].includes(role) ||
+          !hasProject(parsed.input.projectId)
+        )
+          throw new Error("FORBIDDEN");
+        const input = parsed.input;
+        const profileReference = db.doc(`crewProfiles/${input.crewProfileId}`);
+        const newId = stable("crew_assignment", parsed.tenantId, parsed.idempotencyKey);
+        const claimToken = randomBytes(32).toString("base64url");
+        const departure = Date.parse(input.departureAt);
+        // A claim link that lasts until a week after the job.
+        const claimExpiresAt = new Date(
+          Math.max(Date.now() + 7 * 86400000, (Number.isFinite(departure) ? departure : Date.now()) + 7 * 86400000),
+        ).toISOString();
+        result = await db.runTransaction(async (transaction) => {
+          const [profile, project, projectCrew, cascades, published] = await Promise.all([
+            transaction.get(profileReference),
+            transaction.get(db.doc(`projects/${input.projectId}`)),
+            transaction.get(
+              db.collection("crewAssignments").where("tenantId", "==", parsed.tenantId).where("projectId", "==", input.projectId),
+            ),
+            transaction.get(
+              db.collection("crewCascades").where("tenantId", "==", parsed.tenantId).where("projectId", "==", input.projectId),
+            ),
+            transaction.get(
+              db
+                .collection("schedules")
+                .where("tenantId", "==", parsed.tenantId)
+                .where("projectId", "==", input.projectId)
+                .where("status", "==", "published")
+                .limit(50),
+            ),
+          ]);
+          if (
+            !profile.exists ||
+            profile.get("tenantId") !== parsed.tenantId ||
+            profile.get("active") === false ||
+            profile.get("archivedAt")
+          )
+            throw new Error("CREW_PROFILE_NOT_FOUND");
+          if (!project.exists || project.get("tenantId") !== parsed.tenantId) throw new Error("PROJECT_NOT_FOUND");
+          const plan = directBookingPlan({
+            crewProfileId: input.crewProfileId,
+            role: input.role,
+            assignments: projectCrew.docs.map((item) => ({
+              id: item.id,
+              crewProfileId: String(item.get("crewProfileId") ?? ""),
+              status: String(item.get("status") ?? ""),
+              role: String(item.get("role") ?? ""),
+            })),
+            cascades: cascades.docs.map((item) => ({
+              id: item.id,
+              role: String(item.get("role") ?? ""),
+              status: String(item.get("status") ?? ""),
+              currentAssignmentId: (item.get("currentAssignmentId") as string | null) ?? null,
+            })),
+          });
+          if (!plan.ok) throw new Error(plan.code);
+          // The person's own account, from the profile: the client may not know it.
+          const userId = String(profile.get("userId") ?? "") || input.userId || null;
+          const membership = userId
+            ? await transaction.get(db.doc(`memberships/${parsed.tenantId}_${userId}`))
+            : null;
+          const releaseDocs = plan.releaseAssignmentIds.map((id) => projectCrew.docs.find((item) => item.id === id)!).filter(Boolean);
+          const releaseProfiles = await Promise.all(
+            releaseDocs.map((item) => transaction.get(db.doc(`crewProfiles/${String(item.get("crewProfileId") ?? "")}`))),
+          );
+          const schedule =
+            (published.docs ?? []).slice().sort((left, right) => Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0))[0] ?? null;
+
+          // Every read is done; the writes follow.
+          const id = plan.reuseAssignmentId ?? newId;
+          const reference = db.doc(`crewAssignments/${id}`);
+          const booked = {
+            status: "accepted",
+            respondedAt: now,
+            declineReason: null,
+            assignedDirectly: true,
+            assignedBy: identity.uid,
+            calendarStatus: "not_added",
+            ...(userId ? {} : { inviteTokenHash: hash(claimToken), inviteExpiresAt: claimExpiresAt }),
+            updatedAt: now,
+            updatedBy: identity.uid,
+          };
+          if (plan.reuseAssignmentId) {
+            transaction.update(reference, {
+              ...booked,
+              role: input.role,
+              compensationCents: input.compensationCents,
+              compensationType: input.compensationType,
+              compensationVisibleToCrew: input.compensationVisibleToCrew,
+              arrivalAt: input.arrivalAt,
+              departureAt: input.departureAt,
+              locations: input.locations,
+              responsibilities: input.responsibilities,
+            });
+          } else {
+            transaction.create(reference, {
+              id,
+              tenantId: parsed.tenantId,
+              projectId: input.projectId,
+              projectName: project.get("name") ?? null,
+              crewProfileId: input.crewProfileId,
+              userId,
+              role: input.role,
+              compensationCents: input.compensationCents,
+              compensationType: input.compensationType,
+              currency: input.currency,
+              compensationVisibleToCrew: input.compensationVisibleToCrew,
+              arrivalAt: input.arrivalAt,
+              departureAt: input.departureAt,
+              locations: input.locations,
+              responsibilities: input.responsibilities,
+              scheduleItemIds: input.scheduleItemIds,
+              notes: null,
+              invitationSentAt: null,
+              viewedAt: null,
+              calendarAcknowledgedAt: null,
+              currentScheduleId: input.currentScheduleId,
+              currentScheduleVersion: input.currentScheduleVersion,
+              acknowledgedScheduleVersion: null,
+              scheduleAcknowledgedAt: null,
+              requirements: input.requirements.map((item) => ({
+                ...item,
+                status: "missing",
+                documentId: null,
+                completedAt: null,
+                completedBy: null,
+                notes: null,
+              })),
+              inviteTokenHash: null,
+              inviteExpiresAt: null,
+              createdAt: now,
+              createdBy: identity.uid,
+              archivedAt: null,
+              ...booked,
+            });
+          }
+
+          // An offer chain for this role is done: this is who's working it.
+          for (const cascadeId of plan.fillCascadeIds) {
+            transaction.update(db.doc(`crewCascades/${cascadeId}`), {
+              status: "filled",
+              acceptedAssignmentId: id,
+              filledDirectly: true,
+              handlingCompletedAt: now,
+              currentOfferExpiresAt: null,
+              currentRemindAt: null,
+              waitingOn: null,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          }
+          // Whoever a chain was waiting on hears the role is filled, so nobody
+          // accepts a job that has gone.
+          releaseDocs.forEach((item, index) => {
+            transaction.update(item.ref, {
+              status: "reassigned",
+              respondedAt: now,
+              reassignedReason: "filled_directly",
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+            const email = String(releaseProfiles[index]?.get("email") ?? "").trim();
+            if (!email) return;
+            transaction.set(db.doc(`emailJobs/crew_offer_filled_${item.id}`), {
+              id: `crew_offer_filled_${item.id}`,
+              tenantId: parsed.tenantId,
+              projectId: input.projectId,
+              assignmentId: item.id,
+              type: "crew_assignment_cancelled",
+              cause: "filled",
+              recipient: email,
+              recipientName: releaseProfiles[index]?.get("name") ?? null,
+              crewProfileId: String(item.get("crewProfileId") ?? "") || null,
+              role: String(item.get("role") ?? "") || null,
+              reason: null,
+              status: "queued",
+              attempts: 0,
+              createdAt: now,
+              updatedAt: now,
+            });
+          });
+
+          // What acceptance gives them (respondAssignment's completeAcceptance).
+          if (userId && membership?.exists)
+            transaction.update(membership.ref, { projectIds: FieldValue.arrayUnion(input.projectId), updatedAt: now });
+          transaction.set(
+            db.doc(`providerJobs/crew_calendar_${id}`),
+            {
+              id: `crew_calendar_${id}`,
+              tenantId: parsed.tenantId,
+              projectId: input.projectId,
+              assignmentId: id,
+              type: "add_crew_calendar_invite",
+              idempotencyKey: `crew_calendar_${id}`,
+              status: "queued",
+              attempts: 0,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
+          if (schedule) {
+            const allowed = new Set(input.scheduleItemIds);
+            const items = Array.isArray(schedule.get("items"))
+              ? (schedule.get("items") as Array<Record<string, unknown>>).filter(
+                  (item) => ["crew", "shared"].includes(String(item.visibility)) && (allowed.size === 0 || allowed.has(String(item.id))),
+                )
+              : [];
+            const viewId = `${schedule.id}_${id}`;
+            transaction.set(db.doc(`crewScheduleViews/${viewId}`), {
+              id: viewId,
+              tenantId: parsed.tenantId,
+              projectId: input.projectId,
+              assignmentId: id,
+              userId,
+              crewProfileId: input.crewProfileId,
+              sourceScheduleId: schedule.id,
+              version: schedule.get("version"),
+              status: "published",
+              timezone: schedule.get("timezone"),
+              items,
+              publishedAt: schedule.get("publishedAt"),
+              createdAt: now,
+              updatedAt: now,
+            });
+            transaction.update(reference, { currentScheduleId: schedule.id, currentScheduleVersion: Number(schedule.get("version") ?? 0) });
+          }
+          const event = productEvent({
+            tenantId: parsed.tenantId,
+            projectId: input.projectId,
+            actorId: identity.uid,
+            actorType: "user",
+            name: "lifecycle.crew_staffed",
+            occurredAt: now,
+            correlationId: parsed.idempotencyKey,
+            sourceEntityType: "crewAssignment",
+            sourceEntityId: id,
+            properties: { assignmentId: id, role: input.role, assignedDirectly: true },
+          });
+          transaction.create(db.doc(`productEvents/${event.id}`), event);
+
+          const recipient = String(profile.get("email") ?? "").trim();
+          let notified = false;
+          if (input.notify && recipient) {
+            const claimUrl = userId ? null : `${appUrl()}/auth/crew-invite?token=${encodeURIComponent(claimToken)}`;
+            transaction.set(db.doc(`emailJobs/crew_assigned_${id}`), {
+              id: `crew_assigned_${id}`,
+              tenantId: parsed.tenantId,
+              projectId: input.projectId,
+              type: "crew_assigned",
+              assignmentId: id,
+              recipient,
+              recipientName: profile.get("name") ?? null,
+              ...(claimUrl ? { inviteToken: claimToken, inviteUrl: claimUrl } : { actionUrl: `${appUrl()}/crew` }),
+              ...crewInvitationEmailFields({
+                role: input.role,
+                arrivalAt: input.arrivalAt,
+                departureAt: input.departureAt,
+                respondBy: "",
+                locations: input.locations,
+                responsibilities: input.responsibilities,
+                compensationCents: input.compensationCents,
+                compensationType: input.compensationType,
+                compensationVisibleToCrew: input.compensationVisibleToCrew,
+                currency: input.currency,
+              }),
+              status: "queued",
+              attempts: 0,
+              createdAt: now,
+              updatedAt: now,
+            });
+            notified = true;
+          }
+          return {
+            assignmentId: id,
+            status: "accepted",
+            assignedDirectly: true,
+            notified,
+            filledCascades: plan.fillCascadeIds.length,
+            releasedOffers: releaseDocs.length,
+          };
+        });
       } else if (parsed.type === "withdrawAssignment") {
         /**
          * Withdraw one crew member, or replace them.

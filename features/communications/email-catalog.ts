@@ -74,6 +74,7 @@ export const EDITABLE_EMAILS: readonly EditableEmail[] = [
   { key: "review_request", group: "After the event", label: "Review request", when: "After delivery, asking for a review" },
 
   { key: "crew_invitation", group: "Crew", label: "Job offer", when: "When you offer someone a job" },
+  { key: "crew_assigned", group: "Crew", label: "You're booked", when: "When you book someone yourself, with no offer to answer" },
   { key: "crew_directory_invitation", group: "Crew", label: "Join your crew", when: "When you add someone to your crew" },
   { key: "crew_reminder", group: "Crew", label: "Call-time reminder", when: "Two days before a job" },
   { key: "crew_monthly_roundup", group: "Crew", label: "Monthly job list", when: "On the 1st, listing their upcoming jobs" },

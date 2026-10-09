@@ -344,8 +344,13 @@ export const crewInvitationCommand = onRequest(
         ) {
           throw new Error("INVITATION_NOT_FOUND");
         }
+        // A direct booking (crew/commands.ts, assignDirectly) is claimed while
+        // already accepted: the studio booked them, the link only connects
+        // their account, and it must not set them back to "viewed".
+        const bookedDirectly =
+          assignment.get("status") === "accepted" && assignment.get("assignedDirectly") === true;
         if (
-          !["invited", "viewed"].includes(String(assignment.get("status"))) ||
+          (!["invited", "viewed"].includes(String(assignment.get("status"))) && !bookedDirectly) ||
           Date.parse(String(assignment.get("inviteExpiresAt"))) <= Date.now()
         ) {
           throw new Error("INVITATION_EXPIRED");
@@ -355,15 +360,24 @@ export const crewInvitationCommand = onRequest(
         // actually decides who this is. See the note on adopting a stale uid.
         if (
           assignment.get("userId") === identity.uid &&
-          assignment.get("status") === "viewed"
+          (assignment.get("status") === "viewed" || bookedDirectly)
         ) {
           return {
             tenantId: String(assignment.get("tenantId")),
             projectId: String(assignment.get("projectId")),
             assignmentId: assignmentReference.id,
-            status: "viewed",
+            status: String(assignment.get("status")),
           };
         }
+        // Their part of the run of show, written before they had an account.
+        const unclaimedViews = bookedDirectly
+          ? await transaction.get(
+              db
+                .collection("crewScheduleViews")
+                .where("tenantId", "==", String(assignment.get("tenantId")))
+                .where("assignmentId", "==", assignmentReference.id),
+            )
+          : null;
         const tenantId = String(assignment.get("tenantId"));
         const projectId = String(assignment.get("projectId"));
         const profileReference = db.doc(
@@ -489,11 +503,13 @@ export const crewInvitationCommand = onRequest(
         });
         transaction.update(assignmentReference, {
           userId: identity.uid,
-          status: "viewed",
+          status: bookedDirectly ? "accepted" : "viewed",
           viewedAt: assignment.get("viewedAt") ?? now,
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        for (const view of unclaimedViews?.docs ?? [])
+          transaction.update(view.ref, { userId: identity.uid, updatedAt: now });
         transaction.create(
           db.doc(`auditEvents/crew_invite_accept_${assignmentReference.id}`),
           {
@@ -510,7 +526,7 @@ export const crewInvitationCommand = onRequest(
               status: assignment.get("status"),
               userId: assignment.get("userId") ?? null,
             },
-            after: { status: "viewed", userId: identity.uid },
+            after: { status: bookedDirectly ? "accepted" : "viewed", userId: identity.uid },
             ipAddress: request.ip ?? null,
             userAgent: request.get("user-agent") ?? null,
             correlationId: parsed.idempotencyKey,
@@ -522,7 +538,7 @@ export const crewInvitationCommand = onRequest(
           tenantId,
           projectId,
           assignmentId: assignmentReference.id,
-          status: "viewed",
+          status: bookedDirectly ? "accepted" : "viewed",
         };
       });
       await markEmailVerified(identity);

@@ -95,6 +95,8 @@ export const emailTemplateKeys = [
   "staff_invitation",
   "client_invitation",
   "crew_invitation",
+  // Booked by the studio, no offer to answer (crew/commands.ts assignDirectly).
+  "crew_assigned",
   "crew_directory_invitation",
   "email_verification",
   "password_reset",
@@ -804,6 +806,53 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         note: "The secure brief is the source of truth if we update this offer.",
       };
       }
+    case "crew_assigned": {
+      /**
+       * The studio booked this person itself (crew/commands.ts, assignDirectly):
+       * staff who take the work they're given, or no time to wait for a yes.
+       * Nothing to accept or decline — it says they're on, with the details,
+       * and opens the job (or claims it, for someone with no account yet).
+       */
+      const roleValue = stringValue(values, "role");
+      const role = (COVERAGE_ROLES as readonly string[]).includes(roleValue)
+        ? ((label: string) => `${label.charAt(0).toUpperCase()}${label.slice(1)}`)(coverageRoleLabel(roleValue as CoverageRole, 1))
+        : roleValue;
+      const arrivalAt = stringValue(values, "arrivalAt");
+      const departureAt = stringValue(values, "departureAt");
+      const locationName = stringValue(values, "locationName");
+      const locationAddress = stringValue(values, "locationAddress");
+      const compensationCents = numberValue(values, "compensationCents");
+      const currency = stringValue(values, "currency") || "USD";
+      const compensation =
+        values.compensationVisibleToCrew === true && compensationCents !== null
+          ? `${new Intl.NumberFormat("en-US", { style: "currency", currency }).format(compensationCents / 100)}${
+              stringValue(values, "compensationType") === "hourly" ? " per hour" : " total"
+            }`
+          : "";
+      const details = [
+        role ? `Role: ${role}` : "",
+        arrivalAt && departureAt ? `Time: ${humanDate(arrivalAt, zone)} through ${humanDate(departureAt, zone)}` : "",
+        locationName ? `Location: ${locationName}${locationAddress ? ` — ${locationAddress}` : ""}` : "",
+        compensation ? `Pay: ${compensation}` : "",
+      ].filter(Boolean);
+      const url = inviteUrl ?? actionUrl;
+      return {
+        subject: `You're booked${role ? ` as ${role}` : ""}${project} — ${brand.studioName}`,
+        preheader: `${brand.studioName} has put you on this job.`,
+        eyebrow: "You're on the job",
+        heading: "You're booked",
+        paragraphs: [
+          greeting,
+          `${brand.studioName} has booked you${project}. There's nothing to accept: it's in your schedule.`,
+          ...details,
+          inviteUrl
+            ? "Open the job to set up your StudioCue access. The brief, the timeline and your checklist are there."
+            : "The brief, the timeline and your checklist are in your crew app.",
+        ],
+        action: url ? { label: "Open the job", url } : undefined,
+        note: "If you can't make it, tell the studio as soon as you can.",
+      };
+    }
     case "crew_directory_invitation":
       /**
        * Joining the roster, which is not the same as being offered a job.
@@ -1604,6 +1653,22 @@ function copyFor(input: RenderEmailInput): EmailCopy {
        * false here, and a crew member told a wedding was called off may say
        * so to the couple.
        */
+      // An offer they hadn't answered yet: the studio booked someone else
+      // for the role (crew/commands.ts, assignDirectly). Not a release from a
+      // job they'd taken, so it says so.
+      if (stringValue(values, "cause") === "filled") {
+        return {
+          subject: `Filled: the ${brand.studioName} job you were offered${project}`,
+          preheader: "No need to reply to this offer.",
+          eyebrow: "Offer closed",
+          heading: "This role has been filled",
+          paragraphs: [
+            greeting,
+            `${brand.studioName} has filled the role they offered you${project}, so there's no need to reply.`,
+            "Thank you for your time. They'll be in touch about the next one.",
+          ],
+        };
+      }
       if (stringValue(values, "cause") === "withdrawn") {
         return {
           subject: `Released: your ${brand.studioName} assignment${project}`,
@@ -2772,7 +2837,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
 
 /** Mail a crew member reads. */
 export const CREW_EMAIL_TYPES: ReadonlySet<string> = new Set([
-  "crew_invitation", "crew_directory_invitation", "crew_reminder", "crew_monthly_roundup", "crew_assignment_cancelled",
+  "crew_invitation", "crew_assigned", "crew_directory_invitation", "crew_reminder", "crew_monthly_roundup", "crew_assignment_cancelled",
 ]);
 
 /**

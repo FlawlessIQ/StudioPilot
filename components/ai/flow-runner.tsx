@@ -639,6 +639,10 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     return profile ? String(Math.round(num(profile.rateCents) / 100)) : "";
   });
   const [windowHours, setWindowHours] = useState("48");
+  // "Book them now": owners and admins can put one person on the job without
+  // an offer to answer (crew/commands.ts assignDirectly).
+  const mayBook = ["studio_owner", "studio_admin"].includes(workspace.role ?? "");
+  const [bookNow, setBookNow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -703,7 +707,16 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
       requirements: crewRequirementsFor(crewSettings),
     };
     try {
-      if (ids.length === 1) {
+      if (ids.length === 1 && mayBook && bookNow) {
+        const response = await sendCrewCommand("assignDirectly", {
+          ...terms,
+          crewProfileId: ids[0],
+          userId: str(first.userId) || null,
+          notify: true,
+        });
+        if (response.persisted) setSent(`BOOKED:${str(first.name)} is booked.`);
+        else setNotice("Preview: the booking would be saved from here.");
+      } else if (ids.length === 1) {
         const response = await sendCrewCommand("inviteAssignment", {
           ...terms,
           crewProfileId: ids[0],
@@ -735,8 +748,9 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
     return (
       <div className="panel copilot-flow">
         <p role="status">
-          {sent}{" "} They&rsquo;ll get an email to accept or decline — nothing changes
-          on the job until they respond.
+          {sent.startsWith("BOOKED:")
+            ? `${sent.slice("BOOKED:".length)} They're on the job now and have an email with the details. There's nothing for them to accept.`
+            : `${sent} They\u2019ll get an email to accept or decline \u2014 nothing changes on the job until they respond.`}
         </p>
       </div>
     );
@@ -914,8 +928,11 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
               </>
             ) : (
               <>
-                Offer to <strong>{str(firstProfile?.name)}</strong>. Set the terms —
-                approving sends them the offer to accept or decline.
+                {bookNow ? "Book " : "Offer to "}
+                <strong>{str(firstProfile?.name)}</strong>
+                {bookNow
+                  ? ". Set the terms — they're on the job as soon as you approve, with nothing to accept."
+                  : ". Set the terms — approving sends them the offer to accept or decline."}
               </>
             )}
           </p>
@@ -945,6 +962,12 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
               />
             </label>
           ) : null}
+          {!isCascade && mayBook ? (
+            <label className="copilot-flow-check">
+              <input checked={bookNow} onChange={(e) => setBookNow(e.target.checked)} type="checkbox" />
+              <span>Book them now, no offer to answer (your staff, or no time to wait)</span>
+            </label>
+          ) : null}
           <small>
             {eventDate} · {str(project?.venueName) || "event location"}
           </small>
@@ -958,7 +981,7 @@ function CrewOfferFlow({ flow }: { flow: CopilotFlow }) {
               {busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
               {isCascade
                 ? `Start cascade (${orderedIds.length})`
-                : `Send offer to ${str(firstProfile?.name).split(" ")[0] || "them"}`}
+                : `${bookNow && mayBook ? "Book" : "Send offer to"} ${str(firstProfile?.name).split(" ")[0] || "them"}`}
             </button>
             <button disabled={busy} onClick={() => setStep("select")} type="button">
               Back

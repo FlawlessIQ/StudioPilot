@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { todayLocalIso } from "@/lib/format/event-date";
-import { CheckCircle2, Send, UserRoundCheck } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Send, UserRoundCheck } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
@@ -84,8 +84,34 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
     [assignments, projectId],
   );
 
+  // Owners and admins can also just book someone: staff who take the work
+  // they're given, or no time to wait for a yes (crew/commands.ts
+  // assignDirectly). Anyone not already booked on the job can be, including
+  // someone whose offer is still waiting — booking them answers it.
+  const mayBook = ["studio_owner", "studio_admin"].includes(workspace.role ?? "");
+  const [mode, setMode] = useState<"offer" | "book">("offer");
+  const booking = mayBook && mode === "book";
+  const [notify, setNotify] = useState(true);
+  const bookedOnJob = useMemo(
+    () =>
+      new Set(
+        (assignments ?? [])
+          .filter((item) => item.projectId === projectId && item.status === "accepted")
+          .map((item) => text(item.crewProfileId)),
+      ),
+    [assignments, projectId],
+  );
+  const offerOut = useMemo(
+    () =>
+      new Set(
+        (assignments ?? [])
+          .filter((item) => item.projectId === projectId && ["invited", "viewed"].includes(text(item.status)))
+          .map((item) => text(item.crewProfileId)),
+      ),
+    [assignments, projectId],
+  );
   const available = (profiles ?? []).filter(
-    (profile) => profile.active === true && !spokenFor.has(profile.id),
+    (profile) => profile.active === true && (booking ? !bookedOnJob.has(profile.id) : !spokenFor.has(profile.id)),
   );
 
   const latestSchedule = (schedules ?? [])
@@ -123,7 +149,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
   const responsibilities = responsibilitiesEdit ?? offerResponsibilities(role);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [sent, setSent] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ name: string; booked: boolean; notified: boolean } | null>(null);
 
   const chosen = available.find((profile) => profile.id === crewProfileId);
   // The direct path knows who it is offering to, so it can open at that
@@ -141,7 +167,8 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
     setBusy(true);
     setNotice(null);
     try {
-      const response = await sendCrewCommand("inviteAssignment", {
+      const response = await sendCrewCommand(booking ? "assignDirectly" : "inviteAssignment", {
+        ...(booking ? { notify } : {}),
         projectId,
         crewProfileId: chosen.id,
         userId: text(chosen.userId) || null,
@@ -170,7 +197,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
       });
       if (response.persisted) {
         returnToJob({ delayMs: 1600 });
-        setSent(text(chosen.name) || "They");
+        setSent({ name: text(chosen.name) || "They", booked: booking, notified: booking ? notify && Boolean(text(chosen.email)) : true });
         setCrewProfileId("");
         setRateOverride(null);
         setStartsAtEdit(null);
@@ -180,15 +207,17 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
         element.reset();
       } else {
         setNotice(
-          "Development preview: the offer was validated but nothing was sent.",
+          booking
+            ? "Development preview: the booking was validated but nothing was saved."
+            : "Development preview: the offer was validated but nothing was sent.",
         );
       }
     } catch (caught: unknown) {
       setNotice(
         crewPublicError(
           caught,
-          "The offer could not be sent.",
-          "CREW_DIRECT_INVITE_FAILED",
+          booking ? "The booking couldn't be saved." : "The offer could not be sent.",
+          booking ? "CREW_DIRECT_BOOKING_FAILED" : "CREW_DIRECT_INVITE_FAILED",
         ),
       );
     } finally {
@@ -201,11 +230,13 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
       <section className="panel crew-direct-sent">
         <CheckCircle2 aria-hidden="true" />
         <div>
-          <strong>Offer sent to {sent}</strong>
+          <strong>{sent.booked ? `${sent.name} is booked` : `Offer sent to ${sent.name}`}</strong>
           <p>
-            They have an email with the date, the role, the rate and a link to
-            accept. It expires in seven days. You will see the answer under
-            Assignments — nothing is booked until they accept.
+            {sent.booked
+              ? sent.notified
+                ? "They're on the job now, and they have an email with the date, the role and the details. There's nothing for them to accept."
+                : "They're on the job now. No email went, so let them know yourself."
+              : "They have an email with the date, the role, the rate and a link to accept. It expires in seven days. You will see the answer under Assignments — nothing is booked until they accept."}
           </p>
         </div>
         <span className="crew-direct-sent-actions">
@@ -214,7 +245,7 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
             onClick={() => setSent(null)}
             type="button"
           >
-            Offer this job to someone else
+            {sent.booked ? "Book or offer someone else" : "Offer this job to someone else"}
           </button>
         </span>
       </section>
@@ -224,12 +255,31 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
     <details className="crew-direct-invite" id="crew-direct-invite" open={openFromHash}>
       <summary>
         <UserRoundCheck aria-hidden="true" size={15} />
-        Already know who you want? Offer this job to one person
+        {mayBook ? "Already know who's working it? Book them or offer it to one person" : "Already know who you want? Offer this job to one person"}
       </summary>
       <form
         className="panel crew-direct-invite-form"
         onSubmit={(event) => void submit(event)}
       >
+        {mayBook ? (
+          <fieldset className="crew-direct-mode">
+            <legend>How</legend>
+            <label>
+              <input checked={mode === "offer"} name="crew-direct-mode" onChange={() => setMode("offer")} type="radio" />
+              <span>
+                <strong>Send an offer</strong>
+                <small>They accept or decline. Nothing is booked until they say yes.</small>
+              </span>
+            </label>
+            <label>
+              <input checked={mode === "book"} name="crew-direct-mode" onChange={() => setMode("book")} type="radio" />
+              <span>
+                <strong>Book them now</strong>
+                <small>For your staff, or when you can&rsquo;t wait for an answer. They&rsquo;re on the job straight away.</small>
+              </span>
+            </label>
+          </fieldset>
+        ) : null}
         <div className="crew-cascade-config">
           <label className="form-span">
             Who
@@ -245,7 +295,11 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
               {available.map((profile) => (
                 <option key={profile.id} value={profile.id}>
                   {text(profile.name) || "Crew member"}
-                  {lapsed.has(profile.id) ? " — last offer ran out of time" : ""}
+                  {booking && offerOut.has(profile.id)
+                    ? " — offer waiting, book them now"
+                    : lapsed.has(profile.id)
+                      ? " — last offer ran out of time"
+                      : ""}
                 </option>
               ))}
             </select>
@@ -295,19 +349,31 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
             />
           </label>
         </div>
-        <p className="crew-direct-invite-note">
-          This skips candidate ranking and offers the job to{" "}
-          {chosen ? <strong>{text(chosen.name)}</strong> : "one person"}{" "} only.
-          They get an email with a link to accept, and the offer expires in
-          seven days.
-        </p>
+        {booking ? (
+          <>
+            <label className="crew-direct-notify">
+              <input checked={notify} onChange={(event) => setNotify(event.target.checked)} type="checkbox" />
+              <span>Email them that they&rsquo;re booked</span>
+            </label>
+            <p className="crew-direct-invite-note">
+              {`${chosen ? text(chosen.name) : "They"} will be on this job straight away, with the brief, the timeline and the checklist, just as if they had accepted. Any offer still waiting for this role is closed, and whoever it was waiting on is told it's filled.`}
+            </p>
+          </>
+        ) : (
+          <p className="crew-direct-invite-note">
+            This skips candidate ranking and offers the job to{" "}
+            {chosen ? <strong>{text(chosen.name)}</strong> : "one person"}{" "} only.
+            They get an email with a link to accept, and the offer expires in
+            seven days.
+          </p>
+        )}
         <button
           className="button button-dark"
           disabled={busy || !chosen}
           type="submit"
         >
-          <Send size={15} />
-          {busy ? "Sending…" : "Send offer"}
+          {booking ? <CalendarCheck size={15} /> : <Send size={15} />}
+          {busy ? (booking ? "Booking…" : "Sending…") : booking ? `Book ${chosen ? text(chosen.name) : "them"}` : "Send offer"}
         </button>
         {notice ? (
           <p className="form-notice" role="status">
@@ -316,8 +382,9 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
         ) : null}
         {!available.length && profiles ? (
           <p className="form-notice" role="status">
-            Everyone in your directory is already offered or booked on this job.
-            Add a crew member to offer it to someone new.
+            {booking
+              ? "Everyone in your directory is already booked on this job. Add a crew member to book someone new."
+              : "Everyone in your directory is already offered or booked on this job. Add a crew member to offer it to someone new."}
           </p>
         ) : null}
       </form>

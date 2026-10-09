@@ -53,3 +53,31 @@ Crew uploads use the authenticated path `tenants/{tenantId}/projects/{projectId}
 The crew portal exposes pending and accepted jobs, current requirements, scoped documents, profile/availability, and a mobile timeline containing only assigned segments. The event-day view provides timezone, current version, call time, responsibilities, relevant contacts, parking/location information, directions, calendar download, and a persistent acknowledgement action. Client financials and unrelated project data never appear.
 
 Production operation requires Firebase Authentication, App Check, Storage, the Crew Functions URL, transactional email delivery, and the existing scheduler/job workers.
+
+## Booking someone directly (no offer)
+
+Added 2026-10-09 (Conor): "if I can't wait for an answer, or I have full-time
+staff who take whatever work I give them, I need to just say who is doing it."
+
+- **Where.** Crew for this job → "Already know who's working it?" → **Book
+  them now** (owners and admins), or Cue's crew card → "Book them now". Every
+  trade uses the same crew flow, so it works for photo, DJ, makeup and hair.
+- **Command.** `crewCommand assignDirectly`, with the same input as
+  `inviteAssignment` plus `notify`. The rules are in
+  `functions/src/crew/direct-booking.ts`:
+  - someone already booked on the job is refused (`CREW_ALREADY_BOOKED`);
+  - an offer already out to the same person becomes their booking;
+  - an active cascade for the same role is filled (`filledDirectly`), and an
+    offer it was still waiting on goes to `reassigned`, with a
+    `crew_assignment_cancelled` email (`cause: "filled"`, "This role has been
+    filled").
+- **What they get.** The assignment is `accepted` with `assignedDirectly:
+  true`. Acceptance's effects follow: the job on their membership, the
+  calendar hold job, and their `crewScheduleViews` when a schedule is
+  published. If `notify` is set, the `crew_assigned` email ("You're booked")
+  is sent: there's nothing to accept, and it opens the job.
+- **No account yet.** The assignment carries a claim token that lasts until a
+  week after the job. `/auth/crew-invite` links their account and keeps them
+  `accepted` (crew/invitations.ts), and also fills in the `userId` on their
+  schedule views.
+- **Job page.** Shows "Booked by you" in place of "Accepted".

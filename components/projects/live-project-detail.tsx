@@ -1117,7 +1117,7 @@ function ProjectCrewPanel({
                 </span>
                 <span className="project-crew-status">
                   <StatusBadge tone={accepted ? "success" : "info"}>
-                    {accepted ? "Accepted" : "Waiting on them"}
+                    {accepted ? (assignment.assignedDirectly === true ? "Booked by you" : "Accepted") : "Waiting on them"}
                   </StatusBadge>
                   {/* The only way to take one person off a job that is still
                       going ahead — see WithdrawCrewControl. */}
