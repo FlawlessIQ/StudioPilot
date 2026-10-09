@@ -110,7 +110,10 @@ test("the inquiry drafter reads both settings from the tenant", () => {
   );
   // The deterministic fallback and the studio signature are kept.
   assert.match(intake, /Thank you for reaching out\. I would love to learn more/);
-  assert.match(intake, /signWithStudio\(separateGreeting\(/);
+  // Cue's reply, with the studio's own reply template applied when it has one,
+  // then signed (communications/inquiry-reply-template.ts).
+  assert.match(intake, /applyReplyTemplate\(await activeReplyTemplate\(db,[\s\S]{0,60}?\{subject:cueSubject,body:separateGreeting\(/);
+  assert.match(intake, /signWithStudio\(ownReply\.body,/);
 });
 
 test("message drafts pass the tenant's settings to the model", () => {
@@ -148,14 +151,17 @@ test("it sits in Settings → Communications, next to Email templates", () => {
   const group = shell.slice(shell.indexOf('label: "Communications"'), shell.indexOf('label: "Crew and insurance"'));
   assert.ok(group.indexOf('key: "templates"') < group.indexOf('key: "firstReply"'));
   // And the page says plainly which setting changes which email.
-  assert.match(group, /Email templates \(Inquiry Acknowledgment\)/);
+  // The editor's own label for the automatic email, and the studio's own reply.
+  assert.match(group, /Email templates \(Inquiry received\)/);
+  assert.match(group, /Email templates \(Your reply to a new inquiry\)/);
   assert.match(group, /first reply/);
 });
 
 test("the settings page explains the two emails and links to both places", () => {
   const page = readFileSync(`${process.cwd()}/components/settings/first-reply-settings.tsx`, "utf8");
   assert.match(page, /settingsSectionHref\("templates"\)/);
-  assert.match(page, /Inquiry Acknowledgment/);
+  assert.match(page, /Inquiry received/);
+  assert.match(page, /\/studio\/settings\/templates\?email=inquiry_reply/);
   assert.match(page, /Teach Cue your voice/);
   assert.match(page, /setFirstReplyInstructions\(/);
 });
