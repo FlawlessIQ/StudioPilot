@@ -29,7 +29,7 @@ test("the editor offers the upload itself, and reads the file through the import
   const editor = readFileSync("components/contracts/agreement-editor.tsx", "utf8");
   assert.match(editor, /Upload your contract/);
   assert.match(editor, /uploadStudioImportFiles\(\{ files: \[file\] \}\)/);
-  assert.match(editor, /convertImportedAgreement\(text\)/);
+  assert.match(editor, /convertImportedAgreement\(text, workspace\.tenantTrade\)/);
   // The session is closed, so it doesn't wait in the import queue.
   assert.match(editor, /cancelStudioImport\(sessionId\)/);
   assert.match(editor, /pricingClauses\(body\)/);

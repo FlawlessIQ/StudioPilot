@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, ClipboardList } from "lucide-react";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 
@@ -113,7 +114,8 @@ export function CrewClientBrief({
       {beforeYouShoot.length ? (
         <div className="kit-card kit-brief" data-tone="critical">
           <p className="kit-eyebrow">
-            <AlertTriangle aria-hidden size={14} /> Read before you shoot
+            <AlertTriangle aria-hidden size={14} />{" "}
+            {tradeProfile(workspace.tenantTrade).family === "photo" ? "Read before you shoot" : "Read before you start"}
           </p>
           <dl className="kit-brief-list">
             {beforeYouShoot.map((item) => (

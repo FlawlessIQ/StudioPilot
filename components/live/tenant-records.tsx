@@ -87,6 +87,8 @@ import {
 import { ignorableSenderOf } from "@/features/intake/not-inquiry";
 import { leadAnswers } from "@/features/leads/lead-answers";
 import { InquiryRestore, ProjectInquiryClose } from "@/components/projects/project-inquiry-close";
+import { TRADE_LABELS, tradeOf, tradeVocab } from "@/features/trades/trades";
+import { callWords } from "@/components/studio/trade-words";
 
 // Re-exported so existing importers of this module keep working.
 export { demoTenantDocuments };
@@ -1272,7 +1274,7 @@ export function LiveLeadDetail({ id }: { id: string }) {
               draft — writes "Jul 2, 2027". A database value leaking onto the
               one screen whose job is to make a stranger feel like a person. */}
           <p>
-            {String(lead.eventType ?? lead.eventTypeLabel ?? "Photography")} inquiry for{" "}
+            {String(lead.eventType ?? lead.eventTypeLabel ?? TRADE_LABELS[tradeOf(workspace.tenantTrade)])} inquiry for{" "}
             {typeof lead.eventDate === "string" && lead.eventDate
               ? formatEventDate(lead.eventDate)
               : "a date to be confirmed"}
@@ -1457,7 +1459,8 @@ export function LiveLeadDetail({ id }: { id: string }) {
       ) : null}
       <section className="lead-detail-grid">
         <article className="panel lead-insight-card">
-          <h2>Before the consultation</h2>
+          {/* A makeup or hair inquiry goes straight to the quote; there's no call to prepare for. */}
+          <h2>{`Before the ${(callWords(workspace.tenantTrade).sales ?? tradeVocab(workspace.tenantTrade).proposal).toLowerCase()}`}</h2>
           {missing.length ? (
             <ul>{missing.map((item) => <li key={item}>{item}</li>)}</ul>
           ) : <p>The essential intake details are complete.</p>}

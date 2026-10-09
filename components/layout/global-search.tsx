@@ -22,6 +22,7 @@ import { KindGlyph } from "@/components/library/kind-glyph";
 import { formatDueDate } from "@/lib/format/event-date";
 import type { LibraryKind } from "@/features/library/kinds";
 import { preBookingStates } from "@/features/inquiries/stages";
+import { callWords, newJobLine } from "@/components/studio/trade-words";
 
 type SearchResult = {
   id: string;
@@ -296,7 +297,7 @@ export function GlobalSearch() {
                   <Plus size={17} />
                   <span>
                     <strong>New job</strong>
-                    <small>Start a new photography job</small>
+                    <small>{newJobLine(workspace.tenantTrade)}</small>
                   </span>
                 </Link> : null}
                 {operator ? <Link href="/studio/clients/new" onClick={close}>
@@ -309,7 +310,7 @@ export function GlobalSearch() {
                 {operator ? <Link href="/studio/calendar" onClick={close}>
                   <CalendarPlus size={17} />
                   <span>
-                    <strong>Schedule consultation</strong>
+                    <strong>{callWords(workspace.tenantTrade).scheduleAction}</strong>
                     <small>Find a time and create the meeting</small>
                   </span>
                 </Link> : null}

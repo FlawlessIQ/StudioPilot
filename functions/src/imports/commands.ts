@@ -11,6 +11,7 @@ import { promoteContactTypesToClient } from "../contacts/promotion.js";
 import { quickBooksPaymentHistory } from "../operations/provider-runtime.js";
 import { autoInstantiateWorkflow } from "../workflow/commands.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { tradeProfile } from "../trades/trades.js";
 import { templateKeyForKind } from "../job-kinds/template-key.js";
 import {
   assessExistingBooking,
@@ -20,6 +21,7 @@ import {
   importBlocked,
   planImportedBooking,
   type ExistingBooking,
+  type ImportedCoverageRole,
 } from "./existing-booking.js";
 
 /**
@@ -339,6 +341,7 @@ export async function importExistingBooking(input: {
     now: input.timestamp,
     source: input.source,
     batchId: input.batchId,
+    primaryRole: tradeProfile((await db.doc(`tenants/${input.tenantId}`).get()).get("trade")).coverageRoles[0] as ImportedCoverageRole,
   });
   // The kind of work, read from the type the studio picked (job-kinds.ts).
   const eventKind = jobKindOf(records.project);

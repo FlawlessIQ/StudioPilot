@@ -75,6 +75,8 @@ import {
 } from "./action-kit";
 import { OwnerOnly } from "./job-actions";
 import { ConfirmStep } from "@/components/ui/confirm-step";
+import { callWords } from "@/components/studio/trade-words";
+import { coverageRoleLabel, coverageRoleSchema } from "@/features/packages/coverage";
 
 const notFound = (title: string) => (
   <ActionShell title={title}>
@@ -98,10 +100,16 @@ export function AddCrewMemberCard() {
   );
 }
 
+/** "makeup artist", not the stored "makeup_artist" (features/packages/coverage.ts). */
+const roleWords = (value: unknown) => {
+  const role = coverageRoleSchema.safeParse(value);
+  return role.success ? coverageRoleLabel(role.data, 1) : String(value);
+};
+
 const profileOption = (profile: Rec) => ({
   id: profile.id,
   name: str(profile.name) || str(profile.email) || "Crew member",
-  detail: [arr(profile.trades).join(", "), str(profile.email)].filter(Boolean).join(" · ") || undefined,
+  detail: [arr(profile.trades).map(roleWords).join(", "), str(profile.email)].filter(Boolean).join(" · ") || undefined,
 });
 
 /** Edit, invite or archive someone on the roster. */
@@ -736,6 +744,15 @@ export function ReadinessCard({ action }: ActionCardProps) {
 
 export function DeliveryCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
+  // Only a trade that delivers something after the day has a gallery, an
+  // edit or an album (trades.ts). Closing out is everyone's.
+  const delivers = tradeProfile(useWorkspace().tenantTrade).delivery;
+  if (!delivers && action.action !== "close_job")
+    return (
+      <ActionShell title={`After the day · ${jobName(job)}`}>
+        <Blocked>Nothing is delivered after the day for your jobs. When everything is settled, ask Cue to close out the job.</Blocked>
+      </ActionShell>
+    );
   const titles: Record<string, string> = {
     record_delivery: "Deliver the gallery",
     complete_editing_step: "Post-production",
@@ -829,6 +846,7 @@ export function ReplaceGalleryLinkCard({ action }: ActionCardProps) {
   const deliveries = useRecords("deliveryRecords");
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const [done, setDone] = useState<string | null>(null);
+  const delivers = tradeProfile(useWorkspace().tenantTrade).delivery;
   const live = onJob(deliveries, action.projectId).filter((item) => !["revoked", "draft"].includes(str(item.status)));
   const options = live.map((item) => ({
     id: item.id,
@@ -836,6 +854,13 @@ export function ReplaceGalleryLinkCard({ action }: ActionCardProps) {
     detail: str(item.galleryUrl) || undefined,
   }));
   const choice = useSubjectChoice(action.subject, options);
+  // A trade with nothing to deliver never sent a link to fix (trades.ts).
+  if (!delivers)
+    return (
+      <ActionShell title={`Fix a link · ${jobName(job)}`}>
+        <Blocked>Nothing is delivered after the day for your jobs, so there&apos;s no link to replace.</Blocked>
+      </ActionShell>
+    );
   const title = `Fix a gallery link · ${jobName(job)}`;
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading || !deliveries) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -936,6 +961,8 @@ export function TeamCard({ action }: ActionCardProps) {
 // ─── Studio settings ────────────────────────────────────────────────────────
 
 export function PackageCatalogueCard({ action }: ActionCardProps) {
+  // A photographer's "coverage" is everyone else's hours (trades.ts).
+  const hoursWord = tradeProfile(useWorkspace().tenantTrade).family === "photo" ? "coverage" : "hours";
   // The price list: a one-off written for one couple is not on it
   // (features/packages/one-off.ts).
   const packages = useRecords("packages")?.filter((item) => isCataloguePackage(item)) ?? null;
@@ -958,7 +985,7 @@ export function PackageCatalogueCard({ action }: ActionCardProps) {
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (kind === "create_package")
     return (
-      <ActionShell detail="Its price, retainer, coverage and what's included." icon={<PackagePlus size={15} />} title={title}>
+      <ActionShell detail={`Its price, retainer, ${hoursWord} and what's included.`} icon={<PackagePlus size={15} />} title={title}>
         <Embedded>
           <CreatePackageForm returnTo="/studio/copilot" />
         </Embedded>
@@ -1007,6 +1034,8 @@ export function SettingsCard({ action }: ActionCardProps) {
   const workspace = useWorkspace();
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const owner = workspace.role === "studio_owner";
+  // The booking hours serve a DJ's vibe call and a makeup or hair trial too.
+  const calls = callWords(workspace.tenantTrade);
   const panels: Record<string, { title: string; detail: string; ownerOnly?: boolean; body: ReactNode; href: string; open?: string }> = {
     edit_agreement: {
       title: "Your agreement",
@@ -1037,8 +1066,8 @@ export function SettingsCard({ action }: ActionCardProps) {
       open: "Open the email templates",
     },
     set_consultation_availability: {
-      title: "Consultation availability",
-      detail: "When clients can book, how long a consultation is, and Zoom, phone or in person.",
+      title: calls.availabilityTitle,
+      detail: `When clients can book, how long a ${calls.one} is, and Zoom, phone or in person.`,
       body: <ConsultationAvailability />,
       href: "/studio/settings/consultation-availability",
     },
@@ -1047,8 +1076,10 @@ export function SettingsCard({ action }: ActionCardProps) {
       // Only these three are governed here (lifecycle-pack-panel.tsx). Review
       // asks, questionnaire and payment reminders have their own controls, so
       // the card doesn't claim them.
-      detail:
-        "The schedule confirmation, final balance summary and day-before checklist: whether Cue prepares them, and whether they send without your review.",
+      // A makeup or hair studio's clients get a prep guide, not the checklist.
+      detail: tradeProfile(workspace.tenantTrade).clientDayBefore
+        ? "The schedule confirmation, final balance summary and day-before checklist: whether Cue prepares them, and whether they send without your review."
+        : "The schedule confirmation and final balance summary: whether Cue prepares them, and whether they send without your review.",
       ownerOnly: true,
       body: <LifecyclePackPanel />,
       href: "/studio/settings/automatic-drafts",
@@ -1297,7 +1328,11 @@ export function OwnerShootingCard({ action }: ActionCardProps) {
   const { job, loading } = useJob(action.projectId);
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const runner = useRunner();
-  const title = `Who's shooting · ${jobName(job)}`;
+  // A photographer shoots, a DJ plays, a makeup artist or hair stylist works
+  // (tradeVocab `verb`); "I'm shooting it" is the trade's own button.
+  const vocab = tradeVocab(useWorkspace().tenantTrade);
+  const doing = `${vocab.verb}ing`;
+  const title = `Who's ${doing} · ${jobName(job)}`;
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return <ActionShell title={title}><Blocked>{"I couldn't find that job."}</Blocked></ActionShell>;
@@ -1317,18 +1352,18 @@ export function OwnerShootingCard({ action }: ActionCardProps) {
     >
       {now === wantShooting ? (
         <Done href={`/studio/projects/${job.id}`} label="Open the job">
-          {wantShooting ? "You're already down as shooting this one." : "It's already set to crew for every role."}
+          {wantShooting ? `You're already down as ${doing} this one.` : "It's already set to crew for every role."}
         </Done>
       ) : (
         <>
           <Actions
             busy={runner.busy}
-            label={wantShooting ? "I'm shooting it" : "Not me this time"}
+            label={wantShooting ? vocab.ownerOnAction : "Not me this time"}
             onClick={() =>
               void runner.run(async () => {
                 await setOwnerShooting(job.id, wantShooting);
                 return wantShooting
-                  ? "Done — you're shooting it, and the crew count is one fewer."
+                  ? `Done — you're ${doing} it, and the crew count is one fewer.`
                   : "Done — every role will be booked from your crew.";
               }, { refresh: ["projects"] })
             }

@@ -219,11 +219,13 @@ test("every place that seeds proposal terms uses every package", () => {
   assert.equal((composer.match(/setTermsSummary\(proposalTermsForJob\(jobSnapshotsOf\(/g) ?? []).length, 3);
   assert.doesNotMatch(composer, /proposalTermsFor\(/);
   const card = source("components/ai/actions/booking-actions.tsx");
-  assert.match(card, /termsSummary: proposalTermsForPackages\(onTheJob\)/);
+  assert.match(card, /termsSummary: proposalTermsForPackages\(onTheJob, trade\)/);
   assert.match(card, /From \$\{packageNames\.length \? packageNames\.join\(" \+ "\)/);
   const brief = source("components/booking/booking-autopilot-workspace.tsx");
   assert.match(brief, /termsSummary: proposalTerms,/);
-  assert.match(brief, /const proposalTerms = proposalTermsForPackages\(proposalPackages\);/);
+  // Every package's terms, then the default in the studio's trade (2026-10-09).
+  assert.match(brief, /const packageTerms = proposalTermsForPackages\(proposalPackages\);/);
+  assert.match(brief, /const proposalTerms = defaultTermsInTradeWords\(packageTerms, workspace\.tenantTrade\);/);
 });
 
 test("a job is worth its accepted total, else every package on it", () => {

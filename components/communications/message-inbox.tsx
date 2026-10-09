@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { requestMessageDraft } from "@/lib/ai/message-draft-client";
@@ -176,6 +177,9 @@ function readableFailure(caught: unknown): string {
 
 export function MessageInbox({ initialProjectId }: { initialProjectId?: string }) {
   const workspace = useWorkspace();
+  // The subject a new message falls back to, in the studio's trade: "A note
+  // about your music", not your photography, for a DJ's client.
+  const fallbackSubject = `A note about your ${tradeVocab(workspace.tenantTrade).service}`;
   const tenantId = workspace.tenantId;
 
   const [threads, setThreads] = useState<ThreadGroup[]>([]);
@@ -675,7 +679,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
           input: {
             projectId: draftProjectId,
             contactId: draftContactId,
-            subject: draftSubject.trim() || "A note about your photography",
+            subject: draftSubject.trim() || fallbackSubject,
             body: draftBody.trim(),
             // Every field the command requires. These were missing, so the first
             // new message a studio tried to send would have failed the same way
@@ -708,7 +712,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         setSending(false);
       }
     },
-    [draftProjectId, draftContactId, draftSubject, draftBody, draftCategory, sending],
+    [draftProjectId, draftContactId, draftSubject, draftBody, draftCategory, sending, fallbackSubject],
   );
 
   const totalUnread = threads.reduce(
@@ -795,7 +799,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                 type="text"
                 value={draftSubject}
                 onChange={(event) => setDraftSubject(event.target.value)}
-                placeholder="A note about your photography"
+                placeholder={fallbackSubject}
                 maxLength={120}
               />
             </label>

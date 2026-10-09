@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { StudioCalendar } from "@/components/booking/studio-calendar";
 import { AvailabilityDialog } from "@/components/booking/availability-dialog";
 import { AppShell } from "@/components/layout/app-shell";
+import { CalendarIntro } from "@/components/studio/page-intros";
 
 export const metadata: Metadata = { title: "Calendar" };
 
@@ -13,7 +14,9 @@ export default function CalendarPage() {
           <div>
             <p className="eyebrow">Schedule</p>
             <h1>Calendar</h1>
-            <p>See event dates and consultations, then schedule without calendar conflicts or duplicate meetings.</p>
+            {/* Names the studio's own calls: a DJ's vibe calls, a makeup or
+                hair studio's trials (it has no consultation). */}
+            <p><CalendarIntro /></p>
           </div>
           {/* Was a link to /studio/settings#consultation-availability — an
               anchor that does not exist on that page, so it landed at the

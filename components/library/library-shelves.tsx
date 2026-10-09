@@ -7,6 +7,7 @@ import { isCataloguePackage } from "@/features/packages/one-off";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { extraIdeasFor } from "@/features/packages/extra-ideas";
+import { packagesShelfDescription } from "@/components/crm/package-copy";
 import type { LibraryKind } from "@/features/library/kinds";
 
 /**
@@ -46,7 +47,8 @@ type Shelf = {
 const SETUP: Shelf[] = [
   {
     title: "Packages",
-    description: "Build reusable offers, pricing, coverage, and add-ons.",
+    // Read per trade in ShelfCard; this is a photographer's.
+    description: packagesShelfDescription(undefined),
     href: "/studio/packages",
     kind: "package",
     collection: "packages",
@@ -110,13 +112,17 @@ function ShelfCard({ shelf }: { shelf: Shelf }) {
   const { records } = useTenantDocuments(shelf.collection);
   const count = records ? (shelf.counts ? records.filter(shelf.counts).length : records.length) : null;
   const [one, many] = shelf.noun;
-  // The add-ons shelf names the extras this trade sells (extra-ideas.ts);
-  // a photographer's keeps its own line.
-  const ideas = extraIdeasFor(useWorkspace().tenantTrade);
+  // The add-ons shelf names the extras this trade sells (extra-ideas.ts),
+  // and the packages shelf what a package holds in this trade's words
+  // (package-copy.ts); a photographer's keep their own lines.
+  const trade = useWorkspace().tenantTrade;
+  const ideas = extraIdeasFor(trade);
   const description =
     shelf.collection === "addOns" && ideas !== extraIdeasFor(undefined)
       ? `Extras sold on top of a package — ${ideas[0]?.name.toLowerCase()}, ${ideas.find((idea) => idea.perUnit === "hour")?.name.toLowerCase() ?? ideas[1]?.name.toLowerCase()}.`
-      : shelf.description;
+      : shelf.collection === "packages"
+        ? packagesShelfDescription(trade)
+        : shelf.description;
   return (
     <Link
       className={count === 0 ? "is-empty" : undefined}

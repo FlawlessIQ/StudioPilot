@@ -20,7 +20,8 @@ test("the Delivery header names the one step that gates a release", () => {
 test("a hidden package is described by what hiding it does", () => {
   const form = read("components/crm/edit-package-form.tsx");
   assert.doesNotMatch(form, /stays out of quotes/);
-  assert.match(form, /You can still put it in a\s+proposal yourself/);
+  // A proposal, or a makeup artist's or hair stylist's quote (trades.ts).
+  assert.match(form, /You can still put it in a\{" "\}\s+\{`\$\{offer\} yourself\.`\}/);
 });
 
 test("AI usage says when it actually resets", () => {

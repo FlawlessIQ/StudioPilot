@@ -19,6 +19,7 @@ import {
   transitionRoute,
 } from "@/features/projects/state-machine";
 import type { ProjectState } from "@/features/projects/schema";
+import { tradeAllows, tradeVocab } from "@/features/trades/trades";
 
 /** How long a cancel can be undone. */
 export const UNCANCEL_WINDOW_DAYS = 30;
@@ -115,18 +116,21 @@ export type BackwardMove = {
  */
 export function backwardMovesFor(
   project: CancelRecord & { state: string; id: string },
-  context: { agreementOut: boolean; now: string },
+  /** The studio's trade (trades.ts): its word for the offer, and whether anything was delivered. Absent is a photographer. */
+  context: { agreementOut: boolean; now: string; trade?: unknown },
 ): BackwardMove[] {
   const state = project.state as ProjectState;
   const moves: BackwardMove[] = [];
   const allowed = allowedProjectTransitions[state] ?? [];
+  // A makeup artist or hair stylist sends a quote (trades.ts).
+  const offer = tradeVocab(context.trade).proposal.toLowerCase();
   if (state === "CONTRACT_PENDING" && allowed.includes("PROPOSAL")) {
     moves.push({
       target: "PROPOSAL",
       route: "transitionProject",
-      label: "Back to the proposal",
+      label: `Back to the ${offer}`,
       detail:
-        "For when the couple wants to change what they're booking before signing. The proposal can then be revised and sent again.",
+        `For when the couple wants to change what they're booking before signing. The ${offer} can then be revised and sent again.`,
       ownerOnly: false,
       needsReason: false,
       // Moving back with the agreement still out left it signable, and a
@@ -196,5 +200,7 @@ export function backwardMovesFor(
       });
     }
   }
-  return moves;
+  // A DJ, makeup artist or hair stylist delivers nothing, so never goes back
+  // to editing or to Delivered (trades.ts `tradeAllows`).
+  return moves.filter((move) => tradeAllows(context.trade, move.target));
 }

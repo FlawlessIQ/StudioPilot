@@ -9,6 +9,8 @@
  * a client or crew member can get is here, or excluded below with the reason.
  */
 
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+
 export type EmailGroup =
   | "Inquiry & consultation"
   | "Proposal & booking"
@@ -100,3 +102,53 @@ export const EMAIL_GROUPS: readonly EmailGroup[] = [
   "Crew",
   "Insurance",
 ];
+
+/**
+ * The list as one studio sees it, in its own trade's words.
+ *
+ * A hair stylist's editor listed "Photos & films delivered", "Album picks
+ * reminder" and "Gallery expiring", and timed its call emails to "a
+ * consultation" she never holds (2026-10-09). A trade that delivers nothing
+ * after the day has no delivery emails to edit; the rest keep their keys and
+ * say when they go in the studio's words. A photographer's list is unchanged.
+ */
+const DELIVERY_EMAILS = new Set(["delivery", "delivery_correction", "album_selection_reminder", "delivery_expiry_reminder"]);
+
+export function editableEmailsFor(trade: unknown): readonly EditableEmail[] {
+  const profile = tradeProfile(trade);
+  if (profile.family === "photo") return EDITABLE_EMAILS;
+  const words = tradeVocab(trade);
+  // Makeup and hair hold no sales call; their calls are the trial and the
+  // final details call, booked through the same emails.
+  const call = profile.consultation ? `${words.consultation.toLowerCase()}` : "call";
+  return EDITABLE_EMAILS.filter((email) => profile.delivery || !DELIVERY_EMAILS.has(email.key)).map((email) => {
+    switch (email.key) {
+      case "consultation_invitation":
+        return { ...email, when: `When you invite them to pick a ${call} time` };
+      case "consultation_confirmation":
+        return { ...email, when: `When a ${call} is booked` };
+      case "consultation_reminder":
+        return { ...email, when: `Before their ${call}` };
+      case "consultation_rescheduled":
+        return { ...email, when: `When a ${call} moves to a new time` };
+      case "consultation_cancelled":
+        return { ...email, when: `When a ${call} is canceled` };
+      case "package_follow_up":
+        return { ...email, when: "When you send them your package options" };
+      case "proposal_sent":
+        return { ...email, label: words.proposal, when: `When you send a ${words.proposal.toLowerCase()}` };
+      case "review_request":
+        return { ...email, when: "After the day, asking for a review" };
+      default:
+        return email;
+    }
+  });
+}
+
+/** A group's heading in the studio's words: no "consultation" where there is none. */
+export function emailGroupLabel(group: EmailGroup, trade: unknown): string {
+  if (group !== "Inquiry & consultation") return group;
+  const profile = tradeProfile(trade);
+  if (profile.family === "photo") return group;
+  return profile.consultation ? `Inquiry & ${tradeVocab(trade).consultation.toLowerCase()}` : "Inquiry & calls";
+}

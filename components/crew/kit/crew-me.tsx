@@ -1,7 +1,7 @@
 "use client";
 
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { useState, type KeyboardEvent } from "react";
 import { CalendarDays, CheckCircle2, Plus, ShieldCheck, X } from "lucide-react";
 import { Actions, Button, Card, Choices, Field, List, Main, Note, Pill, PoweredBy, Row } from "@/components/kit/kit";
@@ -131,7 +131,7 @@ function Profile({ data, profile }: { data: CrewData; profile: Value }) {
         <section aria-label="Your work" className="kit-stack">
           <h2 className="kit-subsection">Your work</h2>
           <Choices
-            legend={tradeProfile(workspace.tenantTrade).family === "music" ? "You work as" : "You shoot"}
+            legend={tradeProfile(workspace.tenantTrade).family === "photo" ? "You shoot" : "You work as"}
             multiple
             onChange={(next) => touch(setTrades)(next as CoverageRole[])}
             options={COVERAGE_ROLES.filter(
@@ -140,7 +140,11 @@ function Profile({ data, profile }: { data: CrewData; profile: Value }) {
             value={trades}
           />
           <ChipInput
-            hint="The kind of event you shoot, like weddings or portraits."
+            hint={
+              tradeProfile(workspace.tenantTrade).family === "photo"
+                ? "The kind of event you shoot, like weddings or portraits."
+                : `The kind of event you ${tradeVocab(workspace.tenantTrade).verb}, like parties or corporate events.`
+            }
             label="Specialties"
             max={20}
             onChange={touch(setSpecialties)}

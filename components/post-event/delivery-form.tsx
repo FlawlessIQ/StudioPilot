@@ -27,6 +27,7 @@ import {
 import { jobExpectedDeliverables } from "@/features/post-event/job-deliverables";
 import { jobPackageSnapshotIds } from "@/features/crew/staffing-plan";
 import { ReplaceDeliveryLink } from "@/components/post-event/replace-delivery-link";
+import { DeliveryOnly } from "@/components/post-event/nothing-delivered";
 import { addCalendarDays, formatEventDate, todayLocalIso } from "@/lib/format/event-date";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -83,7 +84,20 @@ const newItem = (kind: DeliverableKind, from?: Partial<Item>): Item => ({
   ...from,
 });
 
+/**
+ * The release form, for a studio that delivers. A DJ, makeup artist or hair
+ * stylist has nothing to release (trades.ts), and Cue's "record a delivery"
+ * card mounts this form as well as the delivery page, so it answers for them.
+ */
 export function DeliveryForm({ projectId }: { projectId?: string }) {
+  return (
+    <DeliveryOnly projectId={projectId}>
+      <DeliveryReleaseForm projectId={projectId} />
+    </DeliveryOnly>
+  );
+}
+
+function DeliveryReleaseForm({ projectId }: { projectId?: string }) {
   const workspace = useWorkspace();
   const returnToJob = useReturnToJob(projectId ?? null);
   const { records: projects, loading } = useTenantDocuments("projects");

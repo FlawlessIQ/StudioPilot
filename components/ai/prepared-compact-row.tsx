@@ -1,6 +1,8 @@
 "use client";
 
 import { BrainCircuit, ChevronRight, Sparkles } from "lucide-react";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 
 type RecordValue = Record<string, unknown> & { id: string };
 
@@ -20,10 +22,11 @@ function readable(value: string) {
  * workflow phase: a pre-wedding invoice notice was labelled "Delivery message
  * draft" (UI audit, 2026-10-02).
  */
-function draftLabel(capability: string): string {
+function draftLabel(capability: string, trade?: unknown): string {
   if (/reply/.test(capability)) return "Reply draft";
   if (/message|email|notice/.test(capability)) return "Message draft";
-  if (/proposal/.test(capability)) return "Proposal draft";
+  // A makeup or hair studio's offer is a quote (trades.ts).
+  if (/proposal/.test(capability)) return `${tradeVocab(trade).proposal} draft`;
   if (/schedule|run_of_show/.test(capability)) return "Schedule draft";
   return readable(capability) || "Prepared for you";
 }
@@ -64,6 +67,7 @@ export function PreparedCompactRow({
   /** Why it is out of date for the job, when it is. */
   stale?: string | null;
 }) {
+  const trade = useWorkspace().tenantTrade;
   const record = item.record;
   const flags =
     versions > 1 || stale ? (
@@ -90,7 +94,7 @@ export function PreparedCompactRow({
           <BrainCircuit size={16} />
         </span>
         <span className="prepared-compact-body">
-          <small>{draftLabel(capability)}</small>
+          <small>{draftLabel(capability, trade)}</small>
           <strong>
             {text(record.title) || `Review ${readable(capability) || "AI suggestion"}`}
           </strong>

@@ -6,7 +6,9 @@ import {
 
 export const metadata: Metadata = {
   title: "Crew invitation",
-  description: "Accept a secure invitation from a photography studio.",
+  // Fixed at build time, so not "a photography studio": a DJ's, a makeup
+  // artist's and a hair stylist's crew are invited through it too.
+  description: "Accept a secure invitation from your studio.",
 };
 
 export default async function CrewInvitationPage({

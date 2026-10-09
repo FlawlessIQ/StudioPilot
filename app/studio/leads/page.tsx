@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Inbox, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { LiveMaybeInquiries } from "@/components/live/tenant-records";
 import { InquiryPipelineRows } from "@/components/inquiries/inquiry-pipeline";
-import { inquiryViews } from "@/features/inquiries/stages";
+import { InquiryTabs } from "@/components/studio/inquiry-tabs";
 import { TenantInquiryLink } from "@/components/crm/tenant-inquiry-link";
 import { InquiryForwardingAddress } from "@/components/crm/inquiry-forwarding-address";
 
@@ -28,7 +27,7 @@ export default async function LeadsPage({
         <section className="panel crm-table-panel">
           <div className="crm-toolbar">
             {/* A tab keeps the search: the couple someone is looking for may have closed. */}
-            <div className="crm-tabs">{inquiryViews.map(([value, label]) => <Link className={view === value ? "active" : ""} href={`?${new URLSearchParams(q ? { view: value, q } : { view: value })}`} key={value}>{label}</Link>)}</div>
+            <InquiryTabs q={q} view={view} />
             <form className="crm-search-form" method="get"><input name="view" type="hidden" value={view} /><Search size={15} />{/* Keyed on the query, so an in-app visit to another ?q= shows its words, not the last ones. */}<input aria-label="Search inquiries" defaultValue={q} key={q} name="q" placeholder="Name or email" /><button type="submit">Search</button></form>
           </div>
           <div className="crm-table crm-leads-table inquiry-pipeline-table">

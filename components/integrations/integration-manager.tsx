@@ -37,7 +37,6 @@ import {
   type CapabilitySelections,
 } from "@/features/integrations/routing";
 import {
-  BUSY_TIME_CALENDARS_COPY,
   busyTimeProviders,
   integrationProviderSchema,
   isOfferedProvider,
@@ -46,6 +45,9 @@ import {
   type IntegrationCapability,
   type IntegrationProvider,
 } from "@/features/integrations/schema";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
+import { busyTimesLine, callWords } from "@/components/studio/trade-words";
 
 // The connect/disconnect UI below only has cards for the providers a studio
 // can currently OAuth-connect (definitions, further down). The capability
@@ -240,7 +242,7 @@ const definitions: ReadonlyArray<Definition> = [
     label: "Docusign",
     description:
       "Send agreements and retain authoritative completion evidence.",
-    scope: "Photography agreements",
+    scope: "Client agreements",
     capabilities: ["Templates", "Signatures", "Evidence"],
     icon: FileSignature,
     accent: "docusign",
@@ -250,7 +252,7 @@ const definitions: ReadonlyArray<Definition> = [
     label: "Dropbox Sign",
     description:
       "Send template-based agreements and automatically record completion evidence.",
-    scope: "Photography agreements",
+    scope: "Client agreements",
     capabilities: ["Templates", "Signatures", "Evidence"],
     icon: FileSignature,
     accent: "dropbox",
@@ -287,6 +289,48 @@ const definitions: ReadonlyArray<Definition> = [
 // about this screen — the resolver and the booking commands need it too.
 // Keeping a second private copy here is how the proposal page and the
 // server came to disagree with these rows about which app signs a contract.
+/**
+ * A tile in the studio's words. The calendar and Zoom cards were written
+ * around a photographer's consultation, which a makeup or hair studio never
+ * books and a DJ calls a vibe call; Dropbox's "Delivery" is a photographer's
+ * gallery hand-off, which no other trade has (features/trades/trades.ts).
+ */
+function inTradeWords(definition: Definition, trade: unknown): Definition {
+  const calls = callWords(trade);
+  if (definition.provider === "google_calendar")
+    return {
+      ...definition,
+      description: `Keep ${calls.booked}, event dates, and studio availability aligned.`,
+      capabilities: ["Availability", calls.bookedLabel, "Event blocks"],
+    };
+  if (definition.provider === "zoom")
+    return calls.sales
+      ? {
+          ...definition,
+          description: `Create secure ${calls.booked} and prepare post-call notes for approval.`,
+          capabilities: [calls.bookedLabel, "Waiting room", "AI Companion summary"],
+        }
+      : {
+          ...definition,
+          description: "Create secure video calls and prepare post-call notes for approval.",
+          capabilities: ["Video calls", "Waiting room", "AI Companion summary"],
+        };
+  if (definition.provider === "dropbox" && !tradeProfile(trade).delivery)
+    return { ...definition, capabilities: definition.capabilities.filter((item) => item !== "Delivery") };
+  return definition;
+}
+
+/** "Which connected provider creates consultation meeting links", for the calls this trade has. */
+function capabilityWords(capability: IntegrationCapability, trade: unknown) {
+  const copy = capabilityCopy[capability];
+  if (capability !== "meetings") return copy;
+  const sales = callWords(trade).sales;
+  return {
+    ...copy,
+    description: `Which connected provider creates ${sales ? sales.toLowerCase() : "video call"} meeting links.`,
+  };
+}
+
 const hiddenUiProviders = new Set<Provider>(
   integrationProviderSchema.options.filter((provider) => !isOfferedProvider(provider)),
 );
@@ -367,6 +411,7 @@ function relativeCheck(value: string | null): string {
 }
 
 export function IntegrationManager() {
+  const trade = useWorkspace().tenantTrade;
   const outsideStepsState = useOutsideSteps();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selections, setSelections] = useState<CapabilitySelections>({});
@@ -689,7 +734,9 @@ export function IntegrationManager() {
     if (connection?.status === "connected" && connection.mockMode !== true) return 0;
     return oauthEnabled(definition.provider) ? 1 : 2;
   };
-  const ordered = [...visibleDefinitions].sort((a, b) => stateOf(a) - stateOf(b));
+  const ordered = [...visibleDefinitions]
+    .sort((a, b) => stateOf(a) - stateOf(b))
+    .map((definition) => inTradeWords(definition, trade));
 
   return (
     <div className="integration-center">
@@ -725,7 +772,7 @@ export function IntegrationManager() {
       <p className="integration-busy-note">
         <CalendarDays size={14} aria-hidden="true" />
         <span>
-          <strong>Busy times.</strong> {BUSY_TIME_CALENDARS_COPY}
+          <strong>Busy times.</strong> {busyTimesLine(trade)}
         </span>
       </p>
 
@@ -804,8 +851,11 @@ export function IntegrationManager() {
                   : definition.capabilities.join(" · ")}
               </p>
 
+              {/* The summary feeds a sales call's notes, which a trade with
+                  no sales call (makeup, hair) never holds. */}
               {connected &&
               definition.provider === "zoom" &&
+              callWords(trade).sales !== null &&
               outsideStepAvailable("zoom_meeting_summaries") &&
               outsideSteps &&
               outsideSteps.zoom_meeting_summaries.state !== "done" ? (
@@ -937,7 +987,7 @@ export function IntegrationManager() {
           </header>
           <ul className="integration-routing-list">
             {choices.map(({ capability, eligible, resolution }) => {
-              const copy = capabilityCopy[capability];
+              const copy = capabilityWords(capability, trade);
               const saving = savingCapability === capability;
               const selectedValue =
                 resolution.outcome === "resolved" ? resolution.provider : "";

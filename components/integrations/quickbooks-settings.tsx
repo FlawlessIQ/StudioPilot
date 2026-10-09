@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, CircleMinus, LoaderCircle, ReceiptText, TriangleAlert, XCircle } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import {
   basisPointsToPercent,
   percentToBasisPoints,
@@ -62,6 +63,8 @@ function CheckIcon({ ok }: { ok: boolean | null }) {
 
 export function QuickBooksSettings() {
   const workspace = useWorkspace();
+  // What the client is sent: a makeup or hair studio's quote (trades.ts).
+  const offers = `${tradeVocab(workspace.tenantTrade).proposal}s`;
   const tenantId = workspace.tenantId;
   const allowed = ["studio_owner", "studio_admin"].includes(String(workspace.role));
   // The studio's own "I've turned it on" for the Automated Sales Tax step.
@@ -251,7 +254,7 @@ export function QuickBooksSettings() {
             ) : null}
             {mode === "quickbooks" ? (
               <label className="qb-settings-rate">
-                <span>Estimated rate for proposals</span>
+                <span>Estimated rate for {offers.toLowerCase()}</span>
                 <span className="qb-settings-rate-input">
                   <input
                     aria-invalid={rateInvalid}
@@ -265,7 +268,7 @@ export function QuickBooksSettings() {
                 <small>
                   {rateInvalid
                     ? "Enter a rate between 0 and 25, like 8.25."
-                    : "Proposals show tax at this rate as an estimate. The final invoice uses QuickBooks' figure for the couple's address."}
+                    : `${offers} show tax at this rate as an estimate. The final invoice uses QuickBooks' figure for the couple's address.`}
                 </small>
               </label>
             ) : null}

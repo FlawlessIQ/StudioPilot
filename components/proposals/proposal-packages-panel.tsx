@@ -9,7 +9,7 @@ import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { extraIdeasFor } from "@/features/packages/extra-ideas";
-import { tradeOf } from "@/features/trades/trades";
+import { tradeOf, tradeVocab } from "@/features/trades/trades";
 import {
   REVISABLE_PROPOSAL_STATUSES,
   oneOffReplaceConfirmText,
@@ -63,6 +63,8 @@ export function ProposalPackagesPanel({
 }) {
   const router = useRouter();
   const workspace = useWorkspace();
+  // "quote" for a makeup artist or hair stylist (trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const projects = useTenantDocuments("projects");
   const snapshots = useTenantDocuments("packageSnapshots");
   const packages = useTenantDocuments("packages");
@@ -121,8 +123,8 @@ export function ProposalPackagesPanel({
         [
           loses,
           status === "accepted"
-            ? `${coupleName} have accepted this proposal. Changing the packages makes a revised proposal for them to accept — the accepted one stays in the version history, and the agreement waits for the new one. Go ahead?`
-            : `${coupleName} have already been sent this proposal. Changing the packages makes a revised version to send them; this one stays in the version history. Go ahead?`,
+            ? `${coupleName} have accepted this ${offer}. Changing the packages makes a revised ${offer} for them to accept — the accepted one stays in the version history, and the agreement waits for the new one. Go ahead?`
+            : `${coupleName} have already been sent this ${offer}. Changing the packages makes a revised version to send them; this one stays in the version history. Go ahead?`,
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -337,8 +339,7 @@ export function ProposalPackagesPanel({
           <h2 id="proposal-packages-title">
             What they&apos;re booking
             <InfoHint label="What they're booking">
-              Change packages freely until the agreement goes out. Once the proposal has been sent, a change becomes a
-              new version for the couple to accept.
+              {`Change packages freely until the agreement goes out. Once the ${offer} has been sent, a change becomes a new version for the couple to accept.`}
             </InfoHint>
           </h2>
         </div>
@@ -456,7 +457,7 @@ export function ProposalPackagesPanel({
             {discountFor === id ? (
               <div className="proposal-packages-picker proposal-packages-discount" role="group" aria-label={`Discount on ${text(snapshot?.packageName, "this package")}`}>
                 <small>
-                  A percentage stays a percentage when extras change; an amount stays that amount. The proposal is priced again.
+                  {`A percentage stays a percentage when extras change; an amount stays that amount. The ${offer} is priced again.`}
                 </small>
                 <label className="proposal-field">
                   Discount
@@ -525,6 +526,7 @@ export function ProposalPackagesPanel({
                 hasPackage
                 initial={oneOffFormValuesFrom(oneOffPackage)}
                 initialMode="add"
+                record={oneOffPackage}
                 key={`edit-${id}`}
                 onCancel={() => setEditingFor(null)}
                 onSubmit={(input, key) => void editOneOff(oneOffPackage.id, input, key)}
@@ -538,7 +540,7 @@ export function ProposalPackagesPanel({
         <div className="proposal-packages-picker">
           <small>
             {picking === "add"
-              ? "Choose a package to add. The proposal is priced again with both."
+              ? `Choose a package to add. The ${offer} is priced again with both.`
               : discountLabel(discountRuleOf(onJob[0]?.snapshot))
                 ? `Choose the package to use instead. Their discount (${discountLabel(discountRuleOf(onJob[0]?.snapshot), text(onJob[0]?.snapshot?.currency, "USD"))}) carries over.`
                 : "Choose the package to use instead."}
@@ -600,7 +602,7 @@ export function ProposalPackagesPanel({
       ) : sentToCouple ? (
         <small className="proposal-packages-note">
           {status === "accepted"
-            ? "Any change here becomes a revised proposal for them to accept."
+            ? `Any change here becomes a revised ${offer} for them to accept.`
             : "Any change here becomes a new version to send them."}
         </small>
       ) : null}

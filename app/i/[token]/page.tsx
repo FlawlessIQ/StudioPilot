@@ -3,7 +3,9 @@ import { CoupleInquiryPage } from "@/components/inquiries/couple-inquiry-page";
 
 export const metadata: Metadata = {
   title: "Your inquiry",
-  description: "Tell your photographer about your day and pick a time to talk.",
+  // Fixed at build time, before anyone knows whose client is looking: a makeup
+  // artist's or hair stylist's client has no call to pick a time for.
+  description: "Tell your studio about your day.",
   // A private link: never indexed, never previewed with its contents.
   robots: { index: false, follow: false },
 };

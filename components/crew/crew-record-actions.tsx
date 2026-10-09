@@ -8,6 +8,8 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { TradeField, tradesFromForm } from "@/components/crew/trade-field";
 import { CrewProfileDocumentUpload } from "@/components/crew/profile-document-upload";
 import { sendCrewCommand } from "@/lib/crew/command-client";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 /**
  * The studio's corrections to a directory entry, and removing one.
@@ -69,6 +71,9 @@ export function CrewRecordActions({
     archived: boolean;
   };
 }) {
+  // A camera means nothing to a DJ's, a makeup artist's or a hair stylist's crew.
+  const trade = useWorkspace().tenantTrade;
+  const photo = tradeProfile(trade).family === "photo";
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -220,9 +225,11 @@ export function CrewRecordActions({
             <input
               defaultValue={crew.specialties.join(", ")}
               name="specialties"
-              placeholder="Second shooter, lighting"
+              placeholder={photo ? "Second shooter, lighting" : "Parties, corporate events"}
             />
-            <p className="field-hint">The kind of event, not the camera.</p>
+            <p className="field-hint">
+              {photo ? "The kind of event, not the camera." : `The kind of event they ${tradeVocab(trade).verb}.`}
+            </p>
           </label>
           <TradeField value={crew.trades} />
           <label>

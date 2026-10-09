@@ -90,6 +90,29 @@ When adding a domain capability, expect to touch the deterministic core in `feat
 
 Deployment targets Firebase App Hosting (`apphosting.yaml`). The Next.js app is also packaged through a Cloudflare-compatible runtime (`vinext` / wrangler) via the `*:sites` scripts for preview. Heavier work (PDF rendering, document extraction, safe file processing, larger AI) is designed to run in `cloud-run/`, out of the functions path.
 
+## UI layout (read before writing CSS)
+
+Text squeezed to one word per line, or drawn under a button, must never ship.
+Today's inquiries card did, on every desk-sized window (2026-10-09), because
+it switched columns on a **viewport** query while living in a column the
+sidebar and side rail had already narrowed.
+
+- Size components by their container, never the viewport: `flex-wrap` with a
+  minimum `flex-basis` on the text (wrap, never squeeze), or `@container`.
+- Never put wrapping content in an `auto` grid track beside a
+  `minmax(0, 1fr)` text track — the auto track takes the width.
+- Before calling UI done, run the layout guard (CI runs it as "Layout
+  integrity"; it finds every `app/**/page.tsx` itself):
+  ```bash
+  npm run build && npx playwright test e2e/layout-integrity.spec.ts --project=desktop-chromium
+  ```
+  For a live page, run `e2e/support/layout-audit.ts` in the browser at 1024,
+  1280 and phone width.
+- Terminology follows the studio's trade: words come from `tradeVocab()` /
+  `tradeProfile()` (features/trades), never a hardcoded "photographer",
+  "gallery", "coverage" or "proposal". `tests/job-kind-copy.test.ts` pins
+  what is left and only lets it come down.
+
 ## Working on `main` (read before pushing)
 
 Work lands directly on `main`. There are no customers yet, so the cost of a

@@ -782,6 +782,10 @@ function leadEvidence(lead: TodayRecord): string {
 
 export function todayInbox(input: TodayInput): TodayInbox {
   const planningTimeline = resolvePlanningTimeline(input.planningTimeline);
+  // The studio's words for the offer and the call (trades.ts): a makeup
+  // artist's quote, a DJ's vibe call.
+  const tradeOffer = tradeVocab(input.tenantTrade).proposal.toLowerCase();
+  const tradeCall = tradeVocab(input.tenantTrade).consultation.toLowerCase();
   const now = new Date(input.now);
   const today = input.now.slice(0, 10);
   const act: TodayItem[] = [];
@@ -1101,9 +1105,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
           : requestKind === "date_change"
             ? "Check you're free, then change the date on the job."
             : text(proposal?.status) === "accepted"
-              ? "Adding it makes a revised proposal for them to accept."
+              ? `Adding it makes a revised ${tradeOffer} for them to accept.`
               : proposal
-                ? "Adding it prices their proposal again."
+                ? `Adding it prices their ${tradeOffer} again.`
                 : null,
       ]
         .filter(Boolean)
@@ -1702,7 +1706,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const { job, attempts } of groupProviderFailures(
     rows(input.providerJobs).filter(failed),
   )) {
-    const failure = describeProviderFailure(job.type);
+    const failure = describeProviderFailure(job.type, input.tenantTrade);
     exception({
       id: `provider-${job.id}`,
       // Every card carries a glyph, so every title starts on the same line;
@@ -2187,10 +2191,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
         lane: "act",
         kind: toneKindFor(capability || text(action.assetType) || text(action.type)),
         title: onBrief
-          ? `Pick ${who ? `${who}'s` : "the"} packages for the proposal`
+          ? `Pick ${who ? `${who}'s` : "the"} packages for the ${tradeOffer}`
           : text(action.title) || "Prepared work needs you",
         detail: onBrief
-          ? "StudioCue couldn't choose a package from the consultation. Pick one or more on the booking brief and it drafts the proposal."
+          ? `StudioCue couldn't choose a package from the ${tradeCall}. Pick one or more on the booking brief and it drafts the ${tradeOffer}.`
           : issues.map((issue) => issue.message).filter(Boolean).join(" ") || "StudioCue needs a decision before this can go ahead.",
         evidence: "Cue prepared this — you decide",
         projectId: projectId || null,
@@ -2452,7 +2456,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
     prepared({
       id: `proposal-${proposal.id}`,
       kind: "proposal",
-      title: "Approve the prepared proposal",
+      title: `Approve the prepared ${tradeOffer}`,
       detail: nameFor(proposal.projectId) ?? "Client offer",
       href: `/studio/proposals/${proposal.id}`,
       label: "Review",

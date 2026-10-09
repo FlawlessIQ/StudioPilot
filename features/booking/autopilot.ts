@@ -1,3 +1,5 @@
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+
 export type BookingPackageFact = {
   id: string;
   name: string;
@@ -21,9 +23,25 @@ export const DEFAULT_PROPOSAL_TERMS =
   "Coverage, deliverables and payment dates are as set out in this proposal. The signed photography agreement holds the full terms.";
 
 /** The package's own terms, or the default when it has none written. */
-export function proposalTermsFor(terms: unknown): string {
+export function proposalTermsFor(terms: unknown, trade?: unknown): string {
   const written = typeof terms === "string" ? terms.trim() : "";
-  return written.length >= 10 ? written : DEFAULT_PROPOSAL_TERMS;
+  return written.length >= 10 ? written : defaultTermsInTradeWords(DEFAULT_PROPOSAL_TERMS, trade);
+}
+
+/**
+ * The default wording in the studio's own trade. A new makeup studio's
+ * packages have no terms written, so every quote it sent told the client
+ * "Coverage, deliverables … the signed photography agreement" (2026-10-09).
+ * Only the defaults change; terms a studio wrote are its own. Comparisons
+ * against DEFAULT_PROPOSAL_TERMS run before this, on the photographer's text.
+ */
+export function defaultTermsInTradeWords(terms: string, trade: unknown): string {
+  if (trade === undefined || tradeProfile(trade).family === "photo") return terms;
+  const lead = `What's included and payment dates are as set out in this ${tradeVocab(trade).proposal.toLowerCase()}.`;
+  if (terms === DEFAULT_PROPOSAL_TERMS) return `${lead} The signed agreement holds the full terms.`;
+  if (terms === noAgreementProposalTerms(true)) return `${lead} Accepting it and paying books the date.`;
+  if (terms === noAgreementProposalTerms(false)) return `${lead} Accepting it books the date.`;
+  return terms;
 }
 
 /**
@@ -41,6 +59,7 @@ export function proposalTermsFor(terms: unknown): string {
 export function proposalTermsForPackages(
   // Any snapshot or catalogue record: only packageName/name and terms are read.
   packages: readonly Record<string, unknown>[],
+  trade?: unknown,
 ): string {
   const written = packages.flatMap((entry) => {
     const terms = typeof entry.terms === "string" ? entry.terms.trim() : "";
@@ -51,7 +70,7 @@ export function proposalTermsForPackages(
         ?.trim() ?? "Package";
     return [{ name, terms }];
   });
-  if (!written.length) return DEFAULT_PROPOSAL_TERMS;
+  if (!written.length) return defaultTermsInTradeWords(DEFAULT_PROPOSAL_TERMS, trade);
   if (packages.length === 1) return written[0]!.terms.slice(0, 6000);
   return written
     .map((entry) => `${entry.name}: ${entry.terms}`)
@@ -65,6 +84,8 @@ export function groundedBookingDraft(input: {
   packages: readonly BookingPackageFact[];
   consultationSummary: string;
   proposalIntroduction: string;
+  /** The studio's trade: the default terms in its words. */
+  trade?: unknown;
 }) {
   const selected = input.packages.find(
     (studioPackage) =>
@@ -89,7 +110,7 @@ export function groundedBookingDraft(input: {
           basePriceCents: selected.basePriceCents,
           currency: selected.currency,
           notes: input.proposalIntroduction.trim(),
-          termsSummary: proposalTermsFor(selected.terms),
+          termsSummary: proposalTermsFor(selected.terms, input.trade),
           sendAutomatically: false as const,
         }
       : null,
@@ -111,7 +132,11 @@ export function noAgreementProposalTerms(paysToBook: boolean): string {
 export function proposalTermsForJob(
   packages: readonly Record<string, unknown>[],
   needs: { agreement: boolean; payment: boolean },
+  trade?: unknown,
 ): string {
   const terms = proposalTermsForPackages(packages);
-  return terms === DEFAULT_PROPOSAL_TERMS && !needs.agreement ? noAgreementProposalTerms(needs.payment) : terms;
+  return defaultTermsInTradeWords(
+    terms === DEFAULT_PROPOSAL_TERMS && !needs.agreement ? noAgreementProposalTerms(needs.payment) : terms,
+    trade,
+  );
 }

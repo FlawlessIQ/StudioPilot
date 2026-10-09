@@ -41,7 +41,10 @@ test("an empty tab says where the match is, with a link that keeps the search", 
 
 test("the tabs keep the search and the box follows the URL", () => {
   const page = read("app/studio/leads/page.tsx");
-  assert.match(page, /href=\{`\?\$\{new URLSearchParams\(q \? \{ view: value, q \} : \{ view: value \}\)\}`\}/);
+  // The tabs moved into a client component, to be named in the studio's
+  // trade (a makeup artist's "Quote"); they still carry the search.
+  assert.match(page, /<InquiryTabs q=\{q\} view=\{view\} \/>/);
+  assert.match(read("components/studio/inquiry-tabs.tsx"), /href=\{`\?\$\{new URLSearchParams\(q \? \{ view: value, q \} : \{ view: value \}\)\}`\}/);
   assert.match(page, /defaultValue=\{q\} key=\{q\} name="q"/);
   assert.match(read("components/inquiries/inquiry-pipeline.tsx"), /searchInquiries\(/);
 });

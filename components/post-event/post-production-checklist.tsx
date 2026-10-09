@@ -14,6 +14,7 @@ import {
   postProductionRows,
   type PostProductionStepKey,
 } from "@/features/post-production/checklist";
+import { DeliveryOnly } from "@/components/post-event/nothing-delivered";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -33,6 +34,23 @@ const record = (value: unknown): Record<string, unknown> =>
  * see features/post-production/checklist.ts.
  */
 export function PostProductionChecklist({
+  projectId,
+  onChanged,
+}: {
+  projectId: string;
+  onChanged?: () => void;
+}) {
+  // Cards, an edit and a gallery: a photographer's. A studio that delivers
+  // nothing never reaches post-production (trades.ts), and Cue's card mounts
+  // this as well as the delivery pages.
+  return (
+    <DeliveryOnly projectId={projectId}>
+      <PostProductionSteps onChanged={onChanged} projectId={projectId} />
+    </DeliveryOnly>
+  );
+}
+
+function PostProductionSteps({
   projectId,
   onChanged,
 }: {

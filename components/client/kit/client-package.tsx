@@ -5,7 +5,7 @@ import { Check, LockKeyhole } from "lucide-react";
 import { Actions, Button, Card, KitRoot, List, Main, Note, PoweredBy, Row } from "@/components/kit/kit";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { couplePackageView, snapshotInclusions } from "@/features/packages/job-packages";
 import { salesTaxSentence } from "@/features/billing/sales-tax-pricing";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -273,7 +273,7 @@ export function ClientPackage() {
         <KitRoot className="kit-embed kit-sheet" studio={{ color: workspace.tenantBrand?.primaryColor ?? null }}>
           <div className="kit-stack">
             <p className="kit-body">
-              {`${money(total, selected?.currency)} before tax${selectedAddOns.length ? `, with ${selectedAddOns.map((addOn) => text(addOn.name)).join(" and ")}` : ""}. The price is fixed from now on, and your studio prepares your proposal from it.`}
+              {`${money(total, selected?.currency)} before tax${selectedAddOns.length ? `, with ${selectedAddOns.map((addOn) => text(addOn.name)).join(" and ")}` : ""}. The price is fixed from now on, and your studio prepares your ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} from it.`}
             </p>
             {error ? (
               <p className="kit-error" role="alert">

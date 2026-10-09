@@ -13,6 +13,7 @@ import {
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
+import { tradeOf, tradeProfile } from "../trades/trades.js";
 import { teamRoleForEmail } from "../crm/team-email.js";
 
 const input = z.discriminatedUnion("type", [
@@ -179,12 +180,15 @@ export const clientInvitationCommand = onRequest(
                 : storedStatus === "pending"
                   ? "pending"
                   : "expired";
-        const brand = resolveTenantBrand(tenant.data(), "Your photography studio");
+        const photo = tradeProfile(tenant.get("trade")).family === "photo";
+        const brand = resolveTenantBrand(tenant.data(), photo ? "Your photography studio" : "Your studio");
         response.status(200).json({
           status,
           expiresAt: String(invitation.get("expiresAt")),
           studioName: brand.brandName,
-          projectName: String(project.get("name") ?? "Your photography project"),
+          // The invitation's words follow the studio's trade.
+          trade: tradeOf(tenant.get("trade")),
+          projectName: String(project.get("name") ?? (photo ? "Your photography project" : "Your project")),
           eventDate:
             typeof project.get("eventDate") === "string"
               ? project.get("eventDate")

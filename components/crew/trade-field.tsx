@@ -26,7 +26,7 @@ import {
  */
 export function TradeField({
   className,
-  hint = "Used to rank who to ask when a job needs one or the other.",
+  hint,
   value,
 }: {
   className?: string;
@@ -36,12 +36,14 @@ export function TradeField({
   const selected = new Set((value ?? []).map(String));
   // A studio's own roles (trades.ts): a photographer's crew shoot photo or
   // video, a DJ's crew are DJs. A role already set stays shown.
-  const tradeRoles = tradeProfile(useWorkspace().tenantTrade).coverageRoles;
+  const profile = tradeProfile(useWorkspace().tenantTrade);
+  const tradeRoles = profile.coverageRoles;
   const roles = COVERAGE_ROLES.filter((role) => tradeRoles.includes(role) || selected.has(role));
-  const djs = roles.length === 1 && roles[0] === "dj";
+  // Only a photographer's crew "shoot"; a DJ, an artist or a stylist works as one.
+  const shoots = profile.family === "photo";
   return (
     <fieldset className={className ? `crew-trade-field ${className}` : "crew-trade-field"}>
-      <legend>{djs ? "Works as" : "Shoots"}</legend>
+      <legend>{shoots ? "Shoots" : "Works as"}</legend>
       <span className="crew-trade-options">
         {roles.map((role) => (
           <label key={role}>
@@ -55,7 +57,12 @@ export function TradeField({
           </label>
         ))}
       </span>
-      <p className="crew-trade-hint">{hint}</p>
+      <p className="crew-trade-hint">
+        {hint ??
+          (roles.length > 1
+            ? "Used to rank who to ask when a job needs one or the other."
+            : "Used to rank who to ask for each job.")}
+      </p>
     </fieldset>
   );
 }

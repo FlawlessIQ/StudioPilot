@@ -23,6 +23,7 @@ import {
   clientOutreachStop,
   mayContactClient,
 } from "../post-event/client-outreach.js";
+import { tradeProfile } from "../trades/trades.js";
 
 const messageInput = z.object({
   projectId: z.string().min(1),
@@ -711,6 +712,14 @@ export const communicationsCommand = onRequest(
           }
         }
         if (!recipient) throw new Error("RECIPIENT_UNKNOWN");
+        // A thread with no subject of its own is named for what the studio
+        // does (trades.ts): a DJ's client, and the studio's own card for a
+        // failed send, read "About your photography".
+        const subject =
+          (conversation.get("subject") as string | null) ??
+          (tradeProfile((await db.doc(`tenants/${command.tenantId}`).get()).get("trade")).family === "photo"
+            ? "About your photography"
+            : "About your event");
 
         const jobId = `reply_${executionId}`;
         const batch = db.batch();
@@ -735,9 +744,7 @@ export const communicationsCommand = onRequest(
           type: "manual_message",
           recipient,
           contactId,
-          subject:
-            (conversation.get("subject") as string | null) ??
-            "About your photography",
+          subject,
           customBody: command.input.body,
           status: "queued",
           attempts: 0,
@@ -1436,7 +1443,9 @@ export const communicationsCommand = onRequest(
             projectId: null,
             recipient: command.input.recipient,
             recipientName: "Studio team",
-            projectName: "Sample photography project",
+            // Every trade's test send: a DJ testing a template read
+            // "Sample photography project".
+            projectName: "Sample project",
             type: key,
             templateSnapshot: template.data(),
             values: {

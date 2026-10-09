@@ -1,6 +1,8 @@
 "use client";
 
 import { isSalesConsultation } from "@/features/consultations/purpose";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CalendarClock, CalendarX, FileSignature, FileText, HandCoins, Landmark, PackageOpen, Receipt, Send, ShieldCheck } from "lucide-react";
@@ -137,6 +139,32 @@ function useAvailability() {
   return state;
 }
 
+/**
+ * The offer and the sales call in the studio's words (features/trades/
+ * trades.ts): a makeup artist or hair stylist sends a quote and has no call
+ * before it, so the call cards say so instead of booking one; a DJ's call is
+ * a vibe call. A photographer reads exactly what these cards always said.
+ */
+function useTradeWords() {
+  const trade = useWorkspace().tenantTrade;
+  const vocab = tradeVocab(trade);
+  return {
+    offer: vocab.proposal.toLowerCase(),
+    Offer: vocab.proposal,
+    call: vocab.consultation.toLowerCase(),
+    Call: vocab.consultation,
+    hasCall: tradeProfile(trade).consultation,
+    trade,
+    trial: vocab.trial,
+  };
+}
+
+/** What a trade with no sales call is told when asked for one. */
+function noCallHere(words: { offer: string; trial: string | null }): string {
+  const trial = words.trial ? ` Invite them to book their ${words.trial.toLowerCase()} from the job.` : "";
+  return `Your jobs have no call before the ${words.offer}: an inquiry goes straight to the ${words.offer}.${trial}`;
+}
+
 function overlaps(busy: Array<{ start: string; end: string }>, startsAt: string, endsAt: string): boolean {
   const start = Date.parse(startsAt);
   const end = Date.parse(endsAt);
@@ -144,6 +172,7 @@ function overlaps(busy: Array<{ start: string; end: string }>, startsAt: string,
 }
 
 export function ScheduleConsultationCard({ action }: ActionCardProps) {
+  const words = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const contacts = useRecords("contacts");
   const availability = useAvailability();
@@ -156,7 +185,9 @@ export function ScheduleConsultationCard({ action }: ActionCardProps) {
   const [picked, setMode] = useState<string | null>(modeFromWords(action.text));
   const mode = picked ?? defaultConsultationMode(zoomConnected);
   const [location, setLocation] = useState("");
-  const title = `Book a consultation with ${jobName(job)}`;
+  const title = `Book a ${words.call} with ${jobName(job)}`;
+  if (!words.hasCall)
+    return <ActionShell title={`Book a call with ${jobName(job)}`}><Blocked>{noCallHere(words)}</Blocked></ActionShell>;
   if (loading || !contacts || !availability) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done href="/studio/calendar" label="Open the calendar">{runner.done}</Done></ActionShell>;
@@ -223,6 +254,7 @@ function notifiedOf(outcome: Awaited<ReturnType<typeof sendBookingCommand>>): bo
 
 /** Reschedule, cancel or write up a consultation already on the calendar. */
 export function ExistingConsultationCard({ action }: ActionCardProps) {
+  const words = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const consultations = useRecords("consultations");
   const availability = useAvailability();
@@ -233,11 +265,12 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
   const [reason, setReason] = useState(kind === "cancel_consultation" ? action.text ?? "" : "");
   const [notes, setNotes] = useState(kind === "complete_consultation" ? action.text ?? "" : "");
   const titles: Record<string, string> = {
-    reschedule_consultation: "Move the consultation",
-    cancel_consultation: "Cancel the consultation",
-    complete_consultation: "Write up the consultation",
+    reschedule_consultation: `Move the ${words.call}`,
+    cancel_consultation: `Cancel the ${words.call}`,
+    complete_consultation: `Write up the ${words.call}`,
   };
   const title = `${titles[kind]} · ${jobName(job)}`;
+  if (!words.hasCall) return <ActionShell title={jobName(job)}><Blocked>{noCallHere(words)}</Blocked></ActionShell>;
   if (loading || !consultations || !availability) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
@@ -249,14 +282,14 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
     .sort((a, b) => str(b.startsAt).localeCompare(str(a.startsAt)));
   const consultation = booked[0] ?? null;
   if (!consultation)
-    return <ActionShell title={title}><Blocked>{`There is no booked consultation on ${jobName(job)}.`}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`There is no booked ${words.call} on ${jobName(job)}.`}</Blocked></ActionShell>;
   const length = Math.max(15, (Date.parse(str(consultation.endsAt)) - Date.parse(str(consultation.startsAt))) / 60000 || availability.duration);
   const startsAt = isoFrom(date, time);
   const endsAt = startsAt ? new Date(Date.parse(startsAt) + length * 60000).toISOString() : null;
   if (kind === "complete_consultation" && str(job.state) !== "CONSULTATION")
     return (
       <ActionShell title={title}>
-        <Blocked>{`${jobName(job)} has moved past the consultation stage, so its notes are no longer recorded from here.`}</Blocked>
+        <Blocked>{`${jobName(job)} has moved past the ${words.call} stage, so its notes are no longer recorded from here.`}</Blocked>
       </ActionShell>
     );
   return (
@@ -266,7 +299,7 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
           ? `Now ${when(consultation.startsAt)}. They're emailed the new time, and your calendar${consultation.joinUrl ? " and the Zoom meeting" : ""} follow it.`
           : kind === "cancel_consultation"
             ? `${when(consultation.startsAt)}. They're emailed that it's canceled; it comes off your calendar${consultation.joinUrl ? " and the Zoom meeting is removed" : ""}.`
-            : `${when(consultation.startsAt)}. Your notes feed the proposal and the job's brief.`
+            : `${when(consultation.startsAt)}. Your notes feed the ${words.offer} and the job's brief.`
       }
       icon={kind === "cancel_consultation" ? <CalendarX size={15} /> : <CalendarClock size={15} />}
       title={title}
@@ -318,15 +351,15 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
                   input: { projectId: job.id, consultationId: consultation.id, reason: reason.trim() || null },
                 });
                 return notifiedOf(cancelled)
-                  ? "The consultation is canceled, and they're being emailed."
-                  : "The consultation is canceled. They weren't emailed, so let them know.";
+                  ? `The ${words.call} is canceled, and they're being emailed.`
+                  : `The ${words.call} is canceled. They weren't emailed, so let them know.`;
               }
               await sendBookingCommand({
                 type: "completeConsultation",
                 idempotencyKey: crypto.randomUUID(),
                 input: { projectId: job.id, consultationId: consultation.id, notes: notes.trim() },
               });
-              return "Notes saved. The consultation is marked as held.";
+              return `Notes saved. The ${words.call} is marked as held.`;
             },
             { refresh: ["consultations", "projects"] },
           )
@@ -347,12 +380,15 @@ export function ExistingConsultationCard({ action }: ActionCardProps) {
  * told Cue added underneath, for them to check before a new run is paid for.
  */
 export function BookingBriefCard({ action }: ActionCardProps) {
+  const words = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const consultations = useRecords("consultations");
   const proposals = useRecords("proposals");
   const runner = useRunner();
   const [notes, setNotes] = useState<string | null>(null);
   const title = `Prepare the brief again · ${jobName(job)}`;
+  // The brief is prepared from a sales call's notes, which a makeup or hair job never has.
+  if (!words.hasCall) return <ActionShell title={title}><Blocked>{noCallHere(words)}</Blocked></ActionShell>;
   if (loading || !consultations || !proposals) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (runner.done)
@@ -371,18 +407,18 @@ export function BookingBriefCard({ action }: ActionCardProps) {
     proposalStatuses: onJob(proposals, job.id).map((item) => str(item.status)),
   });
   if (blocked || !consultation)
-    return <ActionShell title={title}><Blocked>{blocked ?? "Write up the consultation first — the brief is prepared from its notes."}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{blocked ?? `Write up the ${words.call} first — the brief is prepared from its notes.`}</Blocked></ActionShell>;
   const saved = str(consultation.internalNotes);
   const added = (action.text ?? "").trim();
   const value = notes ?? (added && !saved.includes(added) ? `${saved}\n\n${added}`.trim() : saved);
   return (
     <ActionShell
-      detail="A new brief, package suggestion and proposal draft from these notes — one AI action. The current ones are set aside, not deleted. Nothing is sent to the client."
+      detail={`A new brief, package suggestion and ${words.offer} draft from these notes — one AI action. The current ones are set aside, not deleted. Nothing is sent to the client.`}
       icon={<FileText size={15} />}
       title={title}
     >
       <Form>
-        <TextAreaField label="Consultation notes" onChange={setNotes} rows={7} value={value} />
+        <TextAreaField label={`${words.Call} notes`} onChange={setNotes} rows={7} value={value} />
       </Form>
       <Actions
         busy={runner.busy}
@@ -422,6 +458,7 @@ function revisableProposal(proposals: Rec[] | null, projectId: string): Rec | nu
 
 /** Swap or remove a package: the proposal page's own Packages panel. */
 export function ChangePackagesCard({ action }: ActionCardProps) {
+  const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const contacts = useRecords("contacts");
@@ -440,10 +477,10 @@ export function ChangePackagesCard({ action }: ActionCardProps) {
       <ActionShell
         detail={
           str(proposal.status) === "accepted"
-            ? "They've accepted. A change makes a revised proposal for them to accept; the accepted one stays in the history."
+            ? `They've accepted. A change makes a revised ${offer} for them to accept; the accepted one stays in the history.`
             : discounting
-              ? "Use Discount beside the package: percent or amount off. The proposal is priced again."
-              : "The proposal is priced again when you change it."
+              ? `Use Discount beside the package: percent or amount off. The ${offer} is priced again.`
+              : `The ${offer} is priced again when you change it.`
         }
         icon={<PackageOpen size={15} />}
         title={title}
@@ -467,13 +504,13 @@ export function ChangePackagesCard({ action }: ActionCardProps) {
   if (discounting)
     return (
       <ActionShell title={title}>
-        <Blocked>{`The discount is set on the proposal's packages, and ${jobName(job)} has no proposal yet. Ask me to draft one, then change the discount.`}</Blocked>
+        <Blocked>{`The discount is set on the ${offer}'s packages, and ${jobName(job)} has no ${offer} yet. Ask me to draft one, then change the discount.`}</Blocked>
       </ActionShell>
     );
   if (!removing)
     return (
       <ActionShell title={title}>
-        <Blocked>No proposal has been made yet, so pick the new package with “choose a package” and remove the old one here.</Blocked>
+        <Blocked>{`No ${offer} has been made yet, so pick the new package with “choose a package” and remove the old one here.`}</Blocked>
       </ActionShell>
     );
   return <RemovePackageList action={action} job={job} runner={runner} snapshots={onTheJob} title={title} />;
@@ -526,6 +563,7 @@ function RemovePackageList({
 }
 
 export function PackageRequestCard({ action }: ActionCardProps) {
+  const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const requests = useRecords("packageRequests");
   const proposals = useRecords("proposals");
@@ -576,7 +614,7 @@ export function PackageRequestCard({ action }: ActionCardProps) {
     <ActionShell
       detail={
         approving
-          ? "It is added to the job and the proposal is priced again; they get a revised proposal to accept."
+          ? `It is added to the job and the ${offer} is priced again; they get a revised ${offer} to accept.`
           : "They see that you couldn't add it this time."
       }
       icon={<PackageOpen size={15} />}
@@ -623,7 +661,7 @@ export function PackageRequestCard({ action }: ActionCardProps) {
               }
               await runCrmCommand("decidePackageRequest", { requestId: request.id, decision: "approved", resultProposalId });
               return resultProposalId
-                ? `Added ${str(request.packageName)}. The revised proposal is ready — open it to approve and send.`
+                ? `Added ${str(request.packageName)}. The revised ${offer} is ready — open it to approve and send.`
                 : `Added ${str(request.packageName)} to ${jobName(job)}.`;
             },
             { refresh: ["packageRequests", "projects", "packageSnapshots", "proposals"] },
@@ -640,6 +678,7 @@ function in14Days(): string {
 }
 
 export function DraftProposalCard({ action }: ActionCardProps) {
+  const { offer, trade } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const snapshots = useRecords("packageSnapshots");
   const proposals = useRecords("proposals");
@@ -647,7 +686,7 @@ export function DraftProposalCard({ action }: ActionCardProps) {
   const [note, setNote] = useState(action.text ?? "");
   const [expires, setExpires] = useState(action.date ?? in14Days());
   const [created, setCreated] = useState<string | null>(null);
-  const title = `Draft a proposal for ${jobName(job)}`;
+  const title = `Draft a ${offer} for ${jobName(job)}`;
   if (loading || !snapshots || !proposals) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (created) return <ActionShell title={title}><Done href={`/studio/proposals/${created}`} label="Open the draft">The draft is ready. Nothing has gone to them yet.</Done></ActionShell>;
@@ -655,7 +694,7 @@ export function DraftProposalCard({ action }: ActionCardProps) {
   if (open && str(open.status) !== "accepted")
     return (
       <ActionShell title={title}>
-        <Blocked>{`${jobName(job)} already has a proposal (${str(open.status).replace("_", " ")}).`}</Blocked>
+        <Blocked>{`${jobName(job)} already has a ${offer} (${str(open.status).replace("_", " ")}).`}</Blocked>
         <Link className="button button-dark" href={`/studio/proposals/${open.id}`}>Open it</Link>
       </ActionShell>
     );
@@ -663,7 +702,7 @@ export function DraftProposalCard({ action }: ActionCardProps) {
   if (!snapshot)
     return <ActionShell title={title}><Blocked>{`${jobName(job)} has no package yet. Ask me to choose one first.`}</Blocked></ActionShell>;
   if (!["CONSULTATION", "PROPOSAL", "LEAD"].includes(str(job.state)))
-    return <ActionShell title={title}><Blocked>{`${jobName(job)} is past the proposal stage.`}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`${jobName(job)} is past the ${offer} stage.`}</Blocked></ActionShell>;
   // Every package on the job: the card read "From Gold Photo" on a photo +
   // video wedding, and seeded the draft with the photo package's terms alone.
   const onTheJob = currentJobSnapshots(snapshots, job);
@@ -689,7 +728,7 @@ export function DraftProposalCard({ action }: ActionCardProps) {
                 projectId: job.id,
                 expiresAt: `${expires}T23:59:59.000Z`,
                 notes: note.trim() || null,
-                termsSummary: proposalTermsForPackages(onTheJob),
+                termsSummary: proposalTermsForPackages(onTheJob, trade),
                 retainerDueDate: null,
                 balanceDueDate: null,
               });
@@ -706,16 +745,17 @@ export function DraftProposalCard({ action }: ActionCardProps) {
 }
 
 export function EditProposalCard({ action }: ActionCardProps) {
+  const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const runner = useRunner();
   const proposal = currentProposal(proposals, action.projectId);
   const [note, setNote] = useState<string | null>(null);
   const [expires, setExpires] = useState<string | null>(null);
-  const title = `Edit the draft proposal · ${jobName(job)}`;
+  const title = `Edit the draft ${offer} · ${jobName(job)}`;
   if (loading || !proposals) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
-  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no proposal yet.`}</Blocked></ActionShell>;
+  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no ${offer} yet.`}</Blocked></ActionShell>;
   if (runner.done) return <ActionShell title={title}><Done href={`/studio/proposals/${proposal.id}`} label="Open it">{runner.done}</Done></ActionShell>;
   if (str(proposal.status) !== "draft")
     return (
@@ -769,6 +809,7 @@ export function EditProposalCard({ action }: ActionCardProps) {
  * the proposal page does — approve, wait for the PDF, send — one tap each.
  */
 export function ProposalStepCard({ action }: ActionCardProps) {
+  const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const contacts = useRecords("contacts");
@@ -783,29 +824,30 @@ export function ProposalStepCard({ action }: ActionCardProps) {
     return () => window.clearInterval(timer);
   }, [pdfQueued]);
   const titles: Record<string, string> = {
-    send_proposal: "Send the proposal",
-    resend_proposal: "Send the proposal again",
-    correct_proposal: "Correct the proposal they were sent",
-    return_proposal_to_draft: "Take the proposal back to draft",
-    discard_proposal_draft: "Discard the draft proposal",
-    withdraw_proposal: "Withdraw the proposal",
-    remake_proposal_pdf: "Make the proposal's PDF again",
+    send_proposal: `Send the ${offer}`,
+    resend_proposal: `Send the ${offer} again`,
+    correct_proposal: `Correct the ${offer} they were sent`,
+    return_proposal_to_draft: `Take the ${offer} back to draft`,
+    discard_proposal_draft: `Discard the draft ${offer}`,
+    withdraw_proposal: `Withdraw the ${offer}`,
+    remake_proposal_pdf: `Make the ${offer}'s PDF again`,
   };
   const title = `${titles[action.action]} · ${jobName(job)}`;
   if (loading || !proposals || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
-  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no proposal yet. Ask me to draft one.`}</Blocked></ActionShell>;
+  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no ${offer} yet. Ask me to draft one.`}</Blocked></ActionShell>;
   const client = primaryContact(job, contacts);
   const to = str(client?.email) || "the client";
-  const open = <Link className="button button-light" href={`/studio/proposals/${proposal.id}`}>Open the proposal</Link>;
+  const openLabel = `Open the ${offer}`;
+  const open = <Link className="button button-light" href={`/studio/proposals/${proposal.id}`}>{openLabel}</Link>;
   if (runner.done)
-    return <ActionShell title={title}><Done href={`/studio/proposals/${proposal.id}`} label="Open the proposal">{runner.done}</Done></ActionShell>;
+    return <ActionShell title={title}><Done href={`/studio/proposals/${proposal.id}`} label={openLabel}>{runner.done}</Done></ActionShell>;
   const needsOwner = !ownerOrAdmin && action.action !== "return_proposal_to_draft";
   if (needsOwner) return <OwnerOnly title={title} />;
 
   if (action.action === "send_proposal") {
     if (["sent", "viewed"].includes(status))
-      return <ActionShell title={title}><Done href={`/studio/proposals/${proposal.id}`} label="Open the proposal">{`It was already sent to ${to}. Ask me to send it again if they can't find it.`}</Done></ActionShell>;
+      return <ActionShell title={title}><Done href={`/studio/proposals/${proposal.id}`} label={openLabel}>{`It was already sent to ${to}. Ask me to send it again if they can't find it.`}</Done></ActionShell>;
     if (status === "accepted")
       return <ActionShell title={title}><Done>They&apos;ve already accepted it.</Done></ActionShell>;
     const step =
@@ -813,7 +855,7 @@ export function ProposalStepCard({ action }: ActionCardProps) {
         ? { label: "Approve it", detail: "First, approve the offer. Its PDF is made next; nothing goes to them yet." }
         : pdfQueued
           ? { label: "Preparing the PDF…", detail: "The PDF is being made. This takes a few seconds." }
-          : { label: `Send to ${to}`, detail: `They get an email with the proposal${str(proposal.pdfState) === "ready" ? " and its PDF" : ""} and a link to accept it.` };
+          : { label: `Send to ${to}`, detail: `They get an email with the ${offer}${str(proposal.pdfState) === "ready" ? " and its PDF" : ""} and a link to accept it.` };
     return (
       <ActionShell detail={step.detail} icon={<Send size={15} />} title={title}>
         <Actions
@@ -881,7 +923,7 @@ export function ProposalStepCard({ action }: ActionCardProps) {
       <ActionShell title={title}>
         <Blocked>
           {action.action === "remake_proposal_pdf"
-            ? "Only an approved proposal that hasn't been sent has a PDF to make again."
+            ? `Only an approved ${offer} that hasn't been sent has a PDF to make again.`
             : action.action === "discard_proposal_draft"
             ? "It has already been sent, so it isn't a draft to throw away. Ask me to withdraw it instead."
             : action.action === "withdraw_proposal" && status !== "accepted"
@@ -892,8 +934,8 @@ export function ProposalStepCard({ action }: ActionCardProps) {
               : "Once it has been sent it can't go back to draft. Ask me to correct it instead."
             : status === "accepted"
               ? signedBookingChange(job)
-                ? "They've signed, so this proposal is final. Ask me to change the booking — they sign the change and their agreement stands until they do."
-                : "They've accepted it. Change the packages to send them a revised proposal."
+                ? `They've signed, so this ${offer} is final. Ask me to change the booking — they sign the change and their agreement stands until they do.`
+                : `They've accepted it. Change the packages to send them a revised ${offer}.`
               : "It hasn't been sent yet."}
         </Blocked>
         {open}
@@ -903,10 +945,10 @@ export function ProposalStepCard({ action }: ActionCardProps) {
     remake_proposal_pdf: {
       op: "regenerate_pdf",
       label: "Make it again",
-      detail: "A fresh PDF is made from the approved proposal. Nothing is sent.",
+      detail: `A fresh PDF is made from the approved ${offer}. Nothing is sent.`,
       done: "The PDF is being made again. It takes a few seconds.",
     },
-    resend_proposal: { op: "resend", label: `Send again to ${to}`, detail: "The same proposal, emailed again.", done: `Sent again to ${to}.` },
+    resend_proposal: { op: "resend", label: `Send again to ${to}`, detail: `The same ${offer}, emailed again.`, done: `Sent again to ${to}.` },
     correct_proposal: {
       op: "reissue",
       label: "Make a corrected version",
@@ -950,6 +992,7 @@ export function ProposalStepCard({ action }: ActionCardProps) {
 }
 
 export function RecordAcceptanceCard({ action }: ActionCardProps) {
+  const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const ownerOrAdmin = useIsOwnerOrAdmin();
@@ -960,10 +1003,10 @@ export function RecordAcceptanceCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
   const proposal = currentProposal(proposals, job.id);
-  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no proposal to accept.`}</Blocked></ActionShell>;
+  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no ${offer} to accept.`}</Blocked></ActionShell>;
   if (str(proposal.status) === "accepted") return <ActionShell title={title}><Done>It is already accepted.</Done></ActionShell>;
   if (!["approved", "sent", "viewed"].includes(str(proposal.status)))
-    return <ActionShell title={title}><Blocked>Approve the proposal first; then their acceptance can be recorded.</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`Approve the ${offer} first; then their acceptance can be recorded.`}</Blocked></ActionShell>;
   return (
     <ActionShell detail="For an acceptance given in person, by phone or by email. The job moves on to the agreement." icon={<ShieldCheck size={15} />} title={title}>
       <Embedded>
@@ -985,6 +1028,7 @@ export function RecordAcceptanceCard({ action }: ActionCardProps) {
  * out; this card says so first rather than offering a tap that fails.
  */
 export function UndoAcceptanceCard({ action }: ActionCardProps) {
+  const { offer, Offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const contracts = useRecords("contracts");
@@ -997,7 +1041,7 @@ export function UndoAcceptanceCard({ action }: ActionCardProps) {
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done href={`/studio/projects/${job.id}`} label="Open the job">{runner.done}</Done></ActionShell>;
   const proposal = acceptedProposal(proposals, job.id);
-  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no accepted proposal to undo.`}</Blocked></ActionShell>;
+  if (!proposal) return <ActionShell title={title}><Blocked>{`${jobName(job)} has no accepted ${offer} to undo.`}</Blocked></ActionShell>;
   if (proposal.acceptedWithContractId || proposal.combinedContractId)
     return (
       <ActionShell title={title}>
@@ -1021,8 +1065,8 @@ export function UndoAcceptanceCard({ action }: ActionCardProps) {
     <ActionShell
       detail={
         byCouple
-          ? "The client accepted this themselves, in their portal. The proposal goes back to how it was and the job back to Proposal; they can accept again. Nothing is emailed."
-          : "The acceptance you recorded is taken back. The proposal goes back to how it was and the job back to Proposal. Nothing is emailed."
+          ? `The client accepted this themselves, in their portal. The ${offer} goes back to how it was and the job back to ${Offer}; they can accept again. Nothing is emailed.`
+          : `The acceptance you recorded is taken back. The ${offer} goes back to how it was and the job back to ${Offer}. Nothing is emailed.`
       }
       icon={<ShieldCheck size={15} />}
       title={title}
@@ -1042,8 +1086,8 @@ export function UndoAcceptanceCard({ action }: ActionCardProps) {
                 ...(reason.trim() ? { reason: reason.trim().slice(0, 500) } : {}),
               });
               return undone.result.discardedContractDraft === true
-                ? `Undone. ${jobName(job)} is back at Proposal, and the unsent agreement draft was discarded.`
-                : `Undone. ${jobName(job)} is back at Proposal.`;
+                ? `Undone. ${jobName(job)} is back at ${Offer}, and the unsent agreement draft was discarded.`
+                : `Undone. ${jobName(job)} is back at ${Offer}.`;
             },
             { refresh: ["proposals", "projects", "contracts", "tasks"] },
           )
@@ -1059,6 +1103,7 @@ export function UndoAcceptanceCard({ action }: ActionCardProps) {
  * A no-show offers the scheduling link the job page already sends.
  */
 export function ConsultationCorrectionCard({ action }: ActionCardProps) {
+  const words = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const consultations = useRecords("consultations");
   const zoomConnected = useZoomConnected();
@@ -1067,7 +1112,8 @@ export function ConsultationCorrectionCard({ action }: ActionCardProps) {
   // "Now" fixed per mount, so a render stays pure.
   const [now] = useState(() => Date.now());
   const noShow = action.action === "mark_consultation_no_show";
-  const title = `${noShow ? "They missed the consultation" : "Reopen the consultation"} · ${jobName(job)}`;
+  const title = `${noShow ? `They missed the ${words.call}` : `Reopen the ${words.call}`} · ${jobName(job)}`;
+  if (!words.hasCall) return <ActionShell title={jobName(job)}><Blocked>{noCallHere(words)}</Blocked></ActionShell>;
   if (loading || !consultations) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   const clientId = str(arr(job.clientContactIds)[0]);
@@ -1113,15 +1159,15 @@ export function ConsultationCorrectionCard({ action }: ActionCardProps) {
       <ActionShell title={title}>
         <Blocked>
           {noShow
-            ? `There is no consultation on ${jobName(job)} that has already started.`
-            : `There is no consultation on ${jobName(job)} marked as held or missed.`}
+            ? `There is no ${words.call} on ${jobName(job)} that has already started.`
+            : `There is no ${words.call} on ${jobName(job)} marked as held or missed.`}
         </Blocked>
       </ActionShell>
     );
   if (!noShow && !["LEAD", "CONSULTATION"].includes(str(job.state)))
     return (
       <ActionShell title={title}>
-        <Blocked>{`${jobName(job)} has moved on past the consultation, so it can't be reopened.`}</Blocked>
+        <Blocked>{`${jobName(job)} has moved on past the ${words.call}, so it can't be reopened.`}</Blocked>
       </ActionShell>
     );
   const future = Date.parse(str(consultation.startsAt)) > now;
@@ -1179,6 +1225,7 @@ function liveContract(contracts: Rec[] | null, projectId: string): Rec | null {
 
 /** Prepare, sign and send, or void: StudioCue's own contract step. */
 export function ContractCard({ action }: ActionCardProps) {
+  const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const contracts = useRecords("contracts");
@@ -1211,7 +1258,7 @@ export function ContractCard({ action }: ActionCardProps) {
       </ActionShell>
     );
   if (!proposal)
-    return <ActionShell title={title}><Blocked>{`The contract is written from the accepted proposal, and ${jobName(job)} hasn't accepted one yet.`}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`The contract is written from the accepted ${offer}, and ${jobName(job)} hasn't accepted one yet.`}</Blocked></ActionShell>;
   return (
     <ActionShell
       detail={
@@ -1241,6 +1288,7 @@ export function ContractCard({ action }: ActionCardProps) {
 }
 
 export function RecordSignedContractCard({ action }: ActionCardProps) {
+  const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
   const ownerOrAdmin = useIsOwnerOrAdmin();
@@ -1257,7 +1305,7 @@ export function RecordSignedContractCard({ action }: ActionCardProps) {
         <Blocked>
           {proposal
             ? `${jobName(job)} isn't waiting on a signature.`
-            : `A signature is recorded against the accepted proposal, and ${jobName(job)} hasn't accepted one yet.`}
+            : `A signature is recorded against the accepted ${offer}, and ${jobName(job)} hasn't accepted one yet.`}
         </Blocked>
       </ActionShell>
     );

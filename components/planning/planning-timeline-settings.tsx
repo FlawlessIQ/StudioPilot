@@ -8,6 +8,7 @@ import { resolvePlanningTimeline, type PlanningFormSend } from "@/features/plann
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { recommendedQuestionnaires } from "@/features/questionnaires/recommended-templates";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 /**
  * When a couple's planning starts, and when their details lock.
@@ -27,6 +28,10 @@ function lockLabel(days: number): string {
 export function PlanningTimelineSettings() {
   const workspace = useWorkspace();
   const mayEdit = workspace.role === "studio_owner" || workspace.role === "studio_admin";
+  // A shot list is a photographer's (trades.ts `shotList`); the final call
+  // and the hours it's booked on are named in the trade's words.
+  const trade = tradeProfile(workspace.tenantTrade);
+  const tradeWords = tradeVocab(workspace.tenantTrade);
   const { records: tenants } = useTenantDocuments("tenants");
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
   const tenant = tenants?.find((entry) => entry.id === workspace.tenantId);
@@ -229,6 +234,7 @@ export function PlanningTimelineSettings() {
               must have it — features/questionnaires/recommended-templates.ts
               has one. GR ran for weeks without one because it was a card to
               copy and this setting to find (2026-10-08), so it's one tap. */}
+          {trade.shotList ? (
           <label>
             Shot list
             <select
@@ -262,6 +268,7 @@ export function PlanningTimelineSettings() {
               </button>
             ) : null}
           </label>
+          ) : null}
           <label>
             Lock the final details
             <select
@@ -291,10 +298,11 @@ export function PlanningTimelineSettings() {
               }}
               type="checkbox"
             />
-            <span>Invite them to book a final details call</span>
+            <span>{`Invite them to book a ${tradeWords.finalCall.toLowerCase()}`}</span>
             <small>
-              When the details lock, they get a link to book a short call with you — on your consultation
-              hours — to go over the final details and timeline together. It shows on the job when it&rsquo;s booked.
+              {`When the details lock, they get a link to book a short call with you — on your ${
+                trade.consultation ? tradeWords.consultation.toLowerCase() : "trial"
+              } hours — to go over the final details and timeline together. It shows on the job when it’s booked.`}
             </small>
           </label>
         </div>

@@ -167,7 +167,8 @@ test("a draft can be discarded and a sent proposal withdrawn; neither once it's 
   assert.match(portal, /\(document\) => document\.get\("status"\) !== "discarded",\s*\);\s*if \(latestLive\?\.id !== proposalId\)/);
   assert.match(source("components/client/kit/client-proposal.tsx"), /Your studio has withdrawn this \$\{offer\}/);
   const page = source("components/proposals/studio-proposal-workspace.tsx");
-  assert.match(page, /"Withdraw this proposal" : "Discard this draft"/);
+  // "Withdraw this quote" for a makeup artist or hair stylist (trades.ts).
+  assert.match(page, /`Withdraw this \$\{offer\}` : "Discard this draft"/);
 });
 
 test("an agreement with several packages lists each under its own name, with bullets", async () => {

@@ -1,3 +1,5 @@
+import { tradeProfile, tradeVocab } from "../trades/trades.js";
+
 /**
  * The terms line a proposal carries when its package has none written.
  *
@@ -11,9 +13,21 @@ export const DEFAULT_PROPOSAL_TERMS =
   "Coverage, deliverables and payment dates are as set out in this proposal. The signed photography agreement holds the full terms.";
 
 /** The package's own terms, or the default when it has none written. */
-export function proposalTermsFor(terms: unknown): string {
+export function proposalTermsFor(terms: unknown, trade?: unknown): string {
   const written = typeof terms === "string" ? terms.trim() : "";
-  return written.length >= 10 ? written : DEFAULT_PROPOSAL_TERMS;
+  return written.length >= 10 ? written : defaultTermsInTradeWords(DEFAULT_PROPOSAL_TERMS, trade);
+}
+
+/**
+ * The default wording in the studio's own trade (features/booking/autopilot.ts
+ * has the same): a makeup studio's quotes said "the signed photography
+ * agreement" (2026-10-09). Terms a studio wrote are left alone.
+ */
+export function defaultTermsInTradeWords(terms: string, trade: unknown): string {
+  if (trade === undefined || tradeProfile(trade).family === "photo") return terms;
+  return terms === DEFAULT_PROPOSAL_TERMS
+    ? `What's included and payment dates are as set out in this ${tradeVocab(trade).proposal.toLowerCase()}. The signed agreement holds the full terms.`
+    : terms;
 }
 
 /**
@@ -31,6 +45,7 @@ export function proposalTermsFor(terms: unknown): string {
 export function proposalTermsForPackages(
   // Any snapshot or catalogue record: only packageName/name and terms are read.
   packages: readonly Record<string, unknown>[],
+  trade?: unknown,
 ): string {
   const written = packages.flatMap((entry) => {
     const terms = typeof entry.terms === "string" ? entry.terms.trim() : "";
@@ -41,7 +56,7 @@ export function proposalTermsForPackages(
         ?.trim() ?? "Package";
     return [{ name, terms }];
   });
-  if (!written.length) return DEFAULT_PROPOSAL_TERMS;
+  if (!written.length) return defaultTermsInTradeWords(DEFAULT_PROPOSAL_TERMS, trade);
   if (packages.length === 1) return written[0]!.terms.slice(0, 6000);
   return written
     .map((entry) => `${entry.name}: ${entry.terms}`)

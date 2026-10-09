@@ -19,6 +19,8 @@ import {
 } from "./document.js";
 import { contractDocumentHash, sha256Text } from "./document-hash.js";
 import { writeContractVoid } from "./void-writes.js";
+import { tenantTrade } from "../trades/tenant-trade.js";
+import { tradeVocab } from "../trades/trades.js";
 import {
   customFieldsFrom,
   importedAgreementText,
@@ -159,7 +161,9 @@ export async function agreementDraftFromImport(
     throw new Error("AGREEMENT_TEMPLATE_NOT_FOUND");
   const text = importedAgreementText(head.get("body"));
   if (!text.trim()) throw new Error("IMPORTED_AGREEMENT_EMPTY");
-  const conversion = convertImportedAgreement(text);
+  // The details section it may add names the studio's work in its own words
+  // ("coverage" for a photographer, "services" for a vendor; document.ts).
+  const conversion = convertImportedAgreement(text, await tenantTrade(db, context.tenantId));
   return {
     templateId: head.id,
     name: String(head.get("name") ?? "Agreement"),
@@ -809,11 +813,14 @@ export async function voidContract(
   });
 }
 
-/** What the job needs next once its contract is withdrawn. Pure. */
-export function voidedContractNextAction(mode: unknown): string {
+/**
+ * What the job needs next once its contract is withdrawn. Pure. `trade` is
+ * the studio's: a makeup artist or hair stylist corrects a quote (trades.ts).
+ */
+export function voidedContractNextAction(mode: unknown, trade?: unknown): string {
   // A booking agreement (H2) carries the proposal; the job is back at it.
   return mode === "combined"
-    ? "Correct the proposal, or send a new booking agreement"
+    ? `Correct the ${tradeVocab(trade).proposal.toLowerCase()}, or send a new booking agreement`
     : "Prepare a new contract and send it";
 }
 
@@ -838,6 +845,8 @@ export async function voidStudioCueContract(
   },
 ) {
   const reference = db.doc(`contracts/${input.contractId}`);
+  // Read before the transaction: the job's next step is said in its words.
+  const trade = await tenantTrade(db, input.tenantId);
   return db.runTransaction(async (transaction) => {
     const contract = await transaction.get(reference);
     if (
@@ -865,7 +874,7 @@ export async function voidStudioCueContract(
     // went out — and it stayed that way after the withdrawal, so Today and the
     // job page kept saying the couple had something to sign.
     transaction.update(db.doc(`projects/${input.projectId}`), {
-      nextAction: voidedContractNextAction(contract.get("mode")),
+      nextAction: voidedContractNextAction(contract.get("mode"), trade),
       updatedAt: input.timestamp,
       updatedBy: input.actorId,
     });

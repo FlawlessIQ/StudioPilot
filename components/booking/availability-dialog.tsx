@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Settings2 } from "lucide-react";
 import { ConsultationAvailability } from "@/components/settings/consultation-availability";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 /**
  * Consultation hours, edited from the calendar.
@@ -32,6 +34,10 @@ export function AvailabilityDialog({
   variant?: "button" | "link" | "inline";
 }) {
   const [open, setOpen] = useState(false);
+  // The hours clients book: a DJ's vibe call; a makeup artist's or hair
+  // stylist's trial, since they have no sales call (trades.ts).
+  const trade = useWorkspace().tenantTrade;
+  const booked = tradeProfile(trade).consultation ? tradeVocab(trade).consultation : "Trial";
   return (
     <>
       <button
@@ -52,7 +58,7 @@ export function AvailabilityDialog({
         {label}
       </button>
       <SheetDialog
-        label="Consultation availability"
+        label={`${booked} availability`}
         onClose={() => setOpen(false)}
         open={open}
       >

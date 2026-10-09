@@ -4,7 +4,7 @@ import { fillMcScript, patchMcScript, type McScript } from "@/features/schedules
 import { DJ_MOMENTS, planNight } from "@/features/schedules/night-plan";
 import { chairDayPlan, planChairs } from "@/features/schedules/chair-plan";
 import { parsePartyList, type BeautyService } from "@/features/schedules/party-list";
-import { tradeOf, tradeProfile } from "@/features/trades/trades";
+import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -184,6 +184,9 @@ export function AiScheduleGenerator({
   // A makeup artist or hair stylist lays out a morning of chairs (`chairSchedule`).
   const chairs = tradeProfile(workspace.tenantTrade).chairSchedule;
   const chairService: BeautyService = tradeOf(workspace.tenantTrade) === "hair" ? "hair" : "makeup";
+  // A photographer's "Coverage", anyone else's "Service" (trades.ts `coverage`).
+  const coverageWord = tradeVocab(workspace.tenantTrade).coverage;
+  const photo = tradeProfile(workspace.tenantTrade).family === "photo";
   const { records: projects, loading } = useTenantDocuments("projects");
   const { records: questionnaires } = useTenantDocuments(
     "questionnaireResponses",
@@ -574,7 +577,7 @@ export function AiScheduleGenerator({
     try {
       const startsAt = localToIso(String(form.get("coverageStartsAt") ?? ""));
       const endsAt = localToIso(String(form.get("coverageEndsAt") ?? ""));
-      if (!startsAt || !endsAt) throw new Error("Enter a coverage window.");
+      if (!startsAt || !endsAt) throw new Error(`Enter a ${coverageWord.toLowerCase()} window.`);
       const endpoint = process.env.NEXT_PUBLIC_AI_FUNCTIONS_URL;
       if (!endpoint) throw new Error("AI schedule generation is not configured.");
       const { auth } = getFirebaseClient();
@@ -667,7 +670,7 @@ export function AiScheduleGenerator({
   const manualGrounding =
     draft && String(draft.interactionId ?? "").startsWith("manual_")
       ? [
-          coverageStartsAt && coverageEndsAt ? "your coverage window" : null,
+          coverageStartsAt && coverageEndsAt ? `your ${coverageWord.toLowerCase()} window` : null,
           ceremonyTime ? "the ceremony time" : null,
           receptionTime ? "the reception time" : null,
           locations.trim() ? "your locations" : null,
@@ -1232,10 +1235,10 @@ export function AiScheduleGenerator({
             */}
           {weddingDay ? null : (
           <details className="form-span schedule-ai-inputs is-plain" open>
-            <summary>Coverage, times and notes for an AI draft</summary>
+            <summary>{`${coverageWord}, times and notes for an AI draft`}</summary>
             <div className="schedule-ai-inputs-grid">
           <label>
-            Coverage starts
+            {`${coverageWord} starts`}
             <input
               required
               name="coverageStartsAt"
@@ -1245,7 +1248,7 @@ export function AiScheduleGenerator({
             />
           </label>
           <label>
-            Coverage ends
+            {`${coverageWord} ends`}
             <input
               required
               name="coverageEndsAt"
@@ -1314,7 +1317,11 @@ export function AiScheduleGenerator({
             <textarea
               name="preferences"
               onChange={(event) => setPreferences(event.target.value)}
-              placeholder="First look, family-photo duration, venue rules, important moments…"
+              placeholder={
+                photo
+                  ? "First look, family-photo duration, venue rules, important moments…"
+                  : "Venue rules, important moments, anything to plan around…"
+              }
               value={preferences}
             />
           </label>

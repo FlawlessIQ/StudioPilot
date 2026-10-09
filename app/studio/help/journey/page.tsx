@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { WeddingJourney } from "@/components/help/wedding-journey";
+import { PhotoStudioOnly } from "@/components/help/photo-studio-only";
 
 export const metadata: Metadata = { title: "A wedding, start to finish" };
 
@@ -23,7 +24,9 @@ export default function WeddingJourneyPage() {
             <ArrowLeft aria-hidden="true" /> Back to help
           </Link>
         </header>
-        <WeddingJourney />
+        <PhotoStudioOnly>
+          <WeddingJourney />
+        </PhotoStudioOnly>
       </div>
     </AppShell>
   );

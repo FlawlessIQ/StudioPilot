@@ -907,7 +907,13 @@ export const proposalCommand = onRequest(
             transaction.update(projectReference, {
               state: "CONTRACT_PENDING",
               stateVersion: priorStateVersion + hops,
-              nextAction: "Prepare and send the photography agreement",
+              // The studio's own trade: "the photography agreement" was on a
+              // makeup artist's job (2026-10-09). Read outside the
+              // transaction — a trade does not change under an acceptance.
+              nextAction:
+                tradeProfile((await db.doc(`tenants/${command.tenantId}`).get()).get("trade")).family === "photo"
+                  ? "Prepare and send the photography agreement"
+                  : "Prepare and send the agreement",
               updatedAt: timestamp,
               updatedBy: identity.uid,
             });

@@ -564,22 +564,26 @@ export function useBookingStepsView(): BookingStepsView | null {
 export const PROPOSAL_ERROR_FALLBACK =
   "This couldn't be saved just now. Please message your studio and they'll sort it out.";
 
-export function proposalErrorMessage(error: string) {
+export function proposalErrorMessage(
+  error: string,
+  /** What the studio sent, lowercase: "proposal", a makeup artist's "quote" (tradeVocab). */
+  offer = "proposal",
+) {
   const messages: Record<string, string> = {
     PROJECT_ON_HOLD:
-      "Your booking is on hold with your studio right now, so this proposal can't be accepted. Message your studio to pick it back up.",
+      `Your booking is on hold with your studio right now, so this ${offer} can't be accepted. Message your studio to pick it back up.`,
     PROJECT_NOT_ACTIVE:
-      "This booking is no longer active, so this proposal can't be accepted. Message your studio if you'd like to talk about it.",
+      `This booking is no longer active, so this ${offer} can't be accepted. Message your studio if you'd like to talk about it.`,
     PROPOSAL_EXPIRED:
-      "This proposal has expired. Message your studio for an updated version.",
+      `This ${offer} has expired. Message your studio for an updated version.`,
     PROPOSAL_SUPERSEDED:
-      "A newer proposal is available. Refresh this page to review the current version.",
+      `A newer ${offer} is available. Refresh this page to review the current version.`,
     PROPOSAL_NOT_ACTIONABLE:
-      "This proposal can no longer be changed from the portal.",
+      `This ${offer} can no longer be changed from the portal.`,
     PROJECT_STATE_CONFLICT:
-      "Your project has already moved beyond this proposal. Refresh the page for the latest status.",
+      `Your project has already moved beyond this ${offer}. Refresh the page for the latest status.`,
     PACKAGE_SNAPSHOT_CONFLICT:
-      "The package linked to this proposal no longer matches the project. Your studio has been asked to review it.",
+      `The package linked to this ${offer} no longer matches the project. Your studio has been asked to review it.`,
   };
   if (messages[error]) return messages[error];
   // A code-shaped string is plumbing; a sentence is already for a person.

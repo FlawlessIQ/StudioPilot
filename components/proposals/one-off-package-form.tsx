@@ -8,6 +8,37 @@ import {
   type OneOffFormValues,
   type OneOffPackageInput,
 } from "@/features/packages/one-off-form";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { COVERAGE_ROLES, coverageCount, coverageRoleLabel, resolveCoverage, type CoverageRole } from "@/features/packages/coverage";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+
+/** What a one-off might include, in each trade's own work: the textarea's example. */
+const INCLUDED_EXAMPLE: Record<"photo" | "music" | "beauty", string> = {
+  photo: "4 hours of coverage\nOnline gallery\n150 edited photos",
+  music: "4 hours of music\nDance floor lighting\nMC",
+  beauty: "Bridal look with lashes\nTwo more in the party\nTouch-up kit",
+};
+
+/**
+ * The parser's refusals (one-off-form.ts) name a photographer's two counts.
+ * A DJ, makeup artist or hair stylist has one count of their own role, so
+ * those three sentences are said in it; anything else reads as written.
+ */
+function inTradeWords(message: string, role: CoverageRole): string {
+  const many = coverageRoleLabel(role, 2);
+  if (message === "Photographers and videographers are whole numbers, up to 50.")
+    return `${many.charAt(0).toUpperCase()}${many.slice(1)} are a whole number, up to 50.`;
+  if (message === "A package sends at least one photographer or videographer.")
+    return `A package sends at least one ${coverageRoleLabel(role, 1)}.`;
+  if (message === "Hours of coverage are between 0 and 24 — 8, or 7.5.") return "Hours are between 0 and 24 — 8, or 7.5.";
+  return message;
+}
+
+/** "Photographers", "Hair stylists": a count's heading. */
+function roleHeading(role: CoverageRole): string {
+  const label = coverageRoleLabel(role, 2);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 /**
  * "Write a one-off package": a package for this couple only (GR Productions,
@@ -28,8 +59,14 @@ export function OneOffPackageForm({
   onSubmit,
   onCancel,
   initial,
+  record,
   forBookingChange = false,
 }: {
+  /**
+   * The one-off being edited, as stored. `initial` reads a photographer's
+   * counts from it; a vendor's own role (a hair stylist's) is read here.
+   */
+  record?: unknown;
   /**
    * Written inside "Change the booking" (components/booking/booking-amendment.tsx):
    * it is added by the change the couple signs, so there is nothing to ask
@@ -58,8 +95,21 @@ export function OneOffPackageForm({
   onCancel: () => void;
 }) {
   const editing = initial !== undefined;
+  // The studio's trade (trades.ts): its words, and the roles its counts are.
+  // A photographer's two counts are photographers and videographers; a DJ's,
+  // makeup artist's or hair stylist's one count is their own role.
+  const trade = useWorkspace().tenantTrade;
+  const profile = tradeProfile(trade);
+  const words = tradeVocab(trade);
+  const photo = profile.family === "photo";
+  const roles = profile.coverageRoles as readonly CoverageRole[];
+  const firstRole = roles[0] ?? COVERAGE_ROLES[0]!;
+  const offer = words.proposal.toLowerCase();
+  const ownCount = record ? coverageCount(resolveCoverage(record), firstRole) : 0;
   const [values, setValues] = useState<OneOffFormValues>(
-    initial ?? {
+    (initial && !photo && !initial.photographers && ownCount > 0
+      ? { ...initial, photographers: String(ownCount) }
+      : initial) ?? {
       name: "",
       price: "",
       included: "",
@@ -79,11 +129,25 @@ export function OneOffPackageForm({
   const submit = () => {
     const parsed = parseOneOffForm(values);
     if (!parsed.ok) {
-      setError(parsed.message);
+      setError(photo ? parsed.message : inTradeWords(parsed.message, firstRole));
       return;
     }
     setError(null);
-    onSubmit(parsed.input, attemptKey);
+    if (photo) {
+      onSubmit(parsed.input, attemptKey);
+      return;
+    }
+    // The parser writes a photographer's roles; a vendor's count is its own
+    // role. Left blank on a new one-off it is one of them, said under the
+    // field, rather than the server's photographer. Left blank on an edit it
+    // is left as it is.
+    const counted = (parsed.input.includedCoverage ?? [])
+      .map((item) => ({ ...item, role: item.role === "videographer" ? roles[1] : firstRole }))
+      .filter((item): item is typeof item & { role: CoverageRole } => item.role !== undefined);
+    onSubmit(
+      { ...parsed.input, includedCoverage: counted.length ? counted : editing ? undefined : [{ role: firstRole, count: 1 }] },
+      attemptKey,
+    );
   };
 
   return (
@@ -98,8 +162,8 @@ export function OneOffPackageForm({
           {forBookingChange
             ? "Just for this couple, added by this change. They sign it with the rest of the change; the retainer they agreed stays as it is. Tax follows your usual packages."
             : editing
-              ? "The proposal is priced again from these. Its extras and discount stay; a percentage deposit follows the new price."
-              : "Just for this job. It won't appear in your Library, on your client pages, or on anyone else's proposal. The deposit and tax follow your usual packages."}
+              ? `The ${offer} is priced again from these. Its extras and discount stay; a percentage deposit follows the new price.`
+              : `Just for this job. It won't appear in your Library, on your client pages, or on anyone else's ${offer}. The deposit and tax follow your usual packages.`}
         </small>
       </div>
       <label className="one-off-package-field one-off-package-grow">
@@ -125,16 +189,16 @@ export function OneOffPackageForm({
         <span>What&apos;s included</span>
         <textarea
           onChange={(event) => set("included", event.target.value)}
-          placeholder={"4 hours of coverage\nOnline gallery\n150 edited photos"}
+          placeholder={INCLUDED_EXAMPLE[profile.family]}
           rows={4}
           value={values.included}
         />
-        <small>One item per line — each one is a bullet on the proposal.</small>
+        <small>{`One item per line — each one is a bullet on the ${offer}.`}</small>
       </label>
       <fieldset className="one-off-package-coverage">
-        <legend>Coverage (optional)</legend>
+        <legend>{`${words.coverage} (optional)`}</legend>
         <label className="one-off-package-field one-off-package-narrow">
-          <span>Photographers</span>
+          <span>{roleHeading(firstRole)}</span>
           <input
             inputMode="numeric"
             onChange={(event) => set("photographers", event.target.value)}
@@ -142,15 +206,17 @@ export function OneOffPackageForm({
             value={values.photographers}
           />
         </label>
-        <label className="one-off-package-field one-off-package-narrow">
-          <span>Videographers</span>
-          <input
-            inputMode="numeric"
-            onChange={(event) => set("videographers", event.target.value)}
-            placeholder="0"
-            value={values.videographers}
-          />
-        </label>
+        {roles[1] ? (
+          <label className="one-off-package-field one-off-package-narrow">
+            <span>{roleHeading(roles[1])}</span>
+            <input
+              inputMode="numeric"
+              onChange={(event) => set("videographers", event.target.value)}
+              placeholder="0"
+              value={values.videographers}
+            />
+          </label>
+        ) : null}
         <label className="one-off-package-field one-off-package-narrow">
           <span>Hours</span>
           <input
@@ -160,7 +226,7 @@ export function OneOffPackageForm({
             value={values.hours}
           />
         </label>
-        <small>Left blank: one photographer for {hours} hours.</small>
+        <small>{`Left blank: one ${coverageRoleLabel(firstRole, 1)} for ${hours} hours.`}</small>
       </fieldset>
       {hasPackage && !editing && !forBookingChange ? (
         <fieldset className="one-off-package-mode">

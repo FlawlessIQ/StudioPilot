@@ -22,6 +22,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { eventDaySnapshot } from "@/features/crew/cascade";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { readinessSummary } from "@/features/projects/readiness-summary";
@@ -60,6 +61,14 @@ export function EventDayCopilot({
   initialProjectId?: string;
 }) {
   const workspace = useWorkspace();
+  /**
+   * A photographer shoots solo and plans coverage; a DJ plays and a makeup
+   * artist or hair stylist works, and neither reads "coverage" for their day
+   * (features/trades/trades.ts).
+   */
+  const verb = tradeVocab(workspace.tenantTrade).verb;
+  const photo = tradeProfile(workspace.tenantTrade).family === "photo";
+  const soloWords = `${verb.charAt(0).toUpperCase()}${verb.slice(1)}ing solo`;
   const { records: projects, loading } = useTenantDocuments("projects");
   const { records: schedules } = useTenantDocuments("schedules");
   const { records: assignments } = useTenantDocuments("crewAssignments");
@@ -307,7 +316,7 @@ export function EventDayCopilot({
                   {projectAssignments.length ||
                     (allProjectAssignments.length
                       ? 0
-                      : "Shooting solo")}
+                      : soloWords)}
                 </strong>
               </span>
             </article>
@@ -371,14 +380,16 @@ export function EventDayCopilot({
             <h2>
               {!eventIsToday
                 ? hasPlan
-                  ? `First up: ${text(orderedItems[0]?.title) || "Coverage"}`
+                  ? `First up: ${text(orderedItems[0]?.title) || (photo ? "Coverage" : "Arrival")}`
                   : "No run of show yet"
                 : currentItem
                   ? text(currentItem.title)
                   : nextItem
                     ? `Next: ${text(nextItem.title)}`
                     : hasPlan
-                      ? "Coverage plan complete"
+                      ? photo
+                        ? "Coverage plan complete"
+                        : "Day plan complete"
                       : "No run of show yet"}
             </h2>
             <p>

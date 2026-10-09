@@ -10,7 +10,8 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
-import { BUSY_TIME_CALENDARS_COPY } from "@/features/integrations/schema";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { busyTimesLine, callWords } from "@/components/studio/trade-words";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultMeetingFormats, videoCallDetail } from "@/features/consultations/meeting-mode";
 
@@ -186,6 +187,16 @@ function WeekdayWindowEditor({
 }
 
 export function ConsultationAvailability() {
+  /**
+   * These hours book every call the studio has, not only a sales call: a DJ's
+   * vibe call, a makeup or hair trial, the final details call
+   * (functions/src/booking/public-scheduling.ts). So the panel is named for
+   * what the trade books; a makeup artist has no consultation to be told of.
+   */
+  const trade = useWorkspace().tenantTrade;
+  const calls = callWords(trade);
+  const signInMessage = `Sign in to manage ${calls.availabilityTitle.toLowerCase()}.`;
+  const unavailableMessage = `${calls.availabilityTitle} is unavailable.`;
   const [form, setForm] = useState<FormState>(defaultState);
   const [timezone, setTimezone] = useState("");
   const [loading, setLoading] = useState(dataIsLive);
@@ -211,7 +222,7 @@ export function ConsultationAvailability() {
       try {
         const { auth, firestore } = getFirebaseClient();
         const user = auth.currentUser;
-        if (!user) throw new Error("Sign in to manage consultation availability.");
+        if (!user) throw new Error(signInMessage);
         const membership = await activeMembership(firestore, user.uid);
         const tenantId = String(membership.get("tenantId") ?? "");
         const [tenant, settings] = await Promise.all([
@@ -240,7 +251,7 @@ export function ConsultationAvailability() {
       } catch (caught: unknown) {
         if (active) {
           setNotice(
-            friendlyError(caught, "Consultation availability is unavailable."),
+            friendlyError(caught, unavailableMessage),
           );
         }
       } finally {
@@ -251,7 +262,7 @@ export function ConsultationAvailability() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [signInMessage, unavailableMessage]);
 
   function addBlockedDate() {
     if (!newBlockedDate || form.blockedDates.includes(newBlockedDate)) return;
@@ -279,7 +290,7 @@ export function ConsultationAvailability() {
         validateWeek(form.unavailable);
         if (windowsToDocField(form.windows).length === 0) {
           throw new Error(
-            "Open-by-default mode needs at least one day with an hours envelope — set the widest hours you'd ever take a consultation, then mark specific times unavailable below.",
+            `Open-by-default mode needs at least one day with an hours envelope — set the widest hours you'd ever take a ${calls.one}, then mark specific times unavailable below.`,
           );
         }
       }
@@ -306,11 +317,11 @@ export function ConsultationAvailability() {
       setNotice(
         outcome.mode === "preview"
           ? "Preview saved for this session. Connect the booking service to publish real availability."
-          : "Consultation availability saved. Clients booking a consultation will see these windows.",
+          : `${calls.availabilityTitle} saved. Clients booking a ${calls.one} will see these windows.`,
       );
     } catch (caught: unknown) {
       setNotice(
-        friendlyError(caught, "Consultation availability could not be saved."),
+        friendlyError(caught, `${calls.availabilityTitle} could not be saved.`),
       );
     } finally {
       setSaving(false);
@@ -330,17 +341,17 @@ export function ConsultationAvailability() {
           </span>
           <div>
             <p className="eyebrow">Client scheduling</p>
-            <h2 id="consultation-availability-title">Consultation availability</h2>
+            <h2 id="consultation-availability-title">{calls.availabilityTitle}</h2>
             <p>
-              Set the hours clients can book a consultation on your public scheduling
-              link{timezone ? ` (studio timezone: ${timezone})` : ""}.
+              {`Set the hours clients can book a ${calls.one} on your public scheduling link`}
+              {timezone ? ` (studio timezone: ${timezone})` : ""}.
               <InfoHint label="Closed or open by default">
                 Closed: only the hours you add can be booked. Open: your widest hours can be booked, except the times
                 you mark unavailable.
               </InfoHint>
             </p>
             <p>
-              {BUSY_TIME_CALENDARS_COPY}{" "}
+              {busyTimesLine(trade)}{" "}
               <Link href="/studio/integrations">Connect a calendar</Link>
             </p>
           </div>
@@ -422,7 +433,7 @@ export function ConsultationAvailability() {
 
         <div className="consultation-availability-durations">
           <label>
-            Consultation length (minutes)
+            {calls.lengthLabel}
             <input
               type="number"
               min={15}

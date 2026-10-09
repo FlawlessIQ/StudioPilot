@@ -14,10 +14,11 @@ import {
   Camera,
 } from "lucide-react";
 import { useSetupState } from "@/components/setup/use-setup-state";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   SETUP_ORDER,
-  SETUP_STEP_NAME,
   setupQuestionCount,
+  setupStepName,
   type SetupGapKey,
 } from "@/features/today/setup-gaps";
 
@@ -44,6 +45,8 @@ const ICONS: Record<SetupGapKey, ComponentType<{ size?: number }>> = {
 const capitalise = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
 export function SetupChecklist() {
+  // Each step in the studio's own words: "what you shoot" was a hair stylist's (2026-10-09).
+  const { tenantTrade } = useWorkspace();
   const { gaps, loading } = useSetupState();
   const open = new Set(gaps.map((gap) => gap.key));
   const completed = SETUP_ORDER.filter((key) => !open.has(key)).length;
@@ -72,7 +75,7 @@ export function SetupChecklist() {
             <Link className={done ? "is-done" : ""} href="/studio/setup" key={key}>
               <span>{done ? <Check size={16} /> : <Icon size={16} />}</span>
               <div>
-                <strong>{capitalise(SETUP_STEP_NAME[key])}</strong>
+                <strong>{capitalise(setupStepName(key, tenantTrade))}</strong>
               </div>
             </Link>
           );

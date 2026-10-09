@@ -405,7 +405,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
   const proposalActionId=actionIds.proposal;
   // A package with no terms written drafts with the default wording, not a
   // failed draft (GR, 2026-09-30); the studio edits it before sending.
-  const termsSummary=recommended?proposalTermsFor(recommended.get("terms")):"";
+  const termsSummary=recommended?proposalTermsFor(recommended.get("terms"),(await getFirestore().doc(`tenants/${String(job.get("tenantId"))}`).get()).get("trade")):"";
   batch.set(db.doc(`aiActions/${proposalActionId}`),{
     ...base,
     id:proposalActionId,

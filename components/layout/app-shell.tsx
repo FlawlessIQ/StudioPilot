@@ -43,6 +43,8 @@ import {
   WorkspaceProvider,
   workspaceRoleLabel,
 } from "@/features/auth/workspace-context";
+import { roleLabelFor } from "@/components/studio/trade-words";
+import { tradeVocab } from "@/features/trades/trades";
 
 /**
  * Two destinations, then everything else.
@@ -422,7 +424,7 @@ function StudioShell({
                 <span className="ds-avatar ds-avatar-ink">{initials(userName)}</span>
                 <span className="ds-switcher-copy">
                   <strong>{userName}</strong>
-                  <small>{workspaceRoleLabel(workspace.role)}</small>
+                  <small>{roleLabelFor(workspace.role, workspace.tenantTrade, workspaceRoleLabel)}</small>
                 </span>
               </div>
               {/* Library and Studio settings are nav items now. What is left
@@ -481,7 +483,14 @@ function StudioShell({
               <Menu size={20} />
             </button>
             <span className="ds-crumb">
-              <b>Workspace ·</b> {resolvedActive === "Dashboard" ? "Today" : resolvedActive}
+              {/* The route's name is matched on above; what's shown is the
+                  studio's word for it (a makeup artist's "Quotes"). */}
+              <b>Workspace ·</b>{" "}
+              {resolvedActive === "Dashboard"
+                ? "Today"
+                : resolvedActive === "Proposals"
+                  ? `${tradeVocab(workspace.tenantTrade).proposal}s`
+                  : resolvedActive}
             </span>
             <GlobalSearch />
             <HowToButton variant="topbar" />

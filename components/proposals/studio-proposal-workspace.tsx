@@ -1,7 +1,7 @@
 "use client";
 
 import { quantityText } from "@/features/packages/unit-label";
-import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { undatedPaymentDue } from "@/features/contracts/document";
@@ -338,23 +338,38 @@ function statusLabel(status: string): string {
   return labels[status] ?? `${fallback.charAt(0).toUpperCase()}${fallback.slice(1)}`;
 }
 
-function commandError(error: string): string {
+/**
+ * The offer's words for this studio (trades.ts): a photographer's or a DJ's
+ * proposal, a makeup artist's or hair stylist's quote, and what a job or a
+ * package with no name of its own is called ("Photography project", "Hair
+ * project"). A photographer's read exactly as they always did.
+ */
+function offerWords(trade: unknown) {
+  const Offer = tradeVocab(trade).proposal;
+  const offer = Offer.toLowerCase();
+  return { Offer, offer, Offers: `${Offer}s`, offers: `${offer}s`, service: TRADE_LABELS[tradeOf(trade)] };
+}
+
+function commandError(error: string, trade?: unknown): string {
+  const { offer } = offerWords(trade);
   if (error.startsWith("OPEN_PROPOSAL_EXISTS:")) {
-    return "This project already has an open proposal. Open that version before creating another.";
+    return `This project already has an open ${offer}. Open that version before creating another.`;
   }
   const messages: Record<string, string> = {
-    PROJECT_NOT_READY_FOR_PROPOSAL:
-      "Complete the consultation stage before preparing a proposal.",
+    // A DJ's call is a vibe call; a makeup artist or hair stylist has none.
+    PROJECT_NOT_READY_FOR_PROPOSAL: tradeProfile(trade).consultation
+      ? `Complete the ${tradeVocab(trade).consultation.toLowerCase()} stage before preparing a ${offer}.`
+      : `This job can't take a ${offer} yet.`,
     PACKAGE_SNAPSHOT_REQUIRED:
-      "Select and lock a package on the project before creating a proposal.",
+      `Select and lock a package on the project before creating a ${offer}.`,
     CLIENT_EMAIL_REQUIRED:
-      "Add a valid primary client email before creating the proposal.",
+      `Add a valid primary client email before creating the ${offer}.`,
     PROPOSAL_DRAFT_CONFLICT:
       "This draft changed in another session. Refresh before saving again.",
     APPROVAL_PERMISSION_REQUIRED:
-      "A studio owner or administrator must approve this proposal.",
+      `A studio owner or administrator must approve this ${offer}.`,
     SEND_PERMISSION_REQUIRED:
-      "A studio owner or administrator must send this proposal.",
+      `A studio owner or administrator must send this ${offer}.`,
     PROPOSAL_PDF_NOT_READY:
       "The approved PDF is still being generated. Try again when it is ready.",
   };
@@ -451,7 +466,7 @@ async function loadProjectOptions(tenantId: string, trade?: unknown): Promise<{
     )
     .map((project) => ({
       id: project.id,
-      name: text(project.get("name"), "Photography project"),
+      name: text(project.get("name"), `${offerWords(trade).service} project`),
       eventDate: text(project.get("eventDate"), ""),
       eventType: text(project.get("eventType"), tradeOf(trade) === "photographer" ? "Photography" : "Event"),
       state: text(project.get("state"), ""),
@@ -478,7 +493,7 @@ async function loadProjectOptions(tenantId: string, trade?: unknown): Promise<{
       ]);
       return {
         id: project.id,
-        name: text(project.get("name"), "Photography project"),
+        name: text(project.get("name"), `${offerWords(trade).service} project`),
         eventDate: text(project.get("eventDate"), ""),
         eventType: text(project.get("eventType"), tradeOf(trade) === "photographer" ? "Photography" : "Event"),
         state: text(project.get("state"), ""),
@@ -530,6 +545,8 @@ export function StudioProposalCenter({
   recordingAcceptance?: boolean;
 } = {}) {
   const workspace = useWorkspace();
+  // "Quotes" for a makeup artist or hair stylist (trades.ts).
+  const words = offerWords(workspace.tenantTrade);
   const [proposals, setProposals] = useState<Value[] | undefined>(
     dataIsLive
       ? undefined
@@ -618,14 +635,15 @@ export function StudioProposalCenter({
       .catch((caught: unknown) => {
         if (!active) return;
         setError(
-          friendlyError(caught, "Proposals could not be loaded."),
+          friendlyError(caught, `${words.Offers} could not be loaded.`),
         );
         setProposals([]);
       });
     return () => {
       active = false;
     };
-  }, [workspace.loading, workspace.tenantId]);
+    // The trade arrives with the tenant, so its word adds no second load.
+  }, [workspace.loading, workspace.tenantId, words.Offers]);
 
   const visible = useMemo(
     () =>
@@ -667,7 +685,7 @@ export function StudioProposalCenter({
       <header className="proposal-center-hero">
         <div>
           <p className="eyebrow">Sales documents</p>
-          <h1>Proposals</h1>
+          <h1>{words.Offers}</h1>
           <p>
             Build a precise offer, route it for approval, and know exactly when
             your client has reviewed it.
@@ -681,14 +699,14 @@ export function StudioProposalCenter({
               : "/studio/proposals/new"
           }
         >
-          <Plus /> New proposal
+          <Plus /> {`New ${words.offer}`}
         </Link>
       </header>
 
       {focusProject ? (
         <section className="proposal-center-focus" aria-live="polite">
           <span>
-            Showing proposals for{" "}
+            {`Showing ${words.offers} for `}
             <strong>{focusProject.name || "this project"}</strong>.
           </span>
           <div>
@@ -696,13 +714,13 @@ export function StudioProposalCenter({
               Back to project
             </Link>
             <button onClick={() => setFocusProject(null)} type="button">
-              View all proposals
+              {`View all ${words.offers}`}
             </button>
           </div>
         </section>
       ) : null}
 
-      <section className="proposal-center-metrics" aria-label="Proposal summary">
+      <section className="proposal-center-metrics" aria-label={`${words.Offer} summary`}>
         <article>
           <span><FileCheck2 /></span>
           <div><small>In studio</small><strong>{counts.approval}</strong></div>
@@ -722,7 +740,7 @@ export function StudioProposalCenter({
 
       <section className="proposal-center-workspace">
         <div className="proposal-center-toolbar">
-          <div role="tablist" aria-label="Filter proposals">
+          <div role="tablist" aria-label={`Filter ${words.offers}`}>
             {(
               [
                 ["all", "All"],
@@ -742,29 +760,29 @@ export function StudioProposalCenter({
               </button>
             ))}
           </div>
-          <small>{visible.length} proposal{visible.length === 1 ? "" : "s"}</small>
+          <small>{`${visible.length} ${visible.length === 1 ? words.offer : words.offers}`}</small>
         </div>
 
         {proposals === undefined ? (
           <div className="proposal-center-state">
             <LoaderCircle className="spin" />
-            <strong>Loading proposals…</strong>
+            <strong>{`Loading ${words.offers}…`}</strong>
           </div>
         ) : error ? (
           <div className="proposal-center-state proposal-center-state-error">
             <Inbox />
-            <strong>Proposals are unavailable</strong>
+            <strong>{`${words.Offers} are unavailable`}</strong>
             <p>{error}</p>
           </div>
         ) : visible.length === 0 ? (
           <div className="proposal-center-state">
             <FileText />
-            <strong>No proposals in this view</strong>
+            <strong>{`No ${words.offers} in this view`}</strong>
             {focusProject ? (
               <>
                 <p>
                   {focusProject.name || "This project"}
-                  {" doesn't have a proposal yet. Prepare one — the composer "}
+                  {` doesn't have a ${words.offer} yet. Prepare one — the composer `}
                   {"locks a package first if one isn't chosen, then drafts "}
                   {"the copy for you."}
                 </p>
@@ -772,14 +790,14 @@ export function StudioProposalCenter({
                   className="button button-light"
                   href={`/studio/proposals/new?project=${focusProject.id}`}
                 >
-                  Prepare the proposal
+                  {`Prepare the ${words.offer}`}
                 </Link>
               </>
             ) : (
               <>
                 <p>Start from a project with a selected package.</p>
                 <Link className="button button-light" href="/studio/proposals/new">
-                  Create a proposal
+                  {`Create a ${words.offer}`}
                 </Link>
               </>
             )}
@@ -809,8 +827,8 @@ export function StudioProposalCenter({
                       Version {number(proposal.version)} ·{" "}
                       {text(client.displayName, "Client")}
                     </small>
-                    <strong>{text(event.name, "Photography project")}</strong>
-                    <span>{text(pricing.packageName, "Photography package")}</span>
+                    <strong>{text(event.name, `${words.service} project`)}</strong>
+                    <span>{text(pricing.packageName, `${words.service} package`)}</span>
                   </span>
                   <span className="proposal-center-list-meta">
                     <small>Total</small>
@@ -898,6 +916,11 @@ function ProposalCopyCopilot({
 
 export function StudioProposalComposer() {
   const workspace = useWorkspace();
+  // "quote" for a makeup artist or hair stylist; a photographer's "coverage"
+  // is a vendor's "service" (trades.ts).
+  const words = offerWords(workspace.tenantTrade);
+  const vocab = tradeVocab(workspace.tenantTrade);
+  const photo = tradeProfile(workspace.tenantTrade).family === "photo";
   // A makeup artist or hair stylist is paid on the day (trades.ts).
   const balanceDaysBefore = tradeProfile(workspace.tenantTrade).balanceDueDaysBefore;
   const router = useRouter();
@@ -972,7 +995,7 @@ export function StudioProposalComposer() {
           // Not the package description: that now shows under each package, as
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
-          setTermsSummary(proposalTermsForJob(jobSnapshotsOf(requestedProject), bookingGateNeeds(requestedProject.profile)));
+          setTermsSummary(proposalTermsForJob(jobSnapshotsOf(requestedProject), bookingGateNeeds(requestedProject.profile), workspace.tenantTrade));
           const event = new Date(`${requestedProject.eventDate}T12:00:00`);
           if (!Number.isNaN(event.valueOf())) {
             setBalanceDueDate(
@@ -1050,7 +1073,7 @@ export function StudioProposalComposer() {
     // Not the package description: that now shows under each package, as
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
-    setTermsSummary(proposalTermsForJob(jobSnapshotsOf(nextProject), bookingGateNeeds(nextProject.profile)));
+    setTermsSummary(proposalTermsForJob(jobSnapshotsOf(nextProject), bookingGateNeeds(nextProject.profile), workspace.tenantTrade));
     const event = new Date(`${nextProject.eventDate}T12:00:00`);
     setBalanceDueDate(
       Number.isNaN(event.valueOf())
@@ -1224,7 +1247,7 @@ export function StudioProposalComposer() {
       // Not the package description: that now shows under each package, as
       // bullets, and pasting one package's here left the other out (GR).
       setNotes("");
-      setTermsSummary(proposalTermsForJob(jobSnapshotsOf(readyProject), bookingGateNeeds(readyProject.profile)));
+      setTermsSummary(proposalTermsForJob(jobSnapshotsOf(readyProject), bookingGateNeeds(readyProject.profile), workspace.tenantTrade));
       const event = new Date(`${readyProject.eventDate}T12:00:00`);
       if (!Number.isNaN(event.valueOf())) {
         setBalanceDueDate(dateInput(addDays(event, -balanceDaysBefore).toISOString()));
@@ -1316,7 +1339,8 @@ export function StudioProposalComposer() {
     } catch (caught: unknown) {
       setError(
         commandError(
-          friendlyError(caught, "The proposal draft could not be created."),
+          friendlyError(caught, `The ${words.offer} draft could not be created.`),
+          workspace.tenantTrade,
         ),
       );
     } finally {
@@ -1327,12 +1351,12 @@ export function StudioProposalComposer() {
   return (
     <div className="proposal-composer-page">
       <Link className="back-link" href="/studio/proposals">
-        <ArrowLeft /> Back to proposals
+        <ArrowLeft /> {`Back to ${words.offers}`}
       </Link>
       <header className="proposal-composer-heading">
         <div>
           {/* A makeup artist or hair stylist sends a quote (trades.ts). */}
-          <p className="eyebrow">{`New ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()}`}</p>
+          <p className="eyebrow">{`New ${words.offer}`}</p>
           <h1>Turn a selected package into a clear decision.</h1>
           <p>
             The price you send is the price they see. You control the
@@ -1344,8 +1368,7 @@ export function StudioProposalComposer() {
           <span>
             <strong>Price locked</strong>
             <small>
-              Changing your package later won&rsquo;t alter a proposal you have
-              already sent.
+              {`Changing your package later won’t alter a ${words.offer} you have already sent.`}
             </small>
           </span>
         </div>
@@ -1361,13 +1384,12 @@ export function StudioProposalComposer() {
                 <h2>
                   Choose the client and event
                   <InfoHint label="Locking a package">
-                    Locking a package fixes its price for this proposal. Later changes to the package itself never
-                    touch a proposal that already has it.
+                    {`Locking a package fixes its price for this ${words.offer}. Later changes to the package itself never touch a ${words.offer} that already has it.`}
                   </InfoHint>
                 </h2>
                 <p>
                   {tradeProfile(workspace.tenantTrade).consultation
-                    ? "Only projects at consultation or proposal stage with a locked package are available."
+                    ? `Only projects at ${vocab.consultation.toLowerCase()} or ${words.offer} stage with a locked package are available.`
                     : "Any inquiry with a locked package can be quoted."}
                 </p>
               </div>
@@ -1414,7 +1436,10 @@ export function StudioProposalComposer() {
                   {selectedFor(packagePickerFor.id) ? (
                     <p>
                       <strong>{packagePickerFor.name}</strong>
-                      {" — add another package beside what's there (photo and video, say), "}
+                      {/* Photo and video is a photographer's pairing; a vendor's has no example. */}
+                      {photo
+                        ? " — add another package beside what's there (photo and video, say), "
+                        : " — add another package beside what's there, "}
                       {"or start over with a different one. "}
                       <button
                         className="button button-light"
@@ -1428,8 +1453,8 @@ export function StudioProposalComposer() {
                     <p>
                       <strong>{packagePickerFor.name}</strong>
                       {" doesn't have a package locked yet. Choose the "}
-                      {"coverage — pricing snapshots the moment you lock it, "}
-                      {"and the proposal continues right here."}
+                      {`${photo ? "coverage" : "package"} — pricing snapshots the moment you lock it, `}
+                      {`and the ${words.offer} continues right here.`}
                     </p>
                   )}
                   {pickerPackages === null ? (
@@ -1441,10 +1466,7 @@ export function StudioProposalComposer() {
                         <span>
                           <strong>No active packages yet</strong>
                           <small>
-                            A proposal needs a package to price it. Import your
-                            price list and StudioCue drafts your packages, or
-                            create one by hand — either way you land right back
-                            here and the proposal picks up where you left off.
+                            {`A ${words.offer} needs a package to price it. Import your price list and StudioCue drafts your packages, or create one by hand — either way you land right back here and the ${words.offer} picks up where you left off.`}
                           </small>
                         </span>
                         <span className="proposal-inline-actions">
@@ -1539,9 +1561,10 @@ export function StudioProposalComposer() {
                   <span>
                     <strong>No project is ready yet</strong>
                     <small>
-                      Proposals start from a project at the consultation or
-                      proposal stage. Open one and choose &ldquo;Prepare
-                      proposal&rdquo; on its journey.
+                      {/* A makeup artist or hair stylist quotes from the inquiry: there is no call. */}
+                      {`${words.Offers} start from a project at the ${
+                        tradeProfile(workspace.tenantTrade).consultation ? vocab.consultation.toLowerCase() : "inquiry"
+                      } or ${words.offer} stage. Open one and choose “Prepare ${words.offer}” on its journey.`}
                     </small>
                   </span>
                   <Link href="/studio/projects">Open projects</Link>
@@ -1632,14 +1655,13 @@ export function StudioProposalComposer() {
                         className="button button-light"
                         href={`/studio/proposals/${selected.withCoupleProposalId}`}
                       >
-                        Change packages on the sent proposal
+                        {`Change packages on the sent ${words.offer}`}
                       </Link>
                     ) : null}
                   </div>
                   {selected.openProposalId ? (
                     <p>
-                      This project already has an open proposal. Continuing
-                      opens that version instead of creating a duplicate.
+                      {`This project already has an open ${words.offer}. Continuing opens that version instead of creating a duplicate.`}
                     </p>
                   ) : null}
                 </div>
@@ -1675,7 +1697,7 @@ export function StudioProposalComposer() {
                 <textarea
                   maxLength={4000}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Describe the approach and value of this coverage."
+                  placeholder={`Describe the approach and value of this ${vocab.coverage.toLowerCase()}.`}
                   rows={5}
                   value={notes}
                 />
@@ -1712,11 +1734,11 @@ export function StudioProposalComposer() {
                     and final balance dates go on the payment plan they see.
                   </InfoHint>
                 </h2>
-                <p>Dates are explicit and preserved with this proposal version.</p>
+                <p>{`Dates are explicit and preserved with this ${words.offer} version.`}</p>
               </div>
               <div className="proposal-field-grid">
                 <label className="proposal-field">
-                  <span>Proposal expires</span>
+                  <span>{`${words.Offer} expires`}</span>
                   <input
                     min={dateInput(new Date().toISOString())}
                     onChange={(event) => setExpiresOn(event.target.value)}
@@ -1823,7 +1845,7 @@ export function StudioProposalComposer() {
               ))
             ) : (
               <div>
-                <dt>Base coverage</dt>
+                <dt>{`Base ${vocab.coverage.toLowerCase()}`}</dt>
                 <dd>{money(pricing.basePriceCents, currency)}</dd>
               </div>
             )}
@@ -1915,7 +1937,7 @@ export function StudioProposalComposer() {
             type="submit"
           >
             {saving ? <LoaderCircle className="spin" /> : <PencilLine />}
-            {selected?.openProposalId ? "Open current proposal" : "Create draft"}
+            {selected?.openProposalId ? `Open current ${words.offer}` : "Create draft"}
           </button>
           <small>
             Creating a draft does not notify the client. Approval is required
@@ -1942,7 +1964,9 @@ export function StudioProposalWorkspace({
 }) {
   const workspace = useWorkspace();
   // "quote" for a makeup artist or hair stylist (trades.ts); a photographer's keeps "proposal".
-  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
+  const words = offerWords(workspace.tenantTrade);
+  const offer = words.offer;
+  const coverageWord = tradeVocab(workspace.tenantTrade).coverage;
   // The job, for how its kind books and is paid (job-kinds.ts).
   const { records: proposalProjects } = useTenantDocuments("projects");
   const { records: proposalContacts } = useTenantDocuments("contacts");
@@ -2072,7 +2096,7 @@ export function StudioProposalWorkspace({
       void load().catch((caught: unknown) => {
         if (!active) return;
         setError(
-          friendlyError(caught, "The proposal could not be loaded."),
+          friendlyError(caught, `The ${offer} could not be loaded.`),
         );
         setProposal(null);
       });
@@ -2081,7 +2105,7 @@ export function StudioProposalWorkspace({
       active = false;
       window.clearTimeout(timer);
     };
-  }, [load]);
+  }, [load, offer]);
 
   useEffect(() => {
     if (!dataIsLive || proposal?.pdfState !== "queued") return;
@@ -2196,15 +2220,15 @@ export function StudioProposalWorkspace({
             ? `Corrected copy created as a draft. It will go to ${text(command.result.recipient, "the client")} instead.`
             : "Corrected copy created as a draft. Review it and send when you are happy.",
         update_draft: "Draft saved.",
-        submit_for_approval: "Proposal sent for internal approval.",
-        return_to_draft: "Proposal returned to draft.",
+        submit_for_approval: `${words.Offer} sent for internal approval.`,
+        return_to_draft: `${words.Offer} returned to draft.`,
         discard_draft: "Draft discarded. Nobody saw it — start a new one whenever you're ready.",
-        withdraw: "Proposal withdrawn. Their page now says it's no longer on offer.",
-        send: "Proposal queued for branded email delivery.",
+        withdraw: `${words.Offer} withdrawn. Their page now says it's no longer on offer.`,
+        send: `${words.Offer} queued for branded email delivery.`,
         resend:
           command.result.expiryExtended === true && typeof command.result.expiresAt === "string"
-            ? `Proposal emailed again. It's open until ${date(command.result.expiresAt)}.`
-            : "Proposal email queued again.",
+            ? `${words.Offer} emailed again. It's open until ${date(command.result.expiresAt)}.`
+            : `${words.Offer} email queued again.`,
         record_acceptance:
           jobNeeds.agreement
             ? "Acceptance recorded against your name. The agreement is the next step."
@@ -2213,8 +2237,8 @@ export function StudioProposalWorkspace({
               : "Acceptance recorded against your name. The job books on its date and contact details.",
         undo_acceptance:
           command.result.discardedContractDraft === true
-            ? "Acceptance undone. The job is back at Proposal, and the unsent agreement draft was discarded."
-            : "Acceptance undone. The job is back at Proposal and the couple can accept again from their page.",
+            ? `Acceptance undone. The job is back at ${words.Offer}, and the unsent agreement draft was discarded.`
+            : `Acceptance undone. The job is back at ${words.Offer} and the couple can accept again from their page.`,
       };
       /**
        * The two PDF commands read their outcome off the record.
@@ -2232,13 +2256,14 @@ export function StudioProposalWorkspace({
           ),
         );
       } else {
-        setNotice(messages[type] ?? "Proposal updated.");
+        setNotice(messages[type] ?? `${words.Offer} updated.`);
       }
       return true;
     } catch (caught: unknown) {
       setError(
         commandError(
-          friendlyError(caught, "The proposal could not be updated."),
+          friendlyError(caught, `The ${offer} could not be updated.`),
+          workspace.tenantTrade,
         ),
       );
       return false;
@@ -2251,7 +2276,7 @@ export function StudioProposalWorkspace({
     return (
       <div className="proposal-workspace-state">
         <LoaderCircle className="spin" />
-        <strong>Loading proposal workspace…</strong>
+        <strong>{`Loading ${offer} workspace…`}</strong>
       </div>
     );
   }
@@ -2259,11 +2284,11 @@ export function StudioProposalWorkspace({
     return (
       <div className="proposal-workspace-page">
         <Link className="back-link" href="/studio/proposals">
-          <ArrowLeft /> Back to proposals
+          <ArrowLeft /> {`Back to ${words.offers}`}
         </Link>
         <div className="proposal-workspace-state">
           <Inbox />
-          <strong>Proposal unavailable</strong>
+          <strong>{`${words.Offer} unavailable`}</strong>
           <p>{error || "This version may be outside your active studio."}</p>
         </div>
       </div>
@@ -2420,12 +2445,12 @@ export function StudioProposalWorkspace({
   return (
     <div className="proposal-workspace-page">
       <Link className="back-link" href="/studio/proposals">
-        <ArrowLeft /> Back to proposals
+        <ArrowLeft /> {`Back to ${words.offers}`}
       </Link>
       <header className="proposal-workspace-heading">
         <div>
           <p className="eyebrow">
-            {tradeVocab(workspace.tenantTrade).proposal} · version {number(proposal.version)}
+            {words.Offer} · version {number(proposal.version)}
           </p>
           {/* The way back to the job.
               This page is reached from the job's next-move card and, at every
@@ -2446,7 +2471,7 @@ export function StudioProposalWorkspace({
               {text(event.name, "this job")}
             </Link>
           ) : null}
-          <h1>{text(event.name, "Photography proposal")}</h1>
+          <h1>{text(event.name, `${words.service} ${offer}`)}</h1>
           <p>
             Prepared for {text(client.displayName, "client")} ·{" "}
             {text(pricing.packageName, "selected package")}
@@ -2496,7 +2521,7 @@ export function StudioProposalWorkspace({
 
           <section className="proposal-workspace-copy">
             <p className="eyebrow">The offer</p>
-            <h2>{text(pricing.packageName, "Photography coverage")}</h2>
+            <h2>{text(pricing.packageName, `${words.service} ${coverageWord.toLowerCase()}`)}</h2>
             {isEditable ? (
               <>
                 <ProposalCopyCopilot
@@ -2517,7 +2542,7 @@ export function StudioProposalWorkspace({
                 </label>
               </>
             ) : (
-              <p>{text(proposal.notes, "Coverage prepared for this event.")}</p>
+              <p>{text(proposal.notes, `${coverageWord} prepared for this event.`)}</p>
             )}
           </section>
 
@@ -2535,7 +2560,7 @@ export function StudioProposalWorkspace({
                 return (
                 <article key={`${text(line.description)}-${index}`}>
                   <span>
-                    <strong>{text(line.description, "Coverage")}</strong>
+                    <strong>{text(line.description, coverageWord)}</strong>
                     {bullets.length ? (
                       <ul className="proposal-package-bullets">
                         {bullets.map((item) => (
@@ -2607,15 +2632,14 @@ export function StudioProposalWorkspace({
               <h2>
                 Clear milestones, before accounting.
                 <InfoHint label="Payment schedule">
-                  When the proposal expires, and when the retainer and the final balance are due. The couple sees
-                  these as their payment plan.
+                  {`When the ${offer} expires, and when the retainer and the final balance are due. The couple sees these as their payment plan.`}
                 </InfoHint>
               </h2>
             </div>
             {isEditable ? (
               <div className="proposal-field-grid">
                 <label className="proposal-field">
-                  <span>Proposal expires</span>
+                  <span>{`${words.Offer} expires`}</span>
                   <input
                     min={dateInput(new Date().toISOString())}
                     onChange={(eventValue) =>
@@ -2725,7 +2749,7 @@ export function StudioProposalWorkspace({
                 <p>{text(proposal.termsSummary)}</p>
               )}
               <small>
-                Proposal acceptance is not a signed agreement or payment.
+                {`${words.Offer} acceptance is not a signed agreement or payment.`}
               </small>
             </div>
           </section>
@@ -2835,7 +2859,7 @@ export function StudioProposalWorkspace({
                   </button>
                 ) : (
                   <p className="proposal-permission-note">
-                    A studio owner or administrator must approve this proposal.
+                    {`A studio owner or administrator must approve this ${offer}.`}
                   </p>
                 )}
                 <button
@@ -2925,9 +2949,8 @@ export function StudioProposalWorkspace({
                         <small>
                           {proposal.pdfState === "failed" ? (
                             <>
-                              The PDF could not be built, so this sends the
-                              branded email with a link to the proposal and no
-                              attachment. {text(client.email, "The primary client")}{" "}
+                              {`The PDF could not be built, so this sends the branded email with a link to the ${offer} and no attachment. `}
+                              {text(client.email, "The primary client")}{" "}
                               can still review and accept it in the portal.
                             </>
                           ) : (
@@ -3027,8 +3050,7 @@ export function StudioProposalWorkspace({
                   <div className="proposal-combined-note">
                     <strong>Sent as a booking agreement</strong>
                     <small>
-                      Signing it accepts this proposal. To change anything, withdraw the agreement on the job&rsquo;s
-                      Booking tab first; then this proposal can be corrected and sent again.
+                      {`Signing it accepts this ${offer}. To change anything, withdraw the agreement on the job’s Booking tab first; then this ${offer} can be corrected and sent again.`}
                     </small>
                     <Link className="button button-light" href={`/studio/booking?project=${encodeURIComponent(text(proposal.projectId, ""))}`}>
                       Open the booking
@@ -3039,13 +3061,13 @@ export function StudioProposalWorkspace({
                   // owner/admin commands; offering them here only produced
                   // a permission error.
                   <p className="proposal-permission-note">
-                    A studio owner or administrator can resend, correct or withdraw this proposal.
+                    {`A studio owner or administrator can resend, correct or withdraw this ${offer}.`}
                   </p>
                 ) : (
                   <>
                 {lapsed ? (
                   <p className="proposal-permission-note" role="status">
-                    This proposal expired on {date(proposal.expiresAt)}, so the
+                    This {offer} expired on {date(proposal.expiresAt)}, so the
                     couple can&rsquo;t accept it. Extending gives them at least
                     another week from today and emails it again.
                   </p>
@@ -3128,7 +3150,7 @@ export function StudioProposalWorkspace({
             {status === "accepted" ? (
               <div className="proposal-outcome proposal-outcome-success">
                 <CheckCircle2 />
-                <strong>Proposal accepted</strong>
+                <strong>{`${words.Offer} accepted`}</strong>
                 <p>
                   {jobNeeds.agreement
                     ? "The project can now move into the agreement and retainer workflow."
@@ -3173,7 +3195,7 @@ export function StudioProposalWorkspace({
                         {proposal.acceptanceAuthority === "studio_attested"
                           ? "Undo the acceptance you recorded? "
                           : "The couple accepted this themselves, in their portal. Undo it anyway? "}
-                        The proposal goes back to how it was before, the job goes back to Proposal, and any
+                        The {offer} goes back to how it was before, the job goes back to {words.Offer}, and any
                         agreement draft StudioCue prepared for it is discarded. Nothing is emailed — tell them
                         yourself. They can accept again from their page.
                       </p>
@@ -3225,7 +3247,7 @@ export function StudioProposalWorkspace({
                 agreement holds the proposal (sent/viewed say so above). */}
             {agreementLive && ["draft", "internal_review", "approved"].includes(status) ? (
               <p className="proposal-permission-note">
-                A booking agreement holds this proposal. Withdraw it on the job&rsquo;s Booking tab first.
+                A booking agreement holds this {offer}. Withdraw it on the job&rsquo;s Booking tab first.
               </p>
             ) : null}
             {canApprove && !agreementLive && ["draft", "internal_review", "approved", "sent", "viewed"].includes(status) ? (
@@ -3238,7 +3260,7 @@ export function StudioProposalWorkspace({
                     type="button"
                   >
                     <X aria-hidden="true" size={14} />
-                    {["sent", "viewed"].includes(status) ? "Withdraw this proposal" : "Discard this draft"}
+                    {["sent", "viewed"].includes(status) ? `Withdraw this ${offer}` : "Discard this draft"}
                   </button>
                 ) : (
                   <div className="proposal-undo-confirm" role="group" aria-label="Confirm">
@@ -3277,7 +3299,7 @@ export function StudioProposalWorkspace({
                         {working === "discard_draft" || working === "withdraw" ? (
                           <LoaderCircle className="spin" />
                         ) : null}
-                        {closing === "discard" ? "Discard draft" : "Withdraw proposal"}
+                        {closing === "discard" ? "Discard draft" : `Withdraw ${offer}`}
                       </button>
                       <button
                         className="button button-light"

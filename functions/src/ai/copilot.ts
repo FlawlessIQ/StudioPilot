@@ -1,6 +1,6 @@
 import { isSalesConsultation } from "../booking/consultation-purpose.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
-import { tradeProfile } from "../trades/trades.js";
+import { tradeProfile, tradeVocab } from "../trades/trades.js";
 import { randomUUID } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
 import { jobKindFromLabel, jobKindOf } from "../job-kinds/job-kinds.js";
@@ -59,7 +59,7 @@ import {
   mayEditStudioVoice,
   STUDIO_VOICE_MAX,
 } from "./studio-voice.js";
-import { DEFAULT_PROPOSAL_TERMS, proposalTermsForPackages } from "../proposals/default-terms.js";
+import { DEFAULT_PROPOSAL_TERMS, defaultTermsInTradeWords, proposalTermsForPackages } from "../proposals/default-terms.js";
 import {
   MAX_PREPARED_ACTIONS,
   STUDIO_ACTIONS,
@@ -1801,7 +1801,10 @@ async function buildCommandProposalActions(
       // left a photo + video couple with no terms for the video.
       const jobSnapshots = await loadJobPackageSnapshots(db, tenantId, projectDoc.data() ?? {});
       if (!jobSnapshots.some((snapshot) => snapshot.id === snapshotId)) continue;
-      const terms = proposalTermsForPackages(jobSnapshots.map((snapshot) => snapshot.data));
+      const terms = proposalTermsForPackages(
+        jobSnapshots.map((snapshot) => snapshot.data),
+        (await db.doc(`tenants/${tenantId}`).get()).get("trade"),
+      );
       const packageNames = jobSnapshots.map((snapshot) => String(snapshot.data.packageName ?? "")).filter(Boolean);
       const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
       command = {
@@ -2109,6 +2112,12 @@ async function generateIntake(
  */
 async function generateProposalDraft(facts: {
   studioName: string;
+  /**
+   * The studio's trade (features/trades): its offer word, whether a call came
+   * first, and what it does. A makeup artist's quote was introduced as a
+   * proposal shaped by "your consultation" (2026-10-09).
+   */
+  trade?: unknown;
   project: Json;
   consultation: Json;
   /** What they wrote in the inquiry, and what was drawn out of it. */
@@ -2125,6 +2134,9 @@ async function generateProposalDraft(facts: {
   draft: z.infer<typeof proposalDraftSchema>;
   mode: "ai" | "deterministic";
 }> {
+  const words = tradeVocab(facts.trade);
+  const offer = words.proposal.toLowerCase();
+  const photo = tradeProfile(facts.trade).family === "photo";
   const fallback = () => {
     const names = facts.packages
       .map((entry) => String(entry.packageName ?? "").trim())
@@ -2133,7 +2145,9 @@ async function generateProposalDraft(facts: {
       ? names.length === 1
         ? names[0]!
         : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
-      : "your coverage";
+      : photo
+        ? "your coverage"
+        : "your package";
     const priorities = (
       Array.isArray(facts.consultation.priorities)
         ? (facts.consultation.priorities as unknown[])
@@ -2144,14 +2158,17 @@ async function generateProposalDraft(facts: {
     const introduction = [
       "Thank you for sharing what matters most for your celebration.",
       priorities.length
-        ? `We heard you clearly on ${priorities.join(", ")}, and this proposal is shaped around exactly that.`
+        ? `We heard you clearly on ${priorities.join(", ")}, and this ${offer} is shaped around exactly that.`
         : String(facts.inquiry.message ?? "").trim()
-          ? "This proposal is shaped around what you told us matters most."
-          : "This proposal reflects the priorities discussed during your consultation.",
+          ? `This ${offer} is shaped around what you told us matters most.`
+          : tradeProfile(facts.trade).consultation
+            ? `This ${offer} reflects the priorities discussed during your ${words.consultation.toLowerCase()}.`
+            : `This ${offer} reflects what you shared with us.`,
       `${packageName} ${names.length > 1 ? "cover" : "covers"} your day the way we talked it through — and nothing here changes without your say-so.`,
     ].join(" ");
     const terms = proposalTermsForPackages(facts.packages);
-    const termsSummary = terms === DEFAULT_PROPOSAL_TERMS ? terms : `In plain language: ${terms}`;
+    const termsSummary =
+      terms === DEFAULT_PROPOSAL_TERMS ? defaultTermsInTradeWords(terms, facts.trade) : `In plain language: ${terms}`;
     return {
       draft: proposalDraftSchema.parse({
         introduction: introduction.slice(0, 2000),
@@ -2179,7 +2196,7 @@ async function generateProposalDraft(facts: {
           systemInstruction: {
             parts: [
               {
-                text: "Write proposal copy for a photography studio, grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Write as the studio, to the client: turn their words into the second person (“your family of four”, never “the four of us”), and never add people, relationships or details they did not write — no partner, children or guests unless the facts name them. Call the event what a client calls it, by `project.eventKind`: their wedding only for a wedding, their session for portraits, their event otherwise (or simply their day) — and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. `packages` is EVERY package the client is being offered (photography and video are often sold together) and `combinedCoverage` is everyone they send between them: when the introduction mentions what is on offer, name every package, never just the first, and describe each only from its own facts. termsSummary: restate each package's approved terms in plain client-friendly language, under that package's name when there is more than one; never add, soften, or remove a term, never apply one package's terms to another, and never write legal language of your own. If no package has terms, restate nothing. The studio edits and approves this before anything is sent. Return JSON only.",
+                text: `Write ${offer} copy for a ${words.business}, ` + "grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Write as the studio, to the client: turn their words into the second person (“your family of four”, never “the four of us”), and never add people, relationships or details they did not write — no partner, children or guests unless the facts name them. Call the event what a client calls it, by `project.eventKind`: their wedding only for a wedding, their session for portraits, their event otherwise (or simply their day) — and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. `packages` is EVERY package the client is being offered (photography and video are often sold together) and `combinedCoverage` is everyone they send between them: when the introduction mentions what is on offer, name every package, never just the first, and describe each only from its own facts. termsSummary: restate each package's approved terms in plain client-friendly language, under that package's name when there is more than one; never add, soften, or remove a term, never apply one package's terms to another, and never write legal language of your own. If no package has terms, restate nothing. The studio edits and approves this before anything is sent. Return JSON only.",
               },
               US_ENGLISH_PART,
             ],
@@ -2445,6 +2462,7 @@ export const aiCopilotCommand = onRequest(
         );
         const { draft, mode } = await generateProposalDraft({
           studioName: String(tenantDocument.get("name") ?? "the studio"),
+          trade: tenantDocument.get("trade"),
           project: {
             name: projectDocument.get("name"),
             eventType: projectDocument.get("eventType"),
@@ -2785,6 +2803,7 @@ export const aiCopilotCommand = onRequest(
           archivedProjectIds,
           scopedProjectId: input.projectId ?? null,
           ownerOrAdmin: broadAccess,
+          delivers: tradeProfile(tenantDoc.get("trade")).delivery,
         });
         if (!checked.ok) return { ok: false, reason: checked.reason };
         /**

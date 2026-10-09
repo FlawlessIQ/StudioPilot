@@ -1,5 +1,6 @@
 import { glossaryTerm } from "@/features/help/glossary";
 import type { Explainer } from "@/features/help/types";
+import type { Trade } from "@/features/trades/trades";
 import { RichText } from "@/components/help/rich-text";
 
 /**
@@ -10,13 +11,20 @@ import { RichText } from "@/components/help/rich-text";
 export function ExplainerView({
   guide,
   headingLevel = 3,
+  trade,
 }: {
   guide: Explainer;
   /** The level of this view's section headings, under the page's own. */
   headingLevel?: 2 | 3;
+  /**
+   * The studio's trade, for the words under the guide (the guide itself comes
+   * already in its words, explainers.ts). Absent on the public pages, which
+   * read as a photographer's.
+   */
+  trade?: Trade;
 }) {
   const Heading = headingLevel === 2 ? "h2" : "h3";
-  const terms = (guide.terms ?? []).map(glossaryTerm).filter((term) => term !== undefined);
+  const terms = (guide.terms ?? []).map((id) => glossaryTerm(id, trade)).filter((term) => term !== undefined);
   return (
     <div className="help-explainer">
       <p className="help-explainer-purpose">

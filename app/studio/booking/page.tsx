@@ -3,11 +3,12 @@ import { BookingAutopilotWorkspace } from "@/components/booking/booking-autopilo
 import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectContextBar, StudioDomainPage } from "@/components/studio/live-domain-view";
+import { BookingChecklistIntro } from "@/components/studio/page-intros";
 
 export const metadata: Metadata = {
   title: "Booking",
   description:
-    "Turn consultation notes into a package, a proposal, an agreement, and a paid retainer — with the studio approving each step.",
+    "Turn an inquiry into a package, an offer, an agreement, and a paid retainer — with the studio approving each step.",
 };
 
 export default async function BookingPage({
@@ -35,7 +36,7 @@ export default async function BookingPage({
         </div>
       ) : (
         <StudioDomainPage
-          description="Confirm the consultation, proposal, contract, retainer, event date, and client details before marking a project booked."
+          description={<BookingChecklistIntro />}
           domain="booking_gates"
           eyebrow="Booking checklist"
           title="Booking readiness"

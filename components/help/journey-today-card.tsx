@@ -2,8 +2,7 @@
 
 import { X } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
-import { JourneyFilmTeaser, useDismissed } from "@/components/help/journey-film";
+import { JourneyFilmTeaser, useDismissed, useOffersWeddingFilm } from "@/components/help/journey-film";
 
 /**
  * Today's invitation to "A wedding, start to finish", for a studio that
@@ -20,10 +19,9 @@ const storageKey = (userId: string | null) => `studiocue.journeyCard.dismissed:$
 export function JourneyTodayCard() {
   const { userId } = useWorkspace();
   const [dismissed, dismiss] = useDismissed(storageKey(userId));
-  // A wedding's year, for a studio that shoots weddings: a family-only
-  // studio would be reading about someone else's work.
-  const shootsWeddings = useStudioJobTypes().some((type) => type.kind === "wedding");
-  if (dismissed || !shootsWeddings) return null;
+  // A photographer's wedding year, for a photo studio that shoots weddings.
+  const offered = useOffersWeddingFilm();
+  if (dismissed || !offered) return null;
   return (
     <section className="today-clear today-getting-started is-compact journey-today-card">
       <JourneyFilmTeaser

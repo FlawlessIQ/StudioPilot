@@ -42,6 +42,7 @@ import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
 import { statusLabel } from "@/features/format/status-label";
 import { InfoHint } from "@/components/ui/info-hint";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -63,6 +64,9 @@ const safeIso = (value: string) => {
 
 export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
+  // What a package's people and hours are called: a photographer's coverage,
+  // a vendor's service (features/trades).
+  const coverage = tradeVocab(workspace.tenantTrade).coverage.toLowerCase();
   const returnToJob = useReturnToJob(projectId);
   const { records: projects } = useTenantDocuments("projects");
   const { records: profiles, loading } = useTenantDocuments("crewProfiles");
@@ -752,7 +756,10 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
                     value={specialty}
                   >
                     <option value="weddings">Weddings</option>
-                    <option value="video">Video</option>
+                    {/* Video is a photographer's second trade, never a DJ's or a stylist's. */}
+                    {tradeProfile(workspace.tenantTrade).coverageRoles.includes("videographer") ? (
+                      <option value="video">Video</option>
+                    ) : null}
                     <option value="assistant">Assistant</option>
                     <option value="corporate">Corporate</option>
                     <option value="sports">Sports</option>
@@ -1234,7 +1241,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
               <strong>
                 Prepared when this job was booked
                 <InfoHint label="Prepared offers">
-                  Built from the package’s coverage when the job booked. Nothing is sent until you press “Send these
+                  Built from the package’s {coverage}{" "}when the job booked. Nothing is sent until you press “Send these
                   offers”, unless automatic offers are on in Studio settings.
                 </InfoHint>
               </strong>
@@ -1249,7 +1256,7 @@ export function CrewCascadeWorkspace({ projectId }: { projectId: string }) {
             <p className="form-notice">
               You are covering one{" "}
               {text(record(preparedPlan.studioCovers).label) || "place"}{" "}
-              yourself. Change the coverage on the package if that is not right.
+              yourself. Change the {coverage}{" "}on the package if that is not right.
             </p>
           ) : null}
           <div className="crew-role-plan-summary">

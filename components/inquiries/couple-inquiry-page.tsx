@@ -36,6 +36,7 @@ import {
 } from "@/features/questionnaires/client-form";
 import { outstandingRequired } from "@/features/questionnaires/outstanding";
 import { isJobKind, vocab } from "@/features/job-kinds/job-kinds";
+import { tradeVocab } from "@/features/trades/trades";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { autosaveDelayMs, saveFailureIsFinal } from "@/features/inquiries/autosave";
 
@@ -85,6 +86,12 @@ type Preview = {
   jobKind?: string | null;
   /** A proposal is out: the call has happened. Absent from an older build. */
   pastConsultation?: boolean;
+  /**
+   * The studio's trade (features/trades), for its words: a DJ's call is a
+   * vibe call, a makeup artist or hair stylist sends a quote. Absent from an
+   * older build, and read as a photographer's.
+   */
+  trade?: string | null;
   /** Where the job is once past the call; names what is in their email. */
   jobStage?: "proposal" | "agreement" | "retainer" | "booked" | null;
   timezone: string;
@@ -121,6 +128,8 @@ const formatCopy: Record<Format, string> = {
 const friendly: Record<string, string> = {
   INQUIRY_LINK_NOT_FOUND: "This link isn’t working. Reply to the studio’s email and they’ll send a new one.",
   INQUIRY_LINK_CLOSED: "This inquiry is closed. Reply to the studio’s email if you’d like to pick it back up.",
+  // Only booking a call refuses with this, and only a photographer or a DJ has
+  // a call to book (tradeProfile `consultation`): both send a proposal.
   INQUIRY_PAST_CONSULTATION: "You’ve already spoken with the studio, and your proposal is on its way. Reply to their email to talk again.",
   TIME_NO_LONGER_AVAILABLE: "That time was just taken. Please choose another.",
   EVENT_DATE_REQUIRED: "Add your date first, so the studio can check it’s free.",
@@ -456,13 +465,19 @@ export function CoupleInquiryPage({ token }: { token: string }) {
       await call("inquiry_cancel", { token, reason: null });
       load();
     } catch (caught: unknown) {
-      setNotice(message(caught, "Your consultation couldn’t be canceled. Please reply to the studio’s email."));
+      setNotice(message(caught, `Your ${callName} couldn’t be canceled. Please reply to the studio’s email.`));
     } finally {
       setBusy(false);
     }
   }
 
-  const studio = preview?.studioName ?? "your photographer";
+  const studio = preview?.studioName ?? "your studio";
+  // The studio's own words (features/trades): a DJ's call is a "vibe call",
+  // and a makeup artist or hair stylist sends a quote. Before the preview
+  // loads, or from an older build, they read as a photographer's.
+  const tradeWords = tradeVocab(preview?.trade);
+  const callName = tradeWords.consultation.toLowerCase();
+  const offer = tradeWords.proposal.toLowerCase();
   // A kind with no consultation (a family session, a sports day) ends on
   // "that's everything": there is no call to book.
   const noCall = preview?.offersConsultation === false;
@@ -475,10 +490,10 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   // "your proposal is ready" read wrong to a couple whose agreement was out.
   const movedOn = {
     proposal: {
-      heading: "your proposal is ready",
+      heading: `your ${offer} is ready`,
       lede: noCall
-        ? `${studio} has sent your proposal. It’s in your email — open it there to look it over.`
-        : `You’ve spoken with ${studio}, and they’ve sent your proposal. It’s in your email — open it there to look it over.`,
+        ? `${studio} has sent your ${offer}. It’s in your email — open it there to look it over.`
+        : `You’ve spoken with ${studio}, and they’ve sent your ${offer}. It’s in your email — open it there to look it over.`,
     },
     agreement: {
       heading: "your agreement is ready to sign",
@@ -539,7 +554,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const missingDate = preview?.missing.includes("eventDate") ?? false;
 
   const brand: Studio = {
-    name: preview?.studioName ?? "Your photographer",
+    name: preview?.studioName ?? "Your studio",
     color: preview?.brandAccentColor ?? null,
     logoUrl: preview?.brandLogoUrl ?? null,
   };
@@ -551,7 +566,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
         ? "Your inquiry"
         : noCall
           ? "Your inquiry"
-          : "Your consultation";
+          : `Your ${callName}`;
   const lede =
     step === "details"
       ? eventForm
@@ -700,11 +715,11 @@ export function CoupleInquiryPage({ token }: { token: string }) {
           {step === "booked" && preview?.booked ? (
             <Card tone="accent">
               <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
-                <CheckCircle2 aria-hidden="true" size={14} /> Your consultation
+                <CheckCircle2 aria-hidden="true" size={14} /> Your {callName}
               </p>
               <h2 className="kit-section">{when(preview.booked.startsAt, preview.timezone)}</h2>
               <p className="kit-body">
-                {formatCopy[preview.booked.format] ?? "Consultation"}
+                {formatCopy[preview.booked.format] ?? tradeWords.consultation}
                 {preview.booked.format === "in_person" && preview.booked.location
                   ? ` at ${preview.booked.location}`
                   : ""}
@@ -744,7 +759,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
           {step === "time" && preview && noCall ? (
             <Card tone="accent">
               <h2 className="kit-section">Thank you</h2>
-              <p className="kit-body">{`${studio} will send your proposal by email — choose your package there and pay to book.`}</p>
+              <p className="kit-body">{`${studio} will send your ${offer} by email — choose your package there and pay to book.`}</p>
             </Card>
           ) : null}
 
@@ -836,7 +851,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
           >
             {formSent ? (
               <Button onClick={() => setStep(preview?.booked ? "booked" : "time")}>
-                {preview?.booked ? "Back to your consultation" : noCall ? "Finish" : "Pick a time to talk"}
+                {preview?.booked ? `Back to your ${callName}` : noCall ? "Finish" : "Pick a time to talk"}
               </Button>
             ) : (
               <Button disabled={sending} icon={Send} onClick={sendForm}>
@@ -868,8 +883,8 @@ export function CoupleInquiryPage({ token }: { token: string }) {
               <>
                 <p className="kit-body" style={{ textAlign: "center" }}>
                   {preview.pastConsultation
-                    ? "Cancel your consultation?"
-                    : "Cancel your consultation? You can book another time here afterwards."}
+                    ? `Cancel your ${callName}?`
+                    : `Cancel your ${callName}? You can book another time here afterwards.`}
                 </p>
                 <ButtonRow>
                   <Button disabled={busy} onClick={() => setConfirmingCancel(false)} size="compact" variant="secondary">

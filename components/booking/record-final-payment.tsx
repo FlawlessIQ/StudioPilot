@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import { Banknote } from "lucide-react";
 import { recordFinalPayment } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 
 /**
  * Recording a final balance that arrived outside StudioCue.
@@ -45,6 +47,8 @@ export function RecordFinalPayment({
   /** Open, for a surface that already asked "paid another way?". */
   defaultOpen?: boolean;
 }) {
+  // A makeup artist or hair stylist's client accepted a quote (trades.ts).
+  const offer = tradeVocab(useWorkspace().tenantTrade).proposal.toLowerCase();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -93,7 +97,7 @@ export function RecordFinalPayment({
             : "It closes the job on your word, and the audit log will show that you vouched for it."}
           {" "}{balanceLabel
             ? ` Records ${balanceLabel} — the ${singleBill ? "bill" : "balance"} on what the client accepted.`
-            : " The amount comes from the proposal they accepted."}
+            : ` The amount comes from the ${offer} they accepted.`}
         </p>
         {standingInvoice ? (
           <p className="record-attestation-caveat">

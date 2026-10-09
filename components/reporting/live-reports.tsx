@@ -27,6 +27,8 @@ import { formatCents } from "@/lib/format/money";
 import { analyseFunnel, jobFunnelStages } from "@/features/operations/funnel";
 import { JOB_KIND_LABELS, JOB_KINDS, jobKindOf } from "@/features/job-kinds/job-kinds";
 import { bookedStates } from "@/features/inquiries/stages";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { finishedWord, funnelStagesFor, offerAcceptanceWords } from "@/components/reporting/report-words";
 import { inquiryInsights, replyTimeLabel } from "@/features/reporting/inquiry-insights";
 import { InfoHint } from "@/components/ui/info-hint";
 
@@ -35,6 +37,7 @@ function csvCell(value: unknown) {
 }
 
 export function LiveReports() {
+  const trade = useWorkspace().tenantTrade;
   const projectsState = useTenantDocuments("projects");
   const leadsState = useTenantDocuments("leads");
   const conversationsState = useTenantDocuments("conversations");
@@ -171,9 +174,12 @@ export function LiveReports() {
   );
   // Jobs that got at least this far, so the funnel only ever narrows
   // (features/operations/funnel.ts).
+  // In the trade's words, without a call step for a trade that has none.
   const funnel = analyseFunnel(
-    jobFunnelStages({ projects, consultations, proposals, contracts }),
+    funnelStagesFor(jobFunnelStages({ projects, consultations, proposals, contracts }), trade),
   );
+  const offerWords = offerAcceptanceWords(trade, proposalsSent.length);
+  const finished = finishedWord(trade);
   const proposalAcceptance = proposalsSent.length
     ? Math.round(
         (proposalsSent.filter((item) => item.status === "accepted").length /
@@ -407,18 +413,17 @@ export function LiveReports() {
             <article className="panel report-effort">
               <span>
                 <small>
-                  Your actions per delivered wedding
-                  <InfoHint label="Your actions per delivered wedding">
-                    How many approvals, check-offs and sends a typical delivered wedding took from you. Lower means
-                    StudioCue did more.
+                  {`Your actions per ${finished} wedding`}
+                  <InfoHint label={`Your actions per ${finished} wedding`}>
+                    {`How many approvals, check-offs and sends a typical ${finished} wedding took from you. Lower means StudioCue did more.`}
                   </InfoHint>
                 </small>
                 <strong>{loading ? "—" : effort.deliveredMedian ?? "Needs data"}</strong>
               </span>
               <p>
                 {effort.deliveredMedian === null
-                  ? "Once a wedding is delivered, this counts every approval, check-off and send it took from your side. Lower is better."
-                  : `The typical wedding across ${effort.deliveredCount} delivered took this many approvals, check-offs and sends from your side. Lower is better.`}
+                  ? `Once a wedding is ${finished}, this counts every approval, check-off and send it took from your side. Lower is better.`
+                  : `The typical wedding across ${effort.deliveredCount} ${finished} took this many approvals, check-offs and sends from your side. Lower is better.`}
                 {effort.most ? (
                   <>
                     {" "}The most was{" "}
@@ -455,7 +460,7 @@ export function LiveReports() {
           </article>
           <article className="panel">
             <CheckCircle2 />
-            <span><small>Proposal acceptance</small><strong>{loading ? "—" : proposalsSent.length ? `${proposalAcceptance}%` : "Needs data"}</strong><p>{proposalsSent.length} delivered proposals measured</p></span>
+            <span><small>{offerWords.label}</small><strong>{loading ? "—" : proposalsSent.length ? `${proposalAcceptance}%` : "Needs data"}</strong><p>{offerWords.sample}</p></span>
           </article>
           <article className="panel">
             <CheckCircle2 />

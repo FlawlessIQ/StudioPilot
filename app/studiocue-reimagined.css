@@ -239,10 +239,13 @@
   color: #d8badf;
 }
 
+/* Side by side only when each panel gets 400px of its own — the page sits
+   beside the sidebar, so a viewport query here put "Your import plan" in an
+   88px column on a 1024px window (2026-10-09). */
 .template-import-layout {
   display: grid;
   gap: 17px;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
 }
 
 .template-source-panel,
@@ -1685,10 +1688,6 @@
 
 @media (max-width: 900px) {
 
-  .template-import-layout {
-    grid-template-columns: 1fr;
-  }
-
   .studio-import-review-grid {
     grid-template-columns: 1fr;
   }
@@ -1847,10 +1846,22 @@
   border-radius: 23px;
   box-shadow: 0 24px 60px rgb(43 28 52 / 17%);
   color: white;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 30px;
-  grid-template-columns: minmax(0, 1.2fr) minmax(330px, .8fr);
   padding: 38px;
+}
+
+/* The headline keeps 340px or the counts drop below it. A grid with a
+   330px floor on the counts, switched on a 900px viewport, gave the h1 a
+   240px column on a 1024px window — "Prepared / for / you." (2026-10-09). */
+.ai-queue-hero > div {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.ai-queue-hero aside {
+  flex: 1 1 330px;
 }
 
 .ai-queue-hero .eyebrow {
@@ -2715,11 +2726,6 @@
   padding: 10px 12px;
 }
 
-@media (max-width: 900px) {
-  .ai-queue-hero {
-    grid-template-columns: 1fr;
-  }
-}
 
 @media (max-width: 650px) {
 

@@ -210,7 +210,7 @@ export function useSetupState(): {
       (projects.records ?? []).filter(
         (project) => text(project.state) === "LEAD" && !project.archivedAt,
       ).length,
-  });
+  }, workspace.tenantTrade);
 
   return {
     state,

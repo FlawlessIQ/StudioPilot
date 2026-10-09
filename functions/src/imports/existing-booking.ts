@@ -301,14 +301,22 @@ export type ImportedBookingRecords = {
  */
 export function importedCoverage(
   booking: Pick<ExistingBooking, "photographers" | "videographers">,
-): { role: "photographer" | "videographer"; count: number }[] {
-  const coverage: { role: "photographer" | "videographer"; count: number }[] = [];
+  /**
+   * The studio's own crew role (trades.ts `coverageRoles[0]`). A hair
+   * studio's form asks for "Hair stylists" into the same count, and they were
+   * saved as photographers (2026-10-09). Only a photographer has video.
+   */
+  primaryRole: ImportedCoverageRole = "photographer",
+): { role: ImportedCoverageRole; count: number }[] {
+  const coverage: { role: ImportedCoverageRole; count: number }[] = [];
   if (booking.photographers > 0)
-    coverage.push({ role: "photographer", count: booking.photographers });
-  if ((booking.videographers ?? 0) > 0)
+    coverage.push({ role: primaryRole, count: booking.photographers });
+  if (primaryRole === "photographer" && (booking.videographers ?? 0) > 0)
     coverage.push({ role: "videographer", count: booking.videographers ?? 0 });
-  return coverage.length ? coverage : [{ role: "photographer", count: 1 }];
+  return coverage.length ? coverage : [{ role: primaryRole, count: 1 }];
 }
+
+export type ImportedCoverageRole = "photographer" | "videographer" | "dj" | "makeup_artist" | "hair_stylist";
 
 /**
  * The documents an import writes, and — as importantly — how they are shaped
@@ -338,12 +346,14 @@ export function planImportedBooking(
     now: string;
     source: "form" | "cue" | "spreadsheet";
     batchId: string | null;
+    /** The studio's own crew role; omitted, a photographer. */
+    primaryRole?: ImportedCoverageRole;
   },
 ): ImportedBookingRecords {
   const { now, actorId } = context;
   const name = booking.projectName ?? defaultBookingName(booking.clients);
   const paid = paidToDateCents(booking);
-  const includedCoverage = importedCoverage(booking);
+  const includedCoverage = importedCoverage(booking, context.primaryRole);
   const evidence = {
     kind: "imported_booking",
     source: context.source,

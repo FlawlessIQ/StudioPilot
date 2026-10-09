@@ -7,7 +7,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { BillingAction } from "@/components/saas/billing-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { allPlanCards, plansForTrade } from "@/config/saas-plans";
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { planEntitlements } from "@/features/subscriptions/entitlements";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -311,7 +311,11 @@ export function LiveSubscription() {
               <ul>
                 <li>{card.users}</li>
                 <li>{card.ai}</li>
-                {card.features.slice(0, preTrial ? card.features.length : 2).map((feature) => <li key={feature}>{feature}</li>)}
+                {/* The vendor plan is shared by DJs, makeup artists and hair stylists;
+                    the last two send a quote, not a proposal (trades.ts). */}
+                {card.features.slice(0, preTrial ? card.features.length : 2).map((feature) => (
+                  <li key={feature}>{feature.replace(/^Proposals,/, `${tradeVocab(workspace.tenantTrade).proposal}s,`)}</li>
+                ))}
               </ul>
               <div className="plan-billing-actions">
                 <BillingAction plan={card.key} cadence="monthly" label={`${card.name} monthly`} />

@@ -106,7 +106,7 @@ test("the panel sits above the disclosure, not inside it", () => {
 const autopilot = read("components/booking/booking-autopilot-workspace.tsx");
 
 test("a job booked elsewhere is stated as a fact, not as an absence", () => {
-  const quiet = autopilot.indexOf("Booked outside StudioCue — no proposal needed.");
+  const quiet = autopilot.indexOf("Booked outside StudioCue — no ${offer} needed.");
   assert.ok(quiet > 0, "the imported case must not open with what is missing");
   // Flat treatment, like the accepted-proposal note, rather than a card.
   const section = autopilot.lastIndexOf('className="booking-autopilot-empty is-quiet"', quiet);
@@ -114,16 +114,17 @@ test("a job booked elsewhere is stated as a fact, not as an absence", () => {
 });
 
 test("it offers no action, because the command would refuse one", () => {
-  const start = autopilot.indexOf("Booked outside StudioCue — no proposal needed.");
+  const start = autopilot.indexOf("Booked outside StudioCue — no ${offer} needed.");
   const block = autopilot.slice(start, autopilot.indexOf("</section>", start));
   assert.doesNotMatch(block, /<Link/, "there is nothing to prepare on a booked job");
 });
 
 test("a job that can still take a proposal is still asked for one", () => {
-  assert.match(autopilot, /No proposal is on file for this job\./);
-  const start = autopilot.indexOf("No proposal is on file for this job.");
+  // In the trade's word for the offer: "proposal", a makeup artist's "quote".
+  assert.match(autopilot, /No \$\{offer\} is on file for this job\./);
+  const start = autopilot.indexOf("No ${offer} is on file for this job.");
   const block = autopilot.slice(start, autopilot.indexOf("</section>", start));
-  assert.match(block, /Prepare the proposal/);
+  assert.match(block, /Prepare the \$\{offer\}/);
 });
 
 test("the quiet card is actually styled, not just labelled", () => {

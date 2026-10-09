@@ -10,6 +10,7 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { ContractDocumentView } from "@/components/contracts/contract-document-view";
 import { contractDocumentSchema } from "@/features/contracts/document";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -168,7 +169,7 @@ export function BookingAmendmentPanel({
   if (!AMENDABLE_STATES.includes(str(project.state)))
     return (
       <p className="form-notice" role="status">
-        This is for a booking the couple has already signed. Before that, change the packages on the proposal and the date with Edit job.
+        {`This is for a booking the couple has already signed. Before that, change the packages on the ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} and the date with Edit job.`}
       </p>
     );
 

@@ -14,6 +14,8 @@
  * Pure function, no I/O.
  */
 
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+
 export type SetupGapKey =
   | "work"
   | "inquiries"
@@ -61,6 +63,19 @@ export const SETUP_STEP_NAME: Record<SetupGapKey, string> = {
   questionnaire: "your details form",
   insurance: "who sends your insurance certificates",
 };
+
+/**
+ * A step's name in the studio's trade's words (features/trades/trades.ts): a
+ * DJ or a makeup artist doesn't shoot, and a makeup artist or hair stylist has
+ * no sales call — their clients book a trial. A photographer reads
+ * SETUP_STEP_NAME as it always was.
+ */
+export function setupStepName(key: SetupGapKey, trade?: unknown): string {
+  if (tradeProfile(trade).family === "photo") return SETUP_STEP_NAME[key];
+  if (key === "work") return "what you take on";
+  if (key === "availability" && !tradeProfile(trade).consultation) return "when clients can book a trial";
+  return SETUP_STEP_NAME[key];
+}
 
 /** The first unanswered question, in setup's order. */
 export function nextSetupStep(gaps: ReadonlyArray<{ key: SetupGapKey }>): SetupGapKey | null {
@@ -136,14 +151,23 @@ export type SetupSignals = {
 export function setupGaps(
   state: SetupState,
   signals: SetupSignals,
+  /** What the studio does (trades.ts); absent is a photographer. */
+  trade?: unknown,
 ): SetupGap[] {
   const gaps: SetupGap[] = [];
+  const photo = tradeProfile(trade).family === "photo";
+  // A makeup artist or hair stylist has no sales call: the inquiry page takes
+  // the details and the quote follows; clients book a trial instead.
+  const calls = tradeProfile(trade).consultation;
+  const offer = tradeVocab(trade).proposal.toLowerCase();
 
   if (state.hasChosenWork === false) {
     gaps.push({
       key: "work",
-      title: "Say what you shoot",
-      detail: "Weddings, family sessions, corporate, sports — your inquiry form and every client's words follow it.",
+      title: photo ? "Say what you shoot" : "Say what you take on",
+      detail: photo
+        ? "Weddings, family sessions, corporate, sports — your inquiry form and every client's words follow it."
+        : "Weddings, corporate events, parties — your inquiry form and every client's words follow it.",
       actionLabel: "Choose",
       href: "/studio/settings/job-types",
       blocking: false,
@@ -172,7 +196,7 @@ export function setupGaps(
       key: "packages",
       title: "Add your packages",
       detail: blocked
-        ? `${blocked} can't get a proposal until a package exists to price it.`
+        ? `${blocked} can't get a ${offer} until a package exists to price it.`
         : "Paste your price list and StudioCue drafts them for you to confirm.",
       actionLabel: blocked ? "Add a package" : "Import your price list",
       href: blocked ? "/studio/packages/new" : "/studio/import",
@@ -212,7 +236,7 @@ export function setupGaps(
       key: "agreement",
       title: "Set up your agreement",
       detail: blocked
-        ? `${blocked} accepted their proposal. Set up your agreement and StudioCue writes their contract from it — they sign in their portal.`
+        ? `${blocked} accepted their ${offer}. Set up your agreement and StudioCue writes their contract from it — they sign in their portal.`
         : "Bring in the agreement you already use. StudioCue writes each client's contract from it, and they sign in their portal.",
       actionLabel: "Set up your agreement",
       href: "/studio/contracts/agreement",
@@ -225,7 +249,7 @@ export function setupGaps(
       key: "agreement",
       title: "How you send contracts",
       detail: blocked
-        ? `${blocked} accepted their proposal and needs a contract. Send yours the way you do today and record the signature on the job — or connect a signing app to have StudioCue send and track it.`
+        ? `${blocked} accepted their ${offer} and needs a contract. Send yours the way you do today and record the signature on the job — or connect a signing app to have StudioCue send and track it.`
         : "StudioCue doesn't write your contract. Send your own and record the signature, or connect a signing app to have it sent and tracked for you.",
       actionLabel: blocked ? "Record a signature" : "Set up signing",
       /**
@@ -270,8 +294,12 @@ export function setupGaps(
     const waiting = signals.openInquiries;
     gaps.push({
       key: "questionnaire",
-      title: "Choose the form couples fill in before your call",
-      detail: waiting
+      title: calls ? "Choose the form couples fill in before your call" : "Choose the form couples fill in with their inquiry",
+      detail: !calls
+        ? waiting
+          ? `${waiting === 1 ? "A couple is" : `${waiting} couples are`} getting your inquiry link. It asks a couple of details — not your event form. Choose it, and they fill it in before you send their ${offer}.`
+          : `Your first reply links couples to a page. Choose your event form, and they fill it in before you send their ${offer}.`
+        : waiting
         ? `${waiting === 1 ? "A couple is" : `${waiting} couples are`} getting your inquiry link. It asks a couple of details and a time to talk — not your event form. Choose it, and they fill it in before they book.`
         : "Your first reply links couples to a page. Choose your event form, and they fill it in before they pick a time to talk.",
       actionLabel: "Choose the form",
@@ -295,11 +323,20 @@ export function setupGaps(
 
   if (!state.hasConsultationAvailability) {
     const blocked = signals.openInquiries > 0;
+    // The hours a client books from: a DJ's vibe call, a makeup artist's
+    // trial. Either way the inquiry link waits on them
+    // (functions/src/intake/inquiry-link.ts studioTakesBookings).
+    const hoursFor = calls ? tradeVocab(trade).consultation.toLowerCase() : "trial";
+    const waiting = `${signals.openInquiries} ${signals.openInquiries === 1 ? "inquiry is" : "inquiries are"} waiting`;
     gaps.push({
       key: "availability",
-      title: "Set your consultation hours",
-      detail: blocked
-        ? `${signals.openInquiries} ${signals.openInquiries === 1 ? "inquiry is" : "inquiries are"} waiting — set hours and clients can pick a time themselves.`
+      title: `Set your ${hoursFor} hours`,
+      detail: !calls
+        ? blocked
+          ? `${waiting} — set hours and your replies link couples to a page for their details, and their ${offer} follows.`
+          : "Clients can then book their trial without the back-and-forth."
+        : blocked
+        ? `${waiting} — set hours and clients can pick a time themselves.`
         : "Clients can then book a time without the back-and-forth.",
       actionLabel: "Set hours",
       href: "/studio/settings/consultation-availability",

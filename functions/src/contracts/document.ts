@@ -2,6 +2,7 @@ import { z } from "zod";
 import { balanceWithSalesTax, readPricedSalesTax, totalWithSalesTax } from "../billing/sales-tax-pricing.js";
 import type { PricedSalesTax } from "../pricing/package-price.js";
 import { eventDetailsBlocks, type EventDetails } from "./event-details.js";
+import { tradeOf, tradeProfile, tradeVocab } from "../trades/trades.js";
 
 /**
  * A contract StudioCue writes and the couple signs.
@@ -161,6 +162,38 @@ export const contractMergeFields = [
 ] as const;
 
 export type ContractMergeFieldKey = (typeof contractMergeFields)[number]["key"];
+
+/** A DJ's, makeup artist's and hair stylist's own examples, in place of a photographer's. */
+const VENDOR_FIELD_EXAMPLES: Record<string, { coverage: string; included: string; studio: string }> = {
+  dj: { coverage: "1 DJ, 6 hours", included: "Reception sound; MC", studio: "Spin Theory DJs" },
+  makeup: { coverage: "2 makeup artists", included: "Makeup trial; Bridal makeup with lashes", studio: "Glow by Ana" },
+  hair: { coverage: "2 hair stylists", included: "Hair trial; Bridal hair with veil placement", studio: "Crown & Pin Hair" },
+};
+
+/**
+ * The catalogue as the agreement editor shows it to a studio of this trade.
+ *
+ * A photographer's reads as it always has: "Coverage", "Deliverables (list)".
+ * A DJ, makeup artist or hair stylist inserts the same fields as "Service"
+ * and "What's included (list)" (trades.ts `coverage`, `includedLabel`), with
+ * examples from their own work rather than galleries and albums. Only the
+ * labels change: the keys, and what fills them, are the same for everyone.
+ */
+export function contractMergeFieldsFor(
+  trade?: unknown,
+): ReadonlyArray<{ key: ContractMergeFieldKey; label: string; example: string; block?: boolean }> {
+  if (tradeProfile(trade).family === "photo") return contractMergeFields;
+  const words = tradeVocab(trade);
+  const examples = VENDOR_FIELD_EXAMPLES[tradeOf(trade)]!;
+  return contractMergeFields.map((field) => {
+    if (field.key === "package.coverage") return { ...field, label: words.coverage, example: examples.coverage };
+    if (field.key === "package.deliverables")
+      return { ...field, label: `${words.includedLabel} (list)`, example: examples.included };
+    if (field.key === "studio.name") return { ...field, example: examples.studio };
+    if (field.key === "studio.legal_name") return { ...field, example: `${examples.studio} LLC` };
+    return field;
+  });
+}
 
 const catalogueKeys = new Set<string>(contractMergeFields.map((field) => field.key));
 
@@ -918,6 +951,17 @@ export const DETAILS_SECTION = [
 ].join("\n");
 
 /**
+ * The details section in the studio's words: a photographer's agreement is
+ * for "coverage", a DJ's, makeup artist's or hair stylist's for "services",
+ * as their starting agreements say (sample.ts).
+ */
+export function detailsSectionFor(trade?: unknown): string {
+  return tradeProfile(trade).family === "photo"
+    ? DETAILS_SECTION
+    : DETAILS_SECTION.replace("{{event.type}} coverage on", "{{event.type}} services on");
+}
+
+/**
  * Turn an imported agreement's text into a template the studio then reviews.
  *
  * Placeholders in the three shapes the importer detects — `{{x}}`, `[X]`,
@@ -928,8 +972,9 @@ export const DETAILS_SECTION = [
  * headings. Nothing else in the studio's wording changes.
  *
  * This prepares a draft. It writes nothing; the studio saves the result.
+ * `trade` is the studio's: it words the details section, when one is added.
  */
-export function convertImportedAgreement(text: string): ImportedAgreementConversion {
+export function convertImportedAgreement(text: string, trade?: unknown): ImportedAgreementConversion {
   const customFields: ContractCustomField[] = [];
   const mapped: Array<{ placeholder: string; key: string }> = [];
   const tokenFor = (placeholder: string): string => {
@@ -987,7 +1032,7 @@ export function convertImportedAgreement(text: string): ImportedAgreementConvers
   const essentials = ["client.names", "event.date", "price.total"];
   const detailsAdded = !mapped.some((entry) => essentials.includes(entry.key));
   const joined = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  const body = (detailsAdded ? `${DETAILS_SECTION}\n\n## Terms\n${joined}` : joined).slice(
+  const body = (detailsAdded ? `${detailsSectionFor(trade)}\n\n## Terms\n${joined}` : joined).slice(
     0,
     TEMPLATE_BODY_MAX,
   );

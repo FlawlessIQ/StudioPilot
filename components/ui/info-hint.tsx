@@ -3,6 +3,7 @@
 import { cloneElement, useCallback, useEffect, useId, useRef } from "react";
 import { Info } from "lucide-react";
 import { glossaryTerm } from "@/features/help/glossary";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { openHowTo } from "@/components/help/how-to-events";
 
 /**
@@ -24,7 +25,10 @@ import { openHowTo } from "@/components/help/how-to-events";
 export function InfoHint(
   props: { term: string; label?: never; children?: never } | { label: string; children: React.ReactNode; term?: never },
 ) {
-  const glossary = props.term ? glossaryTerm(props.term) : undefined;
+  // A glossary word in the studio's own trade: a DJ's ⓘ on "coverage" was
+  // a photographer's (2026-10-09).
+  const { tenantTrade } = useWorkspace();
+  const glossary = props.term ? glossaryTerm(props.term, tenantTrade) : undefined;
   const name = glossary?.term ?? props.label ?? "";
   const body = glossary?.hint ?? props.children;
   const learnMore = glossary?.explainer;

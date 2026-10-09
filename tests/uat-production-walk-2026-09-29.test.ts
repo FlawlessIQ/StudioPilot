@@ -80,7 +80,9 @@ test("the couple's link stops offering a call once the proposal is out", () => {
   assert.match(server, /if \(state === "CONTRACT_PENDING"\) return "agreement";/);
   assert.match(page, /heading: "your agreement is ready to sign"/);
   // Cancelling no longer promises a new booking the link won't take.
-  assert.match(page, /preview\.pastConsultation\s*\? "Cancel your consultation\?"/);
+  // The call by the studio's own name (tradeVocab): a photographer's "consultation".
+  assert.match(page, /preview\.pastConsultation\s*\? `Cancel your \$\{callName\}\?`/);
+  assert.match(page, /const callName = tradeWords\.consultation\.toLowerCase\(\);/);
 });
 
 test("the couple's link shows no stand-in studio while it loads", () => {

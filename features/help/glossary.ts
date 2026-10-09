@@ -1,4 +1,4 @@
-import type { HelpAudience, HelpTerm } from "./types";
+import { helpTrade, type HelpAudience, type HelpTerm, type HelpTermSource, type HelpTrade } from "./types";
 
 /**
  * StudioCue's vocabulary, defined once.
@@ -7,8 +7,16 @@ import type { HelpAudience, HelpTerm } from "./types";
  * every screen that uses it. A couple's or crew member's reading of a word
  * gets its own entry when it differs from the studio's: to a couple a
  * retainer is what holds their date, not evidence for the booking gate.
+ *
+ * A word can read differently by trade (types.ts): a photographer's text is
+ * the first branch, exactly as it was, and a DJ, a makeup artist or a hair
+ * stylist reads the second, in their own words (features/trades/trades.ts).
  */
-export const GLOSSARY: readonly HelpTerm[] = [
+
+/** A photographer's own words, as written; every other trade has its own. */
+const photographer = (t: HelpTrade) => t.has.family === "photo";
+
+const WORDS: readonly HelpTermSource[] = [
   // ── Studio ────────────────────────────────────────────────────────────
   {
     id: "today",
@@ -81,20 +89,26 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Package",
     audience: "studio",
     explainer: "proposal",
-    hint: "A collection you sell at a set price: coverage, hours and what's included. Proposals are built from your packages.",
+    hint: (t) =>
+      `A collection you sell at a set price: ${photographer(t) ? "coverage, hours" : "who you send, the hours"} and what's included. ${t.words.proposal}s are built from your packages.`,
   },
   {
     id: "add-on",
     term: "Add-on",
     audience: "studio",
     explainer: "proposal",
-    hint: "An extra on top of a package, like an album or an engagement session. It's priced on its own line.",
+    hint: ({ has }) =>
+      has.album
+        ? "An extra on top of a package, like an album or an engagement session. It's priced on its own line."
+        : `An extra on top of a package, like ${has.perPersonPricing ? "another person getting ready" : "an extra hour"}. It's priced on its own line.`,
   },
   {
     id: "proposal",
     term: "Proposal",
     audience: "studio",
     explainer: "proposal",
+    // A makeup artist or hair stylist sends a quote (beauty-quote, below).
+    offered: ({ words }) => words.proposal === "Proposal",
     hint: "What a client sees before they book: their packages, any add-ons, the price and the payment plan. They accept it in their portal.",
   },
   {
@@ -109,6 +123,9 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Consultation",
     audience: "studio",
     explainer: "inquiry",
+    // A DJ's is the vibe call (below); a makeup artist or hair stylist has no
+    // sales call at all, the trial does that job.
+    offered: ({ words, has }) => has.consultation && words.consultation === "Consultation",
     hint: "A call or meeting before a client books. They choose a time from your availability.",
   },
   {
@@ -116,7 +133,10 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Couple's inquiry link",
     audience: "studio",
     explainer: "inquiry",
-    hint: "Each client's own link, added to your first reply once your consultation hours are set. They add details and pick a time to talk.",
+    hint: ({ words, has }) =>
+      has.consultation
+        ? `Each client's own link, added to your first reply once your ${words.consultation.toLowerCase()} hours are set. They add details and pick a time to talk.`
+        : "Each client's own link, added to your first reply. They add their details there; there's no call to book first.",
   },
   {
     id: "forwarding-address",
@@ -142,15 +162,19 @@ export const GLOSSARY: readonly HelpTerm[] = [
     id: "crew-offer",
     term: "Crew offer",
     audience: "studio",
-    hint: "An invitation to a photographer to work a date. They accept or decline from their phone; if they decline, offer it to someone else.",
+    hint: ({ words }) =>
+      `An invitation to ${/^[aeiou]/i.test(words.member) ? "an" : "a"} ${words.member} to work a date. They accept or decline from their phone; if they decline, offer it to someone else.`,
   },
 
   {
     id: "coverage",
-    term: "Coverage",
+    term: ({ words }) => words.coverage,
     audience: "studio",
     explainer: "packages",
-    hint: "Who you send and for how long: photographers, videographers and hours. It fills your contract and can set a per-crew retainer.",
+    hint: (t) =>
+      photographer(t)
+        ? "Who you send and for how long: photographers, videographers and hours. It fills your contract and can set a per-crew retainer."
+        : `Who you send and for how long: your ${t.words.crew} and the hours. It fills your contract and can set a per-${t.words.member} retainer.`,
   },
   {
     id: "quiet-import",
@@ -192,14 +216,20 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Closeout",
     audience: "studio",
     explainer: "delivery",
-    hint: "The last check before a job closes: contract, final balance, schedule, delivery, album, review request, crew and insurance all settled.",
+    hint: ({ has }) =>
+      has.delivery
+        ? "The last check before a job closes: contract, final balance, schedule, delivery, album, review request, crew and insurance all settled."
+        : "The last check before a job closes: contract, final balance, schedule, review request, crew and insurance all settled.",
   },
   {
     id: "studio-roles",
     term: "Roles",
     audience: "studio",
     explainer: "team",
-    hint: "Admin: everything but plan and billing. Coordinator: runs assigned jobs, no money or settings. Photographer or videographer: sees the jobs they shoot.",
+    hint: (t) =>
+      photographer(t)
+        ? "Admin: everything but plan and billing. Coordinator: runs assigned jobs, no money or settings. Photographer or videographer: sees the jobs they shoot."
+        : `Admin: everything but plan and billing. Coordinator: runs assigned jobs, no money or settings. Staff ${t.words.member}: sees the jobs they ${t.words.verb}.`,
   },
 
   // ── Couple ────────────────────────────────────────────────────────────
@@ -220,7 +250,10 @@ export const GLOSSARY: readonly HelpTerm[] = [
     term: "Your journey",
     audience: "couple",
     explainer: "couple-tour",
-    hint: "Every step from booking to your photos, in order. Each one is checked off as it's done.",
+    hint: ({ has }) =>
+      has.delivery
+        ? "Every step from booking to your photos, in order. Each one is checked off as it's done."
+        : "Every step from booking to the day and after, in order. Each one is checked off as it's done.",
   },
 
   {
@@ -369,14 +402,46 @@ export const GLOSSARY: readonly HelpTerm[] = [
   },
 ];
 
-const byId = new Map(GLOSSARY.map((term) => [term.id, term]));
+/** A word in a trade's words, as every screen reads it. */
+function inTrade(source: HelpTermSource, t: HelpTrade): HelpTerm {
+  const word: HelpTerm = {
+    id: source.id,
+    term: typeof source.term === "function" ? source.term(t) : source.term,
+    audience: source.audience,
+    hint: typeof source.hint === "function" ? source.hint(t) : source.hint,
+  };
+  if (source.explainer) word.explainer = source.explainer;
+  if (source.trades) word.trades = source.trades;
+  return word;
+}
 
-export function glossaryTerm(id: string): HelpTerm | undefined {
-  return byId.get(id);
+/** Whether a trade has the word at all: one of its own, and something it has. */
+function forTrade(source: HelpTermSource, trade: string | undefined, t: HelpTrade): boolean {
+  if (source.trades && (trade === undefined || !source.trades.includes(trade))) return false;
+  return source.offered ? source.offered(t) : true;
+}
+
+/** Every word, in a photographer's words (the website's glossary, and the tests). */
+export const GLOSSARY: readonly HelpTerm[] = WORDS.map((source) => inTrade(source, helpTrade()));
+
+const byId = new Map(WORDS.map((source) => [source.id, source]));
+
+/**
+ * A word by id. With a trade, in that trade's words, and undefined when the
+ * trade doesn't have it; without one, a photographer's reading of any word,
+ * as an ⓘ with no studio behind it has always read.
+ */
+export function glossaryTerm(id: string, trade?: string): HelpTerm | undefined {
+  const source = byId.get(id);
+  if (!source) return undefined;
+  const t = helpTrade(trade);
+  if (trade !== undefined && !forTrade(source, trade, t)) return undefined;
+  return inTrade(source, t);
 }
 
 export function glossaryFor(audience: HelpAudience, trade?: string): HelpTerm[] {
-  return GLOSSARY.filter((term) => term.audience === audience && (!term.trades || (trade !== undefined && term.trades.includes(trade)))).sort((a, b) =>
-    a.term.localeCompare(b.term),
-  );
+  const t = helpTrade(trade);
+  return WORDS.filter((source) => source.audience === audience && forTrade(source, trade, t))
+    .map((source) => inTrade(source, t))
+    .sort((a, b) => a.term.localeCompare(b.term));
 }

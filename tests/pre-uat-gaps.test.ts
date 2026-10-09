@@ -6,6 +6,7 @@ import { journeyProfile } from "../features/job-kinds/job-kinds";
 import { projectJourney, type JourneyInput } from "../features/journey/steps";
 import { renderLifecycleDraft } from "../features/messaging/render";
 import { renderLifecycleDraft as renderServerLifecycleDraft } from "../functions/src/communications/lifecycle-core";
+import { tradeVocab } from "../features/trades/trades";
 
 /**
  * The four gaps fixed before the end-to-end UAT (2026-10-09): a family
@@ -90,8 +91,18 @@ test("a DJ's agreement previews with a DJ's package, load-in and power", () => {
 
 test("the package form speaks each trade's words and starts from its own defaults", () => {
   const form = read("components/crm/create-package-form.tsx");
-  assert.match(form, /\{photoStudio \? "Coverage hours" : djStudio \? "Hours of music" : "Hours on site"\}/);
-  assert.match(form, /\{photoStudio \? "Deliverables \(comma separated\)" : "What's included \(comma separated\)"\}/);
+  // The labels are the trade's own words (trades.ts), a photographer's unchanged.
+  assert.match(form, /\{words\.hoursLabel\}/);
+  assert.match(form, /\{`\$\{words\.includedLabel\} \(comma separated\)`\}/);
+  assert.deepEqual(
+    (["photographer", "dj", "makeup", "hair"] as const).map((trade) => [tradeVocab(trade).hoursLabel, tradeVocab(trade).includedLabel]),
+    [
+      ["Coverage hours", "Deliverables"],
+      ["Hours of music", "What's included"],
+      ["Hours on site", "What's included"],
+      ["Hours on site", "What's included"],
+    ],
+  );
   assert.match(form, /makeup: \{ hours: 2, included: "Bridal makeup, Lashes, Touch-up kit" \}/);
   assert.match(form, /hair: \{ hours: 2, included: "Bridal hair, Veil placement" \}/);
   // A photographer's form keeps its gallery defaults.

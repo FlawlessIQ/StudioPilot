@@ -7,7 +7,7 @@ import { ContractDocumentView } from "@/components/contracts/contract-document-v
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
-  contractMergeFields,
+  contractMergeFieldsFor,
   convertImportedAgreement,
   customFieldKey,
   importedAgreementText,
@@ -26,6 +26,7 @@ import { STUDIO_SIGNING_STATEMENT } from "@/features/contracts/esign-consent";
 import { sampleContractSources, starterAgreementFor } from "@/features/contracts/sample";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   agreementDraftFromImport,
@@ -60,6 +61,9 @@ type Loaded = {
  */
 export function AgreementEditor() {
   const workspace = useWorkspace();
+  // What the client accepts before the contract: a photographer's or a DJ's
+  // proposal, a makeup artist's or hair stylist's quote (trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const [generation, setGeneration] = useState(0);
   const native = useNativeSigning(generation);
   const { records: templates } = useTenantDocuments("agreementTemplates", {
@@ -256,7 +260,7 @@ export function AgreementEditor() {
       const text = draft ? importedAgreementText(draft.structuredContent) : "";
       if (!text.trim()) throw new Error("StudioCue couldn't find the contract's wording in that file. Try a DOCX or a text PDF.");
       applyDraft({
-        ...convertImportedAgreement(text),
+        ...convertImportedAgreement(text, workspace.tenantTrade),
         // A saved agreement gets a new version; otherwise a new one is made.
         templateId: loaded?.templateId ?? null,
         name: name.trim() || file.name.replace(/\.[a-z0-9]+$/i, "").slice(0, 120) || "My agreement",
@@ -319,8 +323,8 @@ export function AgreementEditor() {
       setGeneration((current) => current + 1);
       setNotice(
         enabled
-          ? "On. When a couple accepts a proposal, StudioCue signs for you and sends the contract — unless something in it needs filling in."
-          : "Off. Accepted proposals get a contract ready for you to read and send.",
+          ? `On. When a couple accepts a ${offer}, StudioCue signs for you and sends the contract — unless something in it needs filling in.`
+          : `Off. Accepted ${offer}s get a contract ready for you to read and send.`,
       );
     } catch (caught: unknown) {
       setError(friendlyError(caught, "The setting couldn't be saved."));
@@ -416,7 +420,7 @@ export function AgreementEditor() {
               {priceLines.length === 1 ? "One line states a price of its own" : `${priceLines.length} lines state a price of their own`}
             </strong>
             <p>
-              {"Your proposal sets the price now, and {{price.total}} and {{price.retainer}} carry it in. Replace these amounts with those fields, or remove them, so the contract and the proposal can never disagree."}
+              {`Your ${offer} sets the price now, and {{price.total}} and {{price.retainer}} carry it in. Replace these amounts with those fields, or remove them, so the contract and the ${offer} can never disagree.`}
             </p>
             <ul>
               {priceLines.slice(0, 8).map((clause) => (
@@ -443,11 +447,12 @@ export function AgreementEditor() {
             </label>
           </div>
           <p className="native-contract-note">
-            Insert a detail StudioCue fills from the job. Money and dates always come from the accepted
-            proposal.
+            {`Insert a detail StudioCue fills from the job. Money and dates always come from the accepted ${offer}.`}
           </p>
           <div className="agreement-field-picker" aria-label="Insert a detail">
-            {contractMergeFields.map((field) => (
+            {/* "Service" and "What's included" for a vendor, not a photographer's
+                "Coverage" and "Deliverables" (document.ts). */}
+            {contractMergeFieldsFor(workspace.tenantTrade).map((field) => (
               <button
                 aria-pressed={tokensUsed.has(field.key)}
                 key={field.key}
@@ -526,8 +531,8 @@ export function AgreementEditor() {
 
       <section className="panel">
         <p className="eyebrow">
-          When a proposal is accepted
-          <InfoHint label="When a proposal is accepted">
+          {`When a ${offer} is accepted`}
+          <InfoHint label={`When a ${offer} is accepted`}>
             Off by default: the contract is written and waits for you to read and sign it. On: StudioCue signs with
             your typed name and sends it right away.
           </InfoHint>
@@ -561,7 +566,7 @@ export function AgreementEditor() {
             <label className="native-contract-consent">
               <input checked={autoSendConsent} onChange={(event) => setAutoSendConsent(event.target.checked)} type="checkbox" />
               <span>
-                {`${STUDIO_SIGNING_STATEMENT} StudioCue may apply it for me to each contract sent when a proposal is accepted.`}
+                {`${STUDIO_SIGNING_STATEMENT} StudioCue may apply it for me to each contract sent when a ${offer} is accepted.`}
               </span>
             </label>
             <div className="agreement-editor-actions">

@@ -52,6 +52,7 @@ import { contractDocumentHash, sha256Text } from "./document-hash.js";
 import { applyAmendment } from "../booking/amendment-apply.js";
 import { clientOutreachStop, mayContactClient } from "../post-event/client-outreach.js";
 import { resendBlockedUntil } from "./resend.js";
+import { tradeVocab } from "../trades/trades.js";
 
 /**
  * Changing a signed booking: the studio's commands.
@@ -267,17 +268,20 @@ async function plannedConsultationMoves(
   if (!moves.length) return moves;
   const windowStart = moves.map((move) => move.toStartsAt).sort()[0]!;
   const windowEnd = moves.map((move) => move.toEndsAt).sort().at(-1)!;
-  const [busy, others] = await Promise.all([
+  const [busy, others, tenant] = await Promise.all([
     getCalendarBusyIntervals(tenantId, windowStart, windowEnd),
     db.collection("consultations").where("tenantId", "==", tenantId).where("status", "==", "scheduled").limit(300).get(),
+    db.doc(`tenants/${tenantId}`).get(),
   ]);
+  // The call in the studio's words: a DJ's is a vibe call (trades.ts).
+  const call = tradeVocab(tenant.get("trade")).consultation.toLowerCase();
   for (const move of moves) {
     const other = others.docs.find(
       (candidate) =>
         !moves.some((each) => each.consultationId === candidate.id) &&
         rangesOverlap(move.toStartsAt, move.toEndsAt, text(candidate.get("startsAt")), text(candidate.get("endsAt"))),
     );
-    if (other) move.clash = "Another consultation is booked at that time.";
+    if (other) move.clash = `Another ${call} is booked at that time.`;
     else if (busy.ok && busy.busy.some((interval) => rangesOverlap(move.toStartsAt, move.toEndsAt, interval.start, interval.end)))
       move.clash = "Your calendar is busy then.";
   }

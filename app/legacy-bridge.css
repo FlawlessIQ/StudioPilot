@@ -1389,14 +1389,13 @@
    grid. Events now carry their name; availability is a quiet hint.
    --------------------------------------------------------------------------- */
 
-/* Give the grid the room it needs for named events — but only where there is
-   room. design-system.css collapses .ds-cal to one column under 900px with
-   specificity (0,1,0); this override is (0,2,0), so without a matching media
-   query it won that collapse too and the calendar overflowed on mobile. */
-@media (min-width: 901px) {
-  .ds-root .ds-cal {
-    grid-template-columns: minmax(0, 2.1fr) minmax(300px, 0.9fr);
-  }
+/* The month takes the larger share beside the day (design-system.css wraps
+   them by the calendar's own width, not the window's). */
+.ds-root .ds-cal > :first-child {
+  flex-grow: 2.1;
+}
+.ds-root .ds-cal > :not(:first-child) {
+  flex-grow: 0.9;
 }
 
 .ds-root .ds-cal-day {

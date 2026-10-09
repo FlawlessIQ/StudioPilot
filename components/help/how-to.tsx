@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, CirclePlay, CircleHelp, MessageSquareHeart } from "lucide-react";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { explainer } from "@/features/help/explainers";
 import { audienceForPath, helpForRoute } from "@/features/help/routes";
 import { helpVideo, formatDuration } from "@/features/help/videos";
 import type { Explainer, HelpAudience } from "@/features/help/types";
+import type { Trade } from "@/features/trades/trades";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { KitRoot } from "@/components/kit/kit";
 import { ExplainerView } from "@/components/help/explainer-view";
@@ -23,11 +25,16 @@ import { openFeedback } from "@/components/feedback/feedback-events";
  * It also answers `?howto=<id>` in the URL — so an email, a support reply or
  * Cue can link straight to a guide — and requests from `openHowTo()`, which
  * is how a glossary word's "Learn more" opens the guide behind it.
+ *
+ * Every guide is in the studio's trade's words, and one about something the
+ * trade doesn't have (a gallery, for a DJ) is never shown: the studio's, the
+ * client's and the crew's workspaces all know the trade.
  */
 export function HowToButton({ variant }: { variant: "topbar" | "kit" }) {
   const pathname = usePathname();
+  const trade = useWorkspace().tenantTrade;
   const audience: HelpAudience = audienceForPath(pathname) ?? "studio";
-  const help = useMemo(() => helpForRoute(pathname, audience), [pathname, audience]);
+  const help = useMemo(() => helpForRoute(pathname, audience, trade), [pathname, audience, trade]);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // `?howto=<id>` opens the guide on arrival. The parameter comes off the URL
@@ -52,7 +59,9 @@ export function HowToButton({ variant }: { variant: "topbar" | "kit" }) {
   );
 
   const close = useCallback(() => setOpenId(null), []);
-  const guide = openId ? explainer(openId) : undefined;
+  // A guide this trade doesn't get (a gallery's, for a DJ) opens the screen's
+  // own guide instead, so a glossary word's "Learn more" is never a dead click.
+  const guide = openId ? (explainer(openId, trade) ?? help.primary) : undefined;
   // What's listed under the guide: this screen's other guides, less the one open.
   const related = [help.primary, ...help.related].filter((item) => item.id !== guide?.id);
 
@@ -80,10 +89,11 @@ export function HowToButton({ variant }: { variant: "topbar" | "kit" }) {
               }}
               onPick={setOpenId}
               related={related}
+              trade={trade}
             />
           ) : (
             <KitRoot className="kit-embed kit-sheet">
-              <HowToPanel guide={guide} onPick={setOpenId} related={related} />
+              <HowToPanel guide={guide} onPick={setOpenId} related={related} trade={trade} />
             </KitRoot>
           )}
         </SheetDialog>
@@ -97,12 +107,14 @@ function HowToPanel({
   related,
   onPick,
   onFeedback,
+  trade,
 }: {
   guide: Explainer;
   related: Explainer[];
   onPick: (id: string) => void;
   /** Studio only: couples and crew don't send the team feedback. */
   onFeedback?: () => void;
+  trade?: Trade;
 }) {
   const allGuides = guide.audience === "studio" ? "/studio/help#guides" : "/how-to";
   return (
@@ -112,7 +124,7 @@ function HowToPanel({
         <h2>{guide.title}</h2>
       </header>
       <HelpVideoPlayer id={guide.video} />
-      <ExplainerView guide={guide} />
+      <ExplainerView guide={guide} trade={trade} />
       {related.length ? (
         <section className="how-to-related" aria-label="Other guides">
           <h3>Also on this screen</h3>

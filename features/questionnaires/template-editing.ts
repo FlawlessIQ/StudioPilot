@@ -16,6 +16,8 @@
 
 import { eventDetailCategory } from "../contracts/event-details";
 import { locksWithDetails } from "../planning/details-lock";
+import { tradeProfile, tradeVocab } from "../trades/trades";
+import { criticalCrewQuestions } from "./crew-brief";
 
 type Field = { id: string };
 type Section<F extends Field> = { id: string; title: string; fields: F[] };
@@ -105,4 +107,25 @@ export function questionDestinations(field: { label?: string; type?: string; int
   if (eventDetailCategory(label)) destinations.push("contract");
   if (locksWithDetails({ label, type: field.type })) destinations.push("locks");
   return destinations;
+}
+
+/**
+ * The questions a studio can add for its crew to read first
+ * (crew-brief.ts `criticalCrewQuestions`), in its trade's words.
+ *
+ * The camera questions — who must not be photographed, under-18s on camera,
+ * consent on file, sharing images — are a photographer's: a DJ, makeup artist
+ * or hair stylist was offered "Any photography or filming restrictions at the
+ * venue?" (live on a hair studio, 2026-10-09). They keep what to handle
+ * carefully, accessibility, and the venue's rules for what they do, under the
+ * same ids so the brief still reads them first.
+ */
+const EVERY_TRADE_CREW_QUESTIONS: ReadonlySet<string> = new Set(["sensitivities", "restrictions", "accessibility"]);
+
+export function crewQuestionsFor(trade: unknown): ReadonlyArray<{ id: string; label: string; type: string }> {
+  if (tradeProfile(trade).family === "photo") return criticalCrewQuestions;
+  const service = tradeVocab(trade).service;
+  return criticalCrewQuestions
+    .filter((question) => EVERY_TRADE_CREW_QUESTIONS.has(question.id))
+    .map((question) => (question.id === "restrictions" ? { ...question, label: `Any ${service} rules at the venue?` } : question));
 }

@@ -36,9 +36,16 @@ export function clientAreaItems(
   navigation: ClientNavigation | null | undefined,
   /** What the studio sends to book: "Proposal", a makeup artist's "Quote" (tradeVocab). */
   offer = "Proposal",
+  /**
+   * Whether the studio delivers anything after the day (tradeProfile
+   * `delivery`). The server reports the delivery area from the job's state
+   * alone, so a DJ's client at "review requested" would otherwise be offered
+   * photos and film that will never come.
+   */
+  delivers = true,
 ): ClientAreaItem[] {
   const items: Array<ClientAreaItem | null> = [
-    // The event itself — date, venue, who is shooting it. Always there.
+    // The event itself — date, venue, who is working it. Always there.
     { label: "Your event", href: "/client/project", icon: "CalendarCheck" },
     navigation?.package
       ? { label: "Your package", href: "/client/package", icon: "Package" }
@@ -55,7 +62,7 @@ export function clientAreaItems(
     navigation?.schedule
       ? { label: "Event-day schedule", href: "/client/schedule", icon: "CalendarDays" }
       : null,
-    navigation?.delivery
+    navigation?.delivery && delivers
       // Not "photographs": a video-led studio's couple is waiting on a film.
       ? { label: "Your photos and film", href: "/client/delivery", icon: "Images" }
       : null,

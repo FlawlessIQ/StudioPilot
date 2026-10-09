@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, ExternalLink, Heart } from "lucide-react";
 import { Button, Card, Main, Note, PoweredBy } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPostEventCommand } from "@/lib/post-event/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -38,13 +39,24 @@ export function ClientReviews() {
           <p className="kit-eyebrow">{words.afterwards}</p>
           <h1 className="kit-title">Thank you</h1>
         </div>
-        <EmptyMoment
-          area="reviews"
-          error={reviews.error}
-          loading={reviews.loading}
-          loadingText="Opening…"
-          upcoming="Nothing to do here yet. Enjoy your photos."
-        />
+        {/* The shared empty state waits on "your photos" being delivered. A DJ,
+            makeup artist or hair stylist delivers nothing (trades.ts), so their
+            client is told what they are actually waiting on: the day. */}
+        {tradeProfile(workspace.tenantTrade).delivery || reviews.loading || reviews.error ? (
+          <EmptyMoment
+            area="reviews"
+            error={reviews.error}
+            loading={reviews.loading}
+            loadingText="Opening…"
+            upcoming="Nothing to do here yet. Enjoy your photos."
+          />
+        ) : (
+          <Card>
+            <p className="kit-body" role="status">
+              {`Nothing to do here yet. After ${words.yourEvent}, ${studioName} may invite you to leave a review here.`}
+            </p>
+          </Card>
+        )}
         <PoweredBy />
       </Main>
     );

@@ -783,7 +783,9 @@ export function buildClientPortalExperience({
       questionnaire: Boolean(availability.questionnaire || index >= 5),
       schedule: Boolean(availability.schedule || index >= 5),
       files: Boolean(availability.files),
-      delivery: Boolean(availability.delivery || index >= 9),
+      // A trade that delivers nothing never grows a "Your photos and film"
+      // entry by reaching the review (the studio's own record still shows).
+      delivery: Boolean(availability.delivery || (index >= 9 && tradeProfile(trade).delivery)),
       reviews: Boolean(availability.reviews || index >= 11),
     } satisfies ClientNavigation,
   };

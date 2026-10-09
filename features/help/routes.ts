@@ -1,4 +1,4 @@
-import { EXPLAINERS, explainer } from "./explainers";
+import { explainer, explainersFor } from "./explainers";
 import type { Explainer, HelpAudience } from "./types";
 
 /**
@@ -7,6 +7,9 @@ import type { Explainer, HelpAudience } from "./types";
  * The button is on every studio, couple and crew screen and is never hidden:
  * a screen with no guide of its own opens its audience's tour, so the answer
  * to "how does this work?" is never an empty popup.
+ *
+ * Only the guides the studio's trade gets are in play (explainers.ts): a DJ
+ * on the Delivery screen gets the tour, not a guide to delivering a gallery.
  */
 
 const FALLBACK: Record<HelpAudience, string> = {
@@ -48,8 +51,8 @@ export type HelpForRoute = {
   fallback: boolean;
 };
 
-export function helpForRoute(pathname: string, audience: HelpAudience): HelpForRoute {
-  const own = EXPLAINERS.filter((guide) => guide.audience === audience);
+export function helpForRoute(pathname: string, audience: HelpAudience, trade?: unknown): HelpForRoute {
+  const own = explainersFor(trade).filter((guide) => guide.audience === audience);
   // The most specific match wins: /studio/projects/new over /studio/projects/*.
   const primary = own
     .flatMap((guide) =>
@@ -59,7 +62,7 @@ export function helpForRoute(pathname: string, audience: HelpAudience): HelpForR
   const alsoOn = own.filter(
     (guide) => guide !== primary && guide.alsoOn?.some((route) => routeMatches(route, pathname)),
   );
-  const tour = explainer(FALLBACK[audience]);
+  const tour = explainer(FALLBACK[audience], trade);
   if (!tour) throw new Error(`No tour explainer for ${audience}`);
   if (!primary) return { primary: tour, related: alsoOn, fallback: true };
   return {

@@ -14,7 +14,12 @@ export async function generateMetadata({
   params: Promise<{ section: string }>;
 }): Promise<Metadata> {
   const { section } = await params;
-  return { title: settingsSectionBySlug(section)?.title ?? "Studio settings" };
+  const found = settingsSectionBySlug(section);
+  // The tab is named before the studio's trade is known (it is read in the
+  // browser), and these hours book a makeup or hair studio's trials and calls
+  // too, which have no consultation. So the tab says what every trade's does.
+  if (found?.key === "availability") return { title: "Availability" };
+  return { title: found?.title ?? "Studio settings" };
 }
 
 export default async function SettingsSectionRoute({

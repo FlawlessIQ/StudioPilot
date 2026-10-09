@@ -10,6 +10,8 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { LOGO_CONTENT_TYPES, uploadStudioLogo } from "@/lib/branding/logo-upload";
 import { logoUrlProblem } from "@/features/branding/logo-url";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 type Branding = {
   tenantId: string;
@@ -34,6 +36,11 @@ const previewDefaults: Branding = {
 };
 
 export function EmailBranding() {
+  // In the trade's words: a makeup or hair studio sends quotes, and only a
+  // photographer sends delivery messages (features/trades/trades.ts).
+  const trade = useWorkspace().tenantTrade;
+  const offers = `${tradeVocab(trade).proposal.toLowerCase()}s`;
+  const delivers = tradeProfile(trade).delivery;
   const [branding, setBranding] = useState<Branding>(previewDefaults);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(dataIsLive);
@@ -116,7 +123,7 @@ export function EmailBranding() {
       setBranding(next);
       await persist(
         next,
-        "Logo uploaded and saved. It's on your emails, proposals, client portal and inquiry form.",
+        `Logo uploaded and saved. It's on your emails, ${offers}, client portal and inquiry form.`,
       );
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That logo could not be uploaded."));
@@ -195,8 +202,9 @@ export function EmailBranding() {
             <p className="eyebrow">Client communications</p>
             <h2 id="email-branding-title">Email branding</h2>
             <p>
-              Applied to portal invitations, reminders, documents, payments,
-              delivery messages, and account recovery.
+              {delivers
+                ? "Applied to portal invitations, reminders, documents, payments, delivery messages, and account recovery."
+                : "Applied to portal invitations, reminders, documents, payments, and account recovery."}
             </p>
           </div>
         </div>
@@ -261,7 +269,7 @@ export function EmailBranding() {
             <span>
               {uploading
                 ? "Uploading…"
-                : "Choose the file from your computer — PNG, JPEG, WebP or SVG, under 2 MB. It's saved right away and appears on your emails, proposals, client portal and inquiry form."}
+                : `Choose the file from your computer — PNG, JPEG, WebP or SVG, under 2 MB. It's saved right away and appears on your emails, ${offers}, client portal and inquiry form.`}
             </span>
           </label>
           {branding.logoUrl ? (

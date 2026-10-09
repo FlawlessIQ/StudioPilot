@@ -21,6 +21,8 @@
  * Pure lookup, no I/O.
  */
 
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+
 export type ProviderFailure = {
   /** What did not happen, as the card's headline. */
   title: string;
@@ -138,14 +140,20 @@ export function providerFailureKind(
  * a gap in this table, and printing `create_widget_thing` at a photographer is
  * worse than saying plainly that a step did not finish.
  */
-export function describeProviderFailure(type: unknown): ProviderFailure {
+export function describeProviderFailure(type: unknown, trade?: unknown): ProviderFailure {
   const key = typeof type === "string" ? type.trim().toLowerCase() : "";
-  return (
-    FAILURES[key] ?? {
-      title: "A step with one of your connected tools didn't finish",
-      provider: null,
-    }
-  );
+  const failure = FAILURES[key] ?? {
+    title: "A step with one of your connected tools didn't finish",
+    provider: null,
+  };
+  // The meeting in the studio's trade's words (trades.ts): a DJ's vibe call;
+  // a makeup artist or hair stylist has no sales call, only appointments
+  // such as the trial.
+  if (key.includes("consultation") && tradeProfile(trade).family !== "photo") {
+    const meeting = tradeProfile(trade).consultation ? `The ${tradeVocab(trade).consultation.toLowerCase()}` : "The appointment";
+    return { ...failure, title: failure.title.replace(/^The consultation( call)?/, meeting) };
+  }
+  return failure;
 }
 
 /**

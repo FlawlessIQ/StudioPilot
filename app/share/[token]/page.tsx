@@ -6,6 +6,7 @@ import {
   type ScheduleShareScope,
 } from "@/features/schedules/vendor-share";
 import type { ScheduleItem } from "@/features/schedules/schema";
+import { tradeVocab } from "@/features/trades/trades";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,6 +141,8 @@ export default async function RunOfShowSharePage({
     String(project.name ?? "").trim() ||
     "the couple";
   const venue = project.venueName ? String(project.venueName) : null;
+  // What the studio provides, in its trade's word: a DJ's plan is a music plan.
+  const service = tradeVocab(tenant.trade).service;
 
   return (
     <Shell>
@@ -156,7 +159,7 @@ export default async function RunOfShowSharePage({
       {project.timelineAuthority === "planner" ? (
         <p className="ros-planner-led">
           {project.plannerName ? String(project.plannerName) : "The planner"}{" "} keeps the
-          timeline for this wedding. This is {studioName}&rsquo;s photography plan — where
+          timeline for this wedding. This is {studioName}&rsquo;s {service}{" "}plan — where
           the two differ, follow the planner&rsquo;s.
         </p>
       ) : null}

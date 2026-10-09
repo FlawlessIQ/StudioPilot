@@ -34,6 +34,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { blockingIssues } from "@/features/ai/blocking-issues";
 import {
   DEFAULT_PROPOSAL_TERMS,
+  defaultTermsInTradeWords,
   groundedBookingDraft,
   proposalTermsForPackages,
 } from "@/features/booking/autopilot";
@@ -113,10 +114,17 @@ const COMMAND_ERRORS: Record<string, string> = {
     "The brief is already being prepared. It will appear here in a moment.",
 };
 
-function commandError(caught: unknown, fallback: string): string {
+function commandError(caught: unknown, fallback: string, trade?: unknown): string {
   const code =
     caught instanceof Error ? caught.message.split(":")[0]?.trim() ?? "" : "";
-  return COMMAND_ERRORS[code] ?? friendlyError(caught, fallback);
+  const known = COMMAND_ERRORS[code];
+  if (!known) return friendlyError(caught, fallback);
+  // In the studio's words (trades.ts): a DJ's vibe call, a makeup artist's quote.
+  const words = tradeVocab(trade);
+  return known
+    .replace(/\bthe Consultation stage\b/, `the ${words.consultation} stage`)
+    .replace(/\bThis consultation\b/, `This ${words.consultation.toLowerCase()}`)
+    .replace(/\bthe proposal\b/, `the ${words.proposal.toLowerCase()}`);
 }
 
 export function BookingAutopilotWorkspace({
@@ -126,6 +134,13 @@ export function BookingAutopilotWorkspace({
 }) {
   const workspace = useWorkspace();
   const gate = useWorkspaceGate();
+  // The studio's words (trades.ts): a makeup artist's quote, a DJ's vibe
+  // call. A makeup artist or hair stylist has no sales call at all.
+  const tradeWords = tradeVocab(workspace.tenantTrade);
+  const offer = tradeWords.proposal.toLowerCase();
+  const callWord = tradeWords.consultation.toLowerCase();
+  const tradeCalls = tradeProfile(workspace.tenantTrade).consultation;
+  const photo = tradeProfile(workspace.tenantTrade).family === "photo";
   const [project, setProject] = useState<Value | null>(null);
   const [consultation, setConsultation] = useState<Value | null>(null);
   /** The newest consultation, when it is one they didn't turn up to. */
@@ -314,6 +329,7 @@ export function BookingAutopilotWorkspace({
     })),
     consultationSummary: text(summary.summary),
     proposalIntroduction: text(proposalDraft.notes),
+    trade: workspace.tenantTrade,
   });
   /**
    * Every package going on the proposal, main first, and their terms each
@@ -326,8 +342,10 @@ export function BookingAutopilotWorkspace({
         ...extraPackageIds.flatMap((id) => packages.filter((item) => item.id === id)),
       ]
     : [];
-  const proposalTerms = proposalTermsForPackages(proposalPackages);
-  const termsDefaulted = Boolean(selectedPackage) && proposalTerms === DEFAULT_PROPOSAL_TERMS;
+  const packageTerms = proposalTermsForPackages(proposalPackages);
+  const termsDefaulted = Boolean(selectedPackage) && packageTerms === DEFAULT_PROPOSAL_TERMS;
+  // The default wording in this studio's trade (no "photography agreement").
+  const proposalTerms = defaultTermsInTradeWords(packageTerms, workspace.tenantTrade);
   const analysisQueued =
     consultation?.status === "completed" &&
     !summaryAction &&
@@ -426,7 +444,7 @@ export function BookingAutopilotWorkspace({
         },
       });
       setNotice(
-        "Consultation saved. StudioCue is preparing a cited brief, package fit, and proposal draft.",
+        `${tradeWords.consultation} saved. StudioCue is preparing a cited brief, package fit, and ${offer} draft.`,
       );
       try {
         window.localStorage.removeItem(notesDraftKey);
@@ -436,7 +454,7 @@ export function BookingAutopilotWorkspace({
       await waitForBrief(Number(consultation.briefRun ?? 1));
       await load();
     } catch (caught: unknown) {
-      setNotice(commandError(caught, "The consultation could not be completed."));
+      setNotice(commandError(caught, `The ${callWord} could not be completed.`, workspace.tenantTrade));
     } finally {
       setBusy(null);
     }
@@ -504,7 +522,7 @@ export function BookingAutopilotWorkspace({
       await waitForBrief(Number(outcome.payload.briefRun ?? 0));
       await load();
     } catch (caught: unknown) {
-      setNotice(commandError(caught, "The brief could not be prepared again."));
+      setNotice(commandError(caught, "The brief could not be prepared again.", workspace.tenantTrade));
     } finally {
       setBusy(null);
     }
@@ -666,10 +684,10 @@ export function BookingAutopilotWorkspace({
           : current,
       );
       setNotice(
-        "Proposal draft created from the approved package snapshot. Nothing has been sent.",
+        `${tradeWords.proposal} draft created from the approved package snapshot. Nothing has been sent.`,
       );
     } catch (caught: unknown) {
-      setNotice(commandError(caught, "The proposal draft could not be created."));
+      setNotice(commandError(caught, `The ${offer} draft could not be created.`, workspace.tenantTrade));
     } finally {
       setBusy(null);
     }
@@ -729,19 +747,18 @@ export function BookingAutopilotWorkspace({
               <>
                 <h1>The booking agreement is with the client.</h1>
                 <p>
-                  Signing it accepts the proposal, and the retainer follows.
-                  To change anything, withdraw it in the contract step below.
+                  {`Signing it accepts the ${offer}, and the retainer follows. To change anything, withdraw it in the contract step below.`}
                 </p>
               </>
             ) : (
               <>
-                <h1>The proposal is with the client.</h1>
+                <h1>{`The ${offer} is with the client.`}</h1>
                 <p>
                   {kindNeeds.agreement
                     ? "Once they accept it, the agreement and the retainer are the next steps. Already have their yes by email or on a call? Record it in the contract step below."
                     : kindNeeds.payment
-                      ? "Once they accept it, the invoice goes to them, and paying it books the job. Already have their yes by email or on a call? Record it on the proposal."
-                      : "Once they accept it, the job books itself. Already have their yes by email or on a call? Record it on the proposal."}
+                      ? `Once they accept it, the invoice goes to them, and paying it books the job. Already have their yes by email or on a call? Record it on the ${offer}.`
+                      : `Once they accept it, the job books itself. Already have their yes by email or on a call? Record it on the ${offer}.`}
                 </p>
               </>
             )}
@@ -750,33 +767,34 @@ export function BookingAutopilotWorkspace({
       ) : (
         <header className="booking-autopilot-hero">
           <div>
-            {kindProfile.consultation ? (
+            {kindProfile.consultation && tradeCalls ? (
               <>
-                <p className="eyebrow"><Sparkles size={14} /> From the consultation</p>
-                <h1>From conversation<br />to a reviewable proposal.</h1>
+                <p className="eyebrow"><Sparkles size={14} /> {`From the ${callWord}`}</p>
+                <h1>From conversation<br />{`to a reviewable ${offer}.`}</h1>
                 <p>
-                  Capture what the client said once. StudioCue grounds a brief,
-                  recommends an existing package, and prepares a proposal without
-                  inventing pricing or sending anything.
+                  {`Capture what the client said once. StudioCue grounds a brief, recommends an existing package, and prepares a ${offer} without inventing pricing or sending anything.`}
                 </p>
               </>
             ) : (
               <>
                 <p className="eyebrow"><Sparkles size={14} /> From the inquiry</p>
-                <h1>From inquiry<br />to a priced proposal.</h1>
+                <h1>From inquiry<br />{`to a priced ${offer}.`}</h1>
                 <p>
-                  {`A ${kindWords.event} needs no consultation call. Choose a package and send the price — nothing goes out until you approve it.`}
+                  {/* A makeup artist or hair stylist never has a call to skip. */}
+                  {tradeCalls
+                    ? `A ${kindWords.event} needs no consultation call. Choose a package and send the price — nothing goes out until you approve it.`
+                    : "Choose a package and send the price — nothing goes out until you approve it."}
                 </p>
               </>
             )}
           </div>
           <aside>
-            <span className={consultation || !kindProfile.consultation ? "is-complete" : ""}><Check /> Inquiry</span>
-            {kindProfile.consultation ? (
-              <span className={consultation?.status === "completed" ? "is-complete" : ""}><MessageSquareText /> Consultation</span>
+            <span className={consultation || !(kindProfile.consultation && tradeCalls) ? "is-complete" : ""}><Check /> Inquiry</span>
+            {kindProfile.consultation && tradeCalls ? (
+              <span className={consultation?.status === "completed" ? "is-complete" : ""}><MessageSquareText /> {tradeWords.consultation}</span>
             ) : null}
             <span className={packageAction ? "is-complete" : ""}><PackageCheck /> Package fit</span>
-            <span className={proposalId ? "is-complete" : ""}><FileText /> Proposal</span>
+            <span className={proposalId ? "is-complete" : ""}><FileText /> {tradeWords.proposal}</span>
           </aside>
         </header>
       )}
@@ -822,14 +840,14 @@ export function BookingAutopilotWorkspace({
           <section className="booking-autopilot-empty">
             <Check />
             <span>
-              <strong>No proposal is on file for this job.</strong>
+              <strong>{`No ${offer} is on file for this job.`}</strong>
               <small>
                 Prepare one when you are ready — the agreement and payments
                 below follow from it.
               </small>
             </span>
             <Link href={`/studio/proposals/new?project=${projectId}`}>
-              Prepare the proposal <ArrowRight />
+              {`Prepare the ${offer}`} <ArrowRight />
             </Link>
           </section>
         ) : (
@@ -852,10 +870,9 @@ export function BookingAutopilotWorkspace({
           <section className="booking-autopilot-empty is-quiet">
             <Check />
             <span>
-              <strong>Booked outside StudioCue — no proposal needed.</strong>
+              <strong>{`Booked outside StudioCue — no ${offer} needed.`}</strong>
               <small>
-                A proposal is an offer, and this job is past that. The
-                agreement and payments below are what StudioCue holds for it.
+                {`A ${offer} is an offer, and this job is past that. The agreement and payments below are what StudioCue holds for it.`}
               </small>
             </span>
           </section>
@@ -864,7 +881,7 @@ export function BookingAutopilotWorkspace({
         <section className="booking-autopilot-empty">
           <CircleAlert />
           <span>
-            <strong>They missed the consultation.</strong>
+            <strong>{`They missed the ${callWord}.`}</strong>
             <small>The job stays where it is. Invite them to pick another time, or reopen it if they did come.</small>
           </span>
           <ConsultationCorrections
@@ -875,7 +892,7 @@ export function BookingAutopilotWorkspace({
             projectState={liveState}
           />
         </section>
-      ) : !consultation && consultationBehindThem && !proposalId ? (
+      ) : !consultation && consultationBehindThem && tradeCalls && !proposalId ? (
         // The stage moved past consultation without a meeting record (handled
         // over the phone, stage advanced by hand). Don't demand a
         // consultation that will never exist — point at the proposal flow
@@ -884,14 +901,13 @@ export function BookingAutopilotWorkspace({
         <section className="booking-autopilot-empty">
           <Check />
           <span>
-            <strong>No consultation was recorded — that&rsquo;s fine.</strong>
+            <strong>{`No ${callWord} was recorded — that’s fine.`}</strong>
             <small>
-              You marked it as handled elsewhere. Prepare the proposal
-              directly; it will lock a package if one isn&rsquo;t chosen yet.
+              {`You marked it as handled elsewhere. Prepare the ${offer} directly; it will lock a package if one isn’t chosen yet.`}
             </small>
           </span>
           <Link href={`/studio/proposals/new?project=${projectId}`}>
-            Prepare the proposal <ArrowRight />
+            {`Prepare the ${offer}`} <ArrowRight />
           </Link>
         </section>
       ) : !consultation && !(kindProfile.consultation && tradeProfile(workspace.tenantTrade).consultation) && !proposalId ? (
@@ -900,21 +916,21 @@ export function BookingAutopilotWorkspace({
         <section className="booking-autopilot-empty">
           <Check />
           <span>
-            <strong>{`No consultation for a ${kindWords.event}.`}</strong>
+            {/* A makeup artist or hair stylist prices every inquiry this way. */}
+            <strong>{tradeCalls ? `No consultation for a ${kindWords.event}.` : "Priced straight from the inquiry."}</strong>
             <small>
-              Prepare the proposal right away; it will lock a package if
-              one isn&rsquo;t chosen yet.
+              {`Prepare the ${offer} right away; it will lock a package if one isn’t chosen yet.`}
             </small>
           </span>
           <Link href={`/studio/proposals/new?project=${projectId}`}>
-            Prepare the proposal <ArrowRight />
+            {`Prepare the ${offer}`} <ArrowRight />
           </Link>
         </section>
       ) : !consultation ? (
         <section className="booking-autopilot-empty">
           <CircleAlert />
           <span>
-            <strong>Schedule the consultation first.</strong>
+            <strong>{`Schedule the ${callWord} first.`}</strong>
             <small>The client can choose an available time from a secure link.</small>
           </span>
           <Link href={`/studio/projects/${projectId}`}>Open project <ArrowRight /></Link>
@@ -934,14 +950,12 @@ export function BookingAutopilotWorkspace({
         <section className="booking-consultation-capture">
           <div>
             <p className="eyebrow">What they told you</p>
-            <h2>Capture consultation notes</h2>
+            <h2>{`Capture ${callWord} notes`}</h2>
             <p>
-              Paste notes or import the transcript you already have. StudioCue
-              extracts only stated priorities, locations, coverage expectations,
-              decision makers, and unanswered questions.
+              {`Paste notes or import the transcript you already have. StudioCue extracts only stated priorities, locations, ${tradeWords.coverage.toLowerCase()} expectations, decision makers, and unanswered questions.`}
             </p>
           </div>
-          <div className="booking-note-source-tabs" role="tablist" aria-label="Consultation source">
+          <div className="booking-note-source-tabs" role="tablist" aria-label={`${tradeWords.consultation} source`}>
             <button className={noteSource === "notes" ? "is-active" : ""} onClick={() => setNoteSource("notes")} role="tab" type="button">Paste notes</button>
             <button className={noteSource === "transcript" ? "is-active" : ""} onClick={() => setNoteSource("transcript")} role="tab" type="button">Import transcript</button>
           </div>
@@ -949,7 +963,7 @@ export function BookingAutopilotWorkspace({
             <label className="booking-transcript-upload">
               <FileUp size={18} />
               <span>
-                <strong>Upload the consultation transcript</strong>
+                <strong>{`Upload the ${callWord} transcript`}</strong>
                 <small>TXT, Markdown, VTT, or JSON · up to 500 KB</small>
               </span>
               <input
@@ -964,10 +978,16 @@ export function BookingAutopilotWorkspace({
             </label>
           ) : null}
           <label>
-            <span>{noteSource === "transcript" ? "Transcript text" : "Consultation notes"}</span>
+            <span>{noteSource === "transcript" ? "Transcript text" : `${tradeWords.consultation} notes`}</span>
             <textarea
               onChange={(event) => setNotes(event.target.value)}
-              placeholder={noteSource === "transcript" ? "Upload a transcript above or paste it here…" : "They care most about candid moments, want preparation at two locations, expect about 120 guests…"}
+              placeholder={
+                noteSource === "transcript"
+                  ? "Upload a transcript above or paste it here…"
+                  : photo
+                    ? "They care most about candid moments, want preparation at two locations, expect about 120 guests…"
+                    : "What matters most to them, where and when it all happens, about 120 guests…"
+              }
               value={notes}
             />
             <small>{notes.trim().length}/20 minimum characters</small>
@@ -994,7 +1014,7 @@ export function BookingAutopilotWorkspace({
           <section className="booking-ai-brief">
             <div>
               <p className="eyebrow">Drafted for you to check</p>
-              <h2>Consultation brief</h2>
+              <h2>{`${tradeWords.consultation} brief`}</h2>
               <p>{text(summary.summary)}</p>
               <div>
                 {list(summary.priorities).map((priority) => (
@@ -1004,7 +1024,7 @@ export function BookingAutopilotWorkspace({
             </div>
             <aside>
               <small>Source</small>
-              <strong>Consultation notes + project facts</strong>
+              <strong>{`${tradeWords.consultation} notes + project facts`}</strong>
               <span><ShieldCheck /> No inferred price, availability, or agreement</span>
               <Link href={`/studio/projects/${projectId}`}>See what Cue based this on <ArrowRight /></Link>
               {/* The brief was made once, from the notes as they were; a
@@ -1028,13 +1048,11 @@ export function BookingAutopilotWorkspace({
                 <p className="eyebrow">What they told you</p>
                 <h2>Prepare the brief again</h2>
                 <p>
-                  Add what you learned since. StudioCue prepares a new brief,
-                  package suggestion and proposal draft from these notes — one
-                  AI action. The ones below are set aside, not deleted.
+                  {`Add what you learned since. StudioCue prepares a new brief, package suggestion and ${offer} draft from these notes — one AI action. The ones below are set aside, not deleted.`}
                 </p>
               </div>
               <label>
-                <span>Consultation notes</span>
+                <span>{`${tradeWords.consultation} notes`}</span>
                 <textarea onChange={(event) => setNotes(event.target.value)} value={notes} />
                 <small>{notes.trim().length}/20 minimum characters</small>
               </label>
@@ -1107,8 +1125,10 @@ export function BookingAutopilotWorkspace({
             </div>
             <p className="booking-package-hint">
               {extraPackageIds.length
-                ? `${1 + extraPackageIds.length} packages on one proposal, one total. Tap a package to take it off.`
-                : "Tap more than one to offer them together — photo and video, say."}
+                ? `${1 + extraPackageIds.length} packages on one ${offer}, one total. Tap a package to take it off.`
+                : photo
+                  ? "Tap more than one to offer them together — photo and video, say."
+                  : "Tap more than one to offer them together."}
             </p>
             <div className="booking-package-rationale">
               <strong>Why this fit was suggested</strong>
@@ -1122,11 +1142,9 @@ export function BookingAutopilotWorkspace({
           <section className="booking-proposal-release">
             <div>
               <p className="eyebrow">Nothing is sent yet</p>
-              <h2>Create the proposal draft</h2>
+              <h2>{`Create the ${offer} draft`}</h2>
               <p>
-                This approves the reviewed AI work, snapshots the selected
-                package and price, advances the project to Proposal, and creates
-                an unsent draft. Sending remains a separate approval.
+                {`This approves the reviewed AI work, snapshots the selected package and price, advances the project to ${tradeWords.proposal}, and creates an unsent draft. Sending remains a separate approval.`}
               </p>
             </div>
             <button
@@ -1146,7 +1164,7 @@ export function BookingAutopilotWorkspace({
             ) : null}
             {proposalId ? (
               <Link href={`/studio/proposals/${proposalId}`}>
-                Open proposal draft <ArrowRight />
+                {`Open ${offer} draft`} <ArrowRight />
               </Link>
             ) : null}
           </section>

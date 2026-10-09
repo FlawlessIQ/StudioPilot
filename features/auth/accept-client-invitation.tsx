@@ -34,6 +34,7 @@ import {
 } from "@/lib/client/invitation-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { authIsLive } from "@/lib/runtime-mode";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 type ActivationState =
   | "idle"
@@ -134,6 +135,13 @@ export function AcceptClientInvitation({
   const loginHref = `/auth/login?next=${encodeURIComponent(next)}`;
   const registerHref = `/auth/register?next=${encodeURIComponent(next)}`;
   const eventDate = formatDate(preview?.eventDate ?? null);
+  // The studio's trade, when the invitation says it (features/trades): a DJ's
+  // client gets no photos, and a makeup artist's gets a quote. A preview
+  // without one reads as a photographer's, as every invitation did before.
+  const trade = (preview as { trade?: unknown } | null)?.trade;
+  const portalHolds = tradeProfile(trade).delivery
+    ? "Your proposal, agreement, plans and photos, in one place."
+    : `Your ${tradeVocab(trade).proposal.toLowerCase()}, agreement and plans, in one place.`;
 
   useEffect(() => {
     if (!authIsLive) return;
@@ -347,9 +355,7 @@ export function AcceptClientInvitation({
                 <CalendarDays aria-hidden="true" size={15} /> {eventDate}
               </p>
             ) : null}
-            <p className="kit-body">
-              Your proposal, agreement, plans and photos, in one place.
-            </p>
+            <p className="kit-body">{portalHolds}</p>
           </div>
 
           {previewError ? (

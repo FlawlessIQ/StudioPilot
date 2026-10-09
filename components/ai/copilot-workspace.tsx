@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { CueMark } from "@/components/brand/logo";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { AiQueueCard } from "@/components/ai/ai-approval-queue";
 import { FlowRunner } from "@/components/ai/flow-runner";
 import { PreparedActionCards } from "@/components/ai/actions/prepared-actions";
@@ -971,8 +972,13 @@ function PreparedActions({
   const [nowMs] = useState(() => Date.now());
   const eventDateMs = Date.parse(String(project?.eventDate ?? ""));
   const eventInFuture = Number.isFinite(eventDateMs) && eventDateMs > nowMs;
+  // A delivery email is a photographer's: no other trade delivers anything
+  // after the day (features/trades/trades.ts).
+  const delivers = tradeProfile(workspace.tenantTrade).delivery;
   const visibleActionOptions = preparedActionOptions.filter(
-    (option) => !(eventInFuture && POST_EVENT_TRIGGERS.has(option.trigger)),
+    (option) =>
+      !(eventInFuture && POST_EVENT_TRIGGERS.has(option.trigger)) &&
+      (delivers || option.trigger !== "delivery_note"),
   );
 
   // Shown inline: the copilot's proposals plus anything prepared from the chips,

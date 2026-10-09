@@ -66,7 +66,7 @@ test("a multi-select question is chips, not a text box", () => {
 
 test("a proposal refusal is named, not 'could not be saved'", () => {
   const proposal = read("components/client/kit/client-proposal.tsx");
-  assert.match(proposal, /const specific = proposalErrorMessage\(code\);/);
+  assert.match(proposal, /const specific = proposalErrorMessage\(code(, offer)?\);/);
 });
 
 test("no signal never sends anyone to 'Create your workspace'", () => {

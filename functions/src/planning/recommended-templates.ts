@@ -505,9 +505,24 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   ];
 }
 
+/**
+ * The event details form's sections only a photographer's couple is asked:
+ * when Photo 1 / Video 1 and Photo 2 / Video 2 start and finish. A DJ's,
+ * makeup artist's or hair stylist's couple answers the rest of the same form;
+ * their times come from the planner or the party list.
+ */
+const CAMERA_SECTIONS: ReadonlySet<string> = new Set(["coverage"]);
+const CAMERA_TRADES: readonly string[] = ["photographer"];
+
 /** The recommended forms for a studio of this trade. */
 export function recommendedFor(trade: string): RecommendedQuestionnaire[] {
-  return recommendedQuestionnaires().filter((form) => !form.trades || form.trades.includes(trade));
+  return recommendedQuestionnaires()
+    .filter((form) => !form.trades || form.trades.includes(trade))
+    .map((form) =>
+      CAMERA_TRADES.includes(trade)
+        ? form
+        : { ...form, sections: form.sections.filter((section) => !CAMERA_SECTIONS.has(section.id)) },
+    );
 }
 
 /** How many questions a form asks. */

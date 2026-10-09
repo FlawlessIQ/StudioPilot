@@ -8,6 +8,8 @@ import { ProjectInquiryClose } from "@/components/projects/project-inquiry-close
 import { inquiryPipeline, type InquiryRow } from "@/features/inquiries/pipeline";
 import { inquirySearchEmptyState, searchInquiries } from "@/features/inquiries/search";
 import { inquiryStageLabel } from "@/features/inquiries/stages";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { inquiryStageWord } from "@/components/studio/trade-words";
 import { waitingDays } from "@/features/ordering/attention";
 import { formatEventDate } from "@/lib/format/event-date";
 
@@ -29,11 +31,13 @@ function whoseMove(row: InquiryRow): string {
   return row.owner === "studio" ? `Your move${since}` : `Waiting on them${since}`;
 }
 
-function stageLabel(row: InquiryRow): string {
-  return row.stage === "closed" ? "Closed" : inquiryStageLabel[row.stage];
+/** In the trade's words: a makeup artist's job at "Quote", a DJ's at "Vibe call". */
+function stageLabel(row: InquiryRow, trade: unknown): string {
+  return row.stage === "closed" ? "Closed" : inquiryStageWord(row.stage, inquiryStageLabel[row.stage], trade);
 }
 
 export function InquiryPipelineRows({ view, q }: { view: string; q: string }) {
+  const trade = useWorkspace().tenantTrade;
   const projects = useTenantDocuments("projects");
   const leads = useTenantDocuments("leads");
   const conversations = useTenantDocuments("conversations");
@@ -106,7 +110,7 @@ export function InquiryPipelineRows({ view, q }: { view: string; q: string }) {
                       : "neutral"
               }
             >
-              {stageLabel(row)}
+              {stageLabel(row, trade)}
             </StatusBadge>
           </span>
           {/* Close one that went quiet (or reopen it) without opening it:

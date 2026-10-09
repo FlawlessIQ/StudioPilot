@@ -28,8 +28,10 @@ test("the drafting request reads the inquiry the couple wrote", () => {
 
 test("the model is told to name something they actually said", () => {
   const instruction = copilot.slice(
-    copilot.indexOf("Write proposal copy for a photography studio"),
-    copilot.indexOf("Return JSON only.", copilot.indexOf("Write proposal copy")),
+    // The trade's own offer and business since 2026-10-09 ("Write quote copy
+    // for a makeup business").
+    copilot.indexOf("Write ${offer} copy for a ${words.business}"),
+    copilot.indexOf("Return JSON only.", copilot.indexOf("Write ${offer} copy")),
   );
   assert.match(instruction, /Name at least one specific thing THEY said/);
   assert.match(instruction, /inquiry\.message/);

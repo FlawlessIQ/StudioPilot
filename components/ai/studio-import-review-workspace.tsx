@@ -34,6 +34,8 @@ import { StructuredContentFields } from "@/components/ai/structured-content-fiel
 import { statusLabel } from "@/features/format/status-label";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 
 const labels: Record<string, string> = {
   message_template: "Message",
@@ -109,6 +111,8 @@ export function StudioImportReviewWorkspace({
   onReview: (review: StudioImportReview) => void;
   onError: (message: string | null) => void;
 }) {
+  // A makeup or hair studio's offer is a quote (trades.ts).
+  const offerWord = tradeVocab(useWorkspace().tenantTrade).proposal;
   const visibleDrafts = useMemo(
     () =>
       review.drafts.filter(
@@ -322,7 +326,10 @@ export function StudioImportReviewWorkspace({
         <div className="studio-import-coverage">
           <span>
             <strong>{review.coverage.percent}%</strong>
-            <small>potential draft coverage</small>
+            {/* How much of the studio's setup the import can draft. "Coverage"
+                is a photographer's word for their hours on the day; every
+                trade reads this screen. */}
+            <small>of your setup can be drafted</small>
           </span>
           {review.coverage.sections.map((section) => (
             <i
@@ -376,7 +383,8 @@ export function StudioImportReviewWorkspace({
                 </span>
                 <span>
                   <small>
-                    {index + 1} · {labels[draft.assetType] ?? draft.assetType}
+                    {index + 1} ·{" "}
+                    {draft.assetType === "proposal" ? offerWord : labels[draft.assetType] ?? draft.assetType}
                   </small>
                   <strong>{draft.name}</strong>
                   <span className="studio-import-draft-meta">
@@ -764,7 +772,7 @@ export function StudioImportReviewWorkspace({
                 <span>{step.stage}</span>
                 <strong>{step.outcome}</strong>
                 <small>
-                  {step.status === "configured" ? "Configured" : "Coverage gap"}
+                  {step.status === "configured" ? "Configured" : "Not configured yet"}
                 </small>
               </li>
             ))}

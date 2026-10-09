@@ -18,7 +18,7 @@ import { formatSignedAt } from "@/features/contracts/format";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { agreementChangedSincePrepared } from "@/features/contracts/agreement-version";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   prepareContract,
@@ -77,6 +77,8 @@ export function NativeContractStep({
   onChanged: (message: string | null) => void;
 }) {
   const workspace = useWorkspace();
+  // "quote" for a makeup artist or hair stylist (trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loadingDraft, setLoadingDraft] = useState(dataIsLive);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -414,7 +416,7 @@ export function NativeContractStep({
                     "void",
                     () => voidContract({ projectId, contractId: live.id, reason: voidReason.trim() }),
                     live.mode === "combined"
-                      ? "Withdrawn. The client was told. Correct the proposal, or send a new booking agreement from it."
+                      ? `Withdrawn. The client was told. Correct the ${offer}, or send a new booking agreement from it.`
                       : "Withdrawn. The client was told. Prepare a new one when you're ready.",
                   ).then(() => setVoiding(false))
                 }
@@ -445,7 +447,7 @@ export function NativeContractStep({
           </p>
         ) : null}
         <p>
-          StudioCue writes the contract from your agreement and the proposal{" "}
+          {`StudioCue writes the contract from your agreement and the ${offer} `}
           {String((proposal.clientSnapshot as { displayName?: string } | undefined)?.displayName ?? "the client")}{" "}
           accepted. You read it, sign for the studio, and send it.
         </p>
@@ -472,7 +474,7 @@ export function NativeContractStep({
             {missing.length ? `${missing.length} to fill in` : "Ready to send"}
           </StatusBadge>{" "}
           {draft.source === "acceptance"
-            ? "Prepared when the proposal was accepted, from agreement version "
+            ? `Prepared when the ${offer} was accepted, from agreement version `
             : "Prepared from agreement version "}
           {draft.templateVersion}. Highlighted text came from the job&rsquo;s records.
         </p>

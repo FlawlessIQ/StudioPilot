@@ -130,6 +130,22 @@ export type TradeVocabulary = {
    * arrive for the chair (a clean face, dry hair, a button-up top).
    */
   prepGuide: { lead: string; items: readonly string[] } | null;
+  /** What the studio provides, mid-sentence: "photography", "music", "makeup", "hair" ("any {service} rules at the venue"). */
+  service: string;
+  /** One of the crew, studio-side: "photographer", "DJ", "artist", "stylist" ("Staff {member}"). */
+  member: string;
+  /**
+   * What a package's people and hours are called: a photographer's
+   * "Coverage" ("Base coverage", "Coverage: 2 photographers, 8 hours"); a
+   * vendor's "Service".
+   */
+  coverage: string;
+  /** The package form's hours field: "Coverage hours", "Hours of music", "Hours on site". */
+  hoursLabel: string;
+  /** What a package lists as included: a photographer's "Deliverables", a vendor's "What's included". */
+  includedLabel: string;
+  /** What the crew does at an event, as a verb: "shoot", "play", "work" ("the kind of event they {verb}"). */
+  verb: string;
 };
 
 const VOCAB: Record<Trade, TradeVocabulary> = {
@@ -155,6 +171,12 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     trial: null,
     trialHint: null,
     prepGuide: null,
+    service: "photography",
+    member: "photographer",
+    coverage: "Coverage",
+    hoursLabel: "Coverage hours",
+    includedLabel: "Deliverables",
+    verb: "shoot",
   },
   dj: {
     provider: "DJ",
@@ -186,6 +208,12 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     trial: null,
     trialHint: null,
     prepGuide: null,
+    service: "music",
+    member: "DJ",
+    coverage: "Service",
+    hoursLabel: "Hours of music",
+    includedLabel: "What's included",
+    verb: "play",
   },
   makeup: {
     provider: "makeup artist",
@@ -227,6 +255,12 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
         "have your inspiration photos and any lashes you love with you",
       ],
     },
+    service: "makeup",
+    member: "artist",
+    coverage: "Service",
+    hoursLabel: "Hours on site",
+    includedLabel: "What's included",
+    verb: "work",
   },
   hair: {
     provider: "hair stylist",
@@ -268,6 +302,12 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
         "have your veil and hair accessories with you",
       ],
     },
+    service: "hair",
+    member: "stylist",
+    coverage: "Service",
+    hoursLabel: "Hours on site",
+    includedLabel: "What's included",
+    verb: "work",
   },
 };
 
@@ -418,6 +458,15 @@ export const NO_DELIVERY_MOVES: Readonly<Record<string, readonly string[]>> = {
 /** Moves this trade adds to the state machine (state-machine.ts), from `from`. */
 export function tradeMoves(trade: unknown, from: string): readonly string[] {
   return tradeProfile(trade).delivery ? [] : (NO_DELIVERY_MOVES[from] ?? []);
+}
+
+/**
+ * Whether this trade may go to `target` at all. Adding moves was not enough:
+ * a makeup job could still be moved from the day into post-production, and
+ * from there a gallery released and its emails sent (2026-10-09).
+ */
+export function tradeAllows(trade: unknown, target: string): boolean {
+  return tradeProfile(trade).delivery || !["POST_PRODUCTION", "DELIVERED"].includes(target);
 }
 
 /**

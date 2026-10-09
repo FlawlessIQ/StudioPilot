@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { CheckCircle2, LoaderCircle, Receipt } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { basisPointsToPercent, percentToBasisPoints } from "@/features/billing/sales-tax-settings";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
@@ -40,6 +41,8 @@ export function SalesTaxDecision({
   onSaved?: () => void;
   compact?: boolean;
 }) {
+  // What the client is sent: a makeup or hair studio's quote (trades.ts).
+  const offers = `${tradeVocab(useWorkspace().tenantTrade).proposal}s`;
   const [choice, setChoice] = useState<"add" | null>(null);
   const [rate, setRate] = useState(basisPointsToPercent(status.company?.suggestedEstimateRateBasisPoints ?? null));
   const [busy, setBusy] = useState(false);
@@ -76,7 +79,7 @@ export function SalesTaxDecision({
         <CheckCircle2 aria-hidden="true" size={18} />
         <p>
           {done === "quickbooks"
-            ? "Sales tax is on. Proposals show your prices plus sales tax, QuickBooks works out the tax on each final invoice, and clients give their billing address when they sign."
+            ? `Sales tax is on. ${offers} show your prices plus sales tax, QuickBooks works out the tax on each final invoice, and clients give their billing address when they sign.`
             : "Got it — your prices include tax, so StudioCue won't add any."}
         </p>
       </section>
@@ -93,7 +96,7 @@ export function SalesTaxDecision({
           <h2 id="sales-tax-question-title">Your QuickBooks charges sales tax. Add it on top of your prices?</h2>
           <p>
             StudioCue isn&rsquo;t adding it yet, so invoices go out without tax. If your package prices don&rsquo;t include
-            tax, add it: proposals read &ldquo;plus sales tax&rdquo; and QuickBooks works out the exact amount on each final
+            tax, add it: {offers.toLowerCase()}{" "}read &ldquo;plus sales tax&rdquo; and QuickBooks works out the exact amount on each final
             invoice from the client&rsquo;s address.
           </p>
           {status.company?.salesTax === "manual" ? (
@@ -107,7 +110,7 @@ export function SalesTaxDecision({
       {choice === "add" ? (
         <div className="sales-tax-question-rate">
           <label>
-            <span>Estimate to show on proposals (optional)</span>
+            <span>Estimate to show on {offers.toLowerCase()} (optional)</span>
             <span className="sales-tax-question-rate-input">
               <input
                 aria-invalid={rateInvalid}

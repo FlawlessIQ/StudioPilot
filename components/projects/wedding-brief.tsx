@@ -27,6 +27,8 @@ import {
 } from "@/features/schedules/item-clock";
 import { describeEventProximity, formatEventDateLong } from "@/lib/format/event-date";
 import { statusLabel } from "@/features/format/status-label";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 
 type Row = Record<string, unknown> & { id: string };
 
@@ -57,6 +59,8 @@ function FactList({ facts }: { facts: BriefFact[] }) {
  * day as the couple described it. See features/planning/wedding-brief.ts.
  */
 export function WeddingBrief({ projectId }: { projectId: string }) {
+  // What the studio does on the day: a photographer shoots, a DJ plays (trades.ts).
+  const verb = tradeVocab(useWorkspace().tenantTrade).verb;
   const projects = useTenantDocuments("projects");
   const responses = useTenantDocuments("questionnaireResponses");
   const schedules = useTenantDocuments("schedules");
@@ -251,7 +255,7 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
               ))}
             </ul>
           ) : (
-            <p className="wedding-brief-empty">No crew on this job — shooting solo unless you add someone.</p>
+            <p className="wedding-brief-empty">{`No crew on this job — ${verb}ing solo unless you add someone.`}</p>
           )}
           <Link className="wedding-brief-link" href={`/studio/crew?project=${projectId}`}>
             Crew for this job <ArrowRight size={13} />

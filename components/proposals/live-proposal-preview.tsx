@@ -10,6 +10,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatDueDate, formatEventDate } from "@/lib/format/event-date";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
+import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 type Proposal = Record<string, unknown> & { id: string };
 function nested(value: Proposal, path: string) {
@@ -30,6 +31,11 @@ function money(value: unknown, currency: unknown) {
 
 export function LiveProposalPreview({ id }: { id: string }) {
   const workspace = useWorkspace();
+  // The studio's words (trades.ts): a makeup artist's or hair stylist's quote,
+  // and "Hair package" rather than "Photography package" when a name is missing.
+  const Offer = tradeVocab(workspace.tenantTrade).proposal;
+  const offer = Offer.toLowerCase();
+  const service = TRADE_LABELS[tradeOf(workspace.tenantTrade)];
   const [proposal, setProposal] = useState<Proposal | null | undefined>(
     dataIsLive
       ? undefined
@@ -72,12 +78,12 @@ export function LiveProposalPreview({ id }: { id: string }) {
     );
   }, [id, workspace.loading, workspace.tenantId]);
   if (proposal === undefined)
-    return <main className="pdf-preview"><p>Loading secure proposal…</p></main>;
+    return <main className="pdf-preview"><p>{`Loading secure ${offer}…`}</p></main>;
   if (!proposal)
-    return <main className="pdf-preview"><h1>Proposal unavailable</h1><p>This record is not available in the active studio.</p></main>;
+    return <main className="pdf-preview"><h1>{`${Offer} unavailable`}</h1><p>This record is not available in the active studio.</p></main>;
   const snapshot =
     nested(proposal, "pricingSnapshot") as Record<string, unknown> | null;
-  const packageName = String(snapshot?.packageName ?? "Photography package");
+  const packageName = String(snapshot?.packageName ?? `${service} package`);
   const total = Number(snapshot?.totalCents ?? proposal.totalCents ?? 0);
   // The retainer the payment schedule asks for, which is the one the couple
   // is billed — a studio's override is not in the pricing (H2, M7).
@@ -102,20 +108,20 @@ export function LiveProposalPreview({ id }: { id: string }) {
   const eventType =
     nested(proposal, "eventSnapshot.eventType") ??
     proposal.eventType ??
-    "Photography project";
+    `${service} project`;
   const eventDate =
     nested(proposal, "eventSnapshot.eventDate") ??
     proposal.eventDate ??
     "Date pending";
   return (
     <div className="proposal-preview-page">
-      <Link className="back-link" href={`/studio/proposals/${id}`}><ArrowLeft /> Back to proposal</Link>
+      <Link className="back-link" href={`/studio/proposals/${id}`}><ArrowLeft /> {`Back to ${offer}`}</Link>
       <main className="pdf-preview">
       {/* The studio's own initial, not StudioCue's, and no claim that a film
           package is "photography" (walked 2026-09-29). */}
-      <header><span>{(workspace.tenantName.trim()[0] ?? "S").toUpperCase()}</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>Proposal</strong></div><p>VERSION {String(proposal.version ?? 1)}</p></header>
+      <header><span>{(workspace.tenantName.trim()[0] ?? "S").toUpperCase()}</span><div><small>{workspace.tenantName.toUpperCase()}</small><strong>{Offer}</strong></div><p>VERSION {String(proposal.version ?? 1)}</p></header>
       <section><p className="eyebrow">Prepared for</p><h1>{String(clientName)}</h1><p>{String(eventType)} · {/^\d{4}-\d{2}-\d{2}/.test(String(eventDate)) ? formatEventDate(String(eventDate).slice(0, 10)) : String(eventDate)}</p></section>
-      <section><h2>{packageName}</h2><p>{String(proposal.notes ?? snapshot?.description ?? "Scope and deliverables are preserved in this proposal version.")}</p>
+      <section><h2>{packageName}</h2><p>{String(proposal.notes ?? snapshot?.description ?? (tradeProfile(workspace.tenantTrade).family === "photo" ? "Scope and deliverables are preserved in this proposal version." : `What's included is preserved in this ${offer} version.`))}</p>
         {/* Each line, then the discount and the tax on their own: one
             "Discounts and tax" figure netted the two together. */}
         <table><tbody>

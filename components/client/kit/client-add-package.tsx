@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, Clock3, PlusCircle } from "lucide-react";
 import { Button, ButtonRow, Card, Field, List, Pill, Row, TextArea } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   getClientPackageAdditions,
@@ -40,6 +41,8 @@ export function ClientAddPackage({
 }: { allowNew?: boolean; place?: "proposal" | "agreement" } = {}) {
   const workspace = useWorkspace();
   const words = useClientVocab();
+  // A makeup artist's or hair stylist's client is sent an updated quote (trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const [additions, setAdditions] = useState<ClientPackageAdditions | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   const [movingDate, setMovingDate] = useState(false);
@@ -73,7 +76,7 @@ export function ClientAddPackage({
   const signed = Boolean(additions.signed);
   const whatFollows = signed
     ? "They'll send you the change to sign. Your booking stays as it is until you do."
-    : "They'll send you an updated proposal to accept.";
+    : `They'll send you an updated ${offer} to accept.`;
   const nameOf = (request: ClientPackageAdditions["requests"][number]) =>
     request.kind === "date_change" ? `moving your date to ${longDate(request.requestedDate)}` : request.packageName;
 
@@ -135,7 +138,7 @@ export function ClientAddPackage({
         request.status === "approved" && !allowNew ? (
           <Card key={request.id}>
             <p className="kit-body">
-              {`Your studio added ${request.packageName}. Your updated proposal, with the new total, is on its way.`}
+              {`Your studio added ${request.packageName}. Your updated ${offer}, with the new total, is on its way.`}
             </p>
           </Card>
         ) : request.status === "declined" ? (
@@ -155,7 +158,7 @@ export function ClientAddPackage({
             {money(choosing.basePriceCents, choosing.currency)})?{" "}
             {signed
               ? "They'll send you the change, with the new total, to sign. Nothing changes until you do."
-              : "They'll send you an updated proposal with the new total. Nothing changes until you accept it."}
+              : `They'll send you an updated ${offer} with the new total. Nothing changes until you accept it.`}
           </p>
           <TextArea
             label="Anything they should know? (optional)"

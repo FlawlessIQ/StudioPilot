@@ -3,7 +3,9 @@ import { AcceptClientInvitation } from "@/features/auth/accept-client-invitation
 
 export const metadata: Metadata = {
   title: "Open your client portal",
-  description: "Activate secure access to your photography project.",
+  // Fixed at build time: the same page opens a DJ's, a makeup artist's and a
+  // hair stylist's client portal (app/client/layout.tsx says the same).
+  description: "Activate secure access to your project.",
 };
 
 export default async function ClientInvitationPage({

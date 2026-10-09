@@ -35,6 +35,7 @@ import {
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { askCopilot, type CopilotFlow, type PreparedAction } from "@/lib/ai/copilot-client";
 import { PreparedActionCards } from "@/components/ai/actions/prepared-actions";
 import { FlowRunner } from "@/components/ai/flow-runner";
@@ -136,6 +137,18 @@ export function ProjectThread({
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const summary = useMemo(() => threadHistorySummary(entries), [entries]);
+  // The trade's own story (trades.ts): a DJ's vibe call, a makeup artist's
+  // quote and no sales call, nothing delivered after a DJ's night.
+  const trade = useWorkspace().tenantTrade;
+  const tradeWords = tradeVocab(trade);
+  const kinds = [
+    "message",
+    ...(tradeProfile(trade).consultation ? [tradeWords.consultation.toLowerCase()] : []),
+    tradeWords.proposal.toLowerCase(),
+    "payment",
+    ...(tradeProfile(trade).delivery ? ["delivery"] : []),
+  ];
+  const story = `Every ${kinds.slice(0, -1).join(", ")} and ${kinds.at(-1)}`;
 
   return (
     <section className="job-thread" aria-label="This job">
@@ -188,10 +201,7 @@ export function ProjectThread({
         <div className="job-thread-empty">
           <MessageSquareText size={18} />
           <strong>This is where the whole job lives.</strong>
-          <p>
-            Every message, consultation, proposal, payment and delivery will
-            appear here in order — so you can see the story at a glance.
-          </p>
+          <p>{`${story} will appear here in order — so you can see the story at a glance.`}</p>
         </div>
       )}
       <ThreadComposer
@@ -644,7 +654,7 @@ function ThreadComposer({
         });
         setValue("");
         setNotice(
-          "Logged. StudioCue is preparing the brief, package fit, and a proposal draft.",
+          `Logged. StudioCue is preparing the brief, package fit, and a ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} draft.`,
         );
         refreshTenantRecords("consultations", "aiActions");
         onChanged();

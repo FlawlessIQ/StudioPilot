@@ -5,6 +5,7 @@ import { JOB_KIND_LABELS } from "@/features/job-kinds/job-kinds";
 import { doc, getDoc } from "firebase/firestore";
 import { ArrowDown, ArrowUp, ExternalLink, FileText, Plus, X } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import {
   dayFieldsForKind,
   defaultInquiryFormConfig,
@@ -361,7 +362,8 @@ export function InquiryFormEditor({
                 onChange={(event) => change({ askBudget: event.target.checked })}
                 type="checkbox"
               />
-              <span>Ask for their photography budget</span>
+              {/* "photography", "music", "makeup", "hair" (trades.ts `service`). */}
+              <span>{`Ask for their ${tradeVocab(workspace.tenantTrade).service} budget`}</span>
             </label>
             <label className="inquiry-form-editor-check">
               <input

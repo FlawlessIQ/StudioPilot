@@ -3,6 +3,7 @@ import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { contractDocumentSchema } from "./document.js";
 import { contractDocumentHash } from "./document-hash.js";
+import { tradeVocab } from "../trades/trades.js";
 
 /**
  * The signed copy of a StudioCue contract: rendered once, stored once, sent
@@ -102,13 +103,18 @@ export async function contractPdfInput(
   const templateName = templateVersion.exists
     ? `${text(templateVersion.get("title")) || "Agreement"} · version ${Number(templateVersion.get("version") ?? 1)}`
     : text(contract.get("templateVersionId")) || "Agreement";
+  // The certificate in the studio's words (trades.ts): a makeup artist's or
+  // hair stylist's client accepted a quote and booked a service. Not part of
+  // the signed document or its hash; a photographer's reads as it always did.
+  const words = tradeVocab(tenant.get("trade"));
+  const offer = words.proposal.toLowerCase();
   const events = [
     {
       at: when(contract.get("createdAt")),
       description:
         contract.get("mode") === "combined"
-          ? `Prepared from ${templateName} (Part 1) and the proposal's coverage and price (Part 2)`
-          : `Prepared from ${templateName} and the accepted proposal`,
+          ? `Prepared from ${templateName} (Part 1) and the ${offer}'s ${words.coverage.toLowerCase()} and price (Part 2)`
+          : `Prepared from ${templateName} and the accepted ${offer}`,
     },
     ...(studio
       ? [
@@ -127,7 +133,7 @@ export async function contractPdfInput(
             at: when(client.get("signedAt")),
             description:
               contract.get("mode") === "combined"
-                ? `Both parts signed by ${text(client.get("typedName"))}, which accepted the proposal — agreement complete`
+                ? `Both parts signed by ${text(client.get("typedName"))}, which accepted the ${offer} — agreement complete`
                 : `Signed by ${text(client.get("typedName"))} — agreement complete`,
           },
         ]

@@ -10,6 +10,7 @@ import { ArrowLeft, CheckCircle2, Copy, CircleDollarSign, DatabaseZap, FileCheck
 import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { sendCrewCommand } from "@/lib/crew/command-client";
@@ -300,6 +301,10 @@ function CrewStudioOperations({
 }) {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  // What the crew handed in after the day: a photographer's deliverables
+  // (card uploads, a highlights link); for every other trade they are just
+  // links (features/trades/trades.ts).
+  const handedIn = tradeProfile(useWorkspace().tenantTrade).family === "photo" ? "deliverables" : "links";
   const [messages, setMessages] = useState<RecordValue[]>([]);
   const [messageVersion, setMessageVersion] = useState(0);
   const closeout = objectValue(assignment.closeout);
@@ -390,7 +395,7 @@ function CrewStudioOperations({
         })}
       </div>
       {assignment.status === "accepted" ? <button className="button button-light" disabled={Boolean(busy)} type="button" onClick={() => void command("completeAssignment", {})}><CheckCircle2/> Mark event work complete</button> : null}
-      {closeout.status === "submitted" ? <form className="panel crew-studio-closeout-review" onSubmit={(event) => { event.preventDefault(); review("approved", event.currentTarget); }}><ReceiptText/><div><strong>Review submitted work record</strong><small>Actual time: {show(closeout.actualStartsAt, "Arrival")} – {show(closeout.actualEndsAt, "Departure")} · {Number(closeout.extraMinutes ?? 0)} extra minutes · {Array.isArray(closeout.expenses) ? closeout.expenses.length : 0} expenses · {Array.isArray(closeout.deliverables) ? closeout.deliverables.length : 0} deliverables</small></div><label>Review note<textarea name="reviewerNote" maxLength={2000}/></label><span><button className="button button-dark" disabled={Boolean(busy)} type="submit"><CheckCircle2/> Approve closeout</button><button className="button button-light" disabled={Boolean(busy)} type="button" onClick={(event) => { const form = event.currentTarget.form; if (form) review("needs_changes", form); }}><XCircle/> Request changes</button></span></form> : null}
+      {closeout.status === "submitted" ? <form className="panel crew-studio-closeout-review" onSubmit={(event) => { event.preventDefault(); review("approved", event.currentTarget); }}><ReceiptText/><div><strong>Review submitted work record</strong><small>Actual time: {show(closeout.actualStartsAt, "Arrival")} – {show(closeout.actualEndsAt, "Departure")} · {Number(closeout.extraMinutes ?? 0)} extra minutes · {Array.isArray(closeout.expenses) ? closeout.expenses.length : 0} expenses · {Array.isArray(closeout.deliverables) ? closeout.deliverables.length : 0} {handedIn}</small></div><label>Review note<textarea name="reviewerNote" maxLength={2000}/></label><span><button className="button button-dark" disabled={Boolean(busy)} type="submit"><CheckCircle2/> Approve closeout</button><button className="button button-light" disabled={Boolean(busy)} type="button" onClick={(event) => { const form = event.currentTarget.form; if (form) review("needs_changes", form); }}><XCircle/> Request changes</button></span></form> : null}
       {["approved", "paid"].includes(String(closeout.status)) ? <form className="panel crew-studio-payment" onSubmit={paymentSubmit}><CircleDollarSign/><div><strong>Payment status</strong><small>Keep the crew member informed without exposing client finances.</small></div><label>Status<select name="status" defaultValue={String(payment.status ?? "scheduled")}><option value="scheduled">Scheduled</option><option value="processing">Processing</option><option value="paid">Paid</option></select></label><label>Expected date<input name="expectedAt" type="datetime-local" /></label><label>Reference<input name="reference" maxLength={240} defaultValue={String(payment.reference ?? "")}/></label><button className="button button-dark" disabled={Boolean(busy)} type="submit">Save payment status</button></form> : null}
       <section className="panel crew-studio-messages"><header><div><strong>Assignment messages</strong><small>A private thread between the studio and this crew member.</small></div></header>{messages.length ? <div className="crew-message-thread">{messages.map((message) => <article key={message.id} data-direction={String(message.direction)}><small>{message.direction === "studio_to_crew" ? "Studio" : "Crew"} · {show(message.createdAt, "Created")}</small><strong>{show(message.subject, "Subject")}</strong><p>{show(message.message, "Message")}</p></article>)}</div> : <p className="crew-message-empty">No messages on this assignment yet.</p>}<form onSubmit={messageSubmit}><label>Subject<input name="subject" maxLength={160} required defaultValue="Assignment update"/></label><label>Message<textarea name="message" maxLength={4000} required/></label><button className="button button-dark" disabled={Boolean(busy)} type="submit">Send to crew member</button></form></section>
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}

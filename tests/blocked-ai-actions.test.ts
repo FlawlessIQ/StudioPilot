@@ -87,8 +87,9 @@ test("the AI draft and Cue use the same default wording as the app", () => {
   const functionsCopy = readFileSync("functions/src/proposals/default-terms.ts", "utf8");
   assert.ok(functionsCopy.includes(JSON.stringify(DEFAULT_PROPOSAL_TERMS)), "functions copy matches features/booking/autopilot.ts");
   const worker = readFileSync("functions/src/operations/ai-pdf.ts", "utf8");
-  assert.match(worker, /const termsSummary=recommended\?proposalTermsFor\(recommended\.get\("terms"\)\):"";/);
+  // With the studio's trade, so the default reads in its words (2026-10-09).
+  assert.match(worker, /const termsSummary=recommended\?proposalTermsFor\(recommended\.get\("terms"\),\(await getFirestore\(\)\.doc\(`tenants\/\$\{String\(job\.get\("tenantId"\)\)\}`\)\.get\(\)\)\.get\("trade"\)\):"";/);
   const cue = readFileSync("functions/src/ai/copilot.ts", "utf8");
-  assert.match(cue, /const terms = proposalTermsForPackages\(jobSnapshots\.map\(\(snapshot\) => snapshot\.data\)\);/);
+  assert.match(cue, /const terms = proposalTermsForPackages\(\s*jobSnapshots\.map\(\(snapshot\) => snapshot\.data\),\s*\(await db\.doc\(`tenants\/\$\{tenantId\}`\)\.get\(\)\)\.get\("trade"\),\s*\);/);
   assert.doesNotMatch(cue, /terms\.trim\(\)\.length < 10\) continue;/);
 });

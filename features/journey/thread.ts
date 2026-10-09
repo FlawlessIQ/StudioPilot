@@ -18,6 +18,7 @@
 import { formatDueDate } from "@/lib/format/event-date";
 import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 import { leadAnswers, type LeadAnswer } from "@/features/leads/lead-answers";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 export type ThreadActor = "client" | "studio" | "studiocue" | "provider";
 
@@ -81,6 +82,11 @@ export type ThreadInput = {
   deliveries?: ThreadRecord[] | null;
   messages?: ThreadRecord[] | null;
   actionReceipts?: ThreadRecord[] | null;
+  /**
+   * What the studio does (features/trades/trades.ts): a DJ's vibe call, a
+   * makeup artist's quote. Absent is a photographer, the thread as it was.
+   */
+  trade?: unknown;
 };
 
 const text = (value: unknown): string =>
@@ -106,6 +112,8 @@ const firstAt = (record: ThreadRecord, ...keys: string[]): string | null => {
 };
 
 export function projectThread(input: ThreadInput): ThreadEntry[] {
+  const tradeWords = tradeVocab(input.trade);
+  const offer = tradeWords.proposal;
   const entries: ThreadEntry[] = [];
   const client = input.clientName ?? "The client";
   const push = (entry: ThreadEntry | null) => {
@@ -167,7 +175,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at: booked,
             actor: "studio",
             kind: "artifact",
-            title: finalCall ? "Final details call booked" : trial ? "Trial booked" : "Consultation booked",
+            title: finalCall ? `${tradeWords.finalCall} booked` : trial ? "Trial booked" : `${tradeWords.consultation} booked`,
             detail: text(consultation.startsAt)
               ? `${readable(consultation.mode)} · ${formatDueDate(text(consultation.startsAt))}`
               : readable(consultation.mode),
@@ -199,7 +207,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               at: done,
               actor: "studio",
               kind: "message",
-              title: finalCall ? "Final details call held" : "You logged the consultation",
+              title: finalCall ? `${tradeWords.finalCall} held` : `You logged the ${tradeWords.consultation.toLowerCase()}`,
               detail: text(consultation.internalNotes) || null,
               artifact: null,
             }
@@ -225,7 +233,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at: created,
             actor: "studio",
             kind: "artifact",
-            title: `Proposal v${version} — ${text(pricing.packageName) || "coverage"}`,
+            title: `${offer} v${version} — ${text(pricing.packageName) || tradeWords.coverage.toLowerCase()}`,
             detail: null,
             artifact: {
               type: "proposal",
@@ -251,7 +259,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at: sent,
             actor: "studio",
             kind: "system",
-            title: "Proposal sent to the client",
+            title: `${offer} sent to the client`,
             detail: text(proposal.viewedAt)
               ? `Viewed ${formatDueDate(text(proposal.viewedAt))}`
               : "Not opened yet",
@@ -268,7 +276,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at: accepted,
             actor: "client",
             kind: "system",
-            title: `${client} accepted the proposal`,
+            title: `${client} accepted the ${offer.toLowerCase()}`,
             detail: total,
             artifact: null,
             files: FILE_BEARING.proposals(proposal),
@@ -481,7 +489,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at,
             actor: "studio",
             kind: "artifact",
-            title: "Gallery delivered",
+            title: tradeProfile(input.trade).delivery ? "Gallery delivered" : "Delivered",
             detail: text(delivery.notes) || null,
             artifact: {
               type: "delivery",

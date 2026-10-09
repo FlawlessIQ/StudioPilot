@@ -31,6 +31,8 @@ import { previousAlbumStatus } from "@/features/post-event/undo";
 import { ActionHint, InfoHint } from "@/components/ui/info-hint";
 import { ConfirmStep } from "@/components/ui/confirm-step";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeMoves, tradeProfile } from "@/features/trades/trades";
+import { runCrmCommand } from "@/lib/crm/command-client";
 
 const text = (value: unknown) =>
   typeof value === "string" ? value : "";
@@ -54,6 +56,7 @@ export function DeliveryCloseoutWorkspace({
   const { records: packageSnapshots } = useTenantDocuments("packageSnapshots");
   const { records: deliveries } = useTenantDocuments("deliveryRecords");
   const workspace = useWorkspace();
+  const delivers = tradeProfile(workspace.tenantTrade).delivery;
   const [evidenceUrl, setEvidenceUrl] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   /** Which requirement's "how do you know?" form is open, if any. */
@@ -103,14 +106,18 @@ export function DeliveryCloseoutWorkspace({
    * what is actually open.
    */
   useEffect(() => {
+    // The reconciler checks a gallery and an album; a studio that delivers
+    // nothing would be asked to vouch for both (see NothingDeliveredCloseout).
+    if (!delivers) return;
     if (!projectId || reconciledFor.current === projectId) return;
     if (!["DELIVERED", "REVIEW_REQUESTED"].includes(projectState)) return;
     reconciledFor.current = projectId;
     void sendPostEventCommand("prepareCloseout", { projectId })
       .then(() => refreshTenantRecords("projectCloseouts", "projects"))
       .catch(() => undefined);
-  }, [projectId, projectState]);
+  }, [delivers, projectId, projectState]);
   if (!projectId) return null;
+  if (!delivers) return <NothingDeliveredCloseout projectId={projectId} />;
   const project = projects?.find((item) => item.id === projectId);
   const packageSnapshotId = text(project?.packageSnapshotId);
   /**
@@ -855,6 +862,100 @@ export function DeliveryCloseoutWorkspace({
             </button>
           ) : null}
         </footer>
+        {notice ? <p className="form-notice" role="status">{notice}</p> : null}
+      </section>
+    </section>
+  );
+}
+
+/**
+ * Closing a job when nothing was delivered: a DJ's, a makeup artist's, a hair
+ * stylist's.
+ *
+ * The closeout above is a photographer's. Its reconciler checks a gallery the
+ * client opened and an album, so a DJ's job would list "Gallery delivered and
+ * accessed" as outstanding with "Mark as done" beside it — vouching for a
+ * gallery that never existed — and it refuses a job that never reached
+ * DELIVERED, which these never do. They close the way their trade's journey
+ * says (trades.ts NO_DELIVERY_MOVES): from the day or from the review, by the
+ * same move the job page's stage card makes. The server decides who may.
+ */
+function NothingDeliveredCloseout({ projectId }: { projectId: string }) {
+  const workspace = useWorkspace();
+  const { records: projects } = useTenantDocuments("projects");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const project = projects?.find((item) => item.id === projectId);
+  const state = text(project?.state);
+  const archived = state === "ARCHIVED" || Boolean(text(project?.archivedAt));
+  const closed = archived || state === "CLOSED";
+  const closeable =
+    !closed &&
+    (state === "REVIEW_REQUESTED" || tradeMoves(workspace.tenantTrade, state).includes("CLOSED"));
+
+  async function close() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await runCrmCommand("transitionProject", {
+        projectId,
+        expectedVersion: Number(project?.stateVersion ?? 0),
+        targetState: "CLOSED",
+      });
+      refreshTenantRecords("projects");
+      setConfirming(false);
+      setNotice(response.persisted ? "The job is closed." : "Development preview: the job would close.");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The job could not be closed."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="delivery-closeout-workspace">
+      <section className="panel closeout-assistant">
+        <header className="panel-heading">
+          <div>
+            <p className="eyebrow">Closing the job</p>
+            <h2>
+              {archived ? "Archived" : closed ? "Closed" : "Wrap up"}
+              <InfoHint label="Closing the job">
+                Closing marks the job finished. Nothing is delivered after the day, so there&rsquo;s nothing to
+                reconcile first: close it once nothing else is owed.
+              </InfoHint>
+            </h2>
+            <p>
+              {archived
+                ? "This job is closed and archived."
+                : closed
+                  ? "This job is closed."
+                  : closeable
+                    ? "Your work was all on the day, so there’s nothing to deliver. Close the job once nothing else is owed — the balance is in and any review ask is settled."
+                    : "This job closes after the day. Nothing is delivered afterwards, so it goes from the day straight to the review and closing."}
+            </p>
+          </div>
+          <Archive aria-hidden="true" />
+        </header>
+        {closeable && confirming ? (
+          <ConfirmStep
+            busy={busy}
+            cancelLabel="Not yet"
+            confirmLabel="Yes, close it"
+            label="Close this job?"
+            onCancel={() => setConfirming(false)}
+            onConfirm={() => void close()}
+          >
+            Close this job? Do it once the balance is in and any review ask is settled.
+          </ConfirmStep>
+        ) : closeable ? (
+          <footer>
+            <button className="button button-dark" disabled={busy} onClick={() => setConfirming(true)} type="button">
+              <Archive /> Close the job
+            </button>
+          </footer>
+        ) : null}
         {notice ? <p className="form-notice" role="status">{notice}</p> : null}
       </section>
     </section>

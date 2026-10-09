@@ -41,6 +41,7 @@ import { generateConsultationSlots, type ConsultationSlot } from "@/features/con
 import { formatStudioTime, formatStudioTimeRange } from "@/features/consultations/studio-time";
 import type { ConsultationSettings, Weekday } from "@/features/consultations/availability-schema";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import {
@@ -99,8 +100,20 @@ function safeEventDate(value: unknown): Date | null {
   }
 }
 
+/**
+ * What the calendar's bookings are called (trades.ts): a photographer's
+ * consultation, a DJ's vibe call. A makeup artist or hair stylist has no
+ * sales call; what clients book with them is an appointment, such as a trial.
+ */
+function meetingWord(trade: unknown): string {
+  return tradeProfile(trade).consultation ? tradeVocab(trade).consultation.toLowerCase() : "appointment";
+}
+const withArticle = (word: string) => `${/^[aeiou]/.test(word) ? "an" : "a"} ${word}`;
+const capitalized = (word: string) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+
 export function StudioCalendar() {
   const workspace = useWorkspace();
+  const meeting = meetingWord(workspace.tenantTrade);
   const [month, setMonth] = useState(startOfMonth(new Date()));
   const [timezone, setTimezone] = useState("America/New_York");
   const [settings, setSettings] = useState<SettingsShape>(defaultSettings);
@@ -366,7 +379,7 @@ export function StudioCalendar() {
       {schedulingFor ? (
         <div className="ds-cal-context" role="status">
           <span>
-            Scheduling a consultation for{" "}
+            {`Scheduling ${withArticle(meeting)} for`}{" "}
             <strong>{String(schedulingFor.name ?? "this project")}</strong> — pick
             an open time below.
           </span>
@@ -672,7 +685,7 @@ export function StudioCalendar() {
             <div className="ds-cal-section">
               <p className="ds-cal-section-label">
                 <span className="ds-cal-legend-dot" style={{ color: "var(--ds-amber)" }} />
-                Consultations
+                {`${capitalized(meeting)}s`}
               </p>
               <ul className="ds-cal-list">
                 {selectedBookings.map((booking) => {
@@ -739,7 +752,7 @@ export function StudioCalendar() {
             </p>
             {blockedSet.has(selectedDateKey) ? (
               <p className="ds-cal-empty-note">
-                This day is blocked — clients can’t book a consultation here.
+                {`This day is blocked — clients can’t book ${withArticle(meeting)} here.`}
               </p>
             ) : selectedSlots.length === 0 ? (
               // A div, not a p: this one carries a dialog trigger, and the
@@ -748,7 +761,7 @@ export function StudioCalendar() {
               // portalled it reports section-inside-p as a hydration error.
               // It is a prompt with an action, not a paragraph of prose.
               <div className="ds-cal-empty-note">
-                No consultation windows are configured for this day.{" "}
+                {`No ${meeting} windows are configured for this day.`}{" "}
                 <AvailabilityDialog label="Set your weekly hours" variant="inline" />.
               </div>
             ) : (
@@ -772,7 +785,7 @@ export function StudioCalendar() {
       ) : (
         <div className="ds-card ds-cal-panel ds-cal-panel-empty">
           <CalendarClock size={26} aria-hidden="true" />
-          <p>Select a day to see project events, consultations, and open slots — or block the day off.</p>
+          <p>{`Select a day to see project events, ${meeting}s, and open slots — or block the day off.`}</p>
         </div>
       )}
     </section>
@@ -799,6 +812,7 @@ function ConsultationActions({
 
   const projectId = String(booking.projectId ?? "");
   const consultationId = String(booking.id);
+  const meeting = meetingWord(useWorkspace().tenantTrade);
   const slot = freeSlots.find((value) => value.startsAt === target);
 
   /** `done` is told whether the client was emailed, so it says what happened. */
@@ -839,7 +853,7 @@ function ConsultationActions({
       {freeSlots.length > 0 ? (
         <>
           <select
-            aria-label="Move this consultation to"
+            aria-label={`Move this ${meeting} to`}
             value={target}
             disabled={busy}
             onChange={(event) => setTarget(event.target.value)}
@@ -870,7 +884,7 @@ function ConsultationActions({
                   },
                 },
                 (notified) =>
-                  `Consultation moved. Your calendar and any Zoom meeting follow it${
+                  `${capitalized(meeting)} moved. Your calendar and any Zoom meeting follow it${
                     notified
                       ? ", and the client is emailed the new time"
                       : "; the client was not emailed, so let them know"
@@ -903,7 +917,7 @@ function ConsultationActions({
               input: { projectId, consultationId, reason: null },
             },
             (notified) =>
-              `Consultation canceled. It comes off your calendar and any Zoom meeting is removed${
+              `${capitalized(meeting)} canceled. It comes off your calendar and any Zoom meeting is removed${
                 notified
                   ? "; the client is emailed"
                   : "; the client was not emailed, so let them know"
@@ -979,6 +993,7 @@ function BookSlotForm({
   /** The job the studio came from ("Scheduling a consultation for …"). */
   initialProjectId: string | null;
 }) {
+  const meeting = meetingWord(useWorkspace().tenantTrade);
   const { records: projects, loading } = useTenantDocuments("projects");
   const initial = initialProjectId ? (projects ?? []).find((project) => project.id === initialProjectId) : undefined;
   const initialContacts = initial?.clientContactIds;
@@ -1043,10 +1058,10 @@ function BookSlotForm({
       setNotice(
         outcome.mode === "preview"
           ? "Development preview: this booking was validated but not persisted."
-          : "Consultation booked — it's on your calendar and shows on the project.",
+          : `${capitalized(meeting)} booked — it's on your calendar and shows on the project.`,
       );
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "Consultation could not be scheduled."));
+      setNotice(friendlyError(caught, `${capitalized(meeting)} could not be scheduled.`));
     } finally {
       setSubmitting(false);
     }

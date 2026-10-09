@@ -1,4 +1,6 @@
-import type { Explainer } from "./types";
+import { glossaryTerm } from "./glossary";
+import { helpTrade, type Explainer, type ExplainerSource, type HelpTrade, type TradeLine, type TradeText } from "./types";
+import { videoSuitsTrade } from "./videos";
 
 /**
  * The written guides behind each screen's "How to" button.
@@ -7,8 +9,23 @@ import type { Explainer } from "./types";
  * it spells it — tests/help-content.test.ts fails when one no longer exists
  * in the source, so a renamed button can't leave a guide describing the old
  * one. Plan: docs/how-to-videos-plan-2026-09-30.md (§2a lists the rest).
+ *
+ * A DJ, a makeup artist and a hair stylist read the same guides in their own
+ * words (types.ts, features/trades/trades.ts). Where a line differs, a
+ * photographer's text is written out exactly as it was and the other trades'
+ * follow it; a label whose wording depends on the trade is left unbolded for
+ * them, since the screen builds it. A guide about something a trade doesn't
+ * have (delivering a gallery) isn't offered to it at all.
  */
-export const EXPLAINERS: readonly Explainer[] = [
+
+/** A photographer's own words, as written; every other trade has its own. */
+const photographer = (t: HelpTrade) => t.has.family === "photo";
+/** What the client is sent to book, mid-sentence: "proposal", or a makeup artist's "quote". */
+const offer = (t: HelpTrade) => t.words.proposal.toLowerCase();
+/** The offer is a proposal, so its buttons say so ("Send proposal"). */
+const offerIsProposal = (t: HelpTrade) => t.words.proposal === "Proposal";
+
+const GUIDES: readonly ExplainerSource[] = [
   // ── Studio ────────────────────────────────────────────────────────────
   {
     id: "tour",
@@ -19,12 +36,17 @@ export const EXPLAINERS: readonly Explainer[] = [
     routes: ["/studio/help", "/studio/help/journey"],
     video: "tour",
     purpose:
-      "StudioCue runs your studio from the first inquiry to the final gallery. Four places in the menu do most of the work.",
+      ({ has }) =>
+        `StudioCue runs your studio from the first inquiry to ${has.delivery ? "the final gallery" : "the review after the day"}. Four places in the menu do most of the work.`,
     steps: [
       "**Today** is your inbox: everything that needs a decision, most urgent first. Drafts Cue has written wait under **Prepared for you** — **Approve** them as they are, or **Review** them first.",
-      "**Inquiries** holds everyone who hasn't booked yet, by stage — **New**, **Talking**, **Consult**, **Proposal**, **Signing** — and shows whose move it is.",
+      (t) =>
+        photographer(t)
+          ? "**Inquiries** holds everyone who hasn't booked yet, by stage — **New**, **Talking**, **Consult**, **Proposal**, **Signing** — and shows whose move it is."
+          : "**Inquiries** holds everyone who hasn't booked yet, by stage from **New** to **Signing**, and shows whose move it is.",
       "**Jobs** holds every booked job. Open one to see its whole story and **Your next move**.",
-      "**Cue** is your office manager. Ask it to draft an email, prepare a proposal or tell you what's outstanding. Cue prepares the work. You approve it.",
+      (t) =>
+        `**Cue** is your office manager. Ask it to draft an email, prepare a ${offer(t)} or tell you what's outstanding. Cue prepares the work. You approve it.`,
       "**Calendar**, **Messages**, **Clients** and **Insights** sit under **More** on a phone. Your packages and templates live in **Library**.",
     ],
     next: "Every screen has a **How to** button at the top. It opens the guide for whatever you're looking at.",
@@ -55,7 +77,9 @@ export const EXPLAINERS: readonly Explainer[] = [
     next: "Anything waiting on someone else sits under **In motion** and comes back to Today by itself when it needs you again.",
     goodToKnow: [
       "**Handled for you** lists what Cue did without you, so you can always check.",
-      "A reply only includes a booking link once your consultation hours are set.",
+      // A makeup artist or hair stylist has no call to book.
+      ({ words, has }) =>
+        has.consultation ? `A reply only includes a booking link once your ${words.consultation.toLowerCase()} hours are set.` : null,
     ],
     terms: ["today", "prepared", "inquiry"],
   },
@@ -72,22 +96,28 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Inquiries holds everyone who's asked about a date but hasn't booked. A confirmed inquiry with a date becomes a job right away, so nothing slips.",
     steps: [
       "Open **Inquiries**. **Open** shows everyone still in play; the other tabs split them by stage, from **New** to **Signing**. **Your move** marks the ones waiting on you.",
-      "Answer from **Today**: Cue drafts a reply to each new inquiry. Read it, then **Send reply**. It includes a link where the client can add details and pick a consultation time.",
+      ({ words, has }) =>
+        `Answer from **Today**: Cue drafts a reply to each new inquiry. Read it, then **Send reply**. It includes a link where the client can add details${has.consultation ? ` and pick a ${words.consultation.toLowerCase()} time` : ""}.`,
       "Unsure emails arrive as **Maybe an inquiry** — tap **Yes, an inquiry** or **Not an inquiry**.",
       "No answer? A follow-up is drafted on day 3 and day 7, ready for **Send follow-up**.",
       "If it doesn't book, open the job, choose **Close inquiry** and pick why — **Went quiet**, **Booked someone else**, **Budget** and so on.",
     ],
-    next: "Once they book a consultation the inquiry moves to **Consult**, and a proposal comes next. When they sign and pay the retainer, it leaves Inquiries for **Jobs**.",
+    next: (t) =>
+      photographer(t)
+        ? "Once they book a consultation the inquiry moves to **Consult**, and a proposal comes next. When they sign and pay the retainer, it leaves Inquiries for **Jobs**."
+        : t.has.consultation
+          ? `Once they book a ${t.words.consultation.toLowerCase()}, a ${offer(t)} comes next. When they sign and pay the retainer, it leaves Inquiries for **Jobs**.`
+          : `Your ${offer(t)} comes next, with no call first. When they sign and pay the retainer, it leaves Inquiries for **Jobs**.`,
     goodToKnow: [
       "**Preview inquiry form** shows the form clients fill out. Put its link on your website and every submission lands here.",
       "Inquiries by email, The Knot or WeddingWire can be forwarded in — **Copy address** and forward to it from your inbox.",
       "A closed inquiry reopens by itself if the client writes again.",
     ],
-    terms: ["inquiry", "inquiry-link", "forwarding-address", "consultation", "lost"],
+    terms: ["inquiry", "inquiry-link", "forwarding-address", "consultation", "vibe-call", "beauty-quote", "lost"],
   },
   {
     id: "proposal",
-    title: "Build and send a proposal",
+    title: (t) => `Build and send a ${offer(t)}`,
     summary: "Package, extras, price and payment dates — drafted for you, approved by you, sent in one tap.",
     audience: "studio",
     stage: "inquiry-to-booking",
@@ -95,22 +125,36 @@ export const EXPLAINERS: readonly Explainer[] = [
     alsoOn: ["/studio/booking"],
     video: "proposal",
     purpose:
-      "A proposal is what a client sees before they book: their packages, any extras, the price and the payment dates. You build it, approve it, then send it.",
+      (t) =>
+        `A ${offer(t)} is what a client sees before they book: their packages, any extras, the price and the payment dates. You build it, approve it, then send it.`,
     steps: [
-      "On the job's **Booking** tab choose **Prepare the proposal**, or start from the proposals list with **New proposal**.",
+      // Unbolded: these buttons are named after the trade's offer ("New
+      // quote"), so no one spelling is in the screen's source.
+      (t) =>
+        `On the job's **Booking** tab choose Prepare the ${offer(t)}, or start from the ${offer(t)}s list with New ${offer(t)}.`,
       "Under **Choose the client and event**, check the client and the packages they're booking.",
       "Under **Frame the offer**, tap **Draft from what they told you** for an introduction written from their inquiry, then make it yours.",
-      "Set **Proposal expires**, **Retainer due** and **Final balance due**, then **Create draft**. Nothing is sent yet.",
-      "Add an album or other extra with **Add from your library**, or **Write one for this couple**.",
-      "Check it over, **Approve this proposal**, check **Ready to share with the client** and **Send proposal**.",
+      ({ words }) =>
+        `Set ${words.proposal} expires, **Retainer due** and **Final balance due**, then **Create draft**. Nothing is sent yet.`,
+      (t) =>
+        photographer(t)
+          ? "Add an album or other extra with **Add from your library**, or **Write one for this couple**."
+          : "Add an extra with **Add from your library**, or **Write one for this client**.",
+      (t) =>
+        offerIsProposal(t)
+          ? "Check it over, **Approve this proposal**, check **Ready to share with the client** and **Send proposal**."
+          : `Check it over and approve it, check **Ready to share with the client**, then send the ${offer(t)}.`,
     ],
-    next: "The client gets a branded email with the proposal and a link to their portal, where they **Accept proposal** or **Request changes**. Once they accept, signing the agreement is their next step.",
+    next: (t) =>
+      offerIsProposal(t)
+        ? "The client gets a branded email with the proposal and a link to their portal, where they **Accept proposal** or **Request changes**. Once they accept, signing the agreement is their next step."
+        : `The client gets a branded email with the ${offer(t)} and a link to their portal, where they accept it or **Request changes**. Once they accept, signing the agreement is their next step.`,
     goodToKnow: [
       "Team members who aren't an owner or admin see **Send for approval** instead.",
       "Need to change it after sending? **Correct and re-issue** sends a new version.",
       "Accepted by phone or email? **Record the acceptance**.",
     ],
-    terms: ["proposal", "package", "add-on", "retainer", "final-balance"],
+    terms: ["proposal", "beauty-quote", "package", "add-on", "retainer", "final-balance"],
   },
   {
     id: "contract-retainer",
@@ -150,10 +194,15 @@ export const EXPLAINERS: readonly Explainer[] = [
       "Every client has one job: their whole story in one place, from inquiry to closeout. Open it from **Jobs** or from any card on Today.",
     steps: [
       "Open **Jobs** and pick a job. **Active** and **Archived** split them, and the chips filter by type.",
-      "The track along the top shows where it is: **Inquiry**, **Booking**, **Preparation**, **The day**, **Delivery**.",
+      ({ words }) =>
+        `The track along the top shows where it is: **Inquiry**, **Booking**, **Preparation**, **The day**, **${words.afterPhase}**.`,
       "Start with **Your next move** — the one thing to do now. **Nothing for you right now** means it's waiting on someone else.",
       "Drafts for this job wait under **Prepared for you**, ready to approve.",
-      "The tabs — **Overview**, **Booking**, **Plan**, **Delivery** — hold each stage's detail.",
+      // Nothing to deliver, no Delivery tab (project-workspace-nav.tsx).
+      ({ has }) =>
+        has.delivery
+          ? "The tabs — **Overview**, **Booking**, **Plan**, **Delivery** — hold each stage's detail."
+          : "The tabs — **Overview**, **Booking**, **Plan** — hold each stage's detail.",
       "Keep the record in **Job history**: **Log a call**, **Ask Cue** about the job, or **Add a task**.",
     ],
     next: "As the client signs, pays and fills things in, the job moves along the track by itself.",
@@ -174,11 +223,16 @@ export const EXPLAINERS: readonly Explainer[] = [
     routes: ["/studio/setup", "/studio/settings", "/studio/settings/*"],
     video: "setup",
     purpose:
-      "Setup asks seven questions: what you shoot, how inquiries reach you, when clients can book a call, what you charge, how clients sign, what you ask clients, and who sends your insurance certificates. Most are answered right on the page.",
+      (t) =>
+        photographer(t)
+          ? "Setup asks seven questions: what you shoot, how inquiries reach you, when clients can book a call, what you charge, how clients sign, what you ask clients, and who sends your insurance certificates. Most are answered right on the page."
+          : `Setup asks seven questions: what events you ${t.words.verb}, how inquiries reach you, when clients can book ${t.has.consultation ? "a call" : "a trial"}, what you charge, how clients sign, what you ask clients, and who sends your insurance certificates. Most are answered right on the page.`,
     steps: [
       "On Today, tap **Continue setup**. Each question says why it matters.",
       "**How do inquiries reach you?** Pick a route, from **On your website** to **Inbox rules**.",
-      "**When can clients book a call?** Tap **Use Mon–Fri, 9–5** or **Choose my own hours**, and **Connect Google Calendar** so busy times are never offered.",
+      // A makeup artist or hair stylist is asked about trials (setup-conversation.tsx).
+      ({ has }) =>
+        `**When can clients book ${has.consultation ? "a call" : "a trial"}?** Tap **Use Mon–Fri, 9–5** or **Choose my own hours**, and **Connect Google Calendar** so busy times are never offered.`,
       "**What do you charge?** **Paste or upload your prices**, or **Add one by hand**.",
       "**How do your clients sign?** Set up your agreement in StudioCue, or tap **I send my own agreement**.",
       "Finish with your questionnaire and **Who sends your certificates of insurance?**",
@@ -187,7 +241,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     goodToKnow: [
       "Your studio's name, logo and email colors are in **Studio settings**, under **Studio details** and **Email branding**.",
     ],
-    terms: ["forwarding-address", "consultation", "agreement"],
+    terms: ["forwarding-address", "consultation", "vibe-call", "beauty-trial", "agreement"],
   },
   {
     id: "import-bookings",
@@ -214,19 +268,27 @@ export const EXPLAINERS: readonly Explainer[] = [
   {
     id: "packages",
     title: "Add your packages, add-ons and price list",
-    summary: "Set up what you sell once, and every proposal draws on it.",
+    summary: (t) => `Set up what you sell once, and every ${offer(t)} draws on it.`,
     audience: "studio",
     stage: "getting-started",
     routes: ["/studio/packages", "/studio/packages/*", "/studio/library", "/studio/library/*", "/studio/import"],
-    purpose: "Packages are what you sell; add-ons are the extras. Set them up once and every proposal draws on them.",
+    purpose: (t) =>
+      `Packages are what you sell; add-ons are the extras. Set them up once and every ${offer(t)} draws on them.`,
     steps: [
       "Open **Library**, choose **Packages**, then **Create package**.",
-      "Set the **Base price (USD)**, the **Retainer type** — a percent, a fixed amount or per crew member — and who you send under **Photographers** and **Videographers**.",
-      "Under **What this package delivers**, list the gallery, film or album and when each is due.",
+      (t) =>
+        photographer(t)
+          ? "Set the **Base price (USD)**, the **Retainer type** — a percent, a fixed amount or per crew member — and who you send under **Photographers** and **Videographers**."
+          : `Set the **Base price (USD)**, the **Retainer type** — a percent, a fixed amount or per ${t.words.member} — and how many ${t.words.crew} you send.`,
+      (t) =>
+        photographer(t)
+          ? "Under **What this package delivers**, list the gallery, film or album and when each is due."
+          : `List what's included, so every ${offer(t)} shows the client exactly what they're booking.`,
       "Add extras under **Add-ons** with **New add-on**, and check the ones a package should suggest.",
       "Already have a price list? **Open AI import studio** and **Upload files**. Nothing goes live until you activate it.",
     ],
-    next: "Proposals are built from your packages. Changing a package never changes the price on a proposal or booking that already has it.",
+    next: (t) =>
+      `${t.words.proposal}s are built from your packages. Changing a package never changes the price on a ${offer(t)} or booking that already has it.`,
     goodToKnow: [
       "**Show this package to clients** lets clients ask for it from their portal. New and imported packages start with it off.",
       "Retire a package by turning off **Available to book**; past bookings keep it.",
@@ -241,21 +303,26 @@ export const EXPLAINERS: readonly Explainer[] = [
     stage: "getting-started",
     routes: ["/studio/contracts/agreement"],
     purpose:
-      "Your agreement is the contract template StudioCue writes each client's contract from, filling in names, dates, coverage and prices from the job.",
+      (t) =>
+        `Your agreement is the contract template StudioCue writes each client's contract from, filling in names, dates, ${photographer(t) ? "coverage" : "what they booked"} and prices from the job.`,
     steps: [
       "From setup, choose **Set up your agreement**.",
       "**Upload your contract**. StudioCue reads it and turns names, dates and prices into fields, or you can write it in the editor.",
       "Insert details with the field buttons, like **Client names**, **Total price** or **Payment schedule (table)**. Use **+ Your own field** for anything else.",
       "Check the **Preview with sample details**, then **Save your agreement**.",
-      "Choose what happens **When a proposal is accepted**: StudioCue prepares the contract for you to send, or signs and sends it for you.",
+      // Unbolded: the editor names the setting after the trade's offer
+      // ("When a quote is accepted"), so no one spelling is in its source.
+      (t) =>
+        `Choose what happens When a ${offer(t)} is accepted: StudioCue prepares the contract for you to send, or signs and sends it for you.`,
     ],
-    next: "Each accepted proposal writes a contract from the latest version. Contracts already sent keep the version they were sent with.",
+    next: (t) =>
+      `Each accepted ${offer(t)} writes a contract from the latest version. Contracts already sent keep the version they were sent with.`,
     goodToKnow: [
       "A contract with one of your own fields still blank never sends by itself.",
       "Seeing **Not switched on yet**? Writing contracts in StudioCue is turned on per studio; ask StudioCue support.",
       "Prefer your own paperwork? Record the signature on the job's **Booking** tab instead.",
     ],
-    terms: ["agreement", "proposal"],
+    terms: ["agreement", "proposal", "beauty-quote"],
   },
   {
     id: "inquiry-capture",
@@ -347,25 +414,45 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
   {
     id: "consultation",
-    title: "Book a consultation",
-    summary: "Set when clients can book a call, and see every call and event on one calendar.",
+    // A makeup artist or hair stylist has no sales call: the same hours book
+    // their trials, and the final details call (components/studio/trade-words.ts).
+    title: ({ words, has }) =>
+      has.consultation ? `Book a ${words.consultation.toLowerCase()}` : `Book a ${(words.trial ?? "trial").toLowerCase()}`,
+    summary: ({ has }) =>
+      has.consultation
+        ? "Set when clients can book a call, and see every call and event on one calendar."
+        : "Set when clients can book a trial or a call, and see every booking and event on one calendar.",
     audience: "studio",
     stage: "inquiry-to-booking",
     routes: ["/studio/calendar", "/studio/settings/consultation-availability"],
-    purpose: "Set when clients can book a call with you, and see every consultation and event on one calendar.",
+    purpose: ({ words, has }) =>
+      has.consultation
+        ? `Set when clients can book a call with you, and see every ${words.consultation.toLowerCase()} and event on one calendar.`
+        : "Set when clients can book a trial or a call with you, and see every trial, call and event on one calendar.",
     steps: [
       "Open **Calendar** and tap **Manage availability**.",
       "Choose **Closed by default** (only the hours you add) or **Open by default** (everything but the times you mark unavailable), then set your hours.",
-      "Under **How you meet**, pick **Video call**, **In person** or **Phone call**, and set the **Consultation length (minutes)**.",
-      "Tap **Save availability**. Your first reply to each inquiry now carries a link where the client picks a time.",
+      (t) =>
+        photographer(t)
+          ? "Under **How you meet**, pick **Video call**, **In person** or **Phone call**, and set the **Consultation length (minutes)**."
+          : t.has.consultation
+            ? "Under **How you meet**, pick **Video call**, **In person** or **Phone call**, and set how long each call lasts."
+            : "Under **How you meet**, pick how calls happen, and set how long each one lasts. A trial is always in person.",
+      ({ has }) =>
+        has.consultation
+          ? "Tap **Save availability**. Your first reply to each inquiry now carries a link where the client picks a time."
+          : "Tap **Save availability**. Then invite a client from the trial card on their job, and they pick a time from your hours.",
       "To book one yourself, tap an open slot, **Book**, then **Confirm booking**.",
     ],
-    next: "Booked calls show on the calendar and on the job. **Move to…** or **Cancel** updates the invitation and any Zoom meeting.",
+    next: ({ has }) =>
+      has.consultation
+        ? "Booked calls show on the calendar and on the job. **Move to…** or **Cancel** updates the invitation and any Zoom meeting."
+        : "Booked trials and calls show on the calendar and on the job. **Move to…** or **Cancel** updates the invitation and any Zoom meeting.",
     goodToKnow: [
       "**Connect Google Calendar** and your busy times are never offered.",
       "A video call sends a Zoom link with the confirmation.",
     ],
-    terms: ["consultation", "inquiry-link"],
+    terms: ["consultation", "vibe-call", "beauty-trial", "inquiry-link"],
   },
   {
     id: "booking-change",
@@ -386,7 +473,7 @@ export const EXPLAINERS: readonly Explainer[] = [
     ],
     next: "The client signs in their portal. Until then their current agreement stands; when they sign, the job takes the change and what they've paid carries over.",
     goodToKnow: [
-      "Before the agreement goes out, change packages on the proposal instead, under **What they're booking**.",
+      (t) => `Before the agreement goes out, change packages on the ${offer(t)} instead, under **What they're booking**.`,
       "If money is owed and the event is close, a new final bill is raised.",
     ],
     terms: ["booking-change", "agreement"],
@@ -408,7 +495,9 @@ export const EXPLAINERS: readonly Explainer[] = [
       "See what's owed on **Invoices**. **Final invoice review** shows how each bill was worked out.",
       "Turn on autopay under **Integrations**, on the **Autopay** tab: clients save a card and the balance pays itself on its due date.",
     ],
-    next: "The client gets the invoice by email and pays online. It's due 14 days before the event.",
+    // A makeup artist or hair stylist is paid on the day (trades.ts).
+    next: ({ has }) =>
+      `The client gets the invoice by email and pays online. ${has.balanceDueDaysBefore > 0 ? `It's due ${has.balanceDueDaysBefore} days before the event.` : "It's due the morning of the event."}`,
     goodToKnow: [
       "Autopay needs QuickBooks Payments.",
       "A declined autopay card gets the invoice link and one retry three days later.",
@@ -434,13 +523,16 @@ export const EXPLAINERS: readonly Explainer[] = [
     next: "The client fills it in from their portal, with reminders before it's due (7, 3 and 1 days unless you change them on the form). The due date is worked out from the event date.",
     goodToKnow: [
       "Editing a template saves a new version; forms already sent keep their questions.",
-      "Questions marked **Crew see it** show up in your photographers' brief.",
+      (t) =>
+        photographer(t)
+          ? "Questions marked **Crew see it** show up in your photographers' brief."
+          : `Questions marked **Crew see it** show up in your ${t.words.crew}' brief.`,
       "Each question can show only after an earlier answer, or suggest a time from an earlier time — open **When it shows** under it. Moving a question above the one it depends on clears that rule, and the editor says so.",
     ],
   },
   {
     id: "run-of-show",
-    title: "Build the run of show and share it",
+    title: ({ has }) => (has.chairSchedule ? "Build the getting-ready schedule and share it" : "Build the run of show and share it"),
     summary: "Draft the day's timeline, publish it to your crew and client, and share it with vendors.",
     audience: "studio",
     stage: "planning",
@@ -450,21 +542,31 @@ export const EXPLAINERS: readonly Explainer[] = [
       "The run of show is the day's timeline. You draft it, the client approves it, and crew and vendors work from it.",
     steps: [
       "From the job's **Plan** tab choose **Open the run of show**, or tap **Generate schedule** on Schedules.",
-      "Fill in what you know — **Coverage starts**, **Ceremony time**, the locations — and tap **Generate draft**. Anything left blank is guessed and labeled.",
+      // A DJ lays out the night, a makeup artist or hair stylist the morning
+      // (ai-schedule-generator.tsx).
+      ({ has }) =>
+        has.musicPlanner
+          ? "Tap **Lay out the night** to build the running order from their Music & moments planner, with their songs and names on each line. Or fill in what you know and tap **Generate draft**."
+          : has.chairSchedule
+            ? "Tap **Lay out the morning** to build everyone's chair from their party list, worked back from when they need to be ready. Or fill in what you know and tap **Generate draft**."
+            : "Fill in what you know — **Coverage starts**, **Ceremony time**, the locations — and tap **Generate draft**. Anything left blank is guessed and labeled.",
       "Adjust the items under **The day**. Check **What we assumed**, and ask the client about anything in **What we still need**.",
       "Tap **Publish reviewed schedule**.",
       "For vendors, open **Share run of show**, tap **Create share link** and send it to them.",
     ],
     next: "Accepted crew get it on their day sheet and are asked to confirm it; the client is asked to approve the parts meant for them. Each publish is a new version.",
     goodToKnow: [
-      "Your **Timing rules** — how long portraits take, the buffers — shape every draft once you approve them.",
+      (t) =>
+        photographer(t)
+          ? "Your **Timing rules** — how long portraits take, the buffers — shape every draft once you approve them."
+          : "Your **Timing rules** — how long each part takes, the buffers — shape every draft once you approve them.",
       "Vendors see only their own parts and shared items, never your notes.",
     ],
-    terms: ["run-of-show"],
+    terms: ["run-of-show", "mc-script", "getting-ready-schedule"],
   },
   {
     id: "crew-offer",
-    title: "Book your second shooter",
+    title: (t) => (photographer(t) ? "Book your second shooter" : `Book another ${t.words.member}`),
     summary: "StudioCue ranks who to ask and offers the job one person at a time until someone accepts.",
     audience: "studio",
     stage: "planning",
@@ -472,7 +574,8 @@ export const EXPLAINERS: readonly Explainer[] = [
     alsoOn: ["/studio/planning", "/studio/projects/*"],
     video: "crew-offer",
     purpose:
-      "Book second shooters and assistants for a job. StudioCue ranks who to ask and offers the job to one person at a time until someone accepts.",
+      (t) =>
+        `Book ${photographer(t) ? "second shooters" : t.words.crew} and assistants for a job. StudioCue ranks who to ask and offers the job to one person at a time until someone accepts.`,
     steps: [
       "Open the job's **Plan** tab and choose **Crew for this job**, or tap **Staff this job** on the job page.",
       "If offers were **Prepared when this job was booked**, check them and tap **Send these offers**.",
@@ -535,6 +638,9 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
   {
     id: "delivery",
+    // Only a trade that delivers something after the day (trades.ts): no
+    // other trade has the Delivery tab this describes.
+    offered: ({ has }) => has.delivery,
     title: "Deliver the gallery and close out",
     summary: "Send the finished photos or film, then close the job once everything reconciles.",
     audience: "studio",
@@ -558,6 +664,10 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
   {
     id: "reviews",
+    // The asks are scheduled by releasing the final delivery. A trade with
+    // nothing to deliver asks from the job instead ("Draft the review
+    // request", features/journey/steps.ts), so this guide isn't theirs.
+    offered: ({ has }) => has.delivery,
     title: "Ask for a review",
     summary: "Two asks after delivery, which stop as soon as the client has left one.",
     audience: "studio",
@@ -684,42 +794,57 @@ export const EXPLAINERS: readonly Explainer[] = [
   {
     id: "couple-tour",
     title: "Your portal",
-    summary: "Where everything between booking and your photos happens.",
+    summary: ({ has }) =>
+      has.delivery ? "Where everything between booking and your photos happens." : "Where everything between booking and your day happens.",
     audience: "couple",
     stage: "getting-started",
     routes: ["/client", "/client/plan", "/client/project"],
     video: "couple-tour",
     purpose:
-      "This is your portal. Everything between booking and your photos happens here, and your photographer sees what you do right away.",
+      ({ words, has }) =>
+        `This is your portal. Everything between booking and ${has.delivery ? "your photos" : "your day"} happens here, and your ${words.provider} sees what you do right away.`,
     steps: [
       "**Home** shows the countdown to your day and **Your next step** — the one thing to do now. Tap its button to do it.",
-      "**Your journey** lists every step from booking to your photos, checking off as each is done.",
-      "**Plan** keeps everything in one list: your proposal, your agreement, **Payments**, your questionnaire and your timeline.",
-      "**Messages** is a chat with your photographer, and **Files** holds anything they've shared with you.",
+      ({ has }) =>
+        `**Your journey** lists every step from booking to ${has.delivery ? "your photos" : "the day and after"}, checking off as each is done.`,
+      ({ words }) =>
+        `**Plan** keeps everything in one list: your ${words.proposal.toLowerCase()}, your agreement, **Payments**, your ${words.detailsForm ?? "questionnaire"} and your timeline.`,
+      ({ words }) => `**Messages** is a chat with your ${words.provider}, and **Files** holds anything they've shared with you.`,
     ],
-    next: "When your photographer needs something from you, you'll get an email with a link straight back here.",
+    next: ({ words }) => `When your ${words.provider} needs something from you, you'll get an email with a link straight back here.`,
     goodToKnow: ["**Your studio is on it** means there's nothing for you to do right now."],
     terms: ["couple-journey", "couple-retainer", "couple-final-balance"],
   },
   {
     id: "couple-proposal",
     title: "Choose your package and accept",
-    summary: "Read your photographer's offer, pick your coverage, and accept it — or ask for changes.",
+    summary: ({ words }) =>
+      `Read your ${words.provider}'s offer, pick your ${words.coverage.toLowerCase()}, and accept it — or ask for changes.`,
     audience: "couple",
     stage: "inquiry-to-booking",
     routes: ["/client/proposal", "/client/package"],
     purpose:
-      "Your proposal is your photographer's offer: your package, any extras, the total and when each payment is due. Nothing is charged when you accept.",
+      ({ words }) =>
+        `Your ${words.proposal.toLowerCase()} is your ${words.provider}'s offer: your package, any extras, the total and when each payment is due. Nothing is charged when you accept.`,
     steps: [
-      "If you're asked to **Choose your coverage**, tap a package, check any **Add-ons** you want, then **Confirm**. Your price is fixed from then on.",
-      "Open **Your proposal** and read **What's included** and the **Payment plan**.",
-      "Happy with it? Tap **Accept proposal**, then **Confirm acceptance**.",
+      (t) =>
+        photographer(t)
+          ? "If you're asked to **Choose your coverage**, tap a package, check any **Add-ons** you want, then **Confirm**. Your price is fixed from then on."
+          : "If you're asked to choose your package, tap one, check any **Add-ons** you want, then **Confirm**. Your price is fixed from then on.",
+      (t) =>
+        offerIsProposal(t)
+          ? "Open **Your proposal** and read **What's included** and the **Payment plan**."
+          : `Open your ${offer(t)} and read **What's included** and the **Payment plan**.`,
+      (t) =>
+        offerIsProposal(t)
+          ? "Happy with it? Tap **Accept proposal**, then **Confirm acceptance**."
+          : "Happy with it? Accept it, then tap **Confirm acceptance**.",
       "Something to change? Tap **Request changes**, say what you'd like, then **Send change request**.",
     ],
     next: "Your agreement comes next — by email, and under **Your agreement** here. Paying the retainer after you sign is the last step to reserve your date.",
     goodToKnow: [
       "Accepting doesn't sign anything or take a payment; those are separate, secure steps.",
-      "Want something extra later? **Add to your booking** asks your studio, and they send you an updated proposal.",
+      (t) => `Want something extra later? **Add to your booking** asks your studio, and they send you an updated ${offer(t)}.`,
       "If your studio sent one booking agreement instead, you accept by signing it: tap **Review & sign the agreement**.",
     ],
     terms: ["couple-retainer", "couple-final-balance"],
@@ -733,12 +858,14 @@ export const EXPLAINERS: readonly Explainer[] = [
     routes: ["/client/contract"],
     video: "couple-sign",
     purpose:
-      "Your agreement is your contract with your photographer. You read it and sign it right here; your typed name is your signature.",
+      ({ words }) =>
+        `Your agreement is your contract with your ${words.provider}. You read it and sign it right here; your typed name is your signature.`,
     steps: [
       "Open **Your agreement** from the email, or from **Plan**.",
       "Read it through. Anything to change? Tap **Something to change? Ask before you sign**.",
       "Tap **Review & sign**, check the box to sign electronically, and type your full name.",
-      "Tap **Sign agreement**. If it comes in two parts — the terms, then your coverage and price — you type your name for each and tap **Sign both parts**.",
+      ({ words }) =>
+        `Tap **Sign agreement**. If it comes in two parts — the terms, then your ${words.coverage.toLowerCase()} and price — you type your name for each and tap **Sign both parts**.`,
     ],
     next: "A signed copy is emailed to you, and **Download signed copy** keeps it here. The retainer invoice comes next; paying it reserves your date.",
     goodToKnow: [
@@ -770,38 +897,49 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
   {
     id: "couple-questionnaire",
-    title: "Fill out your questionnaire",
-    summary: "Tell your photographer what they need to plan your day. Answers save as you go.",
+    title: ({ words }) => `Fill out your ${words.detailsForm ?? "questionnaire"}`,
+    summary: ({ words }) => `Tell your ${words.provider} what they need to plan your day. Answers save as you go.`,
     audience: "couple",
     stage: "planning",
     routes: ["/client/questionnaire"],
     purpose:
-      "Your photographer uses your questionnaire to plan the day: the names, the timings and the moments that matter to you.",
+      ({ words }) =>
+        `Your ${words.provider} uses your ${words.detailsForm ?? "questionnaire"} to plan the day: the names, the timings and the moments that matter to you.`,
     steps: [
-      "Open **Your questionnaire** from the email, or from **Plan**.",
+      ({ words }) =>
+        words.detailsForm
+          ? `Open your ${words.detailsForm} from the email, or from **Plan**.`
+          : "Open **Your questionnaire** from the email, or from **Plan**.",
       "Answer section by section and tap **Next section**. Answers save as you type.",
       "Need a break? **Finish later: your answers are kept.**",
       "On the last step, **Review answers**, then **Send answers**. Required questions need an answer first.",
     ],
-    next: "Your photographer has your answers right away. To change one after sending, just message them.",
-    goodToKnow: ["Some answers may already be filled in from what you told your photographer. You can change them."],
+    next: ({ words }) => `Your ${words.provider} has your answers right away. To change one after sending, just message them.`,
+    goodToKnow: [
+      ({ words }) => `Some answers may already be filled in from what you told your ${words.provider}. You can change them.`,
+    ],
   },
   {
     id: "couple-day",
     title: "Your timeline, files and messages",
-    summary: "Check your timeline for the day, message your photographer, and find every file.",
+    summary: ({ words }) => `Check your timeline for the day, message your ${words.provider}, and find every file.`,
     audience: "couple",
     stage: "planning",
     routes: ["/client/schedule", "/client/messages", "/client/documents"],
     purpose:
-      "As your date gets close, your timeline, your files and your messages with your photographer all live here.",
+      ({ words }) =>
+        `As your date gets close, your timeline, your files and your messages with your ${words.provider} all live here.`,
     steps: [
       "Open **Your timeline** from **Plan**. When it says **Ready for you to check**, look through the times.",
       "All good? Tap **Approve timeline**. Something off? Tap **Ask about this** on that time, or **Ask for changes**.",
-      "**Messages** is a chat with your photographer; their replies come here and to your email. You can attach photos and files.",
+      (t) =>
+        `**Messages** is a chat with your ${t.words.provider}; their replies come here and to your email. You can attach ${photographer(t) ? "photos" : "pictures"} and files.`,
       "**Files** keeps everything shared with you, plus your signed agreement and your invoices.",
     ],
-    next: "Your photographer and crew plan the day from the version you approve. If it changes, you'll get a new version to check.",
+    next: (t) =>
+      photographer(t)
+        ? "Your photographer and crew plan the day from the version you approve. If it changes, you'll get a new version to check."
+        : `Your ${t.words.provider} and their team plan the day from the version you approve. If it changes, you'll get a new version to check.`,
     goodToKnow: [
       "Times are shown in the event's time zone.",
       "A week before the day you'll get an email with a link straight to your timeline.",
@@ -810,6 +948,8 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
   {
     id: "couple-photos",
+    // Only a client of a trade that delivers something after the day.
+    offered: ({ has }) => has.delivery,
     title: "Get your photos",
     summary: "Open your gallery, save everything, approve your album and share a review.",
     audience: "couple",
@@ -891,7 +1031,10 @@ export const EXPLAINERS: readonly Explainer[] = [
     goodToKnow: [
       "Two days before, you'll get an email with your call time, where to be and a link to the day sheet.",
       "The day sheet is saved on your phone, so it opens with no signal.",
-      "Only your own paperwork is here. You never see the client's contract, invoices or photos.",
+      ({ has }) =>
+        has.delivery
+          ? "Only your own paperwork is here. You never see the client's contract, invoices or photos."
+          : "Only your own paperwork is here. You never see the client's contract or invoices.",
     ],
     terms: ["call-time", "crew-checklist", "day-sheet"],
   },
@@ -924,7 +1067,10 @@ export const EXPLAINERS: readonly Explainer[] = [
     steps: [
       "Open **Calendar** and tap a day. Choose **I'm free**, **Maybe** or **I'm away**, then **Save**.",
       "To mark a run of days, fill in **Through (optional)**.",
-      "In **Me**, fill in **Your work** — what you shoot, where, and your gear — and your **Contact** details.",
+      (t) =>
+        photographer(t)
+          ? "In **Me**, fill in **Your work** — what you shoot, where, and your gear — and your **Contact** details."
+          : "In **Me**, fill in **Your work** — what you do, where, and what you bring — and your **Contact** details.",
       "Under **Your papers**, send your **W-9** and **Certificate of insurance**.",
       "Tap **Save changes**.",
     ],
@@ -932,8 +1078,52 @@ export const EXPLAINERS: readonly Explainer[] = [
   },
 ];
 
-const byId = new Map(EXPLAINERS.map((guide) => [guide.id, guide]));
+const text = (value: TradeText, t: HelpTrade): string => (typeof value === "function" ? value(t) : value);
+const lines = (list: readonly TradeLine[], t: HelpTrade): string[] =>
+  list.map((line) => (typeof line === "function" ? line(t) : line)).filter((line): line is string => line !== null);
 
-export function explainer(id: string): Explainer | undefined {
-  return byId.get(id);
+/** A guide in a trade's words, with only the words and the video that read right for it. */
+function inTrade(source: ExplainerSource, t: HelpTrade): Explainer {
+  const guide: Explainer = {
+    id: source.id,
+    title: text(source.title, t),
+    summary: text(source.summary, t),
+    audience: source.audience,
+    stage: source.stage,
+    routes: source.routes,
+    purpose: text(source.purpose, t),
+    steps: lines(source.steps, t),
+  };
+  if (source.alsoOn) guide.alsoOn = source.alsoOn;
+  if (source.next !== undefined) guide.next = text(source.next, t);
+  if (source.goodToKnow) guide.goodToKnow = lines(source.goodToKnow, t);
+  // A word the trade doesn't have is left out. An id the glossary doesn't
+  // know stays, so tests/help-content.test.ts still catches a typo.
+  if (source.terms) guide.terms = source.terms.filter((id) => !glossaryTerm(id) || glossaryTerm(id, t.trade));
+  if (source.video && videoSuitsTrade(source.video, t.trade)) guide.video = source.video;
+  return guide;
+}
+
+/**
+ * Every guide, in a photographer's words: the website's /how-to pages, the
+ * sitemap and the video pipeline, none of which has a studio behind it.
+ */
+export const EXPLAINERS: readonly Explainer[] = GUIDES.map((source) => inTrade(source, helpTrade()));
+
+const byTrade = new Map<string, readonly Explainer[]>();
+
+/** The guides a studio of this trade gets, in its words. A missing trade is a photographer's. */
+export function explainersFor(trade?: unknown): readonly Explainer[] {
+  const t = helpTrade(trade);
+  let guides = byTrade.get(t.trade);
+  if (!guides) {
+    guides = GUIDES.filter((source) => !source.offered || source.offered(t)).map((source) => inTrade(source, t));
+    byTrade.set(t.trade, guides);
+  }
+  return guides;
+}
+
+/** A guide by id, in the trade's words; undefined when there's none, or the trade doesn't get it. */
+export function explainer(id: string, trade?: unknown): Explainer | undefined {
+  return explainersFor(trade).find((guide) => guide.id === id);
 }

@@ -1,6 +1,7 @@
 import { formatContractDate, formatMoney, undatedPaymentDue, type ContractBlock, type ContractDocument } from "./document";
 import { balanceWithSalesTax, readPricedSalesTax, salesTaxEstimateText, SALES_TAX_ESTIMATE_LABEL, totalWithSalesTax } from "../billing/sales-tax-pricing";
 import type { PricedSalesTax } from "../pricing/package-price";
+import { tradeVocab } from "../trades/trades";
 
 /**
  * One send, two signatures (H2, docs/proposal-agreement-and-addons-plan-2026-09-28.md
@@ -59,16 +60,26 @@ export const COMBINED_SECTION_TITLES: Record<CombinedSectionKey, string> = {
   coverage: "Part 2 — Your coverage",
 };
 
+/**
+ * The two parts' titles for a studio of this trade: a photographer's client
+ * books "coverage", a DJ's, makeup artist's or hair stylist's their "service"
+ * (trades.ts `coverage`). Only a newly built agreement reads it; one already
+ * sent keeps the titles stored in its sections, which its hashes are over.
+ */
+export function combinedSectionTitles(trade?: unknown): Record<CombinedSectionKey, string> {
+  return { ...COMBINED_SECTION_TITLES, coverage: `Part 2 — Your ${tradeVocab(trade).coverage.toLowerCase()}` };
+}
+
 const text = (value: string) => [{ text: value }];
 
-function coverageBlocks(coverage: CoverageInput): ContractBlock[] {
+function coverageBlocks(coverage: CoverageInput, title: string): ContractBlock[] {
   const money = (cents: number) => formatMoney(cents, coverage.currency);
   const packages = coverage.lineItems.filter((line) => line.kind !== "add_on");
   const extras = coverage.lineItems.filter((line) => line.kind === "add_on");
   const lineText = (line: CoverageInput["lineItems"][number]) =>
     `${line.description}${line.quantity > 1 ? ` × ${line.quantity}` : ""} — ${money(line.totalCents)}`;
   const blocks: ContractBlock[] = [
-    { type: "heading", level: 1, content: text(COMBINED_SECTION_TITLES.coverage) },
+    { type: "heading", level: 1, content: text(title) },
     {
       type: "paragraph",
       content: text("What you are booking, and what it costs. This part is signed on its own, after the terms."),
@@ -124,23 +135,29 @@ function coverageBlocks(coverage: CoverageInput): ContractBlock[] {
   return blocks;
 }
 
-/** The terms and the coverage as one document, and where each part lies. */
+/**
+ * The terms and the coverage as one document, and where each part lies.
+ * `trade` is the studio's (trades.ts): it names Part 2; a photographer's, or
+ * none, reads exactly as before.
+ */
 export function buildCombinedAgreement(
   terms: ContractDocument,
   coverage: CoverageInput,
+  trade?: unknown,
 ): { document: ContractDocument; sections: CombinedSection[] } {
+  const titles = combinedSectionTitles(trade);
   const termsBlocks: ContractBlock[] = [
-    { type: "heading", level: 1, content: text(COMBINED_SECTION_TITLES.terms) },
+    { type: "heading", level: 1, content: text(titles.terms) },
     ...terms.blocks,
   ];
-  const coverageBlocksList = coverageBlocks(coverage);
+  const coverageBlocksList = coverageBlocks(coverage, titles.coverage);
   return {
     document: { format: terms.format, title: terms.title, blocks: [...termsBlocks, ...coverageBlocksList] },
     sections: [
-      { key: "terms", title: COMBINED_SECTION_TITLES.terms, start: 0, end: termsBlocks.length },
+      { key: "terms", title: titles.terms, start: 0, end: termsBlocks.length },
       {
         key: "coverage",
-        title: COMBINED_SECTION_TITLES.coverage,
+        title: titles.coverage,
         start: termsBlocks.length,
         end: termsBlocks.length + coverageBlocksList.length,
       },

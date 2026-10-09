@@ -5,7 +5,7 @@ import { LoaderCircle, MailCheck, RotateCcw, Save, Send } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
-import { EDITABLE_EMAILS, EMAIL_GROUPS } from "@/features/communications/email-catalog";
+import { EMAIL_GROUPS, editableEmailsFor, emailGroupLabel } from "@/features/communications/email-catalog";
 
 /**
  * Settings → Email templates: change the words of the emails StudioCue sends.
@@ -93,9 +93,11 @@ function dateLabel(value: string | null) {
 
 export function EmailTemplateDesigner() {
   const workspace = useWorkspace();
+  // This studio's emails, in its trade's words: no delivery emails for a DJ.
+  const emails = useMemo(() => editableEmailsFor(workspace.tenantTrade), [workspace.tenantTrade]);
   const mayEdit = ["studio_owner", "studio_admin"].includes(workspace.role ?? "");
-  const [key, setKey] = useState(EDITABLE_EMAILS[0]!.key);
-  const email = EDITABLE_EMAILS.find((entry) => entry.key === key)!;
+  const [key, setKey] = useState(emails[0]!.key);
+  const email = emails.find((entry) => entry.key === key) ?? emails[0]!;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<Fields>(EMPTY);
@@ -242,8 +244,8 @@ export function EmailTemplateDesigner() {
 
   const defaults = preview?.defaults;
   const grouped = useMemo(
-    () => EMAIL_GROUPS.map((group) => ({ group, emails: EDITABLE_EMAILS.filter((entry) => entry.group === group) })),
-    [],
+    () => EMAIL_GROUPS.map((group) => ({ group, emails: emails.filter((entry) => entry.group === group) })),
+    [emails],
   );
 
   if (!mayEdit)
@@ -265,7 +267,7 @@ export function EmailTemplateDesigner() {
         <span>Email</span>
         <select onChange={(event) => setKey(event.target.value)} value={key}>
           {grouped.map(({ group, emails }) => (
-            <optgroup key={group} label={group}>
+            <optgroup key={group} label={emailGroupLabel(group, workspace.tenantTrade)}>
               {emails.map((entry) => (
                 <option key={entry.key} value={entry.key}>
                   {entry.label}

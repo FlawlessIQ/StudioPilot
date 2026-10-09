@@ -7,11 +7,14 @@ import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { criticalCrewQuestions } from "@/features/questionnaires/crew-brief";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { allowsTbd, isTimeQuestion, TBD_TYPES, type SuggestedFrom } from "@/features/questionnaires/field-extras";
 import { repairTemplateLinks, type TemplateLinkProblem } from "@/features/questionnaires/template-rules";
 import {
   moveField,
   moveFieldToSection,
+  crewQuestionsFor,
   moveSection,
   newSectionId,
   questionDestinations,
@@ -143,6 +146,11 @@ export function QuestionnaireTemplateEditor({
   mode?: "edit" | "create";
 }) {
   const creating = mode === "create";
+  // The questions crew read first, and who the crew are, in the studio's
+  // trade's words (template-editing.ts crewQuestionsFor).
+  const trade = useWorkspace().tenantTrade;
+  const crewQuestions = crewQuestionsFor(trade);
+  const crewNoun = tradeProfile(trade).family === "photo" ? "photographers" : tradeVocab(trade).crew;
   const start = template ?? blankTemplate();
   const [name, setName] = useState(start.name);
   const [eventTypeId, setEventTypeId] = useState("wedding");
@@ -458,7 +466,7 @@ export function QuestionnaireTemplateEditor({
                     />
                     Required
                   </label>
-                  <label className="questionnaire-editor-required" title="The photographers on this job see the answer in their brief">
+                  <label className="questionnaire-editor-required" title={`The ${crewNoun} on this job see the answer in their brief`}>
                     <input
                       checked={field.crewVisible}
                       onChange={(event) => patchField(field.id, { crewVisible: event.target.checked })}
@@ -683,14 +691,14 @@ export function QuestionnaireTemplateEditor({
               <span className="sr-only">Add a question your crew read first</span>
               <select
                 onChange={(event) => {
-                  const known = criticalCrewQuestions.find((question) => question.id === event.target.value);
+                  const known = crewQuestions.find((question) => question.id === event.target.value);
                   if (known) addField(section.id, known);
                   event.target.value = "";
                 }}
                 value=""
               >
                 <option value="">Or add one your crew read first…</option>
-                {criticalCrewQuestions
+                {crewQuestions
                   .filter((question) => !sections.some((existing) => existing.fields.some((field) => field.id === question.id)))
                   .map((question) => (
                     <option key={question.id} value={question.id}>

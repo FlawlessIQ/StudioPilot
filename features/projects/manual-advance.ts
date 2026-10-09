@@ -23,6 +23,7 @@
 
 import { evidenceControlledProjectTransitions } from "@/features/projects/state-machine";
 import type { ProjectState } from "@/features/projects/schema";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 export type ManualAdvance = {
   /** What the studio records, in their words. */
@@ -95,10 +96,13 @@ export function manualAdvanceFor(
   from: ProjectState,
   to: ProjectState,
   projectId: string,
+  trade?: unknown,
 ): ManualAdvance | null {
   const entry = ROUTES[`${from}:${to}`];
   if (!entry) return null;
-  return { ...entry, href: entry.href.replaceAll(":projectId", projectId) };
+  // A makeup artist or hair stylist records the yes on a quote (trades.ts).
+  const detail = entry.detail.replace(/\bthe proposal\b/, `the ${tradeVocab(trade).proposal.toLowerCase()}`);
+  return { ...entry, detail, href: entry.href.replaceAll(":projectId", projectId) };
 }
 
 /**
@@ -125,7 +129,14 @@ const STAGE_EXAMPLES: Partial<Record<ProjectState, string>> = {
   CLOSED: "closing the job out",
 };
 
-export function manualAdvanceExample(to: ProjectState): string {
+export function manualAdvanceExample(to: ProjectState, trade?: unknown): string {
+  // The trade's own words for the call and the offer: a DJ's vibe call, a
+  // makeup artist's quote. A makeup artist or hair stylist has no sales call
+  // (trades.ts `consultation`), so the stage is just the first conversation.
+  const words = tradeVocab(trade);
+  if (to === "CONSULTATION")
+    return tradeProfile(trade).consultation ? `the ${words.consultation.toLowerCase()}` : "your first conversation";
+  if (to === "PROPOSAL") return `sending the ${words.proposal.toLowerCase()}`;
   return STAGE_EXAMPLES[to] ?? "this step";
 }
 

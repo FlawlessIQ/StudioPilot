@@ -1,6 +1,6 @@
 "use client";
 
-import { EXPLAINERS } from "@/features/help/explainers";
+import { explainer, explainersFor } from "@/features/help/explainers";
 import { glossaryFor } from "@/features/help/glossary";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeOf } from "@/features/trades/trades";
@@ -12,9 +12,12 @@ import { openHowTo } from "@/components/help/how-to-events";
  * Every guide for an audience, grouped by stage. Each card is a real link to
  * its /how-to page; where a How-to popup is mounted (inside the product) the
  * click opens the guide in place instead, so a studio never leaves its work.
+ *
+ * Only the guides the studio's trade gets, in its words: a hair stylist is
+ * never shown how to deliver a gallery (explainers.ts `offered`).
  */
 export function GuideLibrary({ audience }: { audience: HelpAudience }) {
-  const guides = EXPLAINERS.filter((guide) => guide.audience === audience);
+  const guides = explainersFor(useWorkspace().tenantTrade).filter((guide) => guide.audience === audience);
   return (
     <div className="help-guides">
       {HELP_STAGES.map((stage) => {
@@ -48,16 +51,18 @@ export function GuideLibrary({ audience }: { audience: HelpAudience }) {
 
 /** The audience's words, A–Z, each linkable as #term-<id>. */
 export function GlossaryList({ audience }: { audience: HelpAudience }) {
-  // A DJ studio also gets a DJ's words (glossary.ts `trades`).
-  const workspace = useWorkspace();
+  // A DJ studio also gets a DJ's words (glossary.ts `trades`), every word
+  // reads in its trade's terms, and "Learn more" only opens a guide the
+  // trade gets.
+  const trade = tradeOf(useWorkspace().tenantTrade);
   return (
     <dl className="help-glossary">
-      {glossaryFor(audience, tradeOf(workspace.tenantTrade)).map((term) => (
+      {glossaryFor(audience, trade).map((term) => (
         <div id={`term-${term.id}`} key={term.id}>
           <dt>{term.term}</dt>
           <dd>
             {term.hint}{" "}
-            {term.explainer ? (
+            {term.explainer && explainer(term.explainer, trade) ? (
               <a
                 href={`/how-to/${term.explainer}`}
                 onClick={(event) => {

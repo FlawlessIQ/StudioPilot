@@ -16,6 +16,7 @@ import {
   type CommandContext,
 } from "./commands.js";
 import { buildCombinedAgreement, sectionDocument, type CombinedSection } from "./combined.js";
+import { tenantTrade } from "../trades/tenant-trade.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { contractDocumentSchema, type ContractDocument } from "./document.js";
 import { contractDocumentHash, sha256Text } from "./document-hash.js";
@@ -79,14 +80,20 @@ async function resolveCombined(
   )
     throw new Error("PROPOSAL_NOT_FOUND");
   if (!SENDABLE_PROPOSAL_STATUSES.has(String(proposal.get("status")))) throw new Error("PROPOSAL_NOT_SENDABLE");
-  const draft = await resolveDraft(db, {
-    tenantId: context.tenantId,
-    projectId: input.projectId,
-    proposalId: input.proposalId,
-    templateVersionId: null,
-    overrides: input.overrides,
-    today: context.timestamp.slice(0, 10),
-  });
+  // The studio's trade names Part 2: a photographer's "coverage", a
+  // vendor's "service" (combined.ts). Read on preview and on send alike, so
+  // the document the studio signed is the one that goes.
+  const [draft, trade] = await Promise.all([
+    resolveDraft(db, {
+      tenantId: context.tenantId,
+      projectId: input.projectId,
+      proposalId: input.proposalId,
+      templateVersionId: null,
+      overrides: input.overrides,
+      today: context.timestamp.slice(0, 10),
+    }),
+    tenantTrade(db, context.tenantId),
+  ]);
   const pricing = (proposal.get("pricingSnapshot") ?? {}) as Record<string, unknown>;
   const schedule = Array.isArray(proposal.get("paymentSchedule"))
     ? (proposal.get("paymentSchedule") as Array<Record<string, unknown>>)
@@ -110,7 +117,7 @@ async function resolveCombined(
       dueDate: typeof row.dueDate === "string" && row.dueDate ? row.dueDate : null,
     })),
     salesTax: readPricedSalesTax(pricing.salesTax),
-  });
+  }, trade);
   const document: ContractDocument = contractDocumentSchema.parse(combined.document);
   const sections: SectionWithHash[] = combined.sections.map((section) => ({
     ...section,

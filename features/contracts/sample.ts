@@ -222,6 +222,14 @@ This agreement was prepared on {{contract.date}}.
 export function starterAgreementFor(trade: unknown): { title: string; body: string } {
   if (trade === "makeup") return { title: "Makeup Services Agreement", body: BEAUTY_STARTER_AGREEMENT };
   if (trade === "hair") return { title: "Hair Services Agreement", body: BEAUTY_STARTER_AGREEMENT };
-  if (trade === "dj") return { title: "DJ Services Agreement", body: STARTER_AGREEMENT.replace("## 4. Image use and copyright\n[Replace with your own terms on copyright, usage and portfolio rights.]", "## 4. Equipment and the venue\n[Replace with your own terms on power, load-in, the venue's sound limits and your equipment.]") };
+  // A DJ's agreement is for services, not coverage, and has no image rights.
+  if (trade === "dj")
+    return {
+      title: "DJ Services Agreement",
+      body: STARTER_AGREEMENT.replace("{{event.type}} coverage on", "{{event.type}} services on").replace(
+        "## 4. Image use and copyright\n[Replace with your own terms on copyright, usage and portfolio rights.]",
+        "## 4. Equipment and the venue\n[Replace with your own terms on power, load-in, the venue's sound limits and your equipment.]",
+      ),
+    };
   return { title: "Photography Services Agreement", body: STARTER_AGREEMENT };
 }

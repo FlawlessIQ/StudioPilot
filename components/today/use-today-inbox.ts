@@ -1,6 +1,7 @@
 "use client";
 
 import { isSalesConsultation } from "@/features/consultations/purpose";
+import { TRADE_LABELS, tradeOf } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deliverables";
@@ -318,7 +319,8 @@ export function useTodayInbox(): {
       });
       return {
         projectId,
-        projectName: text(project.name) || "Photography project",
+        // An unnamed job, in the studio's trade's words: "DJ project".
+        projectName: text(project.name) || `${TRADE_LABELS[tradeOf(workspace.tenantTrade)]} project`,
         eventDate: text(project.eventDate) || null,
         state: text(project.state),
         stepKey: current?.key ?? null,

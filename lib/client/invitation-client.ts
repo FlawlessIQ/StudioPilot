@@ -7,6 +7,8 @@ export type ClientInvitationPreview = {
   status: "pending" | "accepted" | "expired" | "revoked";
   expiresAt: string;
   studioName: string;
+  /** The studio's trade (features/trades): the portal line names what it does. */
+  trade?: string | null;
   projectName: string;
   eventDate: string | null;
   brandAccentColor: string;

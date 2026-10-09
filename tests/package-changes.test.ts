@@ -70,7 +70,8 @@ test("Cue's package flow adds to a job that already has one, and revises its pro
   assert.match(packageFlow, /mode: adding \? "add" : "replace"/);
   assert.match(packageFlow, /runProposalCommand\("revise_packages"/);
   // It says what the tap will do to an accepted proposal before the tap.
-  assert.match(packageFlow, /They've accepted their proposal\. Adding a package makes a revised proposal/);
+  // (In the studio's word for it: a makeup or hair studio's quote.)
+  assert.match(packageFlow, /They've accepted their \$\{offer\}\. Adding a package makes a revised \$\{offer\}/);
   // And refuses, in words, once the agreement is out.
   assert.match(packageFlow, /The agreement has gone out/);
   assert.doesNotMatch(packageFlow, /already has a package selected/);

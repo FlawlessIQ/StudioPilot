@@ -3,6 +3,7 @@ import {
   adminAuth,
   adminFirestore,
 } from "@/server/firebase/admin";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,7 +78,10 @@ export async function POST(request: Request): Promise<Response> {
       studioName:
         String(tenants[index]?.get("brandName") ?? "") ||
         String(tenants[index]?.get("businessName") ?? "") ||
-        "A photography studio",
+        // A studio with no name yet, as its trade says it: "A DJ business".
+        (tradeProfile(tenants[index]?.get("trade")).family === "photo"
+          ? "A photography studio"
+          : `A ${tradeVocab(tenants[index]?.get("trade")).business}`),
     }));
     return Response.json({ invitations });
   } catch {

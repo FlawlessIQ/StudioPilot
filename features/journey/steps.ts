@@ -450,7 +450,8 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
       const payment = steps.find((candidate) => candidate.key === "retainer");
       if (payment) {
         if (payment.detail === "Computed from your retainer rule") payment.detail = "The whole price, paid to book";
-        if (payment.detail === "Starts once the agreement is signed") payment.detail = "Starts once they accept the proposal";
+        if (payment.detail === "Starts once the agreement is signed")
+          payment.detail = `Starts once they accept the ${tradeVocab(input.trade).proposal.toLowerCase()}`;
         if (payment.action?.kind === "link" && payment.action.label === "Create retainer invoice")
           payment.action = { ...payment.action, label: "Send the invoice" };
       }
@@ -665,12 +666,12 @@ export function projectJourney(input: JourneyInput): {
         ? `Accepted outside StudioCue — no ${tradeWords.proposal.toLowerCase()} on file here`
         : "Accepted"
       : agreementOut
-        ? `With ${who} to sign — signing both parts accepts the proposal`
+        ? `With ${who} to sign — signing both parts accepts the ${tradeWords.proposal.toLowerCase()}`
         : proposalWaiting
         ? "With the client to decide"
         : consulted
           ? "Packages and pricing, ready to send"
-          : "Starts once the consultation is done",
+          : `Starts once the ${tradeWords.consultation.toLowerCase()} is done`,
     status: proposalDone
       ? "complete"
       : proposalWaiting
@@ -823,7 +824,10 @@ export function projectJourney(input: JourneyInput): {
     title: tradeWords.detailsForm ?? `${words.detailsForm} form`,
     detail: formDone
       ? input.questionnaireSource === "inquiry_page"
-        ? `${Who} filled it in before the consultation`
+        ? tradeProfile(input.trade).consultation
+          ? `${Who} filled it in before the ${tradeWords.consultation.toLowerCase()}`
+          // A makeup artist or hair stylist has no call: the form came with the inquiry.
+          : `${Who} filled it in with their inquiry`
         : "Client completed it"
       : formEmptyButSubmitted
         ? "Marked submitted, but no answers came through"
@@ -1019,7 +1023,8 @@ export function projectJourney(input: JourneyInput): {
       ? input.crewAccepted > 0
         ? `All ${input.crewAccepted} offered ${input.crewAccepted === 1 ? "role" : "roles"} accepted`
         : shootingSolo
-          ? "Shooting this one solo"
+          // "Shooting", "Playing", "Working" (trades.ts `verb`).
+          ? `${tradeWords.verb.charAt(0).toUpperCase()}${tradeWords.verb.slice(1)}ing this one solo`
           : "Settled by you"
       : crewOutstanding
         ? `${input.crewAccepted} of ${input.crewRequired} accepted · ${crewOutstanding} still to answer`
@@ -1408,7 +1413,10 @@ export function projectJourney(input: JourneyInput): {
       ? `The live plan opens on ${input.eventDate}.`
       : "Set an event date to plan the day.",
     delivery: "Unlocks after the event is covered.",
-    album_review: "Unlocks after the gallery is delivered.",
+    // Nothing is delivered by a DJ, makeup artist or hair stylist: the review follows the day.
+    album_review: tradeProfile(input.trade).delivery
+      ? "Unlocks after the gallery is delivered."
+      : "Unlocks after the event.",
   };
   for (const step of steps) {
     step.record = step.record ?? recordHrefs[step.key];

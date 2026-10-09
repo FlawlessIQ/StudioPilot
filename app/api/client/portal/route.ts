@@ -5,7 +5,7 @@ import {
 } from "@/features/packages/coverage";
 import { pendingAmendmentFor, signAmendment } from "@/server/contracts/amendment-signing";
 import { jobKindOf, projectProfile } from "@/features/job-kinds/job-kinds";
-import { TRADE_LABELS, tradeOf, tradeProfile } from "@/features/trades/trades";
+import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab, type Trade } from "@/features/trades/trades";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { jobPackageSnapshotIds } from "@/features/packages/job-packages";
 import { isCataloguePackage } from "@/features/packages/one-off";
@@ -1016,6 +1016,15 @@ function fallbackProjectName(trade: unknown): string {
   return tradeProfile(trade).family === "photo" ? "Your photography project" : "Your project";
 }
 
+/**
+ * The studio's trade (features/trades), for what this route writes back to
+ * the studio: a makeup artist's job asks for a quote, never a photography
+ * agreement. A tenant without one is a photographer.
+ */
+async function studioTrade(tenantId: string): Promise<Trade> {
+  return tradeOf((await adminFirestore.doc(`tenants/${tenantId}`).get()).get("trade"));
+}
+
 async function clientProjects(tenantId: string, projectIds: string[]) {
   const [tenantSnapshot, ...snapshots] = await Promise.all([
     adminFirestore.doc(`tenants/${tenantId}`).get(),
@@ -1048,10 +1057,15 @@ async function clientProjects(tenantId: string, projectIds: string[]) {
 }
 
 async function availablePackages(tenantId: string, projectId: string) {
-  const project = await adminFirestore.doc(`projects/${projectId}`).get();
+  const [project, trade] = await Promise.all([
+    adminFirestore.doc(`projects/${projectId}`).get(),
+    studioTrade(tenantId),
+  ]);
   if (!project.exists || project.get("tenantId") !== tenantId) {
     throw new Error("PROJECT_NOT_FOUND");
   }
+  // A package without a name, as its trade says it: "Photography package" only for a photographer.
+  const unnamed = tradeProfile(trade).family === "photo" ? "Photography package" : "Package";
   const snapshot = await adminFirestore
     .collection("packages")
     .where("tenantId", "==", tenantId)
@@ -1071,7 +1085,7 @@ async function availablePackages(tenantId: string, projectId: string) {
     )
     .map((document) => ({
       id: document.id,
-      name: String(document.get("name") ?? "Photography package"),
+      name: String(document.get("name") ?? unnamed),
       description: safeString(document.get("description")),
       basePriceCents: Number(document.get("basePriceCents") ?? 0),
       currency: String(document.get("currency") ?? "USD"),
@@ -1199,8 +1213,12 @@ async function requestPackageForClient(input: {
   const requestId = packageRequestId(input.tenantId, input.projectId, input.packageId);
   const reference = adminFirestore.doc(`packageRequests/${requestId}`);
   const now = new Date().toISOString();
-  const project = await adminFirestore.doc(`projects/${input.projectId}`).get();
+  const [project, trade] = await Promise.all([
+    adminFirestore.doc(`projects/${input.projectId}`).get(),
+    studioTrade(input.tenantId),
+  ]);
   const projectName = safeString(project.get("name")) ?? "Your booking";
+  const offer = tradeVocab(trade).proposal.toLowerCase();
   const created = await adminFirestore.runTransaction(async (transaction) => {
     const existing = await transaction.get(reference);
     // Asked again while the first is still open: the same request, not a second.
@@ -1264,7 +1282,7 @@ async function requestPackageForClient(input: {
           input.note ? `“${input.note.replace(/[.!?]*$/, "")}.”` : null,
           additions.signed
             ? "Write it up on Today as a booking change for them to sign."
-            : "Approve it on Today and they get a revised proposal to accept.",
+            : `Approve it on Today and they get a revised ${offer} to accept.`,
         ]
           .filter(Boolean)
           .join(" "),
@@ -1401,6 +1419,8 @@ async function selectPackageForClient(input: {
   const executionReference = adminFirestore.doc(
     `commandExecutions/${executionId}`,
   );
+  // The studio's next step names what it sends: a makeup artist's quote.
+  const offer = tradeVocab(await studioTrade(input.tenantId)).proposal.toLowerCase();
   return adminFirestore.runTransaction(async (transaction) => {
     const existing = await transaction.get(executionReference);
     if (existing.exists) return existing.get("result");
@@ -1539,7 +1559,7 @@ async function selectPackageForClient(input: {
         project.get("state") === "CONSULTATION"
           ? Number(project.get("stateVersion") ?? 0) + 1
           : Number(project.get("stateVersion") ?? 0),
-      nextAction: "Prepare proposal",
+      nextAction: `Prepare ${offer}`,
       updatedAt: now,
       updatedBy: input.actorId,
     });
@@ -1606,6 +1626,11 @@ async function decideProposal({
   const executionReference = adminFirestore.doc(
     `commandExecutions/${decisionId}`,
   );
+  // What the studio reads next: a vendor's agreement is not a photography
+  // agreement, and a makeup artist sent a quote (features/trades).
+  const trade = await studioTrade(tenantId);
+  const photo = tradeProfile(trade).family === "photo";
+  const offer = tradeVocab(trade).proposal.toLowerCase();
   const result = await adminFirestore.runTransaction(async (transaction) => {
     const projectReference = adminFirestore.doc(`projects/${projectId}`);
     const proposalReference = adminFirestore.doc(`proposals/${proposalId}`);
@@ -1752,7 +1777,7 @@ async function decideProposal({
           packageSnapshotId,
           state: plan.projectState,
           stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
-          nextAction: "Prepare and send the photography agreement",
+          nextAction: photo ? "Prepare and send the photography agreement" : "Prepare and send the agreement",
           updatedAt: now,
           updatedBy: actorId,
         });
@@ -1764,17 +1789,17 @@ async function decideProposal({
         tenantId,
         projectId,
         projectName:
-          safeString(project.get("name")) ?? "Client photography project",
+          safeString(project.get("name")) ?? (photo ? "Client photography project" : "Client project"),
         workflowRunId: null,
         checkpointId: null,
         title:
           decision === "accepted"
             ? "Prepare client agreement"
-            : "Review requested proposal changes",
+            : `Review requested ${offer} changes`,
         description:
           decision === "accepted"
-            ? "The client accepted the current proposal. Prepare and send the contract."
-            : reason ?? "The client requested changes to the current proposal.",
+            ? `The client accepted the current ${offer}. Prepare and send the contract.`
+            : reason ?? `The client requested changes to the current ${offer}.`,
         assignedUserId: null,
         assignedRole: "studio_coordinator",
         dueDate: null,

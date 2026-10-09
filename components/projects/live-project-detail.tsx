@@ -316,7 +316,7 @@ function ProjectStageControl({
    * See features/projects/manual-advance.ts.
    */
   const gated = transitionAuthority(state, target)
-    ? manualAdvanceFor(state, target, projectId)
+    ? manualAdvanceFor(state, target, projectId, trade)
     : null;
   const nextStage = target;
 
@@ -371,7 +371,7 @@ function ProjectStageControl({
         <p>
           {gated
             ? gated.detail
-            : `Use this if ${manualAdvanceExample(nextStage)} already happened outside StudioCue. The change is recorded in the audit log.`}
+            : `Use this if ${manualAdvanceExample(nextStage, trade)} already happened outside StudioCue. The change is recorded in the audit log.`}
         </p>
         {journeyAdvance && journeyAdvance.targetState === nextStage ? (
           <p className="project-stage-duplicate">
@@ -384,7 +384,7 @@ function ProjectStageControl({
           </Link>
         ) : (
           <button className="button button-light-on-dark" disabled={busy} type="submit">
-            {busy ? "Updating…" : projectStateAdvanceAction(nextStage)}
+            {busy ? "Updating…" : projectStateAdvanceAction(nextStage, trade)}
           </button>
         )}
         {notice ? <p className="project-stage-notice" role="status">{notice}</p> : null}
@@ -671,12 +671,16 @@ function ProjectMoveBackControl({
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const words = vocab(jobKindOf(project));
+  const trade = useWorkspace().tenantTrade;
+  // A DJ, makeup artist or hair stylist is never offered a reopen
+  // (going-back.ts); one reopened before that has only a review ask paused.
+  const delivers = tradeProfile(trade).delivery;
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const moves = backwardMovesFor(
     { ...project, state: String(project.state ?? ""), id: project.id },
-    { agreementOut, now: new Date().toISOString() },
+    { agreementOut, now: new Date().toISOString(), trade },
   );
   const pausedAsks =
     typeof project.postEventAsksPausedAt === "string"
@@ -718,11 +722,11 @@ function ProjectMoveBackControl({
       setNotice(
         move.route === "uncancelProject"
           ? ["BOOKED", "PLANNING", "READY"].includes(move.target)
-            ? `The job is back at ${stateLabel(move.target)}, and back on your Google Calendar if it's connected. Re-offer the crew (their invites were withdrawn) and re-send any invoice or agreement it needs.`
-            : `The job is back at ${stateLabel(move.target)}. Re-offer the crew and re-send any invoice or agreement it needs — nothing came back on its own.`
+            ? `The job is back at ${stateLabel(move.target, trade)}, and back on your Google Calendar if it's connected. Re-offer the crew (their invites were withdrawn) and re-send any invoice or agreement it needs.`
+            : `The job is back at ${stateLabel(move.target, trade)}. Re-offer the crew and re-send any invoice or agreement it needs — nothing came back on its own.`
           : move.route === "reopenJob"
-            ? `The job is back at ${stateLabel(move.target)}. Review and album asks are paused until you deliver again.`
-            : `The job is back at ${stateLabel(move.target)}.`,
+            ? `The job is back at ${stateLabel(move.target, trade)}. Review and album asks are paused until you deliver again.`
+            : `The job is back at ${stateLabel(move.target, trade)}.`,
       );
       refreshTenantRecords("projects");
     } catch (caught: unknown) {
@@ -738,7 +742,9 @@ function ProjectMoveBackControl({
         <summary>Move back</summary>
         {pausedAsks !== null ? (
           <p className="project-stage-notice" role="status">
-            {pausedAsks
+            {!delivers
+              ? "This job was reopened, so its review ask is paused."
+              : pausedAsks
               ? `This job was reopened, so ${pausedAsks === 1 ? "one review or album ask is" : `${pausedAsks} review and album asks are`} paused. They start again when you deliver.`
               : "This job was reopened. Review and album asks start again when you deliver."}
           </p>

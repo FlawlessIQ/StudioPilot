@@ -1,3 +1,5 @@
+import { tradeProfile } from "@/features/trades/trades";
+
 /**
  * What an empty portal page says, and whether the day has been and gone.
  *
@@ -19,6 +21,10 @@
  *
  * Pure. Dates are plain YYYY-MM-DD strings compared as strings, the same rule
  * the portal builder uses.
+ *
+ * A DJ, a makeup artist or a hair stylist delivers nothing after the day
+ * (tradeProfile `delivery`), so their client is never told about a gallery
+ * link or photos on the way. Omitted, the trade reads as a photographer's.
  */
 
 export type PortalEmptyArea = "payments" | "documents" | "delivery" | "reviews";
@@ -33,7 +39,10 @@ export function eventHasPassed(
 export function portalEmptyNotice(
   area: PortalEmptyArea,
   passed: boolean,
+  /** The studio's trade (features/trades). */
+  trade?: unknown,
 ): { title: string; detail: string } {
+  const delivers = tradeProfile(trade).delivery;
   switch (area) {
     case "payments":
       return passed
@@ -48,6 +57,18 @@ export function portalEmptyNotice(
               "Your studio will send invoices here as your booking progresses, with the amount, the due date and a secure way to pay.",
           };
     case "documents":
+      if (!delivers)
+        return passed
+          ? {
+              title: "No records yet",
+              detail:
+                "Your signed agreement and schedule will be kept here once your studio adds them. Message them if you need a copy of anything now.",
+            }
+          : {
+              title: "No records yet",
+              detail:
+                "As your booking progresses, your signed agreement, payments and schedule are kept here for you to come back to.",
+            };
       return passed
         ? {
             title: "No records yet",
@@ -60,6 +81,20 @@ export function portalEmptyNotice(
               "As your booking progresses, your signed agreement, payments, schedule and gallery link are kept here for you to come back to.",
           };
     case "delivery":
+      // Nothing comes after the day for these trades; the page says so plainly
+      // rather than promising something that will never arrive.
+      if (!delivers)
+        return passed
+          ? {
+              title: "Nothing to deliver",
+              detail:
+                "Your studio's work was on the day itself, so nothing is sent afterwards. Message them if you were expecting something.",
+            }
+          : {
+              title: "Nothing to collect after the day",
+              detail:
+                "Everything your studio does happens on the day itself. Message them if you were expecting something to be sent afterwards.",
+            };
       return passed
         ? {
             // Not "photographs": a video-led studio's couple is waiting on a film.
@@ -73,6 +108,16 @@ export function portalEmptyNotice(
               "Once your studio has edited them, the links and access details for your photos (and film, if it's part of your package) appear on this page.",
           };
     case "reviews":
+      if (!delivers)
+        return passed
+          ? {
+              title: "No review requested yet",
+              detail: "Now the day is done, your studio may invite you to share your experience here.",
+            }
+          : {
+              title: "Nothing to do here yet",
+              detail: "After the day, your studio may invite you to leave a review.",
+            };
       return passed
         ? {
             title: "No review requested yet",

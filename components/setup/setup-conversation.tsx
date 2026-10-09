@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { SalesTaxQuestion } from "@/components/integrations/sales-tax-question";
-import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -15,7 +14,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { JourneySetupBanner } from "@/components/help/journey-film";
+import { JourneySetupBanner, useOffersWeddingFilm } from "@/components/help/journey-film";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
 import { fromSetup } from "@/components/setup/back-to-setup";
@@ -23,7 +22,7 @@ import { setSignatureMode, startProviderConnect } from "@/lib/integrations/comma
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeOf } from "@/features/trades/trades";
+import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
   INQUIRY_FORM_SETTING_HREF,
   SETUP_ORDER,
@@ -142,6 +141,16 @@ const NATIVE_AGREEMENT_WHY =
 const INQUIRY_FORM_WHY =
   "Your forms are in. Choose the one your first reply's link asks for, and new clients fill it in before they pick a time to talk — so you have it for the call.";
 
+/**
+ * The same, for a makeup artist or hair stylist: no call, so the link takes
+ * the details and the quote follows (functions/src/intake/inquiry-link.ts).
+ */
+function inquiryFormWhy(trade: unknown): string {
+  if (tradeProfile(trade).consultation) return INQUIRY_FORM_WHY;
+  const offer = tradeVocab(trade).proposal.toLowerCase();
+  return `Your forms are in. Choose the one your first reply's link asks for, and new clients fill it in with their inquiry — so you have it for the ${offer}.`;
+}
+
 // Asked in the one shared order Today's "Next:" also follows.
 const ORDERED = SETUP_ORDER.map((key) => QUESTIONS.find((question) => question.key === key)!);
 
@@ -190,16 +199,22 @@ const BEAUTY_COPY: Partial<Record<Question["key"], Partial<Pick<Question, "ask" 
 /** A question in the studio's trade's words. */
 function inTradeWords(question: Question, trade: unknown): Question {
   const tradeId = tradeOf(trade);
-  if (tradeId === "dj") return { ...question, ...DJ_COPY[question.key] };
-  if (tradeId === "makeup" || tradeId === "hair") return { ...question, ...BEAUTY_COPY[question.key] };
-  return question;
+  // Packages price the trade's own offer: a makeup artist's quotes.
+  const offered: Question =
+    question.key === "packages"
+      ? { ...question, doneLabel: `Your packages are ready to use in ${tradeVocab(trade).proposal.toLowerCase()}s.` }
+      : question;
+  if (tradeId === "dj") return { ...offered, ...DJ_COPY[question.key] };
+  if (tradeId === "makeup" || tradeId === "hair") return { ...offered, ...BEAUTY_COPY[question.key] };
+  return offered;
 }
 
 const IMPORT_PRICES = fromSetup("/studio/import?kind=Package");
 const IMPORT_FORM = fromSetup("/studio/import?kind=Questionnaire");
 
 export function SetupConversation() {
-  const shootsWeddings = useStudioJobTypes().some((type) => type.kind === "wedding");
+  // The film is a photographer's wedding (useOffersWeddingFilm).
+  const shootsWeddings = useOffersWeddingFilm();
   const workspace = useWorkspace();
   const { gaps, complete, loading, refresh, calendarConnected } = useSetupState();
   const gapByKey = new Map(gaps.map((gap) => [gap.key, gap]));
@@ -339,7 +354,7 @@ export function SetupConversation() {
                           gap?.href === NATIVE_AGREEMENT_HREF
                         ? NATIVE_AGREEMENT_WHY
                         : gap?.href === INQUIRY_FORM_SETTING_HREF
-                          ? INQUIRY_FORM_WHY
+                          ? inquiryFormWhy(workspace.tenantTrade)
                           : inTradeWords(question, workspace.tenantTrade).why}
                   </p>
                   {gap?.blocking ? (

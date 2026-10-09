@@ -7,7 +7,34 @@
  * Everything here is plain data, so the same content renders in the studio,
  * the couple and crew portals, and on the public /how-to pages, and so
  * tests/help-content.test.ts can hold it to the product it describes.
+ *
+ * A DJ, a makeup artist and a hair stylist read the same help in their own
+ * words (features/trades/trades.ts): any piece of text may be written as a
+ * function of the studio's trade, and a guide or a word about something a
+ * trade doesn't have (a gallery, a sales call) is left out for it. The
+ * exported lists are resolved for a photographer, so every page with no
+ * studio behind it (the website's /how-to) reads as it always did.
  */
+import {
+  tradeOf,
+  tradeProfile,
+  tradeVocab,
+  type Trade,
+  type TradeProfile,
+  type TradeVocabulary,
+} from "@/features/trades/trades";
+
+/** The studio's trade, as help text is written against it. */
+export type HelpTrade = { trade: Trade; words: TradeVocabulary; has: TradeProfile };
+
+export function helpTrade(trade?: unknown): HelpTrade {
+  return { trade: tradeOf(trade), words: tradeVocab(trade), has: tradeProfile(trade) };
+}
+
+/** Text that reads the same for every trade, or is written from the trade's words. */
+export type TradeText = string | ((t: HelpTrade) => string);
+/** One step, note or word in a list; null leaves it out for that trade. */
+export type TradeLine = string | ((t: HelpTrade) => string | null);
 
 export type HelpAudience = "studio" | "couple" | "crew";
 
@@ -81,4 +108,29 @@ export type Explainer = {
   terms?: string[];
   /** A video in features/help/video-manifest.json, for the golden path. */
   video?: string;
+};
+
+/** A word as written: its name and hint may follow the trade. */
+export type HelpTermSource = Omit<HelpTerm, "term" | "hint"> & {
+  term: TradeText;
+  hint: TradeText;
+  /** Whether a trade has this at all (tradeProfile); absent, every trade. */
+  offered?: (t: HelpTrade) => boolean;
+};
+
+/**
+ * A guide as written. Any text may follow the trade; a step or note that
+ * returns null is left out for it. Its terms are kept only where the
+ * glossary has them for the trade, and its video only where the recording
+ * reads right for it (videos.ts `videoSuitsTrade`).
+ */
+export type ExplainerSource = Omit<Explainer, "title" | "summary" | "purpose" | "steps" | "next" | "goodToKnow"> & {
+  title: TradeText;
+  summary: TradeText;
+  purpose: TradeText;
+  steps: TradeLine[];
+  next?: TradeText;
+  goodToKnow?: TradeLine[];
+  /** Whether a trade gets this guide at all (tradeProfile); absent, every trade. */
+  offered?: (t: HelpTrade) => boolean;
 };

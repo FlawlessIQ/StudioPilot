@@ -187,10 +187,17 @@ export function oneOffTerms(input: { mode: "add" | "replace"; mainTerms: unknown
   return input.mode === "replace" && written.length >= 10 ? written.slice(0, 5000) : DEFAULT_PROPOSAL_TERMS;
 }
 
-/** Who the one-off sends: what the studio said, else one photographer. */
-export function oneOffCoverage(given: readonly CoverageItem[] | undefined): CoverageItem[] {
+/**
+ * Who the one-off sends: what the studio said, else one of the studio's own
+ * crew (trades.ts `coverageRoles[0]`) — a makeup artist's one-off defaulted
+ * to a photographer (2026-10-09).
+ */
+export function oneOffCoverage(
+  given: readonly CoverageItem[] | undefined,
+  defaultRole: CoverageItem["role"] = "photographer",
+): CoverageItem[] {
   const people = (given ?? []).filter((item) => Number.isInteger(item.count) && item.count > 0);
-  return people.length ? normaliseCoverage(people) : [{ role: "photographer", count: 1 }];
+  return people.length ? normaliseCoverage(people) : [{ role: defaultRole, count: 1 }];
 }
 
 /** How long: what the studio said, else the main package's hours, else a wedding day. */

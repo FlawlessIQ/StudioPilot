@@ -8,6 +8,8 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { formatMinutes, helpVideo, helpVideoLength } from "@/features/help/videos";
 import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
+import { tradeProfile } from "@/features/trades/trades";
+import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
 
 /**
  * The journey film — one wedding, inquiry to album — wherever someone is
@@ -19,10 +21,23 @@ import { JOURNEY_FILM_ID } from "@/features/journey/expected-timeline";
  * base (NEXT_PUBLIC_HOW_TO_MEDIA_BASE unset, as in local dev) there is no film
  * to show, and without JavaScript the link is what the button already is.
  *
- * Wedding copy on purpose: callers inside the app show these only to studios
- * that shoot weddings (useStudioJobTypes), as JourneyTodayCard always has.
+ * Wedding and photo copy on purpose: callers inside the app show these only
+ * to photo studios that shoot weddings (useOffersWeddingFilm).
  */
 const FILM_TITLE = "A wedding, start to finish";
+
+/**
+ * Whether this studio is offered the film. It is a photographer's wedding,
+ * inquiry to album: a family-only studio would be reading about someone
+ * else's work, and so would a DJ, a makeup artist or a hair stylist — every
+ * one of whom does weddings. Jess Styles Bridal's Today invited her to "see
+ * what a wedding looks like, inquiry to album" (2026-10-09).
+ */
+export function useOffersWeddingFilm(): boolean {
+  const { tenantTrade } = useWorkspace();
+  const shootsWeddings = useStudioJobTypes().some((type) => type.kind === "wedding");
+  return shootsWeddings && tradeProfile(tenantTrade).family === "photo";
+}
 
 function journeyFilm() {
   return helpVideo(JOURNEY_FILM_ID);

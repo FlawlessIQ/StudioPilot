@@ -5,6 +5,7 @@ import { ClipboardList, LoaderCircle, PackageOpen, Send, Users } from "lucide-re
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
@@ -65,6 +66,8 @@ const dollars = (cents: unknown) =>
  * package snapshot the proposal is later built from.
  */
 function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
+  // A makeup or hair studio's offer is a quote (features/trades/trades.ts).
+  const offer = tradeVocab(useWorkspace().tenantTrade).proposal.toLowerCase();
   const projectId = flow.projectId;
   const { records: projects } = useTenantDocuments("projects");
   const { records: packages } = useTenantDocuments("packages");
@@ -206,16 +209,16 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
       <div className="panel copilot-flow">
         <p role="status">
           {!done.added
-            ? `Selected ${done.name} for ${jobName}. You can now prepare a proposal from it.`
+            ? `Selected ${done.name} for ${jobName}. You can now prepare a ${offer} from it.`
             : done.proposalId
               ? done.revised
-                ? `Added ${done.name} to ${jobName}. A revised proposal with both is ready as a draft — check it, approve it and send it to them.`
-                : `Added ${done.name} to ${jobName}, and the draft proposal is priced again with both.`
-              : `Added ${done.name} to ${jobName}. The proposal you prepare next will include both.`}
+                ? `Added ${done.name} to ${jobName}. A revised ${offer} with both is ready as a draft — check it, approve it and send it to them.`
+                : `Added ${done.name} to ${jobName}, and the draft ${offer} is priced again with both.`
+              : `Added ${done.name} to ${jobName}. The ${offer} you prepare next will include both.`}
         </p>
         {done.proposalId ? (
           <a className="button button-dark" href={`/studio/proposals/${done.proposalId}`}>
-            Open the proposal
+            {`Open the ${offer}`}
           </a>
         ) : null}
       </div>
@@ -228,7 +231,7 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
         <PackageOpen size={15} />
         <span>
           <strong>{adding ? `Add a package to ${jobName}` : flow.title}</strong>
-          <small>{adding ? "It joins the package they already have, on one proposal with one total." : flow.reason}</small>
+          <small>{adding ? `It joins the package they already have, on one ${offer} with one total.` : flow.reason}</small>
         </span>
       </header>
       {flow.subject && subjectMatch.kind === "unmatched" ? (
@@ -264,10 +267,10 @@ function PackageSelectFlow({ flow }: { flow: CopilotFlow }) {
             // Said before the tap, because the tap is the approval.
             <p className="copilot-flow-subject" role="status">
               {proposalStatus === "accepted"
-                ? "They've accepted their proposal. Adding a package makes a revised proposal for them to accept — the accepted one stays in the history, and the agreement waits for the new one."
+                ? `They've accepted their ${offer}. Adding a package makes a revised ${offer} for them to accept — the accepted one stays in the history, and the agreement waits for the new one.`
                 : ["sent", "viewed"].includes(proposalStatus)
-                  ? "They've been sent a proposal. Adding a package makes a new version for you to send them."
-                  : "The draft proposal is priced again with both packages."}
+                  ? `They've been sent a ${offer}. Adding a package makes a new version for you to send them.`
+                  : `The draft ${offer} is priced again with both packages.`}
             </p>
           ) : null}
           <div className="copilot-flow-options">

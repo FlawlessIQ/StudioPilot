@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/kit/kit";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import { eventHasPassed, portalEmptyNotice, type PortalEmptyArea } from "@/features/client/portal-day";
 import { portalPastNotice, portalStageIsBehind, type PortalArea } from "@/features/client/portal-stage";
 import { todayLocalIso } from "@/lib/format/event-date";
@@ -32,6 +33,9 @@ export function EmptyMoment({
   upcoming: string;
 }) {
   const project = useProject();
+  // The studio's trade: a makeup artist's client was sent a quote, and a DJ's
+  // is never told photos are on the way (features/trades).
+  const trade = useWorkspace().tenantTrade;
   if (loading || error)
     return (
       <Card>
@@ -43,9 +47,9 @@ export function EmptyMoment({
   const milestones = project.value?.milestones ?? null;
   const behind = area !== "payments" && area !== "documents" && portalStageIsBehind(milestones, area as PortalArea);
   const notice = behind
-    ? portalPastNotice(area as PortalArea)
+    ? portalPastNotice(area as PortalArea, trade)
     : EMPTY_AREAS.has(area) && eventHasPassed(project.value?.eventDate, todayLocalIso())
-      ? portalEmptyNotice(area as PortalEmptyArea, true)
+      ? portalEmptyNotice(area as PortalEmptyArea, true, trade)
       : null;
   return (
     <Card>

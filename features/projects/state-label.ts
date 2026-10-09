@@ -34,6 +34,8 @@ const LABELS: Record<string, string> = {
 /** The plain-English name of a project state, in the studio's trade's words when it's given. */
 export function projectStateLabel(state: string, trade?: unknown): string {
   if (state === "EVENT_COMPLETE") return tradeVocab(trade).doneLabel;
+  // A makeup artist or hair stylist sends a quote, not a proposal.
+  if (state === "PROPOSAL") return `${tradeVocab(trade).proposal} out`;
   return (
     LABELS[state] ??
     state
@@ -82,6 +84,7 @@ const ADVANCE_ACTIONS: Record<string, string> = {
  * Falls back to "Move to <plain name>" rather than "Confirm <name>" so an
  * unmapped state still reads as an instruction instead of a fragment.
  */
-export function projectStateAdvanceAction(state: string): string {
-  return ADVANCE_ACTIONS[state] ?? `Move to ${projectStateLabel(state)}`;
+export function projectStateAdvanceAction(state: string, trade?: unknown): string {
+  if (state === "PROPOSAL") return `Confirm the ${tradeVocab(trade).proposal.toLowerCase()} went out`;
+  return ADVANCE_ACTIONS[state] ?? `Move to ${projectStateLabel(state, trade)}`;
 }

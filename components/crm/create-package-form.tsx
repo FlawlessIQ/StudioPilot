@@ -60,14 +60,15 @@ const schema = z
       .min(0, "A retainer cannot be negative."),
     coverageHours: z.coerce
       .number()
-      .positive("How many hours of coverage this includes."),
+      // Read by every trade's studio, so in words a DJ or a stylist uses too.
+      .positive("How many hours this package includes."),
     photographers: z.coerce
       .number()
-      .int("Whole photographers only.")
+      .int("Whole people only.")
       .min(0, "A count cannot be negative."),
     videographers: z.coerce
       .number()
-      .int("Whole videographers only.")
+      .int("Whole people only.")
       .min(0, "A count cannot be negative."),
     /** Which roles a per-crew-member retainer charges for. */
     billPhotographers: z.boolean(),
@@ -169,8 +170,10 @@ export function CreatePackageForm({
   // artist's or hair stylist's as one artist on site for two hours, not a
   // photographer's two photographers and a gallery. Only while untouched.
   const tradeId = tradeOf(trade);
-  const djStudio = tradeId === "dj";
   const photoStudio = tradeId === "photographer";
+  // "Coverage hours" and "Deliverables" are a photographer's words: a DJ's
+  // "Hours of music", an artist's "Hours on site", and "What's included".
+  const words = tradeVocab(trade);
   const ownDefaults = VENDOR_DEFAULTS[tradeId];
   useEffect(() => {
     if (!ownDefaults) return;
@@ -367,8 +370,7 @@ export function CreatePackageForm({
         </>
         ) : null}
         <label>
-          {/* "Coverage" is a photographer's word: a DJ plays, an artist is on site. */}
-          {photoStudio ? "Coverage hours" : djStudio ? "Hours of music" : "Hours on site"}{" "}
+          {words.hoursLabel}{" "}
           <span className="required-mark">Required</span>
           <input {...register("coverageHours")} min="0.5" step="0.5" type="number" />
           <small>{errors.coverageHours?.message}</small>
@@ -394,7 +396,14 @@ export function CreatePackageForm({
         ) : null}
         <p className="field-hint form-span">
           {roles[1] ? "Who your studio sends. At least one, in either row." : "Who your studio sends. At least one."}{" "}
-          <InfoHint term="coverage" />
+          {/* The glossary's "Coverage" is a photographer's: photographers, videographers and hours. */}
+          {photoStudio ? (
+            <InfoHint term="coverage" />
+          ) : (
+            <InfoHint label={words.coverage}>
+              {`Who you send and for how long: your ${words.crew} and their hours. It fills your contract and can set a per-crew retainer.`}
+            </InfoHint>
+          )}
         </p>
         <label>
           Travel area <span className="required-mark">Required</span>
@@ -402,7 +411,7 @@ export function CreatePackageForm({
           <small>{errors.travelArea?.message}</small>
         </label>
         <label className="form-span">
-          {photoStudio ? "Deliverables (comma separated)" : "What's included (comma separated)"}{" "}
+          {`${words.includedLabel} (comma separated)`}{" "}
           <span className="required-mark">Required</span>
           <input {...register("deliverables")} />
           <small>{errors.deliverables?.message}</small>

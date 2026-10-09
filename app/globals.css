@@ -1478,10 +1478,17 @@ textarea:focus-visible {
   line-height: 1.45;
 }
 
+/* As many fields a row as fit at 170px: a date input will not shrink below
+   about 150px, so three fixed columns in the composer's 396px body drew each
+   field over the next (2026-10-09). */
 .proposal-field-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
   gap: 14px;
+}
+.proposal-field-grid input {
+  min-width: 0;
+  width: 100%;
 }
 
 .proposal-selected-project {
@@ -4777,6 +4784,12 @@ textarea:focus-visible {
   to { transform: rotate(360deg); }
 }
 
+/* A URL or an endpoint in a sentence breaks where it must, rather than
+   pushing the page wider than a phone (the Zoom test plan, 2026-10-09). */
+.legal-page code {
+  overflow-wrap: anywhere;
+}
+
 .legal-page {
   background: #fbfbfa;
   min-height: 100vh;
@@ -5495,9 +5508,9 @@ textarea:focus-visible {
 @media(max-width:760px){.crew-portal-frame{display:block}.crew-mobile-page{padding:28px 14px 110px}.crew-portal-hero{display:grid}.crew-next-action{grid-template-columns:auto 1fr}.crew-next-action .button{grid-column:1/-1}.crew-portal-grid,.crew-profile-detail{grid-template-columns:1fr}.crew-upcoming-card dl,.crew-invite-facts,.crew-job-brief-hero{grid-template-columns:1fr}.crew-form-preview form{grid-template-columns:1fr}.crew-form-preview .source-note{grid-column:1}.crew-event-timeline{padding:4px 14px}.crew-event-timeline article{grid-template-columns:70px 13px 1fr;gap:10px}.crew-mobile-action-bar{position:fixed;z-index:10;bottom:0;left:0;right:0;padding:12px 14px max(12px,env(safe-area-inset-bottom));background:rgba(255,255,255,.96);border-top:1px solid var(--border);backdrop-filter:blur(14px)}.crew-mobile-action-bar .crew-action-row{display:grid;grid-template-columns:1fr}.crew-mobile-action-bar .button{width:100%}.crew-requirements-mobile article,.crew-document-list article{grid-template-columns:auto 1fr auto}.crew-requirements-mobile article>a,.crew-document-list article>a{grid-column:3}.crew-availability-list article{grid-template-columns:auto 70px 1fr}.crew-availability-list .status-badge{grid-column:3}}
 
 /* Milestone 7: post-event */
-.post-event-page{display:grid;gap:24px;max-width:1440px;margin:auto}.post-event-metrics,.report-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.post-progress i,.report-bars i{height:7px;border-radius:99px;background:var(--soft);overflow:hidden}.post-progress b,.report-bars b{display:block;height:100%;background:var(--accent)}.closeout-grid,.delivery-layout,.report-layout{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(300px,.7fr);gap:17px;align-items:start}.closeout-boundary,.adapter-note,.report-source-note{display:grid;gap:14px;background:var(--ink);color:white}.closeout-boundary>svg,.adapter-note>svg,.report-source-note>svg{color:#b6d8be}.closeout-boundary h2,.adapter-note h2,.report-source-note h2{font:500 25px var(--font-display);margin:0}.closeout-boundary p,.adapter-note p,.report-source-note p,.report-source-note small{color:#c7ceca}.post-event-action{display:grid;gap:9px}.delivery-gate-note,.review-truth-banner,.review-confirm-boundary{display:flex;gap:11px;align-items:center;padding:14px;border-radius:12px;background:#edf7ef;color:#285c35}.delivery-gate-note span,.review-truth-banner span,.review-confirm-boundary span{display:grid}.delivery-gate-note small,.review-truth-banner small,.review-confirm-boundary small{color:inherit;opacity:.8}.delivery-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:18px}.delivery-form label{display:grid;gap:7px;font-size:13px;font-weight:650}.delivery-form input{border:1px solid var(--border);border-radius:10px;padding:11px;font:inherit}.delivery-form .button,.delivery-form .form-notice{grid-column:1/-1}.delivery-form .button{justify-self:start}.report-actions{display:flex;gap:9px}.report-filters{display:grid;grid-template-columns:1fr 1fr 1.2fr auto;gap:12px;align-items:end;padding:16px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}.report-filters label{display:grid;gap:6px;font-size:12px;font-weight:650}.report-filters input,.report-filters select{border:1px solid var(--border);border-radius:9px;padding:10px;background:var(--surface);font:inherit}.report-metrics article{display:grid;gap:5px}.report-metrics small,.report-metrics span{color:var(--muted)}.report-metrics strong{font:600 30px var(--font-display)}.report-bars{display:grid;gap:16px}.report-bars article{display:grid;grid-template-columns:160px 1fr;gap:14px;align-items:center}.report-bars article>span{display:grid}.report-bars small{color:var(--muted)}.client-post-event{max-width:900px;margin:auto;padding:48px 30px 70px;display:grid;gap:24px}.client-post-event>header h1{font:500 clamp(40px,7vw,64px)/1 var(--font-display);letter-spacing:-.04em;margin:6px 0}.client-post-event>header p:not(.eyebrow){color:var(--muted)}.client-gallery-card{display:grid;grid-template-columns:.85fr 1.15fr;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--surface)}.gallery-art{min-height:420px;display:grid;place-items:center;align-content:center;gap:14px;background:linear-gradient(145deg,#23312b,#53655c);color:white}.gallery-art svg{width:55px;height:55px}.gallery-art span{font-size:10px;letter-spacing:.2em}.gallery-copy{display:grid;gap:16px;align-content:center;padding:35px}.gallery-copy h2,.client-review-card h2{font:500 31px var(--font-display);margin:0}.gallery-copy p,.client-review-card p{color:var(--muted)}.gallery-copy dl{display:grid;grid-template-columns:1fr 1fr;gap:10px}.gallery-copy dt{display:flex;gap:6px;color:var(--muted);font-size:11px}.gallery-copy dd{margin:4px 0}.gallery-copy .button{justify-self:start}.client-review-card{max-width:680px;display:grid;justify-items:start;gap:17px;padding:34px;border:1px solid var(--border);border-radius:18px;background:var(--surface)}.client-review-card>svg{width:38px;height:38px;color:#a66d4a}.review-confirm-boundary{width:100%}
-@media(max-width:1000px){.post-event-metrics,.report-metrics{grid-template-columns:1fr 1fr}.closeout-grid,.delivery-layout,.report-layout{grid-template-columns:1fr}}
-@media(max-width:760px){.post-event-metrics,.report-metrics,.review-grid{grid-template-columns:1fr}.delivery-form,.report-filters,.client-gallery-card{grid-template-columns:1fr}.delivery-form .button,.delivery-form .form-notice{grid-column:1}.report-actions{display:grid}.report-bars article{grid-template-columns:120px 1fr}.client-post-event{padding:32px 15px}.gallery-art{min-height:240px}.gallery-copy{padding:23px}.gallery-copy dl{grid-template-columns:1fr}}
+.post-event-page{display:grid;gap:24px;max-width:1440px;margin:auto}.post-event-metrics,.report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:14px}.post-progress i,.report-bars i{height:7px;border-radius:99px;background:var(--soft);overflow:hidden}.post-progress b,.report-bars b{display:block;height:100%;background:var(--accent)}.closeout-grid,.delivery-layout,.report-layout{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(300px,.7fr);gap:17px;align-items:start}.closeout-boundary,.adapter-note,.report-source-note{display:grid;gap:14px;background:var(--ink);color:white}.closeout-boundary>svg,.adapter-note>svg,.report-source-note>svg{color:#b6d8be}.closeout-boundary h2,.adapter-note h2,.report-source-note h2{font:500 25px var(--font-display);margin:0}.closeout-boundary p,.adapter-note p,.report-source-note p,.report-source-note small{color:#c7ceca}.post-event-action{display:grid;gap:9px}.delivery-gate-note,.review-truth-banner,.review-confirm-boundary{display:flex;gap:11px;align-items:center;padding:14px;border-radius:12px;background:#edf7ef;color:#285c35}.delivery-gate-note span,.review-truth-banner span,.review-confirm-boundary span{display:grid}.delivery-gate-note small,.review-truth-banner small,.review-confirm-boundary small{color:inherit;opacity:.8}.delivery-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:18px}.delivery-form label{display:grid;gap:7px;font-size:13px;font-weight:650}.delivery-form input{border:1px solid var(--border);border-radius:10px;padding:11px;font:inherit}.delivery-form .button,.delivery-form .form-notice{grid-column:1/-1}.delivery-form .button{justify-self:start}.report-actions{display:flex;gap:9px}.report-filters{display:grid;grid-template-columns:1fr 1fr 1.2fr auto;gap:12px;align-items:end;padding:16px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}.report-filters label{display:grid;gap:6px;font-size:12px;font-weight:650}.report-filters input,.report-filters select{border:1px solid var(--border);border-radius:9px;padding:10px;background:var(--surface);font:inherit}.report-metrics article{display:grid;gap:5px}.report-metrics small,.report-metrics span{color:var(--muted)}.report-metrics strong{font:600 30px var(--font-display)}.report-bars{display:grid;gap:16px}.report-bars article{display:grid;grid-template-columns:160px 1fr;gap:14px;align-items:center}.report-bars article>span{display:grid}.report-bars small{color:var(--muted)}.client-post-event{max-width:900px;margin:auto;padding:48px 30px 70px;display:grid;gap:24px}.client-post-event>header h1{font:500 clamp(40px,7vw,64px)/1 var(--font-display);letter-spacing:-.04em;margin:6px 0}.client-post-event>header p:not(.eyebrow){color:var(--muted)}.client-gallery-card{display:grid;grid-template-columns:.85fr 1.15fr;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--surface)}.gallery-art{min-height:420px;display:grid;place-items:center;align-content:center;gap:14px;background:linear-gradient(145deg,#23312b,#53655c);color:white}.gallery-art svg{width:55px;height:55px}.gallery-art span{font-size:10px;letter-spacing:.2em}.gallery-copy{display:grid;gap:16px;align-content:center;padding:35px}.gallery-copy h2,.client-review-card h2{font:500 31px var(--font-display);margin:0}.gallery-copy p,.client-review-card p{color:var(--muted)}.gallery-copy dl{display:grid;grid-template-columns:1fr 1fr;gap:10px}.gallery-copy dt{display:flex;gap:6px;color:var(--muted);font-size:11px}.gallery-copy dd{margin:4px 0}.gallery-copy .button{justify-self:start}.client-review-card{max-width:680px;display:grid;justify-items:start;gap:17px;padding:34px;border:1px solid var(--border);border-radius:18px;background:var(--surface)}.client-review-card>svg{width:38px;height:38px;color:#a66d4a}.review-confirm-boundary{width:100%}
+@media(max-width:1000px){.closeout-grid,.delivery-layout,.report-layout{grid-template-columns:1fr}}
+@media(max-width:760px){.review-grid{grid-template-columns:1fr}.delivery-form,.report-filters,.client-gallery-card{grid-template-columns:1fr}.delivery-form .button,.delivery-form .form-notice{grid-column:1}.report-actions{display:grid}.report-bars article{grid-template-columns:120px 1fr}.client-post-event{padding:32px 15px}.gallery-art{min-height:240px}.gallery-copy{padding:23px}.gallery-copy dl{grid-template-columns:1fr}}
 @media print{.report-actions,.report-filters{display:none!important}.app-frame{display:block}.report-page{max-width:none}.panel{break-inside:avoid}}
 
 /* Milestone 8: SaaS operations */
@@ -8007,6 +8020,10 @@ textarea:focus-visible {
   padding-inline: 12px;
 }
 
+/* As many cards a row as fit at 250px — the width a dollar figure at 30px
+   needs beside its icon. Four fixed columns until a 1000px window put them
+   at 158px in Insights' 676px column, and cut "$9,876" to "$9,87"
+   (2026-10-09). */
 .report-metrics {
   gap: 15px;
 }
@@ -8953,10 +8970,6 @@ textarea:focus-visible {
 
   .report-filter-heading {
     grid-column: auto;
-  }
-
-  .report-metrics {
-    grid-template-columns: 1fr;
   }
 
   .report-metrics .report-metric-card {
@@ -17617,8 +17630,15 @@ label {
    under 820px) as a compact strip instead of dropping them — the money and the
    expiry are the two facts a studio scans this list for. Re-lay the row as a
    wrapping flex: icon + title + arrow on line one, Total / Expires / status on
-   line two. */
-@media (max-width: 820px) {
+   line two.
+
+   By the list's own width, not the window's: beside the sidebar on a 1024px
+   window the list is 620px, and the six-column row cut its status badges
+   off at the panel's edge (2026-10-09). The row needs about 800px. */
+.proposal-center-list {
+  container-type: inline-size;
+}
+@container (max-width: 800px) {
   .ds-root .proposal-center-list > a {
     display: flex;
     flex-wrap: wrap;
@@ -21235,15 +21255,21 @@ label {
   vertical-align: 2px;
 }
 
-/* Today, before any inquiry has arrived: the three ways in as buttons. */
+/* Today, before any inquiry has arrived: the three ways in as buttons.
+ *
+ * Wrapped, never squeezed. This was a grid that went to three columns on a
+ * viewport query (≥900px) — but the card sits in Today's main column beside
+ * the "Coming up" rail, so on a 1000px window the chips' auto track took the
+ * width and the heading wrapped one word per line under them (2026-10-09).
+ * The copy keeps a readable width; the chips drop below when it can't. */
 .capture-start {
   align-items: center;
   background: var(--panel, #fff);
   border: 1px solid var(--line);
   border-radius: 14px;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 14px;
-  grid-template-columns: auto minmax(0, 1fr);
   padding: 20px 22px;
 }
 
@@ -21252,6 +21278,7 @@ label {
   border-radius: 50%;
   color: #2e7042;
   display: grid;
+  flex: none;
   height: 40px;
   place-items: center;
   width: 40px;
@@ -21259,6 +21286,7 @@ label {
 
 .capture-start-copy {
   display: grid;
+  flex: 1 1 240px;
   gap: 3px;
   min-width: 0;
 }
@@ -21270,9 +21298,9 @@ label {
 
 .capture-start-routes {
   display: flex;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   gap: 8px;
-  grid-column: 1 / -1;
 }
 
 .capture-start-route {
@@ -21288,6 +21316,7 @@ label {
   font-weight: 600;
   gap: 7px;
   padding: 8px 14px;
+  white-space: nowrap;
 }
 
 .capture-start-route svg {
@@ -21302,16 +21331,6 @@ label {
   margin-left: 0;
 }
 
-@media (min-width: 900px) {
-  /* One line on a desk: the heading, then the three ways in beside it. */
-  .capture-start {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .capture-start-routes {
-    grid-column: auto;
-  }
-}
-
 @media (max-width: 640px) {
   .capture-start {
     padding: 16px;
@@ -21319,6 +21338,7 @@ label {
   /* Three full-width rows a thumb can hit, not chips that wrap unevenly. */
   .capture-start-routes {
     display: grid;
+    flex-basis: 100%;
   }
   .capture-start-route {
     border-radius: 12px;

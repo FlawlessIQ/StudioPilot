@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
 import {
   ArrowRight,
   CircleGauge,
@@ -12,9 +11,11 @@ import {
   Wand2,
 } from "lucide-react";
 import { SetupChecklist } from "@/components/dashboard/setup-checklist";
-import { JourneyFilmTeaser } from "@/components/help/journey-film";
+import { JourneyFilmTeaser, useOffersWeddingFilm } from "@/components/help/journey-film";
 import { GlossaryList, GuideLibrary } from "@/components/help/guide-library";
 import { YourFeedback } from "@/components/feedback/your-feedback";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { helpTrade, type HelpTrade } from "@/features/help/types";
 
 /**
  * The workspace had no Help, Docs, or Support entry, and nothing in-app mapped
@@ -29,7 +30,11 @@ type Concept = {
   body: string;
 };
 
-const CONCEPTS: Concept[] = [
+/**
+ * In the studio's trade's words (features/trades/trades.ts): a makeup artist
+ * sends quotes, and a trade with nothing to deliver has no delivery phase.
+ */
+const concepts = ({ words, has }: HelpTrade): Concept[] => [
   {
     icon: CircleGauge,
     title: "Today is your inbox",
@@ -38,12 +43,12 @@ const CONCEPTS: Concept[] = [
   {
     icon: FolderKanban,
     title: "Every client is a Job",
-    body: "A Job is one client's whole story — inquiry, proposal, booking, planning, the event, delivery, and closeout — moving through those phases in order. Open a Job to see where it is and the one next move.",
+    body: `A Job is one client's whole story — inquiry, ${words.proposal.toLowerCase()}, booking, planning, the event, ${has.delivery ? "delivery, " : ""}and closeout — moving through those phases in order. Open a Job to see where it is and the one next move.`,
   },
   {
     icon: Wand2,
     title: "Cue prepares, you approve",
-    body: "StudioCue drafts the emails, proposals, and next steps and hands them to you to review. Nothing is sent and no status changes until you tap approve — you keep every consequential decision.",
+    body: `StudioCue drafts the emails, ${words.proposal.toLowerCase()}s, and next steps and hands them to you to review. Nothing is sent and no status changes until you tap approve — you keep every consequential decision.`,
   },
   {
     icon: ClipboardCheck,
@@ -53,7 +58,9 @@ const CONCEPTS: Concept[] = [
 ];
 
 export function HelpCenter() {
-  const shootsWeddings = useStudioJobTypes().some((type) => type.kind === "wedding");
+  // The film is a photographer's wedding (useOffersWeddingFilm).
+  const shootsWeddings = useOffersWeddingFilm();
+  const trade = helpTrade(useWorkspace().tenantTrade);
   return (
     <div className="post-event-page help-page">
       <header className="page-heading">
@@ -97,7 +104,7 @@ export function HelpCenter() {
       <section className="help-section">
         <p className="eyebrow">How StudioCue works</p>
         <div className="help-concepts">
-          {CONCEPTS.map((concept) => {
+          {concepts(trade).map((concept) => {
             const Icon = concept.icon;
             return (
               <article className="panel help-concept" key={concept.title}>
@@ -134,9 +141,9 @@ export function HelpCenter() {
             <div>
               <strong>Ask Cue how to do anything</strong>
               <small>
-                &ldquo;How do I book a client?&rdquo;, &ldquo;How do I staff a
-                second shooter?&rdquo; — Cue explains the steps and can prepare
-                the work for you to approve.
+                &ldquo;How do I book a client?&rdquo;, &ldquo;How do I staff{" "}
+                {trade.has.family === "photo" ? "a second shooter" : `another ${trade.words.member}`}?&rdquo;
+                {" "}— Cue explains the steps and can prepare the work for you to approve.
               </small>
             </div>
             <ArrowRight className="help-link-arrow" aria-hidden="true" />

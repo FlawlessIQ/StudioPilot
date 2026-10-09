@@ -1,4 +1,6 @@
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
+import { coverageRoleLabel, type CoverageRole } from "../packages/coverage.js";
+import { tradeOf, tradeProfile } from "../trades/trades.js";
 import {
   defaultEmailCopy,
   renderEmailTemplate,
@@ -23,11 +25,26 @@ const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 const SAMPLE_PROJECT = "Avery & Sam";
 const SAMPLE_RECIPIENT = "Avery Stone";
 
+/**
+ * The crew role a sample offer names, in the studio's trade: a DJ editing the
+ * crew offer was shown a "Second photographer" (trades.ts).
+ */
+function sampleRole(trade: unknown): string {
+  const profile = tradeProfile(trade);
+  if (profile.family === "photo") return "Second photographer";
+  const label = coverageRoleLabel(profile.coverageRoles[0] as CoverageRole, 1);
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+}
+
 /** Plausible values for every field a template reads, so each one renders whole. */
-function sampleValues(zone: string): Row {
+function sampleValues(zone: string, trade: unknown): Row {
   const url = "https://studio-cue.com/client";
+  const role = sampleRole(trade);
   return {
     timezone: zone,
+    // What the studio does, as the worker passes it (operations/jobs.ts), so
+    // a DJ's preview reads as a DJ's client will get it.
+    trade: tradeOf(trade),
     eventDate: "2027-06-12",
     projectName: SAMPLE_PROJECT,
     portalUrl: url,
@@ -47,7 +64,7 @@ function sampleValues(zone: string): Row {
     endsAt: "2026-10-20T22:30:00.000Z",
     format: "zoom",
     meetingUrl: "https://zoom.us/j/0000000000",
-    role: "Second photographer",
+    role,
     arrivalAt: "2027-06-12T16:00:00.000Z",
     departureAt: "2027-06-13T02:00:00.000Z",
     callDate: "2027-06-12",
@@ -56,8 +73,8 @@ function sampleValues(zone: string): Row {
     venueName: "Hollow Oak Barn",
     runOfShowShared: true,
     jobs: [
-      { date: "2027-06-12", jobName: SAMPLE_PROJECT, role: "Second photographer", arrivalAt: "2027-06-12T16:00:00.000Z", locationName: "Hollow Oak Barn", timezone: zone },
-      { date: "2027-08-21", jobName: "Jordan & Lee", role: "Second photographer", arrivalAt: null, locationName: null, timezone: zone },
+      { date: "2027-06-12", jobName: SAMPLE_PROJECT, role, arrivalAt: "2027-06-12T16:00:00.000Z", locationName: "Hollow Oak Barn", timezone: zone },
+      { date: "2027-08-21", jobName: "Jordan & Lee", role, arrivalAt: null, locationName: null, timezone: zone },
     ],
     message: "We're so excited — can't wait to talk!",
     customBody: "Thanks for getting in touch. Here's the next step.",
@@ -92,7 +109,7 @@ export function previewEmail(
     brand: previewBrand(tenant),
     recipientName: SAMPLE_RECIPIENT,
     projectName: SAMPLE_PROJECT,
-    values: sampleValues(zone),
+    values: sampleValues(zone, tenant?.trade),
   };
   const rendered = renderEmailTemplate({ ...input, template });
   return {

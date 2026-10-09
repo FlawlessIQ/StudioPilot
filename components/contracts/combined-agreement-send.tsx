@@ -10,6 +10,7 @@ import { sectionDocument } from "@/features/contracts/combined";
 import { STUDIO_SIGNING_STATEMENT } from "@/features/contracts/esign-consent";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   previewCombinedAgreement,
@@ -37,6 +38,8 @@ export function CombinedAgreementSend({
   onSent: () => void;
 }) {
   const workspace = useWorkspace();
+  // "quote" for a makeup artist or hair stylist (trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const native = useNativeSigning(0);
   const canSign = ["studio_owner", "studio_admin"].includes(String(workspace.role ?? ""));
   const [preview, setPreview] = useState<CombinedAgreementPreview | null>(null);
@@ -102,7 +105,7 @@ export function CombinedAgreementSend({
           {busy === "preview" ? "Preparing…" : "Send as one booking agreement"}
         </button>
         <small className="native-contract-note">
-          Your terms and these prices together — the couple signs both at once, and that accepts the proposal.
+          {`Your terms and these prices together — the couple signs both at once, and that accepts the ${offer}.`}
         </small>
         {error ? <p className="client-contract-error" role="alert">{error}</p> : null}
       </div>
@@ -143,14 +146,14 @@ export function CombinedAgreementSend({
     <div className="combined-agreement-send combined-agreement-sheet">
       <p className="eyebrow">Booking agreement</p>
       <p className="native-contract-note">
-        Part 1 is your agreement (version {preview.templateVersion}); Part 2 is this proposal&rsquo;s packages,
+        Part 1 is your agreement (version {preview.templateVersion}); Part 2 is this {offer}&rsquo;s packages,
         extras, total and payment schedule. The couple signs each part. Highlighted text came from the job&rsquo;s
         records.
       </p>
       {termsStatePrice ? (
         <p className="native-contract-note">
           Your agreement (Part 1) also states the price and schedule. They&rsquo;re the same figures as Part 2, from
-          this proposal. To state them once, remove the price and schedule fields from{" "}
+          this {offer}. To state them once, remove the price and schedule fields from{" "}
           <Link href="/studio/contracts/agreement">your agreement</Link>.
         </p>
       ) : null}

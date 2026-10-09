@@ -19,6 +19,7 @@ import {
 import { Button, Card, KitRoot, Main, Note, Pill, PoweredBy, TextArea } from "@/components/kit/kit";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import {
   clientDeliverables,
   daysLeft,
@@ -66,6 +67,35 @@ export function ClientDelivery() {
   const album = albums.value[0];
   const studioName =
     workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : "your studio";
+
+  /**
+   * A DJ, makeup artist or hair stylist delivers nothing after the day
+   * (trades.ts), so their client waits on nothing here. The portal's own nav
+   * can still offer this page once a job is past the day, and "your photos
+   * will be here" would promise them something that never comes.
+   */
+  if (!deliverables.length && !album && !tradeProfile(workspace.tenantTrade).delivery)
+    return (
+      <Main label="After the day">
+        <div className="kit-stack-tight">
+          <p className="kit-eyebrow">{words.afterwards}</p>
+          <h1 className="kit-title">Nothing to download</h1>
+        </div>
+        <Card>
+          <p className="kit-body" role="status">
+            {`Everything ${studioName} does for you happens on the day, so there’s nothing to download here.`}
+          </p>
+        </Card>
+        <Link
+          className="kit-caption"
+          href="/client/messages"
+          style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
+        >
+          <MessageCircle aria-hidden size={15} /> {`Ask ${studioName} a question`}
+        </Link>
+        <PoweredBy />
+      </Main>
+    );
 
   if (!deliverables.length && !album)
     return (

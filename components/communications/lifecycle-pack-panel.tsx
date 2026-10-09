@@ -13,6 +13,8 @@ import {
   type LifecycleSettings,
 } from "@/lib/communications/lifecycle-settings-client";
 import { InfoHint } from "@/components/ui/info-hint";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { callWords } from "@/components/studio/trade-words";
 
 const COPY: Record<
   keyof LifecycleSettings,
@@ -37,6 +39,38 @@ const COPY: Record<
 };
 
 /**
+ * The rows this trade has, in its words (features/trades/trades.ts). A makeup
+ * or hair studio has no call before the quote and no client day-before
+ * checklist (its prep guide goes in the week-before email), so neither row is
+ * shown; a DJ's call is a vibe call, and its checklist asks for song changes
+ * and load-in rather than the dress and the rings.
+ */
+function copyFor(trade: unknown): Partial<typeof COPY> {
+  const profile = tradeProfile(trade);
+  const vocab = tradeVocab(trade);
+  const calls = callWords(trade);
+  return {
+    schedule_confirmation: COPY.schedule_confirmation,
+    final_invoice_notice: COPY.final_invoice_notice,
+    ...(profile.clientDayBefore
+      ? {
+          day_before_checklist: vocab.dayBefore
+            ? { ...COPY.day_before_checklist, detail: "The last details you need from them, the day before" }
+            : COPY.day_before_checklist,
+        }
+      : {}),
+    ...(calls.sales
+      ? {
+          consultation_prep: {
+            ...COPY.consultation_prep,
+            label: `Ahead of the ${calls.one}`,
+          },
+        }
+      : {}),
+  };
+}
+
+/**
  * Lifecycle pack + trust dial.
  *
  * Each deterministic lifecycle message can be switched off, and — owner only —
@@ -50,6 +84,8 @@ export function LifecyclePackPanel() {
     tenants?.find((candidate) => candidate.id === workspace.tenantId) ??
     tenants?.[0];
   const isOwner = workspace.role === "studio_owner";
+  const copy = copyFor(workspace.tenantTrade);
+  const hasCall = callWords(workspace.tenantTrade).sales !== null;
   const [settings, setSettings] = useState<LifecycleSettings>(
     defaultLifecycleMessagingSettings,
   );
@@ -124,18 +160,17 @@ export function LifecyclePackPanel() {
         <ShieldCheck aria-hidden="true" />
       </div>
       <p className="communications-lifecycle-note">
-        Routine messages Cue may send on its own. Money, signatures and anything
-        Cue writes itself always wait for you. Cue prepares these on schedule — for
-        booked weddings, and for couples with a consultation coming up — and each
-        one waits on Today unless you set it to send automatically.
+        {`Routine messages Cue may send on its own. Money, signatures and anything Cue writes itself always wait for you. Cue prepares these on schedule — for booked weddings${
+          hasCall ? `, and for couples with a ${callWords(workspace.tenantTrade).one} coming up` : ""
+        } — and each one waits on Today unless you set it to send automatically.`}
       </p>
       <ul className="communications-lifecycle-list">
-        {(Object.keys(COPY) as Array<keyof LifecycleSettings>).map(
+        {(Object.keys(copy) as Array<keyof LifecycleSettings>).map(
           (trigger) => (
             <li key={trigger}>
               <span>
-                <strong>{COPY[trigger].label}</strong>
-                <small>{COPY[trigger].detail}</small>
+                <strong>{copy[trigger]!.label}</strong>
+                <small>{copy[trigger]!.detail}</small>
               </span>
               <span className="communications-lifecycle-controls">
                 <label>
@@ -150,7 +185,7 @@ export function LifecyclePackPanel() {
                   On
                 </label>
                 <select
-                  aria-label={`${COPY[trigger].label} approval mode`}
+                  aria-label={`${copy[trigger]!.label} approval mode`}
                   disabled={!isOwner || !settings[trigger].enabled}
                   onChange={(event) =>
                     update(trigger, {

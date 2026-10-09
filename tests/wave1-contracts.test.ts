@@ -266,7 +266,7 @@ test("a withdrawn contract leaves the job asking for a new one, not a signature"
   assert.equal(voidedContractNextAction("combined"), "Correct the proposal, or send a new booking agreement");
   const commands = read("functions/src/contracts/commands.ts");
   const voiding = commands.slice(commands.indexOf("export async function voidStudioCueContract"));
-  assert.match(voiding, /nextAction: voidedContractNextAction\(contract\.get\("mode"\)\)/);
+  assert.match(voiding, /nextAction: voidedContractNextAction\(contract\.get\("mode"\), trade\)/);
 });
 
 // ---- 7. Discounts ----------------------------------------------------------

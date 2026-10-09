@@ -15,6 +15,8 @@ import {
 import { useProjectJourney } from "@/components/projects/use-project-journey";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import type { JourneyStepKey } from "@/features/journey/steps";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 
 /**
  * The planning areas, with what each one currently needs.
@@ -79,6 +81,9 @@ const AREAS: Array<{
 ];
 
 export function PlanAreas({ projectId }: { projectId: string }) {
+  // A DJ, makeup artist or hair stylist delivers nothing after the day
+  // (trades.ts), so their files hold no deliverables.
+  const delivers = tradeProfile(useWorkspace().tenantTrade).delivery;
   const projects = useTenantDocuments("projects");
   const project = (projects.records ?? []).find((row) => row.id === projectId);
   const { steps, current } = useProjectJourney({
@@ -130,7 +135,9 @@ export function PlanAreas({ projectId }: { projectId: string }) {
               <small>
                 {area.label === "Event day" && eventBehindThem
                   ? "The brief as it stood on the day."
-                  : area.detail}
+                  : area.route === "documents" && !delivers
+                    ? "Schedules, documents and files in one place."
+                    : area.detail}
               </small>
             </div>
             {status === "now" ? (

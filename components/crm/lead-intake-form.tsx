@@ -39,6 +39,7 @@ import { suggestEmailFix } from "@/features/leads/email-typo";
 import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useEmbedFrame } from "@/components/crm/use-embed-frame";
+import { TRADE_LABELS, tradeOf, tradeProfile } from "@/features/trades/trades";
 
 
 type SubmissionResult = {
@@ -112,6 +113,14 @@ function stepCopy(key: StepKey, type: InquiryEventType | null, dated: boolean): 
   if (type?.kind === "general")
     return { title: "How can we help?", lede: "Ask us anything. A few lines is plenty." };
   return { title: "What matters most?", lede: "Anything you’d like us to know. A few lines is plenty." };
+}
+
+/** What to say about the package they want, in the studio's own trade. */
+function packageAsk(trade: unknown): string {
+  const family = tradeProfile(trade).family;
+  if (family === "music") return "How many hours of music, an MC, lighting — and anything else we should know.";
+  if (family === "beauty") return "How many people, which services, a trial — and anything else we should know.";
+  return "Photo, video or both, how many hours, an album — and anything else we should know.";
 }
 
 const COI_ANSWERS = [
@@ -209,9 +218,16 @@ export function LeadIntakeForm({
   config = DEFAULT_FORM,
   preview = false,
   embedded = false,
+  trade,
 }: {
   tenantSlug: string;
   brandName: string;
+  /**
+   * What the studio does (trades.ts), read with the studio on the server. A
+   * DJ's or a hair stylist's client is asked about their music or their hair,
+   * not "Photo, video or both"; missing is a photographer.
+   */
+  trade?: unknown;
   /** The studio's brand: couples are writing to the studio, not StudioCue. */
   studio?: Studio;
   /** The studio's own form, read server-side from its inquiry settings. */
@@ -712,7 +728,7 @@ export function LeadIntakeForm({
                   placeholder={
                     chosenType?.kind === "general"
                       ? "Tell us what you’d like to know."
-                      : "Photo, video or both, how many hours, an album — and anything else we should know."
+                      : packageAsk(trade)
                   }
                   rows={5}
                   {...register("message")}
@@ -734,7 +750,7 @@ export function LeadIntakeForm({
                   <>
                     <input type="hidden" {...register("budgetRange", { setValueAs: (value) => value || null })} />
                     <Choices
-                      legend="Photography budget"
+                      legend={`${TRADE_LABELS[tradeOf(trade)]} budget`}
                       onChange={(next) =>
                         setValue("budgetRange", next === "none" ? null : (next as string), { shouldDirty: true })
                       }

@@ -34,6 +34,12 @@ export type ServerActionSpec = {
    * choosing one of these ids opens that flow.
    */
   flow?: "crew_offer" | "select_package" | "select_questionnaire";
+  /**
+   * Only for a studio that delivers something after the day (a gallery, a
+   * film): tradeProfile(trade).delivery. A DJ or makeup artist was offered
+   * "Deliver the gallery" (2026-10-09).
+   */
+  delivers?: true;
 };
 
 export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
@@ -165,10 +171,10 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "resolve_checkpoint", scope: "project", when: "mark a readiness item as handled by hand (it was done outside StudioCue) — which one in `subject`" },
   { id: "reopen_checkpoint", scope: "project", ownerAdminOnly: true, when: "reopen a readiness item marked done or waived by mistake — which one in `subject`" },
   // After the event
-  { id: "record_delivery", scope: "project", when: "the gallery / photos / film were delivered — gallery link in `text`" },
-  { id: "complete_editing_step", scope: "project", when: "mark a post-production step done (culling, editing, color), or uncheck one checked by mistake — which in `subject`" },
-  { id: "update_album", scope: "project", when: "update the album's status (selections received, design sent, couple approved or asked for changes, fulfilled), or put it back a step after a mistake" },
-  { id: "replace_gallery_link", scope: "project", ownerAdminOnly: true, when: "a gallery or film link sent to the couple was wrong — take it back and send the right one (new link in `text`, which delivery in `subject`)" },
+  { id: "record_delivery", delivers: true, scope: "project", when: "the gallery / photos / film were delivered — gallery link in `text`" },
+  { id: "complete_editing_step", delivers: true, scope: "project", when: "mark a post-production step done (culling, editing, color), or uncheck one checked by mistake — which in `subject`" },
+  { id: "update_album", delivers: true, scope: "project", when: "update the album's status (selections received, design sent, couple approved or asked for changes, fulfilled), or put it back a step after a mistake" },
+  { id: "replace_gallery_link", delivers: true, scope: "project", ownerAdminOnly: true, when: "a gallery or film link sent to the couple was wrong — take it back and send the right one (new link in `text`, which delivery in `subject`)" },
   { id: "confirm_review", scope: "project", when: "the couple left a review" },
   { id: "skip_review_requests", scope: "project", ownerAdminOnly: true, when: "don't ask this couple for a review / stop the review requests (they complained, or the studio asks in person) — not for a review they actually left" },
   { id: "close_job", scope: "project", when: "close out a finished job" },
@@ -254,11 +260,15 @@ export function validatePreparedAction(
     archivedProjectIds: ReadonlySet<string>;
     scopedProjectId: string | null;
     ownerOrAdmin: boolean;
+    /** The studio delivers something after the day (tradeProfile). Omitted: it does, as a photographer. */
+    delivers?: boolean;
   },
 ): PrepareResult {
   const id = typeof args.action === "string" ? args.action.trim() : "";
   const spec = actionSpec(id);
   if (!spec) return { ok: false, reason: `unknown action "${id}"` };
+  if (spec.delivers && context.delivers === false)
+    return { ok: false, reason: "this studio delivers nothing after the day — say so, and don't offer it" };
   if (spec.ownerAdminOnly && !context.ownerOrAdmin)
     return { ok: false, reason: "only the studio's owners and admins can do this — say so" };
   let projectId: string | null = null;

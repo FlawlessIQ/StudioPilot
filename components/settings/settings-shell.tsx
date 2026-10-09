@@ -40,6 +40,8 @@ import { FirstReplySettings } from "@/components/settings/first-reply-settings";
 import { StudioIdentitySettings } from "@/components/settings/studio-identity";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { OutsideStepsInFlight } from "@/components/outside-steps/outside-steps-in-flight";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { callWords } from "@/components/studio/trade-words";
 import {
   SETTINGS_SECTIONS,
   legacySettingsTarget,
@@ -171,21 +173,26 @@ const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
 ];
 
 /** Where a hub item goes and what it says, whichever kind it is. */
-function resolve(item: HubItem, setupComplete = false) {
+function resolve(item: HubItem, setupComplete = false, trade?: unknown) {
   // "Finish setting up" on a studio that has: it reads as a nag that's wrong.
   if (item.kind === "link" && item.href === "/studio/setup" && setupComplete)
     return { ...item, title: "Review setup", subtitle: "Everything's answered — change any of it" };
   if (item.kind === "link") return item;
   const section = SETTINGS_SECTIONS.find((entry) => entry.key === item.key)!;
+  // The booking hours serve every call the studio has: a photographer's
+  // consultation, a DJ's vibe call, a makeup or hair trial and the final
+  // details call (components/studio/trade-words.ts).
+  const calls = item.key === "availability" ? callWords(trade) : null;
   return {
     href: settingsSectionHref(item.key),
     icon: item.icon,
-    title: section.title,
-    subtitle: section.subtitle,
+    title: calls ? calls.availabilityTitle : section.title,
+    subtitle: calls ? calls.availabilitySubtitle : section.subtitle,
   };
 }
 
 export function SettingsShell() {
+  const trade = useWorkspace().tenantTrade;
   const isPhone = useIsPhone();
   const { complete: setupComplete } = useSetupState();
   const router = useRouter();
@@ -232,7 +239,7 @@ export function SettingsShell() {
             {group.note ? <p className="settings-group-note">{group.note}</p> : null}
             <div className="settings-destinations">
               {group.items.map((item) => {
-                const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete);
+                const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete, trade);
                 return (
                   <Link href={href} key={href}>
                     <span className="settings-destination-icon">
@@ -266,7 +273,7 @@ export function SettingsShell() {
           {group.note ? <p className="settings-group-note">{group.note}</p> : null}
           <div className="settings-group-card">
             {group.items.map((item) => {
-              const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete);
+              const { href, icon: Icon, title, subtitle } = resolve(item, setupComplete, trade);
               return (
                 <Link className="settings-row" href={href} key={href}>
                   <span className="settings-row-icon">

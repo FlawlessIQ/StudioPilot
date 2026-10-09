@@ -168,5 +168,5 @@ test("a makeup client's plan and booking steps say quote", () => {
   assert.equal(open.next.title, "Review and accept your quote");
   assert.equal(bookingSteps({ proposalStatus: "sent", contractStatus: null, retainer: null }).next.title, "Review and accept your proposal");
   assert.match(read("components/client/live-client-views.tsx"), /offer = tradeVocab\(useWorkspace\(\)\.tenantTrade\)\.proposal\.toLowerCase\(\)/);
-  assert.match(read("components/client/kit/client-plan.tsx"), /clientAreaItems\(project\?\.navigation, tradeVocab\(workspace\.tenantTrade\)\.proposal\)/);
+  assert.match(read("components/client/kit/client-plan.tsx"), /clientAreaItems\(\s*project\?\.navigation,\s*tradeVocab\(workspace\.tenantTrade\)\.proposal,/);
 });

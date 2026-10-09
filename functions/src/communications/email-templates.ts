@@ -666,7 +666,9 @@ function callNameFor(values: Record<string, unknown>): string {
   const words = tradeVocab(values.trade);
   if (purpose === "final_details") return words.finalCall;
   if (purpose === "trial") return words.trial ?? "Trial";
-  return words.consultation;
+  // A makeup artist or hair stylist has no sales consultation (trades.ts): a
+  // call they book anyway is just a call, never "your consultation".
+  return tradeProfile(values.trade).consultation ? words.consultation : "Call";
 }
 
 function possessive(name: string): string {
@@ -997,19 +999,19 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           note: "Times remain available until someone else books them.",
         };
       return {
-        subject: `Choose a ${tradeVocab(values.trade).consultation.toLowerCase()} time with ${brand.studioName}`,
+        subject: `Choose a ${callNameFor(values).toLowerCase()} time with ${brand.studioName}`,
         preheader: tradeProfile(values.trade).family === "photo"
           ? "Select a convenient time for your photography consultation."
-          : `Select a convenient time for your ${tradeVocab(values.trade).consultation.toLowerCase()}.`,
-        eyebrow: `${tradeVocab(values.trade).consultation} invitation`,
+          : `Select a convenient time for your ${callNameFor(values).toLowerCase()}.`,
+        eyebrow: `${callNameFor(values)} invitation`,
         heading: "Let’s find a time to talk",
         paragraphs: [
           greeting,
-          `We'd like you to choose a ${tradeVocab(values.trade).consultation.toLowerCase()} time${project}.`,
+          `We'd like you to choose a ${callNameFor(values).toLowerCase()} time${project}.`,
           "Open the secure scheduler to see our current availability. A confirmation will be sent after you choose a time.",
         ],
         action: actionUrl
-          ? { label: `Choose a ${tradeVocab(values.trade).consultation.toLowerCase()} time`, url: actionUrl }
+          ? { label: `Choose a ${callNameFor(values).toLowerCase()} time`, url: actionUrl }
           : undefined,
         note: "Times remain available until another client confirms them.",
       };
@@ -1020,10 +1022,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         subject: photo ? `Photography options from ${brand.studioName}` : `Your options from ${brand.studioName}`,
         preheader: photo ? "Review the coverage options prepared for your event." : "Review the packages prepared for your event.",
         eyebrow: photo ? "Your photography options" : "Your options",
-        heading: "Let’s find the right coverage",
+        // A vendor's packages are services, not coverage (trades.ts `coverage`).
+        heading: photo ? "Let’s find the right coverage" : "Let’s find the right package",
         paragraphs: [
           greeting,
-          `We've prepared the next step${project}. Review the available coverage and send any questions before making a selection.`,
+          `We've prepared the next step${project}. Review the available ${photo ? "coverage" : "packages"} and send any questions before making a selection.`,
         ],
         action: portalUrl
           ? { label: "Review packages", url: portalUrl }
@@ -1083,17 +1086,21 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     case "contract_ready": {
       const signerName = stringValue(values, "signerName");
+      // A makeup artist's or hair stylist's client accepted a quote, and a
+      // vendor's client booked services, not coverage (trades.ts).
+      const offer = tradeVocab(values.trade).proposal.toLowerCase();
+      const booked = tradeProfile(values.trade).family === "photo" ? "coverage" : "services";
       // One send, two signatures (H2): the terms and the price together,
       // before anything was accepted — not "the proposal you accepted".
       if (values.combined === true) {
         return {
           subject: `Your booking agreement from ${brand.studioName} is ready to sign`,
-          preheader: "Your coverage, your price and the terms — read them and sign in one go.",
+          preheader: `Your ${booked}, your price and the terms — read them and sign in one go.`,
           eyebrow: "Booking agreement",
           heading: "Your booking agreement is ready",
           paragraphs: [
             greeting,
-            `Everything for your booking${project} is in one agreement: Part 1 is ${brand.studioName}'s terms, Part 2 is your coverage, extras, total and payment schedule. You sign each part, and signing books it — there's no separate step to accept the proposal.`,
+            `Everything for your booking${project} is in one agreement: Part 1 is ${brand.studioName}'s terms, Part 2 is your ${booked}, extras, total and payment schedule. You sign each part, and signing books it — there's no separate step to accept the ${offer}.`,
             signerName
               ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
               : "Once you sign, you'll get a copy by email and the next step is your retainer.",
@@ -1113,7 +1120,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your agreement is ready to sign",
         paragraphs: [
           greeting,
-          `Your agreement${project} is ready. It's written from the proposal you accepted, so the package, price and payment schedule are the ones you agreed to.`,
+          `Your agreement${project} is ready. It's written from the ${offer} you accepted, so the package, price and payment schedule are the ones you agreed to.`,
           signerName
             ? `${signerName} has already signed for ${brand.studioName}. Once you sign, your agreement is complete and you'll get a copy by email.`
             : `Once you sign, your agreement is complete and you'll get a copy by email.`,
@@ -1228,6 +1235,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         : [];
       const list = (items: string[]) =>
         items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+      // A makeup or hair studio sends quotes (trades.ts).
+      const offer = tradeVocab(values.trade).proposal.toLowerCase();
       return {
         subject:
           reason === "review"
@@ -1236,11 +1245,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         preheader:
           reason === "needs_fields" && missing.length
             ? `It's missing: ${list(missing)}.`
-            : `${clientName} accepted the proposal and is waiting for the agreement.`,
+            : `${clientName} accepted the ${offer} and is waiting for the agreement.`,
         eyebrow: "Agreement",
         heading: reason === "review" ? "The agreement is ready" : "The agreement needs you",
         paragraphs: [
-          `${clientName} accepted the proposal${project}, and StudioCue drafted the agreement from it.`,
+          `${clientName} accepted the ${offer}${project}, and StudioCue drafted the agreement from it.`,
           reason === "needs_fields"
             ? `It wasn't sent automatically because it's missing: ${missing.length ? list(missing) : "a detail only you can fill in"}. Fill that in and send it.`
             : reason === "signer_inactive"
@@ -1308,19 +1317,22 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           action: actionUrl ? { label: "Review my details", url: actionUrl } : undefined,
         };
       }
+      // A DJ's planner or a makeup artist's party list, by its own name
+      // (trades.ts `detailsForm`); a photographer's reads as it always did.
+      const form = tradeVocab(values.trade).detailsForm;
       return {
         subject: `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
-        preheader: tradeVocab(values.trade).detailsForm ? `Complete your ${tradeVocab(values.trade).detailsForm}.` : "Complete your photography project questionnaire.",
-        eyebrow: reminder ? "Questionnaire reminder" : "Planning questionnaire",
+        preheader: form ? `Complete your ${form}.` : "Complete your photography project questionnaire.",
+        eyebrow: form ? (reminder ? `${form} reminder` : form) : reminder ? "Questionnaire reminder" : "Planning questionnaire",
         heading: reminder
           ? "A few project details are still needed"
           : "Help us plan the details",
         paragraphs: [
           greeting,
-          `We${reminder ? "'re still waiting for" : "'re ready to collect"} the planning information${project}. You can save your progress and return before submitting.`,
+          `We${reminder ? "'re still waiting for" : "'re ready to collect"} ${form ? `your ${form.toLowerCase()}` : "the planning information"}${project}. You can save your progress and return before submitting.`,
         ],
         action: actionUrl
-          ? { label: "Complete questionnaire", url: actionUrl }
+          ? { label: form ? `Complete your ${form.toLowerCase()}` : "Complete questionnaire", url: actionUrl }
           : undefined,
       };
     }
@@ -2304,6 +2316,17 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "trial_cue_without_asking": {
       const approvals = numberValue(values, "trustApprovals") ?? 3;
       const count = COUNT_WORDS[approvals] ?? String(approvals);
+      // Only the routine messages this studio's trade has (trades.ts): a
+      // makeup artist or hair stylist has no consultation and no day-before
+      // checklist, and a DJ's call is a vibe call.
+      const trade = tradeProfile(values.trade);
+      const routine = [
+        "the schedule confirmation",
+        "the final balance summary",
+        ...(trade.clientDayBefore ? ["the day-before checklist"] : []),
+        ...(trade.consultation ? [`the note ahead of a ${tradeVocab(values.trade).consultation.toLowerCase()}`] : []),
+      ];
+      const routineList = `${routine.slice(0, -1).join(", ")} and ${routine.at(-1)}`;
       return {
         subject: "What Cue can do without asking",
         preheader: `Approve the same routine message ${count} times unchanged, and Cue offers to stop asking.`,
@@ -2311,7 +2334,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Want Cue to stop asking?",
         paragraphs: [
           greeting,
-          "Cue starts out asking. Its routine messages (the schedule confirmation, the final balance summary, the day-before checklist and the note ahead of a consultation) each wait for your tap.",
+          `Cue starts out asking. Its routine messages (${routineList}) each wait for your tap.`,
           `Approve the same kind ${count} times in a row without changing a word, and Cue offers to send that one on its own from then on. Say no and it keeps asking. Say yes and you can turn it back off any time.`,
           "Some things always wait for you, whatever you choose: payments, anything that needs a signature, and any message Cue wrote in its own words.",
           "Every setting is in one place, under What Cue can do without asking.",
@@ -2332,7 +2355,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Payment received",
         paragraphs: [
           greeting,
-          `Thank you. ${brand.studioName} received ${amount}${method ? ` ${method}` : ""}${athlete ? ` for ${athlete}'s photos` : ""}${item ? ` (${item})` : ""}${project}.`,
+          // "for Sam's photos" only from a photographer: a vendor's roster is
+          // paid for the athlete, not for photos (trades.ts).
+          `Thank you. ${brand.studioName} received ${amount}${method ? ` ${method}` : ""}${athlete ? ` for ${athlete}${photoWord(values, "'s photos")}` : ""}${item ? ` (${item})` : ""}${project}.`,
           "Keep this email as your receipt. If anything looks wrong, reply and the studio will put it right.",
         ],
       };

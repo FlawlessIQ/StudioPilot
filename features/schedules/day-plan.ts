@@ -408,7 +408,7 @@ export function planDay(input: {
   const arrivePinned = fixed("arrive");
   const arrive: Placed = arrivePinned && arrivePinned !== "tbd"
     ? arrivePinned
-    : { minutes: earliest, source: "coverage", label: "Coverage starts with the first thing on the day", tbd: false };
+    : { minutes: earliest, source: "coverage", label: "Starts with the first thing on the day", tbd: false };
   anchors.coverage_start = arrive.minutes;
   placed.set("arrive", arrive);
   const endAnswer = clockAnswer(answerFor(answers, COVERAGE_END_KEYS));

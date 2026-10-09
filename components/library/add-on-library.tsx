@@ -6,7 +6,7 @@ import { Archive, CheckCircle2, LoaderCircle, Pencil, Plus } from "lucide-react"
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { extraIdeasFor } from "@/features/packages/extra-ideas";
-import { tradeOf } from "@/features/trades/trades";
+import { tradeOf, tradeVocab } from "@/features/trades/trades";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
@@ -83,7 +83,8 @@ export function AddOnLibrary() {
         !outcome.persisted
           ? "Development preview — nothing was saved."
           : archived
-            ? `${next.name} archived. Proposals that already have it keep it.`
+            ? // "Quotes" for a makeup artist or hair stylist (trades.ts).
+              `${next.name} archived. ${tradeVocab(workspace.tenantTrade).proposal}s that already have it keep it.`
             : `${next.name} saved.`,
       );
     } catch (caught: unknown) {

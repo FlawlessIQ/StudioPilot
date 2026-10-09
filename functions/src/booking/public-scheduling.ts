@@ -1,4 +1,4 @@
-import { tradeProfile, tradeVocab } from "../trades/trades.js";
+import { tradeOf, tradeProfile, tradeVocab } from "../trades/trades.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { isJobKind, journeyProfile, projectProfile } from "../job-kinds/job-kinds.js";
@@ -44,6 +44,11 @@ import {
 import { jobPrefill } from "../planning/job-prefill.js";
 import { coupleSourceLabel, jobIsBooked } from "../planning/job-facts.js";
 import { isReturned, statusAfterSave, submittedAtAfterSave } from "../planning/questionnaire-lifecycle.js";
+
+/** A studio with no name yet, named by what it does. */
+function studioFallback(trade: unknown): string {
+  return tradeProfile(trade).family === "photo" ? "Your photography studio" : "Your studio";
+}
 
 const inquiryToken = z.string().min(32).max(200);
 
@@ -349,9 +354,11 @@ export const publicConsultationScheduling = onRequest(
       ]);
       if (!tenant.exists || !project.exists) throw new Error("SCHEDULING_LINK_EXPIRED");
       if (command.type === "preview") {
-        const brand = resolveTenantBrand(tenant.data(), "Your photography studio");
+        const brand = resolveTenantBrand(tenant.data(), studioFallback(tenant.get("trade")));
         response.status(200).json({
           studioName: brand.brandName,
+          // The page names the call and the offer in the studio's words.
+          trade: tradeOf(tenant.get("trade")),
           // The couple sees the studio's brand (mobile-first plan, M2).
           brandAccentColor: brand.primaryColor,
           brandLogoUrl: brand.logoUrl,
@@ -620,7 +627,7 @@ async function handleInquiryCommand(
       eventType: context.lead.get("eventTypeLabel"),
     });
     const missing = detailsAskedFor(allMissing, inquiryType?.kind ?? null, dayFieldsFor(inquiryType));
-    const inquiryBrand = resolveTenantBrand(tenant.data(), "Your photography studio");
+    const inquiryBrand = resolveTenantBrand(tenant.data(), studioFallback(tenant.get("trade")));
     const pastConsultation = pastTheCall(context);
     // How this kind of job runs (job-kinds.ts): a family session or a sports
     // day has no call to book, so the page takes the details and says the
@@ -631,6 +638,9 @@ async function handleInquiryCommand(
       : journeyProfile(isJobKind(inquiryType?.kind) ? inquiryType?.kind : null);
     return {
       studioName: inquiryBrand.brandName,
+      // The couple page's call and offer words (tradeVocab): a makeup
+      // client was asked to review a "proposal" for a quote.
+      trade: tradeOf(tenant.get("trade")),
       brandAccentColor: inquiryBrand.primaryColor,
       brandLogoUrl: inquiryBrand.logoUrl,
       firstName: text(context.lead.get("firstName")) || null,

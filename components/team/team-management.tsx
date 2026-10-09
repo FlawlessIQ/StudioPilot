@@ -25,6 +25,7 @@ import {
   type AssignableRole,
 } from "@/features/team/role-summaries";
 import { InfoHint } from "@/components/ui/info-hint";
+import { assignableRolesFor, roleLabelFor, roleSummaryFor } from "@/components/studio/trade-words";
 
 type MemberRow = {
   id: string;
@@ -43,6 +44,14 @@ type InvitationRow = {
 
 export function TeamManagement() {
   const workspace = useWorkspace();
+  /**
+   * The crew role is stored as `staff_photographer` whatever the trade; a DJ
+   * or makeup business reads it in its own words, and isn't offered the
+   * videographer seat (components/studio/trade-words.ts).
+   */
+  const trade = workspace.tenantTrade;
+  const roleLabel = (role: string | null) => roleLabelFor(role, trade, workspaceRoleLabel);
+  const roleSummary = (role: string) => roleSummaryFor(role, trade, ROLE_SUMMARY);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [invitations, setInvitations] = useState<InvitationRow[]>([]);
   const [loading, setLoading] = useState(dataIsLive);
@@ -218,7 +227,7 @@ export function TeamManagement() {
       const name = member?.displayName ?? "They";
       setNotice(
         update.role
-          ? `${name} is now ${workspaceRoleLabel(update.role)}.`
+          ? `${name} is now ${roleLabel(update.role)}.`
           : update.status === "suspended"
             ? `${name} is suspended and can't sign in until you reactivate them.`
             : update.status === "revoked"
@@ -296,9 +305,9 @@ export function TeamManagement() {
               onChange={(event) => setInviteRole(event.target.value as AssignableRole)}
               value={inviteRole}
             >
-              {ASSIGNABLE_ROLES.map((role) => (
+              {assignableRolesFor(ASSIGNABLE_ROLES, trade).map((role) => (
                 <option key={role} value={role}>
-                  {workspaceRoleLabel(role)}
+                  {roleLabel(role)}
                 </option>
               ))}
             </select>
@@ -311,7 +320,7 @@ export function TeamManagement() {
             {busy === "invite" ? <LoaderCircle className="spin" /> : <UserPlus />}
             Send invitation
           </button>
-          <p className="team-role-hint">{ROLE_SUMMARY[inviteRole]}</p>
+          <p className="team-role-hint">{roleSummary(inviteRole)}</p>
         </form>
         {inviteUrl ? (
           <div className="team-invite-link">
@@ -346,7 +355,7 @@ export function TeamManagement() {
                 <small>{invitation.email}</small>
               </span>
               <span className="team-person-role">
-                <strong>{workspaceRoleLabel(invitation.role)}</strong>
+                <strong>{roleLabel(invitation.role)}</strong>
                 <small>Link expires {formatDueDate(invitation.expiresAt)}</small>
               </span>
               <span className="team-person-actions">
@@ -399,9 +408,9 @@ export function TeamManagement() {
                     }
                     value={member.role}
                   >
-                    {ASSIGNABLE_ROLES.map((role) => (
+                    {assignableRolesFor(ASSIGNABLE_ROLES, trade, member.role).map((role) => (
                       <option key={role} value={role}>
-                        {workspaceRoleLabel(role)}
+                        {roleLabel(role)}
                       </option>
                     ))}
                   </select>
@@ -443,7 +452,7 @@ export function TeamManagement() {
               </span>
               {!isOwner ? (
                 <p className="team-person-summary">
-                  {ROLE_SUMMARY[member.role as AssignableRole] ?? ""}
+                  {roleSummary(member.role)}
                 </p>
               ) : null}
               {asking ? (

@@ -15,6 +15,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { crewCloseoutIsSubmitted } from "@/features/crew/closeout-moment";
 import { SCHEDULE_REQUIREMENT_ID } from "@/features/crew/requirements";
 import { statusLabel } from "@/features/format/status-label";
+import { tradeProfile } from "@/features/trades/trades";
 import { crewPublicError } from "@/lib/crew/public-error";
 import {
   assignmentPlace,
@@ -183,7 +184,10 @@ function JobDetail({ data, assignment, now }: { data: CrewData; assignment: Valu
           <p className="kit-caption">The studio hasn&rsquo;t asked for anything on this job.</p>
         )}
         <p className="kit-caption">
-          Only your own paperwork is here. You never see the client&rsquo;s contract, invoices or photos.
+          {/* Only a photographer's client has photos to keep from the crew. */}
+          {tradeProfile(workspace.tenantTrade).delivery
+            ? "Only your own paperwork is here. You never see the client’s contract, invoices or photos."
+            : "Only your own paperwork is here. You never see the client’s contract or invoices."}
         </p>
       </section>
 

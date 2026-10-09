@@ -15,6 +15,9 @@ import {
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
 import { JOB_KIND_LABELS, JOB_KINDS, jobKindOf } from "@/features/job-kinds/job-kinds";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { TRADE_LABELS, tradeOf } from "@/features/trades/trades";
+import { callWords } from "@/components/studio/trade-words";
 
 const formSchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -197,6 +200,23 @@ export function CreateWorkflowForm({
   reviseTemplateId?: string | null;
 } = {}) {
   const templates = useTenantDocuments("workflowTemplates");
+  /**
+   * The studio's trade names its calls (a DJ's vibe call; a makeup or hair
+   * studio books a trial, never a consultation) and the starting name of a
+   * new workflow.
+   */
+  const trade = useWorkspace().tenantTrade;
+  const calls = callWords(trade);
+  const automationWords = (automation: { key: string; name: string; detail: string }) =>
+    automation.key === "confirm-consultation" && calls.one !== "consultation"
+      ? {
+          name: `Send ${calls.sales ? calls.one : "booking"} confirmation`,
+          detail: `Queue the branded confirmation after a ${calls.one} is scheduled.`,
+        }
+      : { name: automation.name, detail: automation.detail };
+  const triggerWords = (trigger: string) =>
+    trigger === "consultation_scheduled" ? `${calls.one} scheduled` : trigger.replaceAll("_", " ");
+  const defaultName = `Wedding ${TRADE_LABELS[tradeOf(trade)]}`;
   const source = reviseTemplateId
     ? (templates.records ?? []).find(
         (template) => String(template.id) === reviseTemplateId,
@@ -219,12 +239,13 @@ export function CreateWorkflowForm({
     register,
     handleSubmit,
     setValue,
+    getValues,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "Wedding Photography",
+      name: defaultName,
       description: "A complete client lifecycle from booking through event readiness.",
       eventType: "wedding",
       // Publishing is the point. A draft template is inert, and defaulting
@@ -240,6 +261,14 @@ export function CreateWorkflowForm({
    * rewrites itself under the cursor is worse than one that waits. Keyed
    * on the record's id so it happens exactly once per template.
    */
+  // The trade arrives with the workspace, which can be after the form: a
+  // name still at the old default follows it, adjusted during render for the
+  // same reason as the adoption below.
+  const [namedAs, setNamedAs] = useState(defaultName);
+  if (namedAs !== defaultName && !reviseTemplateId) {
+    setNamedAs(defaultName);
+    if (getValues("name") === namedAs) setValue("name", defaultName);
+  }
   const [adopted, setAdopted] = useState<string | null>(null);
   if (source && adopted !== reviseTemplateId) {
     setAdopted(reviseTemplateId);
@@ -374,7 +403,7 @@ export function CreateWorkflowForm({
           )
           .map((automation) => ({
             key: automation.key,
-            name: automation.name,
+            name: automationWords(automation).name,
             trigger: automation.trigger,
             conditions:
               "conditions" in automation ? automation.conditions : [],
@@ -510,10 +539,10 @@ export function CreateWorkflowForm({
               type="checkbox"
             />
             <span>
-              <strong>{automation.name}</strong>
-              <small>{automation.detail}</small>
+              <strong>{automationWords(automation).name}</strong>
+              <small>{automationWords(automation).detail}</small>
             </span>
-            <i>{automation.trigger.replaceAll("_", " ")}</i>
+            <i>{triggerWords(automation.trigger)}</i>
           </label>
         ))}
       </fieldset>

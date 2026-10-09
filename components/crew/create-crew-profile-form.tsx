@@ -7,8 +7,14 @@ import { PlaceTagsField } from "@/components/forms/place-tags-field";
 import { TradeField, tradesFromForm } from "@/components/crew/trade-field";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { crewEmailWarning } from "@/lib/crm/command-client";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 export function CreateCrewProfileForm() {
+  // A DJ's, a makeup artist's or a hair stylist's crew don't shoot: the field
+  // below reads "Works as" for them (trade-field.tsx).
+  const trade = useWorkspace().tenantTrade;
+  const photo = tradeProfile(trade).family === "photo";
   const [created, setCreated] = useState<string | null>(null);
   /** Said when the address is already a client's or the team's (crewEmailWarning). */
   const [addressWarning, setAddressWarning] = useState<string | null>(null);
@@ -135,10 +141,12 @@ export function CreateCrewProfileForm() {
           <input
             name="specialties"
             required
-            placeholder="Weddings, documentary"
+            placeholder={photo ? "Weddings, documentary" : "Parties, corporate events"}
           />
           <p className="field-hint">
-            The kind of event they shoot. What they hold is Shoots, below.
+            {photo
+              ? "The kind of event they shoot. What they hold is Shoots, below."
+              : `The kind of event they ${tradeVocab(trade).verb}. Their role goes under Works as, below.`}
           </p>
         </label>
         <TradeField />

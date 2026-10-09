@@ -9,6 +9,7 @@ import { FileLinks } from "@/components/documents/file-link";
 import { QuestionnaireResponseActions } from "@/components/planning/questionnaire-response-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { fileAnswerRefs } from "@/features/documents/file-ref";
 import { statusLabel } from "@/features/format/status-label";
 import { answerText } from "@/features/questionnaires/crew-brief";
@@ -121,7 +122,14 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
   const submitted = when(response.submittedAt);
   if (submitted) facts.push(["Sent back", submitted]);
   // Filled in from the inquiry link, before the call (functions/src/intake/inquiry-form.ts).
-  if (response.source === "inquiry_page") facts.push(["Filled in", "On their inquiry page, before the consultation"]);
+  // A DJ's call is a vibe call; a makeup artist or hair stylist has none (trades.ts).
+  if (response.source === "inquiry_page")
+    facts.push([
+      "Filled in",
+      tradeProfile(workspace.tenantTrade).consultation
+        ? `On their inquiry page, before the ${tradeVocab(workspace.tenantTrade).consultation.toLowerCase()}`
+        : "On their inquiry page",
+    ]);
   const due = when(response.dueDate);
   if (due && !submitted) facts.push(["Due", due]);
   const updated = when(response.updatedAt);

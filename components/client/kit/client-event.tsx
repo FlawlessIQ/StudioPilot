@@ -1,13 +1,16 @@
 "use client";
 
-import { BadgeCheck, CalendarDays, Camera, MapPin, MessageCircle, Sparkles } from "lucide-react";
+import { BadgeCheck, Brush, CalendarDays, Camera, MapPin, MessageCircle, Music, Scissors, Sparkles } from "lucide-react";
 import { Button, Card, List, Main, Note, PoweredBy, Row } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeVocab } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab, type Trade } from "@/features/trades/trades";
 import { eventHasPassed } from "@/features/client/portal-day";
 import { portalStageIsBehind } from "@/features/client/portal-stage";
 import { todayLocalIso } from "@/lib/format/event-date";
 import { date, sentenceCase, text, useClientVocab, useProject } from "@/components/client/live-client-views";
+
+/** Who leads on the day, drawn as their trade: a camera only for a photographer. */
+const LEAD_ICON: Record<Trade, typeof Camera> = { photographer: Camera, dj: Music, makeup: Brush, hair: Scissors };
 
 /**
  * "Your event": the confirmed details of the day (M5 of
@@ -41,6 +44,7 @@ export function ClientEvent() {
   // Who shot it is a past fact once the day has happened, not a promise.
   const past =
     portalStageIsBehind(value.milestones, "schedule") || eventHasPassed(value.eventDate, todayLocalIso());
+  const profile = tradeProfile(workspace.tenantTrade);
 
   return (
     <Main label="Your event">
@@ -55,18 +59,25 @@ export function ClientEvent() {
         <Row icon={MapPin} subtitle="Venue" title={text(value.venueName ?? value.city, "Venue to be confirmed")} />
         <Row icon={Sparkles} subtitle="Event" title={sentenceCase(text(value.eventType, words.event).replaceAll("_", " "))} />
         <Row
-          icon={Camera}
+          icon={LEAD_ICON[profile.trade]}
           subtitle={tradeVocab(workspace.tenantTrade).lead}
           title={text(
             value.leadPhotographerName,
-            past ? "Ask your studio who covered your day" : "Your studio will confirm this",
+            past
+              ? profile.family === "photo"
+                ? "Ask your studio who covered your day"
+                : "Ask your studio who was with you on the day"
+              : "Your studio will confirm this",
           )}
         />
       </List>
 
       {value.clientStage === "Complete" ? (
         <Note icon={BadgeCheck} tone="accent">
-          {`${words.YourEvent} is complete. Your agreement, payments, timeline and deliveries stay in Files.`}
+          {/* Nothing is delivered after a DJ's, a makeup artist's or a hair stylist's day. */}
+          {profile.delivery
+            ? `${words.YourEvent} is complete. Your agreement, payments, timeline and deliveries stay in Files.`
+            : `${words.YourEvent} is complete. Your agreement, payments and timeline stay in Files.`}
         </Note>
       ) : null}
 

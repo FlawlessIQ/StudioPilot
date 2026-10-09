@@ -145,8 +145,8 @@ export function ClientProposal() {
       setNotice(
         decision === "accepted"
           ? needs.agreement
-            ? "Proposal accepted! Next, your agreement: check your email for the link to sign it. It can take a minute to arrive."
-            : "Proposal accepted!"
+            ? `${offerWord} accepted! Next, your agreement: check your email for the link to sign it. It can take a minute to arrive.`
+            : `${offerWord} accepted!`
           : "Your change request was sent to your studio.",
       );
       window.scrollTo({ top: 0 });
@@ -156,7 +156,7 @@ export function ClientProposal() {
       // not be saved" before these could name them (found by the local UAT
       // run, 2026-09-29).
       const code = caught instanceof Error ? caught.message : "";
-      const specific = proposalErrorMessage(code);
+      const specific = proposalErrorMessage(code, offer);
       setNotice(
         specific !== code && specific !== PROPOSAL_ERROR_FALLBACK
           ? specific
@@ -232,7 +232,7 @@ export function ClientProposal() {
         ) : status === "expired" || status === "superseded" || status === "withdrawn" ? (
           <Card>
             <p className="kit-eyebrow">
-              <XCircle aria-hidden="true" size={14} /> Proposal unavailable
+              <XCircle aria-hidden="true" size={14} /> {offerWord}{" "}unavailable
             </p>
             <h2 className="kit-section">
               {status === "expired"

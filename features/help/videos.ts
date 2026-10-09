@@ -1,4 +1,5 @@
 import manifest from "./video-manifest.json";
+import { DEFAULT_TRADE, tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 /**
  * The narrated videos that sit on top of some explainers.
@@ -28,6 +29,37 @@ const VIDEOS = manifest as Record<string, Omit<HelpVideo, "id">>;
 
 export function helpVideoIds(): string[] {
   return Object.keys(VIDEOS);
+}
+
+/**
+ * Every video was recorded on a photography studio, in a photographer's
+ * words, and a recording can't be reworded. So another trade is shown one
+ * only when nothing it says is wrong for them: no photo words at all, and a
+ * consultation, a proposal or delivery only where the trade has one by that
+ * name. The written guide stands on its own without it.
+ */
+const PHOTO_NARRATION =
+  /\b(photos?|photograph\w*|galler(?:y|ies)|shoots?|shooters?|shot lists?|albums?|coverage|deliverables?|sneak peeks?|retouching)\b/i;
+const CONSULTATION_NARRATION = /\bconsultations?\b/i;
+const CALL_NARRATION = /\b(a time to talk|book a call)\b/i;
+const PROPOSAL_NARRATION = /\bproposals?\b/i;
+const DELIVERY_NARRATION = /\bdeliver(y|ed|ing)?\b/i;
+
+export function videoSuitsTrade(id: string | undefined, trade: unknown): boolean {
+  if (tradeOf(trade) === DEFAULT_TRADE) return true;
+  const entry = id ? VIDEOS[id] : undefined;
+  // No transcript, no way to tell what it says.
+  if (!entry?.transcript) return false;
+  const said = [entry.transcript, ...entry.chapters.map((chapter) => chapter.title)].join(" ");
+  const recorded = tradeVocab(DEFAULT_TRADE);
+  const words = tradeVocab(trade);
+  const has = tradeProfile(trade);
+  if (PHOTO_NARRATION.test(said)) return false;
+  if (CONSULTATION_NARRATION.test(said) && !(has.consultation && words.consultation === recorded.consultation)) return false;
+  if (CALL_NARRATION.test(said) && !has.consultation) return false;
+  if (PROPOSAL_NARRATION.test(said) && words.proposal !== recorded.proposal) return false;
+  if (DELIVERY_NARRATION.test(said) && !has.delivery) return false;
+  return true;
 }
 
 /**

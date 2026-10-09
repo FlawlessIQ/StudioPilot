@@ -14,6 +14,7 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 /**
  * "Send this form with every new wedding inquiry" — the studio's event form
@@ -27,6 +28,12 @@ import { dataIsLive } from "@/lib/runtime-mode";
  */
 export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = {}) {
   const workspace = useWorkspace();
+  // A makeup artist or hair stylist has no call: the inquiry page takes the
+  // couple's details and the quote follows (functions/src/intake/inquiry-link.ts).
+  // A DJ's call is a vibe call (trades.ts).
+  const calls = tradeProfile(workspace.tenantTrade).consultation;
+  const callWord = tradeVocab(workspace.tenantTrade).consultation.toLowerCase();
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
   const ownerOrAdmin = ["studio_owner", "studio_admin"].includes(String(workspace.role));
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -85,8 +92,10 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
         !response.persisted
           ? "Preview: nothing was saved."
           : templateId
-            ? `Saved. Couples who write in about a wedding will be asked to fill out ${name ?? "this form"} before they pick a time to talk.`
-            : "Saved. The inquiry page goes straight to picking a time again.",
+            ? `Saved. Couples who write in about a wedding will be asked to fill out ${name ?? "this form"} ${calls ? "before they pick a time to talk" : "on their inquiry page"}.`
+            : calls
+              ? "Saved. The inquiry page goes straight to picking a time again."
+              : "Saved. The inquiry page asks just a few details again.",
       );
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "That setting couldn't be saved."));
@@ -100,13 +109,14 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
     <section className="panel" aria-labelledby="inquiry-event-form-heading" id="inquiry-form">
       <div>
         <p className="eyebrow">
-          <ClipboardList aria-hidden="true" size={14} /> Before the consultation
+          <ClipboardList aria-hidden="true" size={14} />{" "}
+          {calls ? `Before the ${callWord}` : "With every new inquiry"}
         </p>
         <h2 id="inquiry-event-form-heading">Send a form with new wedding inquiries</h2>
         <p>
-          Couples fill it in on the page your first reply links to, before they pick a time to talk — so you
-          have their answers for the call, and for the contract. It lands on the job like any other
-          questionnaire.
+          {`Couples fill it in on the page your first reply links to${
+            calls ? ", before they pick a time to talk — so you have their answers for the call" : ` — so you have their answers for the ${offer}`
+          }, and for the contract. It lands on the job like any other questionnaire.`}
         </p>
       </div>
       {!loaded ? (
@@ -122,7 +132,9 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
           <label>
             Form for wedding inquiries
             <select onChange={(event) => setChoice(event.target.value)} value={selected}>
-              <option value="">Don’t send a form — go straight to picking a time</option>
+              <option value="">
+                {calls ? "Don’t send a form — go straight to picking a time" : "Don’t send a form — ask just a few details"}
+              </option>
               {choices.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}

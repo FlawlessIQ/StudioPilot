@@ -3,6 +3,7 @@
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { projectThread, type ThreadEntry } from "@/features/journey/thread";
+import { useWorkspace } from "@/features/auth/workspace-context";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -21,6 +22,8 @@ export function useProjectThread(input: {
   contactIds: string[];
   leadId: string | null;
 }): { entries: ThreadEntry[]; openConsultationId: string | null } {
+  // The studio's trade words the entries: a DJ's vibe call, a makeup artist's quote.
+  const trade = useWorkspace().tenantTrade;
   const leads = useTenantDocuments("leads");
   const contacts = useTenantDocuments("contacts");
   const consultations = useTenantDocuments("consultations");
@@ -80,6 +83,7 @@ export function useProjectThread(input: {
     deliveries: mine(deliveries.records),
     messages: mine(messages.records),
     actionReceipts: mine(actionReceipts.records),
+    trade,
   });
 
   return { entries, openConsultationId: openConsultation?.id ?? null };

@@ -28,6 +28,8 @@ import {
 } from "firebase/firestore";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
+  coverageRoleLabel,
+  coverageRoleSchema,
   describeCoverage,
   resolveCoverage,
   type CoverageRole,
@@ -51,6 +53,8 @@ import { kindFromValue } from "@/features/library/kinds";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { formatDueDate } from "@/lib/format/event-date";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { callWords } from "@/components/studio/trade-words";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
@@ -120,6 +124,51 @@ const emptyCopy: Partial<Record<Domain, { title: string; detail: string }>> = {
   documents: { title: "No documents yet", detail: "Uploaded and provider-generated project files will appear here." },
   messages: { title: "No messages yet", detail: "Client, crew, and vendor communication history will appear here." },
 };
+
+/**
+ * The empty state in the studio's words (features/trades/trades.ts): a DJ
+ * adds a DJ to the roster, a makeup studio's reviews follow the day rather
+ * than a delivery, and a makeup or hair studio sends quotes and has no
+ * consultations. The
+ * post-production and delivery lists are a photographer's alone; their pages
+ * are reached only by a trade that delivers.
+ */
+function emptyCopyFor(domain: Domain, trade: unknown): { title: string; detail: string } | undefined {
+  const vocab = tradeVocab(trade);
+  if (domain === "crew_profiles") {
+    const article = /^[aeiou]/i.test(vocab.member) ? "an" : "a";
+    return { ...emptyCopy.crew_profiles!, detail: `Add ${article} ${vocab.member} or subcontractor before assigning project work.` };
+  }
+  if (domain === "reviews" && !tradeProfile(trade).delivery)
+    return { ...emptyCopy.reviews!, detail: "Requests can be scheduled once the day is behind you." };
+  if (domain === "proposals" && vocab.proposal !== "Proposal")
+    return {
+      title: `No ${vocab.proposal.toLowerCase()}s yet`,
+      detail: `Create a ${vocab.proposal.toLowerCase()} when a client is ready to review an offer.`,
+    };
+  if (domain === "consultations") {
+    const calls = callWords(trade);
+    return { title: `No ${calls.booked} scheduled`, detail: `Choose a project below to schedule the first ${calls.one}.` };
+  }
+  return emptyCopy[domain];
+}
+
+/**
+ * A fact's heading in the studio's words: a package's "Coverage" is a
+ * vendor's "Service", and the crew directory's "Shoots" is everyone else's
+ * "Roles".
+ */
+function factLabel(label: string, trade: unknown): string {
+  if (label === "Coverage") return tradeVocab(trade).coverage;
+  if (label === "Shoots") return tradeProfile(trade).family === "photo" ? label : "Roles";
+  return label;
+}
+
+/** A coverage role as words, "makeup artist" rather than the stored "makeup_artist". */
+function roleWords(value: unknown): string {
+  const role = coverageRoleSchema.safeParse(value);
+  return role.success ? coverageRoleLabel(role.data, 1) : String(value);
+}
 
 /**
  * "Retainer · QuickBooks #1043", not "qbo invoice 9450cc05-7c45-…".
@@ -574,7 +623,7 @@ function display(
       const roles = (Array.isArray(rule.billedRoles) && rule.billedRoles.length ? rule.billedRoles : ["photographer"]) as CoverageRole[];
       const counted = crewTheRuleCounts(coverage, roles);
       if (coverage.length && counted === 0)
-        return `${money(rule.amountPerCrewCents)} per ${roles.join(" and ")} — none on this package, so it charges for one person. Open it to fix`;
+        return `${money(rule.amountPerCrewCents)} per ${roles.map(roleWords).join(" and ")} — none on this package, so it charges for one person. Open it to fix`;
       return `${money(rule.amountPerCrewCents)} per crew · ${money(Number(rule.amountPerCrewCents ?? 0) * Math.max(1, counted))} a booking`;
     }
     return "Not set";
@@ -617,6 +666,7 @@ function display(
     const trades = Array.isArray(value) ? value.map(String) : [];
     if (!trades.length) return "Not set";
     return trades
+      .map(roleWords)
       .map((trade) => trade.slice(0, 1).toLocaleUpperCase() + trade.slice(1))
       .join(", ");
   }
@@ -909,7 +959,7 @@ export function LiveDomainView({
       </section>
     );
   if (!records?.length) {
-    const copy = emptyCopy[domain] ?? {
+    const copy = emptyCopyFor(domain, workspace.tenantTrade) ?? {
       title: "Nothing here yet",
       detail: "Records will appear here after you create or receive them.",
     };
@@ -1031,7 +1081,7 @@ export function LiveDomainView({
             </span>
             {config.facts.map((fact) => (
               <span key={fact.label}>
-                <small>{fact.label}</small>
+                <small>{factLabel(fact.label, workspace.tenantTrade)}</small>
                 <strong>
                   {display(
                     nested(record, fact.fields),
@@ -1175,7 +1225,8 @@ export function StudioDomainPage({
   openOnly?: boolean;
   eyebrow: string;
   title: string;
-  description: string;
+  /** A sentence, or a client component when it names the trade's own steps (page-intros.tsx). */
+  description: ReactNode;
   action?: { href: string; label: string };
   projectId?: string;
   beforeContent?: ReactNode;

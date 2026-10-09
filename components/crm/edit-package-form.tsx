@@ -6,7 +6,7 @@ import {
 } from "@/components/crm/package-coverage-fields";
 import { coverageCount, coverageRoleLabel, resolveCoverage, type CoverageRole } from "@/features/packages/coverage";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { perCrewRetainerProblem } from "@/features/packages/retainer-check";
 import { useState } from "react";
@@ -44,7 +44,11 @@ type RetainerMode = "percentage" | "fixed" | "per_crew_member";
  */
 export function EditPackageForm({ packageId }: { packageId: string }) {
   // The studio's own crew roles and whether it delivers anything (trades.ts).
-  const tradeShape = tradeProfile(useWorkspace().tenantTrade);
+  const trade = useWorkspace().tenantTrade;
+  const tradeShape = tradeProfile(trade);
+  // What a package is offered in: a photographer's or a DJ's proposal, a
+  // makeup artist's or hair stylist's quote (trades.ts).
+  const offer = tradeVocab(trade).proposal.toLowerCase();
   const roles = tradeShape.coverageRoles as readonly CoverageRole[];
   const router = useRouter();
   const { records, loading } = useTenantDocuments("packages");
@@ -288,8 +292,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             value={description}
           />
           <small>
-            One item per line — each line is a bullet on the proposal. A
-            paragraph is split at its sentences.
+            {`One item per line — each line is a bullet on the ${offer}. A paragraph is split at its sentences.`}
           </small>
         </label>
         <label className="form-span">
@@ -300,8 +303,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             value={terms}
           />
           <small>
-            Shown on the proposal as its terms summary. Leave it empty and
-            proposals use standard wording you can change on each one.
+            {`Shown on the ${offer} as its terms summary. Leave it empty and ${offer}s use standard wording you can change on each one.`}
           </small>
         </label>
         <label>
@@ -438,8 +440,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           <span>Show this package to clients</span>
           <small>
             Off keeps couples from choosing or asking for it in their portal,
-            and keeps it out of drafted replies. You can still put it in a
-            proposal yourself.
+            and keeps it out of drafted replies. You can still put it in a{" "}
+            {`${offer} yourself.`}
           </small>
         </label>
         <label className="form-checkbox">
@@ -459,8 +461,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
       ) : null}
       {saved ? (
         <p className="form-notice" role="status">
-          <CheckCircle2 size={15} /> Saved. New proposals use these numbers;
-          proposals already sent keep the price they were built with.
+          <CheckCircle2 size={15} />{" "}
+          {`Saved. New ${offer}s use these numbers; ${offer}s already sent keep the price they were built with.`}
         </p>
       ) : null}
       <button className="button button-dark" disabled={busy} type="submit">

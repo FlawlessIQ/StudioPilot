@@ -35,8 +35,9 @@ import { useTodayInbox } from "@/components/today/use-today-inbox";
 import { CueHandoff } from "@/components/today/cue-handoff";
 import { LeadCaptureStart } from "@/components/intake/lead-capture-setup";
 import { JourneyTodayCard } from "@/components/help/journey-today-card";
-import { SETUP_STEP_NAME } from "@/features/today/setup-gaps";
+import { setupStepName } from "@/features/today/setup-gaps";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { greetingFor } from "@/features/dashboard/home-metrics";
 import { greetingName } from "@/features/auth/session-failure";
 import {
@@ -549,7 +550,7 @@ export function TodayInbox() {
                 </strong>
                 <small>
                   {`${setup.answered} of ${setup.total} answered.${
-                    setup.next ? ` Next: ${SETUP_STEP_NAME[setup.next]}.` : ""
+                    setup.next ? ` Next: ${setupStepName(setup.next, workspace.tenantTrade)}.` : ""
                   }`}
                 </small>
               </div>
@@ -1199,6 +1200,10 @@ function InquiryActions({
   const [confirming, setConfirming] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const reply = action.reply;
+  // A makeup artist or hair stylist has no call: the link takes the couple's
+  // details and the quote follows (functions/src/intake/inquiry-link.ts).
+  const trade = useWorkspace().tenantTrade;
+  const calls = tradeProfile(trade).consultation;
 
   async function send() {
     if (!reply) return;
@@ -1259,8 +1264,13 @@ function InquiryActions({
           <p>{reply.preview.body}</p>
           {reply.bookingLinkIncluded === false ? (
             <small className="today-inquiry-hint">
-              No booking link yet — <Link href="/studio/settings/consultation-availability">set your consultation hours</Link>{" "}
-              and replies will let couples pick a time themselves.
+              {calls ? "No booking link yet — " : "No inquiry link yet — "}
+              <Link href="/studio/settings/consultation-availability">
+                {`set your ${calls ? tradeVocab(trade).consultation.toLowerCase() : "trial"} hours`}
+              </Link>{" "}
+              {calls
+                ? "and replies will let couples pick a time themselves."
+                : `and replies will link them to a page for their details, before their ${tradeVocab(trade).proposal.toLowerCase()}.`}
             </small>
           ) : null}
         </blockquote>
@@ -1745,6 +1755,8 @@ function PackageRequestActions({
 }) {
   const router = useRouter();
   const workspace = useWorkspace();
+  // A makeup artist or hair stylist sends a quote (trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const [busy, setBusy] = useState<"add" | "decline" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /**
@@ -1827,7 +1839,7 @@ function PackageRequestActions({
         className="today-confirm-step"
         confirmClassName="today-card-primary"
         confirmLabel={confirming === "decline" ? "Yes, not now" : "Add and revise"}
-        label={confirming === "decline" ? "Say not now?" : "Revise their proposal?"}
+        label={confirming === "decline" ? "Say not now?" : `Revise their ${offer}?`}
         onCancel={() => setConfirming(null)}
         onConfirm={() => void (confirming === "decline" ? decline() : add())}
       >
@@ -1836,8 +1848,8 @@ function PackageRequestActions({
             ? "Their portal will say you couldn't move their date and that you'll be in touch — this can't be undone, so tell them why yourself."
             : `Their portal will say you couldn't add ${action.packageName} and that you'll be in touch — this can't be undone, so tell them why yourself.`
           : action.proposalStatus === "accepted"
-            ? `They've accepted their proposal. Adding ${action.packageName} makes a revised proposal for them to accept — the accepted one stays in the version history, and the agreement waits for the new one.`
-            : `They've already been sent their proposal. Adding ${action.packageName} makes a revised version for you to check and send; the one they have can no longer be accepted.`}
+            ? `They've accepted their ${offer}. Adding ${action.packageName} makes a revised ${offer} for them to accept — the accepted one stays in the version history, and the agreement waits for the new one.`
+            : `They've already been sent their ${offer}. Adding ${action.packageName} makes a revised version for you to check and send; the one they have can no longer be accepted.`}
       </ConfirmStep>
     );
   }
@@ -1865,7 +1877,7 @@ function PackageRequestActions({
           {busy === "add" ? "Adding…" : action.label}
         </button>
       ) : (
-        <span className="today-card-notice">An owner or admin adds it — their proposal is priced again.</span>
+        <span className="today-card-notice">{`An owner or admin adds it — their ${offer} is priced again.`}</span>
       )}
       <button className="today-card-secondary" disabled={busy !== null} onClick={() => setConfirming("decline")} type="button">
         Not now

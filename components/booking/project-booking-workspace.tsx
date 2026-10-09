@@ -74,6 +74,7 @@ import {
 } from "@/components/ui/panel-state";
 import { statusLabel } from "@/features/format/status-label";
 import { canCreateProposalForProject } from "@/features/proposals/eligibility";
+import { tradeVocab } from "@/features/trades/trades";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { JobSalesTax } from "@/components/booking/job-sales-tax";
 import { BillingAddressSummary } from "@/components/clients/billing-address-summary";
@@ -105,6 +106,8 @@ function currency(cents: unknown, code: unknown): string {
 export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const workspace = useWorkspace();
   const gate = useWorkspaceGate();
+  // A makeup artist or hair stylist sends a quote, not a proposal (trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const [project, setProject] = useState<RecordValue | null>(null);
   const [proposal, setProposal] = useState<RecordValue | null>(null);
   /**
@@ -691,7 +694,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               // said so beside "1 to fill in" on the same page (prod walk,
               // 2026-10-06). The agreement card below says what's missing.
               ? "Not sent yet"
-              : "Waits for the proposal",
+              : `Waits for the ${offer}`,
     },
     {
       number: 2,
@@ -929,7 +932,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   if (gate.status === "loading" || loading) {
     return (
       <PanelLoading
-        detail="Checking proposal, signing, and QuickBooks records."
+        detail={`Checking ${offer}, signing, and QuickBooks records.`}
         label="Loading booking evidence…"
       />
     );
@@ -1042,8 +1045,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             ) : null}
             {!nativeActive && (proposal || contract) ? (
             <p>
-              Built from the accepted proposal, so the package and price are
-              already set.
+              {`Built from the accepted ${offer}, so the package and price are already set.`}
               {" "}{signingOffered
                 ? ` ${signingProviderSentence} remains the authority for signature completion.`
                 : null}
@@ -1220,22 +1222,22 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   <span>
                     <strong>
                       {!openProposal
-                        ? "There is no proposal for this job yet"
+                        ? `There is no ${offer} for this job yet`
                         : ["sent", "viewed"].includes(String(openProposal.status))
-                          ? "Waiting for the client to accept the proposal"
+                          ? `Waiting for the client to accept the ${offer}`
                           : openProposal.status === "approved"
-                            ? "The proposal is approved but not sent yet"
-                            : "The proposal is still a draft"}
+                            ? `The ${offer} is approved but not sent yet`
+                            : `The ${offer} is still a draft`}
                     </strong>
                     <small>
                       {!openProposal
-                        ? "The agreement is built from an accepted proposal, so that comes first."
+                        ? `The agreement is built from an accepted ${offer}, so that comes first.`
                         : openProposal.status === "viewed"
                           ? "They have opened it. The agreement is next once they accept."
                           : openProposal.status === "sent"
                             ? "The agreement is next once they accept."
                             : openProposal.status === "approved"
-                              ? "Send it from the proposal, or record the yes if they have already agreed."
+                              ? `Send it from the ${offer}, or record the yes if they have already agreed.`
                               : "Finish and send it — the agreement is next once they accept."}
                     </small>
                   </span>
@@ -1257,8 +1259,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       }
                     >
                       {openProposal
-                        ? "Open the proposal"
-                        : "Prepare the proposal"}
+                        ? `Open the ${offer}`
+                        : `Prepare the ${offer}`}
                       <ArrowRight size={15} />
                     </Link>
                   ) : (
@@ -1367,7 +1369,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 ) : null}
                 {!proposal ? (
                   <small>
-                    The client’s accepted proposal is required first.
+                    {`The client’s accepted ${offer} is required first.`}
                   </small>
                 ) : null}
                 {/* This button is where signing actually fires, and the

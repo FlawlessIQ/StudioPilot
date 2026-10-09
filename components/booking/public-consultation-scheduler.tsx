@@ -47,7 +47,10 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const finalCall = preview?.purpose === "final_details";
   const trial = preview?.purpose === "trial";
-  const callWord = (preview?.callName ?? (finalCall ? "final details call" : "consultation")).toLowerCase();
+  // Unknown until the preview loads: a makeup trial's page must not open on
+  // "consultation" (a makeup artist or hair stylist has no sales call).
+  const callWord = preview ? (preview.callName ?? (finalCall ? "final details call" : "consultation")).toLowerCase() : null;
+  const chooseTime = callWord ? `Choose a ${callWord} time` : "Choose a time";
   const [slots, setSlots] = useState<Slot[]>([]);
   const [timezone, setTimezone] = useState("");
   const [selected, setSelected] = useState("");
@@ -138,7 +141,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       // a slash-date — to a couple, in whatever zone their laptop is set to.
       // The studio's zone is the one the appointment is in.
       setMessage(
-        `Your ${callWord} is confirmed for ${new Intl.DateTimeFormat("en-US", {
+        `Your ${callWord ?? "appointment"} is confirmed for ${new Intl.DateTimeFormat("en-US", {
           weekday: "long",
           month: "long",
           day: "numeric",
@@ -154,7 +157,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
   }
 
   const brand: Studio = {
-    name: preview?.studioName ?? "Your photographer",
+    name: preview?.studioName ?? "Your studio",
     color: preview?.brandAccentColor ?? null,
     logoUrl: preview?.brandLogoUrl ?? null,
   };
@@ -164,15 +167,19 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
     <KitRoot studio={brand}>
       <Screen>
         <AppBar studio={brand} />
-        <Main label={`Choose a ${callWord} time`}>
+        <Main label={chooseTime}>
           <div className="kit-stack-tight">
-            <p className="kit-eyebrow">{preview?.callName ?? (finalCall ? "Final details call" : "Photography consultation")}</p>
+            {/* The call's own name from the server (tradeVocab): a photographer's
+                "Consultation", a DJ's "Vibe call", a "Makeup trial". Nothing before it loads. */}
+            {preview ? (
+              <p className="kit-eyebrow">{preview.callName ?? (finalCall ? "Final details call" : "Consultation")}</p>
+            ) : null}
             <h1 className="kit-title">
               {status === "complete"
                 ? "You’re booked in"
                 : preview
                   ? `Choose a time with ${preview.studioName}`
-                  : `Choose a ${callWord} time`}
+                  : chooseTime}
             </h1>
             {status === "complete" ? null : (
               <p className="kit-body">

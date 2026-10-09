@@ -10,6 +10,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import {
   listSigningTemplates,
@@ -44,6 +45,8 @@ export function AgreementTemplate() {
   const offered = offeredSigningProvider();
   const signingApp = offered ? SIGNING_APP_LABEL[offered] ?? null : null;
   const workspace = useWorkspace();
+  // A makeup or hair studio's offer is a quote (features/trades/trades.ts).
+  const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
   const tenantId = workspace.tenantId;
   const { records: tenants } = useTenantDocuments("tenants");
   const tenant = tenants?.find((entry) => entry.id === tenantId);
@@ -135,7 +138,7 @@ export function AgreementTemplate() {
           : !templateId
             ? "Cleared. Each project will ask for a template."
             : sendOnAcceptance
-              ? "Saved. When a couple accepts their proposal, this agreement goes out for signature automatically."
+              ? `Saved. When a couple accepts their ${offer}, this agreement goes out for signature automatically.`
               : "Saved. New contracts use this agreement unless a project overrides it.",
       );
     } catch (caught: unknown) {
@@ -227,9 +230,7 @@ export function AgreementTemplate() {
               <span>
                 <strong>Send it automatically when a couple accepts</strong>
                 <small>
-                  The agreement goes out for signature the moment they accept
-                  their proposal. Once they sign, the retainer invoice follows,
-                  and the job books itself when it is paid.
+                  {`The agreement goes out for signature the moment they accept their ${offer}. Once they sign, the retainer invoice follows, and the job books itself when it is paid.`}
                 </small>
               </span>
             </label>

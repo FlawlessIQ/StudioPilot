@@ -127,11 +127,32 @@ test("the pins name real files", () => {
  *   TRADE_COPY_WRITE=1 npx tsx --test tests/job-kind-copy.test.ts
  */
 const TRADE_ALLOWLIST = "tests/trade-copy-allowlist.json";
-const PHOTO_WORDS = /\b(photos?|photographs?|photography|photographers?|photographing|galler(?:y|ies)|shoots?|shot lists?|albums?)\b/gi;
+/**
+ * "Coverage", "deliverables", "second shooter" and "sneak peek" joined the
+ * list on 2026-10-09, when a hair studio's packages, proposals and agreement
+ * all read them; the pins were taken again that day with the sweep.
+ */
+const PHOTO_WORDS =
+  /\b(photos?|photographs?|photography|photographers?|photographing|galler(?:y|ies)|shoots?|shot lists?|albums?|coverage|deliverables?|second shooters?|sneak peeks?)\b/gi;
+
+/**
+ * Pages written for photographers, on purpose: the public site sells to them
+ * (vendor trades are not on sale yet), the Console is StudioCue's own, and the
+ * Zoom docs are for Zoom's reviewers. Not swept, so not pinned.
+ */
+const PHOTOGRAPHER_AUDIENCE = [
+  /^app\/(page|layout|sitemap)\.tsx?$/,
+  /^app\/(about|features|for-clients|for-crew|demo|office-manager|docs|how-to)\//,
+  /^app\/[a-z-]*photographers\//,
+  /^app\/platform-admin\//,
+  /^components\/(marketing|seo|console)\//,
+  /^components\/kit\/kit-preview\.tsx$/,
+];
+const photoFiles = files.filter((file) => !PHOTOGRAPHER_AUDIENCE.some((pattern) => pattern.test(file)));
 
 test("photo words only come down", () => {
   const pinned = JSON.parse(readFileSync(TRADE_ALLOWLIST, "utf8")) as Record<string, number>;
-  const counts = new Map(files.map((file) => [file, visibleWordCount(file, PHOTO_WORDS)] as const));
+  const counts = new Map(photoFiles.map((file) => [file, visibleWordCount(file, PHOTO_WORDS)] as const));
   const over = [...counts]
     .filter(([file, count]) => count > (pinned[file] ?? 0))
     .map(([file, count]) => `${file}: ${count} (pinned ${pinned[file] ?? 0})`);
@@ -152,7 +173,7 @@ test("photo words only come down", () => {
 
 test("the photo-word pins name real files", () => {
   const pinned = JSON.parse(readFileSync(TRADE_ALLOWLIST, "utf8")) as Record<string, number>;
-  const known = new Set(files);
+  const known = new Set(photoFiles);
   assert.deepEqual(
     Object.keys(pinned).filter((file) => !known.has(file)),
     [],

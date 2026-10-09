@@ -12,6 +12,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { coverageRoleLabel, type CoverageRole } from "@/features/packages/coverage";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
   existingBookingSchema,
   type ExistingBooking,
@@ -103,11 +106,25 @@ const money = (value: number) =>
     value / 100,
   );
 
-/** The form's plain text, as the booking the server will check. */
+/** "Photographers", "Hair stylists": the heading of the form's first or second count, in the studio's roles. */
+export function importCountHeading(trade: unknown, index: 0 | 1): string | null {
+  const role = tradeProfile(trade).coverageRoles[index] as CoverageRole | undefined;
+  if (!role) return null;
+  const label = coverageRoleLabel(role, 2);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/**
+ * The form's plain text, as the booking the server will check. `trade` is the
+ * studio's (trades.ts): its words name the package when the contract didn't,
+ * and the counts in the refusals. A photographer's read as they always did.
+ */
 export function bookingFromForm(
   values: ExistingBookingFormValues,
   hasSignedCopy: boolean,
+  trade?: unknown,
 ): { booking: ExistingBooking } | { problem: string } {
+  const photo = tradeProfile(trade).family === "photo";
   const clients = [
     {
       firstName: values.firstName,
@@ -133,7 +150,7 @@ export function bookingFromForm(
     venueName: values.venueName.trim() || null,
     city: values.city.trim() || null,
     state: values.state,
-    packageName: values.packageName.trim() || "Wedding photography",
+    packageName: values.packageName.trim() || (photo ? "Wedding photography" : `${values.eventType} ${tradeVocab(trade).service}`),
     coverageMinutes: Math.round(Number(values.coverageHours) * 60),
     photographers: Math.round(Number(values.photographers)),
     videographers: Math.round(Number(values.videographers || 0)),
@@ -165,9 +182,9 @@ export function bookingFromForm(
     [/^signedOn/, "Add the date the contract was signed."],
     [/^totalCents/, "Add the contract total as an amount, like 6499."],
     [/^taxCents/, "Tax should be an amount, or 0."],
-    [/^coverageMinutes/, "Coverage should be a number of hours."],
-    [/^photographers/, "Photographers should be a whole number."],
-    [/^videographers/, "Videographers should be a whole number."],
+    [/^coverageMinutes/, photo ? "Coverage should be a number of hours." : "Hours should be a number."],
+    [/^photographers/, `${importCountHeading(trade, 0) ?? "The count"} should be a whole number.`],
+    [/^videographers/, `${importCountHeading(trade, 1) ?? "The count"} should be a whole number.`],
     [/^payments\.\d+\.amountCents/, "Each payment needs an amount above zero."],
     [/^payments\.\d+\.paidOn/, "Each payment needs the date it was received."],
   ];
@@ -190,6 +207,7 @@ export function ExistingBookingForm({
   source: "form" | "cue";
   compact?: boolean;
 }) {
+  const trade = useWorkspace().tenantTrade;
   const [values, setValues] = useState<ExistingBookingFormValues>({
     ...blank,
     ...initial,
@@ -270,6 +288,7 @@ export function ExistingBookingForm({
     const built = bookingFromForm(
       partner ? values : { ...values, partnerFirstName: "", partnerLastName: "", partnerEmail: "" },
       Boolean(file),
+      trade,
     );
     if ("problem" in built) {
       setProblem(built.problem);
@@ -473,18 +492,22 @@ export function ExistingBookingForm({
           Of which tax
           <input inputMode="decimal" onChange={(e) => set("tax", e.target.value)} value={values.tax} />
         </label>
+        {/* In the studio's own words and roles: a hair studio's "Hours on site"
+            and "Hair stylists", with no videographers to count (trades.ts). */}
         <label>
-          Coverage hours
+          {tradeVocab(trade).hoursLabel}
           <input inputMode="decimal" onChange={(e) => set("coverageHours", e.target.value)} required value={values.coverageHours} />
         </label>
         <label>
-          Photographers
+          {importCountHeading(trade, 0)}
           <input inputMode="numeric" min="0" onChange={(e) => set("photographers", e.target.value)} required value={values.photographers} />
         </label>
-        <label>
-          Videographers
-          <input inputMode="numeric" min="0" onChange={(e) => set("videographers", e.target.value)} value={values.videographers} />
-        </label>
+        {importCountHeading(trade, 1) ? (
+          <label>
+            {importCountHeading(trade, 1)}
+            <input inputMode="numeric" min="0" onChange={(e) => set("videographers", e.target.value)} value={values.videographers} />
+          </label>
+        ) : null}
         <label className="booking-import-span">
           Signed by <small>defaults to the client</small>
           <input onChange={(e) => set("signerName", e.target.value)} placeholder={`${values.firstName} ${values.lastName}`.trim()} value={values.signerName} />

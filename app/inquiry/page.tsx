@@ -97,10 +97,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { studio = "" } = await searchParams;
   const tenant = await studioForSlug(studio);
+  // No studio found, so no trade to name: a dead DJ's or makeup artist's link
+  // must not read "Photography inquiry".
   if (!tenant) {
     return {
-      title: "Photography inquiry",
-      description: "Request photography availability from a StudioCue studio.",
+      title: "Inquiry",
+      description: "Request availability from a StudioCue studio.",
     };
   }
   /**
@@ -163,6 +165,8 @@ export default async function InquiryPage({
         logoUrl: tenant.brand.logoUrl,
       }}
       tenantSlug={tenant.slug}
+      // The form's own words follow the studio's trade ("Hair budget").
+      trade={tenant.trade}
     />
   );
 }

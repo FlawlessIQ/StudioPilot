@@ -1,6 +1,6 @@
 import { normalizeUnitLabel } from "../packages/unit-label.js";
 import { randomUUID } from "node:crypto";
-import { tradeMoves } from "../trades/trades.js";
+import { tradeAllows, tradeMoves, tradeProfile } from "../trades/trades.js";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -1680,7 +1680,7 @@ export const crmCommand = onRequest(
           const allowedTargets = [
             ...transitions[project.state],
             ...(tradeMoves(tenantSnapshot.get("trade"), project.state) as ProjectStateName[]),
-          ];
+          ].filter((target) => tradeAllows(tenantSnapshot.get("trade"), target));
           if (!allowedTargets.includes(command.input.targetState)) {
             // Says where the job can go, so the refusal is an answer
             // (friendly-error.ts reads the list after the colon).
@@ -2157,6 +2157,10 @@ export const crmCommand = onRequest(
           const to = command.input.targetState;
           if (!transitions[from]?.includes(to) || transitionRoute(from, to) !== "reopenJob")
             throw new Error(`INVALID_TRANSITION:${from}>`);
+          // A trade that delivers nothing never lands in post-production or
+          // delivered by reopening either (trades.ts tradeAllows).
+          const reopenTenant = await transaction.get(db.doc(`tenants/${command.tenantId}`));
+          if (!tradeAllows(reopenTenant.get("trade"), to)) throw new Error(`INVALID_TRANSITION:${from}>`);
           // Reads first. Equality filters only, so no composite index.
           const [reviewAsks, albumReminders, closeout] = await Promise.all([
             transaction.get(
@@ -3142,7 +3146,10 @@ export const crmCommand = onRequest(
           const retainerRule = oneOffRetainerRule({ mode, mainPackage, mainSnapshot, catalogue });
           const taxRateBasisPoints = oneOffTaxRate({ mainPackage, catalogue });
           const terms = oneOffTerms({ mode, mainTerms: mainSnapshot?.terms });
-          const coverage = oneOffCoverage(command.input.includedCoverage);
+          const coverage = oneOffCoverage(
+            command.input.includedCoverage,
+            tradeProfile(tenantDocument.get("trade")).coverageRoles[0] as CoverageItem["role"],
+          );
           const includedCoverageMinutes = oneOffCoverageMinutes(
             command.input.includedCoverageMinutes,
             mainSnapshot?.includedCoverageMinutes ?? mainPackage?.includedCoverageMinutes,

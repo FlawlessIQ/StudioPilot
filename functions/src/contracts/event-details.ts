@@ -170,7 +170,11 @@ export function eventDetailsFrom(input: {
 
   const rows: EventDetailRow[] = [];
   if (input.date) rows.push({ label: "Date", value: input.date });
-  if (input.coverage) rows.push({ label: "Coverage", value: input.coverage });
+  // A photographer's "Coverage"; a DJ's, makeup artist's or hair stylist's
+  // "Service" (trades.ts `coverage`, written out because this file has no
+  // imports). An unknown trade is a photographer, as tradeOf() reads it.
+  const vendor = ["dj", "makeup", "hair"].includes(String(input.trade ?? "").trim().toLowerCase());
+  if (input.coverage) rows.push({ label: vendor ? "Service" : "Coverage", value: input.coverage });
   const order: Category[] = ["getting_ready", "ceremony", "reception", "photo_locations", "venue_logistics", "times", "guests", "contacts"];
   const missing: string[] = [];
   for (const category of order) {

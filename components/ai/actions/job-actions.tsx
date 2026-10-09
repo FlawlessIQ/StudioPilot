@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Archive, Briefcase, CircleSlash, Inbox, MailPlus, PencilLine, RotateCcw, Route, Trash2, UserPlus } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeMoves } from "@/features/trades/trades";
+import { tradeAllows, tradeMoves, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
   allowedProjectTransitions,
   transitionAuthority,
@@ -59,6 +59,14 @@ import {
   type ActionCardProps,
   type Rec,
 } from "./action-kit";
+
+/** The steps only evidence moves, in the trade's words: no delivery for a trade that delivers nothing. */
+function proofSteps(trade: unknown): string {
+  const offer = tradeVocab(trade).proposal.toLowerCase();
+  return tradeProfile(trade).delivery
+    ? `an accepted ${offer}, a signature, a paid retainer, a delivery`
+    : `an accepted ${offer}, a signature, a paid retainer`;
+}
 
 const PRE_BOOKING = new Set(["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING"]);
 
@@ -516,6 +524,8 @@ export function EditContactCard({ action }: ActionCardProps) {
   const choice = useSubjectChoice(action.subject, options);
   const field = CONTACT_FIELDS[(action.field ?? "").toLowerCase().replace(/[\s_-]/g, "")] ?? null;
   const [value, setValue] = useState(action.text ?? "");
+  // A makeup or hair studio's offer is a quote (trades.ts).
+  const offer = tradeVocab(useWorkspace().tenantTrade).proposal.toLowerCase();
   const title = "Correct the client's details";
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading || !contacts) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -547,7 +557,7 @@ export function EditContactCard({ action }: ActionCardProps) {
             <TextField label="New value" onChange={setValue} type={field === "email" ? "email" : "text"} value={value} />
           </Form>
           {field === "email" ? (
-            <p className="cue-action-note">A proposal already sent keeps the address it went to. Correct it from the proposal to send a new version.</p>
+            <p className="cue-action-note">{`A ${offer} already sent keeps the address it went to. Correct it from the ${offer} to send a new version.`}</p>
           ) : null}
           <Actions
             busy={runner.busy}
@@ -692,6 +702,8 @@ export function manualTargets(state: string, hold: HoldRecord = {}, trade?: unkn
   const moves = [...(tradeMoves(trade, from) as ProjectState[]), ...(allowedProjectTransitions[from] ?? [])];
   return moves.filter(
     (to) =>
+      // Nor anywhere the trade never goes (post-production, for a DJ).
+      tradeAllows(trade, to) &&
       !transitionAuthority(from, to) &&
       to !== "ARCHIVED" &&
       // LOST, reopening and undoing a cancel have their own cards
@@ -738,7 +750,7 @@ export function MoveStageCard({ action }: ActionCardProps) {
   const needsReason = chosen === "CANCELLED" || chosen === "POSTPONED";
   return (
     <ActionShell
-      detail={`It is ${label(str(job.state))} now. Steps that need proof — an accepted proposal, a signature, a paid retainer, a delivery — move on their own when that happens and can't be set here.`}
+      detail={`It is ${label(str(job.state))} now. Steps that need proof — ${proofSteps(trade)} — move on their own when that happens and can't be set here.`}
       icon={<Route size={15} />}
       title={title}
     >
@@ -941,9 +953,12 @@ export function GoBackJobCard({ action }: ActionCardProps) {
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return <ActionShell title={title}><Blocked>I couldn&apos;t find that job.</Blocked></ActionShell>;
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  // The trade decides whether there is an edit to go back to: a DJ, makeup
+  // artist or hair stylist delivers nothing after the day (trades.ts).
+  const delivers = tradeProfile(workspace.tenantTrade).delivery;
   const move = backwardMovesFor(
     { ...job, state: str(job.state), id: job.id },
-    { agreementOut: false, now: new Date().toISOString() },
+    { agreementOut: false, now: new Date().toISOString(), trade: workspace.tenantTrade },
   ).find((candidate) => candidate.route === (uncancel ? "uncancelProject" : "reopenJob"));
   if (!move) {
     const state = str(job.state);
@@ -962,7 +977,7 @@ export function GoBackJobCard({ action }: ActionCardProps) {
               : refusal === "UNCANCEL_WINDOW_PASSED"
                 ? `${jobName(job)} was canceled more than ${UNCANCEL_WINDOW_DAYS} days ago, so it can't be undone. Create a new job for the client instead.`
                 : `${jobName(job)} was canceled before StudioCue recorded where it stood, so it can't be brought back. Create a new job instead.`
-            : `${jobName(job)} is ${projectStateLabel(state).toLowerCase()}. Only a delivered or closed job is reopened.`}
+            : `${jobName(job)} is ${projectStateLabel(state, workspace.tenantTrade).toLowerCase()}. ${delivers ? "Only a delivered or closed job is reopened." : "Only a closed job is reopened."}`}
         </Blocked>
       </ActionShell>
     );
@@ -991,7 +1006,9 @@ export function GoBackJobCard({ action }: ActionCardProps) {
                 });
               return uncancel
                 ? `${jobName(job)} is back at ${projectStateLabel(move.target)}. Re-offer the crew and re-send any invoice or agreement it needs.`
-                : `${jobName(job)} is back at ${projectStateLabel(move.target)}. Review and album asks are paused until you deliver again.`;
+                : delivers
+                  ? `${jobName(job)} is back at ${projectStateLabel(move.target)}. Review and album asks are paused until you deliver again.`
+                  : `${jobName(job)} is open again. The review ask is paused until you close it.`;
             },
             { refresh: ["projects"] },
           )

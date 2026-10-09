@@ -1174,10 +1174,18 @@
   backdrop-filter: saturate(1.1) blur(12px);
   border-bottom: 1px solid var(--ds-line-soft);
 }
+/* One line in the top bar at any width: the crumb gives way with an
+   ellipsis, the search box shrinks first, and the buttons never wrap — on a
+   1024px window "New job" broke over two lines under a search box sized by
+   the viewport, not the bar (2026-10-09). */
 .ds-crumb {
   font-size: 13px;
   font-weight: 500;
   color: var(--ds-ink-soft);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ds-crumb b {
   color: var(--ds-muted);
@@ -1188,7 +1196,8 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  width: min(340px, 34vw);
+  flex: 0 1 340px;
+  min-width: 150px;
   padding: 9px 14px;
   border: 1px solid var(--ds-line);
   border-radius: 999px;
@@ -1288,6 +1297,8 @@
 .ds-action {
   display: inline-flex;
   align-items: center;
+  flex: none;
+  white-space: nowrap;
   gap: 7px;
   padding: 8px 14px;
   border-radius: 999px;
@@ -2355,11 +2366,23 @@
 /* =========================================================================
    Studio calendar — unified schedule + consultation availability
    ========================================================================= */
+/* The month and the day side by side only when the month gets 480px — a
+   week of 68px days, wide enough for "1 booked". A 900px viewport switch
+   left a 1024px window's month at 310px, and the pills spilled into the
+   next day (2026-10-09). */
 .ds-cal {
-  display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 20px;
-  align-items: start;
+  align-items: flex-start;
+}
+.ds-cal > :first-child {
+  flex: 1.65 1 480px;
+  min-width: 0;
+}
+.ds-cal > :not(:first-child) {
+  flex: 1 1 300px;
+  min-width: 0;
 }
 
 .ds-cal-grid-card {
@@ -2759,12 +2782,6 @@
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-@media (max-width: 900px) {
-  .ds-cal {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* The per-category dot row. Hidden on desktop (the cells show rich text);

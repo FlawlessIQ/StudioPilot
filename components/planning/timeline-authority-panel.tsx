@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { collection, doc, getDoc, getDocs, limit, query, where } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
   compareTimelines,
   formatMinutes,
@@ -189,7 +190,10 @@ export function TimelineAuthorityPanel({ scheduleId, projectId }: { scheduleId?:
           <input checked={authority === "planner"} name="timeline-authority" onChange={() => setAuthority("planner")} type="radio" />
           <span>
             <strong>The planner&rsquo;s</strong>
-            <small>This run of show is the photographers&rsquo; working copy of it.</small>
+            {/* Whose working copy: a DJ's, an artist's (trades.ts `crew`). */}
+            <small>{`This run of show is the ${
+              tradeProfile(workspace.tenantTrade).family === "photo" ? "photographers" : tradeVocab(workspace.tenantTrade).crew
+            }’ working copy of it.`}</small>
           </span>
         </label>
       </fieldset>

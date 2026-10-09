@@ -1,4 +1,5 @@
 import type { ClientMilestone } from "@/server/client/portal-experience";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 /**
  * Whether a portal area's moment is behind the couple.
@@ -44,15 +45,23 @@ export function portalStageIsBehind(
   );
 }
 
-/** The headline and body for an area whose moment has gone. */
-export function portalPastNotice(area: PortalArea): {
+/**
+ * The headline and body for an area whose moment has gone, in the studio's
+ * trade's words: a makeup artist's client was sent a quote, and nothing is
+ * delivered after a DJ's night. Omitted, the trade reads as a photographer's.
+ */
+export function portalPastNotice(
+  area: PortalArea,
+  trade?: unknown,
+): {
   title: string;
   detail: string;
 } {
+  const offer = tradeVocab(trade).proposal.toLowerCase();
   switch (area) {
     case "proposal":
       return {
-        title: "No proposal is held here",
+        title: `No ${offer} is held here`,
         detail:
           "Your project moved past this step without one being sent through StudioCue. Your studio has the details — message them if you would like a copy.",
       };
@@ -75,6 +84,12 @@ export function portalPastNotice(area: PortalArea): {
           "No run of show was published here for it. Message your studio if you would like the timeline they worked from.",
       };
     case "delivery":
+      if (!tradeProfile(trade).delivery)
+        return {
+          title: "Nothing to deliver",
+          detail:
+            "Your studio's work was on the day itself, so nothing is sent afterwards. Message them if you were expecting something.",
+        };
       return {
         title: "No delivery is held here",
         detail:
