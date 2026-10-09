@@ -238,9 +238,9 @@ export function CombinedAgreementSend({
           // Said before it goes, not found out after: with nothing to raise
           // the deposit invoice, the client can't pay on the next screen.
           <p className="native-contract-note" role="note">
-            {`No QuickBooks or Stripe is connected, so ${preview.clientName || "the client"} can't pay on the next screen — they'll be asked to arrange the deposit with you. Record it on the job's Booking tab when it arrives, or `}
-            <Link href="/studio/integrations">connect payments</Link>
-            {" before you send."}
+            {`No QuickBooks or Stripe is connected, so ${preview.clientName || "the client"} can't pay on the next screen — they'll be asked to arrange the deposit with you, and you record it on the job's Booking tab. `}
+            <Link href="/studio/integrations">Connect payments</Link>
+            {" before they sign and they pay it on the spot."}
           </p>
         ) : null}
       </div>

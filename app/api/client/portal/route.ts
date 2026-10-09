@@ -50,6 +50,7 @@ import {
 import { parseSigningBillingAddress } from "@/features/contacts/billing-address-signing";
 import { confirmFinalDetails, finalDetailsFor } from "@/server/planning/final-details";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
+import { depositByStudio, paymentsConnected } from "@/features/booking/deposit-by-studio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -658,12 +659,17 @@ async function clientRecords(
    */
   let depositByStudioFor: string | null = null;
   if (collectionName === "contracts" && snapshot.docs.some((document) => document.get("mode") === "combined")) {
-    const plan = await adminFirestore.doc(`bookingOrchestrations/${projectId}`).get();
+    const [plan, connections] = await Promise.all([
+      adminFirestore.doc(`bookingOrchestrations/${projectId}`).get(),
+      adminFirestore.collection("integrationConnections").where("tenantId", "==", tenantId).get(),
+    ]);
+    // Connected since the link went out, the signature raises it after all
+    // (booking/orchestration.ts): not the studio's to arrange any more.
     if (
       plan.exists &&
       plan.get("tenantId") === tenantId &&
-      plan.get("status") === "active" &&
-      plan.get("policy.createRetainerAfterSignature") === false
+      depositByStudio({ status: plan.get("status"), policy: plan.get("policy") }) &&
+      !paymentsConnected(connections.docs.map((connection) => connection.data()))
     ) {
       depositByStudioFor = String(plan.get("contractId") ?? "") || null;
     }

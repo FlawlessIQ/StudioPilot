@@ -23,6 +23,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
+import { depositByStudio, paymentsConnected } from "@/features/booking/deposit-by-studio";
 import { hasFinalBalance, jobKindOf, journeyFor, projectProfile, singleBillWindow, vocab } from "@/features/job-kinds/job-kinds";
 import { ignorableSenderOf, notInquiryAllowed } from "@/features/intake/not-inquiry";
 import {
@@ -1974,6 +1975,48 @@ export function todayInbox(input: TodayInput): TodayInbox {
       eventDate: text(job?.eventDate) || null,
       score: score({ lane: "act", severity: "step", eventDate: text(job?.eventDate) || null, updatedAt: changedAt(invoice), now }),
     });
+  }
+  // ── Act · a booking link out with nothing to take the deposit ───────
+  // It went out with no QuickBooks or Stripe, so the client can't pay on the
+  // spot: they'll be told to arrange the deposit with the studio. Connected
+  // before they sign, the signature raises it after all (booking/
+  // orchestration.ts), so this is the moment to say so — once per studio, not
+  // once per job. After the signature the job's own step says "Record the
+  // deposit" (journey/steps.ts). Riley Park, Spin Theory DJs, 2026-10-09.
+  if (!paymentsConnected(rows(input.integrationConnections))) {
+    const waiting = rows(input.bookingOrchestrations)
+      .filter(
+        (plan) =>
+          depositByStudio(plan) &&
+          text(plan.currentStep) === "wait_for_signature" &&
+          Boolean(text(plan.contractId)) &&
+          jobStillOpen(text(plan.projectId)),
+      )
+      .map((plan) => ({ plan, job: rows(input.projects).find((candidate) => candidate.id === text(plan.projectId)) }))
+      .filter((entry) => entry.job)
+      .sort((left, right) => text(left.job?.eventDate).localeCompare(text(right.job?.eventDate)));
+    if (waiting.length) {
+      const first = waiting[0]!;
+      const word = tradeProfile(input.tenantTrade).journey.oneLinkBooking ? "deposit" : "retainer";
+      const names = waiting.map(({ job }) => clientOf(job));
+      const who = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+      act.push({
+        id: "connect-payments",
+        lane: "act",
+        kind: "invoice",
+        title: `Connect payments so ${who} can pay the ${word} online`,
+        detail: `No QuickBooks or Stripe is connected, so after signing they'll be asked to arrange the ${word} with you. Connect one before they sign and they pay it on the spot.`,
+        evidence: null,
+        projectId: waiting.length === 1 ? text(first.plan.projectId) : null,
+        projectName: waiting.length === 1 ? text(first.job?.name) || null : null,
+        action: { kind: "link", label: "Connect payments", href: "/studio/integrations" },
+        jobHref: waiting.length === 1 ? `/studio/projects/${text(first.plan.projectId)}` : null,
+        facts: [eventFact(text(first.job?.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),
+        band: bandFor({ eventDate: text(first.job?.eventDate) || null, now }),
+        eventDate: text(first.job?.eventDate) || null,
+        score: score({ lane: "act", severity: "step", eventDate: text(first.job?.eventDate) || null, updatedAt: changedAt(first.plan), now }),
+      });
+    }
   }
   let inMotion = 0;
   for (const position of input.journeys ?? []) {

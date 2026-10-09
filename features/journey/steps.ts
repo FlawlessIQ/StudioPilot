@@ -234,6 +234,14 @@ export type JourneyInput = {
   bookingAgreementOut?: boolean;
   contractStatus: string | null;
   retainerInvoiceStatus: string | null;
+  /**
+   * No invoice follows the signature: nothing was connected to raise one
+   * (bookingOrchestrations `policy.createRetainerAfterSignature: false`,
+   * waiting for payment). The client pays the studio directly and the studio
+   * records it — never "Create retainer invoice" through an app that isn't
+   * connected (Riley Park, Spin Theory DJs, 2026-10-09).
+   */
+  depositByStudio?: boolean;
   finalInvoiceStatus: string | null;
   /**
    * True when the final balance is past its due date. Status alone cannot
@@ -915,6 +923,9 @@ export function projectJourney(input: JourneyInput): {
     "partially_paid",
     "overdue",
   ].includes(input.retainerInvoiceStatus ?? "");
+  // Signed, with nothing to raise the invoice: the studio records it.
+  const recordByHand = Boolean(input.depositByStudio) && contractDone && !retainerDone && !retainerWaiting;
+  const retainerWord = tradeProfile(input.trade).journey.oneLinkBooking ? "deposit" : "retainer";
   push({
     key: "retainer",
     title: "Retainer paid",
@@ -925,9 +936,11 @@ export function projectJourney(input: JourneyInput): {
         : "Booking locked in"
       : retainerWaiting
         ? "Invoice with the client"
-        : contractDone
-          ? "Computed from your retainer rule"
-          : "Starts once the agreement is signed",
+        : recordByHand
+          ? `Signed — they pay you directly. Record the ${retainerWord} when it arrives`
+          : contractDone
+            ? "Computed from your retainer rule"
+            : "Starts once the agreement is signed",
     status: retainerDone
       ? "complete"
       : retainerWaiting
@@ -940,8 +953,10 @@ export function projectJourney(input: JourneyInput): {
             kind: "link",
             label: retainerWaiting
               ? "Check payment status"
-              : "Create retainer invoice",
-            href: project("/studio/contracts"),
+              : recordByHand
+                ? `Record the ${retainerWord}`
+                : "Create retainer invoice",
+            href: recordByHand ? project("/studio/booking") : project("/studio/contracts"),
           },
   });
 

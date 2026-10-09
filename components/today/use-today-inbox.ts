@@ -36,6 +36,7 @@ import {
   type TodayRecord,
 } from "@/features/today/inbox";
 import { studioHasBookedAJob } from "@/features/journey/expected-timeline";
+import { depositByStudio } from "@/features/booking/deposit-by-studio";
 import { cueHandoff, type HandoffItem } from "@/features/today/handoff";
 import { useRecentEmailJobs } from "@/components/today/use-recent-email-jobs";
 
@@ -261,6 +262,10 @@ export function useTodayInbox(): {
             projectInvoices.find((invoice) => invoice.kind === "retainer")
               ?.status,
           ) || null,
+        // Nothing connected to raise it: the studio records the deposit.
+        depositByStudio: depositByStudio(
+          (bookingOrchestrations.records ?? []).find((plan) => plan.id === projectId),
+        ),
         finalInvoiceStatus:
           text(
             currentFinalInvoice(projectInvoices)?.status,

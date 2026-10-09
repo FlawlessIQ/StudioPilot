@@ -33,6 +33,7 @@ import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { finalHeadcountState } from "@/features/schedules/final-headcount";
 import { todayLocalIso } from "@/lib/format/event-date";
+import { depositByStudio } from "@/features/booking/deposit-by-studio";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -76,6 +77,7 @@ export function useProjectJourney({
   const proposals = useTenantDocuments("proposals");
   const contracts = useTenantDocuments("contracts");
   const invoices = useTenantDocuments("invoiceReferences");
+  const bookingPlans = useTenantDocuments("bookingOrchestrations");
   const questionnaires = useTenantDocuments("questionnaireResponses");
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
@@ -244,6 +246,8 @@ export function useProjectJourney({
         )[0]?.status,
       ) || null,
     retainerInvoiceStatus: text(retainerInvoice?.status) || null,
+    // Nothing connected to raise it: the studio records the deposit.
+    depositByStudio: depositByStudio((bookingPlans.records ?? []).find((plan) => plan.id === projectId)),
     finalInvoiceStatus: text(finalInvoice?.status) || null,
     finalInvoiceOverdue: invoiceIsOverdue(
       finalInvoice,

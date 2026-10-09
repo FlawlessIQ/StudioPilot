@@ -391,9 +391,22 @@ export const bookingContractCompleted = onDocumentWritten(
     if (
       !plan.exists ||
       plan.get("status") !== "active" ||
-      plan.get("contractId") !== contract.id ||
-      plan.get("policy.createRetainerAfterSignature") !== true
+      plan.get("contractId") !== contract.id
     ) return;
+    // Sent with nothing connected to raise the deposit, and QuickBooks or
+    // Stripe connected since (Today: "Connect payments so … can pay online"):
+    // raise it now, so the client who signs pays on the spot. Still nothing
+    // connected: the studio records it by hand, as the plan said.
+    let raisesRetainer = plan.get("policy.createRetainerAfterSignature") === true;
+    if (!raisesRetainer && plan.get("policy.createRetainerAfterSignature") === false) {
+      try {
+        await requireProviderForTenant(db, tenantId, "invoicing");
+        raisesRetainer = true;
+      } catch {
+        raisesRetainer = false;
+      }
+    }
+    if (!raisesRetainer) return;
     if (!project.exists || project.get("tenantId") !== tenantId) return;
     // A signature that lands after the job was called off raises no retainer.
     // Cancelling now closes the plan (stopped-billing.ts); a plan left active
@@ -519,6 +532,9 @@ export const bookingContractCompleted = onDocumentWritten(
       transaction.update(planReference, {
         invoiceId,
         currentStep: "wait_for_payment",
+        // Raised after all (payments connected since the link went out): the
+        // client is no longer told to arrange it with the studio.
+        "policy.createRetainerAfterSignature": true,
         updatedAt: now,
       });
     });
