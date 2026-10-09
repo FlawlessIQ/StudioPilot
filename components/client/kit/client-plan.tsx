@@ -17,6 +17,7 @@ import { List, Main, PoweredBy, Row } from "@/components/kit/kit";
 import { SignOutButton } from "@/features/auth/auth-boundary";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { clientAreaItems } from "@/features/client/portal-navigation";
+import { tradeVocab } from "@/features/trades/trades";
 import { useProject } from "@/components/client/live-client-views";
 
 const ICONS = {
@@ -45,7 +46,7 @@ export function ClientPlan() {
   const router = useRouter();
   // The same project Home reads (the workspace's copy when live).
   const project = useProject().value;
-  const items = clientAreaItems(project?.navigation).map((item) => ({
+  const items = clientAreaItems(project?.navigation, tradeVocab(workspace.tenantTrade).proposal).map((item) => ({
     ...item,
     Icon: ICONS[item.icon],
   }));

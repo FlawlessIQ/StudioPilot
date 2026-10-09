@@ -11,6 +11,7 @@ import {
 } from "@/lib/client/portal-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { bookingSteps, type BookingStepsView } from "@/features/client/booking-steps";
+import { tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { MOCK_CLIENT_PROJECT } from "@/features/client/mock-project";
@@ -508,6 +509,7 @@ export function useReserveYourDate(): BookingStepsView | null {
  */
 export function useBookingStepsView(): BookingStepsView | null {
   const needs = useBookingNeeds();
+  const offer = tradeVocab(useWorkspace().tenantTrade).proposal.toLowerCase();
   const proposals = useProjectRecords("proposals");
   const contracts = useProjectRecords("contracts");
   const invoices = useProjectRecords("invoiceReferences");
@@ -535,6 +537,7 @@ export function useBookingStepsView(): BookingStepsView | null {
               }
             : null,
           needs,
+          offer,
         })
       : null;
   const waiting = Boolean(

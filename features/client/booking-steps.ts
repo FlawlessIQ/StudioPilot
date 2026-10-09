@@ -38,6 +38,8 @@ export type BookingStepsInput = {
    * day. Omitted: both, as for a wedding.
    */
   needs?: { agreement: boolean; payment: boolean; paidInFull?: boolean };
+  /** What the studio sends to book, lowercase: a makeup artist's "quote" (tradeVocab). Omitted: "proposal". */
+  offer?: string;
 };
 
 export type BookingStepsView = {
@@ -60,6 +62,7 @@ const OPEN_PROPOSAL = new Set(["sent", "viewed"]);
 export function bookingSteps(input: BookingStepsInput): BookingStepsView {
   const needs = input.needs ?? { agreement: true, payment: true };
   const accepted = input.proposalStatus === "accepted";
+  const offer = input.offer ?? "proposal";
   const signed = !needs.agreement || (input.contractStatus !== null && SIGNED.has(input.contractStatus));
   const paid =
     !needs.payment ||
@@ -82,7 +85,7 @@ export function bookingSteps(input: BookingStepsInput): BookingStepsView {
   const allSteps: BookingStep[] = [
     {
       key: "proposal",
-      label: "Accept your proposal",
+      label: `Accept your ${offer}`,
       state: state(accepted, true, input.proposalStatus !== null && OPEN_PROPOSAL.has(input.proposalStatus)),
     },
     {
@@ -119,13 +122,13 @@ export function bookingSteps(input: BookingStepsInput): BookingStepsView {
     : !accepted
       ? input.proposalStatus !== null && OPEN_PROPOSAL.has(input.proposalStatus)
         ? {
-            title: "Review and accept your proposal",
+            title: `Review and accept your ${offer}`,
             detail: steps.length > 2 ? `It's the first of ${count} short steps to reserve your date.` : "Accepting it reserves your date.",
             href: "/client/proposal",
-            actionLabel: "Review proposal",
+            actionLabel: `Review ${offer}`,
           }
         : {
-            title: "Your proposal is being prepared",
+            title: `Your ${offer} is being prepared`,
             detail: `Your studio will share it here. Reserving your date takes ${steps.length > 2 ? `${count} short steps` : "one step"} once it arrives.`,
             href: null,
             actionLabel: null,
@@ -140,7 +143,7 @@ export function bookingSteps(input: BookingStepsInput): BookingStepsView {
             }
           : {
               title: "Your agreement is on its way",
-              detail: "You accepted your proposal. Check your email: your agreement will arrive there to sign, and it will appear here too.",
+              detail: `You accepted your ${offer}. Check your email: your agreement will arrive there to sign, and it will appear here too.`,
               href: null,
               actionLabel: null,
             }

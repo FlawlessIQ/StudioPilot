@@ -7,6 +7,8 @@ import { formInquiryDetails } from "../functions/src/intake/new-inquiry-alert";
 import { proposalPdfDetail } from "../features/proposals/pdf-notice";
 import { todayInbox } from "../features/today/inbox";
 import { buildClientMilestones, buildClientPortalExperience } from "../server/client/portal-experience";
+import { bookingSteps } from "../features/client/booking-steps";
+import { clientAreaItems } from "../features/client/portal-navigation";
 
 /**
  * What walking a makeup wedding on production found (UAT round 3,
@@ -155,4 +157,16 @@ test("a makeup client is quoted, and her portal says so", () => {
   assert.match(route, /templateKey: safeString\(document\.get\("templateKey"\)\),/);
   assert.match(read("app/client/layout.tsx"), /default: "Your project",\s*template: "%s · Your project",/);
   assert.match(read("components/client/kit/client-contract.tsx"), /\{TRADE_LABELS\[tradeOf\(workspace\.tenantTrade\)\]\} services agreement/);
+});
+
+test("a makeup client's plan and booking steps say quote", () => {
+  const nav = { proposal: true, package: false, contract: true, payments: true, questionnaire: false, schedule: false, files: false, delivery: false, reviews: false };
+  assert.ok(clientAreaItems(nav, "Quote").some((item) => item.label === "Your quote"));
+  assert.ok(clientAreaItems(nav).some((item) => item.label === "Your proposal"));
+  const open = bookingSteps({ proposalStatus: "sent", contractStatus: null, retainer: null, offer: "quote" });
+  assert.equal(open.steps[0]?.label, "Accept your quote");
+  assert.equal(open.next.title, "Review and accept your quote");
+  assert.equal(bookingSteps({ proposalStatus: "sent", contractStatus: null, retainer: null }).next.title, "Review and accept your proposal");
+  assert.match(read("components/client/live-client-views.tsx"), /offer = tradeVocab\(useWorkspace\(\)\.tenantTrade\)\.proposal\.toLowerCase\(\)/);
+  assert.match(read("components/client/kit/client-plan.tsx"), /clientAreaItems\(project\?\.navigation, tradeVocab\(workspace\.tenantTrade\)\.proposal\)/);
 });

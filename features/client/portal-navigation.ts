@@ -34,6 +34,8 @@ export type ClientAreaItem = {
 
 export function clientAreaItems(
   navigation: ClientNavigation | null | undefined,
+  /** What the studio sends to book: "Proposal", a makeup artist's "Quote" (tradeVocab). */
+  offer = "Proposal",
 ): ClientAreaItem[] {
   const items: Array<ClientAreaItem | null> = [
     // The event itself — date, venue, who is shooting it. Always there.
@@ -42,7 +44,7 @@ export function clientAreaItems(
       ? { label: "Your package", href: "/client/package", icon: "Package" }
       : null,
     navigation?.proposal
-      ? { label: "Your proposal", href: "/client/proposal", icon: "ClipboardList" }
+      ? { label: `Your ${offer.toLowerCase()}`, href: "/client/proposal", icon: "ClipboardList" }
       : null,
     navigation?.contract
       ? { label: "Your agreement", href: "/client/contract", icon: "FileSignature" }
