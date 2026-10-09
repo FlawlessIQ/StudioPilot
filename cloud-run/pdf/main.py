@@ -29,6 +29,7 @@ from reportlab.platypus import (
 )
 
 from contract import ContractRequest, build_contract_pdf
+from invoice import InvoiceRequest, build_invoice_pdf
 from run_of_show import RunOfShowDocument, build_run_of_show_pdf
 
 app = FastAPI(title="StudioCue PDF Service")
@@ -454,3 +455,10 @@ def contract_pdf(data: ContractRequest) -> Response:
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.contract_id}.pdf"'})
+
+
+@app.post("/v1/invoices/pdf")
+def invoice_pdf(data: InvoiceRequest) -> Response:
+    """An invoice StudioCue issues for a studio that bills a job itself."""
+    payload = build_invoice_pdf(data)
+    return Response(content=payload, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{data.invoice_number}.pdf"'})

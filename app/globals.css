@@ -15050,6 +15050,19 @@ form:has(> .address-field) > .address-field,
   margin: 6px 0 -6px;
 }
 
+.invoice-settings-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.invoice-settings-actions small {
+  color: var(--ds-ink-soft, #565d68);
+  flex: 1 1 14rem;
+  font-size: 12.5px;
+}
+
 .invoice-settings-picks {
   display: flex;
   flex-wrap: wrap;

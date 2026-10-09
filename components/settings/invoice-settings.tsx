@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, LoaderCircle, ReceiptText } from "lucide-react";
+import { CheckCircle2, FileText, LoaderCircle, ReceiptText } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
@@ -14,7 +14,7 @@ import {
   type StudioInvoiceSettings,
 } from "@/features/billing/studio-invoice-settings";
 import { basisPointsToPercent, percentToBasisPoints } from "@/features/billing/sales-tax-settings";
-import { saveStudioInvoiceSettings } from "@/lib/billing/studio-invoice-client";
+import { previewStudioInvoicePdf, saveStudioInvoiceSettings } from "@/lib/billing/studio-invoice-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
 type Draft = {
@@ -65,6 +65,11 @@ export function InvoiceSettings() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  /** The rendered sample, when the browser wouldn't open a tab for it. */
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  /** Edited since the last save: the sample shows saved details only. */
+  const [dirty, setDirty] = useState(false);
 
   if (!ownerOrAdmin) {
     return <p className="form-notice">Only a studio owner or admin can change your invoice details.</p>;
@@ -73,6 +78,7 @@ export function InvoiceSettings() {
   const current = draft ?? draftFrom(stored);
   const edit = (patch: Partial<Draft>) => {
     setDraft({ ...current, ...patch });
+    setDirty(true);
     setSaved(null);
     setError(null);
   };
@@ -115,11 +121,47 @@ export function InvoiceSettings() {
       }
       refreshTenantRecords("billingSettings");
       if (result.settings) setDraft(draftFrom(result.settings));
+      setDirty(false);
       setSaved("Saved. Invoices you send from now on use these details.");
     } catch (caught: unknown) {
       setError(friendlyError(caught, "Your invoice details couldn't be saved."));
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * The studio's saved details on a sample invoice, rendered exactly as a
+   * client's would be. The tab opens on the tap, before the await, or the
+   * browser blocks it as a pop-up.
+   */
+  async function preview() {
+    if (!workspace.tenantId) return;
+    setPreviewing(true);
+    setError(null);
+    const tab = window.open("", "_blank");
+    try {
+      const pdf = await previewStudioInvoicePdf(workspace.tenantId);
+      if (!pdf) {
+        tab?.close();
+        setSaved("Preview mode: there's no invoice PDF to show here.");
+        return;
+      }
+      const url = URL.createObjectURL(pdf);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (tab) {
+        tab.location.href = url;
+        setPreviewUrl(null);
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } else {
+        // Pop-ups blocked: a plain link still opens it on a tap.
+        setPreviewUrl(url);
+      }
+    } catch (caught: unknown) {
+      tab?.close();
+      setError(friendlyError(caught, "The sample invoice couldn't be made."));
+    } finally {
+      setPreviewing(false);
     }
   }
 
@@ -286,10 +328,22 @@ export function InvoiceSettings() {
             <CheckCircle2 size={15} /> {saved}
           </p>
         ) : null}
-        <button className="button button-dark" disabled={busy} type="submit">
-          {busy ? <LoaderCircle className="spin" size={16} /> : null}
-          Save
-        </button>
+        <div className="invoice-settings-actions">
+          <button className="button button-dark" disabled={busy} type="submit">
+            {busy ? <LoaderCircle className="spin" size={16} /> : null}
+            Save
+          </button>
+          <button className="button button-light" disabled={previewing || busy} onClick={() => void preview()} type="button">
+            {previewing ? <LoaderCircle className="spin" size={16} /> : <FileText size={16} />}
+            Preview a sample invoice
+          </button>
+          {previewUrl ? (
+            <a className="button button-light" href={previewUrl} rel="noreferrer" target="_blank">
+              Open the sample invoice
+            </a>
+          ) : null}
+          {dirty ? <small>The sample shows your saved details. Save first to see your changes.</small> : null}
+        </div>
       </form>
     </section>
   );

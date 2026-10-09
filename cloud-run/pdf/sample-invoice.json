@@ -1,0 +1,40 @@
+{
+  "invoice_id": "invoice_studio_sample",
+  "project_id": "wedding-booked",
+  "invoice_number": "INV-0042",
+  "kind_label": "Final balance",
+  "stamp": "",
+  "issued_on": "October 9, 2026",
+  "due_on": "May 29, 2027",
+  "studio": {
+    "name": "Alder & Muse Photography",
+    "address_lines": ["214 Hudson Street, Suite 3", "Kingston, NY 12401"],
+    "email": "billing@alderandmuse.com",
+    "phone": "(845) 555-0142",
+    "logo_url": ""
+  },
+  "bill_to": {
+    "name": "Maya Johnson & Theo Johnson",
+    "email": "maya@example.com",
+    "address_lines": ["88 Orchard Lane", "Rhinebeck, NY 12572"]
+  },
+  "job_line": "Maya & Theo Johnson Wedding · Saturday, June 12, 2027",
+  "lines": [
+    { "description": "Signature Collection — 8 hours, two photographers", "quantity": "1", "unit_amount": "$6,500.00", "amount": "$6,500.00" },
+    { "description": "Engagement session", "quantity": "1", "unit_amount": "$450.00", "amount": "$450.00" },
+    { "description": "Extra hour of coverage", "quantity": "2", "unit_amount": "$300.00", "amount": "$600.00" }
+  ],
+  "totals": [
+    { "label": "Subtotal", "amount": "$7,550.00" },
+    { "label": "Sales tax (8.25%)", "amount": "$622.88" },
+    { "label": "Total", "amount": "$8,172.88" }
+  ],
+  "payments": [
+    { "label": "Paid October 2, 2026 · Zelle", "amount": "−$2,000.00" }
+  ],
+  "balance_due": "$6,172.88",
+  "payment_instructions": "Zelle to billing@alderandmuse.com\nChecks payable to Alder & Muse LLC",
+  "pay_link": "https://square.link/u/alder",
+  "footer": "Thank you! A 3% fee applies to card payments.",
+  "generated_at": "2026-10-09T21:00:00Z"
+}

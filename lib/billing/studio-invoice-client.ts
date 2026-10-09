@@ -44,3 +44,32 @@ export async function saveStudioInvoiceSettings(
   markTenantRecordsWritten();
   return { persisted: true, settings: payload as unknown as StudioInvoiceSettings };
 }
+
+/**
+ * A sample invoice with the studio's saved details, as a PDF Blob
+ * (integrationsCommand previewStudioInvoice; nothing is stored). Null in
+ * preview mode.
+ */
+export async function previewStudioInvoicePdf(tenantId: string): Promise<Blob | null> {
+  const endpoint = process.env.NEXT_PUBLIC_INTEGRATION_FUNCTIONS_URL;
+  if (!endpoint) return null;
+  const { auth } = getFirebaseClient();
+  const user = auth.currentUser;
+  if (!user) throw new Error("AUTHENTICATION_REQUIRED");
+  const appCheckToken = await getOptionalAppCheckToken();
+  const response = await fetch(`${endpoint.replace(/\/$/, "")}/integrationsCommand`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${await user.getIdToken()}`,
+      ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {}),
+    },
+    body: JSON.stringify({ type: "previewStudioInvoice", tenantId }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as { base64?: unknown; error?: unknown };
+  if (!response.ok || typeof payload.base64 !== "string") throw new Error(String(payload.error ?? "PDF_GENERATION_FAILED"));
+  const binary = atob(payload.base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: "application/pdf" });
+}

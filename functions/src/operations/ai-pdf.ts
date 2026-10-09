@@ -2,6 +2,7 @@ import { isSalesConsultation } from "../booking/consultation-purpose.js";
 import { normalizeUnitLabel, quantityText } from "../packages/unit-label.js";
 import { mcScriptLine, type McScript } from "../planning/mc-script.js";
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
+import { INVOICE_PDF_JOB_TYPE, storeStudioInvoicePdf, studioInvoicePdfInput } from "../billing/studio-invoice-pdf.js";
 import { US_ENGLISH_PART } from "../ai/language.js";
 import { enrichCapturedLead } from "../intake/enrich.js";
 import { convertInquiryToJob } from "../intake/convert.js";
@@ -853,6 +854,8 @@ async function runOfShowFor(db:FirebaseFirestore.Firestore,schedule:DocumentSnap
 async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tenant=await db.doc(`tenants/${String(job.get("tenantId"))}`).get();const tenantName=String(tenant.get("brandName")??tenant.get("businessName")??"Studio");const generatedAt=new Date().toISOString();const type=String(job.get("type"));
   // A signed StudioCue contract and its certificate. See ../contracts/seal.ts.
   if(type==="contract_pdf")return contractPdfInput(db,job,tenantName);
+  // An invoice the studio issues itself. See ../billing/studio-invoice-pdf.ts.
+  if(type===INVOICE_PDF_JOB_TYPE)return studioInvoicePdfInput(db,job);
   if(type==="proposal_pdf"){
     const proposal=await db.doc(`proposals/${String(job.get("proposalId"))}`).get();
     if(!proposal.exists)throw new Error("PROPOSAL_NOT_FOUND");
@@ -972,23 +975,31 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
   if(type==="closeout_pdf"){const closeout=await db.doc(`projectCloseouts/${String(job.get("closeoutId"))}`).get();if(!closeout.exists)throw new Error("CLOSEOUT_NOT_FOUND");const project=await db.doc(`projects/${String(closeout.get("projectId"))}`).get();const requirements=Array.isArray(closeout.get("requirements"))?closeout.get("requirements") as Array<Json>:[];return{endpoint:"closeouts",entity:closeout,payload:{tenant_name:tenantName,project_id:String(closeout.get("projectId")),closeout_id:closeout.id,project_name:String(project.get("name")??closeout.get("projectId")),requirements:requirements.map(item=>({label:String(item.label),complete:Boolean(item.complete),evidence_id:item.evidenceId??null})),generated_at:generatedAt}}}
   throw new Error("UNSUPPORTED_PDF_JOB")}
 
-export async function runPdfJob(job:DocumentSnapshot){
+/** One render from the private PDF service (cloud-run/pdf), checked to be a PDF. */
+export async function renderPdfService(endpoint:string,payload:unknown):Promise<Buffer>{
   const service=process.env.PDF_SERVICE_URL;
   if(!service)throw new Error("PDF_SERVICE_NOT_CONFIGURED");
-  const input=await pdfInput(job);
   const audience=service.replace(/\/$/,"");
   const token=process.env.FUNCTIONS_EMULATOR==="true"?"":await cloudRunIdentityToken(audience);
-  const response=await fetch(`${audience}/v1/${input.endpoint}/pdf`,{
+  const response=await fetch(`${audience}/v1/${endpoint}/pdf`,{
     method:"POST",
     headers:{"content-type":"application/json",...(token?{authorization:`Bearer ${token}`}:{})},
-    body:JSON.stringify(input.payload),
+    body:JSON.stringify(payload),
   });
   if(!response.ok)throw new Error(`PDF_GENERATION_FAILED:${response.status}`);
   const bytes=Buffer.from(await response.arrayBuffer());
   if(bytes.length<100||bytes.subarray(0,4).toString()!=="%PDF")throw new Error("INVALID_GENERATED_PDF");
+  return bytes;
+}
+
+export async function runPdfJob(job:DocumentSnapshot){
+  const input=await pdfInput(job);
+  const bytes=await renderPdfService(input.endpoint,input.payload);
   // The signed copy has its own home, record and email; it is never a
   // generic "generated" document.
   if(String(job.get("type"))==="contract_pdf")return storeSealedContract(getFirestore(),job,input.entity,bytes);
+  // Its own path per revision, and the invoice points at the latest.
+  if(String(job.get("type"))===INVOICE_PDF_JOB_TYPE)return storeStudioInvoicePdf(getFirestore(),job,"fileName" in input&&typeof input.fileName==="string"?input.fileName:`${job.id}.pdf`,bytes);
   const tenantId=String(job.get("tenantId"));
   const projectId=String(job.get("projectId"));
   const isProposal=String(job.get("type"))==="proposal_pdf";

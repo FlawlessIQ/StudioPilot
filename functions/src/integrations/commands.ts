@@ -22,6 +22,7 @@ import {
   normalisePayLink,
   normaliseStudioInvoiceSettings,
 } from "../billing/studio-invoice-settings.js";
+import { previewStudioInvoice } from "../billing/studio-invoice-preview.js";
 
 const allowedRoles = ["studio_owner", "studio_admin"];
 
@@ -154,6 +155,15 @@ const commandSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
+     * A sample invoice with the studio's saved details, as a PDF
+     * (billing/studio-invoice-preview.ts). Read-only: nothing is stored and
+     * the invoice counter doesn't move.
+     */
+    type: z.literal("previewStudioInvoice"),
+    tenantId: z.string().min(1),
+  }),
+  z.object({
+    /**
      * What goes on the invoices StudioCue issues when a studio bills a job
      * itself (`billingSettings/{tenantId}.studioInvoices`, shape in
      * features/billing/studio-invoice-settings.ts). Independent of the
@@ -226,6 +236,17 @@ export const integrationsCommand = onRequest(
     } catch (caught: unknown) {
       // The guard's own code: read-only and suspended studios are told so.
       response.status(402).json({ error: caught instanceof Error ? caught.message : "ACTIVE_SUBSCRIPTION_REQUIRED" });
+      return;
+    }
+
+    // Read-only, so outside the idempotent transaction below.
+    if (command.type === "previewStudioInvoice") {
+      try {
+        const pdf = await previewStudioInvoice(db, command.tenantId);
+        response.status(200).json({ contentType: "application/pdf", base64: pdf.toString("base64") });
+      } catch (caught: unknown) {
+        response.status(502).json({ error: caught instanceof Error ? caught.message.split(":")[0] : "PDF_GENERATION_FAILED" });
+      }
       return;
     }
 

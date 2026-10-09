@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, LockKeyhole, MessageCircle, RotateCw } from "lucide-react";
+import { ExternalLink, FileText, LockKeyhole, MessageCircle, RotateCw } from "lucide-react";
+import { resolveFile } from "@/lib/documents/resolve-file";
 import { Actions, Button, Card, List, Main, Pill, PoweredBy, Row, Steps } from "@/components/kit/kit";
 import { ClientAutopay } from "@/components/client/client-autopay";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -51,6 +52,36 @@ export function ClientPayments() {
   const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const refreshInvoices = invoices.refresh;
+  /** The invoice PDF's link, when the browser wouldn't open a tab for it. */
+  const [invoiceLink, setInvoiceLink] = useState<string | null>(null);
+
+  /**
+   * The studio's own invoice, as a PDF (own invoicing): opened through the
+   * Storage rules like any client file, in a tab opened while the tap still
+   * counts as one.
+   */
+  async function openInvoicePdf(invoice: Record<string, unknown>) {
+    const path = typeof invoice.pdfStoragePath === "string" ? invoice.pdfStoragePath : "";
+    if (!path) return;
+    setNotice(null);
+    const tab = window.open("", "_blank");
+    const result = await resolveFile(
+      { kind: "storage", path, label: `Invoice ${text(invoice.number)}`.trim() },
+      workspace.tenantId ?? null,
+    );
+    if (result.status !== "ready") {
+      tab?.close();
+      setNotice(result.message);
+      return;
+    }
+    if (tab) {
+      tab.opener = null;
+      tab.location.href = result.url;
+    } else {
+      // Pop-ups blocked: a plain link still opens it on a tap.
+      setInvoiceLink(result.url);
+    }
+  }
 
   useEffect(() => {
     if (!openedInvoiceId) return;
@@ -104,7 +135,16 @@ export function ClientPayments() {
   const plusTax = Boolean(agreedSalesTax && !agreedSalesTax.exempt);
   const morningAmount = morning ? money(morning.amountCents, morning.currency) : null;
   const hostedUrl = due && typeof due.hostedUrl === "string" && due.hostedUrl ? due.hostedUrl : null;
-  const provider = due ? (text(due.provider) === "stripe" ? "Stripe" : "QuickBooks") : null;
+  // An invoice the studio issued itself has no accounting app behind it: its
+  // pay link is the studio's own page (own invoicing).
+  const provider = due
+    ? text(due.provider) === "stripe"
+      ? "Stripe"
+      : text(due.provider) === "quickbooks"
+        ? "QuickBooks"
+        : null
+    : null;
+  const instructions = due && typeof due.paymentInstructions === "string" ? due.paymentInstructions : null;
   // Online, paid to the studio directly (an invoice with no pay link, and
   // none coming), or genuinely still being created.
   const payRoute = due ? invoicePayRoute({ hostedUrl, atProvider: due.atProvider }) : null;
@@ -112,7 +152,12 @@ export function ClientPayments() {
     workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : null;
   const payNote =
     due && payRoute
-      ? invoicePayNote(payRoute, { studioName, invoiceName: invoiceName(due.kind), providerName: provider })
+      ? invoicePayNote(payRoute, {
+          studioName,
+          invoiceName: invoiceName(due.kind),
+          providerName: provider,
+          hasInstructions: payRoute === "direct" && Boolean(instructions),
+        })
       : null;
 
   if (invoices.error || (standing.length === 0 && !morning))
@@ -165,6 +210,19 @@ export function ClientPayments() {
             ) : (
               <p className="kit-caption">{payNote}</p>
             )}
+            {instructions ? <p className="kit-body client-pay-instructions">{instructions}</p> : null}
+            {typeof due.pdfStoragePath === "string" ? (
+              invoiceLink ? (
+                <a className="kit-button" data-variant="secondary" href={invoiceLink} rel="noreferrer" target="_blank">
+                  <FileText aria-hidden size={20} />
+                  {`Open invoice ${text(due.number)}`.trim()}
+                </a>
+              ) : (
+                <Button icon={FileText} onClick={() => void openInvoicePdf(due)} variant="secondary">
+                  {`Download invoice ${text(due.number)}`.trim()}
+                </Button>
+              )
+            ) : null}
             {notice ? (
               <p className="kit-caption" role="status">
                 {notice}
@@ -201,11 +259,14 @@ export function ClientPayments() {
             {standing.map((invoice) => (
               <Row
                 key={invoice.id}
-                subtitle={
-                  number(invoice.balanceCents) > 0
-                    ? `Due ${date(invoice.dueDate)}`
-                    : `Paid · ${date(invoice.dueDate)}`
-                }
+                onClick={typeof invoice.pdfStoragePath === "string" ? () => void openInvoicePdf(invoice) : undefined}
+                subtitle={[
+                  // The number on the studio's own invoice, so "which one?" has an answer.
+                  text(invoice.number),
+                  number(invoice.balanceCents) > 0 ? `Due ${date(invoice.dueDate)}` : `Paid · ${date(invoice.dueDate)}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
                 title={invoiceName(invoice.kind)}
                 trailing={
                   <>

@@ -202,7 +202,9 @@ test("a studio with no payments app: the client is told to arrange the deposit, 
   // The portal says so from the plan's own policy, and the page and its
   // after-signing card follow it.
   const route = read("app/api/client/portal/route.ts");
-  assert.match(route, /depositByStudio\(\{ status: plan\.get\("status"\), policy: plan\.get\("policy"\) \}\) &&\s*!paymentsConnected\(/);
+  // The job's own billing decides, so a job the studio bills itself is still
+  // the studio's to arrange at a studio with QuickBooks (own invoicing).
+  assert.match(route, /depositByStudio\(\{ status: plan\.get\("status"\), policy: plan\.get\("policy"\) \}\) &&\s*jobBillingFromRecords\(/);
   assert.match(route, /sanitized\.depositByStudio = true;/);
   const page = read("components/client/kit/client-contract.tsx");
   assert.match(page, /oneLink && needs\.payment && !depositByStudio/);

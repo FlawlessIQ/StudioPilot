@@ -69,13 +69,28 @@ export const QUICKBOOKS_NO_PAY_LINK_NOTE =
  */
 export function invoicePayNote(
   route: InvoicePayRoute,
-  input: { studioName: string | null; invoiceName: string; providerName: string | null },
+  input: {
+    studioName: string | null;
+    invoiceName: string;
+    providerName: string | null;
+    /**
+     * The studio issued this invoice itself and said how to pay
+     * (features/billing/studio-invoice-settings.ts): the page shows those
+     * instructions, so the note points to them instead of guessing at
+     * "check, cash or bank transfer".
+     */
+    hasInstructions?: boolean;
+  },
 ): string {
   if (route === "online")
-    return `Secure payment opens in ${input.providerName ?? "your studio's payment page"}. StudioCue never receives your card or bank details.`;
+    return input.providerName
+      ? `Secure payment opens in ${input.providerName}. StudioCue never receives your card or bank details.`
+      : `Payment opens on ${input.studioName ? `${input.studioName}'s` : "your studio's"} own payment page. StudioCue never receives your card or bank details.`;
   if (route === "preparing")
     return "Secure payment link is still syncing. Refresh in a moment, or message your studio if you need to pay now.";
   const studio = input.studioName ?? "Your studio";
   const them = input.studioName ?? "them";
+  if (input.hasInstructions)
+    return `Your ${input.invoiceName.toLowerCase()} invoice is ready. ${studio} takes this payment directly — here's how to pay.`;
   return `Your ${input.invoiceName.toLowerCase()} invoice is ready. ${studio} takes this payment directly — by check, cash or bank transfer. Message ${them} to arrange it.`;
 }

@@ -1703,3 +1703,9 @@ textarea.kit-input {
   color: var(--kit-ink-2);
   white-space: pre-line;
 }
+
+/* The studio's own payment instructions on the client's Payments page
+   (own invoicing): its line breaks are the studio's. */
+.client-pay-instructions {
+  white-space: pre-line;
+}

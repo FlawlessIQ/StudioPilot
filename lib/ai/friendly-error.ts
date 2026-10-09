@@ -402,6 +402,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   BILLING_STUDIO_JOB:
     "You're billing this job yourself, so QuickBooks won't send this bill. Record the payment when it comes in, or switch the job to QuickBooks on its booking page.",
   INVOICE_PAY_LINK_INVALID: "The payment link needs to be a full web address starting with https://.",
+  // Settings → Invoices and payments → Preview a sample invoice.
+  PDF_GENERATION_FAILED: "The invoice PDF couldn't be made just now. Try again in a minute.",
+  PDF_SERVICE_NOT_CONFIGURED: "Invoice PDFs aren't set up in this environment.",
+  INVALID_GENERATED_PDF: "The invoice PDF came back damaged. Try again in a minute.",
   BOOKING_IMPORT_PERMISSION_REQUIRED:
     "Only a studio owner or admin can import bookings, because importing one records that its contract was signed and its payments made.",
   NOT_AN_IMPORTED_BOOKING:

@@ -244,6 +244,7 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // offers the per-job choice in Phase 6; until then it's on the booking page.
   setJobBillingMethod: "the booking page's How this job is billed",
   setStudioInvoiceSettings: "Settings → Invoices and payments",
+  previewStudioInvoice: "Settings → Invoices and payments",
   // The couple's own shot list (planning/shot-list-upload.ts): asked on its
   // day by the sweep, or "Ask now" on the job; seen from Today or the job.
   requestShotList: "the job's shot list card", markShotListSeen: "the shot list card on Today",

@@ -52,7 +52,9 @@ import { confirmFinalDetails, finalDetailsFor } from "@/server/planning/final-de
 import { shotListFor, submitShotList } from "@/server/planning/shot-list";
 import { shotListStatus, type ShotListRecord } from "@/features/planning/shot-list";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
-import { depositByStudio, paymentsConnected } from "@/features/booking/deposit-by-studio";
+import { depositByStudio } from "@/features/booking/deposit-by-studio";
+import { jobBillingFromRecords } from "@/features/billing/job-billing-from-records";
+import { normalisePayLink, normaliseStudioInvoiceSettings } from "@/features/billing/studio-invoice-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -475,6 +477,9 @@ const clientRecordFields = {
     // two references that never meet.
     "providerDocNumber",
     "lastSyncedAt",
+    // An invoice the studio issued through StudioCue: its own number.
+    "billedBy",
+    "number",
   ],
   questionnaireResponses: [
     "name",
@@ -683,20 +688,50 @@ async function clientRecords(
    */
   let depositByStudioFor: string | null = null;
   if (collectionName === "contracts" && snapshot.docs.some((document) => document.get("mode") === "combined")) {
-    const [plan, connections] = await Promise.all([
+    const [plan, connections, project, invoices, billingSettings] = await Promise.all([
       adminFirestore.doc(`bookingOrchestrations/${projectId}`).get(),
       adminFirestore.collection("integrationConnections").where("tenantId", "==", tenantId).get(),
+      adminFirestore.doc(`projects/${projectId}`).get(),
+      adminFirestore.collection("invoiceReferences").where("tenantId", "==", tenantId).where("projectId", "==", projectId).get(),
+      adminFirestore.doc(`billingSettings/${tenantId}`).get(),
     ]);
-    // Connected since the link went out, the signature raises it after all
-    // (booking/orchestration.ts): not the studio's to arrange any more.
+    // Billed through QuickBooks since the link went out, the signature raises
+    // it after all (booking/orchestration.ts): not the studio's to arrange any
+    // more. A job the studio bills itself stays the studio's to arrange, even
+    // at a studio with QuickBooks (features/billing/job-billing.ts).
     if (
       plan.exists &&
       plan.get("tenantId") === tenantId &&
       depositByStudio({ status: plan.get("status"), policy: plan.get("policy") }) &&
-      !paymentsConnected(connections.docs.map((connection) => connection.data()))
+      jobBillingFromRecords({
+        projectId,
+        project: project.exists && project.get("tenantId") === tenantId ? project.data() : null,
+        connections: connections.docs.map((connection) => connection.data()),
+        invoices: invoices.docs.map((invoice) => invoice.data()),
+        billingSettings: billingSettings.exists && billingSettings.get("tenantId") === tenantId ? billingSettings.data() : null,
+      }).method === "studio"
     ) {
       depositByStudioFor = String(plan.get("contractId") ?? "") || null;
     }
+  }
+  /**
+   * How a client pays an invoice the studio issued itself (own invoicing,
+   * features/billing/studio-invoice-settings.ts): the studio's payment
+   * instructions and default pay link. Read once, only when there is one.
+   */
+  let studioInvoicePayment: { instructions: string | null; payLinkUrl: string | null } | null = null;
+  if (
+    collectionName === "invoiceReferences" &&
+    snapshot.docs.some((document) => document.get("billedBy") === "studio" && !document.get("provider"))
+  ) {
+    const settings = await adminFirestore.doc(`billingSettings/${tenantId}`).get();
+    const studioInvoices = normaliseStudioInvoiceSettings(
+      settings.exists && settings.get("tenantId") === tenantId ? settings.data() : null,
+    );
+    studioInvoicePayment = {
+      instructions: studioInvoices.paymentInstructions,
+      payLinkUrl: studioInvoices.payLinkUrl,
+    };
   }
   const documents = currentSnapshotIds
     ? currentSnapshotIds.flatMap((id) => snapshot.docs.filter((document) => document.id === id))
@@ -749,6 +784,11 @@ async function clientRecords(
     ) {
       return [];
     }
+    // An invoice the studio issues itself is the client's once it's sent;
+    // a draft is still the studio's to check.
+    if (collectionName === "invoiceReferences" && value.billedBy === "studio" && value.status === "draft") {
+      return [];
+    }
     const sanitized = pick(value, clientRecordFields[collectionName]);
     if (collectionName === "proposals" && sanitized.status === "sent") {
       sanitized.status = "viewed";
@@ -773,6 +813,19 @@ async function clientRecords(
       // it exists in QuickBooks but has not been sent, so the couple is told
       // it is being prepared — never "pay the studio directly".
       sanitized.atProvider = invoiceRaisedAtProvider(value) && value.status !== "review_required";
+      // Issued by the studio through StudioCue: it exists the moment it's
+      // sent, it's paid by the studio's own link or instructions, and its PDF
+      // is the client's to open (functions/src/billing/studio-invoice-pdf.ts).
+      if (value.billedBy === "studio" && !value.provider) {
+        sanitized.atProvider = true;
+        sanitized.hostedUrl =
+          normalisePayLink(value.payLinkUrl) ?? studioInvoicePayment?.payLinkUrl ?? null;
+        sanitized.paymentInstructions = studioInvoicePayment?.instructions ?? null;
+        const pdfPath = typeof value.pdf?.path === "string" ? value.pdf.path : "";
+        if (pdfPath.startsWith(`tenants/${tenantId}/projects/${projectId}/invoices/`)) {
+          sanitized.pdfStoragePath = pdfPath;
+        }
+      }
     }
     if (collectionName === "deliveryRecords" && typeof value.viewToken === "string" && value.viewToken) {
       // The couple opens their delivery through StudioCue's redirect, which

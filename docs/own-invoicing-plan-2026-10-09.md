@@ -1,5 +1,17 @@
 # Bill clients yourself — plan (2026-10-09, rev 2)
 
+**Status**
+
+| Phase | State |
+|---|---|
+| 0 — Foundation (per-job choice, settings, numbering, no dead ends) | Live 2026-10-09 (f98f2cb3) |
+| 1 — The PDF invoice (`/v1/invoices/pdf`, `invoice_pdf` jobs, portal, sample preview) | Built 2026-10-09; nothing issues a studio invoice until Phase 2 |
+| 2–6 | Not started |
+
+Decisions (Conor, 2026-10-09): every recommendation below accepted — paid
+deletes leave a money-free settled stub, deletes scrub audit amounts, one
+optional tax rate per studio, QuickBooks jobs delete StudioCue's copy only.
+
 **Ask (Conor):**
 - Every journey that invoices or waits for money must work without QuickBooks.
 - A studio that **never connects QuickBooks** bills on its own, through StudioCue.
