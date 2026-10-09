@@ -10,8 +10,10 @@ import { AppShell } from "@/components/layout/app-shell";
  * the page, or just StudioCue.
  */
 export const metadata: Metadata = {
+  // Absolute: a default would itself pass through the root's "%s · StudioCue"
+  // and read "StudioCue · StudioCue".
   title: {
-    default: "StudioCue",
+    absolute: "StudioCue",
     template: "%s · StudioCue",
   },
 };
