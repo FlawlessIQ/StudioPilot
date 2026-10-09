@@ -22,6 +22,7 @@ import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { separateGreeting, signWithStudio } from "../ai/reply-format.js";
 import { inquiryReplySystemInstruction } from "../ai/studio-voice.js";
+import { activeReplyTemplate, applyReplyTemplate } from "../communications/inquiry-reply-template.js";
 import { dayFieldsFor, normaliseInquiryFormConfig, resolveInquiryEventType } from "../intake/inquiry-form-config.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { runOfShowDocument } from "../planning/run-of-show-doc.js";
@@ -168,7 +169,18 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     .map((item)=>item.replace(/([a-z])([A-Z])/g,(_,a:string,b:string)=>`${a} ${b.toLowerCase()}`));
   const suggestedConsultationQuestions=Array.isArray(analysis.suggestedConsultationQuestions)?analysis.suggestedConsultationQuestions.map(String).filter(Boolean).slice(0,8):[];
   const now=new Date().toISOString();
-  const replySubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`;
+  const cueSubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`;
+  // The studio's own first reply, when it has saved one (Settings → Email
+  // templates → "Your reply to a new inquiry"): its words, with this
+  // inquiry's details filled in, replace or lead Cue's (inquiry-reply-template.ts).
+  const ownReply=applyReplyTemplate(await activeReplyTemplate(db,string(lead.get("tenantId"))),{subject:cueSubject,body:separateGreeting(string(analysis.replyBody))},{
+    recipientName:string(lead.get("displayName"))||string(lead.get("firstName")),
+    studioName:resolveTenantBrand(tenant.data(),"").brandName,
+    eventType:string(lead.get("eventTypeLabel")),
+    eventDate:string(lead.get("eventDate")),
+    venue:string(lead.get("venue")),
+  });
+  const replySubject=ownReply.subject;
   // The prompt's own "Dear Maya," example is copied and run on into the first
   // sentence; the greeting gets its own line before anyone reviews it.
   // The couple's own link — their details, then a time to talk — closes the
@@ -176,7 +188,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   // invent a link (intake/inquiry-link.ts). No hours set: no link, and the
   // draft says why so Today can.
   // "Warmly," then nothing: the prompt leaves the name to us (reply-format.ts).
-  const signed=signWithStudio(separateGreeting(string(analysis.replyBody)),resolveTenantBrand(tenant.data(),"").brandName);
+  const signed=signWithStudio(ownReply.body,resolveTenantBrand(tenant.data(),"").brandName);
   const linked=await withInquiryLink(db,{tenantId:string(lead.get("tenantId")),leadId,body:signed,now:new Date().toISOString()});
   const replyBody=linked.body;
   const confidence=missingInformation.length===0?0.93:0.82;
@@ -211,7 +223,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     sourceReferences:[{entityType:"lead",entityId:leadId,versionId:null,label:"Original inquiry",locator:"lead.message"}],
     // leadId and contactId travel with the reply so, once approved, it is sent
     // on the lead's own thread and the couple's answer comes back to it.
-    structuredOutput:{subject:replySubject,body:replyBody,recipientEmail:lead.get("email"),recipientName:lead.get("displayName")??null,leadId,contactId:lead.get("primaryContactId")??null,suggestedConsultationQuestions,bookingLinkIncluded:linked.linked},
+    structuredOutput:{subject:replySubject,body:replyBody,recipientEmail:lead.get("email"),recipientName:lead.get("displayName")??null,leadId,contactId:lead.get("primaryContactId")??null,suggestedConsultationQuestions,bookingLinkIncluded:linked.linked,studioTemplateVersion:ownReply.templateVersion},
     confidence:{overall:confidence,label:confidence>=0.9?"high":"medium",uncertainFields:missingInformation},
     validation:{status:replyBody?"passed":"failed",issues:replyBody?[]:[{code:"EMPTY_REPLY",severity:"blocking",message:"The reply draft is empty.",field:"body"}]},
     decision:null,

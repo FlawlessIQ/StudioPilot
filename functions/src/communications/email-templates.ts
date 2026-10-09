@@ -100,6 +100,9 @@ export const emailTemplateKeys = [
   "password_reset",
   "sign_in_link",
   "inquiry_acknowledgement",
+  // The studio's own first reply to a new inquiry: the draft on Today starts
+  // from it (operations/ai-pdf.ts) and goes out as a manual_message.
+  "inquiry_reply",
   "consultation_confirmation",
   "consultation_invitation",
   "consultation_reminder",
@@ -420,6 +423,11 @@ function templateValue(
     invoiceUrl: stringValue(input.values, "invoiceUrl"),
     scheduleUrl: stringValue(input.values, "scheduleUrl"),
     galleryUrl: stringValue(input.values, "galleryUrl"),
+    // For the studio's own first reply (inquiry_reply), filled from the inquiry.
+    clientFirstName: input.recipientName ? firstNameOf(input.recipientName) : "",
+    eventType: stringValue(input.values, "eventTypeLabel"),
+    eventDate: stringValue(input.values, "eventDateLabel"),
+    venue: stringValue(input.values, "venue"),
   };
   return value.replace(
     /\{\{([a-zA-Z][a-zA-Z0-9]*)\}\}/g,
@@ -2008,6 +2016,23 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? { label: "Your project portal", url: portalUrl }
           : undefined,
       };
+    // Only ever rendered as a preview in the template editor: the real reply
+    // is drafted on Today from the studio's version of this and sent as a
+    // manual_message. The body here stands in for the one Cue writes from
+    // what the client sent, when the studio hasn't written its own.
+    case "inquiry_reply": {
+      const body =
+        stringValue(values, "customBody") ||
+        "Thank you so much for reaching out, and for sharing your plans with me.\n\nI'd love to hear more about what matters most to you. The next step is a short call, so we can talk it through and make sure I'm the right fit.";
+      return {
+        subject: stringValue(values, "customSubject") || `Thank you for your inquiry`,
+        preheader: body.slice(0, 120),
+        eyebrow: "A note from your studio",
+        heading: `An update from ${brand.studioName}`,
+        paragraphs: [greeting, ...clientEmailParagraphs(body)],
+        action: actionUrl ? { label: stringValue(values, "actionLabel") || "Tell us more and pick a time", url: actionUrl } : undefined,
+      };
+    }
     case "manual_message": {
       const subject =
         stringValue(values, "customSubject") ||
@@ -2676,11 +2701,40 @@ export function firstNameOf(value: string): string {
   return first;
 }
 
+/**
+ * A studio's words with their links. `[text](https://…)` becomes a link with
+ * that text, and a bare https:// address becomes a link to itself. Only web,
+ * mailto and tel addresses are linked; anything else stays text. Everything
+ * else is escaped as before.
+ */
+const INLINE_LINK = /\[([^\]\n]{1,200})\]\(((?:https?:\/\/|mailto:|tel:)[^\s)]{1,2000})\)|(https?:\/\/[^\s<>"')\]]{1,2000})/g;
+
+export function inlineHtml(value: string, color = "#35664a"): string {
+  let html = "";
+  let last = 0;
+  for (const match of value.matchAll(INLINE_LINK)) {
+    const at = match.index ?? 0;
+    html += escapeHtml(value.slice(last, at));
+    const label = match[1] ?? match[3] ?? "";
+    const url = match[2] ?? match[3] ?? "";
+    const trailing = match[3] ? (/[.,;:!?]+$/.exec(url)?.[0] ?? "") : "";
+    const href = trailing ? url.slice(0, -trailing.length) : url;
+    html += `<a href="${escapeHtml(href)}" style="color:${color};text-decoration:underline;">${escapeHtml(trailing ? label.slice(0, -trailing.length) : label)}</a>${escapeHtml(trailing)}`;
+    last = at + match[0].length;
+  }
+  return html + escapeHtml(value.slice(last));
+}
+
+/** The same words for the plain-text part: "text (https://…)". */
+export function inlineText(value: string): string {
+  return value.replace(/\[([^\]\n]{1,200})\]\(((?:https?:\/\/|mailto:|tel:)[^\s)]{1,2000})\)/g, (_match, label: string, url: string) => `${label} (${url.replace(/^mailto:|^tel:/, "")})`);
+}
+
 const listItemsHtml = (lines: string[]): string =>
   lines
     .map(
       (line) =>
-        `<li style="margin:0 0 8px;">${escapeHtml(line.replace(bulletLinePattern, ""))}</li>`,
+        `<li style="margin:0 0 8px;">${inlineHtml(line.replace(bulletLinePattern, ""))}</li>`,
     )
     .join("");
 
@@ -2700,12 +2754,12 @@ const paragraphHtml = (paragraph: string): string => {
     const tag = ordered ? "ol" : "ul";
     return `<${tag} class="email-list" style="margin:0 0 18px;padding-left:22px;color:#4f5752;font-size:16px;line-height:1.7;">${listItemsHtml(lines)}</${tag}>`;
   }
-  return `<p class="email-paragraph" style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${escapeHtml(paragraph)}</p>`;
+  return `<p class="email-paragraph" style="margin:0 0 18px;color:#4f5752;font-size:16px;line-height:1.7;">${inlineHtml(paragraph)}</p>`;
 };
 
 /** Mail a couple (or another client) reads. */
 export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
-  "client_invitation", "inquiry_acknowledgement", "consultation_confirmation", "consultation_invitation",
+  "client_invitation", "inquiry_acknowledgement", "inquiry_reply", "consultation_confirmation", "consultation_invitation",
   "consultation_reminder", "consultation_rescheduled", "consultation_cancelled", "package_follow_up",
   "proposal_sent", "contract_sent", "contract_ready", "contract_reminder", "contract_signed", "contract_voided",
   "contract_superseded", "amendment_withdrawn", "retainer_invoice", "final_invoice", "final_payment_reminder",
@@ -2879,7 +2933,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     "",
     copy.heading,
     "",
-    ...copy.paragraphs,
+    ...copy.paragraphs.map(inlineText),
     ...detailLines,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
     ...(copy.moreActions ?? []).flatMap((extra) => ["", `${extra.label}: ${extra.url}`]),
@@ -2902,7 +2956,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const body = [
     copy.heading,
     "",
-    ...copy.paragraphs,
+    ...copy.paragraphs.map(inlineText),
     ...detailLines,
     ...(copy.action ? ["", `${copy.action.label}: ${copy.action.url}`] : []),
     ...(copy.moreActions ?? []).flatMap((extra) => ["", `${extra.label}: ${extra.url}`]),

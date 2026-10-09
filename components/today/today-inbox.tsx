@@ -1263,6 +1263,16 @@ function InquiryActions({
           </small>
           {reply.preview.subject ? <strong>{reply.preview.subject}</strong> : null}
           <p>{reply.preview.body}</p>
+          {!action.followUp ? (
+            // Change it for next time, where every first reply starts
+            // (Settings → Email templates → Your reply to a new inquiry).
+            <small className="today-inquiry-hint">
+              <Link href="/studio/settings/templates?email=inquiry_reply">
+                {reply.fromTemplate ? "Edit your reply template" : "Write your own reply template"}
+              </Link>
+              {reply.fromTemplate ? "" : " to start every reply from your words."}
+            </small>
+          ) : null}
           {reply.bookingLinkIncluded === false ? (
             <small className="today-inquiry-hint">
               {calls ? "No booking link yet — " : "No inquiry link yet — "}

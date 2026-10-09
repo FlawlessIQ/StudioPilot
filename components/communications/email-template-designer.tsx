@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoaderCircle, MailCheck, RotateCcw, Save, Send } from "lucide-react";
+import { Link2, LoaderCircle, MailCheck, RotateCcw, Save, Send } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { EMAIL_GROUPS, editableEmailsFor, emailGroupLabel } from "@/features/communications/email-catalog";
+import { linkMarkup } from "@/features/communications/link-markup";
 
 /**
  * Settings → Email templates: change the words of the emails StudioCue sends.
@@ -81,6 +83,20 @@ function contentOf(key: string, label: string, fields: Fields) {
   };
 }
 
+/**
+ * "Your reply to a new inquiry" is the draft on Today, not an automatic email
+ * (functions/src/communications/inquiry-reply-template.ts): its choices read
+ * as Cue's reply against the studio's, and a studio writing one usually wants
+ * its own reply, not an addition to Cue's.
+ */
+const REPLY_KEY = "inquiry_reply";
+
+const MERGE_FIELDS: Record<string, string[]> = {
+  [REPLY_KEY]: ["clientFirstName", "eventType", "eventDate", "venue", "studioName"],
+};
+const DEFAULT_MERGE_FIELDS = ["recipientName", "studioName", "projectName"];
+
+
 const changed = (fields: Fields) =>
   Boolean(fields.subject.trim() || fields.heading.trim() || fields.words.trim() || fields.actionLabel.trim() || fields.note.trim());
 
@@ -96,7 +112,14 @@ export function EmailTemplateDesigner() {
   // This studio's emails, in its trade's words: no delivery emails for a DJ.
   const emails = useMemo(() => editableEmailsFor(workspace.tenantTrade), [workspace.tenantTrade]);
   const mayEdit = ["studio_owner", "studio_admin"].includes(workspace.role ?? "");
-  const [key, setKey] = useState(emails[0]!.key);
+  // Today's "Edit your reply template" opens straight on that email.
+  const asked = useSearchParams()?.get("email");
+  const [key, setKey] = useState(emails.some((entry) => entry.key === asked) ? asked! : emails[0]!.key);
+  const isReply = key === REPLY_KEY;
+  const wordsRef = useRef<HTMLTextAreaElement>(null);
+  const [linking, setLinking] = useState(false);
+  const [linkText, setLinkText] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const email = emails.find((entry) => entry.key === key) ?? emails[0]!;
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,7 +159,9 @@ export function EmailTemplateDesigner() {
       .then((result) => {
         if (!active || !result) return;
         setPreview(result);
-        setFields(fieldsFrom(result.active?.content));
+        // A studio writing its first reply usually wants its own, not an
+        // addition to Cue's; every other email adds by default.
+        setFields(result.active?.content ? fieldsFrom(result.active.content) : key === REPLY_KEY ? { ...EMPTY, mode: "replace" } : EMPTY);
       })
       .catch((caught: unknown) => {
         if (active) setNotice({ tone: "error", text: friendlyError(caught, "That email couldn't be loaded. Try again.") });
@@ -147,7 +172,7 @@ export function EmailTemplateDesigner() {
     return () => {
       active = false;
     };
-  }, [mayEdit, runPreview, workspace.loading, workspace.tenantId]);
+  }, [key, mayEdit, runPreview, workspace.loading, workspace.tenantId]);
 
   // As they type, the preview follows — a moment after they pause.
   useEffect(() => {
@@ -164,6 +189,29 @@ export function EmailTemplateDesigner() {
     }, 700);
     return () => window.clearTimeout(timer);
   }, [dirty, email.label, fields, key, runPreview]);
+
+  function insertLink() {
+    const markup = linkMarkup(linkText, linkUrl);
+    if (!markup) {
+      setNotice({ tone: "error", text: "That web address doesn't look right. Try one like yourstudio.com/pricing." });
+      return;
+    }
+    const area = wordsRef.current;
+    const at = area ? area.selectionStart ?? fields.words.length : fields.words.length;
+    const end = area ? area.selectionEnd ?? at : at;
+    const before = fields.words.slice(0, at);
+    const space = before && !/\s$/.test(before) ? " " : "";
+    set("words", `${before}${space}${markup}${fields.words.slice(end)}`);
+    setLinking(false);
+    setLinkText("");
+    setLinkUrl("");
+    setNotice(null);
+    requestAnimationFrame(() => {
+      const caret = before.length + space.length + markup.length;
+      area?.focus();
+      area?.setSelectionRange(caret, caret);
+    });
+  }
 
   function set<K extends keyof Fields>(name: K, value: Fields[K]) {
     setFields((current) => ({ ...current, [name]: value }));
@@ -280,7 +328,9 @@ export function EmailTemplateDesigner() {
           {email.when}.{" "}
           {preview?.active
             ? `Using your version${customSince ? ` since ${customSince}` : ""}.`
-            : "Using StudioCue's wording."}
+            : isReply
+              ? "Cue writes each reply from what they sent. Save your own and every reply starts from it."
+              : "Using StudioCue's wording."}
         </small>
       </label>
 
@@ -297,21 +347,30 @@ export function EmailTemplateDesigner() {
             <label>
               <input checked={fields.mode === "add"} name="email-mode" onChange={() => set("mode", "add")} type="radio" />
               <span>
-                <strong>Add them above ours</strong>
-                <small>Recommended. Dates, times, amounts and links stay in.</small>
+                <strong>{isReply ? "Add them above Cue's reply" : "Add them above ours"}</strong>
+                <small>
+                  {isReply
+                    ? "Your words open the reply, and Cue's personal reply to what they wrote follows."
+                    : "Recommended. Dates, times, amounts and links stay in."}
+                </small>
               </span>
             </label>
             <label>
               <input checked={fields.mode === "replace"} name="email-mode" onChange={() => set("mode", "replace")} type="radio" />
               <span>
-                <strong>Replace ours</strong>
-                <small>Your words are the whole message. The details in ours below won&rsquo;t be included — the button still is.</small>
+                <strong>{isReply ? "Use my reply instead of Cue's" : "Replace ours"}</strong>
+                <small>
+                  {isReply
+                    ? "Every reply on Today starts from yours, with their name and details filled in. You still read it before it goes."
+                    : "Your words are the whole message. The details in ours below won\u2019t be included \u2014 the button still is."}
+                </small>
               </span>
             </label>
           </fieldset>
           <label>
             <span>{fields.mode === "add" ? "What you'd like to say" : "Your message"}</span>
             <textarea
+              ref={wordsRef}
               onChange={(event) => set("words", event.target.value)}
               placeholder={
                 fields.mode === "add"
@@ -322,9 +381,49 @@ export function EmailTemplateDesigner() {
               value={fields.words}
             />
             <small>
-              You can use {"{{recipientName}}"}, {"{{studioName}}"} and {"{{projectName}}"}. Separate paragraphs with a blank line.
+              {`You can use ${(MERGE_FIELDS[key] ?? DEFAULT_MERGE_FIELDS).map((field) => `{{${field}}}`).join(", ")}. Separate paragraphs with a blank line.`}
             </small>
           </label>
+          <div className="email-editor-link">
+            {linking ? (
+              <div className="email-editor-link-form">
+                <label>
+                  <span>Link text</span>
+                  <input onChange={(event) => setLinkText(event.target.value)} placeholder="See our packages" value={linkText} />
+                </label>
+                <label>
+                  <span>Web address</span>
+                  <input
+                    inputMode="url"
+                    onChange={(event) => setLinkUrl(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        insertLink();
+                      }
+                    }}
+                    placeholder="yourstudio.com/pricing"
+                    value={linkUrl}
+                  />
+                </label>
+                <div className="email-editor-link-actions">
+                  <button className="button button-dark button-sm" disabled={!linkUrl.trim()} onClick={insertLink} type="button">
+                    Insert link
+                  </button>
+                  <button className="button button-light button-sm" onClick={() => setLinking(false)} type="button">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="button button-light button-sm" onClick={() => setLinking(true)} type="button">
+                <Link2 size={14} /> Add a link
+              </button>
+            )}
+            <small>
+              {"A link shows as its text, underlined. In the message it reads [text](address); you can type that yourself too."}
+            </small>
+          </div>
           {fields.mode === "replace" && defaults?.paragraphs.length ? (
             <div className="email-editor-reference">
               <span>Our wording, for reference (shown with sample details)</span>
@@ -369,7 +468,7 @@ export function EmailTemplateDesigner() {
             {preview?.active ? (
               <button className="button button-light" disabled={busy !== null} onClick={() => void reset()} type="button">
                 {busy === "reset" ? <LoaderCircle className="spin" size={16} /> : <RotateCcw size={16} />}
-                Back to StudioCue&rsquo;s wording
+                {isReply ? "Back to Cue writing each reply" : "Back to StudioCue\u2019s wording"}
               </button>
             ) : null}
           </div>

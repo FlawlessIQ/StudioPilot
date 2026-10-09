@@ -185,6 +185,8 @@ export type TodayAction =
          * the studio is about to send it.
          */
         bookingLinkIncluded?: boolean | null;
+        /** Started from the studio's own reply template (Email templates), not written by Cue. */
+        fromTemplate?: boolean;
       } | null;
     }
   /**
@@ -1029,6 +1031,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
                 typeof asRecord(reply.structuredOutput).bookingLinkIncluded === "boolean"
                   ? (asRecord(reply.structuredOutput).bookingLinkIncluded as boolean)
                   : null,
+              fromTemplate: typeof asRecord(reply.structuredOutput).studioTemplateVersion === "number",
             }
           : null,
       },

@@ -31,6 +31,8 @@ import {
 import { vertexEndpoint } from "./vertex-endpoint.js";
 import { isCataloguePackage } from "../packages/one-off.js";
 import { separateGreeting } from "./reply-format.js";
+import { resolveTenantBrand } from "../branding/tenant-brand.js";
+import { activeReplyTemplate, applyReplyTemplate } from "../communications/inquiry-reply-template.js";
 import { studioPreferencesSection } from "./studio-voice.js";
 
 type Json = Record<string, unknown>;
@@ -826,6 +828,24 @@ export const aiMessageDraftCommand = onRequest(
                 ...draft.missingInformation,
               ];
         }
+      }
+
+      // A first reply starts from the studio's own, when it has saved one
+      // (communications/inquiry-reply-template.ts), here as on Today.
+      if (input.trigger === "inquiry_reply") {
+        const lead = (context.lead ?? {}) as Record<string, unknown>;
+        const own = applyReplyTemplate(
+          await activeReplyTemplate(db, input.tenantId),
+          { subject: draft.subject, body: draft.body },
+          {
+            recipientName: String(recipientName ?? lead.name ?? ""),
+            studioName: resolveTenantBrand(tenant.data(), "").brandName,
+            eventType: String(lead.eventType ?? lead.eventTypeLabel ?? ""),
+            eventDate: String(lead.eventDate ?? ""),
+            venue: String(lead.venue ?? ""),
+          },
+        );
+        draft = { ...draft, subject: own.subject, body: own.body };
       }
 
       const issues = draft.missingInformation.map((message) => ({

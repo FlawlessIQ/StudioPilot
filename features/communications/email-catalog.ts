@@ -31,6 +31,8 @@ export type EditableEmail = {
 
 export const EDITABLE_EMAILS: readonly EditableEmail[] = [
   { key: "inquiry_acknowledgement", group: "Inquiry & consultation", label: "Inquiry received", when: "Right after someone sends you an inquiry" },
+  // Not sent by itself: the reply drafted on Today starts from it.
+  { key: "inquiry_reply", group: "Inquiry & consultation", label: "Your reply to a new inquiry", when: "The reply waiting for you on Today when an inquiry arrives" },
   { key: "consultation_invitation", group: "Inquiry & consultation", label: "Book a call", when: "When you invite them to pick a consultation time" },
   { key: "consultation_confirmation", group: "Inquiry & consultation", label: "Call booked", when: "When a consultation is booked" },
   { key: "consultation_reminder", group: "Inquiry & consultation", label: "Call reminder", when: "Before their consultation" },

@@ -46,6 +46,10 @@ function sampleValues(zone: string, trade: unknown): Row {
     // a DJ's preview reads as a DJ's client will get it.
     trade: tradeOf(trade),
     eventDate: "2027-06-12",
+    // For the studio's own first reply ({{eventType}}, {{eventDate}}, {{venue}}).
+    eventTypeLabel: "event",
+    eventDateLabel: "Saturday, June 12, 2027",
+    venue: "Hollow Oak Barn",
     projectName: SAMPLE_PROJECT,
     portalUrl: url,
     actionUrl: url,

@@ -96,14 +96,17 @@ export function FirstReplySettings() {
             It goes right away, before you&rsquo;ve seen the inquiry. You can
             change its words under{" "}
             <Link href={settingsSectionHref("templates")}>Email templates</Link>{" "}
-            — pick &ldquo;Inquiry Acknowledgment&rdquo;.
+            — pick &ldquo;Inquiry received&rdquo;.
           </li>
           <li>
             <strong>Your personal first reply.</strong>{" "}
             Cue drafts it for you to
             read and approve on Today; nothing goes until you send it. It follows
             what you write below, and the tone and sign-off you set in{" "}
-            <Link href="/studio/copilot">Teach Cue your voice</Link>.
+            <Link href="/studio/copilot">Teach Cue your voice</Link>. Rather
+            write it yourself? Save your own under{" "}
+            <Link href="/studio/settings/templates?email=inquiry_reply">Email templates — Your reply to a new inquiry</Link>{" "}
+            and every reply starts from your words, with their name and details filled in.
           </li>
         </ol>
         {canEdit ? (
