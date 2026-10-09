@@ -321,7 +321,7 @@ function addUtcDays(date: string, days: number): string {
   return parsed.toISOString().slice(0, 10);
 }
 
-function resolveDueDate(
+export function resolveDueDate(
   rule: z.infer<typeof dueDateRuleSchema>,
   anchors: {
     eventDate: string;

@@ -6,7 +6,7 @@ import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tena
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   recommendedFieldCount,
-  recommendedFor,
+  recommendedLibraryFor,
   type RecommendedQuestionnaire,
 } from "@/features/questionnaires/recommended-templates";
 import { tradeOf, tradeVocab } from "@/features/trades/trades";
@@ -83,7 +83,9 @@ export function RecommendedQuestionnaires() {
         </p>
       </div>
       <div className="recommended-forms-list">
-        {recommendedFor(tradeOf(workspace.tenantTrade)).map((form) => {
+        {/* Everything to copy, the event details form too; a DJ, makeup artist or
+            hair stylist starts with their own form only (recommendedFor). */}
+        {recommendedLibraryFor(tradeOf(workspace.tenantTrade)).map((form) => {
           const copies = rows.filter((row) => row.recommendedId === form.id && live(row));
           return (
             <article key={form.id}>

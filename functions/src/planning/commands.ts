@@ -62,6 +62,7 @@ import {
 } from "../intake/inquiry-form.js";
 import {
   assertStudioMayRecordAnswer,
+  publishedApprovalState,
   revisedTimelineEmail,
   staleVendorShares,
 } from "./schedule-lifecycle.js";
@@ -2180,7 +2181,13 @@ export const planningCommand = onRequest(
          * a studio planning an out-of-state wedding (or a laptop left on
          * another zone) published a schedule that read hours off.
          */
-        const scheduleProject = await db.doc(`projects/${parsed.input.projectId}`).get();
+        const [scheduleProject, scheduleTenant] = await Promise.all([
+          db.doc(`projects/${parsed.input.projectId}`).get(),
+          db.doc(`tenants/${parsed.tenantId}`).get(),
+        ]);
+        // A photographer's couple is asked to approve it; a DJ's, makeup
+        // artist's or hair stylist's client reads it (schedule-lifecycle.ts).
+        const approvalState = publishedApprovalState(scheduleTenant.get("trade"));
         const scheduleZone =
           scheduleProject.get("tenantId") === parsed.tenantId
             ? eventZone(scheduleProject.get("timezone"), parsed.input.timezone)
@@ -2320,7 +2327,7 @@ export const planningCommand = onRequest(
             ).length,
             verifiedAt: now,
           },
-          approvalState: "client_pending",
+          approvalState,
           publishedAt: now,
           approvedBy: null,
           pdfDocumentId: null,

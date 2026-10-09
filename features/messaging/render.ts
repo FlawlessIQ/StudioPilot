@@ -1,4 +1,4 @@
-import { tradeVocab } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { isJobKind, vocab } from "@/features/job-kinds/job-kinds";
 import type {
   MessageDraftOutput,
@@ -63,6 +63,39 @@ export function renderLifecycleDraft(
 
   if (trigger === "schedule_confirmation") {
     if (!facts.scheduleUrl) missing.push("Published schedule link");
+    /**
+     * A DJ's, makeup artist's or hair stylist's client has nothing to approve
+     * (trades.ts `journey.scheduleApproval`): a month out they hear about
+     * the plan, and are not asked to check every time. Their one ask then is
+     * the final headcount or the final planning call.
+     */
+    if (!tradeProfile(facts.trade).journey.scheduleApproval) {
+      const words = tradeVocab(facts.trade);
+      const Plan = words.planOfDay ?? "Plan";
+      const plan = `${Plan.charAt(0).toLowerCase()}${Plan.slice(1)}`;
+      const day = words.dayName.replace(/^the /i, "").toLowerCase();
+      return {
+        subject: `Your ${plan} for ${facts.projectName}`,
+        body: [
+          greeting(facts),
+          "",
+          `Your ${facts.eventDate ?? "event"} is a month away! Here's the plan for your ${day}, so you have it — there's nothing you need to do.`,
+          facts.scheduleUrl
+            ? `You can always see the latest version here: ${facts.scheduleUrl}`
+            : "",
+          "",
+          "If anything changes on your side, just reply and we'll update it.",
+          "",
+          `— ${facts.studioName}`,
+        ]
+          .filter((line, index, lines) => line !== "" || lines[index - 1] !== "")
+          .join("\n"),
+        recipientEmail: facts.recipientEmail,
+        recipientName: facts.recipientName,
+        highlights: [`The ${plan}`, "One month before the event"],
+        missingInformation: missing,
+      };
+    }
     return {
       subject: `Confirming your ${facts.projectName} timeline`,
       body: [

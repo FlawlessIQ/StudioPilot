@@ -7,6 +7,8 @@ import {
   refreshTenantRecords,
 } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { setupOrderFor } from "@/features/today/setup-gaps";
+import { tradeVocab } from "@/features/trades/trades";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
@@ -35,6 +37,20 @@ export function CoiSettings() {
     ),
   });
   const stored = (records ?? [])[0] as Record<string, unknown> | undefined;
+  /**
+   * Insurance isn't one of a vendor's setup questions (setupOrderFor): most
+   * venues never ask a DJ, makeup artist or hair stylist for a certificate.
+   * So for her it is opt-in: until she saves a choice here, StudioCue asks
+   * nobody, and the form starts on Off rather than Prepare. A venue that has
+   * asked on one of her jobs is the opt-in — Today sends her here for it —
+   * so then it starts on Prepare, and saving her agent isn't a dead end. A
+   * photographer's form starts where it always did.
+   */
+  const optIn = !setupOrderFor(workspace.tenantTrade).includes("insurance");
+  const projects = useTenantDocuments("projects", { enabled: optIn });
+  const venueAsks = (projects.records ?? []).some(
+    (project) => project.insuranceRequired === "required" && !project.archivedAt,
+  );
   const [edits, setEdits] = useState<
     Record<string, string | boolean | number | null>
   >({});
@@ -49,7 +65,7 @@ export function CoiSettings() {
     setEdits((current) => ({ ...current, [key]: next }));
   };
   const source = value<Source>("source", "agent");
-  const dial = value<Dial>("dial", "prepare");
+  const dial = value<Dial>("dial", optIn && !venueAsks ? "off" : "prepare");
 
   async function save() {
     setBusy(true);
@@ -113,6 +129,11 @@ export function CoiSettings() {
               Who sends your certificates, and how far StudioCue goes on its own
               asking for them and following up.
             </p>
+            {optIn && !stored && !venueAsks ? (
+              <p>
+                {`Off until you turn it on. Most venues never ask a ${tradeVocab(workspace.tenantTrade).provider} for one. When one does, save who sends yours, choose Prepare or Send below, and StudioCue asks for it on the jobs whose venue needs one.`}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="crm-form-grid coi-settings-fields">

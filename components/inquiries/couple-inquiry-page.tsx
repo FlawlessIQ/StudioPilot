@@ -243,7 +243,9 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   }, [token, reloadKey]);
 
   useEffect(() => {
-    if (step !== "time" || !preview?.takesBookings) return;
+    // No call to book (a makeup artist, a hair stylist, a family session):
+    // nothing to fetch, whether or not the studio has hours.
+    if (step !== "time" || !preview?.takesBookings || preview.offersConsultation === false) return;
     let active = true;
     void call("inquiry_availability", { token })
       .then((result) => {
@@ -263,7 +265,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
     return () => {
       active = false;
     };
-  }, [step, preview?.takesBookings, token]);
+  }, [step, preview?.takesBookings, preview?.offersConsultation, token]);
 
   // The form's questions and anything already saved, read when the step opens.
   const formWanted = step === "form" && Boolean(preview?.eventForm);
@@ -857,7 +859,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
               <Button disabled={sending} icon={Send} onClick={sendForm}>
                 {sending
                   ? "Sending…"
-                  : preview?.booked || !preview?.takesBookings
+                  : preview?.booked || !preview?.takesBookings || noCall
                     ? `Send to ${studio}`
                     : "Send, then pick a time"}
               </Button>

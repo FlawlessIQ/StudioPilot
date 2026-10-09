@@ -8,6 +8,7 @@ import { ClientAutopay } from "@/components/client/client-autopay";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
+import { morningBalance } from "@/features/billing/balance-on-the-day";
 import { invoicePayNote, invoicePayRoute } from "@/features/client/invoice-pay-route";
 import { statusLabel } from "@/features/format/status-label";
 import {
@@ -16,11 +17,13 @@ import {
   money,
   number,
   text,
+  useProject,
   useProjectRecords,
   useReserveYourDate,
 } from "@/components/client/live-client-views";
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
+import { todayLocalIso } from "@/lib/format/event-date";
 
 /** "retainer" and "final" are the system's words, not a couple's. */
 function invoiceName(kind: unknown): string {
@@ -43,6 +46,7 @@ export function ClientPayments() {
   const workspace = useWorkspace();
   const invoices = useProjectRecords("invoiceReferences");
   const proposals = useProjectRecords("proposals");
+  const project = useProject().value;
   const reserve = useReserveYourDate();
   const [openedInvoiceId, setOpenedInvoiceId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -81,6 +85,24 @@ export function ClientPayments() {
     return readPricedSalesTax(pricing && typeof pricing === "object" ? (pricing as Record<string, unknown>).salesTax : null);
   }, [proposals.value]);
   const finalRaised = standing.some((invoice) => invoice.kind === "final");
+  /**
+   * A makeup artist's or hair stylist's client pays the rest on the morning
+   * (features/billing/balance-on-the-day.ts). No invoice is sent for it, so
+   * without this the page said "All paid" with the balance still to come.
+   */
+  const morning = useMemo(
+    () =>
+      morningBalance({
+        project,
+        trade: workspace.tenantTrade,
+        proposals: proposals.value,
+        invoices: invoices.value,
+        today: todayLocalIso(),
+      }),
+    [project, workspace.tenantTrade, proposals.value, invoices.value],
+  );
+  const plusTax = Boolean(agreedSalesTax && !agreedSalesTax.exempt);
+  const morningAmount = morning ? money(morning.amountCents, morning.currency) : null;
   const hostedUrl = due && typeof due.hostedUrl === "string" && due.hostedUrl ? due.hostedUrl : null;
   const provider = due ? (text(due.provider) === "stripe" ? "Stripe" : "QuickBooks") : null;
   // Online, paid to the studio directly (an invoice with no pay link, and
@@ -93,7 +115,7 @@ export function ClientPayments() {
       ? invoicePayNote(payRoute, { studioName, invoiceName: invoiceName(due.kind), providerName: provider })
       : null;
 
-  if (invoices.error || standing.length === 0)
+  if (invoices.error || (standing.length === 0 && !morning))
     return (
       <Main label="Payments">
         <div className="kit-stack-tight">
@@ -122,7 +144,7 @@ export function ClientPayments() {
         ) : null}
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Payments</p>
-          <h1 className="kit-title">{due ? "Your next payment" : "All paid"}</h1>
+          <h1 className="kit-title">{due || morning ? "Your next payment" : "All paid"}</h1>
         </div>
 
         {due ? (
@@ -148,6 +170,18 @@ export function ClientPayments() {
                 {notice}
               </p>
             ) : null}
+          </Card>
+        ) : morning ? (
+          <Card tone="accent">
+            <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+              Balance · {morning.eventDate ? `the morning of ${date(morning.eventDate)}` : "on the morning"}
+            </p>
+            <p className="kit-amount">{morningAmount}</p>
+            <p className="kit-caption">
+              {morning.past
+                ? `The balance of ${morningAmount}${plusTax ? ", plus sales tax," : ""} was due on the morning. If you've paid it, ${studioName ?? "your studio"} will mark it paid here.`
+                : `The balance of ${morningAmount}${plusTax ? ", plus sales tax," : ""} is due on the morning. You pay ${studioName ?? "your studio"} on the day — there's no invoice to pay before then.`}
+            </p>
           </Card>
         ) : (
           <Card tone="accent">
@@ -185,8 +219,15 @@ export function ClientPayments() {
                 }
               />
             ))}
+            {morning ? (
+              <Row
+                subtitle={morning.eventDate ? `Due the morning of ${date(morning.eventDate)}` : "Due on the morning"}
+                title="Balance"
+                trailing={morningAmount}
+              />
+            ) : null}
           </List>
-          {agreedSalesTax && !agreedSalesTax.exempt && !finalRaised ? (
+          {agreedSalesTax && !agreedSalesTax.exempt && !finalRaised && !morning ? (
             <p className="kit-caption">
               Your final balance comes later, plus sales tax — worked out from your billing address on your final
               invoice.

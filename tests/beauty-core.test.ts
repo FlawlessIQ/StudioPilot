@@ -253,7 +253,8 @@ test("the week-before email is a prep guide for makeup and hair, unchanged for a
 
 test("makeup and hair start with the Party list, sent at booking, locked a month out", () => {
   for (const trade of ["makeup", "hair"] as const) {
-    assert.deepEqual(recommendedFor(trade).map((form) => form.id), ["wedding-event-details", `${trade}-party-list`]);
+    // One form (simpler vendor journeys): the party list alone.
+    assert.deepEqual(recommendedFor(trade).map((form) => form.id), [`${trade}-party-list`]);
     assert.deepEqual(tradeProfile(trade).planning, { formAtBooking: true, lockDaysBefore: 30 });
     assert.equal(tradeVocab(trade).detailsForm, "Party list");
   }

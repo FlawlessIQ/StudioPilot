@@ -6,7 +6,7 @@ import { trialState } from "@/features/consultations/trial";
 import { extensionsState } from "@/features/trades/extensions";
 import { tradeProfile } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
-import { projectProfile } from "@/features/job-kinds/job-kinds";
+import { journeyFor, projectProfile } from "@/features/job-kinds/job-kinds";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
@@ -31,6 +31,7 @@ import {
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
 import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
+import { finalHeadcountState } from "@/features/schedules/final-headcount";
 import { todayLocalIso } from "@/lib/format/event-date";
 
 const text = (value: unknown): string =>
@@ -91,6 +92,8 @@ export function useProjectJourney({
   const tenants = useTenantDocuments("tenants");
   // Hair extensions' order task (features/trades/extensions.ts).
   const tasks = useTenantDocuments("tasks");
+  // A makeup or hair client's one-tap final headcount (features/schedules/final-headcount.ts).
+  const detailSignoffs = useTenantDocuments("detailSignoffs");
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -200,14 +203,23 @@ export function useProjectJourney({
             }
           : null,
     // A cancelled or replaced consultation is not a booked meeting.
-    // The final details call a month out (features/consultations/final-call.ts).
-    finalCall: finalCallState({
-      project: journeyProject ?? null,
-      planningTimeline: (tenants.records ?? []).find((tenant) => tenant.id === text(journeyProject?.tenantId))?.planningTimeline,
-      consultations: forProject(consultations.records),
-      today: todayLocalIso(),
-      now: new Date().toISOString(),
-    }),
+    // The final details call a month out (features/consultations/final-call.ts);
+    // a makeup or hair client's final headcount instead, confirmed in one tap
+    // with no call (features/schedules/final-headcount.ts).
+    finalCall: tradeProfile(tenantTrade).perPersonPricing
+      ? finalHeadcountState({
+          project: journeyProject ?? null,
+          planningTimeline: (tenants.records ?? []).find((tenant) => tenant.id === text(journeyProject?.tenantId))?.planningTimeline,
+          signoff: forProject(detailSignoffs.records)[0] ?? null,
+          today: todayLocalIso(),
+        })
+      : finalCallState({
+          project: journeyProject ?? null,
+          planningTimeline: (tenants.records ?? []).find((tenant) => tenant.id === text(journeyProject?.tenantId))?.planningTimeline,
+          consultations: forProject(consultations.records),
+          today: todayLocalIso(),
+          now: new Date().toISOString(),
+        }),
     // A makeup or hair trial, when the trade has one (trades.ts).
     trial: trialState({ consultations: forProject(consultations.records), now: new Date().toISOString() }),
     // Hair extensions to buy or rent, from the trial notes.
@@ -289,7 +301,12 @@ export function useProjectJourney({
       ) || null,
     dayBeforeDraftStatus: text(dayBeforeAction?.status) || null,
     hasDelivery: forProject(deliveries.records).length > 0,
-    albumOrReviewDone: ["REVIEW_REQUESTED", "CLOSED"].includes(projectState),
+    // A vendor's review is asked after the day itself (post-event/
+    // after-day-reviews.ts): scheduled is as done as the studio can make it.
+    albumOrReviewDone:
+      ["REVIEW_REQUESTED", "CLOSED"].includes(projectState) ||
+      (journeyFor(projectProfile(journeyProject), tradeProfile(tenantTrade)).reviewAfterDay &&
+        typeof (journeyProject as { reviewRequestsScheduledAt?: unknown } | null | undefined)?.reviewRequestsScheduledAt === "string"),
     evidence,
   });
 

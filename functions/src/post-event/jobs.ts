@@ -83,6 +83,21 @@ export const reviewRequestScheduler = onSchedule(
             updatedAt: now,
             updatedBy: "review-request-scheduler",
           });
+        } else if (
+          project.exists &&
+          project.get("state") === "EVENT_COMPLETE" &&
+          current.get("askedAfter") === "event_day"
+        ) {
+          // A trade that delivers nothing goes from the day to the review
+          // (trades.ts NO_DELIVERY_MOVES). Only an ask scheduled after the
+          // day moves it: a photographer's job is never asked from here.
+          transaction.update(projectReference, {
+            state: "REVIEW_REQUESTED",
+            stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
+            nextAction: "Confirm the couple's review",
+            updatedAt: now,
+            updatedBy: "review-request-scheduler",
+          });
         }
         if (current.get("channel") === "portal") {
           if (!prior.exists) {

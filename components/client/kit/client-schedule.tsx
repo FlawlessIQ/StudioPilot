@@ -8,6 +8,7 @@ import { Actions, Button, ButtonRow, Card, KitRoot, Main, Note, PoweredBy, TextA
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { portalStageIsBehind } from "@/features/client/portal-stage";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
   displayableScheduleItems,
   scheduleItemClock,
@@ -32,6 +33,11 @@ type Sheet = { kind: "approve" } | { kind: "changes"; item: Item | null } | null
  * from the moment it is about ("Ask about this") instead of a long <select>
  * whose times were in the phone's zone and which listed items that could not
  * even be shown.
+ *
+ * A DJ's, makeup artist's or hair stylist's client has nothing to approve
+ * (trades.ts `journey.scheduleApproval`): the studio publishes the plan with
+ * `approvalState: "none"` (functions/src/planning/schedule-lifecycle.ts) and
+ * it is here to read, in the trade's words, with no Approve button.
  */
 export function ClientSchedule() {
   const workspace = useWorkspace();
@@ -50,20 +56,28 @@ export function ClientSchedule() {
   const schedule = ordered[0];
   const studioName =
     workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : "your studio";
+  // The plan's own name for a vendor ("Getting-ready schedule"); "Your timeline" otherwise.
+  const tradeWords = tradeVocab(workspace.tenantTrade);
+  const readOnlyTrade = !tradeProfile(workspace.tenantTrade).journey.scheduleApproval;
+  const title = readOnlyTrade && tradeWords.planOfDay ? tradeWords.planOfDay : "Your timeline";
 
   if (!schedule)
     return (
       <Main label="Timeline">
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">{words.Day}</p>
-          <h1 className="kit-title">Your timeline</h1>
+          <h1 className="kit-title">{title}</h1>
         </div>
         <EmptyMoment
           area="schedule"
           error={schedules.error}
           loading={schedules.loading}
           loadingText="Opening your timeline…"
-          upcoming={`${studioName === "your studio" ? "Your studio" : studioName} will share the running order of your day here when it’s ready for you to check.`}
+          upcoming={
+            readOnlyTrade
+              ? `${studioName === "your studio" ? "Your studio" : studioName} builds this from your ${(tradeWords.detailsForm ?? "form").toLowerCase()} and shares it here. There’s nothing for you to approve.`
+              : `${studioName === "your studio" ? "Your studio" : studioName} will share the running order of your day here when it’s ready for you to check.`
+          }
         />
         <PoweredBy />
       </Main>
@@ -92,7 +106,18 @@ export function ClientSchedule() {
   // Nothing is left to decide about a day that has happened.
   const behind = portalStageIsBehind(project.value?.milestones ?? null, "schedule");
   const awaiting = status === "client_review" || (status === "published" && approval === "client_pending");
-  const actionable = awaiting && items.length > 0 && !behind;
+  // A vendor's client is never asked, even on a version published before
+  // their plans stopped asking (it still says "client_pending").
+  const actionable = awaiting && items.length > 0 && !behind && !readOnlyTrade;
+  // Published to read: nothing to approve (publishedApprovalState).
+  const toRead =
+    !actionable &&
+    items.length > 0 &&
+    !behind &&
+    status === "published" &&
+    (approval === "none" || (readOnlyTrade && approval === "client_pending"));
+  // "The morning" → "morning", "The night" → "night".
+  const dayWord = tradeWords.dayName.replace(/^the /i, "").toLowerCase();
   const version = number(schedule.version);
 
   function open(next: Sheet) {
@@ -151,7 +176,7 @@ export function ClientSchedule() {
       <Main label="Timeline">
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">{words.Day} · version {version}</p>
-          <h1 className="kit-title">Your timeline</h1>
+          <h1 className="kit-title">{title}</h1>
           <p className="kit-body">
             {zoneLabel ? `Times are in ${zoneLabel}, where the ${words.event} is.` : `Times are local to the ${words.event}.`}
             {ordered.length > 1 ? ` Earlier versions are kept by ${studioName}.` : ""}
@@ -175,6 +200,10 @@ export function ClientSchedule() {
         ) : status === "changes_requested" ? (
           <Note icon={PencilLine}>
             {`You asked for changes to version ${version}. ${studioName === "your studio" ? "Your studio" : studioName} is revising it and will send the new version here.`}
+          </Note>
+        ) : toRead ? (
+          <Note icon={CheckCircle2} tone="accent">
+            {`Here’s the plan for your ${dayWord}, built from what you told ${studioName}. There’s nothing you need to do — if something changes, send them a message.`}
           </Note>
         ) : behind ? (
           <Note icon={Clock3}>The running order your day was built on, kept for your records.</Note>

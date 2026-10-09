@@ -1,7 +1,7 @@
 "use client";
 
 import { quantityText } from "@/features/packages/unit-label";
-import { TRADE_LABELS, tradeOf, tradeVocab } from "@/features/trades/trades";
+import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { detailsForLine } from "@/features/packages/inclusions";
 import {
   balanceWithSalesTax,
@@ -338,7 +338,9 @@ export function ClientProposal() {
             </List>
             <p className="kit-caption">
               {proposal.combinedContractId
-                ? "These prices are Part 2 of your booking agreement. Signing it accepts them — no payment is taken until the retainer."
+                ? tradeProfile(workspace.tenantTrade).journey.oneLinkBooking
+                  ? "These prices are Part 2 of your booking agreement. Signing it accepts them, and you pay your deposit right after."
+                  : "These prices are Part 2 of your booking agreement. Signing it accepts them — no payment is taken until the retainer."
                 : needs.agreement
                   ? "Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps."
                   : "Accepting doesn’t take a payment. Any payment is a separate, secure step."}

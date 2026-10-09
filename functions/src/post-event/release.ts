@@ -180,12 +180,19 @@ type FollowUps = {
 };
 
 /**
- * Review requests and the album workflow, once per job.
+ * The two review asks — in the portal three days on, by email ten days on —
+ * once per job.
  *
- * Keyed by the project, not by a delivery, so a second call writes nothing:
- * the ids already exist and are read first.
+ * Shared by a delivery (below) and by a trade that delivers nothing, whose
+ * asks follow the day itself (./after-day-reviews.ts): one set of records,
+ * one scheduler, one set of stop rules. Every read happens here and the
+ * writes come back as closures, so a caller can finish its own reads before
+ * any of them run.
+ *
+ * Keyed by the project, so a second call writes nothing: the ids already
+ * exist and are read first.
  */
-async function followUpWrites(
+export async function reviewAskWrites(
   db: Firestore,
   transaction: Transaction,
   input: {
@@ -193,43 +200,49 @@ async function followUpWrites(
     projectId: string;
     actorId: string;
     now: string;
-    deliveryRecordId: string;
-    followUps: FollowUps;
+    /** The delivery the asks follow; null when they follow the day itself. */
+    deliveryRecordId: string | null;
+    destinationUrl: string | null;
+    destinationLabel: string;
     /** No review asks: the studio skipped them, or gave no review link. */
     skipReviews: boolean;
+    /**
+     * How each ask reaches them, at three days and at ten. After a delivery
+     * the first is in the portal, where they are already looking at their
+     * gallery; after the day itself there is nothing to come back for, so a
+     * vendor's client gets both by email.
+     */
+    channels?: readonly ["portal" | "email", "portal" | "email"];
   },
-): Promise<{ reviewRequestsScheduled: number; albumWorkflowCreated: boolean; asksResumed: number; writes: Array<() => void> }> {
+): Promise<{ reviewDocs: DocumentSnapshot[]; scheduled: number; writes: Array<() => void> }> {
   const writes: Array<() => void> = [];
   const reviewRefs = [1, 2].map((sequence) => db.doc(`reviewRequests/review_${input.projectId}_${sequence}`));
-  const albumRef = db.doc(`albumWorkflows/album_${input.projectId}`);
-  const albumReminderRefs = [1, 2].map((sequence) => db.doc(`albumReminders/album_reminder_${input.projectId}_${sequence}`));
   // Deliveries released before this change keyed their follow-ups by delivery.
-  const [reviewDocs, albumReminderDocs, album, legacyReviews, legacyAlbums] = await Promise.all([
+  const [reviewDocs, legacyReviews] = await Promise.all([
     Promise.all(reviewRefs.map((reference) => transaction.get(reference))),
-    Promise.all(albumReminderRefs.map((reference) => transaction.get(reference))),
-    transaction.get(albumRef),
     transaction.get(
       db.collection("reviewRequests").where("tenantId", "==", input.tenantId).where("projectId", "==", input.projectId).limit(1),
     ),
-    transaction.get(
-      db.collection("albumWorkflows").where("tenantId", "==", input.tenantId).where("projectId", "==", input.projectId).limit(1),
-    ),
   ]);
   const start = Date.parse(input.now);
-  let reviewRequestsScheduled = 0;
-  const reviewUrl = input.followUps.reviewDestinationUrl;
+  let scheduled = 0;
+  const reviewUrl = input.destinationUrl;
   if (reviewUrl && !input.skipReviews && legacyReviews.empty && reviewDocs.every((doc) => !doc.exists)) {
-    for (const [index, [days, channel]] of ([[3, "portal"], [10, "email"]] as const).entries()) {
+    const [first, second] = input.channels ?? (["portal", "email"] as const);
+    for (const [index, [days, channel]] of ([[3, first], [10, second]] as const).entries()) {
       const reference = reviewRefs[index]!;
-      reviewRequestsScheduled += 1;
+      scheduled += 1;
       writes.push(() =>
         transaction.create(reference, {
           id: reference.id,
           tenantId: input.tenantId,
           projectId: input.projectId,
           deliveryRecordId: input.deliveryRecordId,
+          // The scheduler moves a job on at the first ask; this says from
+          // where (post-event/jobs.ts). A delivery's asks carry nothing new.
+          ...(input.deliveryRecordId === null ? { askedAfter: "event_day" } : {}),
           channel,
-          destinationLabel: input.followUps.reviewDestinationLabel,
+          destinationLabel: input.destinationLabel,
           destinationUrl: reviewUrl,
           status: "scheduled",
           sequence: index + 1,
@@ -250,6 +263,54 @@ async function followUpWrites(
       );
     }
   }
+  return { reviewDocs, scheduled, writes };
+}
+
+/**
+ * Review requests and the album workflow, once per job.
+ *
+ * Keyed by the project, not by a delivery, so a second call writes nothing:
+ * the ids already exist and are read first.
+ */
+async function followUpWrites(
+  db: Firestore,
+  transaction: Transaction,
+  input: {
+    tenantId: string;
+    projectId: string;
+    actorId: string;
+    now: string;
+    deliveryRecordId: string;
+    followUps: FollowUps;
+    /** No review asks: the studio skipped them, or gave no review link. */
+    skipReviews: boolean;
+  },
+): Promise<{ reviewRequestsScheduled: number; albumWorkflowCreated: boolean; asksResumed: number; writes: Array<() => void> }> {
+  const writes: Array<() => void> = [];
+  const albumRef = db.doc(`albumWorkflows/album_${input.projectId}`);
+  const albumReminderRefs = [1, 2].map((sequence) => db.doc(`albumReminders/album_reminder_${input.projectId}_${sequence}`));
+  // Deliveries released before this change keyed their follow-ups by delivery.
+  const [asks, albumReminderDocs, album, legacyAlbums] = await Promise.all([
+    reviewAskWrites(db, transaction, {
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      now: input.now,
+      deliveryRecordId: input.deliveryRecordId,
+      destinationUrl: input.followUps.reviewDestinationUrl,
+      destinationLabel: input.followUps.reviewDestinationLabel,
+      skipReviews: input.skipReviews,
+    }),
+    Promise.all(albumReminderRefs.map((reference) => transaction.get(reference))),
+    transaction.get(albumRef),
+    transaction.get(
+      db.collection("albumWorkflows").where("tenantId", "==", input.tenantId).where("projectId", "==", input.projectId).limit(1),
+    ),
+  ]);
+  const start = Date.parse(input.now);
+  const reviewDocs = asks.reviewDocs;
+  const reviewRequestsScheduled = asks.scheduled;
+  writes.push(...asks.writes);
   /**
    * Asks paused when the job was reopened for a re-edit (crm reopenJob) run
    * again from this delivery, as though it were the first: the couple is

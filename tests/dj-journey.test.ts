@@ -26,7 +26,8 @@ test("the functions copy of the MC script matches features/", () => {
 
 test("a DJ starts with the Music & moments planner, locked ten days out, sent at booking", () => {
   const dj = recommendedFor("dj").map((form) => form.id);
-  assert.deepEqual(dj, ["wedding-event-details", "dj-music-planner"]);
+  // One form (simpler vendor journeys): the planner, which now asks where and when.
+  assert.deepEqual(dj, ["dj-music-planner"]);
   assert.deepEqual(recommendedFor("photographer").map((form) => form.id), ["wedding-event-details", "wedding-final-schedule", "wedding-shot-list"]);
   assert.deepEqual(tradeProfile("dj").planning, { formAtBooking: true, lockDaysBefore: 10 });
   assert.equal(tradeProfile("photographer").planning, null);

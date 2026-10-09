@@ -97,6 +97,12 @@ export function NativeContractStep({
     ? contract
     : null;
   const status = String(live?.status ?? "");
+  /**
+   * A booking link (the combined agreement) from a trade that books in one
+   * link (trades.ts): the client signs it, then pays the deposit straight
+   * after, so the step says that rather than "out for signature".
+   */
+  const bookingLink = live?.mode === "combined" && tradeProfile(workspace.tenantTrade).journey.oneLinkBooking;
   // Signing for the studio, withdrawing, sending again and remaking the
   // signed copy are owner/admin commands (functions/src/contracts). A
   // coordinator was offered all of them and refused by the server.
@@ -314,11 +320,12 @@ export function NativeContractStep({
           {status === "completed" ? (
             <p>
               <strong>{clientSignature?.typedName ?? "The client"} signed</strong>{" "}
-              {clientSignature ? `on ${formatSignedAt(clientSignature.signedAt)}` : null}. The agreement is complete.
+              {clientSignature ? `on ${formatSignedAt(clientSignature.signedAt)}` : null}.{" "}
+              {bookingLink ? "The booking is signed — the deposit is due." : "The agreement is complete."}
             </p>
           ) : (
             <p>
-              <strong>Out for signature.</strong> Signed by {studioSignature?.typedName ?? "the studio"}
+              <strong>{bookingLink ? "Booking link sent — waiting to sign." : "Out for signature."}</strong> Signed by {studioSignature?.typedName ?? "the studio"}
               {live.sentAt ? ` and sent ${formatSignedAt(live.sentAt)}` : ""}.{" "}
               {status === "viewed"
                 ? `The client opened it${live.viewedAt ? ` ${formatSignedAt(live.viewedAt)}` : ""}.`
@@ -327,7 +334,7 @@ export function NativeContractStep({
           )}
           {status !== "completed" ? (
             <p className="native-contract-note">
-              {`They sign in their portal. A reminder goes out at 3 and 7 days if it’s still unsigned${
+              {`${bookingLink ? "They sign in their portal, then pay the deposit on the next screen." : "They sign in their portal."} A reminder goes out at 3 and 7 days if it’s still unsigned${
                 live.lastResentAt ? `; you sent it again ${formatSignedAt(live.lastResentAt)}` : ""
               }.${ownerOrAdmin ? "" : " An owner or admin can send it again or withdraw it."}`}
             </p>
@@ -416,13 +423,13 @@ export function NativeContractStep({
                     "void",
                     () => voidContract({ projectId, contractId: live.id, reason: voidReason.trim() }),
                     live.mode === "combined"
-                      ? `Withdrawn. The client was told. Correct the ${offer}, or send a new booking agreement from it.`
+                      ? `Withdrawn. The client was told. Correct the ${offer}, or send a new ${bookingLink ? "booking link" : "booking agreement"} from it.`
                       : "Withdrawn. The client was told. Prepare a new one when you're ready.",
                   ).then(() => setVoiding(false))
                 }
                 type="button"
               >
-                {busy === "void" ? "Withdrawing…" : "Withdraw the agreement"}
+                {busy === "void" ? "Withdrawing…" : bookingLink ? "Withdraw the booking link" : "Withdraw the agreement"}
               </button>
             </div>
           </div>

@@ -25,7 +25,7 @@ export const CONSOLE_FEATURES = [
   {
     key: "combinedAgreement",
     label: "Combined agreement",
-    description: "Terms and coverage go out as one agreement with two signatures. Needs StudioCue contracts.",
+    description: "Terms and prices go out as one agreement with two signatures, and signing it books the job. Already on for DJ, makeup and hair studios, whose clients book in one link; this switch turns it on for a photography studio. Needs StudioCue contracts.",
     requires: "nativeContractSigning",
   },
 ] as const;

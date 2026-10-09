@@ -7,6 +7,8 @@ import { activeMembership } from "@/lib/firebase/active-membership";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   IDENTITY_SCOPE,
@@ -39,6 +41,7 @@ type Identity = {
   currency: string;
   publicSlug: string;
   eventDayPhone: string;
+  reviewUrl: string;
 };
 
 const EMPTY: Identity = {
@@ -49,6 +52,7 @@ const EMPTY: Identity = {
   currency: "USD",
   publicSlug: "",
   eventDayPhone: "",
+  reviewUrl: "",
 };
 
 const TIMEZONES = [
@@ -67,7 +71,17 @@ const TIMEZONES = [
   "Australia/Sydney",
 ];
 
+/** The review page a studio saved: its own link first, then one an import found. */
+function savedReviewUrl(links: unknown): string {
+  const record = (links && typeof links === "object" ? links : {}) as Record<string, unknown>;
+  for (const field of ["custom", "google", "weddingwire", "theKnot", "facebook"]) {
+    if (typeof record[field] === "string" && record[field]) return String(record[field]);
+  }
+  return "";
+}
+
 export function StudioIdentitySettings() {
+  const asksAfterDay = tradeProfile(useWorkspace().tenantTrade).journey.reviewAfterDay;
   const [identity, setIdentity] = useState<Identity>(EMPTY);
   const [originalSlug, setOriginalSlug] = useState("");
   const [loading, setLoading] = useState(true);
@@ -99,6 +113,7 @@ export function StudioIdentitySettings() {
           currency: text("currency", "USD"),
           publicSlug: slug,
           eventDayPhone: text("eventDayPhone"),
+          reviewUrl: savedReviewUrl(tenant.get("reviewLinks")),
         });
         setOriginalSlug(slug);
       } finally {
@@ -140,6 +155,8 @@ export function StudioIdentitySettings() {
           publicSlug: proposedSlug,
           // Blank means "not set", not an empty string on the record.
           eventDayPhone: identity.eventDayPhone.trim() || null,
+          // Only a studio that asks for reviews after the day sees the field.
+          reviewUrl: asksAfterDay ? identity.reviewUrl.trim() || null : undefined,
         }),
       });
       const result = (await response.json()) as {
@@ -221,6 +238,24 @@ export function StudioIdentitySettings() {
             />
             <small>{IDENTITY_SCOPE.eventDayPhone}</small>
           </label>
+          {asksAfterDay ? (
+            /* A DJ's, makeup artist's or hair stylist's clients are asked for a
+               review a few days after the day (post-event/after-day-reviews.ts),
+               and the ask needs somewhere to send them. A photographer gives a
+               link with each gallery instead. */
+            <label>
+              Where clients leave a review
+              <input
+                inputMode="url"
+                maxLength={500}
+                onChange={(event) => setIdentity((c) => ({ ...c, reviewUrl: event.target.value }))}
+                placeholder="https://g.page/r/your-studio/review"
+                type="url"
+                value={identity.reviewUrl}
+              />
+              <small>Your Google, WeddingWire or The Knot review page. A few days after the day, clients are asked to leave a review here.</small>
+            </label>
+          ) : null}
           <label>
             Timezone
             <select

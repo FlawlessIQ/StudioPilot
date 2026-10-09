@@ -1,8 +1,30 @@
+import { tradeProfile } from "../trades/trades.js";
+
 /**
  * Timeline versions after a republish: vendor shares and the couple's answer.
  *
  * Pure, so the rules are tested directly (tests/wave1-planning.test.ts).
  */
+
+/**
+ * What a newly published version asks of the client.
+ *
+ * A photographer's couple approves the day's schedule: "client_pending" until
+ * they answer. A DJ's, makeup artist's or hair stylist's client has nothing to
+ * approve (trades.ts `journey.scheduleApproval`; simpler vendor journeys,
+ * 2026-10-09): the studio's publish is the last step, and the client reads
+ * it. "none" is the schedule schema's own word for that
+ * (features/schedules/schema.ts), and every reader that asks the client
+ * (their portal's Approve button, their next step, the studio's "record
+ * their answer") waits only on "client_pending".
+ *
+ * The trade decides rather than `journeyFor`: a photographer's family session
+ * has no run of show in its profile, so `journeyFor` reads false there too,
+ * and a photographer's publish must not change.
+ */
+export function publishedApprovalState(trade: unknown): "client_pending" | "none" {
+  return tradeProfile(trade).journey.scheduleApproval ? "client_pending" : "none";
+}
 
 type ShareLike = {
   id: string;
@@ -69,6 +91,8 @@ export function assertStudioMayRecordAnswer(schedule: {
   const status = String(schedule.status);
   if (status === "superseded" || status === "archived")
     throw new Error("SCHEDULE_SUPERSEDED");
+  // Published for the client to read, not to approve (publishedApprovalState).
+  if (String(schedule.approvalState) === "none") throw new Error("SCHEDULE_NOT_IN_REVIEW");
   if (String(schedule.approvalState) === "client_approved" || status === "approved")
     throw new Error("SCHEDULE_ALREADY_APPROVED");
   if (status !== "published" && status !== "client_review" && status !== "changes_requested")

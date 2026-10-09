@@ -2334,6 +2334,13 @@ export function StudioProposalWorkspace({
           ? "invoice_after"
           : "deposit_and_balance");
   const jobNeeds = jobProfile ? bookingGateNeeds(jobProfile) : bookingGateNeeds({ agreement: jobPayment === "deposit_and_balance", payment: jobPayment });
+  /**
+   * A DJ, makeup artist or hair stylist books in one link (trades.ts): the
+   * booking link — the combined agreement, signed then paid in one visit — is
+   * how the quote goes out, and sending the quote alone is the fallback. As
+   * job-kinds.ts journeyFor reads it, only where the job has an agreement.
+   */
+  const oneLink = jobNeeds.agreement && tradeProfile(workspace.tenantTrade).journey.oneLinkBooking;
 
   /**
    * "They accepted outside StudioCue" — offered wherever it can be true.
@@ -2936,6 +2943,13 @@ export function StudioProposalWorkspace({
                   text(proposal.pdfState, "not_requested"),
                 ) && canApprove ? (
                   <>
+                    {oneLink ? (
+                      <CombinedAgreementSend
+                        onSent={() => window.location.reload()}
+                        projectId={String(proposal.projectId ?? "")}
+                        proposalId={String(proposal.id)}
+                      />
+                    ) : null}
                     <label className="proposal-send-confirm">
                       <input
                         checked={confirmSend}
@@ -2963,7 +2977,7 @@ export function StudioProposalWorkspace({
                       </span>
                     </label>
                     <button
-                      className="button button-dark"
+                      className={oneLink ? "button button-light" : "button button-dark"}
                       disabled={!confirmSend || working !== null}
                       onClick={() => void run("send")}
                       type="button"
@@ -2973,9 +2987,9 @@ export function StudioProposalWorkspace({
                       ) : (
                         <Send />
                       )}
-                      {offer === "proposal" ? "Send proposal" : `Send ${offer}`}
+                      {oneLink ? `Send the ${offer} on its own` : offer === "proposal" ? "Send proposal" : `Send ${offer}`}
                     </button>
-                    {jobNeeds.agreement ? (
+                    {jobNeeds.agreement && !oneLink ? (
                       <CombinedAgreementSend
                         onSent={() => window.location.reload()}
                         projectId={String(proposal.projectId ?? "")}
@@ -3048,9 +3062,11 @@ export function StudioProposalWorkspace({
                   // would each pull the price out from under the agreement
                   // the couple is signing (walked 2026-09-29).
                   <div className="proposal-combined-note">
-                    <strong>Sent as a booking agreement</strong>
+                    <strong>{oneLink ? "Booking link sent" : "Sent as a booking agreement"}</strong>
                     <small>
-                      {`Signing it accepts this ${offer}. To change anything, withdraw the agreement on the job’s Booking tab first; then this ${offer} can be corrected and sent again.`}
+                      {oneLink
+                        ? `Signing it accepts this ${offer}, and the client pays the deposit straight after. To change anything, withdraw the booking link on the job’s Booking tab first; then this ${offer} can be corrected and sent again.`
+                        : `Signing it accepts this ${offer}. To change anything, withdraw the agreement on the job’s Booking tab first; then this ${offer} can be corrected and sent again.`}
                     </small>
                     <Link className="button button-light" href={`/studio/booking?project=${encodeURIComponent(text(proposal.projectId, ""))}`}>
                       Open the booking
@@ -3141,6 +3157,15 @@ export function StudioProposalWorkspace({
                     projectId={String(proposal.projectId ?? "")}
                     proposalId={String(proposal.id)}
                   />
+                ) : oneLink ? (
+                  // Booking in one link, a quote that went on its own can
+                  // still go as the booking link: the same quote, signed and
+                  // paid for in one visit.
+                  <CombinedAgreementSend
+                    onSent={() => window.location.reload()}
+                    projectId={String(proposal.projectId ?? "")}
+                    proposalId={String(proposal.id)}
+                  />
                 ) : null}
                   </>
                 )}
@@ -3153,7 +3178,9 @@ export function StudioProposalWorkspace({
                 <strong>{`${words.Offer} accepted`}</strong>
                 <p>
                   {jobNeeds.agreement
-                    ? "The project can now move into the agreement and retainer workflow."
+                    ? oneLink && proposal.acceptedWithContractId
+                      ? "Accepted and signed in one go, through the booking link, and the client pays the deposit straight after. The job shows where that stands."
+                      : "The project can now move into the agreement and retainer workflow."
                     : jobNeeds.payment
                       ? "Their invoice is next; paying it books the job."
                       : "The job books on its date and contact details."}

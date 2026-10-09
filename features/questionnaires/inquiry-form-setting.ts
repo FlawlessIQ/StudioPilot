@@ -61,20 +61,26 @@ export function inquiryFormChoices<T extends TemplateRow & { eventTypeId?: unkno
  * schedule or the shot list — both are for after booking. The first wedding
  * form by name was the old planning questionnaire on the production walk of
  * 2026-10-06, with the Event details copy sitting right under it.
+ *
+ * A vendor's own form (the music planner, the party list) is after booking
+ * too: it is their client's one form, sent when they book. A DJ, makeup
+ * artist or hair stylist with only that opens on "don't send a form".
  */
 export function suggestedInquiryForm(
   choices: ReadonlyArray<{ id: string; name: string; forWeddings: boolean; recommendedId: string | null }>,
 ): string {
   const afterBooking = new Set(["wedding-final-schedule", "wedding-shot-list"]);
+  const clientsOneForm = new Set(["dj-music-planner", "makeup-party-list", "hair-party-list"]);
+  const offered = choices.filter((item) => !clientsOneForm.has(item.recommendedId ?? ""));
   return (
-    choices.find((item) => item.recommendedId === "wedding-event-details")?.id ??
-    choices.find(
+    offered.find((item) => item.recommendedId === "wedding-event-details")?.id ??
+    offered.find(
       (item) =>
         item.forWeddings &&
         !afterBooking.has(item.recommendedId ?? "") &&
         !/\b(planning|final schedule|shot list)\b/i.test(item.name),
     )?.id ??
-    choices.find((item) => item.forWeddings)?.id ??
+    offered.find((item) => item.forWeddings)?.id ??
     ""
   );
 }

@@ -162,6 +162,17 @@ const identitySchema = z.object({
     .nullable()
     .optional()
     .transform((value) => value ?? null),
+  /**
+   * Where a vendor's clients are asked to leave a review after the day
+   * (post-event/after-day-reviews.ts). Absent leaves it as it is; null clears it.
+   */
+  reviewUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .regex(/^https:\/\/\S+$/, "REVIEW_URL_INVALID")
+    .nullable()
+    .optional(),
 });
 
 /**
@@ -248,6 +259,7 @@ export const tenantIdentityCommand = onRequest(
         currency: input.currency,
         publicSlug: slug,
         eventDayPhone: input.eventDayPhone,
+        ...(input.reviewUrl !== undefined ? { "reviewLinks.custom": input.reviewUrl } : {}),
         slugAliases,
         updatedAt: now,
         updatedBy: identity.uid,

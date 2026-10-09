@@ -375,6 +375,8 @@ export function buildClientMilestones(
   const call = hasSalesCall(options.trade, options.consultation);
   const delivers = tradeProfile(options.trade).delivery;
   const photo = tradeProfile(options.trade).family === "photo";
+  // The light vendor journey (trades.ts `journey`): one link to book, one form.
+  const light = tradeProfile(options.trade).journey.oneForm;
   const definitions = [
     {
       id: "inquiry",
@@ -412,16 +414,25 @@ export function buildClientMilestones(
       : []),
     {
       id: "booking",
-      label: "Booking",
-      description: "Review your offer, agreement, and retainer.",
+      // One link for a vendor's client: accept, sign and pay the deposit
+      // (simpler vendor journeys; trades.ts `journey.oneLinkBooking`).
+      label: light ? "Book your date" : "Booking",
+      description: light
+        ? `Accept your ${words.proposal.toLowerCase()}, sign, and pay the deposit — all in one visit.`
+        : "Review your offer, agreement, and retainer.",
       // With no call, booking is where an inquiry goes next.
       current: () => (call ? index >= 2 : !formOwed) && index <= 4,
       complete: () => index >= 5,
     },
     {
       id: "planning",
-      label: "Planning",
-      description: "Complete details and approve the event plan.",
+      // A vendor's one form; the plan is drawn from it, nothing to approve.
+      label: light && words.detailsForm ? words.detailsForm : "Planning",
+      description: light
+        ? tradeProfile(options.trade).perPersonPricing
+          ? "Tell us who's getting ready, and when. Your morning's schedule is built from it."
+          : "Your songs and the moments that matter. The night's plan is built from it."
+        : "Complete details and approve the event plan.",
       // READY (7) belongs to the event milestone, not to planning: two
       // milestones read "current" at once before this.
       current: () => index >= 5 && index <= 6,
@@ -437,8 +448,8 @@ export function buildClientMilestones(
        * reaching it completes this milestone and starts the next.
        */
       id: "event",
-      label: "Event day",
-      description: "Use the final schedule and shared details.",
+      label: light ? words.dayName : "Event day",
+      description: light ? "Everything for the day, in one place." : "Use the final schedule and shared details.",
       current: () => index === 7,
       complete: () => index >= 8,
     },
@@ -557,11 +568,15 @@ export function buildClientPortalExperience({
    * thing the checkpoint path could not see.
    */
   const scheduleAction: ClientNextAction | null =
+    // A vendor's client is never asked to approve the plan (simpler vendor
+    // journeys): it is published for them to read, and one published before
+    // that change may still say "client_pending".
+    tradeProfile(trade).journey.scheduleApproval &&
     // A published timeline waiting on the couple (planning/commands.ts,
     // publishSchedule writes "published" + "client_pending"); "client_review"
     // was the old status and is still honoured.
-    currentSchedule?.status === "client_review" ||
-    (currentSchedule?.status === "published" && currentSchedule.approvalState === "client_pending")
+    (currentSchedule?.status === "client_review" ||
+      (currentSchedule?.status === "published" && currentSchedule.approvalState === "client_pending"))
       ? {
           name: "Approve your event-day schedule",
           description: `Version ${currentSchedule.version} of your timeline is ready for you to check. Approve it, or tell your studio what to change.`,

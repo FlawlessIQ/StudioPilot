@@ -11,7 +11,7 @@ import {
 } from "@/lib/client/portal-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { bookingSteps, type BookingStepsView } from "@/features/client/booking-steps";
-import { tradeVocab } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { MOCK_CLIENT_PROJECT } from "@/features/client/mock-project";
@@ -502,6 +502,9 @@ export function useReserveYourDate(): BookingStepsView | null {
   return view;
 }
 
+/** How long, after signing, a one-link client's page watches for the deposit invoice. */
+const DEPOSIT_WATCH_MS = 3 * 60_000;
+
 /**
  * The booking steps including once booked; null only while there is no
  * proposal or it is still loading — so a caller can tell "booked" from
@@ -510,6 +513,9 @@ export function useReserveYourDate(): BookingStepsView | null {
 export function useBookingStepsView(): BookingStepsView | null {
   const needs = useBookingNeeds();
   const offer = tradeVocab(useWorkspace().tenantTrade).proposal.toLowerCase();
+  // A vendor's client books in one link (trades.ts); bookingSteps merges it
+  // with the job's own need for an agreement, as journeyFor does.
+  const oneLink = tradeProfile(useWorkspace().tenantTrade).journey.oneLinkBooking;
   const proposals = useProjectRecords("proposals");
   const contracts = useProjectRecords("contracts");
   const invoices = useProjectRecords("invoiceReferences");
@@ -534,15 +540,28 @@ export function useBookingStepsView(): BookingStepsView | null {
                 hostedUrl:
                   typeof retainer.hostedUrl === "string" ? retainer.hostedUrl : null,
                 atProvider: retainer.atProvider === true,
+                currency: typeof retainer.currency === "string" ? retainer.currency : undefined,
               }
             : null,
           needs,
           offer,
+          oneLink,
         })
       : null;
   const waiting = Boolean(
     view && !view.booked && view.next.href === null && proposal?.status === "accepted",
   );
+  /**
+   * A client booking in one link has just signed and is waiting, on the
+   * page, for the deposit invoice the signature raises (bookingContractCompleted
+   * → the accounting app): look every few seconds for the first few minutes,
+   * so paying it is the next thing they see. 0 when nobody is waiting on it.
+   */
+  const signedAt =
+    oneLink && waiting && contract && ["completed", "signed"].includes(text(contract.status))
+      ? Date.parse(text(contract.completedAt, ""))
+      : 0;
+  const depositWatchUntil = Number.isFinite(signedAt) && signedAt > 0 ? signedAt + DEPOSIT_WATCH_MS : 0;
   const refreshContracts = contracts.refresh;
   const refreshInvoices = invoices.refresh;
   useEffect(() => {
@@ -553,6 +572,17 @@ export function useBookingStepsView(): BookingStepsView | null {
     }, 20_000);
     return () => window.clearInterval(timer);
   }, [waiting, refreshContracts, refreshInvoices]);
+  useEffect(() => {
+    if (!waiting || !depositWatchUntil) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() >= depositWatchUntil) {
+        window.clearInterval(timer);
+        return;
+      }
+      refreshInvoices?.();
+    }, 4_000);
+    return () => window.clearInterval(timer);
+  }, [waiting, depositWatchUntil, refreshInvoices]);
   return view;
 }
 

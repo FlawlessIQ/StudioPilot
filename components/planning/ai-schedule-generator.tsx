@@ -5,7 +5,7 @@ import { DJ_MOMENTS, planNight } from "@/features/schedules/night-plan";
 import { chairDayPlan, planChairs } from "@/features/schedules/chair-plan";
 import { parsePartyList, type BeautyService } from "@/features/schedules/party-list";
 import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
@@ -187,6 +187,11 @@ export function AiScheduleGenerator({
   // A photographer's "Coverage", anyone else's "Service" (trades.ts `coverage`).
   const coverageWord = tradeVocab(workspace.tenantTrade).coverage;
   const photo = tradeProfile(workspace.tenantTrade).family === "photo";
+  // A vendor's client fills in one form and the plan is drawn from it, with
+  // nothing for them to approve (trades.ts `journey.oneForm`, `scheduleApproval`).
+  const oneForm = tradeProfile(workspace.tenantTrade).journey.oneForm;
+  const clientApproves = tradeProfile(workspace.tenantTrade).journey.scheduleApproval;
+  const formName = tradeVocab(workspace.tenantTrade).detailsForm ?? "form";
   const { records: projects, loading } = useTenantDocuments("projects");
   const { records: questionnaires } = useTenantDocuments(
     "questionnaireResponses",
@@ -769,7 +774,9 @@ export function AiScheduleGenerator({
           ? "Development preview validated the schedule without publishing."
           : stale > 0
             ? "Published. Your crew can see it now. Your vendors still have the old version — send them this one below."
-            : "Published. Your crew can see it now — taking you back to the job.",
+            : clientApproves
+              ? "Published. Your crew can see it now — taking you back to the job."
+              : "Published. Your client and crew can see it now, with nothing to approve — taking you back to the job.",
       });
       // Say it, then show it. The job page lists this step as complete and
       // names the next move, which is the confirmation the notice alone
@@ -962,6 +969,33 @@ export function AiScheduleGenerator({
       }. Change anything, then publish.`,
     );
   }
+
+  /**
+   * The plan drawn from the one form, without being asked.
+   *
+   * A DJ's, makeup artist's or hair stylist's client fills in one form, and
+   * the run of show or the getting-ready schedule comes from it (simpler
+   * vendor journeys, Phase 2). So once that form is back, opening this page
+   * lays it out, and the studio only checks it and publishes. Done here, not
+   * on the server when the form arrives: the planners (chair-plan.ts,
+   * night-plan.ts, day-plan.ts `planItems`) live in features/, and a draft is
+   * only ever held in this editor. Once per job, only while nothing is
+   * drafted or published, so it never lays over the studio's own work.
+   */
+  const laidOutFromForm = useRef<string | null>(null);
+  const [drawnFromForm, setDrawnFromForm] = useState(false);
+  useEffect(() => {
+    if (!oneForm || !weddingDay || !projectId || !eventDay) return;
+    // Wait for what it reads, so an existing version is never missed.
+    if (!schedules || !questionnaires || !packageSnapshots) return;
+    if (draft || selectedSchedule || !selectedQuestionnaire) return;
+    if (laidOutFromForm.current === projectId) return;
+    laidOutFromForm.current = projectId;
+    setDrawnFromForm(true);
+    layOutDay();
+    // layOutDay reads the same answers; it is a new function every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oneForm, weddingDay, projectId, eventDay, schedules, questionnaires, packageSnapshots, draft, selectedSchedule, selectedQuestionnaire]);
 
   function addItem() {
     changeItems((items) =>
@@ -1407,6 +1441,12 @@ export function AiScheduleGenerator({
           {notice}
         </p>
       ) : null}
+      {draft && drawnFromForm ? (
+        <p className="form-notice" role="status">
+          <CheckCircle2 aria-hidden size={16} />
+          {`Drafted from their ${formName.toLowerCase()}. Check it, then publish — there's nothing for them to approve.`}
+        </p>
+      ) : null}
       {draft ? (
         <>
           <section className="panel schedule-draft-items">
@@ -1818,8 +1858,9 @@ export function AiScheduleGenerator({
               <strong>
                 Nothing reaches your crew until you publish.
                 <InfoHint label="Publishing">
-                  Publishing saves a new version. Accepted crew get the items meant for them and confirm it again; the
-                  couple is asked to approve the items meant for them.
+                  {clientApproves
+                    ? "Publishing saves a new version. Accepted crew get the items meant for them and confirm it again; the couple is asked to approve the items meant for them."
+                    : "Publishing saves a new version. Accepted crew get the items meant for them and confirm it again; your client sees the items meant for them, with nothing to approve."}
                 </InfoHint>
               </strong>
               <small>

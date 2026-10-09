@@ -6,6 +6,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { isCataloguePackage } from "@/features/packages/one-off";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
+  askedSetupGaps,
   setupComplete,
   setupGaps,
   type SetupGap,
@@ -180,7 +181,7 @@ export function useSetupState(): {
     ),
   );
 
-  const gaps = setupGaps(state, {
+  const everything = setupGaps(state, {
     projectsNeedingPackage: (projects.records ?? [])
       .filter(
         (project) =>
@@ -211,11 +212,15 @@ export function useSetupState(): {
         (project) => text(project.state) === "LEAD" && !project.archivedAt,
       ).length,
   }, workspace.tenantTrade);
+  // Only what this studio's setup asks: a vendor's four, a photographer's
+  // seven. Every screen reading this hook — setup, Help's checklist, Today's
+  // card and its act lane — then agrees on what is left.
+  const gaps = askedSetupGaps(everything, workspace.tenantTrade);
 
   return {
     state,
     gaps,
-    complete: setupComplete(state),
+    complete: setupComplete(state, workspace.tenantTrade),
     refresh: () => setReads((count) => count + 1),
     calendarConnected,
     loading: dataIsLive && (packages.records === null || tenantDocs === null),

@@ -25,7 +25,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import {
   INQUIRY_FORM_SETTING_HREF,
-  SETUP_ORDER,
+  setupOrderFor,
   setupQuestionCount,
   type SetupGap,
   type SetupGapKey,
@@ -39,7 +39,8 @@ import { runCrmCommand } from "@/lib/crm/command-client";
  * Setup as a conversation.
  *
  * Phase 3 of "Today & Jobs". A new studio's assets already exist somewhere —
- * a price list, a contract, a questionnaire — so setup asks seven questions
+ * a price list, a contract, a questionnaire — so setup asks a photographer
+ * seven questions (a DJ, makeup artist or hair stylist four, setupOrderFor)
  * and hands each answer to the import machinery, rather than presenting a
  * library of tools to discover. Most are answered right on this page: the
  * inquiry routes open their sheets here, hours take one tap, the agreement
@@ -151,8 +152,20 @@ function inquiryFormWhy(trade: unknown): string {
   return `Your forms are in. Choose the one your first reply's link asks for, and new clients fill it in with their inquiry — so you have it for the ${offer}.`;
 }
 
-// Asked in the one shared order Today's "Next:" also follows.
-const ORDERED = SETUP_ORDER.map((key) => QUESTIONS.find((question) => question.key === key)!);
+/** This studio's questions, in the one shared order Today's "Next:" also follows. */
+function orderedFor(trade: unknown): Question[] {
+  return setupOrderFor(trade).map((key) => QUESTIONS.find((question) => question.key === key)!);
+}
+
+/**
+ * A makeup artist or hair stylist prices her client's own look as the
+ * package and everyone else getting ready per person (extra-ideas.ts), so the
+ * question says so. The import drafts packages only; the per-person prices
+ * are add-ons, set in the Library from the trade's own examples.
+ */
+const PER_PERSON_WHY =
+  "Paste or upload your price list and StudioCue drafts your packages — you confirm every price. Then price everyone else getting ready per person, so a quote reads \u201c4 people × $120\u201d.";
+const PER_PERSON_PRICES = "/studio/library/add-ons";
 
 /**
  * A DJ's words for the same questions (features/trades/trades.ts): what they
@@ -199,10 +212,15 @@ const BEAUTY_COPY: Partial<Record<Question["key"], Partial<Pick<Question, "ask" 
 /** A question in the studio's trade's words. */
 function inTradeWords(question: Question, trade: unknown): Question {
   const tradeId = tradeOf(trade);
-  // Packages price the trade's own offer: a makeup artist's quotes.
+  // Packages price the trade's own offer: a makeup artist's quotes, priced
+  // per person for everyone but her client.
   const offered: Question =
     question.key === "packages"
-      ? { ...question, doneLabel: `Your packages are ready to use in ${tradeVocab(trade).proposal.toLowerCase()}s.` }
+      ? {
+          ...question,
+          ...(tradeProfile(trade).perPersonPricing ? { why: PER_PERSON_WHY } : {}),
+          doneLabel: `Your packages are ready to use in ${tradeVocab(trade).proposal.toLowerCase()}s.`,
+        }
       : question;
   if (tradeId === "dj") return { ...offered, ...DJ_COPY[question.key] };
   if (tradeId === "makeup" || tradeId === "hair") return { ...offered, ...BEAUTY_COPY[question.key] };
@@ -218,7 +236,10 @@ export function SetupConversation() {
   const workspace = useWorkspace();
   const { gaps, complete, loading, refresh, calendarConnected } = useSetupState();
   const gapByKey = new Map(gaps.map((gap) => [gap.key, gap]));
-  const answered = QUESTIONS.length - gaps.length;
+  // A photographer's seven, a vendor's four: counted over the questions this
+  // studio is actually asked, as Today and Help's checklist count them.
+  const ordered = orderedFor(workspace.tenantTrade);
+  const answered = ordered.filter((question) => !gapByKey.has(question.key)).length;
   // `complete` is "ready to take bookings" (setupComplete), which leaves out
   // insurance on purpose. The page said "Your studio is set up." over "5 of 6
   // answered"; now it only says that when every question is answered.
@@ -243,6 +264,11 @@ export function SetupConversation() {
             <Link className="setup-answer-link" href={fromSetup("/studio/packages/new")}>
               Add one by hand
             </Link>
+            {tradeProfile(workspace.tenantTrade).perPersonPricing ? (
+              <Link className="setup-answer-link" href={PER_PERSON_PRICES}>
+                Set per-person prices
+              </Link>
+            ) : null}
           </div>
         );
       case "agreement":
@@ -318,17 +344,17 @@ export function SetupConversation() {
               ? "Everything Cue needs is in place. Change any of it whenever your studio does."
               : complete
                 ? "Everything a booking needs is in place. What's left below only matters if venues ask for it."
-                : `${setupQuestionCount().replace(/^./, (first) => first.toUpperCase())} questions about how your studio runs, most answered right here. Skip anything; Cue will bring it back when a job actually needs it.`}
+                : `${setupQuestionCount(workspace.tenantTrade).replace(/^./, (first) => first.toUpperCase())} questions about how your studio runs, most answered right here. Skip anything; Cue will bring it back when a job actually needs it.`}
           </p>
           {!loading ? (
             <p className="setup-progress">
-              {answered} of {QUESTIONS.length}{" "} answered
+              {answered} of {ordered.length}{" "} answered
             </p>
           ) : null}
         </header>
 
         <ol className="setup-questions">
-          {ORDERED.map((question, index) => {
+          {ordered.map((question, index) => {
             const gap = gapByKey.get(question.key);
             const done = !gap;
             return (
@@ -365,7 +391,7 @@ export function SetupConversation() {
                   {!loading && gap ? answer(question, gap) : null}
                   {!loading && done ? afterwards(question) : null}
                   {/* Beside the hours it decides, answered or not; optional,
-                      so it never counts towards the five. */}
+                      so it never counts as a question. */}
                   {!loading && question.key === "availability" ? (
                     <CalendarConnect connected={calendarConnected} />
                   ) : null}

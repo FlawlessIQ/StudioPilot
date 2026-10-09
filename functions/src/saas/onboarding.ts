@@ -234,16 +234,21 @@ export const tenantOnboardingCommand = onRequest(
                 },
               }
             : {}),
-          // The client's day-before email is a photographer's ("the dress on
-          // a hanger, ready to photograph"); off for every other trade.
-          ...(trade.clientDayBefore
+          // A vendor's routine messages are only the ones its journey uses
+          // (simpler vendor journeys): no schedule to confirm (the plan is
+          // published to read), no balance notice a month out when it's
+          // collected on the morning, no day-before checklist where the trade
+          // has none (the photographer's is "the dress on a hanger"), no prep
+          // note for a call that never happens. A photographer's are the
+          // defaults, as always.
+          ...(photographer
             ? {}
             : {
                 lifecycleMessaging: {
-                  schedule_confirmation: { enabled: true, offsetDays: -30, autoSend: false },
-                  final_invoice_notice: { enabled: true, offsetDays: -30, autoSend: false },
-                  day_before_checklist: { enabled: false, offsetDays: -1, autoSend: false },
-                  consultation_prep: { enabled: true, offsetDays: -1, autoSend: false },
+                  schedule_confirmation: { enabled: false, offsetDays: -30, autoSend: false },
+                  final_invoice_notice: { enabled: !trade.journey.balanceOnTheDay, offsetDays: -30, autoSend: false },
+                  day_before_checklist: { enabled: trade.clientDayBefore, offsetDays: -1, autoSend: false },
+                  consultation_prep: { enabled: trade.consultation, offsetDays: -1, autoSend: false },
                 },
               }),
           status: "trial",
@@ -321,7 +326,18 @@ export const tenantOnboardingCommand = onRequest(
          * Inside the onboarding transaction, so a tenant either exists with
          * its workflows or does not exist at all.
          */
-        for (const starter of starterTemplates()) {
+        // A vendor's four checks, not a photographer's twelve (simpler
+        // vendor journeys; workflow/starter-templates.ts), dated by how the
+        // trade is paid: a makeup artist's balance on the morning itself.
+        // A photographer's are the twelve they have always been.
+        const starters =
+          trade.journey.readiness === "essentials"
+            ? starterTemplates("essentials", {
+                balanceDueDaysBefore: trade.balanceDueDaysBefore,
+                balanceOnTheDay: trade.journey.balanceOnTheDay,
+              })
+            : starterTemplates();
+        for (const starter of starters) {
           const templateId = randomUUID();
           transaction.create(db.doc(`workflowTemplates/${templateId}`), {
             id: templateId,
@@ -387,6 +403,16 @@ export const tenantOnboardingCommand = onRequest(
           });
         }
         const eventDetailsId = preloaded["wedding-event-details"];
+        if (!eventDetailsId && !photographer)
+          // A vendor's one form goes at booking: none on the inquiry link
+          // ("none" is an answer, so setup doesn't ask her to choose one),
+          // and the inquiry form asks what the trade prices on.
+          transaction.set(db.doc(INQUIRY_FORM_SETTINGS_PATH(tenantId)), {
+            tenantId,
+            inquiryForm: defaultInquiryFormFor(trade.trade),
+            inquiryEventForm: null,
+            updatedAt: now,
+          }, { merge: true });
         if (eventDetailsId)
           transaction.set(db.doc(INQUIRY_FORM_SETTINGS_PATH(tenantId)), {
             tenantId,

@@ -96,10 +96,29 @@ export function setupStepName(key: SetupGapKey, trade?: unknown): string {
   return SETUP_STEP_NAME[key];
 }
 
-/** The first unanswered question, in setup's order. */
-export function nextSetupStep(gaps: ReadonlyArray<{ key: SetupGapKey }>): SetupGapKey | null {
+/**
+ * The first unanswered question, in this studio's setup order. A vendor's
+ * order has no "work", forms or insurance question, so Today's "Next:" can
+ * never point her at one. Absent trade is a photographer's seven.
+ */
+export function nextSetupStep(gaps: ReadonlyArray<{ key: SetupGapKey }>, trade?: unknown): SetupGapKey | null {
   const open = new Set(gaps.map((gap) => gap.key));
-  return SETUP_ORDER.find((key) => open.has(key)) ?? null;
+  return setupOrderFor(trade).find((key) => open.has(key)) ?? null;
+}
+
+/**
+ * Only the gaps this studio's setup asks about.
+ *
+ * setupGaps describes everything that is missing, in the trade's words. A
+ * vendor is never asked what she does, for her forms or about insurance
+ * (LIGHT_SETUP_ORDER), so those gaps are dropped here: they don't count
+ * against her four, don't block a job, and never reach Today. Each stays
+ * reachable where it lives — job types and insurance in Settings, forms in
+ * Questionnaires. A photographer's seven pass through untouched.
+ */
+export function askedSetupGaps<Gap extends { key: SetupGapKey }>(gaps: ReadonlyArray<Gap>, trade?: unknown): Gap[] {
+  const asked = new Set(setupOrderFor(trade));
+  return gaps.filter((gap) => asked.has(gap.key));
 }
 
 export type SetupGap = {
@@ -341,19 +360,20 @@ export function setupGaps(
   }
 
   if (!state.hasConsultationAvailability) {
-    const blocked = signals.openInquiries > 0;
-    // The hours a client books from: a DJ's vibe call, a makeup artist's
-    // trial. Either way the inquiry link waits on them
-    // (functions/src/intake/inquiry-link.ts studioTakesBookings).
+    // The hours a client books from: a photographer's consultation, a DJ's
+    // vibe call, a makeup artist's trial. Only a call holds up an inquiry:
+    // the inquiry link waits for call hours, but a makeup artist's or hair
+    // stylist's link is for details and the quote, so it goes out without
+    // any (functions/src/intake/inquiry-link.ts studioTakesBookings), and her
+    // trial is booked after the booking. Her missing hours never block.
+    const blocked = calls && signals.openInquiries > 0;
     const hoursFor = calls ? tradeVocab(trade).consultation.toLowerCase() : "trial";
     const waiting = `${signals.openInquiries} ${signals.openInquiries === 1 ? "inquiry is" : "inquiries are"} waiting`;
     gaps.push({
       key: "availability",
       title: `Set your ${hoursFor} hours`,
       detail: !calls
-        ? blocked
-          ? `${waiting} — set hours and your replies link couples to a page for their details, and their ${offer} follows.`
-          : "Clients can then book their trial without the back-and-forth."
+        ? "Clients can then book their trial without the back-and-forth."
         : blocked
         ? `${waiting} — set hours and clients can pick a time themselves.`
         : "Clients can then book a time without the back-and-forth.",
@@ -367,16 +387,23 @@ export function setupGaps(
   return gaps;
 }
 
-/** Setup is finished when nothing is missing. */
 /** Where a studio chooses the form its inquiry link asks for. */
 export const INQUIRY_FORM_SETTING_HREF = "/studio/questionnaires#inquiry-form";
 
-export function setupComplete(state: SetupState): boolean {
+/**
+ * Setup is finished when nothing a booking needs is missing: ready to take
+ * bookings. Insurance and "what you shoot" never count. A vendor is ready
+ * after her four answers: her forms come preloaded and are never asked
+ * about, so a missing one doesn't hold her back. A photographer still needs
+ * his details form.
+ */
+export function setupComplete(state: SetupState, trade?: unknown): boolean {
+  const formsAsked = setupOrderFor(trade).includes("questionnaire");
   return (
     state.hasInquiryCapture !== false &&
     state.hasActivePackage &&
     state.hasAgreementTemplate &&
-    state.hasQuestionnaireTemplate &&
+    (!formsAsked || state.hasQuestionnaireTemplate) &&
     state.hasConsultationAvailability
   );
 }

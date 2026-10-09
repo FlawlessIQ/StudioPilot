@@ -25,7 +25,7 @@ import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { todayLocalIso } from "@/lib/format/event-date";
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import { useSetupState } from "@/components/setup/use-setup-state";
-import { nextSetupStep, SETUP_ORDER, type SetupGapKey } from "@/features/today/setup-gaps";
+import { nextSetupStep, setupOrderFor, type SetupGapKey } from "@/features/today/setup-gaps";
 import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics";
 import {
   bookedValueCents,
@@ -85,7 +85,7 @@ export function useTodayInbox(): {
   setup: {
     complete: boolean;
     answered: number;
-    /** How many questions setup asks (SETUP_ORDER). */
+    /** How many questions setup asks this studio (setupOrderFor). */
     total: number;
     /** The next unanswered setup question, in setup's order. */
     next: SetupGapKey | null;
@@ -403,12 +403,15 @@ export function useTodayInbox(): {
      */
     setup: {
       complete: setup.complete,
-      next: nextSetupStep(setup.gaps),
+      // In this studio's order: a vendor is never pointed at a question she
+      // isn't asked (what she does, her forms, insurance).
+      next: nextSetupStep(setup.gaps, workspace.tenantTrade),
       // Counted over setup's own questions, as the setup page and Help's
       // checklist count them. This was a private list of five, so Today said
-      // "2 of 5 answered" beside a setup page saying "2 of 7".
-      answered: SETUP_ORDER.filter((key) => !setup.gaps.some((gap) => gap.key === key)).length,
-      total: SETUP_ORDER.length,
+      // "2 of 5 answered" beside a setup page saying "2 of 7". A vendor's are
+      // her four.
+      answered: setupOrderFor(workspace.tenantTrade).filter((key) => !setup.gaps.some((gap) => gap.key === key)).length,
+      total: setupOrderFor(workspace.tenantTrade).length,
       // Genuinely new, as opposed to quiet: no jobs and no inquiries at all.
       brandNew:
         (projects.records ?? []).length === 0 &&

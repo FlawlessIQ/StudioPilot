@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, Download, MessageCircle, PenLine } from "lucide-react";
 import { Actions, Button, Card, KitRoot } from "@/components/kit/kit";
@@ -72,12 +72,19 @@ export function ClientContractSigning({
   onChanged,
   studioName,
   studioColor = null,
+  afterSigning = null,
 }: {
   contract: ContractRecord;
   onChanged: () => void;
   studioName: string | null;
   /** The studio's colour, for the signing sheet (it renders outside the page). */
   studioColor?: string | null;
+  /**
+   * What follows the signature on this screen, in place of the link to the
+   * retainer: a client who books in one link pays the deposit right here
+   * (client-contract.tsx). Null keeps the link.
+   */
+  afterSigning?: ReactNode;
 }) {
   const workspace = useWorkspace();
   // A makeup client signs for what's included and is quoted; a couple's
@@ -109,6 +116,10 @@ export function ClientContractSigning({
   });
   const idempotencyKey = useRef<string | null>(null);
   const viewedFor = useRef<string | null>(null);
+  // Signed on this visit: the next step is brought into view once the page
+  // has the signature, rather than left above a long scrolled agreement.
+  const signedHere = useRef(false);
+  const handsOn = afterSigning !== null;
   // As of opening the page, not re-read on every render.
   const [openedAt] = useState(() => Date.now());
   const completedAt = Date.parse(String(contract.completedAt ?? ""));
@@ -124,6 +135,12 @@ export function ClientContractSigning({
       // never get in the way of reading or signing.
     });
   }, [awaiting, contract.id, status, workspace.projectId, workspace.tenantId]);
+
+  useEffect(() => {
+    if (!handsOn || status !== "completed" || !signedHere.current) return;
+    signedHere.current = false;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [handsOn, status]);
 
   if (!parsed.success) {
     return (
@@ -187,6 +204,7 @@ export function ClientContractSigning({
           billingAddress: address.address,
         });
       }
+      signedHere.current = true;
       onChanged();
     } catch (caught: unknown) {
       const refusal = refusalMessage(caught);
@@ -245,11 +263,14 @@ export function ClientContractSigning({
               {downloading ? "Opening…" : "Download signed copy"}
             </Button>
           ) : null}
-          <Button href="/client/payments" variant="secondary">
-            Next: your retainer
-          </Button>
+          {handsOn ? null : (
+            <Button href="/client/payments" variant="secondary">
+              Next: your retainer
+            </Button>
+          )}
         </Card>
       ) : null}
+      {status === "completed" ? afterSigning : null}
       {status === "voided" ? (
         <Card>
           <p className="kit-eyebrow">Withdrawn</p>

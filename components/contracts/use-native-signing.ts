@@ -11,7 +11,10 @@ export type NativeSigningState = {
   loading: boolean;
   /** StudioCue may write and sign contracts for this studio. */
   enabled: boolean;
-  /** Terms and coverage sent together, two signatures (H2). */
+  /**
+   * Terms and prices sent together, two signatures (H2): the booking link.
+   * On by default for a trade that books in one link (rollout.ts).
+   */
   combined: boolean;
   /** The studio's saved agreement, when there is one. */
   agreementTemplateId: string | null;
@@ -42,11 +45,14 @@ export function useNativeSigning(generation = 0): NativeSigningState {
       ]);
       if (!active) return;
       const settings = (tenant?.data()?.defaultContractSettings ?? {}) as Record<string, unknown>;
+      // The tenant's own trade when it reads, else the workspace's: the same
+      // field, so a DJ's booking link is never hidden by a failed read.
+      const trade = tenant?.exists() ? tenant.data()?.trade : workspace.tenantTrade;
       const autoSend = (settings.nativeAutoSend ?? {}) as Record<string, unknown>;
       setState({
         loading: false,
         enabled: nativeSigningOn(features?.exists() ? features.data() : null),
-        combined: combinedAgreementOn(features?.exists() ? features.data() : null),
+        combined: combinedAgreementOn(features?.exists() ? features.data() : null, trade),
         agreementTemplateId:
           typeof settings.agreementTemplateId === "string" ? settings.agreementTemplateId : null,
         autoSend: {
@@ -58,6 +64,6 @@ export function useNativeSigning(generation = 0): NativeSigningState {
     return () => {
       active = false;
     };
-  }, [workspace.loading, workspace.tenantId, generation]);
+  }, [workspace.loading, workspace.tenantId, workspace.tenantTrade, generation]);
   return state;
 }

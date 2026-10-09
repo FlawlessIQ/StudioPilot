@@ -373,9 +373,18 @@ export function BookingAutopilotWorkspace({
   );
   const kindNeeds = bookingGateNeeds(kindProfile);
   const kindWords = vocab(kindProfile.kind);
+  /**
+   * A DJ, makeup artist or hair stylist books in one link (trades.ts, read
+   * with the job's kind as journeyFor does): the client signs the booking
+   * link and pays the deposit in one visit. A photographer's words are
+   * unchanged.
+   */
+  const oneLink = kindNeeds.agreement && tradeProfile(workspace.tenantTrade).journey.oneLinkBooking;
   const nextAfterAcceptance = kindNeeds.agreement
     ? kindNeeds.payment
-      ? "The agreement and the retainer are"
+      ? oneLink
+        ? "The agreement and the deposit are"
+        : "The agreement and the retainer are"
       : "The agreement is"
     : kindNeeds.payment
       ? kindProfile.payment === "paid_in_full"
@@ -743,6 +752,15 @@ export function BookingAutopilotWorkspace({
                   ) : null}
                 </p>
               </>
+            ) : bookingAgreementOut && oneLink ? (
+              <>
+                <h1>The booking link is with the client.</h1>
+                <p>
+                  {kindNeeds.payment
+                    ? `They sign it, which accepts the ${offer}, then pay the deposit on the next screen. To change anything, withdraw it in the booking step below.`
+                    : `They sign it, which accepts the ${offer} and books the job. To change anything, withdraw it in the booking step below.`}
+                </p>
+              </>
             ) : bookingAgreementOut ? (
               <>
                 <h1>The booking agreement is with the client.</h1>
@@ -754,7 +772,9 @@ export function BookingAutopilotWorkspace({
               <>
                 <h1>{`The ${offer} is with the client.`}</h1>
                 <p>
-                  {kindNeeds.agreement
+                  {oneLink
+                    ? `It went on its own, so once they accept it the agreement and the deposit follow. To have them sign and pay in one visit instead, send the booking link from the ${offer}. Already have their yes by email or on a call? Record it in the booking step below.`
+                    : kindNeeds.agreement
                     ? "Once they accept it, the agreement and the retainer are the next steps. Already have their yes by email or on a call? Record it in the contract step below."
                     : kindNeeds.payment
                       ? `Once they accept it, the invoice goes to them, and paying it books the job. Already have their yes by email or on a call? Record it on the ${offer}.`

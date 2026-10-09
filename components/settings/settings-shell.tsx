@@ -42,6 +42,7 @@ import { useSetupState } from "@/components/setup/use-setup-state";
 import { OutsideStepsInFlight } from "@/components/outside-steps/outside-steps-in-flight";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { callWords } from "@/components/studio/trade-words";
+import { SETUP_ORDER, setupOrderFor } from "@/features/today/setup-gaps";
 import {
   SETTINGS_SECTIONS,
   legacySettingsTarget,
@@ -172,11 +173,22 @@ const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
   },
 ];
 
+/**
+ * A vendor's setup is her four questions, in her order (setupOrderFor): no
+ * forms question and no insurance question. Insurance is still here, under
+ * Crew and insurance, for the venues that ask.
+ */
+const VENDOR_SETUP_SUBTITLE = "Packages, hours, inquiries and agreement";
+const VENDOR_INSURANCE_SUBTITLE = "Optional: off until a venue asks you for a certificate";
+
 /** Where a hub item goes and what it says, whichever kind it is. */
 function resolve(item: HubItem, setupComplete = false, trade?: unknown) {
   // "Finish setting up" on a studio that has: it reads as a nag that's wrong.
   if (item.kind === "link" && item.href === "/studio/setup" && setupComplete)
     return { ...item, title: "Review setup", subtitle: "Everything's answered — change any of it" };
+  const vendorSetup = setupOrderFor(trade).length < SETUP_ORDER.length;
+  if (item.kind === "link" && item.href === "/studio/setup" && vendorSetup)
+    return { ...item, subtitle: VENDOR_SETUP_SUBTITLE };
   if (item.kind === "link") return item;
   const section = SETTINGS_SECTIONS.find((entry) => entry.key === item.key)!;
   // The booking hours serve every call the studio has: a photographer's
@@ -187,7 +199,11 @@ function resolve(item: HubItem, setupComplete = false, trade?: unknown) {
     href: settingsSectionHref(item.key),
     icon: item.icon,
     title: calls ? calls.availabilityTitle : section.title,
-    subtitle: calls ? calls.availabilitySubtitle : section.subtitle,
+    subtitle: calls
+      ? calls.availabilitySubtitle
+      : item.key === "insurance" && vendorSetup
+        ? VENDOR_INSURANCE_SUBTITLE
+        : section.subtitle,
   };
 }
 

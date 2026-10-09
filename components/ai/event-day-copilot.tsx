@@ -23,6 +23,7 @@ import { useReadinessEvidence } from "@/components/projects/use-readiness-eviden
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { journeyFor, projectProfile } from "@/features/job-kinds/job-kinds";
 import { eventDaySnapshot } from "@/features/crew/cascade";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { readinessSummary } from "@/features/projects/readiness-summary";
@@ -145,6 +146,11 @@ export function EventDayCopilot({
     (item) => item.projectId === projectId,
   );
   const insuranceRequired = text(project?.insuranceRequired);
+  // A vendor's job needs a certificate only when the venue asked
+  // (job-kinds.ts `journeyFor`), or one is already under way.
+  const insuranceExpected =
+    journeyFor(projectProfile(project), tradeProfile(workspace.tenantTrade), { insuranceRequired }).coi ||
+    projectInsurance.length > 0;
   /**
    * Whether the day this panel is written for is today.
    *
@@ -342,7 +348,8 @@ export function EventDayCopilot({
               `venue_acknowledged` counts too: the venue confirming receipt is
               stronger evidence than our having sent it, and requiring exactly
               `sent_to_venue` flagged the better outcome as the worse one. */}
-          {insuranceRequired !== "not_required" &&
+          {insuranceExpected &&
+          insuranceRequired !== "not_required" &&
           (!projectInsurance.length ||
             !projectInsurance.some((item) =>
               ["sent_to_venue", "venue_acknowledged"].includes(

@@ -16,15 +16,16 @@ import {
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
-  SETUP_ORDER,
+  setupOrderFor,
   setupQuestionCount,
   setupStepName,
   type SetupGapKey,
 } from "@/features/today/setup-gaps";
 
 /**
- * Help's "Set up your studio": the same seven questions as /studio/setup, in
- * the same order, read from the same state.
+ * Help's "Set up your studio": the same questions as /studio/setup — a
+ * photographer's seven, a vendor's four (setupOrderFor) — in the same order,
+ * read from the same state.
  *
  * It used to be its own list of five different steps (preview the form,
  * offerings, calendar, first project, invite team), so Help, setup and Today
@@ -49,8 +50,9 @@ export function SetupChecklist() {
   const { tenantTrade } = useWorkspace();
   const { gaps, loading } = useSetupState();
   const open = new Set(gaps.map((gap) => gap.key));
-  const completed = SETUP_ORDER.filter((key) => !open.has(key)).length;
-  const total = SETUP_ORDER.length;
+  const order = setupOrderFor(tenantTrade);
+  const completed = order.filter((key) => !open.has(key)).length;
+  const total = order.length;
 
   return (
     <section className="ds-card ds-setup">
@@ -58,7 +60,7 @@ export function SetupChecklist() {
         <div>
           <span className="ds-eyebrow">Get started</span>
           <h2>Set up your studio workspace</h2>
-          <p>{`${capitalise(setupQuestionCount())} questions, most answered in a tap. Skip anything and come back when you need it.`}</p>
+          <p>{`${capitalise(setupQuestionCount(tenantTrade))} questions, most answered in a tap. Skip anything and come back when you need it.`}</p>
         </div>
         {!loading ? (
           <span className="ds-badge ds-badge-brass">{`${completed} of ${total} complete`}</span>
@@ -68,7 +70,7 @@ export function SetupChecklist() {
         <i style={{ width: `${(completed / total) * 100}%` }} />
       </div>
       <div className="ds-setup-steps">
-        {SETUP_ORDER.map((key) => {
+        {order.map((key) => {
           const Icon = ICONS[key];
           const done = !loading && !open.has(key);
           return (

@@ -64,7 +64,7 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
     // "reopen": un-resolve a row a person marked done or waived by mistake.
     resolution: CheckpointResolution | "reopen";
   } | null>(null);
-  const role = useWorkspace().role;
+  const { role, tenantTrade } = useWorkspace();
   const canReopen = role === "studio_owner" || role === "studio_admin";
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -209,7 +209,8 @@ export function ReadinessCheckpoints({ projectId }: { projectId: string }) {
                 ? `Settle "${blockedBy}" first — this step waits on it.`
                 : checkpointWaitingReason(row);
           // The sentence says what it waits on; this says where to start it.
-          const source = waiting ? checkpointRecordSource(row.templateKey) : null;
+          // In the studio's own words: "Send the party list", not the questionnaire.
+          const source = waiting ? checkpointRecordSource(row.templateKey, tenantTrade) : null;
           // Only what a person resolved can be un-resolved: a row the records
           // prove stays proven whatever is clicked here.
           const reopenable =

@@ -21,6 +21,8 @@
  * Pure functions, no I/O.
  */
 
+import { tradeVocab } from "@/features/trades/trades";
+
 /** Methods that mean "a record decides this", so a person may not. */
 const EVIDENCE_METHODS: readonly string[] = [
   "form_submitted",
@@ -173,15 +175,29 @@ export function checkpointIsWaivable(
  * Keyed on the template key rather than the completion method, because the
  * method says how it finishes and this says where to go. A checkpoint a studio
  * wrote itself gets null and keeps its sentence.
+ *
+ * In the trade's own words when it has them (trades.ts): a makeup artist's
+ * "Planning form in" sends the party list and builds the getting-ready
+ * schedule, not a questionnaire and a run of show. A photographer's, or a
+ * caller that does not say, reads as it always has.
  */
 export function checkpointRecordSource(
   templateKey: string,
+  trade?: unknown,
 ): { label: string; path: string } | null {
+  const words = tradeVocab(trade);
+  const lowerFirst = (value: string) => value.charAt(0).toLowerCase() + value.slice(1);
   switch (templateKey) {
     case "questionnaire-complete":
-      return { label: "Send the questionnaire", path: "/studio/questionnaires" };
+      return {
+        label: words.detailsForm ? `Send the ${lowerFirst(words.detailsForm)}` : "Send the questionnaire",
+        path: "/studio/questionnaires",
+      };
     case "schedule-approved":
-      return { label: "Build the run of show", path: "/studio/schedules" };
+      return {
+        label: words.planOfDay ? `Build the ${lowerFirst(words.planOfDay)}` : "Build the run of show",
+        path: "/studio/schedules",
+      };
     case "final-balance":
       return { label: "Invoice the balance", path: "/studio/invoices" };
     case "retainer-paid":

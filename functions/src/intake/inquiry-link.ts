@@ -59,13 +59,24 @@ export async function inquiryLinkFor(
 }
 
 /**
- * Whether a reply can carry the link: the studio has said when couples can
- * book. Without hours the page would offer no times, so the reply goes
+ * Whether a reply can carry the link.
+ *
+ * For a studio with a call to book, only once it has said when couples can
+ * book: without hours the page would offer no times, so the reply goes
  * without it and Today says why (features/today/setup-gaps.ts).
+ *
+ * A makeup artist or hair stylist has no call (trades.ts). Her link is for
+ * the client's details, and the quote follows; the trial is booked after the
+ * booking. So the link goes out with her first reply whether or not she has
+ * set hours, and the page simply offers no times. Photographers and DJs are
+ * unchanged. The same rule decides the acknowledgement's link and the link in
+ * consultation emails, which ask it by this name.
  */
 export async function studioTakesBookings(db: Firestore, tenantId: string): Promise<boolean> {
   const settings = await db.doc(`consultationSettings/${tenantId}`).get();
-  return settings.exists;
+  if (settings.exists) return true;
+  const tenant = await db.doc(`tenants/${tenantId}`).get();
+  return !tradeProfile(tenant.get("trade")).consultation;
 }
 
 /**

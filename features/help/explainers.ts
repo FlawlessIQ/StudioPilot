@@ -217,7 +217,12 @@ const GUIDES: readonly ExplainerSource[] = [
   {
     id: "setup",
     title: "Set up your studio",
-    summary: "Seven questions that get StudioCue ready for your first real inquiry.",
+    // A vendor answers four (setup-gaps.ts `setupOrderFor`): her forms come
+    // preloaded and insurance waits until a venue asks.
+    summary: (t) =>
+      photographer(t)
+        ? "Seven questions that get StudioCue ready for your first real inquiry."
+        : "Four questions that get StudioCue ready for your first real inquiry.",
     audience: "studio",
     stage: "getting-started",
     routes: ["/studio/setup", "/studio/settings", "/studio/settings/*"],
@@ -226,7 +231,7 @@ const GUIDES: readonly ExplainerSource[] = [
       (t) =>
         photographer(t)
           ? "Setup asks seven questions: what you shoot, how inquiries reach you, when clients can book a call, what you charge, how clients sign, what you ask clients, and who sends your insurance certificates. Most are answered right on the page."
-          : `Setup asks seven questions: what events you ${t.words.verb}, how inquiries reach you, when clients can book ${t.has.consultation ? "a call" : "a trial"}, what you charge, how clients sign, what you ask clients, and who sends your insurance certificates. Most are answered right on the page.`,
+          : `Setup asks four questions: what you charge, when clients can book ${t.has.consultation ? "a call" : "a trial"}, how inquiries reach you, and how clients sign. Most are answered right on the page.`,
     steps: [
       "On Today, tap **Continue setup**. Each question says why it matters.",
       "**How do inquiries reach you?** Pick a route, from **On your website** to **Inbox rules**.",
@@ -235,7 +240,7 @@ const GUIDES: readonly ExplainerSource[] = [
         `**When can clients book ${has.consultation ? "a call" : "a trial"}?** Tap **Use Mon–Fri, 9–5** or **Choose my own hours**, and **Connect Google Calendar** so busy times are never offered.`,
       "**What do you charge?** **Paste or upload your prices**, or **Add one by hand**.",
       "**How do your clients sign?** Set up your agreement in StudioCue, or tap **I send my own agreement**.",
-      "Finish with your questionnaire and **Who sends your certificates of insurance?**",
+      (t) => (photographer(t) ? "Finish with your questionnaire and **Who sends your certificates of insurance?**" : null),
     ],
     next: "Skip anything you like: StudioCue brings it back on Today when a job actually needs it. Change any answer later in **Studio settings**.",
     goodToKnow: [

@@ -10,7 +10,7 @@ import { sectionDocument } from "@/features/contracts/combined";
 import { STUDIO_SIGNING_STATEMENT } from "@/features/contracts/esign-consent";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeVocab } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   previewCombinedAgreement,
@@ -21,9 +21,15 @@ import {
 /**
  * "Send as one booking agreement" (H2 Part B): the studio's terms and this
  * proposal's coverage and price, sent together for the couple to sign in one
- * sitting — signing accepts the proposal. Shown only where a platform admin
- * has turned it on for the studio (tenantFeatures.combinedAgreement), because
- * counsel has still to see the two-signature ceremony.
+ * sitting — signing accepts the proposal. For a photographer, shown only
+ * where a platform admin has turned it on for the studio
+ * (tenantFeatures.combinedAgreement), because counsel has still to see the
+ * two-signature ceremony.
+ *
+ * A DJ, makeup artist or hair stylist books in one link (trades.ts
+ * `journey.oneLinkBooking`), so it is on for them by default and is the way
+ * they send a booking: "Send the booking link". Their client signs, then pays
+ * the deposit on the same screen (components/client/kit/client-contract.tsx).
  *
  * The studio reads both parts exactly as they will go, then the owner signs
  * both for the studio as they send, as for any StudioCue contract.
@@ -40,6 +46,7 @@ export function CombinedAgreementSend({
   const workspace = useWorkspace();
   // "quote" for a makeup artist or hair stylist (trades.ts).
   const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
+  const oneLink = tradeProfile(workspace.tenantTrade).journey.oneLinkBooking;
   const native = useNativeSigning(0);
   const canSign = ["studio_owner", "studio_admin"].includes(String(workspace.role ?? ""));
   const [preview, setPreview] = useState<CombinedAgreementPreview | null>(null);
@@ -100,12 +107,19 @@ export function CombinedAgreementSend({
   if (!preview) {
     return (
       <div className="combined-agreement-send">
-        <button className="button button-light" disabled={busy !== null} onClick={() => void open()} type="button">
+        <button
+          className={oneLink ? "button button-dark" : "button button-light"}
+          disabled={busy !== null}
+          onClick={() => void open()}
+          type="button"
+        >
           {busy === "preview" ? <LoaderCircle className="spin" aria-hidden size={15} /> : <FileSignature aria-hidden size={15} />}
-          {busy === "preview" ? "Preparing…" : "Send as one booking agreement"}
+          {busy === "preview" ? "Preparing…" : oneLink ? "Send the booking link" : "Send as one booking agreement"}
         </button>
         <small className="native-contract-note">
-          {`Your terms and these prices together — the couple signs both at once, and that accepts the ${offer}.`}
+          {oneLink
+            ? `Your terms and this ${offer} in one link. The client signs, then pays the deposit on the next screen — booked in one visit.`
+            : `Your terms and these prices together — the couple signs both at once, and that accepts the ${offer}.`}
         </small>
         {error ? <p className="client-contract-error" role="alert">{error}</p> : null}
       </div>
@@ -144,12 +158,18 @@ export function CombinedAgreementSend({
       role="dialog"
     >
     <div className="combined-agreement-send combined-agreement-sheet">
-      <p className="eyebrow">Booking agreement</p>
+      <p className="eyebrow">{oneLink ? "Booking link" : "Booking agreement"}</p>
+      {oneLink ? (
+        <p className="native-contract-note">
+          {`Part 1 is your agreement (version ${preview.templateVersion}); Part 2 is this ${offer}’s packages, extras, total and payment schedule. The client signs each part, then pays the deposit. Highlighted text came from the job’s records.`}
+        </p>
+      ) : (
       <p className="native-contract-note">
         Part 1 is your agreement (version {preview.templateVersion}); Part 2 is this {offer}&rsquo;s packages,
         extras, total and payment schedule. The couple signs each part. Highlighted text came from the job&rsquo;s
         records.
       </p>
+      )}
       {termsStatePrice ? (
         <p className="native-contract-note">
           Your agreement (Part 1) also states the price and schedule. They&rsquo;re the same figures as Part 2, from
@@ -203,7 +223,11 @@ export function CombinedAgreementSend({
             type="button"
           >
             {busy === "send" ? <LoaderCircle className="spin" aria-hidden size={15} /> : <Send aria-hidden size={15} />}
-            {busy === "send" ? "Sending…" : `Sign & send to ${preview.clientName || "the couple"}`}
+            {busy === "send"
+              ? "Sending…"
+              : oneLink
+                ? `Sign & send the booking link to ${preview.clientName || "the client"}`
+                : `Sign & send to ${preview.clientName || "the couple"}`}
           </button>
           <button className="button button-quiet" disabled={busy !== null} onClick={() => setPreview(null)} type="button">
             Cancel

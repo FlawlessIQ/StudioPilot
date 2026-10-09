@@ -83,7 +83,12 @@ const AREAS: Array<{
 export function PlanAreas({ projectId }: { projectId: string }) {
   // A DJ, makeup artist or hair stylist delivers nothing after the day
   // (trades.ts), so their files hold no deliverables.
-  const delivers = tradeProfile(useWorkspace().tenantTrade).delivery;
+  const trade = tradeProfile(useWorkspace().tenantTrade);
+  const delivers = trade.delivery;
+  // A vendor's light journey (simpler vendor journeys): the day's plan is
+  // drawn from the form, and crew and insurance only exist when the job
+  // needs them — so their cards only show when the journey has the step.
+  const light = trade.journey.oneForm;
   const projects = useTenantDocuments("projects");
   const project = (projects.records ?? []).find((row) => row.id === projectId);
   const { steps, current } = useProjectJourney({
@@ -116,11 +121,20 @@ export function PlanAreas({ projectId }: { projectId: string }) {
     (step) => step.key === "event_day" && step.status !== "upcoming",
   );
 
+  const keysFor = (area: (typeof AREAS)[number]): JourneyStepKey[] =>
+    light && area.steps.includes("run_of_show") ? ["schedule_form"] : area.steps;
+  const areas = AREAS.filter(
+    (area) =>
+      !light ||
+      !area.steps.some((key) => key === "crew" || key === "coi") ||
+      area.steps.some((key) => steps.some((step) => step.key === key)),
+  );
+
   return (
     <section className="project-plan-grid" aria-label="Planning areas">
-      {AREAS.map((area) => {
+      {areas.map((area) => {
         const Icon = area.icon;
-        const status = statusOf(area.steps);
+        const status = statusOf(keysFor(area));
         return (
           <Link
             className={status ? `is-${status}` : undefined}

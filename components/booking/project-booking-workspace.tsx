@@ -74,7 +74,8 @@ import {
 } from "@/components/ui/panel-state";
 import { statusLabel } from "@/features/format/status-label";
 import { canCreateProposalForProject } from "@/features/proposals/eligibility";
-import { tradeVocab } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { JobSalesTax } from "@/components/booking/job-sales-tax";
 import { BillingAddressSummary } from "@/components/clients/billing-address-summary";
@@ -659,6 +660,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   // no agreement; a sports day pays nothing to book.
   const kindProfile = projectProfile(project);
   const kindNeeds = bookingGateNeeds(kindProfile);
+  /**
+   * A DJ, makeup artist or hair stylist books in one link (trades.ts, read
+   * with the job's kind as journeyFor does): the client signs the booking
+   * link, then pays the deposit in the same visit. So the steps read as one
+   * booking — sent, signed, paid — not a contract chore and a retainer chore.
+   * A photographer's read exactly as before.
+   */
+  const oneLink = kindNeeds.agreement && tradeProfile(workspace.tenantTrade).journey.oneLinkBooking;
   const agreementSettled = contractComplete || !kindNeeds.agreement;
   // A family session paid in full takes the whole price to book: there is no
   // "retainer" or "deposit" to speak of, and nothing waits for a signature.
@@ -670,7 +679,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const steps = [
     {
       number: 1,
-      title: kindNeeds.agreement ? "Contract" : "Agreement",
+      title: kindNeeds.agreement ? (oneLink ? "Booking link" : "Contract") : "Agreement",
       state: bookingComplete ? "done" : stepState(1),
       /**
        * A booked job with no contract document here.
@@ -682,11 +691,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
        * whether the paperwork is in StudioCue.
        */
       note: contractComplete
-        ? "Signed"
+        ? oneLink && kindNeeds.payment
+          ? invoicePaid
+            ? "Signed and paid"
+            : "Signed — deposit due"
+          : "Signed"
         : !kindNeeds.agreement
           ? "Not needed for this kind of job"
           : shownContract
-          ? statusLabel(String(shownContract.status))
+          ? oneLink && ["sent", "viewed"].includes(String(shownContract.status))
+            ? "Sent — waiting to sign"
+            : statusLabel(String(shownContract.status))
           : bookingComplete
             ? "Not recorded here"
             : proposal
@@ -698,7 +713,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     },
     {
       number: 2,
-      title: kindNeeds.payment && kindProfile.payment !== "paid_in_full" ? "Retainer" : "Payment",
+      title: kindNeeds.payment && kindProfile.payment !== "paid_in_full" ? (oneLink ? "Deposit" : "Retainer") : "Payment",
       state: bookingComplete ? "done" : stepState(2),
       // "Waits for the signature" is only true while it is waiting. Once
       // this becomes the live step that sentence describes the past and
@@ -715,7 +730,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             ? "Not recorded here"
             : agreementSettled
               ? "Ready to raise"
-              : "Waits for the signature",
+              : oneLink
+                ? "Paid straight after signing"
+                : "Waits for the signature",
     },
     {
       number: 3,
@@ -727,7 +744,9 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           ? "Ready to confirm"
           : paidInFull
             ? "Waits for the payment"
-            : "Waits for the retainer",
+            : oneLink
+              ? "Waits for the deposit"
+              : "Waits for the retainer",
     },
   ];
 
@@ -1011,8 +1030,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             <div className="booking-step-heading">
               <FileSignature aria-hidden="true" />
               <span>
-                <small>The agreement</small>
-                <h2>Contract</h2>
+                <small>{oneLink ? "Sign, then pay the deposit" : "The agreement"}</small>
+                <h2>{oneLink ? "Booking link" : "Contract"}</h2>
               </span>
               <StatusBadge
                 tone={
@@ -1230,7 +1249,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                             : `The ${offer} is still a draft`}
                     </strong>
                     <small>
-                      {!openProposal
+                      {oneLink && openProposal && ["approved", "sent", "viewed"].includes(String(openProposal.status))
+                        ? openProposal.status === "approved"
+                          ? "Send the booking link: the client signs, then pays the deposit, in one visit."
+                          : "Send the booking link instead, and they sign and pay the deposit in one go."
+                        : !openProposal
                         ? `The agreement is built from an accepted ${offer}, so that comes first.`
                         : openProposal.status === "viewed"
                           ? "They have opened it. The agreement is next once they accept."
@@ -1285,6 +1308,23 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       );
                       void load();
                     }}
+                    proposalId={String(openProposal.id)}
+                  />
+                ) : null}
+                {/* Booking in one link: a quote that went on its own can
+                    still go out as the booking link — the same quote, signed
+                    and paid for in one visit. The component hides itself
+                    where it's off or the user can't sign for the studio. */}
+                {oneLink &&
+                openProposal &&
+                ["approved", "sent", "viewed"].includes(String(openProposal.status)) ? (
+                  <CombinedAgreementSend
+                    onSent={() => {
+                      setNotice("Booking link sent. The client signs, then pays the deposit.");
+                      refreshTenantRecords("projects", "proposals", "contracts");
+                      void load();
+                    }}
+                    projectId={projectId}
                     proposalId={String(openProposal.id)}
                   />
                 ) : null}
@@ -1460,8 +1500,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             <div className="booking-step-heading">
               <ReceiptText aria-hidden="true" />
               <span>
-                <small>{paidInFull ? "Paid in full" : "The deposit"}</small>
-                <h2>{paidInFull ? "Payment" : "Retainer"}</h2>
+                <small>{paidInFull ? "Paid in full" : oneLink ? "Paid straight after signing" : "The deposit"}</small>
+                <h2>{paidInFull ? "Payment" : oneLink ? "Deposit" : "Retainer"}</h2>
               </span>
               <StatusBadge
                 tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}
@@ -1779,11 +1819,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     busy={busy === "retainer"}
                     cancelLabel="Not now"
                     confirmLabel={`Send the ${currency(agreedRetainerCents, packageSnapshot?.currency)} invoice`}
-                    label={paidInFull ? "Send the invoice?" : "Send the retainer invoice?"}
+                    label={paidInFull ? "Send the invoice?" : oneLink ? "Send the deposit invoice?" : "Send the retainer invoice?"}
                     onCancel={() => setConfirmingRetainer(null)}
                     onConfirm={() => void createRetainer().then(() => setConfirmingRetainer(null))}
                   >
-                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} retainer invoice, due ${formatDueDate(dueDate)}, and ${recipient ?? "the couple"} is emailed it. Once it's out it can only be voided, not unsent.`}
+                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} ${oneLink ? "deposit" : "retainer"} invoice, due ${formatDueDate(dueDate)}, and ${recipient ?? "the couple"} is emailed it. Once it's out it can only be voided, not unsent.`}
                   </ConfirmStep>
                 ) : (
                   <button
@@ -1796,7 +1836,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     onClick={() => setConfirmingRetainer("create")}
                     type="button"
                   >
-                    {`${paidInFull ? "Send the invoice" : "Create retainer invoice"} · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
+                    {`${paidInFull ? "Send the invoice" : oneLink ? "Create deposit invoice" : "Create retainer invoice"} · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
                     <ArrowRight size={15} />
                   </button>
                 )}

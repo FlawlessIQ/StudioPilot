@@ -141,7 +141,9 @@ export function defaultInquiryFormFor(trade: string | null | undefined): Inquiry
   return {
     ...base,
     eventTypes: [
-      defaultType("wedding", "Wedding", "wedding"),
+      // No insurance question for the couple: a DJ turns it on per job when
+      // a venue asks (simpler vendor journeys), as makeup and hair do.
+      { ...defaultType("wedding", "Wedding", "wedding"), coi: false },
       defaultType("corporate", "Corporate event", "corporate"),
       defaultType("party", "Party", "other"),
       defaultType("general", "General question", "general"),

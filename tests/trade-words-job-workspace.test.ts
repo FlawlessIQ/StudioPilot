@@ -7,7 +7,7 @@ import { backwardMovesFor } from "@/features/projects/going-back";
 import { manualAdvanceExample, manualAdvanceFor } from "@/features/projects/manual-advance";
 import { projectStateAdvanceAction, projectStateLabel } from "@/features/projects/state-label";
 import { buildCrewBrief, criticalCrewQuestions } from "@/features/questionnaires/crew-brief";
-import { recommendedFor } from "@/features/questionnaires/recommended-templates";
+import { recommendedFor, recommendedLibraryFor } from "@/features/questionnaires/recommended-templates";
 import { crewQuestionsFor } from "@/features/questionnaires/template-editing";
 import { describeProviderFailure } from "@/features/today/provider-failure";
 import { setupGaps, setupStepName, type SetupSignals, type SetupState } from "@/features/today/setup-gaps";
@@ -203,7 +203,8 @@ test("a failed calendar step names the trade's meeting", () => {
 });
 
 test("a vendor's event details form asks no photo and video times; a photographer's still does", () => {
-  const details = (trade: string) => recommendedFor(trade).find((form) => form.id === "wedding-event-details")!;
+  // A vendor's event details form is in the library to copy, not preloaded (one form).
+  const details = (trade: string) => recommendedLibraryFor(trade).find((form) => form.id === "wedding-event-details")!;
   const labels = (trade: string) => details(trade).sections.flatMap((section) => [section.title, ...section.fields.map((field) => `${field.label} ${field.help ?? ""}`)]);
   assert.ok(labels("photographer").includes("Photo and video coverage"));
   assert.ok(labels("photographer").some((label) => label.startsWith("Photo 1 / Video 1 start time")));

@@ -16,6 +16,7 @@ import { planClientProposalDecision } from "@/server/client/proposal-decision";
 import { contractDocumentHash, sha256Text } from "@/server/contracts/document-hash";
 import { SigningRefused, type RequestEvidence, type SignerIdentity } from "@/server/contracts/client-signing";
 import { planSigningBillingAddress } from "@/features/contacts/billing-address-signing";
+import { tradeProfile } from "@/features/trades/trades";
 import { readSigningBillingAddress, writeSigningBillingAddress } from "@/server/contracts/signing-billing-address";
 
 /**
@@ -248,7 +249,12 @@ export async function signCombinedAgreement(
       packageSnapshotId,
       state: "RETAINER_PENDING",
       stateVersion: priorStateVersion + 2,
-      nextAction: "Collect the retainer",
+      // A vendor's client pays the deposit on the next screen of the same
+      // visit (simpler vendor journeys), so the studio's word is "deposit".
+      // Read outside the transaction: a trade does not change under a signature.
+      nextAction: tradeProfile((await db.doc(`tenants/${input.tenantId}`).get()).get("trade")).journey.oneLinkBooking
+        ? "Deposit due"
+        : "Collect the retainer",
       updatedAt: now,
       updatedBy: input.signer.uid,
     });

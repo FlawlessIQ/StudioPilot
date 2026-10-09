@@ -1944,7 +1944,9 @@ async function autopayStatus(tenantId: string, projectId: string) {
   let dueDate = safeString(final?.dueDate);
   if (!dueDate && eventDate) {
     const due = new Date(`${eventDate.slice(0, 10)}T00:00:00Z`);
-    due.setUTCDate(due.getUTCDate() - 14);
+    // The trade's own timing: a makeup or hair balance falls due on the
+    // morning itself, so that is the charge the client agrees to.
+    due.setUTCDate(due.getUTCDate() - tradeProfile(tenant.get("trade")).balanceDueDaysBefore);
     dueDate = due.toISOString().slice(0, 10);
   }
   const studioName = safeString(tenant.get("name")) ?? "Your studio";

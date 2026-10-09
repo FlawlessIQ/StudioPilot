@@ -144,9 +144,10 @@ test("setup asks in one order, and Today's 'Next' follows it", () => {
   // Inquiries answered: next is hours, not whatever the engine listed first.
   assert.equal(nextSetupStep(gaps), "availability");
   assert.equal(nextSetupStep([]), null);
+  // Each screen asks in the studio's own order: a vendor's four, a photographer's seven.
   const conversation = source("components/setup/setup-conversation.tsx");
-  assert.match(conversation, /SETUP_ORDER\.map/);
-  assert.match(source("components/today/use-today-inbox.ts"), /next: nextSetupStep\(setup\.gaps\)/);
+  assert.match(conversation, /setupOrderFor\(trade\)\.map/);
+  assert.match(source("components/today/use-today-inbox.ts"), /next: nextSetupStep\(setup\.gaps, workspace\.tenantTrade\)/);
 });
 
 test("setup v2 answers what it can in place, and sends the rest to the right door", () => {
@@ -162,7 +163,8 @@ test("setup v2 answers what it can in place, and sends the rest to the right doo
   // Help's checklist is setup's, not a third list.
   const checklist = source("components/dashboard/setup-checklist.tsx");
   assert.match(checklist, /useSetupState\(\)/);
-  assert.match(checklist, /SETUP_ORDER\.map/);
+  assert.match(checklist, /const order = setupOrderFor\(tenantTrade\);/);
+  assert.match(checklist, /order\.map\(/);
 });
 
 test("connecting a calendar can return to setup, and only ever to a studio page", () => {

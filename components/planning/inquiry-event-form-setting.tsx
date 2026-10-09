@@ -34,6 +34,8 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
   const calls = tradeProfile(workspace.tenantTrade).consultation;
   const callWord = tradeVocab(workspace.tenantTrade).consultation.toLowerCase();
   const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
+  // A vendor's client fills in one form, sent when they book (trades.ts `journey.oneForm`).
+  const ownForm = tradeProfile(workspace.tenantTrade).journey.oneForm ? tradeVocab(workspace.tenantTrade).detailsForm : null;
   const { records: templates } = useTenantDocuments("questionnaireTemplates");
   const ownerOrAdmin = ["studio_owner", "studio_admin"].includes(String(workspace.role));
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -118,6 +120,11 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
             calls ? ", before they pick a time to talk — so you have their answers for the call" : ` — so you have their answers for the ${offer}`
           }, and for the contract. It lands on the job like any other questionnaire.`}
         </p>
+        {ownForm ? (
+          <p>
+            {`Optional: your clients fill in one form, your ${ownForm.toLowerCase()}, when they book. Your inquiry page already asks what you price on, so most studios like yours send nothing here.`}
+          </p>
+        ) : null}
       </div>
       {!loaded ? (
         <p className="form-notice" role="status">Loading…</p>

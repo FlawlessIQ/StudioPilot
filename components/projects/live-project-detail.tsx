@@ -1,7 +1,7 @@
 "use client";
 
 import { AMENDABLE_STATES, BookingAmendment } from "@/components/booking/booking-amendment";
-import { jobKindOf, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyFor, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
 import { eventDateLock } from "@/features/projects/event-date-lock";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
@@ -75,6 +75,7 @@ import { projectPhaseIndex } from "@/features/projects/lifecycle";
 import { jobIsOver } from "@/features/projects/job-moment";
 import { describeEventProximity } from "@/lib/format/event-date";
 import { runCrmCommand } from "@/lib/crm/command-client";
+import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
@@ -1050,6 +1051,7 @@ function ProjectCrewPanel({
   projectId,
   ownerShooting,
   crewByDefault = true,
+  solo = false,
 }: {
   assignments: LifecycleRecord[];
   projectId: string;
@@ -1057,6 +1059,13 @@ function ProjectCrewPanel({
   ownerShooting: boolean;
   /** Whether this kind of job is crewed (job-kinds.ts). */
   crewByDefault?: boolean;
+  /**
+   * A vendor's job its owner works alone (trades.ts `crewByDefault`): nobody
+   * to book, so the card says who is doing it and asks for nothing. A
+   * makeup artist's wedding read "Nobody is booked on this job yet" under a
+   * "Staff this job" button, about a job that needed nobody.
+   */
+  solo?: boolean;
 }) {
   const { records: profiles } = useTenantDocuments("crewProfiles");
   const nameFor = (assignment: LifecycleRecord) =>
@@ -1071,6 +1080,9 @@ function ProjectCrewPanel({
     ),
   );
   const lapsed = assignments.length - live.length;
+  // Any offer ever made puts the card back to staffing: there is a crew
+  // question on this job after all.
+  const alone = solo && assignments.length === 0;
   return (
     <section className="panel project-crew-panel">
       <header>
@@ -1082,10 +1094,10 @@ function ProjectCrewPanel({
             corner, unrecognisable as the way to staff the job (UI audit,
             2026-10-02); primary only while nobody is booked. */}
         <Link
-          className={`button button-sm ${live.length ? "button-light" : "button-dark"}`}
+          className={`button button-sm ${live.length || alone ? "button-light" : "button-dark"}`}
           href={`/studio/crew?project=${projectId}`}
         >
-          {live.length ? "Staff another role" : "Staff this job"}
+          {live.length ? "Staff another role" : alone ? "Bring in help" : "Staff this job"}
         </Link>
       </header>
       <OwnerShootingToggle
@@ -1121,7 +1133,7 @@ function ProjectCrewPanel({
             );
           })}
         </ul>
-      ) : (
+      ) : alone ? null : (
         <p className="form-notice project-crew-empty">
           {lapsed
             ? "Nobody is booked on this job yet. Earlier offers have lapsed — staffing it again starts a fresh one."
@@ -1134,6 +1146,72 @@ function ProjectCrewPanel({
         </small>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * "Our venue needs insurance", on a vendor's job.
+ *
+ * A DJ, makeup artist or hair stylist is not asked about a certificate on
+ * every job, because most of their venues never want one (simpler vendor
+ * journeys, 2026-10-09; trades.ts `insuranceByDefault`). When one does, this
+ * is where the studio says so, and from then on the job asks for the
+ * certificate, chases it, holds readiness for it and sends it to the venue
+ * exactly as a photographer's does — the same planning command the insurance
+ * page uses. Off again says the venue does not need one, which closes any
+ * request still open.
+ */
+function VenueInsuranceSwitch({
+  projectId,
+  insuranceRequired,
+}: {
+  projectId: string;
+  insuranceRequired: unknown;
+}) {
+  const workspace = useWorkspace();
+  const canChange = ["studio_owner", "studio_admin", "studio_coordinator"].includes(String(workspace.role ?? ""));
+  // The page reads the project once; show the answer just given.
+  const [given, setGiven] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const needed = given ?? insuranceRequired === "required";
+  const change = async (next: boolean) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const outcome = await sendPlanningCommand("setInsuranceRequirement", {
+        projectId,
+        insuranceRequired: next ? "required" : "not_required",
+      });
+      setGiven(next);
+      if (!outcome.persisted) setNotice("Development preview — nothing was saved.");
+      else refreshTenantRecords("projects", "insuranceRequests", "checkpoints");
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That couldn't be changed. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <aside className="job-rail-card" id="venue-insurance">
+      <p className="eyebrow">Insurance</p>
+      <label className="form-checkbox">
+        <input
+          checked={needed}
+          disabled={!canChange || busy}
+          onChange={(event) => void change(event.target.checked)}
+          role="switch"
+          type="checkbox"
+        />
+        <span>Our venue needs insurance</span>
+        <small>
+          {needed
+            ? "It's on this job's plan now: the certificate is requested, followed up, and sent to the venue once you've checked it."
+            : "Most venues don't ask. Turn this on if this one wants a certificate of insurance."}
+        </small>
+      </label>
+      {notice ? <small role="status">{notice}</small> : null}
+    </aside>
   );
 }
 
@@ -1413,6 +1491,24 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   // A kind with no consultation (job-kinds.ts), or a trade whose trial does
   // that job (a makeup artist, trades.ts), has no call to invite them to.
   const offersConsultation = projectProfile(project).consultation && tradeProfile(workspace.tenantTrade).consultation;
+  // The job's one profile: its kind, lightened by the trade (job-kinds.ts
+  // `journeyFor`). For a photographer it is the kind's own, unchanged.
+  const tradeJourney = tradeProfile(workspace.tenantTrade).journey;
+  const jobShape = journeyFor(projectProfile(project), tradeProfile(workspace.tenantTrade), {
+    insuranceRequired: project.insuranceRequired,
+  });
+  // A vendor's job with nobody to book: the journey has no crew step (it
+  // keeps one only while the packages send more people than the owner, or
+  // somebody holds an offer), so the crew card does not ask for one either.
+  const soloVendorJob = !tradeJourney.crewByDefault && !journey.steps.some((step) => step.key === "crew");
+  // "Our venue needs insurance": a vendor's own answer, for a kind of job a
+  // venue could ask about, while there is still a day ahead to send it for.
+  const insuranceSwitchEl =
+    !tradeJourney.insuranceByDefault &&
+    projectProfile(project).coi &&
+    ["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING", "BOOKED", "PLANNING", "READY"].includes(state) ? (
+      <VenueInsuranceSwitch insuranceRequired={project.insuranceRequired} projectId={projectId} />
+    ) : null;
   const leadInviteEl =
     state === "LEAD" &&
     offersConsultation &&
@@ -1727,13 +1823,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <ProjectJobPlan steps={journey.steps} projectId={projectId} />
           <ProjectCrewPanel
             assignments={related.crewAssignments}
-            crewByDefault={projectProfile(project).crew}
+            crewByDefault={jobShape.crew}
             ownerShooting={ownerShootsJob(project)}
             projectId={projectId}
+            solo={soloVendorJob}
           />
           <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />
           {leadInviteEl}
           {trialInviteEl}
+          {insuranceSwitchEl}
           {hideLeadStageControl ? null : stageControlEl}
           {interruptionEl}
           {threadEl}
@@ -1759,9 +1857,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             */}
             <ProjectCrewPanel
               assignments={related.crewAssignments}
-              crewByDefault={projectProfile(project).crew}
+              crewByDefault={jobShape.crew}
             ownerShooting={ownerShootsJob(project)}
               projectId={projectId}
+              solo={soloVendorJob}
             />
             {/* Group events: each parent pays (features/group-events). Renders
                 nothing on a job that doesn't offer a roster. */}
@@ -1780,6 +1879,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             <ThreadMinimap steps={journey.steps} />
             {leadInviteEl}
             {trialInviteEl}
+            {insuranceSwitchEl}
             {hideLeadStageControl ? null : stageControlEl}
             {interruptionEl}
           </div>
@@ -1796,6 +1896,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         <div className="project-detail-disclosure-body">
           <ProjectPlanningCopilot
             insurance={related.insurance}
+            insuranceExpected={jobShape.coi}
             invoices={related.invoices}
             projectId={projectId}
             questionnaires={related.questionnaires}

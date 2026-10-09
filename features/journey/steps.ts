@@ -571,6 +571,14 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
     // The party list builds the morning's schedule; the planner drafts the
     // run of show. One step, named for the form the client fills in.
     fold("schedule_form", "run_of_show");
+    // Once the form is in, the plan is drafted from it when the studio opens
+    // the schedule (planning: drafted from the returned form), so the move is
+    // to check it and publish — nothing for the client to approve.
+    const plan = find("schedule_form");
+    if (plan && plan.status === "current" && plan.detail.startsWith("Ready to lay out from")) {
+      plan.detail = `Drafted from their ${(words.detailsForm ?? "form").toLowerCase()} — check it and publish`;
+      if (plan.action?.kind === "link") plan.action = { ...plan.action, label: "Check and publish" };
+    }
   }
 
   if (light.foldRoutine) {

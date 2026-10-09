@@ -17,6 +17,7 @@ import {
 } from "./commands.js";
 import { buildCombinedAgreement, sectionDocument, type CombinedSection } from "./combined.js";
 import { tenantTrade } from "../trades/tenant-trade.js";
+import { tradeProfile, type Trade } from "../trades/trades.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { contractDocumentSchema, type ContractDocument } from "./document.js";
 import { contractDocumentHash, sha256Text } from "./document-hash.js";
@@ -32,8 +33,11 @@ import { contractDocumentHash, sha256Text } from "./document-hash.js";
  * couple then reads and signs each part in one sitting, which both accepts
  * the proposal and signs the contract (server/contracts/combined-signing.ts).
  *
- * Off unless a platform admin has turned `tenantFeatures.combinedAgreement`
- * on for the studio — counsel has still to see the two-signature ceremony.
+ * On by default for a trade that books in one link (trades.ts
+ * `journey.oneLinkBooking`: a DJ, a makeup artist, a hair stylist — their
+ * client signs and pays the deposit in one visit). A photographer studio
+ * still needs a platform admin to turn `tenantFeatures.combinedAgreement` on
+ * — counsel has still to see the two-signature ceremony.
  */
 
 const SENDABLE_PROPOSAL_STATUSES = new Set(["draft", "internal_review", "approved", "sent", "viewed"]);
@@ -52,10 +56,18 @@ export const sendCombinedAgreementInput = combinedAgreementInput.extend({
   consent: z.literal(true),
 });
 
-export async function combinedAgreementEnabled(db: Firestore, tenantId: string): Promise<boolean> {
-  const features = await db.doc(`tenantFeatures/${tenantId}`).get();
+/**
+ * The server's half of features/contracts/rollout.ts `combinedAgreementOn`:
+ * native signing, and either the studio's own switch or a trade that books in
+ * one link. `trade` when the caller has already read it.
+ */
+export async function combinedAgreementEnabled(db: Firestore, tenantId: string, trade?: Trade): Promise<boolean> {
+  const [features, studioTrade] = await Promise.all([
+    db.doc(`tenantFeatures/${tenantId}`).get(),
+    trade ?? tenantTrade(db, tenantId),
+  ]);
   const native = NATIVE_SIGNING_GENERALLY_AVAILABLE || features.get("nativeContractSigning") === true;
-  return native && features.get("combinedAgreement") === true;
+  return native && (features.get("combinedAgreement") === true || tradeProfile(studioTrade).journey.oneLinkBooking);
 }
 
 type SectionWithHash = CombinedSection & { hash: string };
@@ -66,7 +78,12 @@ async function resolveCombined(
   context: CommandContext,
   input: z.infer<typeof combinedAgreementInput>,
 ) {
-  if (!(await combinedAgreementEnabled(db, context.tenantId))) throw new Error("COMBINED_AGREEMENT_NOT_ENABLED");
+  // The studio's trade names Part 2 (a photographer's "coverage", a vendor's
+  // "service" — combined.ts) and decides whether this is on by default. Read
+  // on preview and on send alike, so the document the studio signed is the
+  // one that goes.
+  const trade = await tenantTrade(db, context.tenantId);
+  if (!(await combinedAgreementEnabled(db, context.tenantId, trade))) throw new Error("COMBINED_AGREEMENT_NOT_ENABLED");
   const [project, proposal] = await Promise.all([
     db.doc(`projects/${input.projectId}`).get(),
     db.doc(`proposals/${input.proposalId}`).get(),
@@ -80,20 +97,14 @@ async function resolveCombined(
   )
     throw new Error("PROPOSAL_NOT_FOUND");
   if (!SENDABLE_PROPOSAL_STATUSES.has(String(proposal.get("status")))) throw new Error("PROPOSAL_NOT_SENDABLE");
-  // The studio's trade names Part 2: a photographer's "coverage", a
-  // vendor's "service" (combined.ts). Read on preview and on send alike, so
-  // the document the studio signed is the one that goes.
-  const [draft, trade] = await Promise.all([
-    resolveDraft(db, {
-      tenantId: context.tenantId,
-      projectId: input.projectId,
-      proposalId: input.proposalId,
-      templateVersionId: null,
-      overrides: input.overrides,
-      today: context.timestamp.slice(0, 10),
-    }),
-    tenantTrade(db, context.tenantId),
-  ]);
+  const draft = await resolveDraft(db, {
+    tenantId: context.tenantId,
+    projectId: input.projectId,
+    proposalId: input.proposalId,
+    templateVersionId: null,
+    overrides: input.overrides,
+    today: context.timestamp.slice(0, 10),
+  });
   const pricing = (proposal.get("pricingSnapshot") ?? {}) as Record<string, unknown>;
   const schedule = Array.isArray(proposal.get("paymentSchedule"))
     ? (proposal.get("paymentSchedule") as Array<Record<string, unknown>>)
@@ -127,6 +138,7 @@ async function resolveCombined(
     project,
     proposal,
     draft,
+    trade,
     document,
     documentHash: contractDocumentHash(document),
     sections,
@@ -344,7 +356,10 @@ export async function sendCombinedAgreement(
       ...(project.get("state") === "CONSULTATION"
         ? { state: "PROPOSAL", stateVersion: Number(project.get("stateVersion") ?? 0) + 1 }
         : {}),
-      nextAction: "Waiting for the couple to review and sign the booking agreement",
+      // A vendor's client signs and pays the deposit in the same visit.
+      nextAction: tradeProfile(resolved.trade).journey.oneLinkBooking
+        ? "Waiting for the client to sign the booking link and pay the deposit"
+        : "Waiting for the couple to review and sign the booking agreement",
       updatedAt: context.timestamp,
       updatedBy: context.actorId,
     });

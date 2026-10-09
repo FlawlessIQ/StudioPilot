@@ -821,6 +821,7 @@ export function TodayInbox() {
               </p>
             </header>
             <RecordFinalPayment
+              onTheDay={Boolean(settling.onTheDay)}
               singleBill={Boolean(settling.singleBill)}
               balanceLabel={settling.balanceCents ? formatCents(settling.balanceCents) : null}
               onRecorded={(message) => {

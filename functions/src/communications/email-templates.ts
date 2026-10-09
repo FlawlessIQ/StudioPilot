@@ -1090,6 +1090,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // vendor's client booked services, not coverage (trades.ts).
       const offer = tradeVocab(values.trade).proposal.toLowerCase();
       const booked = tradeProfile(values.trade).family === "photo" ? "coverage" : "services";
+      const oneLink = tradeProfile(values.trade).journey.oneLinkBooking;
       // One send, two signatures (H2): the terms and the price together,
       // before anything was accepted — not "the proposal you accepted".
       if (values.combined === true) {
@@ -1101,14 +1102,20 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           paragraphs: [
             greeting,
             `Everything for your booking${project} is in one agreement: Part 1 is ${brand.studioName}'s terms, Part 2 is your ${booked}, extras, total and payment schedule. You sign each part, and signing books it — there's no separate step to accept the ${offer}.`,
-            signerName
-              ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
-              : "Once you sign, you'll get a copy by email and the next step is your retainer.",
+            // A vendor's client pays the deposit on the next screen of the
+            // same visit (simpler vendor journeys): one link books the date.
+            oneLink
+              ? signerName
+                ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll pay your deposit on the next screen — that books your date — and get a copy by email.`
+                : "Once you sign, you'll pay your deposit on the next screen — that books your date — and get a copy by email."
+              : signerName
+                ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
+                : "Once you sign, you'll get a copy by email and the next step is your retainer.",
           ],
           action: actionUrl
-            ? { label: "Read and sign", url: actionUrl }
+            ? { label: oneLink ? "Review and book" : "Read and sign", url: actionUrl }
             : portalUrl
-              ? { label: "Read and sign", url: `${portalUrl.replace(/\/$/, "")}/contract` }
+              ? { label: oneLink ? "Review and book" : "Read and sign", url: `${portalUrl.replace(/\/$/, "")}/contract` }
               : undefined,
           note: "Something to change? Reply to this email before you sign.",
         };
@@ -1220,9 +1227,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `${clientName} signed`,
         paragraphs: [
           `${clientName} signed the agreement${project}, so it is complete.`,
-          values.retainerAutomatic === true
-            ? "StudioCue is raising the retainer invoice now, and the job books itself when it's paid."
-            : "The retainer is next. When it's paid, record it on the job and the booking confirms.",
+          tradeProfile(values.trade).journey.oneLinkBooking
+            ? values.retainerAutomatic === true
+              ? "They pay the deposit straight after signing; the job books itself when it's paid."
+              : "Raise the deposit invoice on the job so they can pay it; the booking confirms when it's paid."
+            : values.retainerAutomatic === true
+              ? "StudioCue is raising the retainer invoice now, and the job books itself when it's paid."
+              : "The retainer is next. When it's paid, record it on the job and the booking confirms.",
         ],
         action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
       };
@@ -1320,6 +1331,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // A DJ's planner or a makeup artist's party list, by its own name
       // (trades.ts `detailsForm`); a photographer's reads as it always did.
       const form = tradeVocab(values.trade).detailsForm;
+      // A vendor's client fills in this one form and the plan of the day is
+      // drawn from it (trades.ts `journey.oneForm`), so the request says so.
+      const oneForm = tradeProfile(values.trade).journey.oneForm && form;
+      const planName = tradeVocab(values.trade).planOfDay ?? "Plan";
+      const planWord = `${planName.charAt(0).toLowerCase()}${planName.slice(1)}`;
       return {
         subject: `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
         preheader: form ? `Complete your ${form}.` : "Complete your photography project questionnaire.",
@@ -1330,6 +1346,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           greeting,
           `We${reminder ? "'re still waiting for" : "'re ready to collect"} ${form ? `your ${form.toLowerCase()}` : "the planning information"}${project}. You can save your progress and return before submitting.`,
+          ...(oneForm && !reminder
+            ? [`It's the one form we need from you: we build your ${planWord} from it and send it to you, with nothing more to fill in or approve.`]
+            : []),
         ],
         action: actionUrl
           ? { label: form ? `Complete your ${form.toLowerCase()}` : "Complete questionnaire", url: actionUrl }
@@ -1603,6 +1622,38 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "schedule_review":
     case "final_schedule_published": {
       const final = input.key === "final_schedule_published";
+      /**
+       * A DJ's, makeup artist's or hair stylist's plan is published for the
+       * client to read, with nothing to approve (trades.ts
+       * `journey.scheduleApproval`; planning/schedule-lifecycle.ts): this is
+       * the "here's the plan" note, in the trade's words. A photographer's
+       * reads as it always did, below.
+       */
+      const readOnlyPlan = !tradeProfile(values.trade).journey.scheduleApproval;
+      if (readOnlyPlan) {
+        const planWords = tradeVocab(values.trade);
+        const Plan = planWords.planOfDay ?? "Schedule";
+        // "getting-ready schedule", "run of show & MC script": only the first letter drops.
+        const plan = `${Plan.charAt(0).toLowerCase()}${Plan.slice(1)}`;
+        // "The morning" → "morning", "The night" → "night".
+        const day = planWords.dayName.replace(/^the /i, "").toLowerCase();
+        return {
+          subject: final ? `${Plan} published — ${brand.studioName}` : `Here's the plan for your ${day} — ${brand.studioName}`,
+          preheader: final ? `Open the current ${plan}.` : `Your ${plan} is ready to read.`,
+          eyebrow: Plan,
+          heading: final ? `The ${plan} is published` : `Here's the plan for your ${day}`,
+          paragraphs: [
+            greeting,
+            final
+              ? `We've published the current ${plan}${project}. Please use this version on the day.`
+              : `We've put together your ${plan}${project} from what you told us. There's nothing you need to do.`,
+            final
+              ? "Relevant crew may be asked to acknowledge changes."
+              : "Keep it handy for the day, and message us if anything changes.",
+          ],
+          action: scheduleUrl ? { label: final ? `Open the ${plan}` : "See the plan", url: scheduleUrl } : undefined,
+        };
+      }
       return {
         // P20: the couple's portal offers no "approve" action — publishing is
         // the shared state — so this must not promise a review/approval step.
@@ -1813,6 +1864,37 @@ function copyFor(input: RenderEmailInput): EmailCopy {
        */
       const finalWords = tradeVocab(values.trade);
       const finalTrade = tradeProfile(values.trade);
+      /**
+       * Priced per person (makeup, hair): no call and nothing to read through,
+       * one question — still this many getting ready? — and one tap to say
+       * yes (planning/final-details.ts sends `headcount` from the party list).
+       * Anyone added goes on the party list first; nobody comes off it, as the
+       * agreement says (contracts/event-details.ts `headcountLock`).
+       */
+      if (finalTrade.perPersonPricing) {
+        const counted = Number(values.headcount);
+        const people = Number.isInteger(counted) && counted > 0 ? counted : null;
+        const who = people === 1 ? "person" : "people";
+        return {
+          subject: people
+            ? `Still ${people} getting ready? Please confirm with ${brand.studioName}`
+            : `Who's getting ready? Please confirm with ${brand.studioName}`,
+          preheader: "One tap to confirm your final headcount.",
+          eyebrow: "Final headcount",
+          heading: people ? `Still ${people} ${who} getting ready?` : "Who's getting ready?",
+          paragraphs: [
+            greeting,
+            people
+              ? `Your party list${project} has ${people} ${who} getting ready for your morning. If that's still everyone, one tap confirms it.`
+              : `Your party list${project} has nobody on it yet. Add everyone getting ready for your morning, then confirm.`,
+            "If anyone's been added, put them on your party list first. From here, people can be added but not taken off, as your agreement says.",
+          ],
+          action: portalUrl
+            ? { label: people ? `Yes, still ${people} — confirm` : "Add everyone and confirm", url: portalUrl }
+            : undefined,
+          note: portalUrl ? undefined : `Sign in to your ${brand.studioName} client portal to confirm.`,
+        };
+      }
       const beauty = finalTrade.family === "beauty";
       const wedding = stringValue(values, "eventKind") === "wedding";
       const summary =

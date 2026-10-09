@@ -86,7 +86,9 @@ test("the page's schedule is the schedulers' schedule (numbers inside the code)"
       `${file}: the crew offer window`,
     );
   assert.deepEqual(
-    captured("post-event/release.ts", /\[\[(\d+), "portal"\], \[(\d+), "email"\]\]/),
+    // The days; how each ask travels is the caller's (a delivery: portal then
+    // email; after a vendor's day, both by email).
+    captured("post-event/release.ts", /\[\[(\d+), first\], \[(\d+), second\]\]/),
     [...SCHEDULE.reviewAskDaysAfterDelivery],
     "the review asks",
   );

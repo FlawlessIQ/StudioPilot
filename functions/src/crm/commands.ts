@@ -8,6 +8,7 @@ import { requireAppCheck, requireIdentity } from "./security.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
 import { studioHubCors } from "../security/cors.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
+import { afterDayReviewAsks } from "../post-event/after-day-reviews.js";
 import { teamRoleForEmail } from "./team-email.js";
 import { afterConversion, convertInquiryToJob } from "../intake/convert.js";
 import { forwarderKey } from "../intake/short-address.js";
@@ -1769,7 +1770,21 @@ export const crmCommand = onRequest(
                 command.input.projectId,
               )
             : null;
+          // A trade that delivers nothing (a DJ, a makeup artist) is asked
+          // for its review after the day, as a photographer is after the
+          // gallery: the same two asks (post-event/after-day-reviews.ts).
+          // Reads first; a photographer's job reads and writes nothing here.
+          const afterDayReviews =
+            command.input.targetState === "EVENT_COMPLETE"
+              ? await afterDayReviewAsks(db, transaction, {
+                  project: projectSnapshot,
+                  tenant: tenantSnapshot,
+                  actorId: identity.uid,
+                  now: timestamp,
+                })
+              : null;
           transaction.update(projectReference, {
+            ...(afterDayReviews?.projectFields ?? {}),
             state: command.input.targetState,
             stateVersion: project.stateVersion + 1,
             // Kept on the project, not only in the audit log, so the job page
@@ -1797,6 +1812,7 @@ export const crmCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          for (const write of afterDayReviews?.writes ?? []) write();
           const agreementsClosed = cancelling
             ? writeStoppedAgreements(db, transaction, {
                 contracts: contractReads,
@@ -1997,6 +2013,7 @@ export const crmCommand = onRequest(
               ...(billingClosed ? { billingClosed } : {}),
               ...(agreementsClosed ? { agreementsClosed } : {}),
               ...(cancelling ? { crewWithdrawn: withdrawn, calendarRemovalQueued, clientTold } : {}),
+              ...(afterDayReviews?.scheduled ? { reviewRequestsScheduled: afterDayReviews.scheduled } : {}),
             },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
@@ -2011,6 +2028,7 @@ export const crmCommand = onRequest(
             ...(billingClosed ? { billingClosed } : {}),
             ...(agreementsClosed ? { agreementsClosed } : {}),
             ...(cancelling ? { crewWithdrawn: withdrawn.length, clientTold } : {}),
+            ...(afterDayReviews?.scheduled ? { reviewRequestsScheduled: afterDayReviews.scheduled } : {}),
           };
           transaction.create(commandReference, {
             tenantId: command.tenantId,

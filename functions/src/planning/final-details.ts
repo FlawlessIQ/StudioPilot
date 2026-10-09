@@ -11,6 +11,8 @@ import { mintBookingLink } from "../booking/booking-link.js";
 import { FINAL_DETAILS_PURPOSE } from "../booking/consultation-purpose.js";
 import { getConsultationSettings } from "../booking/availability.js";
 import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
+import { tradeOf, tradeProfile } from "../trades/trades.js";
+import { headcountNames, type BeautyService } from "./party-list.js";
 
 /**
  * The couple's final details, confirmed when they lock.
@@ -27,6 +29,12 @@ import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
  *   accepted while still awaiting refreshes the snapshot they will confirm.
  *
  * Never for a quiet job (imported, paused, cancelled, on hold, archived).
+ *
+ * A client priced per person (makeup, hair; trades.ts `perPersonPricing`) is
+ * asked one thing instead: still this many getting ready? The sign-off is
+ * `kind: "headcount"`, carries the names on their party list, and is
+ * confirmed in one tap (server/planning/final-details.ts). No call is booked:
+ * Phase 2 of simpler vendor journeys (Conor, 2026-10-09).
  */
 
 type Row = Record<string, unknown>;
@@ -43,11 +51,29 @@ export type FinalDetailsSnapshot = {
   responseIds: string[];
   scheduleId: string | null;
   scheduleVersion: number | null;
+  /** A per-person client's party list: who counts toward the headcount. Absent for everyone else. */
+  people?: string[];
 };
 
-/** The snapshot's hash: what the couple confirmed, exactly. */
+/** The snapshot's hash: what the couple confirmed, exactly. The names count when there are any. */
 export function finalDetailsHash(snapshot: FinalDetailsSnapshot): string {
-  return createHash("sha256").update(JSON.stringify({ rows: snapshot.rows, timeline: snapshot.timeline })).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify({ rows: snapshot.rows, timeline: snapshot.timeline, ...(snapshot.people ? { people: snapshot.people } : {}) }))
+    .digest("hex");
+}
+
+/** The studio's own service, for reading a party list (party-list.ts). */
+export const ownService = (trade: unknown): BeautyService => (tradeOf(trade) === "hair" ? "hair" : "makeup");
+
+/**
+ * The names on a per-person client's party list: the newest returned answer
+ * to "party-list" (recommended-templates.ts), one person per line, counting
+ * only those having the studio's service.
+ */
+export function partyPeople(answers: ReadonlyArray<unknown>, trade: unknown): string[] {
+  let list = "";
+  for (const value of answers) if (typeof value === "string" && value.trim()) list = value;
+  return headcountNames(list, ownService(trade));
 }
 
 function clock(iso: string, timezone: string): string {
@@ -102,12 +128,15 @@ export async function finalDetailsSnapshot(db: Firestore, tenantId: string, proj
     trade: text(tenant.get("trade")) || null,
   });
   const schedule = schedules.docs.find((candidate) => !["superseded", "draft"].includes(text(candidate.get("status")))) ?? null;
+  const perPerson = tradeProfile(tenant.get("trade")).perPersonPricing;
   return {
     rows: details.rows,
     timeline: coupleTimeline(schedule?.data() ?? null),
     responseIds: returned.map((response) => response.id),
     scheduleId: schedule?.id ?? null,
     scheduleVersion: schedule ? Number(schedule.get("version") ?? 0) || null : null,
+    // Oldest first, so the newest party list wins.
+    ...(perPerson ? { people: partyPeople(returned.map((response) => record(response.get("answers"))["party-list"]), tenant.get("trade")) } : {}),
   };
 }
 
@@ -161,17 +190,23 @@ async function openSignoff(
   lockOn: string,
   timeline: PlanningTimeline,
   now: string,
+  trade: unknown = null,
 ): Promise<string> {
   const tenantId = text(project.get("tenantId"));
   const reference = db.doc(`detailSignoffs/${detailSignoffId(tenantId, project.id)}`);
   if ((await reference.get()).exists) return "exists";
   const snapshot = await finalDetailsSnapshot(db, tenantId, project.id);
   const emailId = `final_details_request_${tenantId}_${project.id}`;
-  const call = await finalCallLink(db, project, timeline, now).catch((caught: unknown) => {
-    // The sign-off goes out regardless; the call can be offered by hand.
-    console.error(JSON.stringify({ severity: "ERROR", event: "final_call.link_failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));
-    return null;
-  });
+  // Priced per person: the headcount in one tap, and no call to book.
+  const headcount = tradeProfile(trade).perPersonPricing ? (snapshot.people ?? []).length : null;
+  const call =
+    headcount !== null
+      ? null
+      : await finalCallLink(db, project, timeline, now).catch((caught: unknown) => {
+          // The sign-off goes out regardless; the call can be offered by hand.
+          console.error(JSON.stringify({ severity: "ERROR", event: "final_call.link_failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));
+          return null;
+        });
   const batch = db.batch();
   if (call) batch.set(db.doc(`consultationBookingLinks/${call.linkId}`), call.record);
   batch.create(reference, {
@@ -180,6 +215,7 @@ async function openSignoff(
     projectId: project.id,
     status: "awaiting_couple",
     lockOn,
+    ...(headcount !== null ? { kind: "headcount", headcount } : {}),
     snapshot,
     snapshotHash: finalDetailsHash(snapshot),
     changes: [],
@@ -196,6 +232,8 @@ async function openSignoff(
     portalUrl: `${appUrl()}/client?final-details=1`,
     // The second button: book the final details call.
     finalCallUrl: call?.bookingUrl ?? null,
+    // Per person: "Still N getting ready?" (communications/email-templates.ts).
+    ...(headcount !== null ? { headcount } : {}),
     clientOutreachGuard: true,
     status: "queued",
     attempts: 0,
@@ -216,7 +254,8 @@ export const finalDetailsScheduler = onSchedule(
     const now = nowDate.toISOString();
     // The longest lock a studio can choose is 90 days.
     const horizon = new Date(nowDate.valueOf() + 91 * 86_400_000).toISOString().slice(0, 10);
-    const timelines = new Map<string, Promise<ReturnType<typeof resolvePlanningTimeline>>>();
+    // Each studio's timeline and trade, read once per sweep.
+    const studios = new Map<string, Promise<{ timeline: ReturnType<typeof resolvePlanningTimeline>; trade: unknown }>>();
     const tally: Record<string, number> = {};
     const page = await db.collection("projects").where("eventDate", ">=", today).where("eventDate", "<=", horizon).orderBy("eventDate").limit(1000).get();
     for (const project of page.docs) {
@@ -229,12 +268,18 @@ export const finalDetailsScheduler = onSchedule(
       // session or a game has neither (job-kinds.ts).
       if (!finalDetailsLockApplies(data)) continue;
       try {
-        if (!timelines.has(tenantId))
-          timelines.set(tenantId, db.doc(`tenants/${tenantId}`).get().then((tenant) => resolvePlanningTimeline(tenant.get("planningTimeline"))));
-        const timeline = await timelines.get(tenantId)!;
+        if (!studios.has(tenantId))
+          studios.set(
+            tenantId,
+            db.doc(`tenants/${tenantId}`).get().then((tenant) => ({
+              timeline: resolvePlanningTimeline(tenant.get("planningTimeline")),
+              trade: tenant.get("trade") ?? null,
+            })),
+          );
+        const { timeline, trade } = await studios.get(tenantId)!;
         const lockOn = detailsLockOn(text(data.eventDate), timeline);
         if (!lockOn || today < lockOn) continue;
-        const outcome = await openSignoff(db, project, lockOn, timeline, now);
+        const outcome = await openSignoff(db, project, lockOn, timeline, now, trade);
         tally[outcome] = (tally[outcome] ?? 0) + 1;
       } catch (caught) {
         tally.failed = (tally.failed ?? 0) + 1;

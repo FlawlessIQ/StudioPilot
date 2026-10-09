@@ -265,6 +265,21 @@ const choice = (id: string, label: string, options: string[], extras: Extras = {
 });
 
 /**
+ * One of the event details form's own questions, as it asks it, for a form
+ * that folds it in. Same id and same words, so an earlier answer fills it in
+ * (functions/src/planning/job-facts.ts matches by question), Schedule A and
+ * the details lock read it as they always have (contracts/event-details.ts),
+ * and the day's plan finds it by id.
+ */
+function eventDetailField(id: string, change: Partial<RecommendedField> = {}): RecommendedField {
+  const found = eventDetailSections(false)
+    .flatMap((section) => section.fields)
+    .find((candidate) => candidate.id === id);
+  if (!found) throw new Error(`No event details question ${id}`);
+  return { ...found, ...change };
+}
+
+/**
  * A DJ's music and moments planner (docs/vendor-journeys.md, from Check
  * Cherry's study of 765 real DJ questionnaires and DJ planning forms).
  *
@@ -273,8 +288,28 @@ const choice = (id: string, label: string, options: string[], extras: Extras = {
  * names are the point: a mispronounced name is a DJ's signature failure.
  * Ids match the moments of the run of show (features/schedules/mc-script.ts),
  * so the songs and announcements land on the right lines of the MC script.
+ *
+ * It is the couple's one form (trades.ts `journey.oneForm`; Conor,
+ * 2026-10-09), so it opens with the few things the event details form asked
+ * that the night is laid out from (features/schedules/night-plan.ts): where
+ * the ceremony and the reception are, and when they start and end. The venue
+ * coordinator below is the contact on the night.
  */
 const MUSIC_PLANNER: RecommendedSection[] = [
+  {
+    id: "where-and-when",
+    title: "Where and when",
+    fields: [
+      eventDetailField("ceremony-location", {
+        required: false,
+        help: "Skip the ceremony questions if we're not playing your ceremony.",
+      }),
+      eventDetailField("ceremony-time", { required: false }),
+      eventDetailField("reception-location"),
+      eventDetailField("reception-time"),
+      eventDetailField("reception-end-time", { help: "When the music stops." }),
+    ],
+  },
   {
     id: "ceremony-music",
     title: "Ceremony music",
@@ -345,6 +380,10 @@ const MUSIC_PLANNER: RecommendedSection[] = [
  * is getting ready, what each wants, and the times the chair schedule is
  * worked back from. One person per line, because a form has no rows to add;
  * features/schedules/party-list.ts reads the lines.
+ *
+ * It is the client's one form (trades.ts `journey.oneForm`), so it carries
+ * what the event details form asked that the morning needs: where, the
+ * ready-by time, and someone to call on the morning.
  */
 const PARTY_LIST: RecommendedSection[] = [
   {
@@ -359,6 +398,9 @@ const PARTY_LIST: RecommendedSection[] = [
       }),
       field("getting-ready", "Where you're getting ready", "address", true),
       field("parking-notes", "Room number and parking", "text", false),
+      field("day-of-contact", "Your day-of contact — name and phone", "text", false, {
+        help: "Who we call on the morning if it isn't you: a bridesmaid, your mom or your planner.",
+      }),
     ],
   },
   {
@@ -468,7 +510,7 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       id: "dj-music-planner",
       name: "Music & moments planner",
       summary:
-        "The songs for every moment, the names you'll say on the mic with how to say them, the toast order, and the dance floor: must-plays, do-not-plays and requests.",
+        "Where and when, the songs for every moment, the names you'll say on the mic with how to say them, the toast order, and the dance floor: must-plays, do-not-plays and requests. Your run of show is laid out from it.",
       useIt: "Your planning form: it goes out when they book, and locks ten days before.",
       eventTypeId: "wedding",
       trades: ["dj"],
@@ -514,15 +556,49 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
 const CAMERA_SECTIONS: ReadonlySet<string> = new Set(["coverage"]);
 const CAMERA_TRADES: readonly string[] = ["photographer"];
 
-/** The recommended forms for a studio of this trade. */
-export function recommendedFor(trade: string): RecommendedQuestionnaire[] {
+/**
+ * The trades whose client fills in one form — the party list, the music
+ * planner — and nothing else (trades.ts `journey.oneForm`; Conor, 2026-10-09:
+ * a vendor's journey "should be easier and less burdensome"). Restated here
+ * so this module keeps no imports, which is what lets the functions copy be
+ * compared as text; tests/vendor-phase2-planning.test.ts checks it against
+ * the trade profiles.
+ */
+export const ONE_FORM_TRADES: readonly string[] = ["dj", "makeup", "hair"];
+
+const EVENT_DETAILS_ID = "wedding-event-details";
+
+/**
+ * Every recommended form a studio of this trade can look through and copy,
+ * on the questionnaire library. A one-form trade's library still offers the
+ * event details form, as something to copy if they want it; it is not one
+ * they start with (`recommendedFor`).
+ */
+export function recommendedLibraryFor(trade: string): RecommendedQuestionnaire[] {
   return recommendedQuestionnaires()
     .filter((form) => !form.trades || form.trades.includes(trade))
     .map((form) =>
       CAMERA_TRADES.includes(trade)
         ? form
         : { ...form, sections: form.sections.filter((section) => !CAMERA_SECTIONS.has(section.id)) },
+    )
+    .map((form) =>
+      form.id === EVENT_DETAILS_ID && ONE_FORM_TRADES.includes(trade)
+        ? { ...form, useIt: "Optional: your planning form already asks where and when. Copy it if you'd like more from new inquiries." }
+        : form,
     );
+}
+
+/**
+ * The recommended forms a studio of this trade starts with, switched on
+ * (saas/onboarding.ts). A photographer's three. A one-form trade's own form
+ * alone: the event details form it was also given asked the same where and
+ * when again, a second form for a client who should fill in one.
+ */
+export function recommendedFor(trade: string): RecommendedQuestionnaire[] {
+  return recommendedLibraryFor(trade).filter(
+    (form) => !(form.id === EVENT_DETAILS_ID && ONE_FORM_TRADES.includes(trade)),
+  );
 }
 
 /** How many questions a form asks. */

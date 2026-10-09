@@ -8,10 +8,11 @@ import type { DayPlan, PlanRow } from "./day-plan";
  * first look and family photos. A DJ's is the ceremony music and the
  * reception's running order: grand entrance, first dance, dinner, toasts,
  * parent dances, cake, open dancing, last dance, send-off — the order from
- * the research, anchored on the times the couple gave on their event
- * details form. Every line is marked as suggested unless the couple gave its
- * time, and every line is the DJ's to move. Returned as a DayPlan, so the
- * editor turns it into lines exactly as it does a day.
+ * the research, anchored on the times the couple gave on their Music &
+ * moments planner (or an event details form). Every line is marked as
+ * suggested unless the couple gave its time, and every line is the DJ's to
+ * move. Returned as a DayPlan, so the editor turns it into lines exactly as it
+ * does a day.
  *
  * Pure.
  */
@@ -22,7 +23,8 @@ const KEYS = {
   reception: ["reception-time", "entrances-time", "receptionTime"],
   dinner: ["dinner-time", "dinnerTime"],
   cake: ["cake-cutting-time", "cake-cutting", "cakeCuttingTime"],
-  end: ["coverageEndTime", "coverage-end-time", "end-time", "coverageEndsAt"],
+  // The planner's "Reception end time" (recommended-templates.ts): when the music stops.
+  end: ["coverageEndTime", "coverage-end-time", "end-time", "coverageEndsAt", "reception-end-time"],
   ceremonyPlace: ["ceremony-location", "ceremony-address", "ceremonyLocation"],
   receptionPlace: ["reception-location", "reception-address", "receptionLocation", "venue-address"],
 } as const;
@@ -70,7 +72,7 @@ export function planNight(input: {
       rows: [],
       coverageStart: null,
       coverageEnd: null,
-      notes: ["Add the ceremony or reception time on their event details form, then lay out the night."],
+      notes: ["Add the ceremony or reception time from their planner, then lay out the night."],
       withheld: 0,
     };
   }

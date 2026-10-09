@@ -34,12 +34,18 @@ export function ProjectPlanningCopilot({
   schedules,
   insurance,
   invoices,
+  insuranceExpected = true,
 }: {
   projectId: string;
   questionnaires: PlanningRecord[];
   schedules: PlanningRecord[];
   insurance: PlanningRecord[];
   invoices: PlanningRecord[];
+  /**
+   * The job needs venue insurance (job-kinds.ts `journeyFor(...).coi`). A
+   * vendor's doesn't until the venue asks, so it is not offered as a step.
+   */
+  insuranceExpected?: boolean;
 }) {
   const questionnaire = newest(
     questionnaires.filter((item) =>
@@ -91,7 +97,11 @@ export function ProjectPlanningCopilot({
             state: "complete",
             icon: CalendarClock,
           },
-    !coi
+    // No insurance step on a job that doesn't need it (a vendor's, until the
+    // venue asks); a certificate already under way is always shown.
+    ...(!coi && !insuranceExpected
+      ? []
+      : [(!coi
       ? {
           id: "coi",
           label: "Prepare venue insurance",
@@ -116,7 +126,7 @@ export function ProjectPlanningCopilot({
           href: `/studio/insurance?project=${projectId}`,
           state: String(coi.status) === "approved" ? "ready" : "watching",
           icon: ShieldCheck,
-        },
+        }) as PreparedStep]),
     finalInvoice
       ? {
           id: "invoice",

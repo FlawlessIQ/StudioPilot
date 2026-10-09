@@ -141,7 +141,10 @@ test("a new studio starts with its trade's plan and nothing photographic", () =>
   assert.match(onboarding, /trade: trade\.trade,/);
   assert.match(onboarding, /recommendedFor\(trade\.trade\)/);
   assert.match(onboarding, /subscriptionPlan: planKey/);
-  assert.match(onboarding, /day_before_checklist: \{ enabled: false/);
+  // Only the routine messages the trade's journey uses (simpler vendor journeys).
+  assert.match(onboarding, /day_before_checklist: \{ enabled: trade\.clientDayBefore,/);
+  assert.match(onboarding, /schedule_confirmation: \{ enabled: false,/);
+  assert.match(onboarding, /final_invoice_notice: \{ enabled: !trade\.journey\.balanceOnTheDay,/);
   assert.match(onboarding, /for \(const starter of photographer \? starterQuestionnaires\(\) : \[\]\)/);
   // Signup offers live trades only, and a `?trade=` link can preselect another.
   const form = read("features/auth/onboarding-form.tsx");

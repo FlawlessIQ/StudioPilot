@@ -16,6 +16,7 @@
  * records and journey positions.
  */
 
+import { balanceCollectedOnTheDay, morningBalance } from "@/features/billing/balance-on-the-day";
 import {
   amountWeight,
   proximityWeight,
@@ -90,6 +91,8 @@ export type TodayAction =
       balanceCents: number | null;
       /** The job's one bill (paid on the day, or invoiced after), not a balance after a retainer. */
       singleBill?: boolean;
+      /** Collected on the morning (makeup, hair): record it in one tap (record-final-payment.tsx). */
+      onTheDay?: boolean;
     }
   | {
       /**
@@ -1187,7 +1190,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
       id: `final-details-${signoff.id}`,
       lane: "act",
       kind: "schedule",
-      title: `${couple} haven't confirmed their final details`,
+      // Makeup and hair confirm a headcount in one tap, not the full details.
+      title: `${couple} haven't confirmed their ${text(signoff.kind) === "headcount" ? "final headcount" : "final details"}`,
       detail: "They were asked when the details locked. A quick message usually does it.",
       evidence: "Final details sign-off",
       projectId,
@@ -1795,6 +1799,54 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // owes nothing more. Paid on the day or invoiced after is one bill for
     // the whole price, offered when it falls due (job-kinds.ts).
     const profile = projectProfile(job);
+    // Makeup and hair: the balance is collected on the morning and never
+    // billed ahead (simpler vendor journeys; billing/balance-on-the-day.ts).
+    // The card is the morning's, with the amount they agreed to.
+    if (balanceCollectedOnTheDay(job, input.tenantTrade)) {
+      const morning = morningBalance({
+        project: job,
+        trade: input.tenantTrade,
+        proposals: rows(input.proposals).filter((proposal) => text(proposal.projectId) === job.id),
+        invoices: rows(input.invoiceReferences).filter((invoice) => text(invoice.projectId) === job.id),
+        today: input.now.slice(0, 10),
+      });
+      if (morning && (morning.today || morning.past)) {
+        finalBalanceProjectIds.add(job.id);
+        const owed = new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: morning.currency,
+          minimumFractionDigits: morning.amountCents % 100 ? 2 : 0,
+        }).format(morning.amountCents / 100);
+        act.push({
+          id: `final-balance-${job.id}`,
+          lane: "act",
+          kind: "invoice",
+          title: morning.today
+            ? `Collect ${clientOf(job)}'s balance today · ${owed}`
+            : `${clientOf(job)}'s balance is still owed · ${owed}`,
+          detail: morning.today
+            ? "Due this morning. Once they've paid — card, cash, Venmo or Zelle — record it in one tap."
+            : "The day has passed and it isn't recorded. Record it if they paid, or follow up with them.",
+          evidence: null,
+          projectId: job.id,
+          projectName: text(job.name) || null,
+          action: {
+            kind: "final_balance",
+            label: "Record the payment",
+            projectId: job.id,
+            packageSnapshotId: text(job.packageSnapshotId) || null,
+            balanceCents: morning.amountCents,
+            onTheDay: true,
+          },
+          jobHref: `/studio/projects/${job.id}`,
+          facts: [eventFact(text(job.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),
+          band: bandFor({ eventDate: text(job.eventDate) || null, dueDate: morning.eventDate, now }),
+          eventDate: text(job.eventDate) || null,
+          score: score({ lane: "act", severity: "step", eventDate: text(job.eventDate) || null, updatedAt: changedAt(job), now }),
+        });
+      }
+      continue;
+    }
     const singleBill = hasFinalBalance(profile) ? null : singleBillWindow(job, input.now.slice(0, 10));
     if (hasFinalBalance(profile)) {
       const days = calendarDayDiff(text(job.eventDate) || null, now);
