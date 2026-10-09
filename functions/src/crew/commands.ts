@@ -15,6 +15,13 @@ import { assignmentIcs, assignmentPlace } from "./calendar-ics.js";
 import { isLiveAssignment } from "./job-stopped.js";
 import { withdrawalPlan } from "./withdraw.js";
 import {
+  EXTENSION_PLANS,
+  EXTENSION_PLAN_LABELS,
+  extensionTasksFor,
+  extensionsOrderTaskId,
+  extensionsReturnTaskId,
+} from "../trades/extensions.js";
+import {
   appUrl,
   cascadeAssignment,
   crewInvitationEmailFields,
@@ -207,6 +214,9 @@ const command = z.discriminatedUnion("type", [
       projectId: z.string(),
       look: z.string().trim().max(1500).default(""),
       products: z.string().trim().max(1500).default(""),
+      // A hair trial's extensions plan and color match (trades/extensions.ts).
+      extensions: z.enum(EXTENSION_PLANS).nullable().default(null),
+      colorMatch: z.string().trim().max(200).default(""),
     }),
   }),
   z.object({
@@ -1579,16 +1589,44 @@ export const crewCommand = onRequest(
         if (!projectDoc.exists || projectDoc.get("tenantId") !== parsed.tenantId)
           throw new Error("PROJECT_NOT_FOUND");
         const now = new Date().toISOString();
-        const { look, products } = parsed.input;
+        const { look, products, colorMatch } = parsed.input;
+        const extensions = parsed.input.extensions;
+        const extensionLine =
+          extensions && extensions !== "none"
+            ? `${EXTENSION_PLAN_LABELS[extensions]}${colorMatch ? ` — color match ${colorMatch}` : ""}`
+            : "";
+        const saved = Boolean(look || products || extensionLine || colorMatch);
         const briefReference = db.doc(`crewBriefs/trial_${parsed.input.projectId}`);
+        // Extensions bought or rented need ordering, and a rental collecting
+        // afterward: tasks with fixed ids, so saving again moves them rather
+        // than adding more, and a plan changed to none cancels them.
+        const wanted = extensionTasksFor({
+          projectId: parsed.input.projectId,
+          eventDate: projectDoc.get("eventDate"),
+          plan: extensions,
+          colorMatch: colorMatch || null,
+          clientName: typeof projectDoc.get("name") === "string" ? projectDoc.get("name") : null,
+          today: now.slice(0, 10),
+        });
+        const taskIds = [extensionsOrderTaskId(parsed.input.projectId), extensionsReturnTaskId(parsed.input.projectId)];
+        const existing = await Promise.all(taskIds.map((id) => db.doc(`tasks/${id}`).get()));
         const batch = db.batch();
         batch.update(projectReference, {
-          trialNotes: look || products ? { look: look || null, products: products || null, updatedAt: now, updatedBy: identity.uid } : null,
+          trialNotes: saved
+            ? {
+                look: look || null,
+                products: products || null,
+                extensions: extensions ?? null,
+                colorMatch: colorMatch || null,
+                updatedAt: now,
+                updatedBy: identity.uid,
+              }
+            : null,
           updatedAt: now,
           updatedBy: identity.uid,
         });
         // On the crew's brief with the client's own answers (crew/client-brief.tsx).
-        if (look || products)
+        if (look || products || extensionLine)
           batch.set(briefReference, {
             id: briefReference.id,
             tenantId: parsed.tenantId,
@@ -1598,13 +1636,55 @@ export const crewCommand = onRequest(
             onTheDay: [
               ...(look ? [{ fieldId: "trial-look", label: "The look", text: look }] : []),
               ...(products ? [{ fieldId: "trial-products", label: "Products used", text: products }] : []),
+              ...(extensionLine ? [{ fieldId: "trial-extensions", label: "Extensions", text: extensionLine }] : []),
             ],
             submittedAt: now,
             updatedAt: now,
           });
         else batch.delete(briefReference);
+        for (const [index, snapshot] of existing.entries()) {
+          const task = wanted.find((candidate) => candidate.id === taskIds[index]);
+          const status = String(snapshot.get("status") ?? "");
+          if (task && !snapshot.exists) {
+            batch.set(snapshot.ref, {
+              id: task.id,
+              tenantId: parsed.tenantId,
+              projectId: parsed.input.projectId,
+              workflowRunId: null,
+              checkpointId: null,
+              title: task.title,
+              description: task.description,
+              assignedUserId: null,
+              assignedRole: null,
+              dueDate: task.dueDate,
+              priority: "normal",
+              blocking: false,
+              source: "trial_extensions",
+              status: "not_started",
+              completedAt: null,
+              completedBy: null,
+              createdAt: now,
+              updatedAt: now,
+              createdBy: identity.uid,
+              updatedBy: identity.uid,
+              archivedAt: null,
+            });
+          } else if (task && status !== "complete" && status !== "completed") {
+            // Still open, or cancelled when the plan was none: bring it up to date.
+            batch.update(snapshot.ref, {
+              title: task.title,
+              description: task.description,
+              dueDate: task.dueDate,
+              ...(status === "cancelled" ? { status: "not_started", cancelledAt: null, cancelledBy: null } : {}),
+              updatedAt: now,
+              updatedBy: identity.uid,
+            });
+          } else if (!task && snapshot.exists && !["complete", "completed", "cancelled"].includes(status)) {
+            batch.update(snapshot.ref, { status: "cancelled", cancelledAt: now, cancelledBy: identity.uid, updatedAt: now, updatedBy: identity.uid });
+          }
+        }
         await batch.commit();
-        result = { projectId: parsed.input.projectId, saved: Boolean(look || products) };
+        result = { projectId: parsed.input.projectId, saved, extensionTasks: wanted.map((task) => task.id) };
       } else if (parsed.type === "withdrawAssignment") {
         /**
          * Withdraw one crew member, or replace them.

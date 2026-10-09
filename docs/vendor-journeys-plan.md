@@ -48,6 +48,14 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
   - **Help:** six makeup and hair glossary terms. How-to guides per trade stay in Phase 6.
   - **Walked in the emulator** as a makeup studio: inquiry → "Prepare quote" with no call → package from the example → locked → draft created at Lead (the job stepped to Consultation) → 4 bridesmaids at $120 read "4 people × $120.00", total $1,130. The agreement editor opened on the makeup starter; add-on chips worked at phone width.
   - **Not yet:** a DJ's agreement preview still uses the photographer sample; the package form still says "Deliverables" and "Coverage hours".
+- **Phase 5 (hair) shipped 2026-10-09.**
+  - **Extensions** (`features/trades/extensions.ts`): the stylist notes the plan (none, their own, buying, renting) and the color match on the trial card. Buying or renting makes an order task due eight weeks out, which reaches Today in the six-to-eight-week window (due today when the booking is already late). A rental also gets a task to collect them four days after. The tasks have fixed ids, so saving again moves them, and a plan changed to none cancels them. The journey's "Extensions ordered" step reads the order task. The crew's brief carries "Extensions: Renting them — color match …".
+  - **The veil:** a hair trial is "best once the veil is chosen", on the journey step, the trial card and the trial invitation.
+  - **Prep guide:** clean, completely dry hair washed the night before, or a blow-dry fee.
+  - **Party list:** `hair-party-list` adds length, texture, style, extensions, veil and accessories.
+  - **Help and Cue:** an "Extensions ordered" glossary term; Cue is told extensions are settled at the trial and ordered eight weeks out.
+  - Example packages and extras for hair came with Phase 4.
+  - **Walked in the emulator** as a hair studio: the trial card showed the veil hint and the extensions choice. Saving a rental with a color match made both tasks and the brief line, and marking the order done completed the journey step.
 
 ## Principles
 

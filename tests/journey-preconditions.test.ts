@@ -100,6 +100,13 @@ function* journeys(): Generator<JourneyInput> {
                   // Each trade (features/trades/trades.ts): a DJ or makeup
                   // artist has no delivery, so the review follows the day.
                   trade: TRADES[(STATES.indexOf(state) + CONTRACT.indexOf(contractStatus)) % TRADES.length],
+                  // Hair extensions to order (features/trades/extensions.ts):
+                  // none, due and open, or ordered.
+                  extensions: [
+                    null,
+                    { plan: "buy", colorMatch: "#6/8", ordered: false, orderBy: "2027-04-17" },
+                    { plan: "rent", colorMatch: null, ordered: true, orderBy: "2027-04-17" },
+                  ][(STATES.indexOf(state) + SCHEDULE.indexOf(scheduleStatus)) % 3] as JourneyInput["extensions"],
                 };
               }
             }

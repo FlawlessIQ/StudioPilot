@@ -21,6 +21,9 @@ export function tradeInstruction(trade: unknown): string {
       ? ""
       : ` There is no sales call: an inquiry gets a ${words.proposal.toLowerCase()}${words.trial ? `, and the ${words.trial.toLowerCase()} is where the look is settled` : ""}. Never offer to schedule a consultation or a call to talk it through; offer the ${words.proposal.toLowerCase()}${words.trial ? ` and the ${words.trial.toLowerCase()}` : ""} instead.`,
     words.proposal === "Proposal" ? "" : ` Call the proposal a ${words.proposal.toLowerCase()}.`,
+    profile.extensions
+      ? " Hair extensions are settled at the trial and noted on the job's trial card; extensions to buy or rent are ordered about eight weeks before the day."
+      : "",
     profile.delivery ? "" : " Nothing is delivered after the event — no gallery, album, editing or film — so after the event the only steps are the review and closing the job.",
     ` Never call this studio a photographer or mention photography, photos, galleries, albums or a shoot, to the operator or in anything written to clients.`,
     ` For this studio StudioCue staffs ${roles} only; a crew role must name one.`,

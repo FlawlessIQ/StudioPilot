@@ -28,6 +28,7 @@ export type JourneyStepKey =
   | "run_of_show"
   | "final_call"
   | "crew"
+  | "extensions"
   | "coi"
   | "final_balance"
   | "day_before"
@@ -105,6 +106,8 @@ export const journeyStepRequires: Record<
   // studio does first, and nothing it offers before then.
   final_call: [],
   crew: [],
+  // Hair extensions to order, logged at the trial (features/trades/extensions.ts).
+  extensions: [],
   coi: [],
   final_balance: [],
   day_before: [],
@@ -268,6 +271,12 @@ export type JourneyInput = {
   } | null;
   /** A makeup or hair trial (features/consultations/trial.ts); only read for a trade with one. */
   trial?: { state: "not_booked" | "booked" | "held"; startsAt: string | null } | null;
+  /**
+   * Hair extensions to buy or rent, from the trial notes, and whether the
+   * order task is done (features/trades/extensions.ts). Null or absent: none
+   * to order, and no step.
+   */
+  extensions?: { plan: "buy" | "rent"; colorMatch: string | null; ordered: boolean; orderBy: string | null } | null;
   /**
    * The couple's answer to the current version: "client_pending",
    * "client_approved" or "changes_requested".
@@ -801,7 +810,7 @@ export function projectJourney(input: JourneyInput): {
           ? `Done${trialWhen ? ` ${trialWhen}` : ""} — the look goes on their day sheet`
           : trial.state === "booked"
             ? `Booked${trialWhen ? ` for ${trialWhen}` : ""}`
-            : `Optional — invite them from the ${trialWord} card on this job whenever suits`,
+            : `Optional — invite them from the ${trialWord} card on this job${tradeWords.trialHint ? `, ${tradeWords.trialHint}` : " whenever suits"}`,
       // Never "current": an optional step must not take the next-move card.
       // The button lives on the job's own trial card.
       status: trial.state === "held" ? "complete" : prepStatus("upcoming"),
@@ -1036,6 +1045,25 @@ export function projectJourney(input: JourneyInput): {
           href: project("/studio/crew"),
         }),
   });
+
+  // Hair extensions bought or rented for the day (features/trades/extensions.ts):
+  // the order is due eight weeks out, and its task is the button.
+  const extensions = input.extensions;
+  if (extensions) {
+    const orderDue = extensions.orderBy !== null && input.today >= extensions.orderBy;
+    push({
+      key: "extensions",
+      title: "Extensions ordered",
+      detail: extensions.ordered
+        ? `Ordered${extensions.colorMatch ? ` — ${extensions.colorMatch}` : ""}`
+        : `${extensions.plan === "rent" ? "Rental" : "To buy"}${extensions.colorMatch ? `, ${extensions.colorMatch}` : ""} — order by ${extensions.orderBy ?? "eight weeks out"}`,
+      status: extensions.ordered ? "complete" : eventBehindThem ? "passed" : orderDue ? "current" : "upcoming",
+      action:
+        !extensions.ordered && !eventBehindThem && orderDue
+          ? { kind: "link", label: "Open the task", href: project("/studio/tasks") }
+          : null,
+    });
+  }
 
   // A venue that never asked for a certificate is not a job with an
   // outstanding certificate. This step used to sit "current" for ever on
@@ -1357,6 +1385,7 @@ export function projectJourney(input: JourneyInput): {
     run_of_show: { label: "Open schedule", href: project("/studio/schedules") },
     final_call: { label: "Open calendar", href: project("/studio/calendar") },
     crew: { label: "Open crew", href: project("/studio/crew") },
+    extensions: { label: "Open tasks", href: project("/studio/tasks") },
     coi: { label: "Open insurance", href: project("/studio/insurance") },
     final_balance: { label: "Open invoices", href: project("/studio/invoices") },
     day_before: { label: "Open the job", href: `/studio/projects/${input.projectId}` },

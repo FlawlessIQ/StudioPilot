@@ -958,6 +958,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           paragraphs: [
             greeting,
             `Pick a time for your ${callNameFor(values).toLowerCase()}${project}. Bring pictures of looks you love${tradeVocab(values.trade).trial === "Hair trial" ? ", your veil and any accessories" : ""}, and we'll get your look just right before the day.`,
+            // A hair trial waits for the veil (trades.ts `trialHint`).
+            ...(tradeVocab(values.trade).trialHint
+              ? ["If you haven't chosen your veil yet, book once you have — we'll build the style around it."]
+              : []),
           ],
           action: actionUrl ? { label: "Pick a time", url: actionUrl } : undefined,
           note: "Times remain available until someone else books them.",

@@ -123,6 +123,8 @@ export type TradeVocabulary = {
   kitChecklist: { title: string; items: readonly string[] } | null;
   /** The trial before the day, when the trade has one: "Makeup trial". */
   trial: string | null;
+  /** When the trial is best booked, when the trade says: a hair trial waits for the veil. */
+  trialHint: string | null;
   /**
    * The prep guide in the week-before email, when the trade has one: how to
    * arrive for the chair (a clean face, dry hair, a button-up top).
@@ -151,6 +153,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     proposal: "Proposal",
     kitChecklist: null,
     trial: null,
+    trialHint: null,
     prepGuide: null,
   },
   dj: {
@@ -181,6 +184,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     proposal: "Proposal",
     kitChecklist: null,
     trial: null,
+    trialHint: null,
     prepGuide: null,
   },
   makeup: {
@@ -214,6 +218,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
       ],
     },
     trial: "Makeup trial",
+    trialHint: null,
     prepGuide: {
       lead: "So your makeup goes on beautifully and lasts all day",
       items: [
@@ -254,10 +259,11 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
       ],
     },
     trial: "Hair trial",
+    trialHint: "best once the veil is chosen, so the style is built around it",
     prepGuide: {
       lead: "So your hair holds all day",
       items: [
-        "come with clean, completely dry hair and no oils or products, unless your stylist told you otherwise",
+        "come with clean, completely dry hair — washed the night before, with no oils or products — or there's a blow-dry fee",
         "wear a button-up or zip-front top, so nothing goes over your head",
         "have your veil and hair accessories with you",
       ],
@@ -297,6 +303,12 @@ export type TradeProfile = {
   trial: boolean;
   /** Services are priced per person (Phase 3). */
   perPersonPricing: boolean;
+  /**
+   * Hair extensions can be part of the booking (Phase 5): the plan and the
+   * color match are logged at the trial, an order is due 8 weeks out, and
+   * rentals come back after the day.
+   */
+  extensions: boolean;
   /** The plan of the day is a getting-ready chair schedule (Phase 3). */
   chairSchedule: boolean;
   /** The planning form is a music and moments planner (Phase 2). */
@@ -330,6 +342,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: true,
     trial: false,
     perPersonPricing: false,
+    extensions: false,
     chairSchedule: false,
     musicPlanner: false,
     planning: null,
@@ -345,6 +358,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: true,
     trial: false,
     perPersonPricing: false,
+    extensions: false,
     chairSchedule: false,
     musicPlanner: true,
     planning: { formAtBooking: true, lockDaysBefore: 10 },
@@ -360,6 +374,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: false,
     trial: true,
     perPersonPricing: true,
+    extensions: false,
     chairSchedule: true,
     musicPlanner: false,
     planning: { formAtBooking: true, lockDaysBefore: 30 },
@@ -375,6 +390,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: false,
     trial: true,
     perPersonPricing: true,
+    extensions: true,
     chairSchedule: true,
     musicPlanner: false,
     planning: { formAtBooking: true, lockDaysBefore: 30 },

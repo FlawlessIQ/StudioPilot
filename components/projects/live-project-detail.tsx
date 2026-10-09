@@ -1430,6 +1430,10 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     typeof project.clientContactIds[0] === "string" ? (
       <aside className="job-rail-card" id="trial">
         <p className="eyebrow">{trialWord}</p>
+        {/* A hair trial waits for the veil (trades.ts `trialHint`). */}
+        {tradeVocab(workspace.tenantTrade).trialHint ? (
+          <p className="trial-hint">{`Usually ${tradeVocab(workspace.tenantTrade).trialHint}.`}</p>
+        ) : null}
         <ConsultationInviteAction
           contactId={project.clientContactIds[0]}
           label={`Invite them to book the ${trialWord.toLowerCase()}`}
@@ -1437,7 +1441,8 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           purpose="trial"
         />
         <TrialNotes
-          notes={project.trialNotes as { look?: unknown; products?: unknown } | null | undefined}
+          extensions={tradeProfile(workspace.tenantTrade).extensions}
+          notes={project.trialNotes as { look?: unknown; products?: unknown; extensions?: unknown; colorMatch?: unknown } | null | undefined}
           projectId={projectId}
           trialWord={trialWord}
         />

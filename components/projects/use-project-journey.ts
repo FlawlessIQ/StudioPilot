@@ -3,6 +3,8 @@
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { finalCallState } from "@/features/consultations/final-call";
 import { trialState } from "@/features/consultations/trial";
+import { extensionsState } from "@/features/trades/extensions";
+import { tradeProfile } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -87,6 +89,8 @@ export function useProjectJourney({
   const packageSnapshots = useTenantDocuments("packageSnapshots");
   // The studio's planning timeline: whether the final details call is on.
   const tenants = useTenantDocuments("tenants");
+  // Hair extensions' order task (features/trades/extensions.ts).
+  const tasks = useTenantDocuments("tasks");
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -206,6 +210,10 @@ export function useProjectJourney({
     }),
     // A makeup or hair trial, when the trade has one (trades.ts).
     trial: trialState({ consultations: forProject(consultations.records), now: new Date().toISOString() }),
+    // Hair extensions to buy or rent, from the trial notes.
+    extensions: tradeProfile(tenantTrade).extensions
+      ? extensionsState({ projectId, trialNotes: journeyProject?.trialNotes, eventDate, tasks: forProject(tasks.records) })
+      : null,
     // The sales call; the final details call a month out is its own step.
     hasConsultation: forProject(consultations.records).some((record) => isSalesConsultation(record) && isLiveConsultation(record)),
     proposalStatus:

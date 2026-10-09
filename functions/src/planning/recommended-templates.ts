@@ -399,6 +399,30 @@ const MAKEUP_SKIN: RecommendedSection = {
   ],
 };
 
+/**
+ * What a hair stylist asks the bride about her own hair (Phase 5): length and
+ * texture decide the time in the chair, the style and the veil decide the
+ * trial, and extensions take weeks to order.
+ */
+const HAIR_DETAILS: RecommendedSection = {
+  id: "your-hair",
+  title: "Your hair",
+  fields: [
+    choice("hair-length", "Your hair's length", ["Short", "Shoulder length", "Long", "Very long"]),
+    choice("hair-texture", "Your hair's texture", ["Straight", "Wavy", "Curly", "Coily", "Fine", "Thick"]),
+    choice("hair-style", "The style you have in mind", ["Updo", "Half up", "Down", "Not sure yet"]),
+    choice("extensions", "Extensions", ["I have my own", "I'd like to buy them", "I'd like to rent them", "Please recommend", "No extensions"], {
+      help: "Extensions take six to eight weeks to arrive, so we settle them at your trial.",
+    }),
+    choice("veil", "Will you wear a veil?", ["Yes", "No", "Not sure yet"], {
+      help: "Bring it to your trial if you have it, so the style holds it.",
+    }),
+    field("accessories", "Hair accessories", "text", false, {
+      help: "Combs, pins, a crown or flowers.",
+    }),
+  ],
+};
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -470,13 +494,13 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       id: "hair-party-list",
       name: "Party list",
       summary:
-        "Everyone getting ready, what each wants, and when they must be ready by. Your getting-ready schedule is laid out from it.",
+        "Everyone getting ready, what each wants, when they must be ready by, and the bride's hair, veil and extensions. Your getting-ready schedule is laid out from it.",
       useIt: "Your planning form: it goes out when they book, and the headcount locks a month before.",
       eventTypeId: "wedding",
       trades: ["hair"],
       dueDaysBeforeEvent: 37,
       reminderDaysBeforeDue: [14, 3],
-      sections: PARTY_LIST,
+      sections: [PARTY_LIST[0]!, PARTY_LIST[1]!, HAIR_DETAILS, PARTY_LIST[2]!],
     },
   ];
 }

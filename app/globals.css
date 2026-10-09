@@ -22730,6 +22730,13 @@ label {
   margin: 0;
 }
 
+/* When a hair trial is best booked, on the job's trial card (vendor journeys, Phase 5). */
+.trial-hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
 /* What a makeup or hair trial settled, on the job's trial card (vendor journeys, 3.2). */
 .trial-notes {
   border-top: 1px solid var(--line);
@@ -22761,6 +22768,11 @@ label {
 
 .trial-notes small {
   color: var(--muted);
+}
+
+.trial-notes select,
+.trial-notes input {
+  font-weight: 400;
 }
 
 /* Who a task is for, on its row (prod walk, 2026-09-30). */

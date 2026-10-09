@@ -360,6 +360,13 @@ export const GLOSSARY: readonly HelpTerm[] = [
     trades: ["makeup", "hair"],
     hint: "The day before: the address and parking, the schedule, and what to pack. It's on the job and in your crew's reminder.",
   },
+  {
+    id: "extensions-ordered",
+    term: "Extensions ordered",
+    audience: "studio",
+    trades: ["hair"],
+    hint: "Note the plan and color match on the trial card. Buying or renting adds a task due eight weeks out, and a rental gets one to collect them after.",
+  },
 ];
 
 const byId = new Map(GLOSSARY.map((term) => [term.id, term]));

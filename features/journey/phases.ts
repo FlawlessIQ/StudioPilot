@@ -43,6 +43,7 @@ const phaseByStep: Record<JourneyStepKey, JourneyPhase> = {
   run_of_show: "prepare",
   final_call: "prepare",
   crew: "prepare",
+  extensions: "prepare",
   coi: "prepare",
 
   // The balance falls due in the run-up, not the planning — it belongs with
