@@ -199,7 +199,7 @@ test("the composer resolves the requested project itself", () => {
   assert.match(source, /setRefusedProject\(/);
   assert.match(source, /proposalStageNotice\(/);
   // And its picker offers live jobs only.
-  assert.match(source, /proposalStageVerdict\(projectFields\(project\)\) === "ready"/);
+  assert.match(source, /proposalStageVerdict\(projectFields\(project\), trade\) === "ready"/);
 });
 
 /**

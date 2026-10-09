@@ -74,7 +74,7 @@ const AREAS: Array<{
     detail: "The live brief, for the morning of.",
     route: "event-day",
     icon: Radio,
-    steps: ["day_before", "event_day"],
+    steps: ["day_before", "kit", "event_day"],
   },
 ];
 

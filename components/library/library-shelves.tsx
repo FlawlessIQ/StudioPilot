@@ -5,6 +5,8 @@ import { ArrowRight, PackagePlus, Sparkles, type LucideIcon } from "lucide-react
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { isCataloguePackage } from "@/features/packages/one-off";
 import { KindGlyph } from "@/components/library/kind-glyph";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { extraIdeasFor } from "@/features/packages/extra-ideas";
 import type { LibraryKind } from "@/features/library/kinds";
 
 /**
@@ -108,6 +110,13 @@ function ShelfCard({ shelf }: { shelf: Shelf }) {
   const { records } = useTenantDocuments(shelf.collection);
   const count = records ? (shelf.counts ? records.filter(shelf.counts).length : records.length) : null;
   const [one, many] = shelf.noun;
+  // The add-ons shelf names the extras this trade sells (extra-ideas.ts);
+  // a photographer's keeps its own line.
+  const ideas = extraIdeasFor(useWorkspace().tenantTrade);
+  const description =
+    shelf.collection === "addOns" && ideas !== extraIdeasFor(undefined)
+      ? `Extras sold on top of a package — ${ideas[0]?.name.toLowerCase()}, ${ideas.find((idea) => idea.perUnit === "hour")?.name.toLowerCase() ?? ideas[1]?.name.toLowerCase()}.`
+      : shelf.description;
   return (
     <Link
       className={count === 0 ? "is-empty" : undefined}
@@ -116,7 +125,7 @@ function ShelfCard({ shelf }: { shelf: Shelf }) {
       <KindGlyph icon={shelf.icon} kind={shelf.kind} size={42} />
       <div>
         <h2>{shelf.title}</h2>
-        <p>{shelf.description}</p>
+        <p>{description}</p>
         {/* Reserved whether or not the number has arrived, so the card does
             not jump as counts load. */}
         <span className="hub-count">

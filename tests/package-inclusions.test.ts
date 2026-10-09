@@ -165,7 +165,7 @@ test("a draft can be discarded and a sent proposal withdrawn; neither once it's 
   const portal = source("app/api/client/portal/route.ts");
   assert.match(portal, /\["sent", "viewed", "accepted", "declined", "expired", "superseded", "withdrawn"\]/);
   assert.match(portal, /\(document\) => document\.get\("status"\) !== "discarded",\s*\);\s*if \(latestLive\?\.id !== proposalId\)/);
-  assert.match(source("components/client/kit/client-proposal.tsx"), /Your studio has withdrawn this proposal/);
+  assert.match(source("components/client/kit/client-proposal.tsx"), /Your studio has withdrawn this \$\{offer\}/);
   const page = source("components/proposals/studio-proposal-workspace.tsx");
   assert.match(page, /"Withdraw this proposal" : "Discard this draft"/);
 });

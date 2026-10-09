@@ -5,6 +5,8 @@ import { useState } from "react";
 import { Archive, CheckCircle2, LoaderCircle, Pencil, Plus } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { extraIdeasFor } from "@/features/packages/extra-ideas";
+import { tradeOf } from "@/features/trades/trades";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
@@ -37,6 +39,10 @@ function money(cents: number, currency: string) {
  */
 export function AddOnLibrary() {
   const workspace = useWorkspace();
+  // A DJ's, makeup artist's or hair stylist's common extras; a photographer's
+  // library stays as it was (Phase 4: photography doesn't move).
+  const photo = tradeOf(workspace.tenantTrade) === "photographer";
+  const ideas = photo ? [] : extraIdeasFor(workspace.tenantTrade);
   const canEdit = ["studio_owner", "studio_admin", "studio_coordinator"].includes(String(workspace.role ?? ""));
   const { records, loading } = useTenantDocuments("addOns");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -95,6 +101,31 @@ export function AddOnLibrary() {
         void save(draft);
       }}
     >
+      {/* A new extra can start from the ones a studio of this trade adds most;
+          the price is always the studio's (extra-ideas.ts). */}
+      {!draft.addOnId && ideas.length ? (
+        <div className="package-examples" role="group" aria-label="Start from an example">
+          <span>Start from an example</span>
+          {ideas.map((idea) => (
+            <button
+              className="button button-light button-sm"
+              key={idea.name}
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  name: idea.name,
+                  description: idea.description,
+                  allowQuantity: idea.perUnit !== null,
+                  unitLabel: idea.perUnit ?? "",
+                })
+              }
+              type="button"
+            >
+              {idea.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="crm-form-grid">
         <label>
           Name
@@ -102,7 +133,7 @@ export function AddOnLibrary() {
             autoFocus
             maxLength={120}
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-            placeholder="e.g. Engagement session"
+            placeholder={`e.g. ${ideas[0]?.name ?? "Engagement session"}`}
             required
             value={draft.name}
           />
@@ -127,7 +158,7 @@ export function AddOnLibrary() {
           <textarea
             maxLength={1000}
             onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-            placeholder="A one-hour session at a place that matters to you, 30 edited images."
+            placeholder={ideas[0]?.description || "A one-hour session at a place that matters to you, 30 edited images."}
             value={draft.description}
           />
         </label>

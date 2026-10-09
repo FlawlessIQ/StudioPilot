@@ -317,6 +317,49 @@ export const GLOSSARY: readonly HelpTerm[] = [
     trades: ["dj"],
     hint: "Your client books it when their planner locks, ten days out, so you go through the script together about a week before.",
   },
+  // ── A makeup artist's and hair stylist's words (docs/vendor-journeys.md) ──
+  {
+    id: "beauty-quote",
+    term: "Quote",
+    audience: "studio",
+    trades: ["makeup", "hair"],
+    hint: "What you send a new inquiry: your client's package plus everyone else at a price per person. There's no sales call first; the trial does that job.",
+  },
+  {
+    id: "beauty-trial",
+    term: "Trial",
+    audience: "studio",
+    trades: ["makeup", "hair"],
+    hint: "Your client books it from the link on the job. Afterward, note the look and products on the trial card; they go on your crew's brief.",
+  },
+  {
+    id: "party-list",
+    term: "Party list",
+    audience: "studio",
+    trades: ["makeup", "hair"],
+    hint: "Your client's planning form: everyone getting ready, one per line, with what each wants, the ready-by time and where. It goes out at booking.",
+  },
+  {
+    id: "headcount-lock",
+    term: "Headcount lock",
+    audience: "studio",
+    trades: ["makeup", "hair"],
+    hint: "A month before, the party list locks. After that people can be added (a booking change they sign) but not taken off, as the agreement says.",
+  },
+  {
+    id: "getting-ready-schedule",
+    term: "Getting-ready schedule",
+    audience: "studio",
+    trades: ["makeup", "hair"],
+    hint: "Lay out the morning builds it from the party list: each chair worked back from the ready-by time, and how many artists it needs.",
+  },
+  {
+    id: "kit-checklist",
+    term: "Kit checklist",
+    audience: "studio",
+    trades: ["makeup", "hair"],
+    hint: "The day before: the address and parking, the schedule, and what to pack. It's on the job and in your crew's reminder.",
+  },
 ];
 
 const byId = new Map(GLOSSARY.map((term) => [term.id, term]));

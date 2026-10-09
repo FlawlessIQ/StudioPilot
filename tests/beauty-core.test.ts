@@ -253,15 +253,15 @@ test("the week-before email is a prep guide for makeup and hair, unchanged for a
 
 test("makeup and hair start with the Party list, sent at booking, locked a month out", () => {
   for (const trade of ["makeup", "hair"] as const) {
-    assert.deepEqual(recommendedFor(trade).map((form) => form.id), ["wedding-event-details", "beauty-party-list"]);
+    assert.deepEqual(recommendedFor(trade).map((form) => form.id), ["wedding-event-details", `${trade}-party-list`]);
     assert.deepEqual(tradeProfile(trade).planning, { formAtBooking: true, lockDaysBefore: 30 });
     assert.equal(tradeVocab(trade).detailsForm, "Party list");
   }
-  const form = recommendedFor("makeup").find((candidate) => candidate.id === "beauty-party-list")!;
+  const form = recommendedFor("makeup").find((candidate) => candidate.id === "makeup-party-list")!;
   const fields = form.sections.flatMap((section) => section.fields);
   for (const id of ["ready-by-time", "getting-ready", "party-list"])
     assert.equal(fields.find((field) => field.id === id)?.required, true, id);
-  assert.match(read("functions/src/saas/onboarding.ts"), /preloaded\["beauty-party-list"\]/);
+  assert.match(read("functions/src/saas/onboarding.ts"), /preloaded\["makeup-party-list"\] \?\? preloaded\["hair-party-list"\]/);
 });
 
 test("a makeup or hair inquiry form asks how many people, the ready-by time and the trial", () => {

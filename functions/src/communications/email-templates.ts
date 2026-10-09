@@ -1011,45 +1011,50 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : undefined,
       };
     }
-    case "proposal_sent":
+    case "proposal_sent": {
+      // A makeup artist's or hair stylist's client gets a quote (trades.ts);
+      // only a photographer's says photography.
+      const offer = tradeVocab(values.trade).proposal.toLowerCase();
+      const photo = tradeProfile(values.trade).family === "photo";
       return {
-        subject: `Your proposal from ${brand.studioName}`,
-        preheader: "Review your photography proposal and pricing.",
-        eyebrow: "Proposal ready",
-        heading: "Your proposal is ready to review",
+        subject: `Your ${offer} from ${brand.studioName}`,
+        preheader: `Review your ${photo ? "photography " : ""}${offer} and pricing.`,
+        eyebrow: `${offer.charAt(0).toUpperCase()}${offer.slice(1)} ready`,
+        heading: `Your ${offer} is ready to review`,
         paragraphs: [
           greeting,
-          `We've prepared a proposal${project} with your selected coverage, pricing, payment schedule, and terms summary.`,
-          "Review the live proposal in your secure client portal. A PDF copy is attached for your records.",
+          `We've prepared a ${offer}${project} with your selected ${photo ? "coverage" : "services"}, pricing, payment schedule, and terms summary.`,
+          `Review the live ${offer} in your secure client portal. A PDF copy is attached for your records.`,
         ],
         action: actionUrl
-          ? { label: "Review proposal", url: actionUrl }
+          ? { label: `Review ${offer}`, url: actionUrl }
           : undefined,
         // What accepting does depends on the kind of job (job-kinds.ts): a
         // family session pays to book, a sports day just books — "those
         // steps remain separate" told them about a contract that never comes.
         note: (() => {
           const kindValue = stringValue(values, "eventKind");
-          if (!kindValue) return "Accepting a proposal does not sign a contract or collect a payment. Those steps remain separate.";
+          if (!kindValue) return `Accepting a ${offer} does not sign a contract or collect a payment. Those steps remain separate.`;
           const needs = bookingGateNeeds(
             journeyProfile(jobKindOf({ eventKind: kindValue }), { payment: stringValue(values, "paymentShape") || undefined }),
           );
           return needs.agreement
-            ? "Accepting a proposal does not sign a contract or collect a payment. Those steps remain separate."
+            ? `Accepting a ${offer} does not sign a contract or collect a payment. Those steps remain separate.`
             : needs.payment
-              ? "Accepting the proposal sends your invoice, and paying it books your date."
-              : "Accepting the proposal books your date.";
+              ? `Accepting the ${offer} sends your invoice, and paying it books your date.`
+              : `Accepting the ${offer} books your date.`;
         })(),
       };
+    }
     case "contract_sent":
       return {
         subject: `Agreement ready from ${brand.studioName}`,
-        preheader: "Review and sign your photography agreement.",
+        preheader: `Review and sign your ${tradeProfile(values.trade).family === "photo" ? "photography " : ""}agreement.`,
         eyebrow: "Agreement ready",
         heading: "Your agreement is ready to sign",
         paragraphs: [
           greeting,
-          `We sent the photography agreement${project} through our secure signature provider.`,
+          `We sent the ${tradeProfile(values.trade).family === "photo" ? "photography " : ""}agreement${project} through our secure signature provider.`,
         ],
         action: actionUrl
           ? { label: "Review agreement", url: actionUrl }
@@ -1399,6 +1404,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const locationName = stringValue(values, "locationName");
       const locationAddress = stringValue(values, "locationAddress");
       const destination = scheduleUrl || actionUrl;
+      // "the getting-ready schedule" for a makeup or hair crew (trades.ts).
+      const planWord = tradeVocab(values.trade).planOfDay;
+      const planName = planWord ? `${planWord.charAt(0).toLowerCase()}${planWord.slice(1)}` : "run of show";
       const day = arrivalAt
         ? humanDay(arrivalAt, zone)
         : callDate
@@ -1424,8 +1432,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               : "",
           ].filter(Boolean),
           values.runOfShowShared === true
-            ? "The run of show, who to call and your part in the day are on your day sheet. It saves to your phone, so it opens with no signal."
-            : "The studio hasn't published the run of show yet. It will be on your day sheet as soon as they do — message them from the job if you need it sooner.",
+            ? `The ${planName}, who to call and your part in the day are on your day sheet. It saves to your phone, so it opens with no signal.`
+            : `The studio hasn't published the ${planName} yet. It will be on your day sheet as soon as they do — message them from the job if you need it sooner.`,
+          // A makeup artist's or hair stylist's kit (trades.ts `kitChecklist`).
+          ...(() => {
+            const kit = tradeVocab(values.trade).kitChecklist;
+            return kit ? [`${kit.title} — before you leave, check ${kit.items.join("; ")}.`] : [];
+          })(),
         ],
         action: destination
           ? { label: "Open your day sheet", url: destination }

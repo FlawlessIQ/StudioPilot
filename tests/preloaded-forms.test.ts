@@ -22,7 +22,7 @@ test("the recommended forms the server seeds are the ones the app shows", () => 
   );
   assert.deepEqual(
     recommendedQuestionnaires().map((form) => form.id),
-    ["wedding-event-details", "wedding-final-schedule", "wedding-shot-list", "dj-music-planner", "beauty-party-list"],
+    ["wedding-event-details", "wedding-final-schedule", "wedding-shot-list", "dj-music-planner", "makeup-party-list", "hair-party-list"],
   );
 });
 
@@ -35,7 +35,7 @@ test("a new studio starts with the wedding set, switched on", () => {
   // The event details form on the inquiry link…
   assert.match(onboarding, /inquiryEventForm: \{\s+templateId: eventDetailsId,/);
   // …the final schedule as the planning form, the shot list with it…
-  assert.match(onboarding, /preloaded\["wedding-final-schedule"\] \?\? preloaded\["dj-music-planner"\] \?\? preloaded\["beauty-party-list"\] \?\? preloaded\["wedding-event-details"\] \?\? null,/);
+  assert.match(onboarding, /preloaded\["wedding-final-schedule"\] \?\? preloaded\["dj-music-planner"\] \?\? preloaded\["makeup-party-list"\] \?\? preloaded\["hair-party-list"\] \?\? preloaded\["wedding-event-details"\] \?\? null,/);
   assert.match(onboarding, /shotListTemplateId: preloaded\["wedding-shot-list"\] \?\? null,/);
   // …and no second, generic wedding questionnaire beside them.
   assert.match(onboarding, /if \(starter\.eventTypeId === "wedding"\) continue;/);

@@ -818,7 +818,7 @@ export function BookingAutopilotWorkspace({
             </Link>
           </section>
           ) : null
-        ) : canCreateProposalForProject(liveState, { ...(project ?? {}), state: liveState }) ? (
+        ) : canCreateProposalForProject(liveState, { ...(project ?? {}), state: liveState }, workspace.tenantTrade) ? (
           <section className="booking-autopilot-empty">
             <Check />
             <span>
@@ -894,7 +894,7 @@ export function BookingAutopilotWorkspace({
             Prepare the proposal <ArrowRight />
           </Link>
         </section>
-      ) : !consultation && !kindProfile.consultation && !proposalId ? (
+      ) : !consultation && !(kindProfile.consultation && tradeProfile(workspace.tenantTrade).consultation) && !proposalId ? (
         // A kind with no consultation (job-kinds.ts) prices straight from
         // the inquiry; it used to be told to schedule a call it never has.
         <section className="booking-autopilot-empty">

@@ -1,4 +1,4 @@
-import { tradeVocab } from "../trades/trades.js";
+import { tradeProfile, tradeVocab } from "../trades/trades.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { isJobKind, journeyProfile, projectProfile } from "../job-kinds/job-kinds.js";
@@ -644,7 +644,9 @@ async function handleInquiryCommand(
       durationMinutes: options.durationMinutes,
       // Without hours set there is nothing to book; the page says so.
       takesBookings: settings.exists,
-      offersConsultation: kindProfile.consultation,
+      // A makeup artist's or hair stylist's inquiry has no call either: the
+      // trial does its job (trades.ts), and the quote follows the details.
+      offersConsultation: kindProfile.consultation && tradeProfile(tenant.get("trade")).consultation,
       agreement: kindProfile.agreement,
       payment: kindProfile.payment,
       jobKind: kindProfile.kind,

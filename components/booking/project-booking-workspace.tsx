@@ -1247,7 +1247,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                       was still offered it, and the composer had no way to
                       refuse out loud. */}
                   {openProposal ||
-                  canCreateProposalForProject(projectState, project) ? (
+                  canCreateProposalForProject(projectState, project, workspace.tenantTrade) ? (
                     <Link
                       className="button button-dark"
                       href={

@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { LoaderCircle, Plus, X } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { extraIdeasFor } from "@/features/packages/extra-ideas";
+import { normalizeUnitLabel } from "@/features/packages/unit-label";
+import { tradeOf } from "@/features/trades/trades";
 
 type Row = Record<string, unknown> & { id: string };
 const text = (value: unknown, fallback = ""): string => (typeof value === "string" && value ? value : fallback);
@@ -22,16 +26,6 @@ function money(cents: number, currency: string) {
 }
 
 
-/** Starting points for a one-off extra; the studio names and prices it. */
-const COMMON_EXTRAS = [
-  "Engagement shoot",
-  "Photo booth",
-  "Boudoir session",
-  "Extra hour of coverage",
-  "Second shooter",
-  "Rehearsal dinner",
-  "Parent albums",
-] as const;
 
 /**
  * The extras on one package on a job (H2 slice 3): what the package
@@ -65,6 +59,10 @@ export function JobAddOnsEditor({
   onCancel: () => void;
 }) {
   const library = ((useTenantDocuments("addOns").records ?? []) as Row[]).filter((row) => !row.archivedAt);
+  // Starting points for a one-off extra, in the studio's trade (extra-ideas.ts).
+  const trade = useWorkspace().tenantTrade;
+  const ideas = extraIdeasFor(trade);
+  const photo = tradeOf(trade) === "photographer";
   const [lines, setLines] = useState<JobAddOnLine[]>(() =>
     (Array.isArray(snapshot?.addOns) ? (snapshot.addOns as Row[]) : []).map((line) => ({
       // A one-off kept on an earlier snapshot is carried as a one-off again.
@@ -134,7 +132,11 @@ export function JobAddOnsEditor({
                 <span>{line.name}</span>
                 <small>
                   {money(line.unitPriceCents, currency)}
-                  {quantityEditable(line) ? " each" : ""}
+                  {quantityEditable(line)
+                    ? normalizeUnitLabel(definitionOf(line.addOnId)?.unitLabel)
+                      ? ` per ${normalizeUnitLabel(definitionOf(line.addOnId)?.unitLabel)}`
+                      : " each"
+                    : ""}
                   {line.taxable ? "" : " · no tax"}
                   {line.addOnId ? "" : line.saveToLibrary ? " · saved to your library" : " · this job only"}
                 </small>
@@ -208,7 +210,7 @@ export function JobAddOnsEditor({
         ) : null}
         {!writing ? (
           <button className="button button-light button-sm" onClick={() => setWriting(true)} type="button">
-            <Plus aria-hidden="true" size={14} /> Write one for this couple
+            <Plus aria-hidden="true" size={14} /> {photo ? "Write one for this couple" : "Write one for this client"}
           </button>
         ) : null}
       </div>
@@ -216,14 +218,14 @@ export function JobAddOnsEditor({
         <div className="job-add-ons-custom">
           {/* The extras studios add most, one tap to start from. */}
           <div className="job-add-ons-ideas" role="group" aria-label="Common extras">
-            {COMMON_EXTRAS.map((idea) => (
+            {ideas.map((idea) => (
               <button
                 className="button button-light button-sm"
-                key={idea}
-                onClick={() => setCustom({ ...custom, name: idea })}
+                key={idea.name}
+                onClick={() => setCustom({ ...custom, name: idea.name })}
                 type="button"
               >
-                {idea}
+                {idea.name}
               </button>
             ))}
           </div>
@@ -233,7 +235,7 @@ export function JobAddOnsEditor({
               autoFocus
               maxLength={120}
               onChange={(event) => setCustom({ ...custom, name: event.target.value })}
-              placeholder="Engagement shoot"
+              placeholder={ideas[0]?.name ?? "An extra"}
               value={custom.name}
             />
           </label>

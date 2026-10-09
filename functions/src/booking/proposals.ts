@@ -24,6 +24,7 @@ import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { paymentScheduleFor, projectProfile } from "../job-kinds/job-kinds.js";
 import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
+import { tradeProfile } from "../trades/trades.js";
 
 const authoringFields = z.object({
   expiresAt: z.string().datetime(),
@@ -379,9 +380,14 @@ export const proposalCommand = onRequest(
             // we've spoken" about a call that was never part of the job
             // (walk, 2026-10-03). The job steps through CONSULTATION with the
             // proposal, so the state machine keeps its one path.
+            // So does a makeup artist's or hair stylist's inquiry: the trial
+            // does the sales call's job (trades.ts `consultation`).
             const skipsConsultation =
               String(project.get("state")) === "LEAD" &&
-              !projectProfile(project.data()).consultation;
+              !(
+                projectProfile(project.data()).consultation &&
+                tradeProfile((await transaction.get(db.doc(`tenants/${command.tenantId}`))).get("trade")).consultation
+              );
             if (
               !canCreateProposalForProject(String(project.get("state"))) &&
               !skipsConsultation

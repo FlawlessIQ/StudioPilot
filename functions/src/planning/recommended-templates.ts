@@ -366,7 +366,7 @@ const PARTY_LIST: RecommendedSection[] = [
     title: "Your party",
     fields: [
       field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, {
-        help: "Name — who they are — hair, makeup or both — anything we should know. For example: \"Maya Brooks — bride — hair and makeup — sensitive skin\", \"Jess Lee — bridesmaid — makeup\", \"Ava — flower girl — hair\".",
+        help: "Name — who they are — hair, makeup or both — anything we should know. For example: \"Maya Brooks — bride — hair and makeup — sensitive skin\", \"Jess Lee — bridesmaid — makeup — lashes\", \"Ava — flower girl — hair\".",
       }),
     ],
   },
@@ -379,6 +379,25 @@ const PARTY_LIST: RecommendedSection[] = [
     ],
   },
 ];
+
+/**
+ * What a makeup artist asks the bride about her own skin (docs/vendor-journeys-plan.md,
+ * Phase 4): the type and anything to be careful of decide the products, and
+ * lashes are an extra she may want for her party too.
+ */
+const MAKEUP_SKIN: RecommendedSection = {
+  id: "your-skin",
+  title: "Your skin",
+  fields: [
+    choice("skin-type", "Your skin type", ["Dry", "Oily", "Combination", "Normal", "Sensitive", "Not sure"]),
+    field("skin-notes", "Anything about your skin we should know", "long_text", false, {
+      help: "Breakouts, rosacea, a recent facial, peel or treatment, or products that don't agree with you.",
+    }),
+    choice("lashes", "Would you like false lashes?", ["Yes, just me", "Yes, me and my party", "No lashes", "Not sure yet"], {
+      help: "For anyone in your party who wants them, add \"lashes\" to their line above.",
+    }),
+  ],
+};
 
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
@@ -435,14 +454,26 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       sections: MUSIC_PLANNER,
     },
     {
-      id: "beauty-party-list",
+      id: "makeup-party-list",
+      name: "Party list",
+      summary:
+        "Everyone getting ready, what each wants, when they must be ready by, and the bride's skin and lashes. Your getting-ready schedule is laid out from it.",
+      useIt: "Your planning form: it goes out when they book, and the headcount locks a month before.",
+      eventTypeId: "wedding",
+      trades: ["makeup"],
+      // In before the headcount locks a month out, with a week to read it.
+      dueDaysBeforeEvent: 37,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [PARTY_LIST[0]!, PARTY_LIST[1]!, MAKEUP_SKIN, PARTY_LIST[2]!],
+    },
+    {
+      id: "hair-party-list",
       name: "Party list",
       summary:
         "Everyone getting ready, what each wants, and when they must be ready by. Your getting-ready schedule is laid out from it.",
       useIt: "Your planning form: it goes out when they book, and the headcount locks a month before.",
       eventTypeId: "wedding",
-      trades: ["makeup", "hair"],
-      // In before the headcount locks a month out, with a week to read it.
+      trades: ["hair"],
       dueDaysBeforeEvent: 37,
       reminderDaysBeforeDue: [14, 3],
       sections: PARTY_LIST,

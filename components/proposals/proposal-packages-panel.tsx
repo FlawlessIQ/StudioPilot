@@ -8,6 +8,8 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { extraIdeasFor } from "@/features/packages/extra-ideas";
+import { tradeOf } from "@/features/trades/trades";
 import {
   REVISABLE_PROPOSAL_STATUSES,
   oneOffReplaceConfirmText,
@@ -356,7 +358,12 @@ export function ProposalPackagesPanel({
           only "Extras" (GR, 2026-09-30). Say what it is for. */}
       {!agreementOut ? (
         <p className="proposal-packages-hint">
-          Engagement shoot, photo booth, an extra hour? Add them to a package with Add extras — from your library, or written just for this couple.
+          {tradeOf(workspace.tenantTrade) === "photographer"
+            ? "Engagement shoot, photo booth, an extra hour? Add them to a package with Add extras — from your library, or written just for this couple."
+            : `${extraIdeasFor(workspace.tenantTrade)
+                .slice(0, 2)
+                .map((idea, index) => (index ? idea.name.toLowerCase() : idea.name))
+                .join(", ")}? Add them to a package with Add extras — from your library, or written just for this client.`}
         </p>
       ) : null}
       <ul className="proposal-packages-list">

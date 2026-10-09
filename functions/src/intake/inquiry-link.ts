@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { isJobKind, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
+import { tradeProfile } from "../trades/trades.js";
 import { getConsultationSettings } from "../booking/availability.js";
 import { convertInquiryToJob } from "./convert.js";
 import {
@@ -75,12 +76,13 @@ export async function studioTakesBookings(db: Firestore, tenantId: string): Prom
  * reply that promised two minutes would be the first thing the studio said
  * that wasn't so (2026-10-01).
  */
-export function inquiryLinkLine(url: string, withForm: boolean, kind?: unknown): string {
-  // A family session or a sports day has no call (job-kinds.ts): the link
-  // takes their details and the price follows. A wedding keeps "your day".
+export function inquiryLinkLine(url: string, withForm: boolean, kind?: unknown, trade?: unknown): string {
+  // A family session or a sports day has no call (job-kinds.ts), and nor
+  // does a makeup artist or hair stylist (trades.ts): the link takes their
+  // details and the price follows. A wedding keeps "your day".
   const jobKind = isJobKind(kind) ? kind : null;
   const about = !jobKind || jobKind === "wedding" ? "your day" : vocab(jobKind).yourEvent;
-  if (jobKind && !journeyProfile(jobKind).consultation) {
+  if ((jobKind && !journeyProfile(jobKind).consultation) || !tradeProfile(trade).consultation) {
     return withForm
       ? `Tell us about ${about} here, and we'll send your price: ${url}`
       : `Tell us a little more about ${about} — it takes two minutes, and we'll send your price: ${url}`;
@@ -120,11 +122,15 @@ export async function withInquiryLink(
   }
   const url = await inquiryLinkFor(db, input);
   if (input.body.includes(url)) return { body: input.body, linked: true };
-  const kindLead = await db.doc(`leads/${input.leadId}`).get();
+  const [kindLead, tenant] = await Promise.all([
+    db.doc(`leads/${input.leadId}`).get(),
+    db.doc(`tenants/${input.tenantId}`).get(),
+  ]);
   const line = inquiryLinkLine(
     url,
     await inquiryLinkCarriesForm(db, input),
     kindLead.get("eventKind") === "general" ? "other" : kindLead.get("eventKind"),
+    tenant.get("trade"),
   );
   // Before the sign-off when there is one, so the link isn't the last thing
   // after "Warmly,". A sign-off is a short line and at most a name under it:

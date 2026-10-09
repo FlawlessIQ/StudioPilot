@@ -1,6 +1,7 @@
 import { isPutAway } from "../projects/put-away";
 import { stageRank } from "../projects/stage-progress";
 import { projectProfile } from "../job-kinds/job-kinds";
+import { tradeProfile } from "../trades/trades";
 
 /**
  * Whether a job can take a proposal, and — when it cannot — what to say.
@@ -42,21 +43,26 @@ export type ProposalStageVerdict =
  * `project`, when given, lets a kind with no consultation (a family session,
  * a sports day — job-kinds.ts) take its proposal straight from LEAD. The
  * server steps the job through CONSULTATION as it creates the proposal
- * (functions/src/booking/proposals.ts).
+ * (functions/src/booking/proposals.ts). So does a studio whose trade has no
+ * sales call (a makeup artist, a hair stylist — trades.ts): pass its trade.
  */
-export function canCreateProposalForProject(state: string, project?: unknown): boolean {
+export function canCreateProposalForProject(state: string, project?: unknown, trade?: unknown): boolean {
   if (state === "CONSULTATION" || state === "PROPOSAL") return true;
-  return state === "LEAD" && project !== undefined && !projectProfile(project).consultation;
+  return (
+    state === "LEAD" &&
+    project !== undefined &&
+    !(projectProfile(project).consultation && tradeProfile(trade).consultation)
+  );
 }
 
-export function proposalStageVerdict(project: unknown): ProposalStageVerdict {
+export function proposalStageVerdict(project: unknown, trade?: unknown): ProposalStageVerdict {
   const fields = (project ?? {}) as { state?: unknown };
   const state = String(fields.state ?? "");
   // Put away wins over the stage: an archived job at CONSULTATION is still a
   // job the studio has filed, and the delivery picker's five archived weddings
   // were the same mistake one dropdown over.
   if (isPutAway(project)) return "put_away";
-  if (canCreateProposalForProject(state, project)) return "ready";
+  if (canCreateProposalForProject(state, project, trade)) return "ready";
   if (state === "CANCELLED" || state === "POSTPONED") return "not_active";
   if (stageRank(state) < stageRank("CONSULTATION")) return "too_early";
   return "past";

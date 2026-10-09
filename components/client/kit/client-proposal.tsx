@@ -1,6 +1,7 @@
 "use client";
 
 import { quantityText } from "@/features/packages/unit-label";
+import { tradeVocab } from "@/features/trades/trades";
 import { detailsForLine } from "@/features/packages/inclusions";
 import {
   balanceWithSalesTax,
@@ -55,6 +56,9 @@ import { InfoHint } from "@/components/ui/info-hint";
  */
 export function ClientProposal() {
   const workspace = useWorkspace();
+  // A makeup artist's or hair stylist's client gets a quote (trades.ts).
+  const offerWord = tradeVocab(workspace.tenantTrade).proposal;
+  const offer = offerWord.toLowerCase();
   const proposals = useProjectRecords("proposals");
   const bookingView = useBookingStepsView();
   const reserve = bookingView && !bookingView.booked ? bookingView : null;
@@ -72,17 +76,17 @@ export function ClientProposal() {
 
   if (proposals.loading || proposals.error || !proposal) {
     return (
-      <Main label="Your proposal">
+      <Main label={`Your ${offer}`}>
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Your offer</p>
-          <h1 className="kit-title">Your proposal</h1>
+          <h1 className="kit-title">{`Your ${offer}`}</h1>
         </div>
         <EmptyMoment
           area="proposal"
           error={proposals.error}
           loading={proposals.loading}
-          loadingText="Opening your proposal…"
-          upcoming="Your studio is still preparing your proposal. You’ll be told as soon as it’s ready."
+          loadingText={`Opening your ${offer}…`}
+          upcoming={`Your studio is still preparing your ${offer}. You’ll be told as soon as it’s ready.`}
         />
         <PoweredBy />
       </Main>
@@ -165,7 +169,7 @@ export function ClientProposal() {
 
   return (
     <>
-      <Main label="Your proposal">
+      <Main label={`Your ${offer}`}>
         {reserve ? (
           <div className="kit-stack-tight">
             <Steps
@@ -176,8 +180,8 @@ export function ClientProposal() {
           </div>
         ) : null}
         <div className="kit-stack-tight">
-          <p className="kit-eyebrow">Proposal · version {number(proposal.version)}</p>
-          <h1 className="kit-title">{text(pricing.packageName, "Your proposal")}</h1>
+          <p className="kit-eyebrow">{offerWord} · version {number(proposal.version)}</p>
+          <h1 className="kit-title">{text(pricing.packageName, `Your ${offer}`)}</h1>
           <p className="kit-body">
             Prepared for {text(event.name, "your project")} ·{" "}
             {actionable ? `valid until ${date(proposal.expiresAt)}` : status.replaceAll("_", " ")}
@@ -232,10 +236,10 @@ export function ClientProposal() {
             </p>
             <h2 className="kit-section">
               {status === "expired"
-                ? "This proposal has expired"
+                ? `This ${offer} has expired`
                 : status === "withdrawn"
-                  ? "Your studio has withdrawn this proposal"
-                  : "A newer proposal replaced this one"}
+                  ? `Your studio has withdrawn this ${offer}`
+                  : `A newer ${offer} replaced this one`}
             </h2>
             <p className="kit-body">Ask your studio to share the current offer before deciding.</p>
             <Button href="/client/messages" variant="secondary">
@@ -380,8 +384,8 @@ export function ClientProposal() {
           note={
             mode === "accept"
               ? needs.agreement
-                ? "This locks this proposal to your project and asks your studio for the agreement. No charge is made now."
-                : "This locks this proposal to your project. No charge is made now."
+                ? `This locks this ${offer} to your project and asks your studio for the agreement. No charge is made now.`
+                : `This locks this ${offer} to your project. No charge is made now.`
               : undefined
           }
         >
@@ -397,7 +401,7 @@ export function ClientProposal() {
                   // signing, on the agreement, never a separate step here.
                   <Button href="/client/contract">Review &amp; sign the agreement</Button>
                 ) : (
-                  <Button onClick={() => setMode("accept")}>Accept proposal</Button>
+                  <Button onClick={() => setMode("accept")}>{offer === "proposal" ? "Accept proposal" : `Accept ${offer}`}</Button>
                 )}
               </div>
               <Button onClick={() => setMode("changes")} variant="secondary">

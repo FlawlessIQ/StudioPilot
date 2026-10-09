@@ -166,8 +166,79 @@ const DJ_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
   ],
 };
 
+/**
+ * A makeup artist's examples (docs/vendor-journeys.md): the bride's makeup is
+ * the package, and everyone else is priced per person as an extra
+ * (extra-ideas.ts), so the quote reads "4 people × $120". `photographers` is
+ * artists; "deliverables" is what's included.
+ */
+const MAKEUP_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
+  wedding: [
+    {
+      name: "Bridal makeup",
+      description: "Your makeup on the morning, with lashes, and a touch-up kit to take with you.",
+      coverageHours: 1.5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Bridal makeup, Lashes, Touch-up kit",
+    },
+    {
+      name: "Bridal makeup with trial",
+      description: "A trial a few months before to settle your look, then your makeup on the morning.",
+      coverageHours: 3,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Makeup trial, Bridal makeup, Lashes, Touch-up kit",
+    },
+  ],
+  other: [
+    {
+      name: "Event makeup",
+      description: "Makeup for your event, at your place or ours.",
+      coverageHours: 1,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Full makeup, Lashes",
+    },
+  ],
+};
+
+/** A hair stylist's examples: the bride's hair is the package, the party per person. */
+const HAIR_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
+  wedding: [
+    {
+      name: "Bridal hair",
+      description: "Your hair on the morning, with your veil and accessories placed.",
+      coverageHours: 1.5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Bridal hair, Veil placement",
+    },
+    {
+      name: "Bridal hair with trial",
+      description: "A trial once your veil is chosen, then your hair on the morning.",
+      coverageHours: 3,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Hair trial, Bridal hair, Veil placement",
+    },
+  ],
+  other: [
+    {
+      name: "Event hair",
+      description: "Hair styling for your event, at your place or ours.",
+      coverageHours: 1,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Styling",
+    },
+  ],
+};
+
 /** The examples for a studio of this trade and a job of this kind. */
 export function examplePackagesFor(trade: string, kind: JobKind): readonly ExamplePackage[] {
   if (trade === "dj") return DJ_EXAMPLES[kind] ?? DJ_EXAMPLES.other ?? [];
+  if (trade === "makeup") return MAKEUP_EXAMPLES[kind] ?? MAKEUP_EXAMPLES.other ?? [];
+  if (trade === "hair") return HAIR_EXAMPLES[kind] ?? HAIR_EXAMPLES.other ?? [];
   return EXAMPLE_PACKAGES[kind];
 }

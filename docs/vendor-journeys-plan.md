@@ -38,6 +38,16 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
     - A package minimum is written in the package's inclusions, not enforced.
     - Quantities are not prefilled from the headcount.
     - A trial fee goes as a proposal extra, not its own invoice.
+- **Phase 4 (makeup) shipped 2026-10-08.**
+  - **No sales call:** a makeup or hair inquiry goes straight to a quote (`tradeProfile().consultation` is false). The journey drops the consultation step; the job page drops the "pick a time" card and "Confirm we've spoken"; the composer and the server (`proposals.ts`) accept a quote at Lead; the couple's link and page promise the price, not a call; Cue is told there is no sales call.
+  - **Words:** Quote (journey, composer, the client's page and email), Kit checklist, "All done". The agreement email no longer says photography for other trades.
+  - **Kit checklist:** a step the day before (no action), and the list in the crew's reminder, which now names the getting-ready schedule.
+  - **Party list per trade:** `makeup-party-list` adds the bride's skin type, skin notes and lashes; `hair-party-list` is the shared list until Phase 5. (`beauty-party-list` is gone; no studio on prod had it.)
+  - **Packages and extras:** "Bridal makeup" and "Bridal makeup with trial" examples; extras per trade (`features/packages/extra-ideas.ts`), per person or per hour, offered in the add-on library (not for photographers) and the job's extras editor.
+  - **Agreement:** a beauty starter agreement (minimum and party size, the morning, trial, allergies, no-shows) and a beauty preview. Schedule A requires getting ready and the ready-by time, names the party size and the venue, and says the headcount can grow after the lock but not shrink.
+  - **Help:** six makeup and hair glossary terms. How-to guides per trade stay in Phase 6.
+  - **Walked in the emulator** as a makeup studio: inquiry → "Prepare quote" with no call → package from the example → locked → draft created at Lead (the job stepped to Consultation) → 4 bridesmaids at $120 read "4 people × $120.00", total $1,130. The agreement editor opened on the makeup starter; add-on chips worked at phone width.
+  - **Not yet:** a DJ's agreement preview still uses the photographer sample; the package form still says "Deliverables" and "Coverage hours".
 
 ## Principles
 

@@ -38,7 +38,7 @@ import { ReadinessCheckpoints } from "@/components/projects/readiness-checkpoint
 import { StatusBadge } from "@/components/ui/status-badge";
 import { stateTone } from "@/lib/status-tone";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { tradeMoves, tradeVocab } from "@/features/trades/trades";
+import { tradeMoves, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { DeleteJobPermanently } from "@/components/projects/delete-job-permanently";
 import {
   ArchiveJobWithCrew,
@@ -1404,10 +1404,12 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
       stateVersion={Number(project.stateVersion ?? 0)}
     />
   );
-  // A kind with no consultation (job-kinds.ts) has no call to invite them to.
+  // A kind with no consultation (job-kinds.ts), or a trade whose trial does
+  // that job (a makeup artist, trades.ts), has no call to invite them to.
+  const offersConsultation = projectProfile(project).consultation && tradeProfile(workspace.tenantTrade).consultation;
   const leadInviteEl =
     state === "LEAD" &&
-    projectProfile(project).consultation &&
+    offersConsultation &&
     Array.isArray(project.clientContactIds) &&
     typeof project.clientContactIds[0] === "string" ? (
       <aside className="job-rail-card">
@@ -1443,7 +1445,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     ) : null;
   // A kind with no consultation (job-kinds.ts) goes from the inquiry to its
   // proposal: "Confirm we've spoken" at Lead is a step it doesn't have.
-  const hideLeadStageControl = state === "LEAD" && !projectProfile(project).consultation;
+  const hideLeadStageControl = state === "LEAD" && !offersConsultation;
   const stageControlEl = (
     <ProjectStageControl
       bookingAgreementOut={related.contracts.some(

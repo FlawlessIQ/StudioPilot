@@ -1,7 +1,7 @@
 "use client";
 
 import { quantityText } from "@/features/packages/unit-label";
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { undatedPaymentDue } from "@/features/contracts/document";
@@ -395,7 +395,7 @@ function projectFields(project: {
   };
 }
 
-async function loadProjectOptions(tenantId: string): Promise<{
+async function loadProjectOptions(tenantId: string, trade?: unknown): Promise<{
   ready: ProjectOption[];
   needsPackage: ProjectNeedingPackage[];
 }> {
@@ -438,7 +438,7 @@ async function loadProjectOptions(tenantId: string): Promise<{
   // records, so it was missed by both — a studio choosing whose wedding to
   // price was offered one they had filed away, first in the list.
   const atProposalStage = projects.docs.filter(
-    (project) => proposalStageVerdict(projectFields(project)) === "ready",
+    (project) => proposalStageVerdict(projectFields(project), trade) === "ready",
   );
   const eligible = atProposalStage.filter(
     (project) => typeof project.get("packageSnapshotId") === "string",
@@ -453,7 +453,7 @@ async function loadProjectOptions(tenantId: string): Promise<{
       id: project.id,
       name: text(project.get("name"), "Photography project"),
       eventDate: text(project.get("eventDate"), ""),
-      eventType: text(project.get("eventType"), "Photography"),
+      eventType: text(project.get("eventType"), tradeOf(trade) === "photographer" ? "Photography" : "Event"),
       state: text(project.get("state"), ""),
     }));
   const ready = await Promise.all(
@@ -480,7 +480,7 @@ async function loadProjectOptions(tenantId: string): Promise<{
         id: project.id,
         name: text(project.get("name"), "Photography project"),
         eventDate: text(project.get("eventDate"), ""),
-        eventType: text(project.get("eventType"), "Photography"),
+        eventType: text(project.get("eventType"), tradeOf(trade) === "photographer" ? "Photography" : "Event"),
         state: text(project.get("state"), ""),
         contactName: text(contact?.get("displayName"), "Client"),
         contactEmail: text(contact?.get("email"), ""),
@@ -958,7 +958,7 @@ export function StudioProposalComposer() {
   useEffect(() => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
     let active = true;
-    void loadProjectOptions(workspace.tenantId)
+    void loadProjectOptions(workspace.tenantId, workspace.tenantTrade)
       .then(async (value) => {
         if (!active) return;
         setProjects(value.ready);
@@ -1015,7 +1015,7 @@ export function StudioProposalComposer() {
           );
           return;
         }
-        const verdict = proposalStageVerdict(projectFields(asked));
+        const verdict = proposalStageVerdict(projectFields(asked), workspace.tenantTrade);
         if (verdict === "ready") return;
         setRefusedProject({
           id: asked.id,
@@ -1033,7 +1033,7 @@ export function StudioProposalComposer() {
     return () => {
       active = false;
     };
-  }, [workspace.loading, workspace.tenantId, balanceDaysBefore]);
+  }, [workspace.loading, workspace.tenantId, workspace.tenantTrade, balanceDaysBefore]);
 
   const selected = projects?.find((project) => project.id === projectId);
   // How the selected job is paid: a deposit and balance (weddings), or one
@@ -1108,7 +1108,7 @@ export function StudioProposalComposer() {
     setError("");
     try {
       await runCrmCommand("removePackage", { projectId: projectIdToEdit, packageSnapshotId });
-      const value = await loadProjectOptions(workspace.tenantId);
+      const value = await loadProjectOptions(workspace.tenantId, workspace.tenantTrade);
       setProjects(value.ready);
     } catch (caught: unknown) {
       setError(friendlyError(caught, "That package couldn't be taken off. Try again."));
@@ -1213,7 +1213,7 @@ export function StudioProposalComposer() {
   /** After a package is locked, by either path: reload the job and carry on with it. */
   async function continueAfterLock(lockedProjectId: string) {
     if (!workspace.tenantId) return;
-    const value = await loadProjectOptions(workspace.tenantId);
+    const value = await loadProjectOptions(workspace.tenantId, workspace.tenantTrade);
     setProjects(value.ready);
     const readyProject = value.ready.find(
       (project) => project.id === lockedProjectId,
@@ -1331,7 +1331,8 @@ export function StudioProposalComposer() {
       </Link>
       <header className="proposal-composer-heading">
         <div>
-          <p className="eyebrow">New proposal</p>
+          {/* A makeup artist or hair stylist sends a quote (trades.ts). */}
+          <p className="eyebrow">{`New ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()}`}</p>
           <h1>Turn a selected package into a clear decision.</h1>
           <p>
             The price you send is the price they see. You control the
@@ -1365,8 +1366,9 @@ export function StudioProposalComposer() {
                   </InfoHint>
                 </h2>
                 <p>
-                  Only projects at consultation or proposal stage with a locked
-                  package are available.
+                  {tradeProfile(workspace.tenantTrade).consultation
+                    ? "Only projects at consultation or proposal stage with a locked package are available."
+                    : "Any inquiry with a locked package can be quoted."}
                 </p>
               </div>
               {projects === undefined ? (
@@ -2421,7 +2423,7 @@ export function StudioProposalWorkspace({
       <header className="proposal-workspace-heading">
         <div>
           <p className="eyebrow">
-            Proposal · version {number(proposal.version)}
+            {tradeVocab(workspace.tenantTrade).proposal} · version {number(proposal.version)}
           </p>
           {/* The way back to the job.
               This page is reached from the job's next-move card and, at every

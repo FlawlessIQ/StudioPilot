@@ -37,6 +37,12 @@ export type EventDetails = {
    * before the date" for a process that never runs (walk, 2026-10-03).
    */
   lockDaysBefore: number | null;
+  /**
+   * A makeup artist's or hair stylist's lock is on the headcount: after it,
+   * people can be added but not taken off (docs/vendor-journeys.md). Absent
+   * on a schedule built before trades had one.
+   */
+  headcountLock?: boolean;
 };
 
 /** Plain content shapes, matching the document module's own. */
@@ -66,6 +72,11 @@ export const REQUIRED_WEDDING_PARTS: readonly Category[] = ["getting_ready", "ce
 /** A DJ's wedding: no getting ready, but the room's load-in and power (trades.ts). */
 export const REQUIRED_DJ_WEDDING_PARTS: readonly Category[] = ["ceremony", "reception", "times"];
 
+/** A makeup artist's or hair stylist's wedding: where they get ready, and when they must be ready. */
+export const REQUIRED_BEAUTY_WEDDING_PARTS: readonly Category[] = ["getting_ready", "times"];
+
+const isBeauty = (trade: string | null | undefined) => trade === "makeup" || trade === "hair";
+
 const normalise = (value: string) =>
   ` ${value
     .toLocaleLowerCase()
@@ -74,7 +85,7 @@ const normalise = (value: string) =>
     .trim()} `;
 
 /** Which part of the day a question is about — or null for anything else. */
-export function eventDetailCategory(question: string): Category | null {
+export function eventDetailCategory(question: string, trade?: string | null): Category | null {
   const n = normalise(question);
   const has = (...words: string[]) => words.some((word) => n.includes(` ${word}`));
   if (has("date") && !has("time")) return null;
@@ -82,6 +93,10 @@ export function eventDetailCategory(question: string): Category | null {
   // Before times: "Load-in time" is about load-in.
   if (has("load in", "loading", "unload", "power", "outlet", "sound limit", "decibel", "vendor meal")) return "venue_logistics";
   if (has("time", "times", "start", "end", "finish", "arrive", "arrival", "hours")) return "times";
+  // A makeup or hair morning: "When does everyone need to be ready?" is its
+  // one time, and "How many people…" is the party size it is priced on.
+  if (isBeauty(trade) && has("ready by", "be ready")) return "times";
+  if (isBeauty(trade) && has("how many people", "party size", "headcount")) return "guests";
   if (has("getting ready", "prep", "preparation", "bridal suite", "dressing")) return "getting_ready";
   if (has("photo", "portrait", "pictures") && has("location", "locations", "stop", "stops", "spot", "spots", "where", "address", "place"))
     return "photo_locations";
@@ -127,13 +142,14 @@ export function eventDetailsFrom(input: {
   trade?: string | null;
 }): EventDetails {
   const wedding = input.eventKind ? input.eventKind === "wedding" : /wedding/i.test(input.eventType);
-  const required = input.trade === "dj" ? REQUIRED_DJ_WEDDING_PARTS : REQUIRED_WEDDING_PARTS;
+  const required =
+    input.trade === "dj" ? REQUIRED_DJ_WEDDING_PARTS : isBeauty(input.trade) ? REQUIRED_BEAUTY_WEDDING_PARTS : REQUIRED_WEDDING_PARTS;
   const sorted = new Map<Category, EventDetailRow[]>();
   for (const row of input.answers) {
     const question = row.question.trim();
     const answer = row.answer.trim();
     if (!question || !answer) continue;
-    const category = eventDetailCategory(question);
+    const category = eventDetailCategory(question, input.trade);
     if (!category) continue;
     const list = sorted.get(category) ?? [];
     list.push({ label: question.replace(/[:?]\s*$/, ""), value: notDecided(answer) ? "To be confirmed" : answer });
@@ -142,7 +158,15 @@ export function eventDetailsFrom(input: {
   // One venue for the whole day: the ceremony is there unless they said otherwise.
   if (!sorted.has("ceremony") && input.venue?.trim()) sorted.set("ceremony", [{ label: "Venue", value: input.venue.trim() }]);
   // Away from a wedding there is no ceremony: the venue is the location.
-  const label = (category: Category) => (!wedding && category === "ceremony" ? "Location" : CATEGORY_LABEL[category]);
+  const label = (category: Category) =>
+    !wedding && category === "ceremony"
+      ? "Location"
+      : // A makeup artist or hair stylist isn't at the ceremony: it's the venue.
+        isBeauty(input.trade) && category === "ceremony"
+        ? "Venue"
+        : isBeauty(input.trade) && category === "guests"
+        ? "Party size"
+        : CATEGORY_LABEL[category];
 
   const rows: EventDetailRow[] = [];
   if (input.date) rows.push({ label: "Date", value: input.date });
@@ -167,7 +191,7 @@ export function eventDetailsFrom(input: {
   }
   const title = wedding ? "Wedding details" : input.eventKind === "portraits" ? "Session details" : "Event details";
   const lockDaysBefore = input.lockDaysBefore === undefined ? (wedding ? 28 : null) : input.lockDaysBefore;
-  return { title, rows: rows.slice(0, 40), missing, lockDaysBefore };
+  return { title, rows: rows.slice(0, 40), missing, lockDaysBefore, ...(isBeauty(input.trade) ? { headcountLock: true } : {}) };
 }
 
 /**
@@ -203,7 +227,7 @@ export function venueFromAnswers(answers: ReadonlyArray<{ question: string; answ
 }
 
 /** What Schedule A says about changes: the lock, when this job has one. */
-function lockSentence(lockDaysBefore: number | null | undefined): string {
+function lockSentence(lockDaysBefore: number | null | undefined, headcountLock = false): string {
   // Undefined: a schedule built before the lock was per kind — the wedding's four weeks.
   if (lockDaysBefore === undefined) lockDaysBefore = 28;
   if (lockDaysBefore === null || !Number.isFinite(lockDaysBefore) || lockDaysBefore <= 0) {
@@ -213,6 +237,8 @@ function lockSentence(lockDaysBefore: number | null | undefined): string {
     lockDaysBefore % 7 === 0
       ? `${["", "one", "two", "three", "four", "five", "six", "seven", "eight"][lockDaysBefore / 7] || lockDaysBefore / 7} week${lockDaysBefore === 7 ? "" : "s"}`
       : `${lockDaysBefore} days`;
+  if (headcountLock)
+    return `These details form part of this agreement. Anything marked "To be confirmed" is added when the final headcount is confirmed, ${when} before the date. After that, people can be added but not taken off, and changes to times or the location are agreed with us in writing.`;
   return `These details form part of this agreement. Anything marked "To be confirmed" is added when the final details are confirmed, ${when} before the date. After that, changes to locations or times are agreed with us in writing.`;
 }
 
@@ -226,7 +252,7 @@ export function eventDetailsBlocks(details: EventDetails): Block[] {
       type: "paragraph",
       content: [
         {
-          text: lockSentence(details.lockDaysBefore),
+          text: lockSentence(details.lockDaysBefore, details.headcountLock === true),
           field,
         },
       ],

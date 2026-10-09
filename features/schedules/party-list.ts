@@ -2,7 +2,7 @@
  * A makeup or hair client's party list, read from their form
  * (docs/vendor-journeys-plan.md, 3.3).
  *
- * The recommended Party list (recommended-templates.ts, "beauty-party-list")
+ * The recommended Party list (recommended-templates.ts, "makeup-party-list" / "hair-party-list")
  * asks for one person per line — "Maya Brooks — bride — hair and makeup —
  * sensitive skin" — because a form has no rows to add. This reads those lines
  * into people, each with a role (the bride, a bridesmaid, a mother, a child)

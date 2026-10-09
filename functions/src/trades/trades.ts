@@ -100,6 +100,14 @@ export type TradeVocabulary = {
    * the rings together), which reads by the kind of job.
    */
   dayBefore: { lead: string; ask: string; items: readonly string[] } | null;
+  /** What the client is sent to book: a photographer's "Proposal", a makeup artist's "Quote". */
+  proposal: string;
+  /**
+   * The studio's own checklist the day before, when the trade packs a kit:
+   * on the journey and in the crew's reminder (a makeup artist's brushes and
+   * lashes, the address and parking). Null for a trade with none.
+   */
+  kitChecklist: { title: string; items: readonly string[] } | null;
   /** The trial before the day, when the trade has one: "Makeup trial". */
   trial: string | null;
   /**
@@ -127,6 +135,8 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     finalCall: "Final details call",
     detailsForm: null,
     dayBefore: null,
+    proposal: "Proposal",
+    kitChecklist: null,
     trial: null,
     prepGuide: null,
   },
@@ -155,6 +165,8 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
         "where we load in and park, if the venue has told you",
       ],
     },
+    proposal: "Proposal",
+    kitChecklist: null,
     trial: null,
     prepGuide: null,
   },
@@ -165,7 +177,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     crewStep: "Artists confirmed",
     didIt: "Yes, it's done",
     doneLabel: "Done",
-    dayDone: "Done",
+    dayDone: "All done",
     planOfDay: "Getting-ready schedule",
     lead: "Lead artist",
     ownerOn: "You're doing this one",
@@ -175,6 +187,19 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     finalCall: "Final details call",
     detailsForm: "Party list",
     dayBefore: null,
+    proposal: "Quote",
+    kitChecklist: {
+      title: "Kit checklist",
+      items: [
+        "the address, room number and parking",
+        "the getting-ready schedule and who sits first",
+        "brushes and sponges cleaned",
+        "lashes and adhesive for everyone who wanted them",
+        "the bride's foundation shade and products from the trial",
+        "a touch-up kit for the bride",
+        "a light, a power strip and an extension cord",
+      ],
+    },
     trial: "Makeup trial",
     prepGuide: {
       lead: "So your makeup goes on beautifully and lasts all day",
@@ -192,7 +217,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     crewStep: "Stylists confirmed",
     didIt: "Yes, it's done",
     doneLabel: "Done",
-    dayDone: "Done",
+    dayDone: "All done",
     planOfDay: "Getting-ready schedule",
     lead: "Lead stylist",
     ownerOn: "You're styling this one",
@@ -202,6 +227,19 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     finalCall: "Final details call",
     detailsForm: "Party list",
     dayBefore: null,
+    proposal: "Quote",
+    kitChecklist: {
+      title: "Kit checklist",
+      items: [
+        "the address, room number and parking",
+        "the getting-ready schedule and who sits first",
+        "irons, dryer and brushes",
+        "pins, elastics and hairspray",
+        "extensions, matched to the color from the trial",
+        "the bride's look from the trial",
+        "a power strip and an extension cord",
+      ],
+    },
     trial: "Hair trial",
     prepGuide: {
       lead: "So your hair holds all day",
@@ -236,6 +274,12 @@ export type TradeProfile = {
    * Makeup and hair get a prep guide instead (Phase 3).
    */
   clientDayBefore: boolean;
+  /**
+   * A sales call before the quote. A makeup artist or hair stylist has none:
+   * the trial does that job (docs/vendor-journeys.md), so an inquiry goes
+   * straight to the quote, as a family session does (job-kinds.ts).
+   */
+  consultation: boolean;
   /** A trial appointment before the day (Phase 3). */
   trial: boolean;
   /** Services are priced per person (Phase 3). */
@@ -270,6 +314,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     album: true,
     shotList: true,
     clientDayBefore: true,
+    consultation: true,
     trial: false,
     perPersonPricing: false,
     chairSchedule: false,
@@ -284,6 +329,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     album: false,
     shotList: false,
     clientDayBefore: true,
+    consultation: true,
     trial: false,
     perPersonPricing: false,
     chairSchedule: false,
@@ -298,6 +344,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     album: false,
     shotList: false,
     clientDayBefore: false,
+    consultation: false,
     trial: true,
     perPersonPricing: true,
     chairSchedule: true,
@@ -312,6 +359,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     album: false,
     shotList: false,
     clientDayBefore: false,
+    consultation: false,
     trial: true,
     perPersonPricing: true,
     chairSchedule: true,

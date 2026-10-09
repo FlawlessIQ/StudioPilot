@@ -31,6 +31,7 @@ export type JourneyStepKey =
   | "coi"
   | "final_balance"
   | "day_before"
+  | "kit"
   | "event_day"
   | "delivery"
   | "album_review";
@@ -107,6 +108,8 @@ export const journeyStepRequires: Record<
   coi: [],
   final_balance: [],
   day_before: [],
+  // A makeup or hair studio's own kit checklist the day before: informational.
+  kit: [],
   event_day: [],
   // There is no gallery to deliver before the event, and nothing to select
   // from or review before a gallery.
@@ -418,6 +421,9 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
   if (!trade.delivery && !input.hasDelivery) drop("delivery");
   if (!trade.album) retitle("album_review", "Review");
   if (!trade.clientDayBefore && !input.dayBeforeDraftStatus) drop("day_before");
+  // A makeup or hair inquiry goes straight to the quote: the trial does the
+  // sales call's job (trades.ts `consultation`). A call already booked stays.
+  if (!trade.consultation && !input.hasConsultation) drop("consultation");
   const profile = input.profile;
   if (!profile) return;
   if (!profile.agreement && !input.contractStatus) drop("contract");
@@ -568,7 +574,11 @@ export function projectJourney(input: JourneyInput): {
   // A kind with no consultation (a family session, a sports day) prices
   // straight from the inquiry: the proposal is the studio's move from the
   // start (job-kinds.ts; walk, 2026-10-03).
-  const consulted = input.hasConsultation || stateRank >= 1 || input.profile?.consultation === false;
+  const consulted =
+    input.hasConsultation ||
+    stateRank >= 1 ||
+    input.profile?.consultation === false ||
+    !tradeProfile(input.trade).consultation;
   /**
    * An enquiry whose date has already gone by.
    *
@@ -639,11 +649,11 @@ export function projectJourney(input: JourneyInput): {
   const agreementOut = proposalWaiting && input.bookingAgreementOut === true;
   push({
     key: "proposal",
-    title: agreementOut ? "Booking agreement" : "Proposal",
+    title: agreementOut ? "Booking agreement" : tradeWords.proposal,
     explain: proposalInferred,
     detail: proposalDone
       ? proposalInferred
-        ? "Accepted outside StudioCue — no proposal on file here"
+        ? `Accepted outside StudioCue — no ${tradeWords.proposal.toLowerCase()} on file here`
         : "Accepted"
       : agreementOut
         ? `With ${who} to sign — signing both parts accepts the proposal`
@@ -667,7 +677,9 @@ export function projectJourney(input: JourneyInput): {
         ? null
         : {
             kind: "link",
-            label: agreementOut ? "View booking agreement" : proposalWaiting ? "View proposal" : "Prepare proposal",
+            label: agreementOut
+              ? "View booking agreement"
+              : `${proposalWaiting ? "View" : "Prepare"} ${tradeWords.proposal.toLowerCase()}`,
             // No proposal yet → straight into the guided composer (which also
             // locks a package when one is missing). An existing proposal →
             // the project's proposal list.
@@ -704,8 +716,8 @@ export function projectJourney(input: JourneyInput): {
       : contractWaiting
         ? "Out for signature"
         : proposalDone
-          ? "Built from the accepted proposal — no retyping"
-          : "Starts once the client accepts the proposal",
+          ? `Built from the accepted ${tradeWords.proposal.toLowerCase()} — no retyping`
+          : `Starts once the client accepts the ${tradeWords.proposal.toLowerCase()}`,
     status: contractDone
       ? "complete"
       : contractWaiting
@@ -1178,6 +1190,21 @@ export function projectJourney(input: JourneyInput): {
             },
   });
 
+  // A makeup artist's or hair stylist's own checklist for the morning
+  // (trades.ts `kitChecklist`): what to pack and where to be. Nothing to
+  // send, so no action; it is the move the day before.
+  const kit = tradeWords.kitChecklist;
+  if (kit) {
+    const kitDue = days !== null && days <= 1 && days >= 0;
+    push({
+      key: "kit",
+      title: kit.title,
+      detail: `Pack ${kit.items.slice(2, 5).join(", ")} — and check ${kit.items[0]}`,
+      status: eventBehindThem ? "complete" : kitDue ? "current" : "upcoming",
+      action: null,
+    });
+  }
+
   /**
    * The date has gone by and the job never moved past preparation.
    *
@@ -1319,7 +1346,7 @@ export function projectJourney(input: JourneyInput): {
       ? { label: "Review reply", href: `/studio/projects/${input.projectId}#prepared` }
       : null,
     consultation: { label: "Open calendar", href: project("/studio/calendar") },
-    proposal: { label: "Open proposal", href: project("/studio/proposals") },
+    proposal: { label: `Open ${tradeVocab(input.trade).proposal.toLowerCase()}`, href: project("/studio/proposals") },
     contract: { label: "Open contract", href: project("/studio/booking") },
     retainer: { label: "Open retainer", href: project("/studio/booking") },
     trial: { label: "Open calendar", href: project("/studio/calendar") },
@@ -1333,6 +1360,8 @@ export function projectJourney(input: JourneyInput): {
     coi: { label: "Open insurance", href: project("/studio/insurance") },
     final_balance: { label: "Open invoices", href: project("/studio/invoices") },
     day_before: { label: "Open the job", href: `/studio/projects/${input.projectId}` },
+    // The morning's schedule is what the kit checklist is packed against.
+    kit: { label: "Open schedule", href: project("/studio/schedules") },
     event_day: { label: "Open event day", href: project("/studio/event-day") },
     delivery: { label: "Open delivery", href: project("/studio/delivery") },
     album_review: { label: "Open reviews", href: project("/studio/reviews") },

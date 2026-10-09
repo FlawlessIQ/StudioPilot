@@ -196,7 +196,7 @@ export const tenantOnboardingCommand = onRequest(
             // a DJ's music planner; otherwise the event details form until
             // the trade's own arrives with its journey.
             formTemplateId:
-              preloaded["wedding-final-schedule"] ?? preloaded["dj-music-planner"] ?? preloaded["beauty-party-list"] ?? preloaded["wedding-event-details"] ?? null,
+              preloaded["wedding-final-schedule"] ?? preloaded["dj-music-planner"] ?? preloaded["makeup-party-list"] ?? preloaded["hair-party-list"] ?? preloaded["wedding-event-details"] ?? null,
             shotListTemplateId: preloaded["wedding-shot-list"] ?? null,
             // A DJ sends the planner at booking and locks ten days out, so
             // the final planning call falls about a week before (trades.ts).

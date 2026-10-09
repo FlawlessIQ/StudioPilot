@@ -23,7 +23,7 @@ import {
   waitForStudioImportReview,
 } from "@/lib/studio-import/command-client";
 import { STUDIO_SIGNING_STATEMENT } from "@/features/contracts/esign-consent";
-import { sampleContractSources, STARTER_AGREEMENT } from "@/features/contracts/sample";
+import { sampleContractSources, starterAgreementFor } from "@/features/contracts/sample";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -84,14 +84,16 @@ export function AgreementEditor() {
 
   // Load the saved agreement, once the default is known.
   useEffect(() => {
-    if (native.loading || loaded) return;
+    // Wait for the workspace too: the starting agreement is the trade's.
+    if (native.loading || workspace.loading || loaded) return;
     let active = true;
     void (async () => {
       let next: Loaded = {
         templateId: null,
         name: "Wedding agreement",
-        title: "Photography Services Agreement",
-        body: STARTER_AGREEMENT,
+        // The trade's own starting point (sample.ts): a makeup artist's names
+        // the minimum, the headcount and the morning, not image rights.
+        ...starterAgreementFor(workspace.tenantTrade),
         customFields: [],
         version: null,
       };
@@ -127,7 +129,7 @@ export function AgreementEditor() {
     return () => {
       active = false;
     };
-  }, [loaded, native.agreementTemplateId, native.loading]);
+  }, [loaded, native.agreementTemplateId, native.loading, workspace.loading, workspace.tenantTrade]);
 
   const customFields: ContractCustomField[] = useMemo(
     () =>
@@ -144,10 +146,10 @@ export function AgreementEditor() {
     () =>
       resolveContractDocument({
         template: { title: title || "Agreement", body, customFields },
-        sources: sampleContractSources(workspace.tenantName, new Date().toISOString().slice(0, 10)),
+        sources: sampleContractSources(workspace.tenantName, new Date().toISOString().slice(0, 10), workspace.tenantTrade),
         overrides: Object.fromEntries(customFields.map((field) => [field.key, `(${field.label})`])),
       }),
-    [body, customFields, title, workspace.tenantName],
+    [body, customFields, title, workspace.tenantName, workspace.tenantTrade],
   );
 
   function insert(token: string) {
