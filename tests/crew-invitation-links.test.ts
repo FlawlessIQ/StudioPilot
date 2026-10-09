@@ -35,7 +35,9 @@ const commands = MINTING_FILES.map((file) =>
 ).join("\n");
 
 test("every crew invite link points at a page that exists", () => {
-  const links = [...commands.matchAll(/\$\{appUrl\(\)\}(\/[a-z0-9/-]+)\?/g)].map(
+  // Invite links carry the token. Other crew mail links the crew's own pages
+  // (a studio reply opens their job), and isn't an invitation.
+  const links = [...commands.matchAll(/\$\{appUrl\(\)\}(\/[a-z0-9/-]+)\?token=/g)].map(
     (match) => match[1],
   );
   // Four places mint one: the roster invite, a direct assignment offer, the

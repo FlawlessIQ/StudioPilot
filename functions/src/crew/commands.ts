@@ -2916,6 +2916,14 @@ export const crewCommand = onRequest(
             if (!ownsAssignment && !internal) throw new Error("FORBIDDEN");
             const messageId = stable("crew_message", parsed.tenantId, parsed.idempotencyKey);
             const crewToStudio = ownsAssignment;
+            // A studio reply is emailed: the crew page promises "Replies come
+            // by email", and a reply that only sat on the assignment was never
+            // seen (GR, 2026-10-09). Read before any write in the transaction.
+            const profileId = String(current.get("crewProfileId") ?? "");
+            const profile =
+              !crewToStudio && profileId ? await transaction.get(db.doc(`crewProfiles/${profileId}`)) : null;
+            const crewEmail =
+              profile?.exists && profile.get("tenantId") === parsed.tenantId ? String(profile.get("email") ?? "").trim() : "";
             transaction.create(db.doc(`crewMessages/${messageId}`), {
               id: messageId,
               tenantId: parsed.tenantId,
@@ -2955,6 +2963,28 @@ export const crewCommand = onRequest(
               },
               { merge: true },
             );
+            if (!crewToStudio && crewEmail) {
+              const emailJobId = `crew_reply_${messageId}`;
+              transaction.create(db.doc(`emailJobs/${emailJobId}`), {
+                id: emailJobId,
+                tenantId: parsed.tenantId,
+                projectId: parsed.input.projectId,
+                assignmentId: reference.id,
+                type: "manual_message",
+                // Crew mail, never the couple's (operations/jobs.ts recipientIsClient).
+                audience: "crew",
+                recipient: crewEmail,
+                recipientName: profile?.get("name") ?? null,
+                customSubject: parsed.input.subject,
+                customBody: parsed.input.message,
+                actionLabel: "Open your job",
+                actionUrl: `${appUrl()}/crew/prep?assignment=${encodeURIComponent(reference.id)}`,
+                status: "queued",
+                attempts: 0,
+                createdAt: now,
+                updatedAt: now,
+              });
+            }
           } else {
             const requirements = current.get("requirements") as Array<
               Record<string, unknown>

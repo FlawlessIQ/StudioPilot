@@ -184,6 +184,9 @@ export function useTodayInbox(): {
   const questionnaires = useTenantDocuments("questionnaireResponses");
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
+  // What crew sent from their jobs (features/crew/crew-threads.ts).
+  const crewMessages = useTenantDocuments("crewMessages");
+  const crewProfiles = useTenantDocuments("crewProfiles");
   const checkpoints = useTenantDocuments("checkpoints");
   const insuranceRequests = useTenantDocuments("insuranceRequests");
   // Who sends the studio's certificates (H3). Readable by the studio's
@@ -396,6 +399,9 @@ export function useTodayInbox(): {
     integrationConnections: integrationConnections.records,
     bookingOrchestrations: bookingOrchestrations.records,
     crewCascades: crewCascades.records,
+    crewMessages: crewMessages.records,
+    crewAssignments: crewAssignments.records,
+    crewProfiles: crewProfiles.records,
     invoiceReferences: invoiceReferences.records,
     journeys,
     setupGaps: setup.gaps,

@@ -44,6 +44,7 @@ import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { isAmendable } from "@/features/booking/amendable";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { heldInvoiceView } from "@/features/billing/held-invoice-review";
+import { crewThreads } from "@/features/crew/crew-threads";
 import { jobValueCents } from "@/features/packages/job-packages";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { providerName as readable } from "@/lib/format/provider-name";
@@ -364,6 +365,13 @@ export type TodayInput = {
   integrationConnections?: TodayRecord[] | null;
   bookingOrchestrations?: TodayRecord[] | null;
   crewCascades?: TodayRecord[] | null;
+  /**
+   * What crew sent from their jobs, and who they are: a crew member's message
+   * reached only their assignment page (GR, 2026-10-09).
+   */
+  crewMessages?: TodayRecord[] | null;
+  crewAssignments?: TodayRecord[] | null;
+  crewProfiles?: TodayRecord[] | null;
   invoiceReferences?: TodayRecord[] | null;
   actionReceipts?: TodayRecord[] | null;
   journeys?: TodayJourneyPosition[] | null;
@@ -1330,6 +1338,46 @@ export function todayInbox(input: TodayInput): TodayInbox {
   const projectById = new Map(
     rows(input.projects).map((project) => [project.id, project]),
   );
+  // ── Act · crew messages ────────────────────────────────────────────
+  // One card per crew thread the studio owes an answer on, answered on
+  // Messages → Crew. An event-day message is an exception, not a step.
+  for (const thread of crewThreads({
+    crewMessages: rows(input.crewMessages),
+    crewAssignments: rows(input.crewAssignments),
+    crewProfiles: rows(input.crewProfiles),
+    projects: rows(input.projects),
+  })) {
+    if (!thread.awaitingStudio) continue;
+    const snippet = thread.last.message.replace(/\s+/g, " ");
+    act.push({
+      id: `crew-message-${thread.assignmentId}`,
+      lane: "act",
+      kind: "crew",
+      title: thread.urgent ? `${thread.crewName} needs you — event day` : `${thread.crewName} sent you a message`,
+      detail: snippet.length > 140 ? `${snippet.slice(0, 139).trimEnd()}…` : snippet,
+      evidence: [thread.role, "from their job"].filter(Boolean).join(", "),
+      projectId: thread.projectId || null,
+      projectName: nameFor(thread.projectId) ?? thread.projectName,
+      action: {
+        kind: "link",
+        label: "Reply",
+        href: `/studio/messages?view=crew&assignment=${encodeURIComponent(thread.assignmentId)}`,
+      },
+      jobHref: thread.projectId ? `/studio/projects/${thread.projectId}` : null,
+      facts: [waitingFact(thread.last.createdAt, now), eventFact(eventFor(thread.projectId), now)].filter(
+        (fact): fact is string => Boolean(fact),
+      ),
+      band: thread.urgent ? "overdue" : bandFor({ eventDate: eventFor(thread.projectId), now }),
+      eventDate: eventFor(thread.projectId),
+      score: score({
+        lane: "act",
+        severity: thread.urgent ? "exception" : "inquiry",
+        eventDate: eventFor(thread.projectId),
+        updatedAt: thread.last.createdAt,
+        now,
+      }),
+    });
+  }
   const stateFor = (projectId: unknown) => {
     const id = text(projectId);
     if (!id) return null;
