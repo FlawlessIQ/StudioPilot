@@ -60,6 +60,7 @@ import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
 import { InfoHint } from "@/components/ui/info-hint";
 import { finalBillWords } from "@/features/billing/final-bill-words";
 import { useJobBilling } from "@/components/booking/use-job-billing";
+import { StudioInvoiceActions } from "@/components/booking/studio-invoice-actions";
 import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
 import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
 
@@ -434,6 +435,10 @@ export function TodayInbox() {
               ) : !loading && lead?.action.kind === "final_balance" ? (
                 <span className="today-inquiry-buttons">
                   <FinalBalanceCardActions action={lead.action} onCleared={() => clear(lead.id)} onSettle={setSettling} />
+                </span>
+              ) : !loading && lead?.action.kind === "studio_invoice" ? (
+                <span className="today-inquiry-buttons">
+                  <StudioInvoiceCardActions action={lead.action} onCleared={() => clear(lead.id)} />
                 </span>
               ) : !loading && lead?.action.kind === "close_inquiry" ? (
                 <span className="today-inquiry-buttons">
@@ -1157,6 +1162,8 @@ function TodayCard({
           </>
         ) : item.action.kind === "final_balance" ? (
           <FinalBalanceCardActions action={item.action} onCleared={onCleared} onSettle={onSettleBalance} />
+        ) : item.action.kind === "studio_invoice" ? (
+          <StudioInvoiceCardActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "shot_list" ? (
           <ShotListActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "detail_change" ? (
@@ -1728,6 +1735,34 @@ function BillingAddressActions({
       ) : null}
       {notice ? <span className="today-card-notice">{notice}</span> : null}
     </>
+  );
+}
+
+type StudioInvoiceAction = Extract<TodayItem["action"], { kind: "studio_invoice" }>;
+
+/**
+ * An invoice the studio issued, not yet sent: email it, download the PDF,
+ * or mark it sent (the booking page offers the same,
+ * components/booking/studio-invoice-actions.tsx). Sent, the card goes.
+ */
+function StudioInvoiceCardActions({ action, onCleared }: { action: StudioInvoiceAction; onCleared?: () => void }) {
+  const { records: invoices } = useTenantDocuments("invoiceReferences");
+  const invoice = invoices?.find((candidate) => candidate.id === action.invoiceId) ?? null;
+  if (!invoice) {
+    return (
+      <Link className="today-card-primary" href={`/studio/booking?project=${action.projectId}`}>
+        Open it <ArrowRight size={14} />
+      </Link>
+    );
+  }
+  return (
+    <StudioInvoiceActions
+      compact
+      invoice={invoice}
+      onDone={() => onCleared?.()}
+      primaryClassName="today-card-primary"
+      secondaryClassName="today-card-secondary"
+    />
   );
 }
 

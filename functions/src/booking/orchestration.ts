@@ -23,6 +23,7 @@ import { productEvent } from "../operations/product-events.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
 import { jobBillingFor } from "../billing/job-billing-reader.js";
+import { draftStudioDeposit } from "../billing/studio-invoice-issue.js";
 
 function stableId(scope: string, ...parts: string[]) {
   return `${scope}_${createHash("sha256")
@@ -406,9 +407,21 @@ export const bookingContractCompleted = onDocumentWritten(
     const billing = await jobBillingFor(db, tenantId, projectId, project.exists ? (project.data() ?? null) : null);
     const raisesRetainer = (policy === true || policy === false) && billing.method === "quickbooks";
     if (!raisesRetainer) {
-      if (policy === true && billing.method === "studio") {
+      if ((policy === true || policy === false) && billing.method === "studio") {
+        // The studio bills this job itself: its deposit is drafted here,
+        // numbered with its PDF, for the studio to send (Today, the booking
+        // page) — never sent on its own (own invoicing, Phase 2).
+        if (!project.exists || project.get("tenantId") !== tenantId || jobCalledOff(project.data())) return;
+        const drafted = await draftStudioDeposit(db, {
+          tenantId,
+          projectId,
+          trigger: contract.id,
+          actor: "booking-orchestrator",
+        });
+        logger.info("studioDepositDrafted", { tenantId, projectId, ...drafted });
         await planReference.update({
           "policy.createRetainerAfterSignature": false,
+          ...(drafted.invoiceId ? { invoiceId: drafted.invoiceId, currentStep: "wait_for_payment" } : {}),
           updatedAt: new Date().toISOString(),
         });
       }
@@ -1169,6 +1182,20 @@ async function bookWithoutAgreement(
     }, { merge: true });
     return true;
   });
+  // A job the studio bills itself: its deposit (or the whole price, paid in
+  // full) is drafted for the studio to send (own invoicing, Phase 2).
+  if (moved && needs.payment && billing?.method === "studio") {
+    const drafted = await draftStudioDeposit(db, {
+      tenantId,
+      projectId,
+      trigger: proposal.id,
+      actor: "booking-orchestrator",
+    });
+    logger.info("studioDepositDrafted", { tenantId, projectId, ...drafted });
+    if (drafted.invoiceId) {
+      await planReference.update({ invoiceId: drafted.invoiceId, updatedAt: new Date().toISOString() });
+    }
+  }
   if (!moved || needs.payment) return;
 
   // Nothing to pay to book: the gate decides now.

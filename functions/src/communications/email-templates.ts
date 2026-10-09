@@ -1171,7 +1171,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
                 ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll pay your deposit on the next screen — that books your date — and get a copy by email.`
                 : "Once you sign, you'll pay your deposit on the next screen — that books your date — and get a copy by email."
               : oneLink
-                ? `${signerName ? `${signerName} has already signed both parts for ${brand.studioName}. ` : ""}Once you sign, you'll get a copy by email, and ${brand.studioName} will arrange your deposit with you — paying it books your date.`
+                ? `${signerName ? `${signerName} has already signed both parts for ${brand.studioName}. ` : ""}Once you sign, you'll get a copy by email, and ${brand.studioName} will send your deposit invoice — paying it books your date.`
                 : signerName
                   ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
                   : "Once you sign, you'll get a copy by email and the next step is your retainer.",
@@ -1340,6 +1340,33 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "final_payment_reminder": {
       const isRetainer = input.key === "retainer_invoice";
       const isReminder = input.key === "final_payment_reminder";
+      // An invoice the studio issued itself through StudioCue (own
+      // invoicing): its number, amount, due date and the studio's own way to
+      // pay, with the PDF attached (billing/studio-invoice-send.ts).
+      if (!isReminder && values.billedBy === "studio") {
+        const number = stringValue(values, "invoiceNumber");
+        const kindLabel = (stringValue(values, "invoiceKindLabel") || (isRetainer ? "Deposit" : "Final balance")).toLowerCase();
+        const amount = stringValue(values, "amountLabel");
+        const due = stringValue(values, "dueLabel");
+        const instructions = stringValue(values, "paymentInstructions");
+        const payLink = safeUrl(stringValue(values, "payLinkUrl"));
+        return {
+          subject: `Invoice ${number ? `${number} ` : ""}from ${brand.studioName}`,
+          preheader: amount ? `${amount}${due ? `, due ${due}` : ""}.` : `Your ${kindLabel} invoice.`,
+          eyebrow: "Invoice",
+          heading: `Your ${kindLabel} invoice`,
+          paragraphs: [
+            greeting,
+            `Here's your ${kindLabel} invoice${project}${amount ? `: ${amount}` : ""}${due ? `, due ${due}` : ""}. It's attached as a PDF.`,
+            ...(instructions ? [`How to pay: ${instructions.split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" \u00b7 ")}`] : []),
+          ],
+          action: payLink
+            ? { label: amount ? `Pay ${amount}` : "Pay now", url: payLink }
+            : invoiceUrl
+              ? { label: "View your invoice", url: invoiceUrl }
+              : undefined,
+        };
+      }
       const label = isRetainer ? "retainer" : "final balance";
       return {
         subject: `${isReminder ? "Reminder: " : ""}${isRetainer ? "Retainer" : "Final invoice"} from ${brand.studioName}`,

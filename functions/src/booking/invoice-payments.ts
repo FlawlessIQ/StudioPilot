@@ -1,4 +1,5 @@
 import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
+import { requeueStudioInvoicePdf } from "../billing/studio-invoice-issue.js";
 import { z } from "zod";
 import {
   auditEvent,
@@ -145,6 +146,8 @@ export async function recordInvoicePaymentIn(
     updatedAt: context.now,
     updatedBy: context.actorId,
   });
+  // The client's copy of a bill the studio issued shows the payment (own invoicing).
+  requeueStudioInvoicePdf(db, transaction, invoice, context.now);
   if (jobId && plan.providerJobType)
     transaction.create(db.doc(`providerJobs/${jobId}`), {
       id: jobId,

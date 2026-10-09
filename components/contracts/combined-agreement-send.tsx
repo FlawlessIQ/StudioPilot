@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { JobBillingChoice } from "@/components/booking/job-billing-choice";
+import { useJobBilling } from "@/components/booking/use-job-billing";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { FileSignature, LoaderCircle, Send } from "lucide-react";
@@ -54,6 +57,10 @@ export function CombinedAgreementSend({
   const [signerName, setSignerName] = useState("");
   const [consented, setConsented] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // How this job is billed decides what the signature does with the deposit
+  // (features/billing/job-billing.ts): asked here, before it goes, when the
+  // studio has QuickBooks and hasn't chosen for this job.
+  const billing = useJobBilling(projectId);
 
   if (!native.combined || !canSign) return null;
 
@@ -234,13 +241,28 @@ export function CombinedAgreementSend({
           </button>
           {preview.clientEmail ? <span className="native-contract-note">It goes to {preview.clientEmail}.</span> : null}
         </div>
-        {oneLink && preview.depositOnline === false ? (
-          // Said before it goes, not found out after: with nothing to raise
-          // the deposit invoice, the client can't pay on the next screen.
+        {billing?.canChoose && !billing.decided ? (
+          <JobBillingChoice
+            billing={billing}
+            onChanged={() => {
+              refreshTenantRecords("projects", "billingSettings");
+              // What the signature does with the deposit just changed.
+              void open();
+            }}
+            projectId={projectId}
+          />
+        ) : null}
+        {preview.depositOnline === false ? (
+          // Said before it goes, not found out after: the deposit is the
+          // studio's to send (own invoicing), not paid on the next screen.
           <p className="native-contract-note" role="note">
-            {`No QuickBooks or Stripe is connected, so ${preview.clientName || "the client"} can't pay on the next screen — they'll be asked to arrange the deposit with you, and you record it on the job's Booking tab. `}
-            <Link href="/studio/integrations">Connect payments</Link>
-            {" before they sign and they pay it on the spot."}
+            {`Once ${preview.clientName || "the client"} signs, StudioCue drafts the deposit invoice for you to send — it waits on Today and the job's Booking tab. `}
+            {billing?.canChoose ? null : (
+              <>
+                <Link href="/studio/settings/invoices">Add your payment details</Link>
+                {" so it says how to pay."}
+              </>
+            )}
           </p>
         ) : null}
       </div>

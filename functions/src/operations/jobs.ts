@@ -1194,8 +1194,12 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   // The proposal PDF, and the couple's own copy of a signed StudioCue
   // contract — ESIGN expects the signer to be given one, so it travels with
   // the email rather than waiting behind a sign-in.
+  // …and an invoice the studio issued itself, with its PDF
+  // (billing/studio-invoice-send.ts). If the PDF hasn't landed yet the send
+  // fails and is retried, rather than going out without it.
   if (
-    (type === "proposal_sent" || type === "contract_signed") &&
+    (type === "proposal_sent" || type === "contract_signed" ||
+      ((type === "retainer_invoice" || type === "final_invoice") && document.get("billedBy") === "studio")) &&
     document.get("attachmentDocumentId")
   ) {
     const attachment = await getFirestore()
@@ -1224,7 +1228,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
         type: "application/pdf",
         filename: String(
           attachment.get("name") ??
-            (type === "contract_signed" ? "signed-agreement.pdf" : "photography-proposal.pdf"),
+            (type === "contract_signed" ? "signed-agreement.pdf" : type === "proposal_sent" ? "photography-proposal.pdf" : "invoice.pdf"),
         ),
         disposition: "attachment",
       },

@@ -177,6 +177,8 @@ export function useTodayInbox(): {
     enabled: ownerOperations,
   });
   const bookingOrchestrations = useTenantDocuments("bookingOrchestrations");
+  // How the studio's clients pay it (own invoicing): whether to nudge for payment details.
+  const billingSettings = useTenantDocuments("billingSettings", { enabled: ownerOperations });
   const crewCascades = useTenantDocuments("crewCascades");
   const invoiceReferences = useTenantDocuments("invoiceReferences");
   // Journey inputs.
@@ -399,6 +401,7 @@ export function useTodayInbox(): {
     providerJobs: providerJobs.records,
     emailJobs: emailJobs.records,
     integrationConnections: integrationConnections.records,
+    billingSettings: billingSettings.records,
     bookingOrchestrations: bookingOrchestrations.records,
     crewCascades: crewCascades.records,
     crewMessages: crewMessages.records,

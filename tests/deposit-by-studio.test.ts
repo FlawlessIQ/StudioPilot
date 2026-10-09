@@ -99,12 +99,13 @@ const today = (overrides: Record<string, unknown>) =>
 
 test("Today: a link out with nothing to take the deposit says connect payments, once", () => {
   const card = today({}).act.find((item) => item.id === "connect-payments");
-  assert.equal(card?.title, "Connect payments so Riley Park can pay the deposit online");
+  // Own invoicing: the nudge is for payment details, QuickBooks is one option.
+  assert.equal(card?.title, "Add how Riley Park can pay you");
   assert.equal(
     card?.detail,
-    "No QuickBooks or Stripe is connected, so after signing they'll be asked to arrange the deposit with you. Connect one before they sign and they pay it on the spot.",
+    "Once they sign, StudioCue drafts the deposit invoice for you to send. Add your payment details — Zelle, checks, a pay link — so it tells them how to pay. Or connect QuickBooks to bill through it.",
   );
-  assert.deepEqual(card?.action, { kind: "link", label: "Connect payments", href: "/studio/integrations" });
+  assert.deepEqual(card?.action, { kind: "link", label: "Add payment details", href: "/studio/settings/invoices" });
   assert.equal(card?.jobHref, "/studio/projects/job1");
 
   // Two links out: one card naming both, not two cards.
@@ -116,7 +117,13 @@ test("Today: a link out with nothing to take the deposit says connect payments, 
     bookingOrchestrations: [plan("wait_for_signature"), { ...plan("wait_for_signature"), id: "job2", projectId: "job2" }],
   }).act.filter((item) => item.id === "connect-payments");
   assert.equal(two.length, 1);
-  assert.equal(two[0]?.title, "Connect payments so Sam Lee and Riley Park can pay the deposit online");
+  assert.equal(two[0]?.title, "Add how Sam Lee and Riley Park can pay you");
+  // Payment details saved: the invoice says how to pay, so no nudge.
+  assert.ok(
+    !today({ billingSettings: [{ tenantId: "t", studioInvoices: { paymentInstructions: "Zelle to me@studio.test" } }] }).act.some(
+      (item) => item.id === "connect-payments",
+    ),
+  );
   assert.equal(two[0]?.jobHref, null);
 
   // Connected, signed, or raised automatically: nothing to nudge.
@@ -138,5 +145,5 @@ test("connected after the link went out, the signature raises the deposit after 
   assert.match(read("components/today/use-today-inbox.ts"), /depositByStudio: depositByStudio\(\s*\(bookingOrchestrations\.records \?\? \[\]\)\.find\(\(plan\) => plan\.id === projectId\),\s*\),/);
   assert.match(read("components/projects/use-project-journey.ts"), /depositByStudio: depositByStudio\(\(bookingPlans\.records \?\? \[\]\)\.find\(\(plan\) => plan\.id === projectId\)\),/);
   // The send dialog says connecting before they sign still works.
-  assert.match(read("components/contracts/combined-agreement-send.tsx"), /" before they sign and they pay it on the spot\."/);
+  assert.match(read("components/contracts/combined-agreement-send.tsx"), /Add your payment details/);
 });

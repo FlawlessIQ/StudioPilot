@@ -402,6 +402,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   BILLING_STUDIO_JOB:
     "You're billing this job yourself, so QuickBooks won't send this bill. Record the payment when it comes in, or switch the job to QuickBooks on its booking page.",
   INVOICE_PAY_LINK_INVALID: "The payment link needs to be a full web address starting with https://.",
+  // Invoices the studio issues itself (bookingCommand sendStudioInvoice / createStudioDeposit).
+  NOT_A_STUDIO_INVOICE: "This bill isn't one StudioCue issued for you. Open Invoices to see where it lives.",
+  INVOICE_NOT_SENDABLE: "This invoice is paid or closed, so there's nothing to send.",
+  BILLING_QUICKBOOKS_JOB: "This job is billed through QuickBooks. Switch it to \u201cBill it myself\u201d on its booking page first.",
+  INVOICE_NOT_DRAFTED: "The deposit invoice couldn't be made. Check the job has an accepted package, then try again.",
   // Settings → Invoices and payments → Preview a sample invoice.
   PDF_GENERATION_FAILED: "The invoice PDF couldn't be made just now. Try again in a minute.",
   PDF_SERVICE_NOT_CONFIGURED: "Invoice PDFs aren't set up in this environment.",

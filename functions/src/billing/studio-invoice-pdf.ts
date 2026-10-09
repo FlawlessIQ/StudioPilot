@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
+import type { DocumentReference, DocumentSnapshot, Firestore, SetOptions } from "firebase-admin/firestore";
+
+/** A transaction or a batch: whichever the change to the bill is going out with. */
+export type InvoiceWriter = {
+  set(reference: DocumentReference, data: Record<string, unknown>, options?: SetOptions): unknown;
+};
 import { getStorage } from "firebase-admin/storage";
 import { normaliseStudioInvoiceSettings } from "./studio-invoice-settings.js";
 import {
@@ -43,13 +48,13 @@ export function invoicePdfDocumentId(invoiceId: string): string {
 }
 
 /**
- * Queue the next revision inside the transaction that changed the bill.
+ * Queue the next revision with the write (transaction or batch) that changed the bill.
  * The caller has read the invoice; pass its current `pdfRevision`.
  * Returns the revision queued, which the caller writes as `pdfRevision`.
  */
 export function queueStudioInvoicePdf(
   db: Firestore,
-  transaction: Transaction,
+  transaction: InvoiceWriter,
   input: { tenantId: string; projectId: string; invoiceId: string; currentRevision: unknown; now: string },
 ): number {
   const prior = Number(input.currentRevision);

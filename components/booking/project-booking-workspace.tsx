@@ -80,6 +80,7 @@ import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { JobSalesTax } from "@/components/booking/job-sales-tax";
 import { JobBillingChoice } from "@/components/booking/job-billing-choice";
 import { useJobBilling } from "@/components/booking/use-job-billing";
+import { StudioDepositPanel } from "@/components/booking/studio-invoice-actions";
 import { BillingAddressSummary } from "@/components/clients/billing-address-summary";
 
 type RecordValue = Record<string, unknown> & { id: string };
@@ -996,7 +997,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
       {/* Where they are billed, and whether the couple confirmed it at signing. */}
       <BillingAddressSummary
         contact={contact}
-        showMissing={invoicingProvider === "quickbooks" && kindProfile.billingAddressRequest}
+        showMissing={invoicingProvider === "quickbooks" && !studioBilled && kindProfile.billingAddressRequest}
         signsAgreement={kindNeeds.agreement}
       />
       {/* One step at a time.
@@ -1517,8 +1518,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               </StatusBadge>
             </div>
             <p>
-              {`StudioCue matches or creates the customer in ${invoicingName}, then tracks the invoice there without handling card details.`}
+              {studioBilled
+                ? "You bill this job yourself: StudioCue numbers the invoice, makes its PDF and keeps track of what's paid. Nothing goes to QuickBooks."
+                : `StudioCue matches or creates the customer in ${invoicingName}, then tracks the invoice there without handling card details.`}
             </p>
+            {studioBilled && invoice ? (
+              // The invoice the studio issued: its number, its PDF, and email it (again).
+              <StudioDepositPanel canCreate={false} onDone={(message) => setNotice(message)} projectId={projectId} />
+            ) : null}
             {invoiceFailed ? (
               // A refused invoice is not a retainer waiting to be paid, and
               // showing it as one left the studio watching for an email
@@ -1821,9 +1828,16 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {/* Moved from the contract step, where it described a step
                     that had not started. */}
                 {studioBilled ? (
-                  <small>
-                    {`You're billing this job yourself, so nothing goes to QuickBooks. Record the ${paidInFull ? "payment" : oneLink ? "deposit" : "retainer"} below once it's paid.`}
-                  </small>
+                  <>
+                    <small>
+                      {`You're billing this job yourself, so nothing goes to QuickBooks. Send the invoice from here, then record the ${paidInFull ? "payment" : oneLink ? "deposit" : "retainer"} below once it's paid.`}
+                    </small>
+                    <StudioDepositPanel
+                      canCreate={projectState === "RETAINER_PENDING" && agreementSettled}
+                      onDone={(message) => setNotice(message)}
+                      projectId={projectId}
+                    />
+                  </>
                 ) : (
                   <CapabilityNote capability="invoicing" />
                 )}

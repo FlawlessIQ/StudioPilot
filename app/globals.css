@@ -15029,6 +15029,38 @@ form:has(> .address-field) > .address-field,
   justify-self: start;
 }
 
+/* An invoice the studio issued itself: email it, download it, mark it sent
+   (components/booking/studio-invoice-actions.tsx). Buttons wrap, never squeeze. */
+.studio-invoice-actions {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.studio-invoice-summary {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  min-width: 0;
+}
+
+.studio-invoice-summary span {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 13px;
+}
+
+.studio-invoice-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-invoice-buttons > * {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
 /* Settings → Invoices and payments (components/settings/invoice-settings.tsx).
    Fields wrap by the panel's own width, never the viewport. */
 .invoice-settings > .crm-form {

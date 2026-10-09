@@ -25,6 +25,7 @@ import {
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
 import { depositByStudio, paymentsConnected } from "@/features/booking/deposit-by-studio";
+import { normaliseStudioInvoiceSettings, studioInvoicePaymentReady } from "@/features/billing/studio-invoice-settings";
 import { hasFinalBalance, jobKindOf, journeyFor, projectProfile, singleBillWindow, vocab } from "@/features/job-kinds/job-kinds";
 import { ignorableSenderOf, notInquiryAllowed } from "@/features/intake/not-inquiry";
 import {
@@ -96,6 +97,17 @@ export type TodayAction =
       singleBill?: boolean;
       /** Collected on the morning (makeup, hair): record it in one tap (record-final-payment.tsx). */
       onTheDay?: boolean;
+    }
+  | {
+      /**
+       * An invoice the studio issued itself, drafted and not yet sent: email
+       * it, or send it its own way and mark it sent
+       * (components/booking/studio-invoice-actions.tsx).
+       */
+      kind: "studio_invoice";
+      label: string;
+      projectId: string;
+      invoiceId: string;
     }
   | {
       /**
@@ -372,6 +384,8 @@ export type TodayInput = {
   providerJobs?: TodayRecord[] | null;
   emailJobs?: TodayRecord[] | null;
   integrationConnections?: TodayRecord[] | null;
+  /** The studio's billing settings (one record): its invoice payment details. */
+  billingSettings?: TodayRecord[] | null;
   bookingOrchestrations?: TodayRecord[] | null;
   crewCascades?: TodayRecord[] | null;
   /**
@@ -2071,6 +2085,39 @@ export function todayInbox(input: TodayInput): TodayInbox {
       score: score({ lane: "act", severity: "step", eventDate: text(job?.eventDate) || null, updatedAt: changedAt(invoice), now }),
     });
   }
+  // ── Act · an invoice the studio issued, not yet sent ────────────────
+  // Drafted for the studio when the client signed (or booked with no
+  // agreement), numbered with its PDF. Nothing goes to the client until the
+  // studio sends it (own invoicing, Phase 2).
+  for (const invoice of rows(input.invoiceReferences)) {
+    if (invoice.billedBy !== "studio" || invoice.provider || text(invoice.status) !== "draft") continue;
+    const projectId = text(invoice.projectId);
+    if (!projectId || !jobStillOpen(projectId)) continue;
+    const job = rows(input.projects).find((candidate) => candidate.id === projectId);
+    const cents = Number(invoice.balanceCents ?? 0);
+    const amount = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: cents % 100 ? 2 : 0,
+    }).format(cents / 100);
+    const label = invoice.paidInFull === true ? "" : text(invoice.kind) === "final" ? "final " : "deposit ";
+    act.push({
+      id: `studio-invoice-${invoice.id}`,
+      lane: "act",
+      kind: "invoice",
+      title: `Send ${clientOf(job)}'s ${label}invoice · ${amount}`,
+      detail: `${text(invoice.number) || "It"} is ready, with its PDF${text(invoice.dueDate) ? `, due ${formatDueDate(text(invoice.dueDate))}` : ""}. Email it from here, or send it yourself and mark it sent.`,
+      evidence: null,
+      projectId,
+      projectName: text(job?.name) || null,
+      action: { kind: "studio_invoice", label: "Email it", projectId, invoiceId: text(invoice.id) },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [eventFact(text(job?.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),
+      band: bandFor({ eventDate: text(job?.eventDate) || null, dueDate: text(invoice.dueDate) || null, now }),
+      eventDate: text(job?.eventDate) || null,
+      score: score({ lane: "act", severity: "step", eventDate: text(job?.eventDate) || null, updatedAt: changedAt(invoice), now }),
+    });
+  }
   // ── Act · a booking link out with nothing to take the deposit ───────
   // It went out with no QuickBooks or Stripe, so the client can't pay on the
   // spot: they'll be told to arrange the deposit with the studio. Connected
@@ -2078,7 +2125,14 @@ export function todayInbox(input: TodayInput): TodayInbox {
   // orchestration.ts), so this is the moment to say so — once per studio, not
   // once per job. After the signature the job's own step says "Record the
   // deposit" (journey/steps.ts). Riley Park, Spin Theory DJs, 2026-10-09.
-  if (!paymentsConnected(rows(input.integrationConnections))) {
+  // Own invoicing (2026-10-09): with nothing connected, the signature drafts
+  // the deposit invoice for the studio to send. It says how to pay once the
+  // studio has added its payment details, so the nudge is for those —
+  // QuickBooks stays one option, not the only one.
+  const paymentDetailsReady = studioInvoicePaymentReady(
+    normaliseStudioInvoiceSettings(rows(input.billingSettings)[0] ?? null),
+  );
+  if (!paymentsConnected(rows(input.integrationConnections)) && !paymentDetailsReady) {
     const waiting = rows(input.bookingOrchestrations)
       .filter(
         (plan) =>
@@ -2099,12 +2153,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
         id: "connect-payments",
         lane: "act",
         kind: "invoice",
-        title: `Connect payments so ${who} can pay the ${word} online`,
-        detail: `No QuickBooks or Stripe is connected, so after signing they'll be asked to arrange the ${word} with you. Connect one before they sign and they pay it on the spot.`,
+        title: `Add how ${who} can pay you`,
+        detail: `Once they sign, StudioCue drafts the ${word} invoice for you to send. Add your payment details — Zelle, checks, a pay link — so it tells them how to pay. Or connect QuickBooks to bill through it.`,
         evidence: null,
         projectId: waiting.length === 1 ? text(first.plan.projectId) : null,
         projectName: waiting.length === 1 ? text(first.job?.name) || null : null,
-        action: { kind: "link", label: "Connect payments", href: "/studio/integrations" },
+        action: { kind: "link", label: "Add payment details", href: "/studio/settings/invoices" },
         jobHref: waiting.length === 1 ? `/studio/projects/${text(first.plan.projectId)}` : null,
         facts: [eventFact(text(first.job?.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),
         band: bandFor({ eventDate: text(first.job?.eventDate) || null, now }),

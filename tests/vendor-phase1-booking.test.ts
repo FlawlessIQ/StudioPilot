@@ -184,10 +184,10 @@ test("a studio with no payments app: the client is told to arrange the deposit, 
   // signing raises no invoice, and "on its way" would have waited forever.
   const studio = { ...quote, depositByStudio: true };
   const out = bookingSteps({ proposalStatus: "sent", contractStatus: "sent", retainer: null, ...studio });
-  assert.match(out.next.detail, /Read your quote and the terms and sign\. Your studio then arranges your deposit with you, and paying it books your date\./);
+  assert.match(out.next.detail, /Read your quote and the terms and sign\. Your studio then sends your deposit invoice, and paying it books your date\./);
   assert.doesNotMatch(out.next.detail, /all in one visit/);
   const signed = bookingSteps({ proposalStatus: "accepted", contractStatus: "completed", retainer: null, ...studio });
-  assert.equal(signed.next.title, "Arrange your deposit");
+  assert.equal(signed.next.title, "Your deposit invoice comes next");
   assert.equal(signed.next.href, "/client/messages?context=Payments");
   assert.equal(signed.steps[0]?.state, "current");
   // An invoice the studio raised by hand still wins: it's ready to pay.
@@ -209,7 +209,7 @@ test("a studio with no payments app: the client is told to arrange the deposit, 
   const page = read("components/client/kit/client-contract.tsx");
   assert.match(page, /oneLink && needs\.payment && !depositByStudio/);
   assert.match(page, /byStudio=\{depositByStudio\}/);
-  assert.match(page, /"Arrange your payment" : "Arrange your deposit"/);
+  assert.match(page, /"Your invoice comes next" : "Your deposit invoice comes next"/);
 
   // The email promises the next screen only when there is one.
   const { renderEmailTemplate } = await import("../functions/src/communications/email-templates");
@@ -223,7 +223,7 @@ test("a studio with no payments app: the client is told to arrange the deposit, 
     });
   const direct = email(false);
   assert.doesNotMatch(direct.text, /next screen/);
-  assert.match(direct.text, /Once you sign, you'll get a copy by email, and Spin Theory DJs will arrange your deposit with you — paying it books your date\./);
+  assert.match(direct.text, /Once you sign, you'll get a copy by email, and Spin Theory DJs will send your deposit invoice — paying it books your date\./);
   assert.match(direct.text, /Read and sign: https/);
   for (const online of [email(true), email(undefined)]) {
     assert.match(online.text, /you'll pay your deposit on the next screen/);
@@ -236,8 +236,9 @@ test("a studio with no payments app: the client is told to arrange the deposit, 
   assert.match(commands, /payOnline:\s*orchestration\.exists && orchestration\.get\("status"\) === "active"\s*\? orchestration\.get\("policy\.createRetainerAfterSignature"\) === true\s*: invoicingConnected,/);
   assert.match(commands, /depositRaisedOnSigning\(db, context\.tenantId, input\.projectId\)/);
   const send = read("components/contracts/combined-agreement-send.tsx");
-  assert.match(send, /oneLink && preview\.depositOnline === false/);
-  assert.match(send, /No QuickBooks or Stripe is connected/);
+  // Own invoicing: the studio sends the deposit invoice itself.
+  assert.match(send, /preview\.depositOnline === false/);
+  assert.match(send, /StudioCue drafts the deposit invoice for you to send/);
 });
 
 // ── The studio's side ──────────────────────────────────────────────────────

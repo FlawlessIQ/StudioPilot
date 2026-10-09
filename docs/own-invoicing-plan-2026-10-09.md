@@ -5,8 +5,15 @@
 | Phase | State |
 |---|---|
 | 0 — Foundation (per-job choice, settings, numbering, no dead ends) | Live 2026-10-09 (f98f2cb3) |
-| 1 — The PDF invoice (`/v1/invoices/pdf`, `invoice_pdf` jobs, portal, sample preview) | Built 2026-10-09; nothing issues a studio invoice until Phase 2 |
-| 2–6 | Not started |
+| 1 — The PDF invoice (`/v1/invoices/pdf`, `invoice_pdf` jobs, portal, sample preview) | Live 2026-10-09 (70b20acf) |
+| 2 — Deposits: drafted on signing / no-agreement booking, emailed with the PDF or marked sent, Today card, booking panel, PDF re-rendered on payment/void | Built 2026-10-09 |
+| 3–6 | Not started |
+
+Phase 2 decisions made while building: a deposit is never taxed (tax goes on
+the bill that completes the price, as QuickBooks does on its final); the
+"Connect payments" Today nudge became "Add how {client} can pay you"; a
+QuickBooks studio is asked "QuickBooks or bill it myself" in the agreement
+send dialog when the job hasn't chosen.
 
 Decisions (Conor, 2026-10-09): every recommendation below accepted — paid
 deletes leave a money-free settled stub, deletes scrub audit amounts, one

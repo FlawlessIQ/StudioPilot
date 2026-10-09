@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { requeueStudioInvoicePdf } from "../billing/studio-invoice-issue.js";
 import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
 import { z } from "zod";
 import { balanceMayBeAttested } from "./agreed-final-balance.js";
@@ -174,6 +175,8 @@ export function writeInvoiceVoid(
     updatedAt: now,
     updatedBy: actor,
   });
+  // The client's copy of a bill the studio issued says VOID (own invoicing).
+  requeueStudioInvoicePdf(invoice.ref.firestore, transaction, invoice, now);
   if (queue && jobId)
     transaction.create(db.doc(`providerJobs/${jobId}`), {
       id: jobId,
@@ -287,6 +290,7 @@ export async function correctPaymentRecordIn(
     updatedAt: context.now,
     updatedBy: context.actorId,
   });
+  requeueStudioInvoicePdf(invoice.ref.firestore, transaction, invoice, context.now);
   // Withdrawn from an invoice QuickBooks holds: its balance is QuickBooks'
   // again, which may have taken a payment of its own meanwhile. Re-read it.
   if (plan.reopenedAtProvider && invoice.get("provider") === "quickbooks") {

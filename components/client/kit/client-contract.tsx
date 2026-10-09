@@ -412,7 +412,8 @@ function PayAfterSigning({
       </>
     );
 
-  // Nothing to wait for: the studio raises no invoice and takes it directly.
+  // The studio bills this itself: its invoice comes from the studio (own
+  // invoicing), not from an accounting app on this screen.
   if (byStudio)
     return (
       <>
@@ -420,9 +421,9 @@ function PayAfterSigning({
           <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
             Last step
           </p>
-          <h2 className="kit-section">{paidInFull ? "Arrange your payment" : "Arrange your deposit"}</h2>
+          <h2 className="kit-section">{paidInFull ? "Your invoice comes next" : "Your deposit invoice comes next"}</h2>
           <p className="kit-body">
-            {`${studioName ?? "Your studio"} takes the ${paidInFull ? "payment" : "deposit"} directly — by check, cash or bank transfer. Message ${studioName ?? "them"} to arrange it. Your date is booked the moment it’s paid.`}
+            {`${studioName ?? "Your studio"} sends your ${paidInFull ? "invoice" : "deposit invoice"} next, with how to pay — it will appear here and in your email. Your date is booked the moment it’s paid.`}
           </p>
         </Card>
         <Actions>

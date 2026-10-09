@@ -266,7 +266,7 @@ function oneLinkView(facts: {
               // Sent as one booking agreement: signing accepts the quote.
               title: "Review and book",
               detail: byStudio
-                ? `Read your ${offer} and the terms and sign. Your studio then arranges your ${needs.paidInFull ? "payment" : "deposit"} with you, and paying it books your date.`
+                ? `Read your ${offer} and the terms and sign. Your studio then sends your ${needs.paidInFull ? "invoice" : "deposit invoice"}, and paying it books your date.`
                 : `Read your ${offer} and the terms and sign${then} — all in one visit.`,
               href: "/client/contract",
               actionLabel: "Review and book",
@@ -288,7 +288,7 @@ function oneLinkView(facts: {
           ? {
               title: "Sign your agreement",
               detail: byStudio
-                ? `It's ready to sign. Once you've signed, your studio arranges your ${needs.paidInFull ? "payment" : "deposit"} with you.`
+                ? `It's ready to sign. Once you've signed, your studio sends your ${needs.paidInFull ? "invoice" : "deposit invoice"}.`
                 : needs.payment
                   ? `It's ready to sign. Once you've signed, you can ${payWord} right away.`
                   : "It's ready to sign, and signing books your date.",
@@ -318,8 +318,8 @@ function oneLinkView(facts: {
               }
             : byStudio
               ? {
-                  title: needs.paidInFull ? "Arrange your payment" : "Arrange your deposit",
-                  detail: `You've signed. Your studio takes the ${needs.paidInFull ? "payment" : "deposit"} directly — by check, cash or bank transfer. Message them to arrange it; your date is booked the moment it's paid.`,
+                  title: needs.paidInFull ? "Your invoice comes next" : "Your deposit invoice comes next",
+                  detail: `You've signed. Your studio sends your ${needs.paidInFull ? "invoice" : "deposit invoice"} next, with how to pay — it will appear here and in your email. Your date is booked the moment it's paid.`,
                   href: "/client/messages?context=Payments",
                   actionLabel: "Message your studio",
                 }

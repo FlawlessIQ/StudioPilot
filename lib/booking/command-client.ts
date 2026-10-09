@@ -272,6 +272,28 @@ export async function setJobBillingMethod(input: { projectId: string; method: "q
 }
 
 /**
+ * An invoice the studio issued itself: email it to the client with its PDF,
+ * or record that the studio sent it its own way (owner/admin). See
+ * functions/src/billing/studio-invoice-send.ts.
+ */
+export async function sendStudioInvoice(input: { invoiceId: string; via: "email" | "self" }) {
+  return sendBookingCommand({
+    type: "sendStudioInvoice",
+    idempotencyKey: `studio_invoice_${input.invoiceId}_${crypto.randomUUID()}`,
+    input,
+  });
+}
+
+/** Draft the deposit invoice on a job the studio bills itself (owner/admin). */
+export async function createStudioDeposit(projectId: string) {
+  return sendBookingCommand({
+    type: "createStudioDeposit",
+    idempotencyKey: `studio_deposit_${projectId}_${crypto.randomUUID()}`,
+    input: { projectId },
+  });
+}
+
+/**
  * Void a bill in StudioCue and at the provider (owner/admin). The server
  * refuses a bill with money on it; see functions/src/booking/invoice-corrections.ts.
  */

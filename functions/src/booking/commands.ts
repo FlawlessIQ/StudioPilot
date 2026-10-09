@@ -105,7 +105,14 @@ import {
 import { keptMeetingSettings } from "./consultation-settings-merge.js";
 import { setJobSalesTaxExempt, setJobSalesTaxExemptInput } from "./job-sales-tax.js";
 import { setJobBillingMethod, setJobBillingMethodInput } from "./job-billing-method.js";
+import {
+  createStudioDeposit,
+  createStudioDepositInput,
+  sendStudioInvoice,
+  sendStudioInvoiceInput,
+} from "../billing/studio-invoice-send.js";
 import { STUDIO_BILLED_JOB, jobBillingFor } from "../billing/job-billing-reader.js";
+import { requeueStudioInvoicePdf } from "../billing/studio-invoice-issue.js";
 import {
   SUPERSEDABLE_BRIEF_STATUSES,
   bookingBriefRerunRefusal,
@@ -223,6 +230,20 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: setJobBillingMethodInput,
+  }),
+  z.object({
+    // An invoice the studio issued itself: email it, or record it went (owner/admin) — ../billing/studio-invoice-send.ts.
+    type: z.literal("sendStudioInvoice"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: sendStudioInvoiceInput,
+  }),
+  z.object({
+    // Draft the deposit on a job the studio bills itself (owner/admin).
+    type: z.literal("createStudioDeposit"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: createStudioDepositInput,
   }),
   z.object({
     type: z.literal("setSignedCopyShared"),
@@ -2013,6 +2034,8 @@ export const bookingCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          // The client's copy of a bill the studio issued says PAID (own invoicing).
+          requeueStudioInvoicePdf(firestore, settleBatch, standing, timestamp);
           const settleAuditId = stableId(
             "audit_retainer_settled",
             command.tenantId,
@@ -2324,6 +2347,8 @@ export const bookingCommand = onRequest(
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
+          // The client's copy of a bill the studio issued says PAID (own invoicing).
+          requeueStudioInvoicePdf(firestore, settleBatch, standing, timestamp);
           const settleAuditId = stableId(
             "audit_balance_settled",
             command.tenantId,
@@ -3267,6 +3292,20 @@ export const bookingCommand = onRequest(
           },
           command.input,
         );
+      } else if (command.type === "sendStudioInvoice" || command.type === "createStudioDeposit") {
+        const studioInvoiceContext = {
+          tenantId: command.tenantId,
+          membership,
+          actorId: identity.uid,
+          timestamp,
+          idempotencyKey: command.idempotencyKey,
+          ipAddress: request.ip ?? null,
+          userAgent: request.header("user-agent") ?? null,
+        };
+        result =
+          command.type === "sendStudioInvoice"
+            ? await sendStudioInvoice(studioInvoiceContext, command.input)
+            : await createStudioDeposit(studioInvoiceContext, command.input);
       } else if (command.type === "setJobBillingMethod") {
         result = await setJobBillingMethod(
           {
