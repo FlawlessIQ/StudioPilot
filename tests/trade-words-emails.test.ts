@@ -89,6 +89,16 @@ test("a quote is a quote, and a vendor books services", () => {
   const options = render("package_follow_up", { trade: "dj", portalUrl: "https://studio-cue.com/client" });
   assert.match(options.text, /Let’s find the right package/);
   assert.match(options.text, /Review the available packages and send any questions/);
+  // "Spin Theory DJs' terms", never "DJs's" (Riley Park, 2026-10-09).
+  const plural = renderEmailTemplate({
+    key: "contract_ready",
+    brand: { ...brand, studioName: "Spin Theory DJs" },
+    recipientName: "Riley Park",
+    projectName: "Riley Park Wedding",
+    values: { trade: "dj", combined: true },
+  });
+  assert.match(plural.text, /Part 1 is Spin Theory DJs’ terms/);
+  assert.match(render("contract_ready", { trade: "dj", combined: true }).text, /Part 1 is Glow by Ana’s terms/);
 });
 
 test("the planning form's request names the trade's own form", () => {

@@ -51,6 +51,9 @@ export function ClientContract() {
   // The agreement that stands, not merely the newest write (see coupleContract).
   const contract = useMemo(() => coupleContract(contracts.value), [contracts.value]);
   const contractStatus = text(contract?.status);
+  // No deposit invoice follows the signature: the studio takes it directly
+  // (app/api/client/portal/route.ts `depositByStudio`).
+  const depositByStudio = contract?.depositByStudio === true;
 
   useEffect(() => {
     if (!providerOpened) return;
@@ -116,9 +119,11 @@ export function ClientContract() {
                 : contract.mode === "combined"
                   ? tradeProfile(workspace.tenantTrade).family === "photo"
                     ? "Your terms and your coverage and price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
-                    : oneLink && needs.payment
+                    : oneLink && needs.payment && !depositByStudio
                       ? `Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, then ${needs.paidInFull ? "make your payment" : "pay your deposit"} right here, and your date is booked.`
-                      : "Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
+                      : oneLink && needs.payment
+                        ? `Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, then arrange your ${needs.paidInFull ? "payment" : "deposit"} with ${studioName ?? "your studio"}, and paying it books your date.`
+                        : "Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
                   : `Read it through, then tap Review & sign. It’s written from the ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} you accepted.`}
           </p>
         </div>
@@ -126,6 +131,7 @@ export function ClientContract() {
           afterSigning={
             oneLink ? (
               <PayAfterSigning
+                byStudio={depositByStudio}
                 paidInFull={needs.paidInFull}
                 payment={needs.payment}
                 studioName={studioName}
@@ -305,11 +311,14 @@ function PayAfterSigning({
   payment,
   paidInFull,
   studioName,
+  byStudio,
 }: {
   view: BookingStepsView | null;
   payment: boolean;
   paidInFull: boolean;
   studioName: string | null;
+  /** No invoice follows the signature: the studio takes the payment itself. */
+  byStudio: boolean;
 }) {
   const [opened, setOpened] = useState(false);
 
@@ -393,6 +402,27 @@ function PayAfterSigning({
           <p className="kit-amount">{money(deposit.balanceCents, deposit.currency)}</p>
           <p className="kit-caption">
             {`${studioName ?? "Your studio"} takes this payment directly — by check, cash or bank transfer. Message ${studioName ?? "them"} to arrange it. Your date is booked the moment it’s paid.`}
+          </p>
+        </Card>
+        <Actions>
+          <Button href="/client/messages?context=Payments" icon={MessageCircle}>
+            {`Message ${studioName ?? "your studio"} to arrange payment`}
+          </Button>
+        </Actions>
+      </>
+    );
+
+  // Nothing to wait for: the studio raises no invoice and takes it directly.
+  if (byStudio)
+    return (
+      <>
+        <Card tone="accent">
+          <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+            Last step
+          </p>
+          <h2 className="kit-section">{paidInFull ? "Arrange your payment" : "Arrange your deposit"}</h2>
+          <p className="kit-body">
+            {`${studioName ?? "Your studio"} takes the ${paidInFull ? "payment" : "deposit"} directly — by check, cash or bank transfer. Message ${studioName ?? "them"} to arrange it. Your date is booked the moment it’s paid.`}
           </p>
         </Card>
         <Actions>

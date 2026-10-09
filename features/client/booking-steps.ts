@@ -57,6 +57,14 @@ export type BookingStepsInput = {
    * A job with no agreement has nothing to merge and keeps its own steps.
    */
   oneLink?: boolean;
+  /**
+   * Signing raises no deposit invoice: the studio had no QuickBooks or Stripe
+   * connected when it sent the agreement, so it takes the deposit itself and
+   * records it (bookingOrchestrations `policy.createRetainerAfterSignature`).
+   * The client is told to arrange it with the studio — never to wait for an
+   * invoice that isn't coming (Riley Park, Spin Theory DJs, 2026-10-09).
+   */
+  depositByStudio?: boolean;
 };
 
 export type BookingStepsView = {
@@ -236,12 +244,14 @@ function oneLinkView(facts: {
   const { input, needs, offer, accepted, signed, paid, booked, agreementSent, invoiceReady, payDirect, invoice } = facts;
   const open = input.proposalStatus !== null && OPEN_PROPOSAL.has(input.proposalStatus);
   const payWord = needs.paidInFull ? "make your payment" : "pay your deposit";
-  const actionable = open || agreementSent || (accepted && signed && !paid && (invoiceReady || payDirect));
+  // No invoice follows the signature: the studio arranges the payment.
+  const byStudio = input.depositByStudio === true && needs.payment && !invoiceReady && !payDirect;
+  const actionable = open || agreementSent || (accepted && signed && !paid && (invoiceReady || payDirect || byStudio));
   const steps: BookingStep[] = [
     { key: "book", label: "Book your date", state: booked ? "done" : actionable ? "current" : "waiting" },
     { key: "booked", label: "Your date is booked", state: booked ? "done" : "upcoming" },
   ];
-  const then = needs.payment ? `, then ${payWord}` : "";
+  const then = needs.payment && !byStudio ? `, then ${payWord}` : "";
   const next: BookingStepsView["next"] = booked
     ? {
         title: "Your date is booked",
@@ -255,7 +265,9 @@ function oneLinkView(facts: {
           ? {
               // Sent as one booking agreement: signing accepts the quote.
               title: "Review and book",
-              detail: `Read your ${offer} and the terms and sign${then} — all in one visit.`,
+              detail: byStudio
+                ? `Read your ${offer} and the terms and sign. Your studio then arranges your ${needs.paidInFull ? "payment" : "deposit"} with you, and paying it books your date.`
+                : `Read your ${offer} and the terms and sign${then} — all in one visit.`,
               href: "/client/contract",
               actionLabel: "Review and book",
             }
@@ -275,9 +287,11 @@ function oneLinkView(facts: {
         ? agreementSent
           ? {
               title: "Sign your agreement",
-              detail: needs.payment
-                ? `It's ready to sign. Once you've signed, you can ${payWord} right away.`
-                : "It's ready to sign, and signing books your date.",
+              detail: byStudio
+                ? `It's ready to sign. Once you've signed, your studio arranges your ${needs.paidInFull ? "payment" : "deposit"} with you.`
+                : needs.payment
+                  ? `It's ready to sign. Once you've signed, you can ${payWord} right away.`
+                  : "It's ready to sign, and signing books your date.",
               href: "/client/contract",
               actionLabel: "Sign your agreement",
             }
@@ -302,11 +316,18 @@ function oneLinkView(facts: {
                 href: "/client/payments",
                 actionLabel: "See your invoice",
               }
-            : {
-                title: `Your ${invoice} is on its way`,
-                detail: "You've signed. It will appear here in a moment, and in your email too.",
-                href: null,
-                actionLabel: null,
-              };
+            : byStudio
+              ? {
+                  title: needs.paidInFull ? "Arrange your payment" : "Arrange your deposit",
+                  detail: `You've signed. Your studio takes the ${needs.paidInFull ? "payment" : "deposit"} directly — by check, cash or bank transfer. Message them to arrange it; your date is booked the moment it's paid.`,
+                  href: "/client/messages?context=Payments",
+                  actionLabel: "Message your studio",
+                }
+              : {
+                  title: `Your ${invoice} is on its way`,
+                  detail: "You've signed. It will appear here in a moment, and in your email too.",
+                  href: null,
+                  actionLabel: null,
+                };
   return { steps, booked, next };
 }

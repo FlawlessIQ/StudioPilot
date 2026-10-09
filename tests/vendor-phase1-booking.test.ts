@@ -159,7 +159,7 @@ test("a job with no agreement has nothing to merge, even for a vendor", () => {
 test("the portal's hook passes the trade's one link, and watches for the deposit after signing", () => {
   const hook = read("components/client/live-client-views.tsx");
   assert.match(hook, /const oneLink = tradeProfile\(useWorkspace\(\)\.tenantTrade\)\.journey\.oneLinkBooking;/);
-  assert.match(hook, /\n\s+oneLink,\n\s+\}\)/);
+  assert.match(hook, /\n\s+oneLink,\n(?:\s+\/\/.*\n)*\s+depositByStudio: contract\?\.depositByStudio === true,\n\s+\}\)/);
   assert.match(hook, /const DEPOSIT_WATCH_MS = 3 \* 60_000;/);
   // The photographer's 20-second look is untouched.
   assert.match(hook, /refreshContracts\?\.\(\);\s*refreshInvoices\?\.\(\);\s*\}, 20_000\);/);
@@ -177,6 +177,65 @@ test("after signing, a one-link client pays the deposit on the same screen", () 
   // A photographer's client keeps the link to Payments.
   assert.match(signing, /\{handsOn \? null : \(\s*<Button href="\/client\/payments" variant="secondary">\s*Next: your retainer/);
   assert.match(signing, /\{status === "completed" \? afterSigning : null\}/);
+});
+
+test("a studio with no payments app: the client is told to arrange the deposit, never to wait", async () => {
+  // Riley Park, Spin Theory DJs (2026-10-09): no QuickBooks or Stripe, so
+  // signing raises no invoice, and "on its way" would have waited forever.
+  const studio = { ...quote, depositByStudio: true };
+  const out = bookingSteps({ proposalStatus: "sent", contractStatus: "sent", retainer: null, ...studio });
+  assert.match(out.next.detail, /Read your quote and the terms and sign\. Your studio then arranges your deposit with you, and paying it books your date\./);
+  assert.doesNotMatch(out.next.detail, /all in one visit/);
+  const signed = bookingSteps({ proposalStatus: "accepted", contractStatus: "completed", retainer: null, ...studio });
+  assert.equal(signed.next.title, "Arrange your deposit");
+  assert.equal(signed.next.href, "/client/messages?context=Payments");
+  assert.equal(signed.steps[0]?.state, "current");
+  // An invoice the studio raised by hand still wins: it's ready to pay.
+  const raised = bookingSteps({
+    proposalStatus: "accepted",
+    contractStatus: "completed",
+    retainer: { status: "sent", balanceCents: 54000, hostedUrl: "https://pay.example/x" },
+    ...studio,
+  });
+  assert.equal(raised.next.title, "Pay your deposit");
+
+  // The portal says so from the plan's own policy, and the page and its
+  // after-signing card follow it.
+  const route = read("app/api/client/portal/route.ts");
+  assert.match(route, /plan\.get\("policy\.createRetainerAfterSignature"\) === false/);
+  assert.match(route, /sanitized\.depositByStudio = true;/);
+  const page = read("components/client/kit/client-contract.tsx");
+  assert.match(page, /oneLink && needs\.payment && !depositByStudio/);
+  assert.match(page, /byStudio=\{depositByStudio\}/);
+  assert.match(page, /"Arrange your payment" : "Arrange your deposit"/);
+
+  // The email promises the next screen only when there is one.
+  const { renderEmailTemplate } = await import("../functions/src/communications/email-templates");
+  const email = (payOnline?: boolean) =>
+    renderEmailTemplate({
+      key: "contract_ready",
+      brand: { studioName: "Spin Theory DJs", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null },
+      recipientName: "Riley Park",
+      projectName: "Riley Park Wedding",
+      values: { trade: "dj", combined: true, signerName: "Conor Lawless", payOnline, actionUrl: "https://studio-cue.com/x" },
+    });
+  const direct = email(false);
+  assert.doesNotMatch(direct.text, /next screen/);
+  assert.match(direct.text, /Once you sign, you'll get a copy by email, and Spin Theory DJs will arrange your deposit with you — paying it books your date\./);
+  assert.match(direct.text, /Read and sign: https/);
+  for (const online of [email(true), email(undefined)]) {
+    assert.match(online.text, /you'll pay your deposit on the next screen/);
+    assert.match(online.text, /Review and book: https/);
+  }
+
+  // The send stamps the plan's answer on the email; the preview tells the
+  // studio before it goes.
+  const commands = read("functions/src/contracts/combined-commands.ts");
+  assert.match(commands, /payOnline:\s*orchestration\.exists && orchestration\.get\("status"\) === "active"\s*\? orchestration\.get\("policy\.createRetainerAfterSignature"\) === true\s*: invoicingConnected,/);
+  assert.match(commands, /depositRaisedOnSigning\(db, context\.tenantId, input\.projectId\)/);
+  const send = read("components/contracts/combined-agreement-send.tsx");
+  assert.match(send, /oneLink && preview\.depositOnline === false/);
+  assert.match(send, /No QuickBooks or Stripe is connected/);
 });
 
 // ── The studio's side ──────────────────────────────────────────────────────

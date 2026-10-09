@@ -91,6 +91,12 @@ export type CombinedAgreementPreview = {
   clientEmail: string | null;
   clientName: string | null;
   templateVersion: number;
+  /**
+   * Signing raises the deposit invoice (QuickBooks or Stripe connected).
+   * False: the studio takes the deposit itself. Absent from an older
+   * function: read as true.
+   */
+  depositOnline?: boolean;
 };
 
 export async function previewCombinedAgreement(input: {

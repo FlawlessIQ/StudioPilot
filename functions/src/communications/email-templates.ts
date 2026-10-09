@@ -1091,6 +1091,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const offer = tradeVocab(values.trade).proposal.toLowerCase();
       const booked = tradeProfile(values.trade).family === "photo" ? "coverage" : "services";
       const oneLink = tradeProfile(values.trade).journey.oneLinkBooking;
+      // The studio takes the deposit itself (no QuickBooks or Stripe): there
+      // is no next screen to pay on. Omitted, as on older jobs: online.
+      const payOnline = values.payOnline !== false;
       // One send, two signatures (H2): the terms and the price together,
       // before anything was accepted — not "the proposal you accepted".
       if (values.combined === true) {
@@ -1101,21 +1104,23 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           heading: "Your booking agreement is ready",
           paragraphs: [
             greeting,
-            `Everything for your booking${project} is in one agreement: Part 1 is ${brand.studioName}'s terms, Part 2 is your ${booked}, extras, total and payment schedule. You sign each part, and signing books it — there's no separate step to accept the ${offer}.`,
+            `Everything for your booking${project} is in one agreement: Part 1 is ${possessive(brand.studioName)} terms, Part 2 is your ${booked}, extras, total and payment schedule. You sign each part, and signing books it — there's no separate step to accept the ${offer}.`,
             // A vendor's client pays the deposit on the next screen of the
             // same visit (simpler vendor journeys): one link books the date.
-            oneLink
+            oneLink && payOnline
               ? signerName
                 ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll pay your deposit on the next screen — that books your date — and get a copy by email.`
                 : "Once you sign, you'll pay your deposit on the next screen — that books your date — and get a copy by email."
-              : signerName
-                ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
-                : "Once you sign, you'll get a copy by email and the next step is your retainer.",
+              : oneLink
+                ? `${signerName ? `${signerName} has already signed both parts for ${brand.studioName}. ` : ""}Once you sign, you'll get a copy by email, and ${brand.studioName} will arrange your deposit with you — paying it books your date.`
+                : signerName
+                  ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
+                  : "Once you sign, you'll get a copy by email and the next step is your retainer.",
           ],
           action: actionUrl
-            ? { label: oneLink ? "Review and book" : "Read and sign", url: actionUrl }
+            ? { label: oneLink && payOnline ? "Review and book" : "Read and sign", url: actionUrl }
             : portalUrl
-              ? { label: oneLink ? "Review and book" : "Read and sign", url: `${portalUrl.replace(/\/$/, "")}/contract` }
+              ? { label: oneLink && payOnline ? "Review and book" : "Read and sign", url: `${portalUrl.replace(/\/$/, "")}/contract` }
               : undefined,
           note: "Something to change? Reply to this email before you sign.",
         };

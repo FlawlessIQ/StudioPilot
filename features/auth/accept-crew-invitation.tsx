@@ -108,7 +108,7 @@ export function AcceptCrewInvitation({ token }: { token: string }) {
           </p>
           <p className="kit-body">
             {accepted === "roster"
-              ? `You're on ${preview.studioName}'s crew. Add your specialties, the dates you're free, and your documents so you're ready when they offer you a job.`
+              ? `You're on ${/s$/i.test(preview.studioName.trim()) ? `${preview.studioName.trim()}'` : `${preview.studioName}'s`} crew. Add your specialties, the dates you're free, and your documents so you're ready when they offer you a job.`
               : "The assignment is now available in your crew workspace."}
           </p>
           <Button

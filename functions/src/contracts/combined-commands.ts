@@ -152,7 +152,11 @@ export async function previewCombinedAgreement(
 ) {
   if (!["studio_owner", "studio_admin", "studio_coordinator"].includes(String(context.membership.role)))
     throw new Error("FORBIDDEN");
-  const resolved = await resolveCombined(getFirestore(), context, input);
+  const db = getFirestore();
+  const [resolved, depositOnline] = await Promise.all([
+    resolveCombined(db, context, input),
+    depositRaisedOnSigning(db, context.tenantId, input.projectId),
+  ]);
   return {
     document: resolved.document,
     documentHash: resolved.documentHash,
@@ -161,7 +165,27 @@ export async function previewCombinedAgreement(
     clientEmail: resolved.draft.clientEmail,
     clientName: resolved.draft.clientName,
     templateVersion: resolved.draft.template.version,
+    depositOnline,
   };
+}
+
+/**
+ * Whether the client's signature raises the deposit invoice — the same
+ * answer the send records in the plan: an active plan's own policy, or
+ * whether QuickBooks or Stripe is connected. Without one the studio takes the
+ * deposit itself, and the send dialog says so before it goes (Riley Park,
+ * Spin Theory DJs, 2026-10-09).
+ */
+async function depositRaisedOnSigning(db: Firestore, tenantId: string, projectId: string): Promise<boolean> {
+  const plan = await db.doc(`bookingOrchestrations/${projectId}`).get();
+  if (plan.exists && plan.get("tenantId") === tenantId && plan.get("status") === "active")
+    return plan.get("policy.createRetainerAfterSignature") === true;
+  try {
+    await requireProviderForTenant(db, tenantId, "invoicing");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The owner signs both parts for the studio and sends the agreement. */
@@ -407,6 +431,13 @@ export async function sendCombinedAgreement(
       recipientName: resolved.draft.clientName,
       actionUrl: invitation ? invitation.inviteUrl : `${appUrl}${contractPath}`,
       signerName: input.studioSignerName,
+      // Whether signing raises the deposit invoice (the plan's policy), so
+      // the email never promises "pay on the next screen" to the client of a
+      // studio that takes the deposit itself (Riley Park, 2026-10-09).
+      payOnline:
+        orchestration.exists && orchestration.get("status") === "active"
+          ? orchestration.get("policy.createRetainerAfterSignature") === true
+          : invoicingConnected,
       soleRecipient: partnerSends.length > 0,
       status: "queued",
       attempts: 0,

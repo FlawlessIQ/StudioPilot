@@ -546,6 +546,9 @@ export function useBookingStepsView(): BookingStepsView | null {
           needs,
           offer,
           oneLink,
+          // The studio takes the deposit itself: nothing to wait for
+          // (app/api/client/portal/route.ts `depositByStudio`).
+          depositByStudio: contract?.depositByStudio === true,
         })
       : null;
   const waiting = Boolean(

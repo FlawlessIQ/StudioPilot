@@ -234,6 +234,15 @@ export function CombinedAgreementSend({
           </button>
           {preview.clientEmail ? <span className="native-contract-note">It goes to {preview.clientEmail}.</span> : null}
         </div>
+        {oneLink && preview.depositOnline === false ? (
+          // Said before it goes, not found out after: with nothing to raise
+          // the deposit invoice, the client can't pay on the next screen.
+          <p className="native-contract-note" role="note">
+            {`No QuickBooks or Stripe is connected, so ${preview.clientName || "the client"} can't pay on the next screen — they'll be asked to arrange the deposit with you. Record it on the job's Booking tab when it arrives, or `}
+            <Link href="/studio/integrations">connect payments</Link>
+            {" before you send."}
+          </p>
+        ) : null}
       </div>
       {error ? <p className="client-contract-error" role="alert">{error}</p> : null}
     </div>

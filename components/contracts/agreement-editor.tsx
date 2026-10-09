@@ -519,6 +519,15 @@ export function AgreementEditor() {
               <span className="native-contract-note">Current version: {loaded.version}</span>
             ) : null}
           </div>
+          {/* The outcome beside the button that caused it. Shown only at the
+              top of the page, a refused save ("Some sections still say
+              [Replace with …]") was off screen: Spin Theory's save looked
+              like it did nothing (2026-10-09). */}
+          {error && busy === null ? (
+            <p className="client-contract-error" role="alert">{error}</p>
+          ) : notice && busy === null ? (
+            <p className="agreement-editor-notice" role="status">{notice}</p>
+          ) : null}
         </section>
 
         <section className="panel agreement-editor-preview" aria-label="Preview">

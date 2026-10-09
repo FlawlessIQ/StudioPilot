@@ -23,7 +23,7 @@ import {
   stalenessWeight,
 } from "@/features/dashboard/urgency";
 import type { SetupGap } from "@/features/today/setup-gaps";
-import { hasFinalBalance, jobKindOf, projectProfile, singleBillWindow, vocab } from "@/features/job-kinds/job-kinds";
+import { hasFinalBalance, jobKindOf, journeyFor, projectProfile, singleBillWindow, vocab } from "@/features/job-kinds/job-kinds";
 import { ignorableSenderOf, notInquiryAllowed } from "@/features/intake/not-inquiry";
 import {
   inquiryDraftIsOrphaned,
@@ -884,7 +884,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       job &&
       nextMove.owner === "couple" &&
       lead.needsConfirmation !== true &&
-      !(projectProfile(job).consultation && tradeProfile(input.tenantTrade).consultation) &&
+      // No call, or an optional one (a DJ's vibe call): the quote doesn't
+      // wait for it, so it's owed once they've heard back (journeyFor).
+      !journeyFor(projectProfile(job), tradeProfile(input.tenantTrade)).callRequired &&
       !rows(input.proposals).some((proposal) => text(proposal.projectId) === job.id && !proposal.archivedAt)
     ) {
       const staleReply = replyForLead.get(lead.id) ?? replyForJob.get(job.id);

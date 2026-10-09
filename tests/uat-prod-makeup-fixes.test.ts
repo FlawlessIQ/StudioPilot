@@ -35,6 +35,10 @@ test("a makeup inquiry, answered, puts the quote on Today — not 'Nothing needs
   // Once the quote exists, the card goes.
   const quoted = todayInbox({ ...base, tenantTrade: "makeup", proposals: [{ id: "p1", projectId: "job1", status: "draft" }] } as never);
   assert.ok(![...quoted.act].some((item) => item.id === "quote-owed-job1"));
+  // A DJ's vibe call is optional: the quote is owed once they've heard back
+  // (simpler vendor journeys; Riley Park, Spin Theory DJs, 2026-10-09).
+  const dj = todayInbox({ ...base, tenantTrade: "dj" } as never);
+  assert.equal([...dj.act].find((item) => item.id === "quote-owed-job1")?.title, "Send Maya Brooks your proposal");
   // A photographer's wedding waits for the couple to book the call, as before.
   const photo = todayInbox({ ...base, tenantTrade: "photographer" } as never);
   assert.ok(![...photo.act].some((item) => item.id === "quote-owed-job1"));

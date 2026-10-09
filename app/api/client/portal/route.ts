@@ -648,6 +648,26 @@ async function clientRecords(
       }
     });
   }
+  /**
+   * Whether signing a booking agreement raises the deposit invoice. A studio
+   * with no QuickBooks or Stripe connected when it sent the agreement takes
+   * the deposit itself (contracts/combined-commands.ts `invoicingConnected`),
+   * so its client is told to arrange it — not to wait for an invoice that
+   * never comes (Riley Park, Spin Theory DJs, 2026-10-09). A yes/no, never
+   * the plan itself.
+   */
+  let depositByStudioFor: string | null = null;
+  if (collectionName === "contracts" && snapshot.docs.some((document) => document.get("mode") === "combined")) {
+    const plan = await adminFirestore.doc(`bookingOrchestrations/${projectId}`).get();
+    if (
+      plan.exists &&
+      plan.get("tenantId") === tenantId &&
+      plan.get("status") === "active" &&
+      plan.get("policy.createRetainerAfterSignature") === false
+    ) {
+      depositByStudioFor = String(plan.get("contractId") ?? "") || null;
+    }
+  }
   const documents = currentSnapshotIds
     ? currentSnapshotIds.flatMap((id) => snapshot.docs.filter((document) => document.id === id))
     : snapshot.docs;
@@ -703,6 +723,9 @@ async function clientRecords(
     if (collectionName === "proposals" && sanitized.status === "sent") {
       sanitized.status = "viewed";
       sanitized.viewedAt = new Date().toISOString();
+    }
+    if (collectionName === "contracts" && depositByStudioFor === document.id) {
+      sanitized.depositByStudio = true;
     }
     if (collectionName === "contracts" && Array.isArray(sanitized.signers)) {
       sanitized.signers = (
