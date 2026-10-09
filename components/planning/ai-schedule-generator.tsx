@@ -5,6 +5,7 @@ import { DJ_MOMENTS, planNight } from "@/features/schedules/night-plan";
 import { chairDayPlan, planChairs } from "@/features/schedules/chair-plan";
 import { parsePartyList, type BeautyService } from "@/features/schedules/party-list";
 import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { resolveCoverage } from "@/features/packages/coverage";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -378,6 +379,20 @@ export function AiScheduleGenerator({
       ),
     [packageSnapshots, selectedProject],
   );
+  /**
+   * The artists the job's packages send, in the studio's own role (a
+   * package's crew is roles, not photographers: coverage.ts). Maya's party of
+   * six was laid out for one artist though her package booked two — the
+   * plan counted only the artists the morning strictly needs.
+   */
+  const packageArtists = useMemo(() => {
+    const role = tradeProfile(workspace.tenantTrade).coverageRoles[0];
+    const count = currentJobSnapshots(packageSnapshots ?? [], selectedProject)
+      .flatMap((snapshot) => resolveCoverage(snapshot))
+      .filter((item) => item.role === role)
+      .reduce((sum, item) => sum + item.count, 0);
+    return count > 0 ? count : null;
+  }, [packageSnapshots, selectedProject, workspace.tenantTrade]);
   // The newest version. By version number first: publishing stamps the old
   // version superseded at the same instant the new one is created, so their
   // updatedAt tie and the old one could be picked.
@@ -905,6 +920,8 @@ export function AiScheduleGenerator({
       service: chairService,
       readyBy,
       earliestStart: clockAnswer("earliest-start-time"),
+      // Laid out for the artists booked; the plan says if fewer would do.
+      artists: packageArtists,
     });
     const place = String(jobAnswers["getting-ready"] ?? "").trim() || dayPlanInput().venue;
     return chairDayPlan(plan, { service: chairService, place, readyBy });

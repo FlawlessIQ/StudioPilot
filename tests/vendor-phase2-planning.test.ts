@@ -378,3 +378,20 @@ test("the vendor forms backfill is dry by default, names its studios, and never 
   assert.match(script, /status: "archived",/);
   assert.match(script, /if \(!apply\) \{\s*console\.log\("DRY RUN — pass --apply to write\."\);\s*return;/);
 });
+
+test("the morning is laid out for the artists the package booked, not the fewest that fit", async () => {
+  const { planChairs } = await import("../features/schedules/chair-plan");
+  const people = ["Jess", "Priya", "Kate", "Maya", "Dana", "Ana"].map((name, index) => ({
+    name,
+    role: (index === 3 ? "bride" : "party") as never,
+    services: ["makeup"] as never,
+    notes: null,
+  }));
+  const two = planChairs({ people: people as never, service: "makeup", readyBy: "13:00", earliestStart: "08:00", artists: 2 });
+  assert.equal(two.artists, 2);
+  assert.deepEqual([...new Set(two.slots.map((slot) => slot.artist))].sort(), [1, 2]);
+  // Maya's package booked two artists; the generator passes them (it laid out one).
+  const generator = readFileSync(new URL("../components/planning/ai-schedule-generator.tsx", import.meta.url), "utf8");
+  assert.match(generator, /artists: packageArtists,/);
+  assert.match(generator, /\.filter\(\(item\) => item\.role === role\)/);
+});
