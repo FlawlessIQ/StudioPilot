@@ -240,6 +240,10 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   refreshQuestionnairePrefill: "runs as a couple opens their form",
   requestDetailChange: "couple", decideDetailChange: "the change-request card on Today",
   setPlanningTimeline: "Settings → Planning timeline",
+  // Own invoicing, Phase 0 (docs/own-invoicing-plan-2026-10-09.md). Cue
+  // offers the per-job choice in Phase 6; until then it's on the booking page.
+  setJobBillingMethod: "the booking page's How this job is billed",
+  setStudioInvoiceSettings: "Settings → Invoices and payments",
   // Group events Phase 1 (2026-10-04): the roster is worked on the job page,
   // often on the day at the venue. Not offered through Cue yet.
   setGroupEvent: "group events: the job page roster", addParticipant: "group events: the job page roster",

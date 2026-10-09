@@ -5,6 +5,7 @@ import { draftPaymentReminders } from "../billing/payment-reminders.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { hasFinalBalance, journeyFor, projectProfile } from "../job-kinds/job-kinds.js";
 import { TRADES, tradeProfile } from "../trades/trades.js";
+import { jobBillingFor } from "../billing/job-billing-reader.js";
 
 const date = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -213,13 +214,18 @@ export const finalInvoiceScheduler = onSchedule(
         ).empty;
       if (!mayRaiseFinalBill(project.data(), date(today), date(target), { trade, autopayCard })) continue;
       try {
-        await db.runTransaction((transaction) =>
+        const billing = await jobBillingFor(db, tenantId, project.id, project.data() ?? null);
+        const outcome = await db.runTransaction((transaction) =>
           raiseFinalInvoice(db, transaction, project, {
             invoiceId: `final_${project.id}`,
             actor: "final-invoice-scheduler",
             now: new Date().toISOString(),
+            billing,
           }),
         );
+        // Every skip is findable: a balance that is owed and never billed
+        // must leave a reason behind (own-invoicing plan, Phase 0).
+        if (!outcome.raised) console.info("final invoice not raised", project.id, outcome.reason);
       } catch (caught: unknown) {
         // One job failing must not stop every job after it from being billed.
         console.error("final invoice not raised", project.id, caught);

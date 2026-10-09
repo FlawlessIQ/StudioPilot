@@ -260,6 +260,18 @@ export async function setJobSalesTaxExempt(input: { projectId: string; exempt: b
 }
 
 /**
+ * "Bill through QuickBooks / Bill it myself" for one job (owner/admin). See
+ * functions/src/booking/job-billing-method.ts and features/billing/job-billing.ts.
+ */
+export async function setJobBillingMethod(input: { projectId: string; method: "quickbooks" | "studio" }) {
+  return sendBookingCommand({
+    type: "setJobBillingMethod",
+    idempotencyKey: `job_billing_${input.projectId}_${crypto.randomUUID()}`,
+    input,
+  });
+}
+
+/**
  * Void a bill in StudioCue and at the provider (owner/admin). The server
  * refuses a bill with money on it; see functions/src/booking/invoice-corrections.ts.
  */

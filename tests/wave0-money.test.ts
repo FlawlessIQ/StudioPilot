@@ -379,6 +379,7 @@ test("a retainer waived on an approved exception counts as satisfied, with nothi
     }),
   );
   const outcome = await raiseFinalInvoice(db as never, transaction as never, snap("projects/p") as never, {
+    billing: { method: "quickbooks" as const, decided: true, canChoose: true, reason: "chosen" as const },
     invoiceId: "final_p",
     actor: "u1",
     now: "2026-09-30T00:00:00.000Z",
@@ -395,6 +396,7 @@ test("a retainer waived on an approved exception counts as satisfied, with nothi
 test("with no retainer and no waiver the server still refuses, and the copy doesn't push fake money", async () => {
   const { db, transaction, snap } = fakeFirestore(finalBillStore({}));
   const outcome = await raiseFinalInvoice(db as never, transaction as never, snap("projects/p") as never, {
+    billing: { method: "quickbooks" as const, decided: true, canChoose: true, reason: "chosen" as const },
     invoiceId: "final_p",
     actor: "u1",
     now: "2026-09-30T00:00:00.000Z",

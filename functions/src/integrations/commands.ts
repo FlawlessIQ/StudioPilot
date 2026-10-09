@@ -15,6 +15,13 @@ import {
   MAX_ESTIMATE_RATE_BASIS_POINTS,
   normaliseBillingSettings,
 } from "../billing/sales-tax-settings.js";
+import {
+  STUDIO_INVOICE_MAX_DUE_DAYS,
+  STUDIO_INVOICE_MAX_TAX_BASIS_POINTS,
+  STUDIO_INVOICE_TEXT_LIMITS,
+  normalisePayLink,
+  normaliseStudioInvoiceSettings,
+} from "../billing/studio-invoice-settings.js";
 
 const allowedRoles = ["studio_owner", "studio_admin"];
 
@@ -143,6 +150,31 @@ const commandSchema = z.discriminatedUnion("type", [
         estimateRateBasisPoints: z.number().int().min(0).max(MAX_ESTIMATE_RATE_BASIS_POINTS).nullable(),
       }),
       holdRetainerForReview: z.boolean(),
+    }),
+  }),
+  z.object({
+    /**
+     * What goes on the invoices StudioCue issues when a studio bills a job
+     * itself (`billingSettings/{tenantId}.studioInvoices`, shape in
+     * features/billing/studio-invoice-settings.ts). Independent of the
+     * QuickBooks settings above.
+     */
+    type: z.literal("setStudioInvoiceSettings"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      businessName: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.businessName).nullable(),
+      businessAddress: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.businessAddress).nullable(),
+      businessEmail: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.businessEmail).nullable(),
+      businessPhone: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.businessPhone).nullable(),
+      paymentInstructions: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.paymentInstructions).nullable(),
+      payLinkUrl: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.payLinkUrl).nullable(),
+      dueDays: z.number().int().min(0).max(STUDIO_INVOICE_MAX_DUE_DAYS),
+      tax: z.object({
+        rateBasisPoints: z.number().int().min(0).max(STUDIO_INVOICE_MAX_TAX_BASIS_POINTS).nullable(),
+        label: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.taxLabel).nullable(),
+      }),
+      footer: z.string().max(STUDIO_INVOICE_TEXT_LIMITS.footer).nullable(),
     }),
   }),
 ]);
@@ -537,6 +569,55 @@ export const integrationsCommand = onRequest(
             createdAt: timestamp,
           });
           return output;
+        }
+
+        if (command.type === "setStudioInvoiceSettings") {
+          const input = command.input;
+          if (input.payLinkUrl !== null && input.payLinkUrl.trim() && !normalisePayLink(input.payLinkUrl)) {
+            throw new Error("INVOICE_PAY_LINK_INVALID");
+          }
+          const settingsReference = db.doc(`billingSettings/${command.tenantId}`);
+          const existing = await transaction.get(settingsReference);
+          const before = normaliseStudioInvoiceSettings(existing.exists ? existing.data() : null);
+          // Normalised through the same reader every invoice uses, so what is
+          // stored is exactly what will print.
+          const after = normaliseStudioInvoiceSettings({ studioInvoices: input });
+          transaction.set(
+            settingsReference,
+            {
+              tenantId: command.tenantId,
+              studioInvoices: after,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            },
+            { merge: true },
+          );
+          const auditId = randomUUID();
+          transaction.create(db.doc(`auditEvents/${auditId}`), {
+            id: auditId,
+            tenantId: command.tenantId,
+            projectId: null,
+            actorId: identity.uid,
+            actorType: "user",
+            action: "billing.invoice_settings_set",
+            entityType: "billingSettings",
+            entityId: command.tenantId,
+            timestamp,
+            before: existing.exists ? before : null,
+            after,
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+            correlationId,
+            automationRunId: null,
+            providerEventId: null,
+          });
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: after,
+            createdAt: timestamp,
+          });
+          return after;
         }
 
         if (command.type === "setProviderTestMode") {

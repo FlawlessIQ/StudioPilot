@@ -1,5 +1,6 @@
 "use client";
 
+import { useJobBilling } from "@/components/booking/use-job-billing";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
@@ -1334,10 +1335,19 @@ export function RetainerInvoiceCard({ action }: ActionCardProps) {
   const proposals = useRecords("proposals");
   const invoices = useRecords("invoiceReferences");
   const runner = useRunner();
+  const billing = useJobBilling(action.projectId);
   const title = `Raise the retainer invoice · ${jobName(job)}`;
   if (loading || !snapshots || !proposals || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
+  // A job the studio bills itself (features/billing/job-billing.ts): the
+  // server refuses a QuickBooks retainer (BILLING_STUDIO_JOB).
+  if (billing?.method === "studio")
+    return (
+      <ActionShell title={title}>
+        <Blocked>{`You're billing ${jobName(job)} yourself, so nothing goes to QuickBooks. Record the retainer on the booking page once it's paid.`}</Blocked>
+      </ActionShell>
+    );
   const snapshot = snapshots.find((item) => item.id === str(job.packageSnapshotId)) ?? null;
   // Only one that stands: a voided or replaced retainer is exactly the case
   // for raising another.
@@ -1454,6 +1464,7 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   const invoices = useRecords("invoiceReferences");
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const [message, setMessage] = useState<string | null>(null);
+  const studioBilled = useJobBilling(action.projectId)?.method === "studio";
   const title = `Send the final bill · ${jobName(job)}`;
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading || !proposals || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -1488,7 +1499,11 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   if (!due.cents) return <ActionShell title={title}><Done>{`Nothing is left to pay on ${jobName(job)}.`}</Done></ActionShell>;
   return (
     <ActionShell
-      detail="The amount is what they agreed less everything already paid. It goes through your invoicing provider, which emails it to them."
+      detail={
+        studioBilled
+          ? "The amount is what they agreed less everything already paid. You're billing this job yourself, so record the payment once it's in."
+          : "The amount is what they agreed less everything already paid. It goes through your invoicing provider, which emails it to them."
+      }
       icon={<HandCoins size={15} />}
       title={title}
     >

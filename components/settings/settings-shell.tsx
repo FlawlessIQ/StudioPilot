@@ -25,9 +25,11 @@ import {
   UsersRound,
   Wand2,
   CalendarRange,
+  ReceiptText,
 } from "lucide-react";
 
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
+import { InvoiceSettings } from "@/components/settings/invoice-settings";
 import { PlanningTimelineSettings } from "@/components/planning/planning-timeline-settings";
 import { JobTypesSettings } from "@/components/job-kinds/job-types-settings";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
@@ -88,6 +90,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   planning: PlanningTimelineSettings,
   crewOffers: CrewOfferSettings,
   insurance: CoiSettings,
+  invoices: InvoiceSettings,
   data: DataControls,
 };
 
@@ -126,6 +129,10 @@ const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
   {
     label: "Planning",
     items: [{ kind: "section", key: "planning", icon: CalendarRange }],
+  },
+  {
+    label: "Billing",
+    items: [{ kind: "section", key: "invoices", icon: ReceiptText }],
   },
   {
     label: "Crew and insurance",

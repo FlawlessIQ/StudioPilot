@@ -633,6 +633,7 @@ function finalStore(extra: Record<string, Doc> = {}) {
 test("a switched-on studio's final is raised pre-tax — QuickBooks adds the tax — and off it is raised as before", async () => {
   const on = fakeFirestore(finalStore({ "tenantFeatures/t": { quickbooksItemisedInvoices: true } }));
   const raised = await raiseFinalInvoice(on.db as never, on.transaction as never, on.snap("projects/p") as never, {
+    billing: { method: "quickbooks" as const, decided: true, canChoose: true, reason: "chosen" as const },
     invoiceId: "final_p",
     actor: "u1",
     now: "2026-10-01T00:00:00.000Z",
@@ -651,6 +652,7 @@ test("a switched-on studio's final is raised pre-tax — QuickBooks adds the tax
 
   const off = fakeFirestore(finalStore());
   const before = await raiseFinalInvoice(off.db as never, off.transaction as never, off.snap("projects/p") as never, {
+    billing: { method: "quickbooks" as const, decided: true, canChoose: true, reason: "chosen" as const },
     invoiceId: "final_p",
     actor: "u1",
     now: "2026-10-01T00:00:00.000Z",

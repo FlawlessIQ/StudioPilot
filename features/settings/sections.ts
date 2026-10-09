@@ -20,6 +20,7 @@ export type SettingsSectionKey =
   | "planning"
   | "crewOffers"
   | "insurance"
+  | "invoices"
   | "data";
 
 export const SETTINGS_SECTIONS: ReadonlyArray<{
@@ -39,6 +40,7 @@ export const SETTINGS_SECTIONS: ReadonlyArray<{
   { key: "planning", slug: "planning-timeline", title: "Planning timeline", subtitle: "Weddings: when couples get their planning form, and when details lock" },
   { key: "crewOffers", slug: "crew-offers", title: "Crew offers", subtitle: "Whether booking sends the prepared offers, or you do" },
   { key: "insurance", slug: "insurance", title: "Insurance", subtitle: "Who sends your certificates, and how far StudioCue goes on its own" },
+  { key: "invoices", slug: "invoices", title: "Invoices and payments", subtitle: "What your invoices say, and how clients pay you" },
   { key: "data", slug: "data", title: "Data & account", subtitle: "Export your data or request deletion" },
 ];
 

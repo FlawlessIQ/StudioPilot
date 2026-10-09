@@ -216,6 +216,7 @@ test("after a void, a new final bill can be raised; the old one no longer blocks
     "invoiceReferences/final_p": { tenantId: "t", projectId: "p", kind: "final", status: "voided", amountCents: 250000, balanceCents: 0 },
   });
   const outcome = await raiseFinalInvoice(db as never, transaction as never, snap("projects/p") as never, {
+    billing: { method: "quickbooks" as const, decided: true, canChoose: true, reason: "chosen" as const },
     invoiceId: "final_p_m1",
     actor: "u1",
     now: "2026-09-30T00:00:00.000Z",

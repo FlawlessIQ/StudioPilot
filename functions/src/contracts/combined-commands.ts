@@ -4,7 +4,7 @@ import { z } from "zod";
 import { expiryOnSend } from "../booking/proposal-expiry.js";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
-import { requireProviderForTenant } from "../integrations/capability-resolution.js";
+import { jobBillingFor } from "../billing/job-billing-reader.js";
 import {
   DEAD_CONTRACT_STATUSES,
   NATIVE_SIGNING_GENERALLY_AVAILABLE,
@@ -180,12 +180,8 @@ async function depositRaisedOnSigning(db: Firestore, tenantId: string, projectId
   const plan = await db.doc(`bookingOrchestrations/${projectId}`).get();
   if (plan.exists && plan.get("tenantId") === tenantId && plan.get("status") === "active")
     return plan.get("policy.createRetainerAfterSignature") === true;
-  try {
-    await requireProviderForTenant(db, tenantId, "invoicing");
-    return true;
-  } catch {
-    return false;
-  }
+  // Only a job billed through QuickBooks (billing/job-billing.ts).
+  return (await jobBillingFor(db, tenantId, projectId)).method === "quickbooks";
 }
 
 /** The owner signs both parts for the studio and sends the agreement. */
@@ -200,13 +196,11 @@ export async function sendCombinedAgreement(
   if (resolved.draft.resolved.unresolved.length) throw new Error("CONTRACT_FIELDS_MISSING");
   const clientEmail = resolved.draft.clientEmail;
   if (!clientEmail) throw new Error("CLIENT_EMAIL_REQUIRED");
-  let invoicingConnected = false;
-  try {
-    await requireProviderForTenant(db, context.tenantId, "invoicing");
-    invoicingConnected = true;
-  } catch {
-    invoicingConnected = false;
-  }
+  // The signature raises the deposit only on a job billed through
+  // QuickBooks; a job the studio bills itself takes it by hand
+  // (billing/job-billing.ts).
+  const invoicingConnected =
+    (await jobBillingFor(db, context.tenantId, input.projectId)).method === "quickbooks";
   const contractId = stableId("contract_sc", context.tenantId, context.idempotencyKey);
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
   const contractPath = "/client/contract";

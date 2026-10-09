@@ -4,7 +4,7 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
-import { requireProviderForTenant } from "../integrations/capability-resolution.js";
+import { jobBillingFor } from "../billing/job-billing-reader.js";
 import { productEvent } from "../operations/product-events.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import {
@@ -490,13 +490,11 @@ export async function sendContract(
   if (!recheck.clientEmail) throw new Error("CLIENT_EMAIL_REQUIRED");
   const document: ContractDocument = contractDocumentSchema.parse(recheck.resolved.document);
 
-  let invoicingConnected = false;
-  try {
-    await requireProviderForTenant(db, context.tenantId, "invoicing");
-    invoicingConnected = true;
-  } catch {
-    invoicingConnected = false;
-  }
+  // The signature raises the deposit only on a job billed through
+  // QuickBooks; a job the studio bills itself takes it by hand
+  // (billing/job-billing.ts).
+  const invoicingConnected =
+    (await jobBillingFor(db, context.tenantId, input.projectId)).method === "quickbooks";
   const contractId = stableId("contract_sc", context.tenantId, context.idempotencyKey);
   const studioSignatureId = `${contractId}_studio`;
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");

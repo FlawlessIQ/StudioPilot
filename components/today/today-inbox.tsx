@@ -59,6 +59,7 @@ import { useRouter } from "next/navigation";
 import { TodayMaybeInquiries } from "@/components/today/today-maybe-inquiries";
 import { InfoHint } from "@/components/ui/info-hint";
 import { finalBillWords } from "@/features/billing/final-bill-words";
+import { useJobBilling } from "@/components/booking/use-job-billing";
 import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
 import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
 
@@ -1722,6 +1723,9 @@ function FinalBalanceCardActions({
   const checkedFirst = useFinalBillCheckedFirst();
   const words = finalBillWords({ checkedFirst, amount, recipient });
   const [made, setMade] = useState(false);
+  // A job the studio bills itself (features/billing/job-billing.ts): no bill
+  // to send from here, so recording the payment leads.
+  const studioBilled = useJobBilling(action.projectId)?.method === "studio";
   async function send() {
     setBusy(true);
     setNotice(null);
@@ -1781,6 +1785,23 @@ function FinalBalanceCardActions({
       >
         {words.body}
       </ConfirmStep>
+    );
+  }
+  if (studioBilled) {
+    return (
+      <>
+        {action.packageSnapshotId ? (
+          <button className="today-card-primary" onClick={() => onSettle?.(action)} type="button">
+            {amount ? `Record the payment · ${amount}` : "Record the payment"}
+          </button>
+        ) : null}
+        <Link
+          className={action.packageSnapshotId ? "today-card-secondary" : "today-card-primary"}
+          href={`/studio/projects/${action.projectId}`}
+        >
+          Open the job
+        </Link>
+      </>
     );
   }
   return (

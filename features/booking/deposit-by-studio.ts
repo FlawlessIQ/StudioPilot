@@ -1,3 +1,5 @@
+import { quickBooksReadyFrom } from "@/features/billing/job-billing-from-records";
+
 /**
  * A booking whose signature raises no deposit invoice.
  *
@@ -19,18 +21,15 @@ export function depositByStudio(plan: Readonly<Record<string, unknown>> | null |
 }
 
 /**
- * Whether QuickBooks or Stripe is connected now, from the studio's
- * integration connections. Ignores routing: any one connected means a deposit
- * can be raised when the client signs (booking/orchestration.ts raises it if
- * one was connected after the link went out).
+ * Whether a provider can raise a bill now, from the studio's integration
+ * connections: the same answer the server gets from resolveActiveProvider
+ * (functions/src/billing/job-billing-reader.ts), so Today, the portal and
+ * the signature agree. Only providers StudioCue offers count — a leftover
+ * Stripe connection used to hide the "connect payments" nudge while the
+ * server still treated the studio as having nothing connected.
  */
 export function paymentsConnected(
   connections: ReadonlyArray<Readonly<Record<string, unknown>>> | null | undefined,
 ): boolean {
-  return (connections ?? []).some(
-    (connection) =>
-      (connection.provider === "quickbooks" || connection.provider === "stripe") &&
-      connection.status === "connected" &&
-      !connection.archivedAt,
-  );
+  return quickBooksReadyFrom(connections);
 }

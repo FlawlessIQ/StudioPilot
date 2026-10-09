@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
+import { STUDIO_BILLED_JOB, jobBillingFor } from "../billing/job-billing-reader.js";
 import { balanceMayBeAttested } from "./agreed-final-balance.js";
 import { raiseFinalInvoice } from "./final-invoice.js";
 import { bookingGateNeeds, projectProfile, singleBillDueDate } from "../job-kinds/job-kinds.js";
@@ -28,6 +29,7 @@ const REASON_TO_ERROR: Record<string, string> = {
   no_retainer: "FINAL_NEEDS_RETAINER_RECORD",
   no_package: "FINAL_NO_PACKAGE",
   no_provider_customer: "INVOICING_NOT_CONNECTED",
+  studio_billed: "BILLING_STUDIO_JOB",
 };
 
 export async function sendFinalBalance(
@@ -46,6 +48,11 @@ export async function sendFinalBalance(
   if (project.get("archivedAt")) throw new Error("PROJECT_ARCHIVED");
   if (!balanceMayBeAttested(String(project.get("state")))) throw new Error("BALANCE_NOT_READY");
 
+  // A job the studio bills itself never goes to QuickBooks from here
+  // (billing/job-billing.ts). Until StudioCue issues its own invoices
+  // (own-invoicing plan, Phase 3) the studio records the payment instead.
+  const billing = await jobBillingFor(db, input.tenantId, input.projectId, project.data() ?? null);
+  if (billing.method === "studio") throw new Error(STUDIO_BILLED_JOB);
   const provider = (await resolveProviderForTenant(db, input.tenantId, "invoicing", "quickbooks")) as string;
   if (provider !== "quickbooks" && provider !== "stripe") throw new Error("INVOICING_NOT_CONNECTED");
   if (!input.mockMode) {
@@ -71,6 +78,7 @@ export async function sendFinalBalance(
       actor: input.actorId,
       now: new Date().toISOString(),
       provider,
+      billing,
       resolveCustomer: true,
       // Booked with nothing paid (paid on the day, invoiced after): this bill
       // is the whole price, not a balance after a retainer (job-kinds.ts).

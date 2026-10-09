@@ -104,6 +104,8 @@ import {
 } from "../contracts/follow-ups.js";
 import { keptMeetingSettings } from "./consultation-settings-merge.js";
 import { setJobSalesTaxExempt, setJobSalesTaxExemptInput } from "./job-sales-tax.js";
+import { setJobBillingMethod, setJobBillingMethodInput } from "./job-billing-method.js";
+import { STUDIO_BILLED_JOB, jobBillingFor } from "../billing/job-billing-reader.js";
 import {
   SUPERSEDABLE_BRIEF_STATUSES,
   bookingBriefRerunRefusal,
@@ -214,6 +216,13 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: setJobSalesTaxExemptInput,
+  }),
+  z.object({
+    // "Bill through QuickBooks / Bill it myself", per job (owner/admin) — ./job-billing-method.ts.
+    type: z.literal("setJobBillingMethod"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: setJobBillingMethodInput,
   }),
   z.object({
     type: z.literal("setSignedCopyShared"),
@@ -1663,18 +1672,12 @@ export const bookingCommand = onRequest(
         // retainer is raised automatically only when an accounting app is
         // connected to raise it; either way, a retainer that reaches paid —
         // through QuickBooks or recorded by the studio — books the job.
+        // Only on a job billed through QuickBooks (billing/job-billing.ts).
         let invoicingConnected = false;
         if (!orchestrationActive) {
-          try {
-            await requireProviderForTenant(
-              firestore,
-              command.tenantId,
-              "invoicing",
-            );
-            invoicingConnected = true;
-          } catch {
-            invoicingConnected = false;
-          }
+          invoicingConnected =
+            (await jobBillingFor(firestore, command.tenantId, command.input.projectId, project.data() ?? null))
+              .method === "quickbooks";
         }
         const batch = firestore.batch();
         if (orchestrationActive) {
@@ -2505,6 +2508,13 @@ export const bookingCommand = onRequest(
           packageSnapshot.get("tenantId") !== command.tenantId
         )
           throw new Error("PACKAGE_SNAPSHOT_NOT_FOUND");
+        // A job the studio bills itself is never sent to QuickBooks
+        // (billing/job-billing.ts): the studio records the deposit instead.
+        if (
+          (await jobBillingFor(firestore, command.tenantId, command.input.projectId, project.data() ?? null))
+            .method === "studio"
+        )
+          throw new Error(STUDIO_BILLED_JOB);
         // A refused or replaced invoice is not a retainer the client owes.
         // Counting one as live blocked every retry, which is how a
         // QuickBooks rejection ended a booking permanently.
@@ -3246,6 +3256,19 @@ export const bookingCommand = onRequest(
         else result = await voidContract(contractContext, command.input);
       } else if (command.type === "setJobSalesTaxExempt") {
         result = await setJobSalesTaxExempt(
+          {
+            tenantId: command.tenantId,
+            membership,
+            actorId: identity.uid,
+            timestamp,
+            idempotencyKey: command.idempotencyKey,
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+          },
+          command.input,
+        );
+      } else if (command.type === "setJobBillingMethod") {
+        result = await setJobBillingMethod(
           {
             tenantId: command.tenantId,
             membership,

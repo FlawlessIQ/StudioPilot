@@ -37,6 +37,8 @@ test("the plan says whether the studio takes the deposit itself", () => {
   assert.equal(paymentsConnected([{ provider: "google_calendar", status: "connected", archivedAt: null }]), false);
   assert.equal(paymentsConnected([{ provider: "quickbooks", status: "connected", archivedAt: "2026-10-01" }]), false);
   assert.equal(paymentsConnected(null), false);
+  // Stripe isn't offered for client billing, so a leftover connection doesn't count.
+  assert.equal(paymentsConnected([{ provider: "stripe", status: "connected", archivedAt: null }]), false);
 });
 
 const signed = (trade: string, depositByStudio?: boolean): JourneyInput => ({
@@ -118,15 +120,19 @@ test("Today: a link out with nothing to take the deposit says connect payments, 
   assert.equal(two[0]?.jobHref, null);
 
   // Connected, signed, or raised automatically: nothing to nudge.
-  assert.ok(!today({ integrationConnections: [{ id: "c", provider: "stripe", status: "connected", archivedAt: null }] }).act.some((item) => item.id === "connect-payments"));
+  assert.ok(!today({ integrationConnections: [{ id: "c", provider: "quickbooks", status: "connected", archivedAt: null }] }).act.some((item) => item.id === "connect-payments"));
+  // A leftover Stripe connection can't raise a deposit (not offered), so it doesn't hide the nudge.
+  assert.ok(today({ integrationConnections: [{ id: "c", provider: "stripe", status: "connected", archivedAt: null }] }).act.some((item) => item.id === "connect-payments"));
   assert.ok(!today({ bookingOrchestrations: [plan("wait_for_payment")] }).act.some((item) => item.id === "connect-payments"));
   assert.ok(!today({ bookingOrchestrations: [plan("wait_for_signature", true)] }).act.some((item) => item.id === "connect-payments"));
 });
 
 test("connected after the link went out, the signature raises the deposit after all", () => {
   const orchestration = read("functions/src/booking/orchestration.ts");
-  assert.match(orchestration, /let raisesRetainer = plan\.get\("policy\.createRetainerAfterSignature"\) === true;/);
-  assert.match(orchestration, /await requireProviderForTenant\(db, tenantId, "invoicing"\);\s*raisesRetainer = true;/);
+  // Raised when the job is billed through QuickBooks, whatever the plan said
+  // at the send; a job the studio bills itself raises nothing
+  // (features/billing/job-billing.ts).
+  assert.match(orchestration, /const raisesRetainer = \(policy === true \|\| policy === false\) && billing\.method === "quickbooks";/);
   assert.match(orchestration, /"policy\.createRetainerAfterSignature": true,/);
   // Both readers of the journey pass the plan's answer.
   assert.match(read("components/today/use-today-inbox.ts"), /depositByStudio: depositByStudio\(\s*\(bookingOrchestrations\.records \?\? \[\]\)\.find\(\(plan\) => plan\.id === projectId\),\s*\),/);

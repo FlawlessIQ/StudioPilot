@@ -11,6 +11,7 @@ import { sendFinalBalance } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { finalBillWords } from "@/features/billing/final-bill-words";
 import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
+import { useJobBilling } from "@/components/booking/use-job-billing";
 
 /**
  * The two ways a final balance gets settled, wherever StudioCue says it is due.
@@ -50,6 +51,10 @@ export function FinalBalanceActions({
    */
   const [confirming, setConfirming] = useState(false);
   const checkedFirst = useFinalBillCheckedFirst();
+  // A job the studio bills itself (features/billing/job-billing.ts) has no
+  // bill to send from here: the server refuses it (BILLING_STUDIO_JOB), so
+  // recording the payment is the one action, and it leads.
+  const studioBilled = useJobBilling(projectId)?.method === "studio";
   const recipient = recipientLabel(
     jobClientRecipient(
       projects?.find((project) => project.id === projectId),
@@ -87,7 +92,9 @@ export function FinalBalanceActions({
   if (!mayBill) {
     return (
       <p className="form-notice" role="status">
-        An owner or admin sends the final bill, or records it as paid another way.
+        {studioBilled
+          ? "An owner or admin records the payment when it comes in."
+          : "An owner or admin sends the final bill, or records it as paid another way."}
       </p>
     );
   }
@@ -109,15 +116,20 @@ export function FinalBalanceActions({
         </ConfirmStep>
       ) : null}
       <div className="final-balance-buttons">
-        {confirming ? null : (
+        {confirming || studioBilled ? null : (
           <button className={buttonClassName} disabled={busy} onClick={() => setConfirming(true)} type="button">
             {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : <Send aria-hidden size={14} />}
             {busy ? "Sending…" : balanceLabel ? `Send the final bill · ${balanceLabel}` : "Send the final bill"}
           </button>
         )}
         {packageSnapshotId && !recording && !confirming ? (
-          <button className={secondaryClassName} disabled={busy} onClick={() => setRecording(true)} type="button">
-            Paid another way
+          <button
+            className={studioBilled ? buttonClassName : secondaryClassName}
+            disabled={busy}
+            onClick={() => setRecording(true)}
+            type="button"
+          >
+            {studioBilled ? (balanceLabel ? `Record the payment · ${balanceLabel}` : "Record the payment") : "Paid another way"}
           </button>
         ) : null}
       </div>

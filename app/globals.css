@@ -14086,6 +14086,66 @@ form:has(> .address-field) > .address-field,
   font-size: 12.5px;
 }
 
+/* "Bill through QuickBooks / Bill it myself" on the booking page
+   (components/booking/job-billing-choice.tsx). Options wrap, never squeeze. */
+.job-billing-choice {
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.job-billing-choice legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.job-billing-choice small {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 12.5px;
+}
+
+.job-billing-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.job-billing-option {
+  align-items: flex-start;
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  flex: 1 1 220px;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.job-billing-option.is-selected {
+  border-color: var(--ds-ink, #1d232b);
+}
+
+.job-billing-option > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.job-billing-option strong {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.job-billing-option input {
+  margin-top: 3px;
+}
+
 @media (max-width: 640px) {
   .qb-settings-status {
     grid-template-columns: 1fr;
@@ -14967,6 +15027,34 @@ form:has(> .address-field) > .address-field,
 
 .email-branding-fields .branding-logo-remove {
   justify-self: start;
+}
+
+/* Settings → Invoices and payments (components/settings/invoice-settings.tsx).
+   Fields wrap by the panel's own width, never the viewport. */
+.invoice-settings > .crm-form {
+  display: grid;
+  gap: 18px;
+}
+
+.invoice-settings-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+}
+
+/* A field with no hint beside one that has one must not stretch to match. */
+.invoice-settings-grid > label:not(.form-checkbox) {
+  align-content: start;
+}
+
+.invoice-settings-subhead {
+  font-size: 14px;
+  margin: 6px 0 -6px;
+}
+
+.invoice-settings-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -8px;
 }
 
 /* Settings → Crew offers, as a card like the other sections. */

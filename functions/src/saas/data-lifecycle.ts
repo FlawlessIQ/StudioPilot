@@ -66,6 +66,11 @@ const collections = [
   "subscriptions",
   "usageCounters",
   "integrationConnections",
+  // The studio's billing settings carry its business address and payment
+  // instructions (billing/studio-invoice-settings.ts); the counter numbers
+  // the invoices it issues (billing/invoice-number.ts).
+  "billingSettings",
+  "invoiceCounters",
 ];
 const stable = (tenantId: string, key: string) =>
   createHash("sha256").update(`${tenantId}:${key}`).digest("hex").slice(0, 40);

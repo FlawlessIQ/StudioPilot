@@ -392,6 +392,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   QUICKBOOKS_REALM_MISSING:
     "StudioCue doesn't know which QuickBooks company to use. Disconnect QuickBooks in Integrations and connect it again.",
   SALES_TAX_PERMISSION_REQUIRED: "Only a studio owner or admin can change whether a job is charged sales tax.",
+  // How a job is billed (bookingCommand setJobBillingMethod; booking/job-billing-method.ts).
+  BILLING_PERMISSION_REQUIRED: "Only a studio owner or admin can change how a job is billed.",
+  BILLING_STUDIO_JOB:
+    "You're billing this job yourself, so QuickBooks won't send this bill. Record the payment when it comes in, or switch the job to QuickBooks on its booking page.",
+  INVOICE_PAY_LINK_INVALID: "The payment link needs to be a full web address starting with https://.",
   BOOKING_IMPORT_PERMISSION_REQUIRED:
     "Only a studio owner or admin can import bookings, because importing one records that its contract was signed and its payments made.",
   NOT_AN_IMPORTED_BOOKING:

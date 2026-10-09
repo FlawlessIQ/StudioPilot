@@ -78,6 +78,8 @@ import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { JobSalesTax } from "@/components/booking/job-sales-tax";
+import { JobBillingChoice } from "@/components/booking/job-billing-choice";
+import { useJobBilling } from "@/components/booking/use-job-billing";
 import { BillingAddressSummary } from "@/components/clients/billing-address-summary";
 
 type RecordValue = Record<string, unknown> & { id: string };
@@ -164,6 +166,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    * step said "QuickBooks" to every studio, Stripe ones included (wave 3).
    */
   const [invoicingProvider, setInvoicingProvider] = useState<string | null>(null);
+  const jobBillingState = useJobBilling(projectId);
   /**
    * The email that carries the retainer invoice, when it has not reached the
    * couple ("awaiting_delivery"). A failed one can be sent again from here
@@ -602,6 +605,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   // "your invoicing app" when none resolves, rather than naming one the
   // studio may not have.
   const invoicingName = invoicingProvider ? providerName(invoicingProvider) : "your invoicing app";
+  // How this job is billed (features/billing/job-billing.ts). A job the
+  // studio bills itself gets no QuickBooks invoice button: the server
+  // refuses it (BILLING_STUDIO_JOB), and the studio records the payment.
+  const studioBilled = jobBillingState?.method === "studio";
   const recipient =
     typeof contact?.email === "string" && contact.email.includes("@")
       ? typeof contact.displayName === "string" && contact.displayName
@@ -1813,8 +1820,14 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 </span>
                 {/* Moved from the contract step, where it described a step
                     that had not started. */}
-                <CapabilityNote capability="invoicing" />
-                {confirmingRetainer === "create" && projectState === "RETAINER_PENDING" && agreementSettled ? (
+                {studioBilled ? (
+                  <small>
+                    {`You're billing this job yourself, so nothing goes to QuickBooks. Record the ${paidInFull ? "payment" : oneLink ? "deposit" : "retainer"} below once it's paid.`}
+                  </small>
+                ) : (
+                  <CapabilityNote capability="invoicing" />
+                )}
+                {studioBilled ? null : confirmingRetainer === "create" && projectState === "RETAINER_PENDING" && agreementSettled ? (
                   <ConfirmStep
                     busy={busy === "retainer"}
                     cancelLabel="Not now"
@@ -2009,6 +2022,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           </article>
         ) : null}
       </div>
+      {project ? (
+        <JobBillingChoice
+          billing={jobBillingState}
+          onChanged={(message) => {
+            setNotice(message);
+            refreshTenantRecords("projects", "billingSettings");
+            void load();
+          }}
+          projectId={projectId}
+        />
+      ) : null}
       {project ? (
         <JobSalesTax
           exempt={project.salesTaxExempt === true}

@@ -4,14 +4,28 @@
     {
       "name": "studiocue-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "studiocue-built",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start"],
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
       "port": 3000
+    },
+    {
+      "name": "firebase-emulators",
+      "runtimeExecutable": "firebase",
+      "runtimeArgs": [
+        "emulators:start"
+      ],
+      "port": 4000
     }
   ]
 }

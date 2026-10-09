@@ -513,15 +513,26 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Sales tax mode, the proposal estimate rate, retainer review and the
-    // StudioCue QuickBooks item ids (features/billing/sales-tax-settings.ts).
+    // Sales tax mode, the proposal estimate rate, retainer review, the
+    // StudioCue QuickBooks item ids (features/billing/sales-tax-settings.ts),
+    // what goes on the invoices the studio issues itself (`studioInvoices`,
+    // features/billing/studio-invoice-settings.ts) and the studio's last
+    // per-job billing choice (features/billing/job-billing.ts).
     // Studio staff who build proposals read it; couples and crew never do.
-    // Written only by integrationsCommand setBillingSettings and the
+    // Written only by integrationsCommand setBillingSettings /
+    // setStudioInvoiceSettings, bookingCommand setJobBillingMethod and the
     // QuickBooks item setup.
     match /billingSettings/{tenantId} {
       allow read: if isPlatformAdmin()
         || canManageProjects(resource.data.tenantId);
       allow write: if false;
+    }
+
+    // Numbers the invoices StudioCue issues for a studio (INV-0042,
+    // functions/src/billing/invoice-number.ts). Server only: a browser that
+    // could move the counter could make two invoices share a number.
+    match /invoiceCounters/{tenantId} {
+      allow read, write: if false;
     }
 
     match /consultationSettings/{tenantId} {

@@ -8,6 +8,7 @@ import { signedOneOff } from "./amendment-packages.js";
 import { assignmentIcs, assignmentPlace } from "../crew/calendar-ics.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
+import { jobBillingFor } from "../billing/job-billing-reader.js";
 
 /**
  * What a signed booking change does.
@@ -352,11 +353,13 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
     try {
       const project = await db.doc(`projects/${core.projectId}`).get();
       const count = num(project.get("amendmentCount"));
+      const billing = await jobBillingFor(db, core.tenantId, core.projectId, project.data() ?? null);
       const outcome = await db.runTransaction((transaction) =>
         raiseFinalInvoice(db, transaction, project, {
           invoiceId: `final_${core.projectId}_a${count}`,
           actor: ACTOR,
           now: new Date().toISOString(),
+          billing,
         }),
       );
       // A change that leaves money owed and raises no bill should be findable.

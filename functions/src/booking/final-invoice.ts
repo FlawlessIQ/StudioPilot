@@ -4,6 +4,7 @@ import { retainerFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
 import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
+import type { JobBilling } from "../billing/job-billing.js";
 
 /**
  * Raising the final-balance invoice.
@@ -58,8 +59,15 @@ export async function raiseFinalInvoice(
     billedWithoutRetainer?: boolean;
     /** When the bill is due; two weeks before the event when omitted. */
     dueDate?: string;
+    /**
+     * How the job is billed (billing/job-billing-reader.ts jobBillingFor),
+     * read by the caller before the transaction. A job the studio bills
+     * itself is never sent to QuickBooks from here.
+     */
+    billing: JobBilling;
   },
 ): Promise<FinalInvoiceOutcome> {
+  if (options.billing.method === "studio") return { raised: false, reason: "studio_billed" };
   const tenantId = String(project.get("tenantId") ?? "");
   const invoiceReference = db.doc(`invoiceReferences/${options.invoiceId}`);
   if ((await transaction.get(invoiceReference)).exists) return { raised: false, reason: "exists" };

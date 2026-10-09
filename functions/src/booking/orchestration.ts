@@ -22,6 +22,7 @@ import {
 import { productEvent } from "../operations/product-events.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
+import { jobBillingFor } from "../billing/job-billing-reader.js";
 
 function stableId(scope: string, ...parts: string[]) {
   return `${scope}_${createHash("sha256")
@@ -397,16 +398,22 @@ export const bookingContractCompleted = onDocumentWritten(
     // Stripe connected since (Today: "Connect payments so … can pay online"):
     // raise it now, so the client who signs pays on the spot. Still nothing
     // connected: the studio records it by hand, as the plan said.
-    let raisesRetainer = plan.get("policy.createRetainerAfterSignature") === true;
-    if (!raisesRetainer && plan.get("policy.createRetainerAfterSignature") === false) {
-      try {
-        await requireProviderForTenant(db, tenantId, "invoicing");
-        raisesRetainer = true;
-      } catch {
-        raisesRetainer = false;
+    // Either way, only for a job billed through QuickBooks: a job the studio
+    // bills itself (billing/job-billing.ts) raises nothing there, and its
+    // plan is turned to "the studio takes the deposit" so the job, Today and
+    // the portal all say so.
+    const policy = plan.get("policy.createRetainerAfterSignature");
+    const billing = await jobBillingFor(db, tenantId, projectId, project.exists ? (project.data() ?? null) : null);
+    const raisesRetainer = (policy === true || policy === false) && billing.method === "quickbooks";
+    if (!raisesRetainer) {
+      if (policy === true && billing.method === "studio") {
+        await planReference.update({
+          "policy.createRetainerAfterSignature": false,
+          updatedAt: new Date().toISOString(),
+        });
       }
+      return;
     }
-    if (!raisesRetainer) return;
     if (!project.exists || project.get("tenantId") !== tenantId) return;
     // A signature that lands after the job was called off raises no retainer.
     // Cancelling now closes the plan (stopped-billing.ts); a plan left active
@@ -1016,7 +1023,12 @@ async function bookWithoutAgreement(
   const retainerDueDays = 7;
 
   let invoice: { id: string; data: Record<string, unknown>; providerJob: Record<string, unknown> } | null = null;
-  if (needs.payment) {
+  // A job the studio bills itself raises nothing at QuickBooks: the plan
+  // below already says the studio takes the payment (depositByStudio), and
+  // the job's step reads "Record the deposit". Before, this queued a
+  // QuickBooks invoice for a studio with no QuickBooks, which could only fail.
+  const billing = needs.payment ? await jobBillingFor(db, tenantId, projectId, project.data() ?? null) : null;
+  if (needs.payment && billing?.method === "quickbooks") {
     const existing = await db
       .collection("invoiceReferences")
       .where("tenantId", "==", tenantId)
