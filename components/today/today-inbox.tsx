@@ -1157,6 +1157,8 @@ function TodayCard({
           </>
         ) : item.action.kind === "final_balance" ? (
           <FinalBalanceCardActions action={item.action} onCleared={onCleared} onSettle={onSettleBalance} />
+        ) : item.action.kind === "shot_list" ? (
+          <ShotListActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "detail_change" ? (
           <DetailChangeActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "billing_address" ? (
@@ -1600,6 +1602,48 @@ function DetailChangeActions({
           Open the job
         </Link>
       ) : null}
+      {notice ? <span className="today-card-notice">{notice}</span> : null}
+    </>
+  );
+}
+
+type ShotListAction = Extract<TodayItem["action"], { kind: "shot_list" }>;
+
+/**
+ * A couple sent their shot list: "Open it" goes to the job, where the files
+ * are; "Got it" takes it off Today (and tells the couple it's been seen).
+ */
+function ShotListActions({
+  action,
+  jobHref,
+  onCleared,
+}: {
+  action: ShotListAction;
+  jobHref: string | null;
+  onCleared?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function seen() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await sendPlanningCommand("markShotListSeen", { projectId: action.projectId });
+      refreshTenantRecords("clientShotLists");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That couldn't be saved. Open the job to check."));
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Link className="today-card-primary" href={`${jobHref ?? `/studio/projects/${action.projectId}`}#shot-list`}>
+        {action.label} <ArrowRight size={14} />
+      </Link>
+      <button className="today-card-secondary" disabled={busy} onClick={() => void seen()} type="button">
+        {busy ? "Saving…" : "Got it"}
+      </button>
       {notice ? <span className="today-card-notice">{notice}</span> : null}
     </>
   );

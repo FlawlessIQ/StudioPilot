@@ -26,6 +26,8 @@ export type ClientNavigation = {
   files: boolean;
   delivery: boolean;
   reviews: boolean;
+  /** Their own must-take photos (server/planning/shot-list.ts), once asked for or sent. */
+  shotList?: boolean;
 };
 
 export type ClientMilestone = {
@@ -54,7 +56,8 @@ type Availability = Partial<Record<
   | "schedule"
   | "files"
   | "delivery"
-  | "reviews",
+  | "reviews"
+  | "shotList",
   boolean
 >>;
 
@@ -490,6 +493,7 @@ export function buildClientPortalExperience({
   inquiryForm = null,
   trade = null,
   consultation,
+  shotList = null,
 }: {
   state: string;
   availability: Availability;
@@ -554,6 +558,8 @@ export function buildClientPortalExperience({
     dueDateLabel: string | null;
     overdue: boolean;
   } | null;
+  /** Their shot list, when it has been asked for and not yet sent (shot-list-upload.ts). */
+  shotList?: { status: "requested" | "received"; dueDate: string | null } | null;
 }) {
   const index = stateIndex(state);
   const offer = tradeVocab(trade).proposal.toLowerCase();
@@ -750,9 +756,23 @@ export function buildClientPortalExperience({
           actionLabel: "View payments",
         }
       : null;
+  // Asked for a month out and not sent yet: their own must-take photos.
+  const shotListAction: ClientNextAction | null =
+    shotList?.status === "requested"
+      ? {
+          name: "Send your shot list",
+          description: "Any must-take photos? Upload your list, or a photo of your notes, so it's part of the plan.",
+          dueDate: shotList.dueDate,
+          ownerType: "client",
+          responsibility: "client",
+          href: "/client/shot-list",
+          actionLabel: "Upload your list",
+        }
+      : null;
   const nextClientAction: ClientNextAction =
     scheduleAction ??
     clientCheckpointAction ??
+    shotListAction ??
     proposalNextAction ??
     (stateFallback.responsibility === "studio" && balanceDueAction
       ? balanceDueAction
@@ -802,6 +822,7 @@ export function buildClientPortalExperience({
       // entry by reaching the review (the studio's own record still shows).
       delivery: Boolean(availability.delivery || (index >= 9 && tradeProfile(trade).delivery)),
       reviews: Boolean(availability.reviews || index >= 11),
+      shotList: Boolean(availability.shotList || shotList),
     } satisfies ClientNavigation,
   };
 }

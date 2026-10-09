@@ -189,3 +189,27 @@ never. `eventReminderScheduler` (hourly,
   These carry nothing to check — a fixed note and a link, or the times the crew
   member already accepted — so they send like the review, album and
   final-details reminders. A studio rewords either in the template studio.
+
+## The couple's own shot list (2026-10-09)
+
+A couple's "must-take photos", uploaded as they already have them: a document,
+PDF, photo or screenshot of their notes, and an optional note. Photographer
+studios only (`tradeProfile().shotList`), weddings only.
+
+- **Asked for** four weeks before the day by default (Settings → Planning
+  timeline: on/off, 2–8 weeks). `planningFormScheduler` calls
+  `requestShotListIfDue` (functions/src/planning/shot-list-upload.ts), which
+  creates `clientShotLists/{projectId}` (`requested`, due two weeks out) and
+  queues `shot_list_request` with a link to `/client/shot-list` (an invitation
+  for a couple without portal access). Never to imported, paused or put-away
+  jobs; never twice (`create`). "Ask now" on the job sends the same request.
+- **Sent** from the portal (`/client/shot-list`, mobile-first): files go to
+  `tenants/{t}/projects/{p}/clients/{uid}/shot-list/`, scanned like every
+  upload; `submit_shot_list` saves them to the record (`received`, up to 10
+  files). Couples can send before they're asked and add more later.
+- **Today** shows "{couple} sent their shot list" until the studio opens a file
+  or taps "Got it" (`markShotListSeen` sets `studioSeenAt`). A later send puts
+  it back.
+- **The job** shows a "Their shot list" card: not asked yet (and when it will
+  be), asked (and due), or sent, with the files to open (clean only) and the
+  note.

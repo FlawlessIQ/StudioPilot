@@ -263,6 +263,8 @@ export const clientAutomationEmailTypes: readonly string[] = [
   "schedule_review",
   "event_reminder",
   "questionnaire_reminder",
+  // The couple's own shot list, a month out (planning/shot-list-upload.ts).
+  "shot_list_request",
   // A reminder to sign a StudioCue contract. Never due on an imported booking
   // (it is already signed), but held here like every other automated nudge.
   "contract_reminder",

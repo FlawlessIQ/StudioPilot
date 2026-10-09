@@ -25,6 +25,9 @@ function lockLabel(days: number): string {
   return `${days} days`;
 }
 
+/** When a couple is asked for their own must-take photos: weeks, four by default. */
+const UPLOAD_DAY_CHOICES = [14, 21, 28, 35, 42, 56];
+
 export function PlanningTimelineSettings() {
   const workspace = useWorkspace();
   const mayEdit = workspace.role === "studio_owner" || workspace.role === "studio_admin";
@@ -45,6 +48,8 @@ export function PlanningTimelineSettings() {
   const [review, setReview] = useState<boolean | null>(null);
   const [finalCall, setFinalCall] = useState<boolean | null>(null);
   const [shotListId, setShotListId] = useState<string | null | undefined>(undefined);
+  const [askUpload, setAskUpload] = useState<boolean | null>(null);
+  const [uploadDays, setUploadDays] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +64,9 @@ export function PlanningTimelineSettings() {
   const effectiveReview = review ?? stored.reviewAtFormDate;
   const effectiveShotList = shotListId === undefined ? stored.shotListTemplateId : shotListId;
   const effectiveFinalCall = finalCall ?? stored.finalCall;
+  const effectiveAskUpload = askUpload ?? stored.shotListUpload;
+  const effectiveUploadDays = uploadDays ?? stored.shotListUploadDaysBefore;
+  const uploadDayChoices = [...new Set([...UPLOAD_DAY_CHOICES, effectiveUploadDays])].sort((a, b) => a - b);
   const forms = (templates ?? [])
     .filter((template) => template.status === "active" && !template.archivedAt)
     .map((template) => ({ id: template.id, name: String(template.name ?? "Questionnaire") }))
@@ -78,6 +86,7 @@ export function PlanningTimelineSettings() {
         reviewAtFormDate: effectiveReview,
         shotListTemplateId: effectiveShotList,
         finalCall: effectiveFinalCall,
+        ...(trade.shotList ? { shotListUpload: effectiveAskUpload, shotListUploadDaysBefore: effectiveUploadDays } : {}),
       });
       setSaved(true);
     } catch (caught: unknown) {
@@ -117,6 +126,7 @@ export function PlanningTimelineSettings() {
         reviewAtFormDate: effectiveReview,
         shotListTemplateId: templateId,
         finalCall: effectiveFinalCall,
+        ...(trade.shotList ? { shotListUpload: effectiveAskUpload, shotListUploadDaysBefore: effectiveUploadDays } : {}),
       });
       setShotListId(templateId);
       refreshTenantRecords("questionnaireTemplates", "tenants");
@@ -268,6 +278,43 @@ export function PlanningTimelineSettings() {
               </button>
             ) : null}
           </label>
+          ) : null}
+          {/* Conor (2026-10-09): couples have their own list, and it's asked
+              for a month out (functions/src/planning/shot-list-upload.ts). */}
+          {trade.shotList ? (
+            <label className="form-checkbox">
+              <input
+                checked={effectiveAskUpload}
+                disabled={!mayEdit}
+                onChange={(event) => {
+                  setAskUpload(event.target.checked);
+                  touch();
+                }}
+                type="checkbox"
+              />
+              <span>Ask for their own must-take photos</span>
+              <small>
+                An email with a link to upload the list they already have: a document, PDF or photo of their notes. When it
+                comes in it&rsquo;s on Today and on the job.
+              </small>
+            </label>
+          ) : null}
+          {trade.shotList && effectiveAskUpload ? (
+            <label>
+              Ask for it
+              <select
+                disabled={!mayEdit}
+                onChange={(event) => {
+                  setUploadDays(Number(event.target.value));
+                  touch();
+                }}
+                value={effectiveUploadDays}
+              >
+                {uploadDayChoices.map((days) => (
+                  <option key={days} value={days}>{`${lockLabel(days)} before the day`}</option>
+                ))}
+              </select>
+            </label>
           ) : null}
           <label>
             Lock the final details

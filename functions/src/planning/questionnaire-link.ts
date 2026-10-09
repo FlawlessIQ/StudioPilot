@@ -106,10 +106,13 @@ export async function questionnaireLinkFor(
     emailJobId: string;
     actorId: string;
     now: string;
+    /** Where the link lands in the portal; the planning form unless said (shot-list-upload.ts). */
+    path?: string;
   },
 ): Promise<QuestionnaireLink> {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studiohub.app").replace(/\/$/, "");
-  const portalUrl = `${appUrl}${QUESTIONNAIRE_PATH}`;
+  const path = input.path ?? QUESTIONNAIRE_PATH;
+  const portalUrl = `${appUrl}${path}`;
   const clientContactId = Array.isArray(input.clientContactIds)
     ? text(input.clientContactIds[0])
     : "";
@@ -147,7 +150,7 @@ export async function questionnaireLinkFor(
     primaryNeedsInvite: plan === "invite",
     primaryEmailJobId: input.emailJobId,
     appUrl,
-    path: QUESTIONNAIRE_PATH,
+    path,
     actorId: input.actorId,
     now: input.now,
   });
@@ -158,7 +161,7 @@ export async function questionnaireLinkFor(
     projectId: input.projectId,
     email: contactEmail,
     appUrl,
-    next: QUESTIONNAIRE_PATH,
+    next: path,
   });
   const reference = db.doc(`clientInvitations/${invitation.invitationId}`);
   const existing = await reference.get();

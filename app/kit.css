@@ -1634,3 +1634,72 @@ textarea.kit-input {
 .kit-profile-head .kit-pill {
   align-self: flex-start;
 }
+
+/* ---------- The couple's shot list (client-shot-list.tsx) ---------- */
+
+/* One big target: on a phone it opens Photos, Camera or Files. */
+.kit-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 26px 18px;
+  border: 1.5px dashed var(--kit-accent-line);
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-accent-soft);
+  color: var(--kit-accent);
+  text-align: center;
+  cursor: pointer;
+}
+.kit-dropzone:focus-within {
+  outline: 3px solid var(--kit-accent-line);
+  outline-offset: 2px;
+}
+.kit-dropzone[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.55;
+}
+.kit-dropzone-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: inherit;
+}
+.kit-dropzone-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+.kit-dropzone-hint {
+  max-width: 34ch;
+  color: var(--kit-ink-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.kit-shot-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--kit-ink-2);
+  cursor: pointer;
+}
+.kit-shot-remove:hover {
+  background: var(--kit-sunken);
+}
+.kit-shot-sent {
+  color: var(--kit-accent);
+}
+.kit-shot-note {
+  margin: 0;
+  color: var(--kit-ink-2);
+  white-space: pre-line;
+}

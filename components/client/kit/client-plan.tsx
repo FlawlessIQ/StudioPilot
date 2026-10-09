@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Camera,
   CalendarCheck,
   CalendarDays,
   CircleDollarSign,
@@ -21,6 +22,7 @@ import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { useProject } from "@/components/client/live-client-views";
 
 const ICONS = {
+  Camera,
   CalendarCheck,
   Package,
   ClipboardList,

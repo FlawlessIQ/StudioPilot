@@ -49,6 +49,8 @@ import {
 } from "@/server/billing/billing-address-request";
 import { parseSigningBillingAddress } from "@/features/contacts/billing-address-signing";
 import { confirmFinalDetails, finalDetailsFor } from "@/server/planning/final-details";
+import { shotListFor, submitShotList } from "@/server/planning/shot-list";
+import { shotListStatus, type ShotListRecord } from "@/features/planning/shot-list";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
 import { depositByStudio, paymentsConnected } from "@/features/booking/deposit-by-studio";
 
@@ -100,6 +102,28 @@ const requestSchema = z.discriminatedUnion("type", [
     type: z.literal("project"),
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    /** Their own must-take photos (server/planning/shot-list.ts). */
+    type: z.literal("shot_list"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    type: z.literal("submit_shot_list"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    files: z
+      .array(
+        z.object({
+          storagePath: z.string().min(1).max(800),
+          name: z.string().min(1).max(240),
+          contentType: z.string().min(1).max(160),
+          sizeBytes: z.number().int().positive().max(12 * 1024 * 1024),
+        }),
+      )
+      .max(10),
+    note: z.string().max(2000).nullable(),
   }),
   z.object({
     type: z.literal("send_message"),
@@ -1015,6 +1039,15 @@ async function clientProject(tenantId: string, projectId: string) {
     inquiryForm,
     trade: tenantSnapshot.get("trade"),
     consultation: projectProfile(projectSnapshot.data()).consultation,
+    shotList: await (async () => {
+      // Their own must-take photos, once asked for or sent (server/planning/shot-list.ts).
+      const stored = await adminFirestore.doc(`clientShotLists/${projectId}`).get();
+      if (!stored.exists || stored.get("tenantId") !== tenantId) return null;
+      return {
+        status: shotListStatus(stored.data() as ShotListRecord) === "received" ? ("received" as const) : ("requested" as const),
+        dueDate: safeString(stored.get("dueDate")),
+      };
+    })(),
   });
   return {
     id: projectId,
@@ -2253,6 +2286,23 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parsed.type === "shot_list") {
+      return Response.json({ shotList: await shotListFor(adminFirestore, { tenantId: parsed.tenantId, projectId: parsed.projectId }) });
+    }
+
+    if (parsed.type === "submit_shot_list") {
+      return Response.json({
+        shotList: await submitShotList(adminFirestore, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          uid: identity.uid,
+          files: parsed.files,
+          note: parsed.note,
+          now: new Date().toISOString(),
+        }),
+      });
+    }
+
     if (parsed.type === "final_details") {
       return Response.json({ details: await finalDetailsFor(adminFirestore, { tenantId: parsed.tenantId, projectId: parsed.projectId }) });
     }
@@ -2745,6 +2795,9 @@ export async function POST(request: Request) {
       return Response.json({ error }, { status: 409 });
     }
     if (error === "AUTOPAY_UNAVAILABLE") {
+      return Response.json({ error }, { status: 409 });
+    }
+    if (error === "SHOT_LIST_EMPTY" || error === "SHOT_LIST_TOO_MANY_FILES" || error === "SHOT_LIST_FILE_NOT_YOURS") {
       return Response.json({ error }, { status: 409 });
     }
     if (error === "PAYMENT_METHOD_NOT_FOUND") {

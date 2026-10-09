@@ -219,6 +219,13 @@ service cloud.firestore {
       allow read: if canManageProjects(resource.data.tenantId);
       allow write: if false;
     }
+    // The couple's own shot list (planning/shot-list-upload.ts): asked for by
+    // the scheduler or the studio, sent by the couple through the portal
+    // route. The studio reads it; nobody writes it from a browser.
+    match /clientShotLists/{projectId} {
+      allow read: if canManageProjects(resource.data.tenantId);
+      allow write: if false;
+    }
     match /detailSignoffs/{signoffId} {
       allow read: if canManageProjects(resource.data.tenantId);
       allow write: if false;

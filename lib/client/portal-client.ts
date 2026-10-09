@@ -1,5 +1,6 @@
 "use client";
 
+import type { ShotListView } from "@/features/planning/shot-list";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { withTimeout } from "@/lib/async/with-timeout";
@@ -432,6 +433,20 @@ export function getSigningBillingAddressStep(tenantId: string, projectId: string
 }
 
 /** Their final details, once their studio's timeline has locked them (server/planning/final-details.ts). */
+/** Their own must-take photos (server/planning/shot-list.ts). */
+export function getClientShotList(tenantId: string, projectId: string) {
+  return portalRequest<{ shotList: ShotListView }>({ type: "shot_list", tenantId, projectId });
+}
+
+export function submitClientShotList(
+  tenantId: string,
+  projectId: string,
+  files: Array<{ storagePath: string; name: string; contentType: string; sizeBytes: number }>,
+  note: string | null,
+) {
+  return portalRequest<{ shotList: ShotListView }>({ type: "submit_shot_list", tenantId, projectId, files, note });
+}
+
 export function getFinalDetails(tenantId: string, projectId: string) {
   return portalRequest<{ details: FinalDetailsView | null }>({ type: "final_details", tenantId, projectId });
 }

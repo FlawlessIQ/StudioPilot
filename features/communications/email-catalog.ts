@@ -63,6 +63,7 @@ export const EDITABLE_EMAILS: readonly EditableEmail[] = [
   { key: "questionnaire_reminder", group: "Planning", label: "Form reminder", when: "When a form is still waiting near its due date" },
   { key: "schedule_review", group: "Planning", label: "Timeline to review", when: "When their timeline is ready for them to check" },
   { key: "final_schedule_published", group: "Planning", label: "Final timeline", when: "When the timeline is published" },
+  { key: "shot_list_request", group: "Planning", label: "Shot list request", when: "A month before, asking for their must-take photos" },
   { key: "final_details_request", group: "Planning", label: "Confirm final details", when: "When the details lock before the event" },
   { key: "event_reminder", group: "Planning", label: "The week before", when: "A week before the event" },
 
@@ -124,7 +125,9 @@ export function editableEmailsFor(trade: unknown): readonly EditableEmail[] {
   // Makeup and hair hold no sales call; their calls are the trial and the
   // final details call, booked through the same emails.
   const call = profile.consultation ? `${words.consultation.toLowerCase()}` : "call";
-  return EDITABLE_EMAILS.filter((email) => profile.delivery || !DELIVERY_EMAILS.has(email.key)).map((email) => {
+  return EDITABLE_EMAILS.filter(
+    (email) => (profile.delivery || !DELIVERY_EMAILS.has(email.key)) && (profile.shotList || email.key !== "shot_list_request"),
+  ).map((email) => {
     switch (email.key) {
       case "consultation_invitation":
         return { ...email, when: `When you invite them to pick a ${call} time` };

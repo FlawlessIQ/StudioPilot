@@ -1383,3 +1383,69 @@
   border-color: var(--ds-ink-soft, #565d68);
   color: var(--ds-ink, #191b20);
 }
+
+/* The couple's own shot list, on the job (project-shot-list.tsx). */
+.project-shot-list {
+  display: grid;
+  gap: 8px;
+}
+
+.project-shot-list .eyebrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.project-shot-list-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.project-shot-list-files {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-shot-list-files button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line, #e6eae4);
+  border-radius: 10px;
+  background: var(--panel, #fff);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-shot-list-files button:hover {
+  border-color: var(--accent, #2f6b4f);
+}
+
+.project-shot-list-files span {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.project-shot-list-files small {
+  color: var(--muted, #8a938d);
+  white-space: nowrap;
+}
+
+.project-shot-list-note {
+  margin: 0;
+  color: var(--ink-soft, #4a524d);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

@@ -24,13 +24,16 @@ const PHOTO_WORDS =
 /**
  * Photographer-only, and never queued for a vendor: a delivery needs a
  * post-production record (post-event/release.ts), an album reminder needs an
- * album workflow (post-event/jobs.ts). Demo requests go to the StudioCue team.
+ * album workflow (post-event/jobs.ts), a shot list request needs a trade with
+ * a shot list (planning/shot-list-upload.ts, and "Ask now" checks the same).
+ * Demo requests go to the StudioCue team.
  */
 const PHOTOGRAPHER_ONLY = new Set([
   "delivery",
   "delivery_correction",
   "delivery_expiry_reminder",
   "album_selection_reminder",
+  "shot_list_request",
   "platform_demo_requested",
 ]);
 

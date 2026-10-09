@@ -16,6 +16,7 @@
  * records and journey positions.
  */
 
+import { shotListNeedsStudio, type ShotListRecord } from "@/features/planning/shot-list";
 import { balanceCollectedOnTheDay, morningBalance } from "@/features/billing/balance-on-the-day";
 import {
   amountWeight,
@@ -103,6 +104,12 @@ export type TodayAction =
        * (functions/src/billing/billing-address-request.ts).
        */
       kind: "billing_address";
+      label: string;
+      projectId: string;
+    }
+  | {
+      /** A couple sent their own shot list (features/planning/shot-list.ts): open it, or mark it seen. */
+      kind: "shot_list";
       label: string;
       projectId: string;
     }
@@ -339,6 +346,8 @@ export type TodayInput = {
   packageRequests?: TodayRecord[] | null;
   /** A couple's change to a locked location or time (functions/src/planning/detail-changes.ts). */
   detailChangeRequests?: TodayRecord[] | null;
+  /** `clientShotLists`: a couple's own must-take photos, new until the studio opens them. */
+  clientShotLists?: TodayRecord[] | null;
   /** Final-details sign-offs (functions/src/planning/final-details.ts). */
   detailSignoffs?: TodayRecord[] | null;
   /** The studio's planning timeline (tenants/{id}.planningTimeline): when the form goes out. */
@@ -1150,6 +1159,41 @@ export function todayInbox(input: TodayInput): TodayInbox {
       band: "soon",
       eventDate: text(job.eventDate) || null,
       score: score({ lane: "act", severity: "inquiry", updatedAt: changedAt(request), now }),
+    });
+  }
+
+  // ── Act · a couple sent their shot list (features/planning/shot-list.ts) ──
+  for (const list of rows(input.clientShotLists)) {
+    if (!shotListNeedsStudio(list as ShotListRecord)) continue;
+    const projectId = text(list.projectId);
+    const job = inquiryJobById.get(projectId);
+    if (!job || job.archivedAt) continue;
+    const eventDate = text(job.eventDate) || null;
+    if (eventDate && eventDate < input.now.slice(0, 10)) continue;
+    const files = Array.isArray(list.files) ? list.files.length : 0;
+    const note = text(list.note);
+    const receivedAt = text(list.receivedAt);
+    act.push({
+      id: `shot-list-${projectId}`,
+      lane: "act",
+      kind: "schedule",
+      title: `${clientOf(job, null, true)} sent their shot list`,
+      detail: [
+        files ? `${files} ${files === 1 ? "file" : "files"}` : null,
+        note ? `“${note.length > 120 ? `${note.slice(0, 119)}…` : note}”` : null,
+        "Their must-take photos, to plan around and share with your crew.",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      evidence: "Sent in their portal",
+      projectId,
+      projectName: text(job.name) || null,
+      action: { kind: "shot_list", label: "Open it", projectId },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [eventDate ? formatDueDate(eventDate) : null, waitingFact(receivedAt, now)].filter((fact): fact is string => Boolean(fact)),
+      band: "soon",
+      eventDate,
+      score: score({ lane: "act", severity: "inquiry", eventDate, updatedAt: receivedAt, now }),
     });
   }
 

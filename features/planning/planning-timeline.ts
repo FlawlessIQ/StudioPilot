@@ -44,6 +44,14 @@ export type PlanningTimeline = {
    * close out the job readiness"). On unless the studio turns it off.
    */
   finalCall: boolean;
+  /**
+   * Ask the couple to upload their own must-take photos / shot list in the
+   * portal (Conor, 2026-10-09: "requested from them 4 weeks before the
+   * wedding or a month"). Weddings, photo studios; on unless turned off.
+   */
+  shotListUpload: boolean;
+  /** How many days before the date that request goes (7–90). */
+  shotListUploadDaysBefore: number;
 };
 
 export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
@@ -55,6 +63,8 @@ export const DEFAULT_PLANNING_TIMELINE: PlanningTimeline = {
   reviewAtFormDate: false,
   shotListTemplateId: null,
   finalCall: true,
+  shotListUpload: true,
+  shotListUploadDaysBefore: 28,
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -64,6 +74,7 @@ export function resolvePlanningTimeline(raw: unknown): PlanningTimeline {
   const value = record(raw);
   const months = Number(value.formMonthsBefore);
   const lock = Number(value.lockDaysBefore);
+  const shotListDays = Number(value.shotListUploadDaysBefore);
   return {
     formMonthsBefore: Number.isInteger(months) && months >= 1 && months <= 12 ? months : DEFAULT_PLANNING_TIMELINE.formMonthsBefore,
     formSend: value.formSend === "auto" ? "auto" : "remind",
@@ -74,6 +85,11 @@ export function resolvePlanningTimeline(raw: unknown): PlanningTimeline {
     shotListTemplateId:
       typeof value.shotListTemplateId === "string" && value.shotListTemplateId.trim() ? value.shotListTemplateId.trim() : null,
     finalCall: value.finalCall !== false,
+    shotListUpload: value.shotListUpload !== false,
+    shotListUploadDaysBefore:
+      Number.isInteger(shotListDays) && shotListDays >= 7 && shotListDays <= 90
+        ? shotListDays
+        : DEFAULT_PLANNING_TIMELINE.shotListUploadDaysBefore,
   };
 }
 

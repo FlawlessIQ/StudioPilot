@@ -7,6 +7,7 @@ import { questionnaireLinkFor } from "./questionnaire-link.js";
 import { queuePartnerSends } from "../client/partner-invitations.js";
 import { detailsLocked, planningFormOpensOn, resolvePlanningTimeline, type PlanningTimeline } from "./planning-timeline.js";
 import { sendNewQuestionnaire } from "./send-questionnaire.js";
+import { requestShotListIfDue } from "./shot-list-upload.js";
 import { detailsFormOpensOn, jobKindOf } from "../job-kinds/job-kinds.js";
 
 /**
@@ -39,7 +40,7 @@ export function planningFormDue(project: Row, timeline: PlanningTimeline, today:
   return clientOutreachStop(project) === null;
 }
 
-type Studio = { timeline: PlanningTimeline; templates: Array<Row & { id: string }>; inquiryFormId: string | null };
+type Studio = { timeline: PlanningTimeline; templates: Array<Row & { id: string }>; inquiryFormId: string | null; trade: unknown };
 
 /** The form this studio's couples get: the chosen one at its live version, else the newest for the event type that isn't the inquiry form. */
 export function planningFormTemplate(
@@ -68,6 +69,7 @@ async function loadStudio(db: Firestore, tenantId: string): Promise<Studio> {
     timeline: resolvePlanningTimeline(tenant.get("planningTimeline")),
     templates: templates.docs.map((template) => ({ id: template.id, ...template.data() })),
     inquiryFormId: text((inquirySettings.get("inquiryEventForm") as Row | null | undefined)?.templateId) || null,
+    trade: tenant.get("trade"),
   };
 }
 
@@ -322,8 +324,18 @@ export const planningFormScheduler = onSchedule(
         if (!tenantId) continue;
         try {
           if (!studios.has(tenantId)) studios.set(tenantId, loadStudio(db, tenantId));
-          const outcome = await sendOne(db, project, await studios.get(tenantId)!, today, now);
+          const studio = await studios.get(tenantId)!;
+          const outcome = await sendOne(db, project, studio, today, now);
           tally[outcome] = (tally[outcome] ?? 0) + 1;
+          // The couple's own shot list, on its day (shot-list-upload.ts).
+          // Separate, so a failure here never costs them the planning form.
+          try {
+            const asked = await requestShotListIfDue(db, project, studio, today, now);
+            if (asked !== "not_due") tally[`shot_list_${asked}`] = (tally[`shot_list_${asked}`] ?? 0) + 1;
+          } catch (caught) {
+            tally.shot_list_failed = (tally.shot_list_failed ?? 0) + 1;
+            console.error(JSON.stringify({ severity: "ERROR", event: "shot_list_upload.failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));
+          }
         } catch (caught) {
           tally.failed = (tally.failed ?? 0) + 1;
           console.error(JSON.stringify({ severity: "ERROR", event: "planning_form.failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));

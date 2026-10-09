@@ -187,6 +187,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   FINAL_DETAILS_CHANGED: "Something was updated since this opened. Here it is again — please check it once more.",
   FINAL_DETAILS_NOT_FOUND: "There are no final details to confirm yet.",
   FINAL_DETAILS_NAME_REQUIRED: "Type your full name to confirm.",
+  // The couple's own shot list (server/planning/shot-list.ts).
+  SHOT_LIST_EMPTY: "Add a file or a note first.",
+  SHOT_LIST_TOO_MANY_FILES: "That's more than 10 files. Send the most important ones, or put them in one document.",
+  SHOT_LIST_FILE_NOT_YOURS: "That file couldn't be added. Try uploading it again.",
+  SHOT_LIST_NOT_FOUND: "There's no shot list on this job yet.",
   // A payment reminder approved after the bill was paid, voided or replaced
   // (functions/src/ai/actions.ts).
   // A proposal follow-up approved after the proposal was answered,

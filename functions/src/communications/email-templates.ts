@@ -133,6 +133,8 @@ export const emailTemplateKeys = [
   "retainer_invoice",
   "booking_confirmation",
   "questionnaire_request",
+  // The couple uploads their own must-take photos (planning/shot-list-upload.ts).
+  "shot_list_request",
   "questionnaire_reminder",
   "coi_request",
   "coi_correction",
@@ -1415,6 +1417,29 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         action: actionUrl
           ? { label: form ? `Complete your ${form.toLowerCase()}` : "Complete questionnaire", url: actionUrl }
           : undefined,
+      };
+    }
+    case "shot_list_request": {
+      /**
+       * Their own must-take photos, asked for a month out
+       * (planning/shot-list-upload.ts). Not a form: the list a couple already
+       * has — a note on their phone, a document, a screenshot — uploaded as
+       * it is, with a line if they want.
+       */
+      const due = stringValue(values, "dueDate");
+      return {
+        subject: `Your must-take photos${project} — ${brand.studioName}`,
+        preheader: "Upload your shot list, the moments and people you don't want missed.",
+        eyebrow: "Your shot list",
+        heading: "Any must-take photos?",
+        paragraphs: [
+          greeting,
+          `Your day is getting close! If there are photos you'd love us to be sure to get — family groups, special people, a detail that means a lot — upload your list and we'll plan around it.`,
+          "It can be anything you already have: a document, a PDF, a photo or screenshot of your notes. Add a short note too if you like.",
+          ...(due ? [`If you can, send it by ${humanDay(`${due}T12:00:00Z`)}.`] : []),
+        ],
+        action: actionUrl ? { label: "Upload your shot list", url: actionUrl } : undefined,
+        note: "No list? No problem. You can skip this, and you can add to it later.",
       };
     }
     case "coi_request": {
@@ -2824,7 +2849,7 @@ const paragraphHtml = (paragraph: string): string => {
 
 /** Mail a couple (or another client) reads. */
 export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
-  "client_invitation", "inquiry_acknowledgement", "inquiry_reply", "consultation_confirmation", "consultation_invitation",
+  "client_invitation", "inquiry_acknowledgement", "inquiry_reply", "shot_list_request", "consultation_confirmation", "consultation_invitation",
   "consultation_reminder", "consultation_rescheduled", "consultation_cancelled", "package_follow_up",
   "proposal_sent", "contract_sent", "contract_ready", "contract_reminder", "contract_signed", "contract_voided",
   "contract_superseded", "amendment_withdrawn", "retainer_invoice", "final_invoice", "final_payment_reminder",

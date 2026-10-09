@@ -152,6 +152,7 @@ export function useTodayInbox(): {
   const packageRequests = useTenantDocuments("packageRequests");
   const billingAddressRequests = useTenantDocuments("billingAddressRequests");
   const detailChangeRequests = useTenantDocuments("detailChangeRequests");
+  const clientShotLists = useTenantDocuments("clientShotLists");
   const detailSignoffs = useTenantDocuments("detailSignoffs");
   // The studio's planning timeline: when Today starts offering "Send the form".
   const tenants = useTenantDocuments("tenants");
@@ -381,6 +382,7 @@ export function useTodayInbox(): {
     packageRequests: packageRequests.records,
     billingAddressRequests: billingAddressRequests.records,
     detailChangeRequests: detailChangeRequests.records,
+    clientShotLists: clientShotLists.records,
     detailSignoffs: detailSignoffs.records,
     planningTimeline,
     schedules: schedules.records,

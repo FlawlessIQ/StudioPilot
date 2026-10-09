@@ -15,6 +15,7 @@
   "components/client/kit/client-messages.tsx": 1,
   "components/client/kit/client-package.tsx": 8,
   "components/client/kit/client-reviews.tsx": 1,
+  "components/client/kit/client-shot-list.tsx": 6,
   "components/client/kit/questionnaire-question.tsx": 1,
   "components/client/live-client-views.tsx": 13,
   "components/contracts/agreement-editor.tsx": 1,
@@ -40,7 +41,7 @@
   "components/integrations/quickbooks-settings.tsx": 1,
   "components/planning/ai-schedule-generator.tsx": 4,
   "components/planning/coi-workflow-panel.tsx": 1,
-  "components/planning/planning-timeline-settings.tsx": 3,
+  "components/planning/planning-timeline-settings.tsx": 5,
   "components/planning/questionnaire-review-insights.tsx": 4,
   "components/planning/questionnaire-template-editor.tsx": 1,
   "components/planning/timeline-authority-panel.tsx": 1,
@@ -50,6 +51,7 @@
   "components/post-event/replace-delivery-link.tsx": 1,
   "components/projects/live-project-detail.tsx": 4,
   "components/projects/plan-areas.tsx": 1,
+  "components/projects/project-shot-list.tsx": 3,
   "components/proposals/live-proposal-preview.tsx": 4,
   "components/proposals/one-off-package-form.tsx": 5,
   "components/proposals/proposal-packages-panel.tsx": 2,
@@ -60,7 +62,7 @@
   "features/help/explainers.ts": 35,
   "features/help/glossary.ts": 7,
   "functions/src/communications/commands.ts": 2,
-  "functions/src/communications/email-templates.ts": 47,
+  "functions/src/communications/email-templates.ts": 54,
   "functions/src/communications/prepared-answers.ts": 3,
   "functions/src/communications/template-preview.ts": 1
 }

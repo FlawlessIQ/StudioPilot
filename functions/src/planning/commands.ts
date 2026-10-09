@@ -1,4 +1,6 @@
 import { sendShotListWithForm } from "./planning-form-scheduler.js";
+import { requestShotListUpload, shotListDueDate } from "./shot-list-upload.js";
+import { tradeProfile } from "../trades/trades.js";
 import { createHash, randomBytes } from "node:crypto";
 import {
   coiAgentRequirement,
@@ -201,7 +203,24 @@ const command = z.discriminatedUnion("type", [
       shotListTemplateId: z.string().min(1).max(200).nullable().optional(),
       /** Invite the couple to book a final details call at the lock. */
       finalCall: z.boolean().optional(),
+      /** Ask for their own shot list upload, and how many days before (shot-list-upload.ts). */
+      shotListUpload: z.boolean().optional(),
+      shotListUploadDaysBefore: z.number().int().min(7).max(90).optional(),
     }),
+  }),
+  z.object({
+    /** Ask the couple for their shot list now, rather than on its day (shot-list-upload.ts). */
+    type: z.literal("requestShotList"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string().min(1) }),
+  }),
+  z.object({
+    /** The studio has seen the couple's shot list: off Today, marked on the job. */
+    type: z.literal("markShotListSeen"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string().min(1) }),
   }),
   z.object({
     /**
@@ -717,6 +736,29 @@ export const planningCommand = onRequest(
         });
         await batch.commit();
         result = { planningTimeline: parsed.input };
+      } else if (parsed.type === "requestShotList") {
+        // "Ask now" on the job (shot-list-upload.ts): the same request the
+        // day's sweep sends, once per job.
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const project = await db.doc(`projects/${parsed.input.projectId}`).get();
+        if (!project.exists || project.get("tenantId") !== parsed.tenantId) throw new Error("PROJECT_NOT_FOUND");
+        // A photographer's, as the day's sweep: a DJ's couple is never asked for a shot list.
+        const tenant = await db.doc(`tenants/${parsed.tenantId}`).get();
+        if (!tradeProfile(tenant.get("trade")).shotList) throw new Error("FORBIDDEN");
+        const outcome = await requestShotListUpload(db, project, {
+          now,
+          actorId: identity.uid,
+          dueDate: shotListDueDate(String(project.get("eventDate") ?? ""), now.slice(0, 10)),
+        });
+        if (outcome === "quiet") throw new Error("CLIENT_OUTREACH_STOPPED");
+        result = { projectId: parsed.input.projectId, outcome };
+      } else if (parsed.type === "markShotListSeen") {
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        const reference = db.doc(`clientShotLists/${parsed.input.projectId}`);
+        const current = await reference.get();
+        if (!current.exists || current.get("tenantId") !== parsed.tenantId) throw new Error("SHOT_LIST_NOT_FOUND");
+        await reference.update({ studioSeenAt: now, studioSeenBy: identity.uid, updatedAt: now });
+        result = { projectId: parsed.input.projectId, seen: true };
       } else if (parsed.type === "requestDetailChange") {
         if (role !== "client") throw new Error("FORBIDDEN");
         result = await requestDetailChange(db, {

@@ -86,6 +86,7 @@ import { useHashTarget } from "@/lib/ui/hash-target";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
 import { ProjectJobPlan } from "@/components/projects/project-job-plan";
 import { ParticipantRoster } from "@/components/group-events/participant-roster";
+import { ProjectShotList } from "@/components/projects/project-shot-list";
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -1503,6 +1504,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const soloVendorJob = !tradeJourney.crewByDefault && !journey.steps.some((step) => step.key === "crew");
   // "Our venue needs insurance": a vendor's own answer, for a kind of job a
   // venue could ask about, while there is still a day ahead to send it for.
+  // The couple's own must-take photos (features/planning/shot-list.ts).
+  const shotListEl = (
+    <ProjectShotList
+      eligible={jobKindOf(project) === "wedding" && tradeProfile(workspace.tenantTrade).shotList}
+      eventDate={typeof project.eventDate === "string" ? project.eventDate : null}
+      projectId={projectId}
+      projectState={state}
+    />
+  );
   const insuranceSwitchEl =
     !tradeJourney.insuranceByDefault &&
     projectProfile(project).coi &&
@@ -1831,6 +1841,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />
           {leadInviteEl}
           {trialInviteEl}
+          {shotListEl}
           {insuranceSwitchEl}
           {hideLeadStageControl ? null : stageControlEl}
           {interruptionEl}
@@ -1879,6 +1890,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             <ThreadMinimap steps={journey.steps} />
             {leadInviteEl}
             {trialInviteEl}
+            {shotListEl}
             {insuranceSwitchEl}
             {hideLeadStageControl ? null : stageControlEl}
             {interruptionEl}
