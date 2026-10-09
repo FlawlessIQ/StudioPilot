@@ -2837,6 +2837,7 @@ export const crmCommand = onRequest(
                   unitPriceCents: number;
                   taxable: boolean;
                   active: boolean;
+                  unitLabel?: unknown;
                 }>;
                 taxRateBasisPoints: number;
                 terms: string;
@@ -2926,6 +2927,8 @@ export const crmCommand = onRequest(
                 unitPriceCents: addOn.unitPriceCents,
                 lineTotalCents: addOn.unitPriceCents * selection.quantity,
                 taxable: addOn.taxable,
+                // "5 people × $120" on the quote (packages/unit-label.ts).
+                unitLabel: normalizeUnitLabel(addOn.unitLabel),
               };
             },
           );

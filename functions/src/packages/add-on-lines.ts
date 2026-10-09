@@ -7,7 +7,11 @@
  * package was already signed for, so one rule matters more than it does
  * before signing: an extra the couple already agreed to keeps the price it was
  * agreed at. Editing the library entry since must not move it.
+ *
+ * What a line is priced per ("person", "hour": ./unit-label.ts) rides along
+ * with it, so "5 people × $120" stays that after a change.
  */
+import { normalizeUnitLabel } from "./unit-label.js";
 
 export type AddOnLineInput = {
   /** A library or package add-on (or one already on the snapshot); null for a one-off. */
@@ -25,6 +29,8 @@ export type AddOnLine = {
   unitPriceCents: number;
   lineTotalCents: number;
   taxable: boolean;
+  /** What it is priced per, when it is: "person". Null for a single extra. */
+  unitLabel: string | null;
 };
 
 type Row = Record<string, unknown>;
@@ -48,6 +54,7 @@ export function snapshotAddOnLines(snapshot: unknown): AddOnLine[] {
       unitPriceCents,
       lineTotalCents: typeof line.lineTotalCents === "number" ? cents(line.lineTotalCents) : unitPriceCents * quantity,
       taxable: line.taxable !== false,
+      unitLabel: normalizeUnitLabel(line.unitLabel),
     };
   });
 }
@@ -86,6 +93,7 @@ export function resolveAddOnLines(
           unitPriceCents: agreed.unitPriceCents,
           lineTotalCents: agreed.unitPriceCents * quantity,
           taxable: agreed.taxable,
+          unitLabel: agreed.unitLabel,
         };
       const definition =
         sources.suggested.find((row) => row.id === item.addOnId && row.active !== false) ??
@@ -99,6 +107,7 @@ export function resolveAddOnLines(
         unitPriceCents,
         lineTotalCents: unitPriceCents * quantity,
         taxable: definition.taxable !== false,
+        unitLabel: normalizeUnitLabel(definition.unitLabel),
       };
     }
     const name = item.name?.trim() ?? "";
@@ -119,6 +128,7 @@ export function resolveAddOnLines(
       unitPriceCents,
       lineTotalCents: unitPriceCents * quantity,
       taxable,
+      unitLabel: null,
     };
   });
 }

@@ -1,4 +1,5 @@
 import { TRADE_LABELS, tradeProfile, tradeVocab } from "../trades/trades.js";
+import { COVERAGE_ROLES, coverageRoleLabel, type CoverageRole } from "../packages/coverage.js";
 import { releaseHeadline } from "../post-event/deliverables.js";
 import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
@@ -716,7 +717,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     case "crew_invitation":
       {
-        const role = stringValue(values, "role");
+        // A role written as its id ("makeup_artist") reads as its label.
+        const roleValue = stringValue(values, "role");
+        const role = (COVERAGE_ROLES as readonly string[]).includes(roleValue)
+          ? ((label: string) => `${label.charAt(0).toUpperCase()}${label.slice(1)}`)(coverageRoleLabel(roleValue as CoverageRole, 1))
+          : roleValue;
         const arrivalAt = stringValue(values, "arrivalAt");
         const departureAt = stringValue(values, "departureAt");
         const respondBy = stringValue(values, "respondBy");
@@ -753,6 +758,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const studioTrade = tradeProfile(values.trade);
       const offerTrade =
         studioTrade.family === "photo" ? (trade === "video" ? "Video" : "Photography") : TRADE_LABELS[studioTrade.trade];
+      // The same word in the sentence: "a makeup assignment", "a DJ assignment".
+      const offerWord = studioTrade.family === "photo" ? trade : offerTrade === "DJ" ? "DJ" : offerTrade.toLowerCase();
       // The same offer again for the last name on the list, held open rather
       // than expired (crew/commands.ts, remindLastCandidate).
       const reminder = values.reminder === true;
@@ -768,8 +775,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           greeting,
           reminder
-            ? `Just checking in about the ${trade} assignment${project}. ${brand.studioName} is still holding it for you — let them know either way.`
-            : `We'd like you to review a ${trade} assignment${project}.`,
+            ? `Just checking in about the ${offerWord} assignment${project}. ${brand.studioName} is still holding it for you — let them know either way.`
+            : `We'd like you to review a ${offerWord} assignment${project}.`,
           ...details,
           "Open the secure job brief to review responsibilities and requirements before accepting or declining.",
         ],
@@ -1773,34 +1780,56 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: portalUrl ? { label: "Your project portal", url: portalUrl } : undefined,
       };
     }
-    case "final_details_request":
+    case "final_details_request": {
       /**
        * Four weeks out: the couple confirms their final details — every
        * location and time, and the timeline (planning/final-details.ts). The
        * link is the point; without one the copy still says where to go.
+       *
+       * In the studio's trade's words (trades.ts): a DJ's couple confirms the
+       * night and books the final planning call; a makeup artist's or hair
+       * stylist's client confirms the morning and the headcount, which can
+       * grow but not shrink from here. A photographer's reads as it always did.
        */
+      const finalWords = tradeVocab(values.trade);
+      const finalTrade = tradeProfile(values.trade);
+      const beauty = finalTrade.family === "beauty";
+      const wedding = stringValue(values, "eventKind") === "wedding";
+      const summary =
+        finalTrade.family === "music"
+          ? `Here's everything we have for your ${wedding ? "night" : "event"}${project}: the venue and times, and your ${finalWords.detailsForm ?? "planner"}.`
+          : beauty
+            ? `Here's everything we have for your morning${project}: where everyone is getting ready, the ready-by time, and your ${finalWords.detailsForm ?? "party list"}.`
+            : wedding
+              ? `Here's everything we have for your day${project}: where you're getting ready, the ceremony and reception, any photo stops, and the timeline.`
+              : `Here's everything we have for your day${project}: every location and time, and the timeline.`;
       return {
         subject: `Please confirm your final details with ${brand.studioName}`,
-        preheader: "Every location and time for your day, in one place.",
+        preheader: beauty ? "Everyone getting ready, and when, in one place." : "Every location and time for your day, in one place.",
         eyebrow: "Final details",
         heading: "Your final details are ready to confirm",
         paragraphs: [
           greeting,
-          stringValue(values, "eventKind") === "wedding"
-            ? `Here's everything we have for your day${project}: where you're getting ready, the ceremony and reception, any photo stops, and the timeline.`
-            : `Here's everything we have for your day${project}: every location and time, and the timeline.`,
-          "Please check it and confirm. From here, small things you can still change yourself; a change to a location or time comes to us to agree.",
+          summary,
+          beauty
+            ? "Please check it and confirm. From here, people can be added but not taken off, and a change to the location or time comes to us to agree."
+            : "Please check it and confirm. From here, small things you can still change yourself; a change to a location or time comes to us to agree.",
           ...(safeUrl(stringValue(values, "finalCallUrl"))
-            ? ["Let's also find a time for a short call to go over everything together and make any last changes to your timeline."]
+            ? [
+                finalTrade.family === "photo"
+                  ? "Let's also find a time for a short call to go over everything together and make any last changes to your timeline."
+                  : `Let's also find a time for your ${finalWords.finalCall.toLowerCase()} to go over everything together.`,
+              ]
             : []),
         ],
         action: portalUrl ? { label: "Check and confirm", url: portalUrl } : undefined,
         // The final details call (planning/final-details.ts finalCallLink).
         moreActions: safeUrl(stringValue(values, "finalCallUrl"))
-          ? [{ label: "Book your final details call", url: safeUrl(stringValue(values, "finalCallUrl")) }]
+          ? [{ label: `Book your ${finalWords.finalCall.toLowerCase()}`, url: safeUrl(stringValue(values, "finalCallUrl")) }]
           : undefined,
         note: portalUrl ? undefined : `Sign in to your ${brand.studioName} client portal to confirm them.`,
       };
+    }
     case "billing_address_request":
       /**
        * QuickBooks works out the sales tax from the billing address, and this

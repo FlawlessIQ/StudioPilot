@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agent sessions' git worktrees, with their own builds inside: not this
+    // checkout's code, and 2,588 errors of build output (UAT, 2026-10-09).
+    ".claude/**",
   ]),
 ]);
 

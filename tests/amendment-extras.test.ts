@@ -101,7 +101,8 @@ test("an extra already agreed keeps the price it was agreed at; a new one comes 
     ],
     { agreed, suggested: [{ id: "drone", name: "Drone footage", unitPriceCents: 40_000, taxable: true }], library, newCustomId: ids },
   );
-  assert.deepEqual(lines[0], { addOnId: "albums", name: "Parent albums", quantity: 2, unitPriceCents: 30_000, lineTotalCents: 60_000, taxable: true });
+  // Sold as one, so no unit (packages/unit-label.ts): "5 people" keeps its own.
+  assert.deepEqual(lines[0], { addOnId: "albums", name: "Parent albums", quantity: 2, unitPriceCents: 30_000, lineTotalCents: 60_000, taxable: true, unitLabel: null });
   assert.equal(lines[1]!.unitPriceCents, 40_000, "the package's suggestion");
   assert.equal(lines[2]!.unitPriceCents, 60_000, "the library");
   assert.equal(lines[3]!.addOnId, "custom_old", "an unchanged one-off extra keeps its id");
