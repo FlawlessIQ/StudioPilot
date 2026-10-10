@@ -248,6 +248,9 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // Own invoicing Phase 2: sent from Today's card and the booking page; Cue in Phase 6.
   sendStudioInvoice: "Today's invoice card and the booking page",
   createStudioDeposit: "the booking page's deposit panel",
+  // Own invoicing Phase 5: deleting records is a typed, deliberate act on the
+  // Invoices page — never something Cue prepares.
+  deleteInvoiceRecords: "Invoices: delete a bill, or the job's records with its name typed",
   // The couple's own shot list (planning/shot-list-upload.ts): asked on its
   // day by the sweep, or "Ask now" on the job; seen from Today or the job.
   requestShotList: "the job's shot list card", markShotListSeen: "the shot list card on Today",

@@ -1,5 +1,6 @@
 "use client";
 
+import { paidInFullSettledByDeletion, settledInvoiceStatus } from "@/features/billing/invoice-purge-policy";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import {
@@ -78,12 +79,14 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   return readinessEvidenceFromFacts({
     bookingConfirmed: bookingIsConfirmed(projectRecord ?? {}),
     contractStatus: text(latestContract?.status) || null,
+    // A paid bill the studio deleted leaves a settled note (own invoicing).
     retainerInvoiceStatus:
       text(projectInvoices.find((invoice) => invoice.kind === "retainer")?.status) ||
-      null,
+      settledInvoiceStatus(projectRecord, "retainer"),
     finalInvoiceStatus:
       text(currentFinalInvoice(projectInvoices)?.status) ||
-      null,
+      settledInvoiceStatus(projectRecord, "final") ||
+      (paidInFullSettledByDeletion(projectRecord) ? "paid" : null),
     questionnaireStatus: text(questionnaire?.status) || null,
     questionnaireAnswers: questionnaire?.answers,
     scheduleStatus: text(latestSchedule?.status) || null,

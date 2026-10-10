@@ -1,5 +1,6 @@
 "use client";
 
+import { invoiceRecordsDeleted } from "@/features/billing/invoice-purge-policy";
 import { useJobBilling } from "@/components/booking/use-job-billing";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -1470,7 +1471,7 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
   if (loading || !proposals || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
-  const due = outstandingFinalBalance({ projectId: job.id, proposals, invoices });
+  const due = outstandingFinalBalance({ projectId: job.id, proposals, invoices, recordsDeleted: invoiceRecordsDeleted(job) });
   // Held for the studio to check: never sent, so "already out" was untrue.
   const held = due.heldForReviewId ? (invoices.find((item) => item.id === due.heldForReviewId) ?? null) : null;
   // In QuickBooks already, waiting on the tax check: send with or without tax.

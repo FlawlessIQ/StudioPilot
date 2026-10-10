@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { paidInFullSettledByDeletion, settledInvoiceStatus } from "../billing/invoice-purge-policy.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
 import type {
   DocumentData,
@@ -1653,12 +1654,14 @@ export const workflowCommand = onRequest(
             (newestBy(contractsSnapshot, "createdAt")?.get("status") as
               | string
               | undefined) ?? null,
+          // A paid bill the studio deleted leaves a settled note (own invoicing).
           retainerInvoiceStatus:
             (invoiceOfKind("retainer")?.get("status") as string | undefined) ??
-            null,
+            settledInvoiceStatus(projectSnapshot.data(), "retainer"),
           finalInvoiceStatus:
             (invoiceOfKind("final")?.get("status") as string | undefined) ??
-            null,
+            settledInvoiceStatus(projectSnapshot.data(), "final") ??
+            (paidInFullSettledByDeletion(projectSnapshot.data()) ? "paid" : null),
           questionnaireStatus:
             (questionnaire?.get("status") as string | undefined) ?? null,
           questionnaireAnswers: questionnaire?.get("answers"),

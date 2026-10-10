@@ -6,6 +6,7 @@ import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.
 import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
 import type { JobBilling } from "../billing/job-billing.js";
 import { writeStudioInvoiceDraft } from "../billing/studio-invoice-issue.js";
+import { invoiceRecordsDeleted } from "../billing/invoice-purge-policy.js";
 import { normaliseStudioInvoiceSettings, studioInvoiceTaxCents } from "../billing/studio-invoice-settings.js";
 
 /**
@@ -70,6 +71,10 @@ export async function raiseFinalInvoice(
   },
 ): Promise<FinalInvoiceOutcome> {
   const studioBilled = options.billing.method === "studio";
+  // The studio deleted invoice records on this job: what was paid is no
+  // longer known, so no balance is worked out from what's left (own
+  // invoicing, Phase 5 — invoice-purge-policy.ts).
+  if (invoiceRecordsDeleted(project.data())) return { raised: false, reason: "records_deleted" };
   const tenantId = String(project.get("tenantId") ?? "");
   const invoiceReference = db.doc(`invoiceReferences/${options.invoiceId}`);
   if ((await transaction.get(invoiceReference)).exists) return { raised: false, reason: "exists" };

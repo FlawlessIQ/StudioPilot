@@ -407,6 +407,15 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVOICE_NOT_SENDABLE: "This invoice is paid or closed, so there's nothing to send.",
   BILLING_QUICKBOOKS_JOB: "This job is billed through QuickBooks. Switch it to \u201cBill it myself\u201d on its booking page first.",
   INVOICE_NOT_DRAFTED: "The deposit invoice couldn't be made. Check the job has an accepted package, then try again.",
+  // Deleting invoice records (bookingCommand deleteInvoiceRecords; billing/invoice-purge-policy.ts).
+  INVOICE_DELETE_PERMISSION_REQUIRED: "Only a studio owner or admin can delete invoice records.",
+  INVOICE_DELETE_CONFIRMATION_MISMATCH: "Type the job's name exactly as it's shown to delete all of its invoice records.",
+  INVOICE_IN_FLIGHT: "QuickBooks or autopay is working on this bill right now. Try again in a few minutes.",
+  INVOICE_PARTLY_PAID: "This bill is part paid. Record the rest, or void it, before deleting it.",
+  INVOICE_STILL_NEEDED:
+    "This deposit is still needed: the final balance is worked out from it. Delete it once the final is paid, or delete the job's records together then.",
+  INVOICE_RECORDS_DELETED:
+    "Invoice records on this job were deleted, so StudioCue can't work out a balance from them. Record any payment by hand.",
   // Settings → Invoices and payments → Preview a sample invoice.
   PDF_GENERATION_FAILED: "The invoice PDF couldn't be made just now. Try again in a minute.",
   PDF_SERVICE_NOT_CONFIGURED: "Invoice PDFs aren't set up in this environment.",

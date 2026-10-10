@@ -9,6 +9,7 @@ import {
 import { ConfirmStep } from "@/components/ui/confirm-step";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { invoiceKindLabel } from "@/features/billing/studio-invoice-document";
+import { normaliseStudioInvoiceSettings, studioInvoicePaymentReady } from "@/features/billing/studio-invoice-settings";
 import {
   jobClientRecipient,
   recipientLabel,
@@ -75,6 +76,7 @@ export function StudioInvoiceActions({
   const workspace = useWorkspace();
   const { records: projects } = useTenantDocuments("projects");
   const { records: contacts } = useTenantDocuments("contacts");
+  const { records: billingSettings } = useTenantDocuments("billingSettings");
   const [busy, setBusy] = useState<"email" | "self" | "pdf" | null>(null);
   const [confirming, setConfirming] = useState<"email" | "self" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -98,6 +100,15 @@ export function StudioInvoiceActions({
   // Paid (or voided): nothing to send, only the PDF to open.
   const settled = Number(invoice.balanceCents ?? 0) <= 0;
   const pdfPath = text((invoice.pdf as Row | undefined)?.path);
+  // No instructions and no pay link: the invoice can't say how to pay, so
+  // the studio is told before it goes (Riley Park, Spin Theory DJs, prod
+  // walk 2026-10-10: it went out saying nothing about paying).
+  const paymentDetailsReady = studioInvoicePaymentReady(
+    normaliseStudioInvoiceSettings(billingSettings?.find((record) => record.tenantId === workspace.tenantId) ?? null),
+  );
+  const howToPay = paymentDetailsReady
+    ? "with the PDF attached and your payment details"
+    : "with the PDF attached. You haven't added how clients pay you yet, so it won't say how to pay — add it first in Settings → Invoices and payments, or tell them yourself";
   const ownerOrAdmin =
     workspace.role === "studio_owner" || workspace.role === "studio_admin";
 
@@ -186,7 +197,7 @@ export function StudioInvoiceActions({
           onConfirm={() => void send(confirming)}
         >
           {confirming === "email"
-            ? `${recipient ?? "The client"} gets ${number} for ${amount} by email, with the PDF attached and your payment details.`
+            ? `${recipient ?? "The client"} gets ${number} for ${amount} by email, ${howToPay}.`
             : `Records that you sent ${number} your own way. Nothing is emailed.`}
         </ConfirmStep>
       );
@@ -276,7 +287,7 @@ export function StudioInvoiceActions({
           onConfirm={() => void send(confirming)}
         >
           {confirming === "email"
-            ? `${recipient ?? "The client"} gets ${number} for ${amount} by email, with the PDF attached and your payment details. It's also in their portal.`
+            ? `${recipient ?? "The client"} gets ${number} for ${amount} by email, ${howToPay}. It's also in their portal.`
             : `Records that you sent ${number} your own way. Nothing is emailed; ${recipient ?? "the client"} can see it in their portal.`}
         </ConfirmStep>
       ) : (

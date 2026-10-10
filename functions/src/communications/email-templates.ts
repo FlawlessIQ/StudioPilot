@@ -1358,7 +1358,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           paragraphs: [
             greeting,
             `Here's your ${kindLabel} invoice${project}${amount ? `: ${amount}` : ""}${due ? `, due ${due}` : ""}. It's attached as a PDF.`,
-            ...(instructions ? [`How to pay: ${instructions.split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" \u00b7 ")}`] : []),
+            ...(instructions
+              ? [`How to pay: ${instructions.split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" \u00b7 ")}`]
+              : payLink
+                ? []
+                : // No payment details saved: never silent about paying.
+                  [`${brand.studioName} will let you know how to pay. Reply to this email with any questions.`]),
           ],
           action: payLink
             ? { label: amount ? `Pay ${amount}` : "Pay now", url: payLink }

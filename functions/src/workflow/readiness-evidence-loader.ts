@@ -21,6 +21,7 @@
  * The fix is one loader, used by both.
  */
 
+import { paidInFullSettledByDeletion, settledInvoiceStatus } from "../billing/invoice-purge-policy.js";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   readinessEvidenceFromFacts,
@@ -132,9 +133,13 @@ export async function loadReadinessEvidence(
   return readinessEvidenceFromFacts({
     bookingConfirmed,
     contractStatus: text(newestContract?.get("status")) || null,
+    // A paid bill the studio deleted leaves a settled note (own invoicing).
     retainerInvoiceStatus:
-      text(invoiceOfKind("retainer")?.get("status")) || null,
-    finalInvoiceStatus: text(invoiceOfKind("final")?.get("status")) || null,
+      text(invoiceOfKind("retainer")?.get("status")) || settledInvoiceStatus(project.data(), "retainer"),
+    finalInvoiceStatus:
+      text(invoiceOfKind("final")?.get("status")) ||
+      settledInvoiceStatus(project.data(), "final") ||
+      (paidInFullSettledByDeletion(project.data()) ? "paid" : null),
     questionnaireStatus: text(questionnaire?.get("status")) || null,
     questionnaireAnswers: questionnaire?.get("answers"),
     scheduleStatus: text(latestSchedule?.get("status")) || null,

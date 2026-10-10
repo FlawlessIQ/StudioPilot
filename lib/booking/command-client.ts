@@ -284,6 +284,18 @@ export async function sendStudioInvoice(input: { invoiceId: string; via: "email"
   });
 }
 
+/**
+ * Delete invoice records — one bill, or every one on the job with its name
+ * typed (owner/admin). See functions/src/billing/invoice-purge.ts.
+ */
+export async function deleteInvoiceRecords(input: { projectId: string; invoiceId: string | null; confirmation?: string | null }) {
+  return sendBookingCommand({
+    type: "deleteInvoiceRecords",
+    idempotencyKey: `delete_invoices_${input.projectId}_${crypto.randomUUID()}`,
+    input: { projectId: input.projectId, invoiceId: input.invoiceId, confirmation: input.confirmation ?? null },
+  });
+}
+
 /** Draft the deposit invoice on a job the studio bills itself (owner/admin). */
 export async function createStudioDeposit(projectId: string) {
   return sendBookingCommand({

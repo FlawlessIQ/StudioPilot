@@ -37,6 +37,11 @@ export function outstandingFinalBalance(input: {
    * what its final invoice will carry (functions/src/booking/final-invoice.ts).
    */
   studioTaxBasisPoints?: number | null;
+  /**
+   * The studio deleted invoice records on this job (own invoicing): what was
+   * paid is no longer known, so no balance is worked out and none offered.
+   */
+  recordsDeleted?: boolean;
 }): {
   cents: number | null;
   dueDate: string | null;
@@ -73,7 +78,7 @@ export function outstandingFinalBalance(input: {
     ? (accepted!.paymentSchedule as Array<Record<string, unknown>>)
     : [];
   return {
-    cents: Number.isFinite(total) && total > paid ? total - paid : null,
+    cents: input.recordsDeleted !== true && Number.isFinite(total) && total > paid ? total - paid : null,
     dueDate: text(schedule[1]?.dueDate) || null,
     // A final bill out with the couple (or paid): nothing new to send.
     finalStanding: standing.some((invoice) => invoice.kind === "final"),

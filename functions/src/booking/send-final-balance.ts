@@ -30,6 +30,7 @@ const REASON_TO_ERROR: Record<string, string> = {
   no_package: "FINAL_NO_PACKAGE",
   no_provider_customer: "INVOICING_NOT_CONNECTED",
   studio_billed: "BILLING_STUDIO_JOB",
+  records_deleted: "INVOICE_RECORDS_DELETED",
 };
 
 export async function sendFinalBalance(

@@ -8,8 +8,14 @@
 | 1 — The PDF invoice (`/v1/invoices/pdf`, `invoice_pdf` jobs, portal, sample preview) | Live 2026-10-09 (70b20acf) |
 | 2 — Deposits: drafted on signing / no-agreement booking, emailed with the PDF or marked sent, Today card, booking panel, PDF re-rendered on payment/void | Live 2026-10-09 (779fbd93) |
 | 3 — Finals, single bills, booking changes, closeout: the final-bill core drafts the studio's own final (taxed on the whole price, deposit shown as paid), "Create the final invoice" on Today/Invoices, closeout reads the standing final or a paid-in-full bill | Live 2026-10-10 (fe1aecea) |
-| 4 — Tracking: Invoices ledger (totals, filters, every bill with its source, CSV), overdue studio invoices chased with number/instructions/pay link and "Email it again", pre-draft balances include the studio's tax | Built 2026-10-10 |
-| 5–6 | Not started |
+| 4 — Tracking: Invoices ledger (totals, filters, every bill with its source, CSV), overdue studio invoices chased with number/instructions/pay link and "Email it again", pre-draft balances include the studio's tax | Live 2026-10-10 (28950ce5) |
+| 5 — Delete: one bill or a whole job's records (typed name), settled note for paid bills, audit money scrubbed, tombstone, emulator sweep test (`npm run test:invoice-purge`); unpaid deletes leave no "records deleted" mark | Built 2026-10-10 |
+| 6 | Not started |
+
+Phase 5 notes: a paid deposit can only go once its final is paid (or the job has
+no final) — before then the balance is worked out from it. Part-paid bills and
+bills mid-flight at a provider are refused. The Privacy Policy / DPA retention
+wording is NOT changed: that needs counsel, and Conor should decide the words.
 
 Phase 4 note: the "zip of PDFs for a date range" was left out. Each PDF opens from
 the ledger, and the per-job "download the PDFs first" belongs with delete (Phase 5).

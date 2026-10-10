@@ -15188,6 +15188,69 @@ form:has(> .address-field) > .address-field,
   text-decoration: none;
 }
 
+.invoice-ledger-delete {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.invoice-ledger-job-delete {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.invoice-delete-sheet {
+  display: grid;
+  gap: 14px;
+  padding: 24px 26px;
+}
+
+.invoice-delete-sheet p {
+  margin: 0;
+}
+
+.invoice-delete-sheet h2 {
+  font-size: 19px;
+  margin: 0;
+  padding-right: 36px;
+}
+
+.invoice-delete-actions .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.invoice-delete-pdfs {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.invoice-delete-pdfs strong {
+  flex: 1 1 100%;
+}
+
+.invoice-delete-confirm {
+  display: grid;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 6px;
+}
+
+.invoice-delete-confirm input {
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 10px;
+  font: inherit;
+  padding: 10px 12px;
+}
+
+.invoice-delete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .invoice-ledger-empty {
   color: var(--ds-ink-soft, #565d68);
   margin: 0;

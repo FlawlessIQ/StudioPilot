@@ -105,6 +105,7 @@ import {
 import { keptMeetingSettings } from "./consultation-settings-merge.js";
 import { setJobSalesTaxExempt, setJobSalesTaxExemptInput } from "./job-sales-tax.js";
 import { setJobBillingMethod, setJobBillingMethodInput } from "./job-billing-method.js";
+import { deleteInvoiceRecords, deleteInvoiceRecordsInput } from "../billing/invoice-purge.js";
 import {
   createStudioDeposit,
   createStudioDepositInput,
@@ -237,6 +238,13 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: sendStudioInvoiceInput,
+  }),
+  z.object({
+    // Delete invoice records — one bill, or the whole job's (owner/admin) — ../billing/invoice-purge.ts.
+    type: z.literal("deleteInvoiceRecords"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: deleteInvoiceRecordsInput,
   }),
   z.object({
     // Draft the deposit on a job the studio bills itself (owner/admin).
@@ -3281,6 +3289,20 @@ export const bookingCommand = onRequest(
         else result = await voidContract(contractContext, command.input);
       } else if (command.type === "setJobSalesTaxExempt") {
         result = await setJobSalesTaxExempt(
+          {
+            tenantId: command.tenantId,
+            membership,
+            actorId: identity.uid,
+            timestamp,
+            idempotencyKey: command.idempotencyKey,
+            ipAddress: request.ip ?? null,
+            userAgent: request.header("user-agent") ?? null,
+          },
+          command.input,
+        );
+      } else if (command.type === "deleteInvoiceRecords") {
+        result = await deleteInvoiceRecords(
+          firestore,
           {
             tenantId: command.tenantId,
             membership,

@@ -16,6 +16,7 @@
  * records and journey positions.
  */
 
+import { invoiceRecordsDeleted } from "@/features/billing/invoice-purge-policy";
 import { shotListNeedsStudio, type ShotListRecord } from "@/features/planning/shot-list";
 import { balanceCollectedOnTheDay, morningBalance } from "@/features/billing/balance-on-the-day";
 import {
@@ -1984,6 +1985,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
         invoices: rows(input.invoiceReferences),
         billingSettings: rows(input.billingSettings)[0] ?? null,
       }),
+      // Records deleted by the studio: no balance is worked out from what's left.
+      recordsDeleted: invoiceRecordsDeleted(job),
     });
     // A final bill held for review is standing, so the "send" card below
     // stays away — but it was never sent, and nothing else said so.
@@ -2102,6 +2105,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
     });
   }
   // ── Act · an invoice the studio issued, not yet sent ────────────────
+  // Without payment details it can't say how to pay: the card says so
+  // before it goes (Riley Park, Spin Theory DJs, prod walk 2026-10-10).
+  const studioPaymentDetailsReady = studioInvoicePaymentReady(
+    normaliseStudioInvoiceSettings(rows(input.billingSettings)[0] ?? null),
+  );
   // Drafted for the studio when the client signed (or booked with no
   // agreement), numbered with its PDF. Nothing goes to the client until the
   // studio sends it (own invoicing, Phase 2).
@@ -2126,7 +2134,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
       lane: "act",
       kind: "invoice",
       title: `Send ${clientOf(job)}'s ${label}invoice · ${amount}`,
-      detail: `${text(invoice.number) || "It"} is ready, with its PDF${text(invoice.dueDate) ? `, due ${formatDueDate(text(invoice.dueDate))}` : ""}. Email it from here, or send it yourself and mark it sent.`,
+      detail: `${text(invoice.number) || "It"} is ready, with its PDF${text(invoice.dueDate) ? `, due ${formatDueDate(text(invoice.dueDate))}` : ""}. ${
+        studioPaymentDetailsReady || input.billingSettings == null
+          ? "Email it from here, or send it yourself and mark it sent."
+          : "Add how clients pay you first (Settings → Invoices and payments) so it says how to pay — then email it, or send it yourself."
+      }`,
       evidence: null,
       projectId,
       projectName: text(job?.name) || null,

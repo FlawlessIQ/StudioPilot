@@ -1,5 +1,6 @@
 "use client";
 
+import { invoiceRecordsDeleted } from "@/features/billing/invoice-purge-policy";
 import { Calculator, CheckCircle2, CircleAlert, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
@@ -52,6 +53,7 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
             invoices: records,
             billingSettings: billingSettings?.find((record) => record.tenantId === project.tenantId) ?? null,
           }),
+          recordsDeleted: invoiceRecordsDeleted(project),
         })
       : null;
   const unbilled = due && !due.finalStanding && due.cents ? due : null;

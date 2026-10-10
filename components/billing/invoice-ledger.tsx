@@ -15,6 +15,7 @@ import {
   type LedgerRow,
 } from "@/features/billing/invoice-ledger";
 import { resolveFile } from "@/lib/documents/resolve-file";
+import { DeleteInvoiceButton, DeleteJobInvoices } from "@/components/billing/delete-invoice-records";
 import { formatCentsExact } from "@/lib/format/money";
 import { formatDueDate, todayLocalIso } from "@/lib/format/event-date";
 
@@ -154,12 +155,14 @@ export function InvoiceLedger({ projectId }: { projectId?: string }) {
                   </button>
                 )
               ) : null}
+              {row.state === "closed" ? null : <DeleteInvoiceButton onDone={setNotice} row={row} />}
             </li>
           ))}
         </ul>
       ) : (
         <p className="invoice-ledger-empty">Nothing here right now.</p>
       )}
+      {projectId ? <DeleteJobInvoices projectId={projectId} rows={rows} /> : null}
     </section>
   );
 }

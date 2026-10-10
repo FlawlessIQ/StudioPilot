@@ -1,5 +1,6 @@
 "use client";
 
+import { paidInFullSettledByDeletion, settledInvoiceStatus } from "@/features/billing/invoice-purge-policy";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { TRADE_LABELS, tradeOf } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
@@ -280,11 +281,12 @@ export function useTodayInbox(): {
               text(right.createdAt).localeCompare(text(left.createdAt)),
             )[0]?.status,
           ) || null,
+        // A paid bill the studio deleted leaves a settled note (own invoicing).
         retainerInvoiceStatus:
           text(
             projectInvoices.find((invoice) => invoice.kind === "retainer")
               ?.status,
-          ) || null,
+          ) || settledInvoiceStatus(project, "retainer"),
         // Nothing connected to raise it: the studio records the deposit.
         depositByStudio: depositByStudio(
           (bookingOrchestrations.records ?? []).find((plan) => plan.id === projectId),
@@ -292,7 +294,9 @@ export function useTodayInbox(): {
         finalInvoiceStatus:
           text(
             currentFinalInvoice(projectInvoices)?.status,
-          ) || null,
+          ) ||
+          settledInvoiceStatus(project, "final") ||
+          (paidInFullSettledByDeletion(project) ? "paid" : null),
         finalInvoiceOverdue: invoiceIsOverdue(
           currentFinalInvoice(projectInvoices),
           today,
