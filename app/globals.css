@@ -13181,22 +13181,24 @@ form:has(> .address-field) > .address-field,
 
 
 /* ── Direct invite ────────────────────────────────────────────────────
-   The secondary staffing path: one named person, no ranking. Folded shut
-   so it does not compete with the cascade for the first read. */
+   Naming the person: book your staff, or offer it to one person. The first
+   thing on the staffing page, as a card (Conor, 2026-10-10: it was a grey
+   footnote under the ranking, and it's the path studios use most). */
 .crew-direct-invite {
-  margin-top: 2px;
+  border: 1px solid color-mix(in srgb, var(--ds-claret-bright, #12825a) 35%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ds-claret-bright, #12825a) 7%, var(--panel, #fff));
 }
 
 .crew-direct-invite > summary {
   align-items: center;
-  color: var(--muted, #5f6a63);
+  color: var(--ink, #1d2420);
   cursor: pointer;
   display: flex;
-  font-size: 13px;
-  font-weight: 650;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 12px 16px;
   list-style: none;
-  padding: 11px 2px;
+  padding: 16px 18px;
 }
 
 /* `display: flex` on a summary makes Chrome lay the disclosure triangle
@@ -13209,8 +13211,62 @@ form:has(> .address-field) > .address-field,
   display: none;
 }
 
-.crew-direct-invite > summary:hover {
-  color: var(--ink, #1d2420);
+.crew-direct-invite-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--ds-claret-bright, #12825a);
+  color: #f3fbf7;
+}
+
+.crew-direct-invite-copy {
+  display: grid;
+  flex: 1 1 16rem;
+  gap: 3px;
+  min-width: 0;
+}
+
+.crew-direct-invite-copy strong {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.crew-direct-invite-copy small {
+  color: var(--muted, #5f6a63);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.crew-direct-invite-cta {
+  align-items: center;
+  border-radius: 999px;
+  background: linear-gradient(160deg, var(--ds-claret-bright, #12825a) 0%, var(--ds-claret-deep, #0b5e41) 100%);
+  color: #f3fbf7;
+  display: inline-flex;
+  flex: none;
+  font-size: 14px;
+  font-weight: 650;
+  gap: 6px;
+  padding: 10px 16px;
+}
+
+.crew-direct-invite > summary:hover .crew-direct-invite-cta {
+  filter: brightness(1.08);
+}
+
+.crew-direct-invite-cta svg {
+  transition: transform 160ms ease;
+}
+
+.crew-direct-invite[open] .crew-direct-invite-cta svg {
+  transform: rotate(180deg);
+}
+
+.crew-direct-invite[open] > .crew-direct-invite-form {
+  margin: 0 12px 12px;
 }
 
 .crew-direct-invite-form {

@@ -74,7 +74,9 @@ const navSections = [
     items: [
       { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
       { label: "Messages", href: "/studio/messages", icon: MessageSquareText },
-      { label: "Clients", href: "/studio/clients", icon: UsersRound },
+      // Conor (2026-10-10): the section holds crew and team as well as
+      // clients, and staff are who a studio comes here for most.
+      { label: "Clients & Staff", href: "/studio/clients", icon: UsersRound },
       // "Waiting on you" (the AI review page) left the nav: Today shows every approval waiting on the
       // studio, and a second list of the same drafts read as a second queue
       // to clear. The page stays addressable for its activity history.
@@ -150,7 +152,7 @@ const activeGroups: Record<string, string[]> = {
    * PeopleSectionNav shows all four the moment you arrive — so the grouping
    * survives, and only the label now matches the destination.
    */
-  Clients: ["Clients", "Crew", "Team", "Vendors"],
+  "Clients & Staff": ["Clients", "Crew", "Team", "Vendors"],
   Library: ["Library", "Packages", "AI import", "Studio setup"],
   // Workflows covers /studio/workflows, /studio/automations and /studio/audit,
   // none of which appeared in any group — so all three highlighted Today, which
@@ -312,7 +314,7 @@ function StudioShell({
     "Jobs",
     "Calendar",
     "Messages",
-    "Clients",
+    "Clients & Staff",
   ]);
   const canSee = (item: { label: string; ownerOnly?: boolean }) => {
     if (item.ownerOnly && workspace.role !== "studio_owner") return false;

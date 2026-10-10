@@ -43,8 +43,10 @@ export default async function StudioCrewPage({
             {/* One job's crew plan: who to ask for each role, and the offers
                 already made for it. */}
             <ProjectContextBar projectId={project} />
-            <CrewCascadeWorkspace projectId={project} />
+            {/* Naming the person first: the common case for a studio with
+                its own staff, and it was below the whole ranking. */}
             <DirectInviteForm projectId={project} />
+            <CrewCascadeWorkspace projectId={project} />
             <section>
               <div className="section-heading-row">
                 <div>

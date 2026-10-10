@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { todayLocalIso } from "@/lib/format/event-date";
-import { CalendarCheck, CheckCircle2, Send, UserRoundCheck } from "lucide-react";
+import { CalendarCheck, CheckCircle2, ChevronDown, Send, UserRoundCheck } from "lucide-react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { sendCrewCommand } from "@/lib/crew/command-client";
 import { crewPublicError } from "@/lib/crew/public-error";
@@ -253,9 +253,24 @@ export function DirectInviteForm({ projectId }: { projectId: string }) {
 
   return (
     <details className="crew-direct-invite" id="crew-direct-invite" open={openFromHash}>
+      {/* Conor (2026-10-10): a well-used path that read as a grey footnote
+          under the ranking. It's the first thing on the page now, as a card. */}
       <summary>
-        <UserRoundCheck aria-hidden="true" size={15} />
-        {mayBook ? "Already know who's working it? Book them or offer it to one person" : "Already know who you want? Offer this job to one person"}
+        <span className="crew-direct-invite-icon">
+          <UserRoundCheck aria-hidden="true" size={20} />
+        </span>
+        <span className="crew-direct-invite-copy">
+          <strong>{mayBook ? "Already know who's working it?" : "Already know who you want?"}</strong>
+          <small>
+            {mayBook
+              ? "Book your staff on it right away, or offer it to one person. No ranking, no waiting on a list."
+              : "Offer this job to one person. No ranking, no waiting on a list."}
+          </small>
+        </span>
+        <span className="crew-direct-invite-cta">
+          Choose who
+          <ChevronDown aria-hidden="true" size={16} />
+        </span>
       </summary>
       <form
         className="panel crew-direct-invite-form"

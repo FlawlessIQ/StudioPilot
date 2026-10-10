@@ -609,7 +609,7 @@ const GUIDES: readonly ExplainerSource[] = [
       "Open the job's **Plan** tab and choose **Crew for this job**, or tap **Staff this job** on the job page.",
       "If offers were **Prepared when this job was booked**, check them and tap **Send these offers**.",
       "Otherwise choose **Rank my options**, set the roles, times, rate and **Response window**, then **Approve crew plan and start**.",
-      "Know exactly who you want? Choose **I know who I want** and **Send offer**.",
+      "Know exactly who you want? Use **Already know who's working it?** at the top, or **I know who I want**: book them now, or **Send offer**.",
       "Nobody accepted? **Offer to someone else** starts a new round without asking the same people.",
     ],
     next: "Each person gets an email and answers from their phone. If they decline or the window runs out, the next name is asked.",
