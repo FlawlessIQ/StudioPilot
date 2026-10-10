@@ -87,6 +87,44 @@ test("signed with nothing connected, the job's step is to record the deposit", (
   assert.equal(raised?.status, "waiting_client");
 });
 
+test("own invoicing: a drafted deposit is sent, not recorded — and Today says it once", () => {
+  // Riley Park on prod (2026-10-09): signing drafted INV for $540, and the
+  // job said "they pay you directly. Record the deposit" beside Today's
+  // "Send Riley Park's deposit invoice".
+  const dj = projectJourney({ ...signed("dj", true), retainerInvoiceStatus: "draft" }).current;
+  assert.equal(dj?.title, "Booked");
+  assert.equal(dj?.detail, "Signed — your deposit invoice is drafted. Send it to them");
+  assert.deepEqual(dj?.action, { kind: "link", label: "Send the deposit invoice", href: "/studio/booking?project=job1" });
+  const photo = projectJourney({ ...signed("photographer", true), retainerInvoiceStatus: "draft" }).steps.find((step) => step.key === "retainer");
+  assert.equal(photo?.action?.kind === "link" ? photo.action.label : null, "Send the retainer invoice");
+
+  const inbox = today({
+    projects: [{ id: "job1", tenantId: "t", name: "Riley Park Wedding", state: "RETAINER_PENDING", eventDate: "2027-09-18", eventKind: "wedding" }],
+    bookingOrchestrations: [plan("wait_for_payment")],
+    invoiceReferences: [
+      { id: "inv1", tenantId: "t", projectId: "job1", kind: "retainer", billedBy: "studio", provider: null, status: "draft", balanceCents: 54000, number: "INV-0001" },
+    ],
+    journeys: [
+      {
+        stepKey: "contract",
+        projectId: "job1",
+        projectName: "Riley Park Wedding",
+        eventDate: "2027-09-18",
+        state: "RETAINER_PENDING",
+        stepTitle: "Booked",
+        stepDetail: dj?.detail ?? "",
+        owner: "studio",
+        actionLabel: "Send the deposit invoice",
+        actionHref: "/studio/booking?project=job1",
+        updatedAt: "2026-10-09T22:16:00.000Z",
+      },
+    ],
+  });
+  const forRiley = inbox.act.filter((item) => item.projectId === "job1");
+  assert.deepEqual(forRiley.map((item) => item.id), ["studio-invoice-inv1"]);
+  assert.equal(forRiley[0]?.title, "Send Riley Park's deposit invoice · $540");
+});
+
 const today = (overrides: Record<string, unknown>) =>
   todayInbox({
     now: "2026-10-09T19:00:00.000Z",

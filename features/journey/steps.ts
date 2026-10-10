@@ -931,8 +931,13 @@ export function projectJourney(input: JourneyInput): {
     "partially_paid",
     "overdue",
   ].includes(input.retainerInvoiceStatus ?? "");
-  // Signed, with nothing to raise the invoice: the studio records it.
-  const recordByHand = Boolean(input.depositByStudio) && contractDone && !retainerDone && !retainerWaiting;
+  // Own invoicing: a deposit invoice the studio issues itself, drafted on
+  // signing and not sent yet — the move is to send it (Today's "Send …'s
+  // deposit invoice" card is the same obligation). Riley Park, 2026-10-09.
+  const draftToSend = contractDone && !retainerDone && input.retainerInvoiceStatus === "draft";
+  // Signed, with no invoice at all: the studio records the payment.
+  const recordByHand =
+    Boolean(input.depositByStudio) && contractDone && !retainerDone && !retainerWaiting && !draftToSend;
   const retainerWord = tradeProfile(input.trade).journey.oneLinkBooking ? "deposit" : "retainer";
   push({
     key: "retainer",
@@ -944,7 +949,9 @@ export function projectJourney(input: JourneyInput): {
         : "Booking locked in"
       : retainerWaiting
         ? "Invoice with the client"
-        : recordByHand
+        : draftToSend
+          ? `Signed — your ${retainerWord} invoice is drafted. Send it to them`
+          : recordByHand
           ? `Signed — they pay you directly. Record the ${retainerWord} when it arrives`
           : contractDone
             ? "Computed from your retainer rule"
@@ -961,10 +968,12 @@ export function projectJourney(input: JourneyInput): {
             kind: "link",
             label: retainerWaiting
               ? "Check payment status"
-              : recordByHand
-                ? `Record the ${retainerWord}`
-                : "Create retainer invoice",
-            href: recordByHand ? project("/studio/booking") : project("/studio/contracts"),
+              : draftToSend
+                ? `Send the ${retainerWord} invoice`
+                : recordByHand
+                  ? `Record the ${retainerWord}`
+                  : "Create retainer invoice",
+            href: draftToSend || recordByHand ? project("/studio/booking") : project("/studio/contracts"),
           },
   });
 

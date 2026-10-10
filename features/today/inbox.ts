@@ -2105,10 +2105,14 @@ export function todayInbox(input: TodayInput): TodayInbox {
   // Drafted for the studio when the client signed (or booked with no
   // agreement), numbered with its PDF. Nothing goes to the client until the
   // studio sends it (own invoicing, Phase 2).
+  // Jobs whose deposit is one of these: the journey's booking step is the
+  // same obligation, so it stays off Today (below).
+  const studioDepositDraftProjectIds = new Set<string>();
   for (const invoice of rows(input.invoiceReferences)) {
     if (invoice.billedBy !== "studio" || invoice.provider || text(invoice.status) !== "draft") continue;
     const projectId = text(invoice.projectId);
     if (!projectId || !jobStillOpen(projectId)) continue;
+    if (text(invoice.kind) === "retainer") studioDepositDraftProjectIds.add(projectId);
     const job = rows(input.projects).find((candidate) => candidate.id === projectId);
     const cents = Number(invoice.balanceCents ?? 0);
     const amount = new Intl.NumberFormat("en-US", {
@@ -2216,6 +2220,15 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // The balance has its own card below (finalBalanceProjectIds): the same
     // debt once, with the buttons that settle it.
     if (position.stepKey === "final_balance" && finalBalanceProjectIds.has(position.projectId)) continue;
+    // A deposit the studio drafted itself has its own card ("Send Riley
+    // Park's deposit invoice · $540"); the job's booking step ("Booked", the
+    // retainer folded in for a vendor) said the same thing again.
+    if (
+      (position.stepKey === "retainer" || position.stepKey === "contract") &&
+      studioDepositDraftProjectIds.has(position.projectId)
+    ) {
+      continue;
+    }
     // The couple's change request has its own card, with their words.
     if (position.stepKey === "run_of_show" && scheduleChangeProjectIds.has(position.projectId)) continue;
     // The planning form goes out when the studio's timeline says (six months
