@@ -26,6 +26,7 @@ import {
 import type { SetupGap } from "@/features/today/setup-gaps";
 import { depositByStudio, paymentsConnected } from "@/features/booking/deposit-by-studio";
 import { normaliseStudioInvoiceSettings, studioInvoicePaymentReady } from "@/features/billing/studio-invoice-settings";
+import { studioTaxRateFor } from "@/features/billing/job-billing-from-records";
 import { hasFinalBalance, jobKindOf, journeyFor, projectProfile, singleBillWindow, vocab } from "@/features/job-kinds/job-kinds";
 import { ignorableSenderOf, notInquiryAllowed } from "@/features/intake/not-inquiry";
 import {
@@ -1693,13 +1694,16 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const reminder = reminderDrafts.get(invoice.id);
     const sent = (remindersSent.get(invoice.id) ?? []).filter(Boolean).sort();
     const lastSent = sent[sent.length - 1];
+    // An invoice the studio issued itself (own invoicing): there is no
+    // provider to resend from — it's emailed again from here, PDF attached.
+    const studioIssued = invoice.billedBy === "studio" && !text(invoice.provider);
     exception({
       id: `invoice-${invoice.id}`,
       kind: "invoice",
       // The amount leads. Four cards titled "Balance overdue" above four
       // identical buttons made the only thing that differed — how much, and
       // whose — the smallest text on the card.
-      title: `${currency(balance)} overdue`,
+      title: `${currency(balance)} overdue${studioIssued && text(invoice.number) ? ` · ${text(invoice.number)}` : ""}`,
       detail: nameFor(invoice.projectId) ?? "Client balance",
       dueDate: due,
       // A reminder Cue drafted is sent from here. Without one (not yet
@@ -1711,7 +1715,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
           ? "Cue drafted a reminder"
           : lastSent
             ? `${sent.length === 1 ? "reminded" : `reminded ${sent.length} times, last`} ${formatDueDate(lastSent.slice(0, 10))}`
-            : `resend it from ${provider}`,
+            : studioIssued
+              ? "email it again from here"
+              : `resend it from ${provider}`,
       ],
       action: reminder
         ? {
@@ -1721,7 +1727,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
             href: chaseHref,
             preview: previewOf(reminder.structuredOutput),
           }
-        : undefined,
+        : studioIssued && text(invoice.projectId)
+          ? { kind: "studio_invoice", label: "Email it again", projectId: text(invoice.projectId), invoiceId: text(invoice.id) }
+          : undefined,
       href: chaseHref,
       projectId: text(invoice.projectId) || null,
       projectName: nameFor(invoice.projectId),
@@ -1968,6 +1976,14 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectId: job.id,
       proposals: rows(input.proposals) as Array<Record<string, unknown> & { id: string }>,
       invoices: rows(input.invoiceReferences) as Array<Record<string, unknown> & { id: string }>,
+      // A job the studio bills itself: what its own final will carry.
+      studioTaxBasisPoints: studioTaxRateFor({
+        projectId: job.id,
+        project: job,
+        connections: rows(input.integrationConnections),
+        invoices: rows(input.invoiceReferences),
+        billingSettings: rows(input.billingSettings)[0] ?? null,
+      }),
     });
     // A final bill held for review is standing, so the "send" card below
     // stays away — but it was never sent, and nothing else said so.

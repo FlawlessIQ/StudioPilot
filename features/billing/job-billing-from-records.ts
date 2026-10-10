@@ -1,6 +1,7 @@
 import { integrationProviderSchema } from "@/features/integrations/schema";
 import { resolveActiveProvider, type RoutableConnection } from "@/features/integrations/routing";
 import { isQuickBooksBill, jobBilling, type JobBilling } from "@/features/billing/job-billing";
+import { normaliseStudioInvoiceSettings } from "@/features/billing/studio-invoice-settings";
 
 type Row = Readonly<Record<string, unknown>>;
 
@@ -46,4 +47,16 @@ export function jobBillingFromRecords(input: {
     ),
     lastChoice: input.billingSettings?.lastJobBillingMethod,
   });
+}
+
+/**
+ * For a job the studio bills itself, the sales tax rate its own invoices
+ * carry (basis points; 0 when none or the job is exempt); undefined for a
+ * QuickBooks job, whose tax QuickBooks works out. What a final will add, so
+ * a balance shown before it's drafted matches the invoice.
+ */
+export function studioTaxRateFor(input: Parameters<typeof jobBillingFromRecords>[0]): number | undefined {
+  if (jobBillingFromRecords(input).method !== "studio") return undefined;
+  if (input.project?.salesTaxExempt === true) return 0;
+  return normaliseStudioInvoiceSettings(input.billingSettings ?? null).tax.rateBasisPoints ?? 0;
 }

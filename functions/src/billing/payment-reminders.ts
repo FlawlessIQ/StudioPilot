@@ -1,4 +1,5 @@
 import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
+import { normaliseStudioInvoiceSettings } from "./studio-invoice-settings.js";
 import { invoiceClosedToProviderWork } from "../booking/invoice-standing.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { productEvent } from "../operations/product-events.js";
@@ -140,6 +141,10 @@ export type PaymentReminderFacts = {
   balanceCents: number;
   dueDate: string;
   today: string;
+  /** An invoice the studio issued itself (own invoicing): its number… */
+  invoiceNumber?: string | null;
+  /** …and how its clients pay it (Settings → Invoices and payments). */
+  paymentInstructions?: string | null;
 };
 
 /**
@@ -156,19 +161,23 @@ export function paymentReminderDraft(facts: PaymentReminderFacts): { subject: st
     Math.floor((Date.parse(`${facts.today}T00:00:00Z`) - Date.parse(`${facts.dueDate.slice(0, 10)}T00:00:00Z`)) / DAY_MS),
   );
   const greeting = facts.clientFirstName ? `Hi ${facts.clientFirstName},` : "Hello,";
+  const howToPay = facts.paymentInstructions
+    ? [`How to pay: ${facts.paymentInstructions.split(/\n+/).map((line) => line.trim()).filter(Boolean).join(" \u00b7 ")}`]
+    : [];
+  const which = facts.invoiceNumber ? ` (invoice ${facts.invoiceNumber})` : "";
   const lines =
     facts.sequence <= 1
       ? [
-          `A quick reminder that the ${what} for ${facts.projectName}, ${amount}, was due on ${due}. If it's already on its way, thank you, and please ignore this note.`,
+          `A quick reminder that the ${what} for ${facts.projectName}${which}, ${amount}, was due on ${due}. If it's already on its way, thank you, and please ignore this note.`,
           "You can pay securely using the button below. If anything has changed or you have a question, just reply to this email.",
         ]
       : facts.sequence === 2
         ? [
-            `We're following up on the ${what} for ${facts.projectName}. ${amount} is now ${daysLate} days past its due date of ${due}.`,
+            `We're following up on the ${what} for ${facts.projectName}${which}. ${amount} is now ${daysLate} days past its due date of ${due}.`,
             "You can pay securely using the button below. If there's a problem with the payment or the timing, reply and let us know so we can sort it out together.",
           ]
         : [
-            `We haven't yet received the ${what} for ${facts.projectName}: ${amount}, due on ${due}.`,
+            `We haven't yet received the ${what} for ${facts.projectName}${which}: ${amount}, due on ${due}.`,
             "This is our last email reminder. Please pay using the button below, or reply to let us know what's happening, and we'll be in touch to settle it.",
           ];
   return {
@@ -178,15 +187,26 @@ export function paymentReminderDraft(facts: PaymentReminderFacts): { subject: st
         : facts.sequence === 2
           ? `Following up: your ${what} for ${facts.projectName}`
           : `Your ${what} for ${facts.projectName} is still due`,
-    body: [greeting, "", ...lines.flatMap((line) => [line, ""]), `— ${facts.studioName}`].join("\n"),
+    body: [greeting, "", ...[...lines, ...howToPay].flatMap((line) => [line, ""]), `— ${facts.studioName}`].join("\n"),
     title: `Remind ${facts.clientFirstName ?? "the client"} about the ${amount} ${what}`,
   };
 }
 
-/** Where the button in the reminder goes: the provider's own pay page, or the client's payments page. */
-export function paymentReminderLink(invoice: { hostedUrl?: unknown }, projectId: string, appUrl: string): string {
+/**
+ * Where the button in the reminder goes: the provider's own pay page, the
+ * studio's own pay link (an invoice it issued itself), or the client's
+ * payments page.
+ */
+export function paymentReminderLink(
+  invoice: { hostedUrl?: unknown; payLinkUrl?: unknown },
+  projectId: string,
+  appUrl: string,
+  studioPayLink: string | null = null,
+): string {
   const hosted = text(invoice.hostedUrl);
   if (/^https:\/\//.test(hosted)) return hosted;
+  const own = text(invoice.payLinkUrl) || text(studioPayLink);
+  if (/^https:\/\//.test(own)) return own;
   return `${appUrl.replace(/\/$/, "")}/client/payments?project=${encodeURIComponent(projectId)}`;
 }
 
@@ -220,6 +240,7 @@ export async function draftPaymentReminders(
 ): Promise<number> {
   const today = now.toISOString().slice(0, 10);
   const studios = new Map<string, string>();
+  const studioPayments = new Map<string, { instructions: string | null; payLinkUrl: string | null }>();
   let drafted = 0;
   for (const invoice of invoices) {
     try {
@@ -257,6 +278,20 @@ export async function draftPaymentReminders(
       }
       const projectName = text(project.name) || "your booking";
       const balanceCents = Number(invoice.get("balanceCents"));
+      // An invoice the studio issued itself: its number, its payment
+      // instructions and its own pay link go in the reminder.
+      const studioIssued = invoice.get("billedBy") === "studio" && !invoice.get("provider");
+      let studioPayment: { instructions: string | null; payLinkUrl: string | null } | null = null;
+      if (studioIssued) {
+        if (!studioPayments.has(tenantId)) {
+          const settings = await db.doc(`billingSettings/${tenantId}`).get();
+          const parsed = normaliseStudioInvoiceSettings(
+            settings.exists && settings.get("tenantId") === tenantId ? settings.data() : null,
+          );
+          studioPayments.set(tenantId, { instructions: parsed.paymentInstructions, payLinkUrl: parsed.payLinkUrl });
+        }
+        studioPayment = studioPayments.get(tenantId) ?? null;
+      }
       const dueDate = text(invoice.get("dueDate")).slice(0, 10);
       const draft = paymentReminderDraft({
         sequence,
@@ -267,6 +302,8 @@ export async function draftPaymentReminders(
         balanceCents,
         dueDate,
         today,
+        invoiceNumber: studioIssued ? text(invoice.get("number")) || null : null,
+        paymentInstructions: studioPayment?.instructions ?? null,
       });
       const missing = recipientEmail ? [] : ["The client has no email address on this job"];
       const actionId = paymentReminderActionId(invoice.id, sequence);
@@ -305,7 +342,7 @@ export async function draftPaymentReminders(
             balanceCents,
             dueDate,
             actionLabel: "Pay securely",
-            actionUrl: paymentReminderLink(invoice.data() ?? {}, projectId, appUrl()),
+            actionUrl: paymentReminderLink(invoice.data() ?? {}, projectId, appUrl(), studioPayment?.payLinkUrl ?? null),
           },
         },
         confidence: { overall: missing.length ? 0.7 : 0.95, label: missing.length ? "medium" : "high", uncertainFields: missing },

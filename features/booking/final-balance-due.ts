@@ -30,6 +30,13 @@ export function outstandingFinalBalance(input: {
    * arithmetic as functions/src/booking/final-tax-authority.ts.
    */
   excludeAgreedTax?: boolean;
+  /**
+   * A job the studio bills itself, at its own sales tax rate (basis points;
+   * features/billing/job-billing-from-records.ts studioTaxRateFor): the
+   * balance is the agreed price before tax, plus the studio's tax on it —
+   * what its final invoice will carry (functions/src/booking/final-invoice.ts).
+   */
+  studioTaxBasisPoints?: number | null;
 }): {
   cents: number | null;
   dueDate: string | null;
@@ -48,9 +55,12 @@ export function outstandingFinalBalance(input: {
     .sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
   const pricing = (accepted?.pricingSnapshot ?? null) as Record<string, unknown> | null;
   const agreedTax = Number(pricing?.taxCents);
+  const preTax = Number(pricing?.totalCents) - (Number.isSafeInteger(agreedTax) && agreedTax > 0 ? agreedTax : 0);
   const total =
-    Number(pricing?.totalCents) -
-    (input.excludeAgreedTax === true && Number.isSafeInteger(agreedTax) && agreedTax > 0 ? agreedTax : 0);
+    input.studioTaxBasisPoints !== undefined
+      ? preTax + (input.studioTaxBasisPoints ? Math.round((Math.max(0, preTax) * input.studioTaxBasisPoints) / 10000) : 0)
+      : Number(pricing?.totalCents) -
+        (input.excludeAgreedTax === true && Number.isSafeInteger(agreedTax) && agreedTax > 0 ? agreedTax : 0);
   const standing = (input.invoices ?? []).filter(
     (invoice) => invoice.projectId === input.projectId && !NOT_STANDING.includes(text(invoice.status)),
   );

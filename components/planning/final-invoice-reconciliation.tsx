@@ -6,6 +6,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
 import { StudioInvoiceActions } from "@/components/booking/studio-invoice-actions";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { studioTaxRateFor } from "@/features/billing/job-billing-from-records";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ApproveFinalInvoice, RecordInvoicePayment, VoidInvoice } from "@/components/booking/invoice-corrections";
@@ -30,6 +31,8 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
   const { records, loading } = useTenantDocuments("invoiceReferences");
   const { records: projects } = useTenantDocuments("projects");
   const { records: proposals } = useTenantDocuments("proposals");
+  const { records: connections } = useTenantDocuments("integrationConnections");
+  const { records: billingSettings } = useTenantDocuments("billingSettings");
   const [settled, setSettled] = useState<string | null>(null);
   // Arrived from one job whose balance nothing has billed: the actions, not a
   // note that the scheduler will get to it (it may never — see
@@ -37,7 +40,19 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
   const project = projectId ? projects?.find((candidate) => candidate.id === projectId) : undefined;
   const due =
     project && balanceMayBeAttested(String(project.state ?? "")) && !project.archivedAt
-      ? outstandingFinalBalance({ projectId: project.id, proposals, invoices: records })
+      ? outstandingFinalBalance({
+          projectId: project.id,
+          proposals,
+          invoices: records,
+          // A job the studio bills itself: what its own final will carry.
+          studioTaxBasisPoints: studioTaxRateFor({
+            projectId: project.id,
+            project,
+            connections,
+            invoices: records,
+            billingSettings: billingSettings?.find((record) => record.tenantId === project.tenantId) ?? null,
+          }),
+        })
       : null;
   const unbilled = due && !due.finalStanding && due.cents ? due : null;
   const finalInvoices =

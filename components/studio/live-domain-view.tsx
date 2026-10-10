@@ -180,6 +180,11 @@ function roleWords(value: unknown): string {
  */
 function invoiceRowLabel(record: Record<string, unknown>): string {
   const kind = String(record.kind ?? "");
+  // An invoice the studio issued itself carries its own number (own invoicing).
+  if (record.billedBy === "studio" && !record.provider && typeof record.number === "string" && record.number) {
+    const label = record.paidInFull === true ? "Payment in full" : kind === "retainer" ? "Deposit" : kind === "final" ? "Final balance" : "Invoice";
+    return `${label} · ${record.number}`;
+  }
   const what =
     kind === "retainer" ? "Retainer" : kind === "final" ? "Final bill" : kind ? kind.replaceAll("_", " ") : "Invoice";
   const id = typeof record.providerInvoiceId === "string" ? record.providerInvoiceId : "";

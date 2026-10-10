@@ -15029,6 +15029,170 @@ form:has(> .address-field) > .address-field,
   justify-self: start;
 }
 
+/* Invoices: every bill on every job (components/billing/invoice-ledger.tsx).
+   Sized by its own width: tiles and rows wrap, never squeeze. */
+.invoice-ledger {
+  container-type: inline-size;
+  display: grid;
+  gap: 14px;
+  margin: 0 0 20px;
+  min-width: 0;
+}
+
+.invoice-ledger-totals {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+}
+
+.invoice-ledger-totals > div {
+  background: var(--ds-surface, #fff);
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 12px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.invoice-ledger-totals small,
+.invoice-ledger-totals span {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 12.5px;
+}
+
+.invoice-ledger-totals strong {
+  font-size: 19px;
+}
+
+.invoice-ledger-totals .is-late strong {
+  color: #b42318;
+}
+
+.invoice-ledger-bar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.invoice-ledger-bar h2 {
+  flex: 1 1 8rem;
+  font-size: 17px;
+  margin: 0;
+}
+
+.invoice-ledger-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.invoice-ledger-filter {
+  background: transparent;
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 32px;
+  padding: 4px 12px;
+}
+
+.invoice-ledger-filter.is-active {
+  background: var(--ds-ink, #1d232b);
+  border-color: var(--ds-ink, #1d232b);
+  color: #fff;
+}
+
+.invoice-ledger-list {
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.invoice-ledger-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 10px 14px;
+}
+
+.invoice-ledger-row + .invoice-ledger-row {
+  border-top: 1px solid var(--ds-line, var(--line));
+}
+
+.invoice-ledger-main {
+  color: inherit;
+  display: grid;
+  flex: 1 1 14rem;
+  gap: 2px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.invoice-ledger-main small {
+  color: var(--ds-ink-soft, #565d68);
+  font-size: 12.5px;
+}
+
+.invoice-ledger-money {
+  align-items: flex-end;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 2px;
+  justify-items: end;
+}
+
+.invoice-ledger-state {
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 1px 8px;
+}
+
+.invoice-ledger-state.is-overdue {
+  background: #fde8e6;
+  color: #b42318;
+}
+
+.invoice-ledger-state.is-paid {
+  background: #e3f3ea;
+  color: #1f6b45;
+}
+
+.invoice-ledger-state.is-owed {
+  background: #eef1f6;
+  color: #384252;
+}
+
+.invoice-ledger-state.is-draft {
+  background: #fdf3e2;
+  color: #8a5a10;
+}
+
+.invoice-ledger-pdf {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12.5px;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px 10px;
+  text-decoration: none;
+}
+
+.invoice-ledger-empty {
+  color: var(--ds-ink-soft, #565d68);
+  margin: 0;
+}
+
 /* An invoice the studio issued itself: email it, download it, mark it sent
    (components/booking/studio-invoice-actions.tsx). Buttons wrap, never squeeze. */
 .studio-invoice-actions {
