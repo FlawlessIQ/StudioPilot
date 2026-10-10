@@ -1954,7 +1954,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             </div>
             <p>
               {kindNeeds.agreement || kindNeeds.payment
-                ? `StudioCue confirms the booking once ${bookedOnceClause(kindProfile)}, and the date and client details check out.`
+                ? `StudioCue confirms the booking once ${bookedOnceClause(kindProfile, tradeVocab(workspace.tenantTrade).deposit)}, and the date and client details check out.`
                 : "StudioCue confirms the booking once the date and client details check out."}{" "}
               Nothing here can be talked into skipping a step.
             </p>

@@ -579,10 +579,14 @@ export function singleBillDueDate(project: unknown): string | null {
  * the retainer is paid". One sentence for the Booking tab, Cue's card and the
  * help, so none of them tells a family-session studio about a contract.
  */
-export function bookedOnceClause(profile: Pick<JourneyProfile, "agreement" | "payment">): string {
+export function bookedOnceClause(
+  profile: Pick<JourneyProfile, "agreement" | "payment">,
+  // The trade's word (trades.ts `deposit`): a vendor's client pays a deposit.
+  deposit = "retainer",
+): string {
   const needs = bookingGateNeeds(profile);
   const payment =
-    profile.payment === "paid_in_full" ? "it's paid in full" : needs.payment ? "the retainer is paid" : null;
+    profile.payment === "paid_in_full" ? "it's paid in full" : needs.payment ? `the ${deposit} is paid` : null;
   if (needs.agreement && payment) return `the agreement is signed and ${payment}`;
   if (needs.agreement) return "the agreement is signed";
   if (payment) return payment;

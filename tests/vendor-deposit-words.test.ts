@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { tradeVocab } from "@/features/trades/trades";
-import { journeyProfile } from "@/features/job-kinds/job-kinds";
+import { bookedOnceClause, journeyProfile } from "@/features/job-kinds/job-kinds";
 import { projectJourney, type JourneyInput } from "@/features/journey/steps";
 import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
 import { bookingBlockerLabel as blockerLabel } from "@/features/booking/blocker-label";
@@ -122,6 +122,9 @@ test("the job's steps, the booking check and manual moves say deposit", () => {
   assert.deepEqual(photo?.action, { kind: "link", label: "Create retainer invoice", href: "/studio/contracts?project=job1" });
   assert.equal(bookingBlockerLabel("retainerSatisfied"), "the retainer isn't paid");
   assert.equal(manualAdvanceFor("RETAINER_PENDING", "BOOKED", "job1")?.label, "Record the retainer");
+  // The Booking tab's confirm line and Cue's confirm card (prod, Riley Park, 2026-10-10).
+  assert.equal(bookedOnceClause(journeyProfile("wedding"), tradeVocab("dj").deposit), "the agreement is signed and the deposit is paid");
+  assert.equal(bookedOnceClause(journeyProfile("wedding")), "the agreement is signed and the retainer is paid");
 });
 
 test("Today's hand-off line and Cue's instruction say deposit", () => {

@@ -1794,7 +1794,7 @@ export function ConfirmBookingCard({ action }: ActionCardProps) {
         {["BOOKED", "PLANNING", "READY"].includes(state) ? (
           <Done>{`${jobName(job)} is already booked.`}</Done>
         ) : (
-          <Blocked>{`A booking is confirmed once ${bookedOnceClause(projectProfile(job))}. ${jobName(job)} is ${state.toLowerCase().replace(/_/g, " ")}.`}</Blocked>
+          <Blocked>{`A booking is confirmed once ${bookedOnceClause(projectProfile(job), deposit)}. ${jobName(job)} is ${state.toLowerCase().replace(/_/g, " ")}.`}</Blocked>
         )}
       </ActionShell>
     );
