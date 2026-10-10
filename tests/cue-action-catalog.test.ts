@@ -260,6 +260,11 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   setGroupEvent: "group events: the job page roster", addParticipant: "group events: the job page roster",
   updateParticipant: "group events: the job page roster", cancelParticipant: "group events: the job page roster",
   recordParticipantPayment: "group events: the job page roster",
+  // Group event sign-up (2026-10-10): set up and shared from the roster's
+  // sign-up panel — a QR code, a printed sign, a pasted list of parents.
+  setGroupEventSignup: "group events: the roster's sign-up panel",
+  resetGroupEventLink: "group events: the roster's sign-up panel",
+  inviteGroupEventParents: "group events: the roster's sign-up panel",
   // Not offered: StudioCue has no signing provider (features/integrations/schema.ts offeredProviders).
   createEnvelope: "no signing provider is offered",
 };

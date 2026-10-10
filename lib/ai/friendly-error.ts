@@ -365,6 +365,21 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PARTICIPANT_ALREADY_PAID: "Their payment is already recorded.",
   PARTICIPANT_CANCELLED: "They're canceled. Restore them first.",
   PARTICIPANT_EMAIL_REQUIRED: "Add their email to send a receipt, or record the payment without one.",
+  // Group event sign-up (features/group-events/signup.ts).
+  EVENT_VENMO_HANDLE_REQUIRED: "Add your Venmo username so parents can pay you there, or uncheck Venmo.",
+  EVENT_ZELLE_REQUIRED: "Add the email or phone parents send Zelle to, or uncheck Zelle.",
+  EVENT_PAY_LINK_INVALID: "The payment link needs to be a full web address starting with https://.",
+  EVENT_OPTIONS_INVALID: "Two packages ended up the same. Remove one and save again.",
+  EVENT_CLOSES_AT_INVALID: "Check the closing time.",
+  EVENT_SIGNUP_NOT_SET_UP: "Set up the packages and how parents pay first.",
+  EVENT_SIGNUP_CLOSED: "Sign-up is closed. Open it again to send the link.",
+  // A parent's sign-up page (app/api/public/event-signup); the page words these the same.
+  EVENT_LINK_NOT_FOUND: "This link isn't working. Ask the studio for a new one.",
+  EVENT_LINK_RETIRED: "This link has been replaced. Ask the studio for the new one.",
+  ORDER_NOT_FOUND: "That order couldn't be found. Check the link in your email.",
+  INVALID_SIGNUP: "A few details are missing. Check the fields marked below.",
+  EVENT_OPTION_UNAVAILABLE: "That package isn't offered any more. Please choose another.",
+  EVENT_METHOD_UNAVAILABLE: "That way to pay isn't offered any more. Please choose another.",
   SUBSCRIPTION_READ_ONLY:
     "This studio is read-only until billing is updated, so nothing can be sent or changed. The studio owner can update the card under Studio settings → Subscription; everything picks up again once payment goes through.",
   AI_OUTPUT_INVALID:

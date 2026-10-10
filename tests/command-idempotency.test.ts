@@ -91,9 +91,10 @@ test("crmCommand re-checks the receipt inside the transaction", () => {
 
 test("every crmCommand branch records its own receipt", () => {
   const text = source("functions/src/crm/commands.ts");
-  const branches = [...text.matchAll(/command\.type === "([a-zA-Z]+)"/g)].map(
-    (match) => ({ type: match[1]!, at: match.index! }),
-  );
+  const branches = [...text.matchAll(/command\.type === "([a-zA-Z]+)"/g)]
+    // `if (command.type === "a" || command.type === "b")` is one branch.
+    .filter((match) => !/\|\|\s*$/.test(text.slice(Math.max(0, match.index! - 4), match.index!)))
+    .map((match) => ({ type: match[1]!, at: match.index! }));
   assert.ok(branches.length >= 8, "crmCommand branches are no longer detectable");
   for (const [index, branch] of branches.entries()) {
     const end = branches[index + 1]?.at ?? text.length;

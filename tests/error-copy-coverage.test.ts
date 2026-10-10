@@ -59,6 +59,8 @@ const USER_FACING_API_ROUTES = [
   "public/places/route.ts",
   // A photographer reads these on studio-cue.com/demo.
   "public/demo/route.ts",
+  // A parent reads these on a group event's sign-up page (/e/{token}).
+  "public/event-signup/route.ts",
   "reply-approval/route.ts",
   "share-ack/route.ts",
   "studio/places/route.ts",

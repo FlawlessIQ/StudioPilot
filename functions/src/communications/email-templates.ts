@@ -172,6 +172,10 @@ export const emailTemplateKeys = [
   // A parent's receipt for their athlete's photos on a group event
   // (features/group-events/participants.ts).
   "participant_receipt",
+  // A parent invited to sign up for a group event, and their sign-up's
+  // confirmation (features/group-events/signup.ts).
+  "group_event_invite",
+  "group_signup_confirmation",
   // Studio-facing: inbox capture has gone quiet — the forwarding filter may
   // have broken, and inquiries may be sitting unanswered in the inbox.
   "studio_capture_silent",
@@ -2598,6 +2602,64 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           `Thank you. ${brand.studioName} received ${amount}${method ? ` ${method}` : ""}${athlete ? ` for ${athlete}${photoWord(values, "'s photos")}` : ""}${item ? ` (${item})` : ""}${project}.`,
           "Keep this email as your receipt. If anything looks wrong, reply and the studio will put it right.",
         ],
+        // Their own order page; never the job's client home (the organiser's).
+        action: actionUrl ? { label: "See your order", url: actionUrl } : undefined,
+      };
+    }
+    case "group_event_invite": {
+      // A parent invited to sign up for a group event (inviteGroupEventParents).
+      // Not the job's client: the job's name is the event's, and the button is
+      // the event's sign-up link.
+      const event = input.projectName?.trim() || "the event";
+      const day = stringValue(values, "eventDate") ? humanDate(stringValue(values, "eventDate")) : "";
+      const from = stringValue(values, "priceFrom");
+      const count = numberValue(values, "optionCount") ?? 0;
+      return {
+        subject: `Sign up for ${event} with ${brand.studioName}`,
+        preheader: `Pick a package${from ? ` from ${from}` : ""} and how you'll pay. It takes a minute.`,
+        eyebrow: "Sign-up",
+        heading: `Sign up for ${event}`,
+        paragraphs: [
+          "Hello,",
+          `${brand.studioName} is at ${event}${day ? ` on ${day}` : ""}. Sign up ahead of time: pick ${count > 1 ? `one of ${COUNT_WORDS[count] ?? count} packages` : "your package"}${from ? ` (from ${from})` : ""} and choose how you'll pay.`,
+          "You'll get a confirmation number to show on the day. Signing up two athletes? Sign up once for each.",
+        ],
+        action: actionUrl ? { label: "Sign up", url: actionUrl } : undefined,
+      };
+    }
+    case "group_signup_confirmation": {
+      // A parent's own sign-up, from the event's link (app/api/public/event-signup).
+      const athlete = stringValue(values, "athleteName");
+      const item = stringValue(values, "packageName");
+      const amount = stringValue(values, "amountText");
+      const code = stringValue(values, "confirmationCode");
+      const how = stringValue(values, "howToPay");
+      const payUrl = safeUrl(stringValue(values, "payUrl"));
+      const method = stringValue(values, "chosenMethod");
+      const day = stringValue(values, "eventDate") ? humanDate(stringValue(values, "eventDate")) : "";
+      const order = actionUrl ? { label: "See your order", url: actionUrl } : undefined;
+      return {
+        subject: `You're signed up${project}`,
+        preheader: `${athlete ? `${athlete}: ` : ""}${item}${amount ? `, ${amount}` : ""}. Confirmation ${code}.`,
+        eyebrow: "Sign-up confirmed",
+        heading: "You're signed up",
+        paragraphs: [
+          greeting,
+          `Thank you. ${brand.studioName} has your sign-up${athlete ? ` for ${athlete}` : ""}${project}${day ? ` on ${day}` : ""}.`,
+          how,
+          "Show your confirmation number on the day. If anything looks wrong, reply and the studio will put it right.",
+        ].filter(Boolean),
+        details: [
+          { label: "Confirmation", value: code },
+          { label: "Athlete", value: athlete },
+          { label: "Package", value: item },
+          { label: "Amount", value: amount },
+        ],
+        // The Venmo or pay-link button leads when there is one; the order page always follows.
+        action: payUrl
+          ? { label: method === "venmo" ? `Pay ${amount} on Venmo` : `Pay ${amount} online`, url: payUrl }
+          : order,
+        secondaryAction: payUrl ? order : undefined,
       };
     }
     case "studio_booking_confirmed":
@@ -2893,7 +2955,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
   "billing_address_request", "final_details_request", "schedule_review", "final_schedule_published",
   "event_reminder", "thank_you", "delivery", "delivery_correction", "album_selection_reminder",
   "delivery_expiry_reminder", "review_request", "manual_message", "client_message_received", "autopay_charged",
-  "autopay_charge_failed", "participant_receipt",
+  "autopay_charge_failed", "participant_receipt", "group_event_invite", "group_signup_confirmation",
 ]);
 
 /** Mail a crew member reads. */

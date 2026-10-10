@@ -53,8 +53,10 @@ const collections = [
   "insuranceRequests",
   "crewProfiles",
   "crewAssignments",
-  // Group events: the parents on an event's roster.
+  // Group events: the parents on an event's roster, and the lookups behind
+  // each event's public sign-up link.
   "eventParticipants",
+  "eventSignupLinks",
   "documents",
   "messages",
   "automationRuns",

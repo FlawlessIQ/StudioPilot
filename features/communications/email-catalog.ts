@@ -58,6 +58,8 @@ export const EDITABLE_EMAILS: readonly EditableEmail[] = [
   { key: "autopay_charged", group: "Payments", label: "Card charged", when: "When a saved card is charged — their receipt" },
   { key: "autopay_charge_failed", group: "Payments", label: "Card declined", when: "When a saved-card charge fails" },
   { key: "participant_receipt", group: "Payments", label: "Group event receipt", when: "When someone pays for a group event" },
+  { key: "group_event_invite", group: "Payments", label: "Group event sign-up invite", when: "When you email parents the event's sign-up link" },
+  { key: "group_signup_confirmation", group: "Payments", label: "Group event sign-up", when: "When a parent signs up — their confirmation and how to pay" },
 
   { key: "questionnaire_request", group: "Planning", label: "Planning form", when: "When you send them a form" },
   { key: "questionnaire_reminder", group: "Planning", label: "Form reminder", when: "When a form is still waiting near its due date" },

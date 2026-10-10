@@ -2,6 +2,7 @@
 
 import { runCrmCommand } from "@/lib/crm/command-client";
 import type { ParticipantPaymentMethod } from "@/features/group-events/participants";
+import type { EventSignupSettings } from "@/features/group-events/signup";
 
 /**
  * The group-event commands (functions/src/crm/commands.ts), through
@@ -43,4 +44,19 @@ export function recordParticipantPayment(
   input: { amountCents: number; method: ParticipantPaymentMethod; sendReceipt: boolean },
 ) {
   return runCrmCommand("recordParticipantPayment", { projectId, participantId, ...input }, once());
+}
+
+/** The event's packages, payment methods and sign-up switch (features/group-events/signup.ts). */
+export function setGroupEventSignup(projectId: string, settings: EventSignupSettings) {
+  return runCrmCommand("setGroupEventSignup", { projectId, settings }, once());
+}
+
+/** A new sign-up link; the old link and its QR code stop working. */
+export function resetGroupEventLink(projectId: string) {
+  return runCrmCommand("resetGroupEventLink", { projectId }, once());
+}
+
+/** One email per parent with the sign-up link; a parent already sent this link is skipped. */
+export function inviteGroupEventParents(projectId: string, emails: string[]) {
+  return runCrmCommand("inviteGroupEventParents", { projectId, emails }, once());
 }

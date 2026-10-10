@@ -30,6 +30,8 @@ import {
   type ParticipantInput,
 } from "@/lib/group-events/commands";
 import { dataIsLive } from "@/lib/runtime-mode";
+import { EVENT_PAYMENT_LABEL, type EventPaymentMethod } from "@/features/group-events/signup";
+import { EventSignupPanel } from "@/components/group-events/event-signup-panel";
 
 /**
  * The roster for an event where each parent pays (group events, Phase 1 —
@@ -54,7 +56,7 @@ export function ParticipantRoster({
   /** The job record as the job page holds it; only its kind and roster flag are read. */
   project: object | null;
 }) {
-  const job = project as { eventKind?: unknown; groupEvent?: unknown } | null;
+  const job = project as { name?: unknown; eventKind?: unknown; groupEvent?: unknown } | null;
   const enabled = rosterEnabled(job);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -153,6 +155,11 @@ export function ParticipantRoster({
         {`${summary.total} on the roster · ${summary.paid} paid · ${formatCentsExact(summary.collectedCents)} collected`}
         {summary.outstandingCents ? ` · ${formatCentsExact(summary.outstandingCents)} still to take` : ""}
       </p>
+      <EventSignupPanel
+        project={job}
+        projectId={projectId}
+        signedUp={participants.filter((participant) => participant.status !== "cancelled").length}
+      />
       {!loaded && dataIsLive ? (
         <p className="form-notice">Loading the roster…</p>
       ) : ordered.length ? (
@@ -167,7 +174,16 @@ export function ParticipantRoster({
                   <small>
                     {participant.parentName}
                     {participant.team ? ` · ${participant.team}` : ""}
+                    {participant.packageName ? ` · ${participant.packageName}` : ""}
                   </small>
+                  {participant.source === "signup_link" ? (
+                    <small className="participant-roster-signup">
+                      Signed up{participant.confirmationCode ? ` · ${participant.confirmationCode}` : ""}
+                      {participant.status !== "paid" && participant.chosenMethod
+                        ? ` · ${chosenMethodLabel(participant.chosenMethod)}`
+                        : ""}
+                    </small>
+                  ) : null}
                 </span>
                 <span className="participant-roster-money">
                   <strong>{formatCentsExact(participant.payment?.amountCents ?? participant.amountCents)}</strong>
@@ -249,6 +265,19 @@ export function ParticipantRoster({
       />
     </section>
   );
+}
+
+/** How a parent said they'd pay, for the roster row: "pays by Venmo". */
+export function chosenMethodLabel(method: string): string {
+  const label = EVENT_PAYMENT_LABEL[method as EventPaymentMethod];
+  if (!label) return "";
+  return method === "cash" || method === "check" ? `pays ${method} on the day` : method === "pay_link" ? "pays online" : `pays by ${label}`;
+}
+
+/** The payment method a parent chose, as the roster records it. */
+export function recordedMethodFor(chosen: string | null | undefined): ParticipantPaymentMethod {
+  if (chosen === "pay_link") return "online";
+  return (PARTICIPANT_PAYMENT_METHODS as readonly string[]).includes(chosen ?? "") ? (chosen as ParticipantPaymentMethod) : "cash";
 }
 
 const dollarsToCents = (value: FormDataEntryValue | null): number => {
@@ -438,7 +467,7 @@ function PaymentSheet({
           </label>
           <label>
             How they paid
-            <select defaultValue="cash" name="method">
+            <select defaultValue={recordedMethodFor(participant?.chosenMethod)} name="method">
               {PARTICIPANT_PAYMENT_METHODS.map((method) => (
                 <option key={method} value={method}>
                   {PAYMENT_METHOD_LABEL[method]}

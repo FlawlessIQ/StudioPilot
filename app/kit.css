@@ -1709,3 +1709,349 @@ textarea.kit-input {
 .client-pay-instructions {
   white-space: pre-line;
 }
+
+/* ---------- A parent's event sign-up (/e/{token}) ---------- */
+
+.event-signup-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.event-signup-intro h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.event-signup-intro p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--kit-ink-2);
+}
+.event-signup-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kit-ink-2);
+}
+.event-signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kit-space-5);
+  min-width: 0;
+}
+.event-signup-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kit-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.event-signup-group > legend {
+  margin-bottom: var(--kit-space-3);
+  padding: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+/* A package or a way to pay: the whole card is the tap target. */
+.event-signup-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kit-space-3);
+  min-height: var(--kit-size-tap);
+  padding: 14px 16px;
+  border: 1px solid var(--kit-line);
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-paper);
+  cursor: pointer;
+}
+.event-signup-option[data-selected="true"] {
+  border-color: var(--kit-accent);
+  background: var(--kit-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--kit-accent);
+}
+.event-signup-option > input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--kit-accent);
+}
+.event-signup-option-text {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.event-signup-option-name {
+  font-weight: 600;
+}
+.event-signup-option-detail {
+  color: var(--kit-ink-2);
+  font-size: 14px;
+}
+.event-signup-option-price {
+  flex: none;
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 700;
+}
+.event-signup-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kit-space-3);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.event-signup-consent > input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--kit-accent);
+}
+.event-signup-consent[data-missing] {
+  color: var(--kit-danger);
+}
+.event-signup-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.event-signup-code-label {
+  margin: 0;
+  color: var(--kit-ink-2);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.event-signup-code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.event-signup-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+.event-signup-summary > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.event-signup-summary dt {
+  color: var(--kit-ink-2);
+}
+.event-signup-summary dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.event-signup-heading {
+  margin: 0;
+  font-size: 17px;
+}
+
+/* ---------- Field mode at a group event (components/group-events/event-field-mode.tsx) ---------- */
+
+.event-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kit-space-4);
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--kit-space-4);
+}
+.event-field-head {
+  display: flex;
+  align-items: center;
+  gap: var(--kit-space-3);
+}
+.event-field-title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.event-field-title small {
+  color: var(--kit-ink-2);
+  font-size: 13px;
+}
+.event-field-title strong {
+  font-size: 20px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.event-field-head .kit-button {
+  flex: none;
+  width: auto;
+}
+.event-field-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kit-space-3);
+}
+.event-field-totals > div {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--kit-line);
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-paper);
+}
+.event-field-totals small,
+.event-field-totals span {
+  color: var(--kit-ink-2);
+  font-size: 13px;
+}
+.event-field-totals strong {
+  font-size: 26px;
+  line-height: 1.15;
+}
+.event-field-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kit-space-3);
+}
+.event-field-search {
+  width: 100%;
+}
+.event-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kit-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.event-field-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kit-space-3);
+  padding: 14px 16px;
+  border: 1px solid var(--kit-line);
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-paper);
+}
+.event-field-list > li[data-status="paid"],
+.event-field-list > li[data-status="cancelled"] {
+  background: var(--kit-sunken);
+}
+.event-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.event-field-who {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.event-field-who strong {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.event-field-who small,
+.event-field-amount small,
+.event-field-hint {
+  color: var(--kit-ink-2);
+  font-size: 13px;
+}
+.event-field-amount {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.event-field-amount strong {
+  font-size: 18px;
+}
+.event-field-pay {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kit-space-2);
+}
+.event-field-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kit-space-2);
+}
+.event-field-confirm > span {
+  flex: 1 1 12rem;
+  font-weight: 600;
+}
+.event-field-confirm .kit-button {
+  flex: none;
+  width: auto;
+}
+/* The QR for walk-ups, the whole screen, so a parent can scan from a step away. */
+.event-field-qr {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kit-space-3);
+  padding: 24px 16px;
+  background: #fff;
+  color: #111;
+  text-align: center;
+  overflow-y: auto;
+}
+.event-field-qr h2 {
+  margin: 0;
+  font-size: clamp(28px, 7vw, 44px);
+}
+.event-field-qr p {
+  margin: 0;
+  font-size: 17px;
+}
+.event-field-qr .event-qr {
+  width: min(86vw, 62vh, 460px);
+  aspect-ratio: 1;
+}
+.event-field-qr .event-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.event-field-qr-studio {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.event-field-qr-closed {
+  color: var(--kit-danger);
+}
+.event-field-qr-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}

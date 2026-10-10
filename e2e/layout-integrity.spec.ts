@@ -36,6 +36,9 @@ const recordRoutes = [
   "/studio/workflows/demo-workflow",
   "/studio/crew/demo-crew",
   "/studio/post-production/demo-project",
+  // A group event on the day, and its printed sign (sign-up, 2026-10-10).
+  "/studio/projects/demo-project/field",
+  "/studio/projects/demo-project/sign",
   "/crew/schedule?assignment=demo-upcoming",
   "/crew/requirements?assignment=demo-upcoming",
 ];

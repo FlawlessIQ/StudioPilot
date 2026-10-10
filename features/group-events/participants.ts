@@ -18,7 +18,9 @@ import { jobKindOf } from "@/features/job-kinds/job-kinds";
 
 export type ParticipantStatus = "unpaid" | "pay_on_day" | "paid" | "cancelled";
 
-export const PARTICIPANT_PAYMENT_METHODS = ["cash", "card", "online", "other"] as const;
+// Check, Venmo and Zelle: what parents actually pay with at a cheer day
+// (docs/group-event-signup-plan-2026-10-10.md).
+export const PARTICIPANT_PAYMENT_METHODS = ["cash", "check", "venmo", "zelle", "card", "online", "other"] as const;
 export type ParticipantPaymentMethod = (typeof PARTICIPANT_PAYMENT_METHODS)[number];
 
 export const PARTICIPANT_LIMITS = {
@@ -50,6 +52,13 @@ export type Participant = {
   } | null;
   receiptQueuedAt: string | null;
   createdAt: string;
+  /** Signed up themselves from the event's link (signup.ts), or added by the studio. */
+  source?: "signup_link" | "studio";
+  /** The event package they picked, and how they said they'd pay. */
+  optionId?: string | null;
+  chosenMethod?: string | null;
+  /** What they show at the field. */
+  confirmationCode?: string | null;
 };
 
 export type RosterSummary = {
@@ -98,6 +107,9 @@ export const PARTICIPANT_STATUS_LABEL: Record<ParticipantStatus, string> = {
 
 export const PAYMENT_METHOD_LABEL: Record<ParticipantPaymentMethod, string> = {
   cash: "Cash",
+  check: "Check",
+  venmo: "Venmo",
+  zelle: "Zelle",
   card: "Card",
   online: "Paid online",
   other: "Other",

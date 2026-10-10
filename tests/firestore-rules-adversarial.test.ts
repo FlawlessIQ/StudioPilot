@@ -223,6 +223,14 @@ before(async () => {
       email: "dana@example.com",
       status: "unpaid",
     });
+    await put("eventParticipants/participant-a2", {
+      tenantId: "tenant-a",
+      projectId: "project-a2",
+      parentName: "Sam Ortiz",
+      athleteName: "Leo",
+      email: "sam@example.com",
+      status: "pay_on_day",
+    });
     await put("insuranceRequests/coi-a", {
       tenantId: "tenant-a",
       projectId: "project-a",
@@ -811,16 +819,25 @@ test(
   },
 );
 
-// ── L · Group-event rosters: the studio's, nobody else's ─────────────
+// ── L · Group-event rosters: the studio's and its crew at the field ───
 
 test(
-  "a roster is read by the studio and by no one else, and written by no browser",
+  "a roster is read by the studio and the crew on that event, by no one else, and written by no browser",
   { skip },
   async () => {
-    await assertSucceeds(getDoc(doc(as("owner-a"), "eventParticipants/participant-a")));
-    for (const uid of ["owner-b", "crew-a", "client-a", "photographer-a"]) {
+    // Crew assigned to the event take payment at the field (sign-up, 2026-10-10).
+    for (const uid of ["owner-a", "crew-a", "photographer-a"]) {
+      await assertSucceeds(getDoc(doc(as(uid), "eventParticipants/participant-a")));
+    }
+    // The organiser is the job's client, not a parent: never the roster.
+    for (const uid of ["owner-b", "client-a"]) {
       await assertFails(getDoc(doc(as(uid), "eventParticipants/participant-a")));
     }
+    // Crew see the roster of the event they work, not another job's.
+    for (const uid of ["crew-a", "photographer-a"]) {
+      await assertFails(getDoc(doc(as(uid), "eventParticipants/participant-a2")));
+    }
+    await assertSucceeds(getDoc(doc(as("owner-a"), "eventParticipants/participant-a2")));
     await assertFails(getDoc(doc(anonymous(), "eventParticipants/participant-a")));
     await assertFails(updateDoc(doc(as("owner-a"), "eventParticipants/participant-a"), { status: "paid" }));
     await assertFails(

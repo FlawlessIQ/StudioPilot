@@ -61,16 +61,22 @@ const CRM_PROJECT_COMMANDS = [
   "updateParticipant",
   "cancelParticipant",
   "recordParticipantPayment",
+  // Group event sign-up (2026-10-10): the link, its packages and invites.
+  "setGroupEventSignup",
+  "resetGroupEventLink",
+  "inviteGroupEventParents",
 ];
 
 test("each project-scoped crmCommand branch checks assignment", () => {
   const text = source("functions/src/crm/commands.ts");
+  // Each branch opens with `if (command.type === "a"` (or `"a" || command.type === "b"`)
+  // and runs until the next one.
+  const heads = [...text.matchAll(/if \(command\.type === "\w+"(?: \|\| command\.type === "\w+")*\) \{/g)];
   for (const type of CRM_PROJECT_COMMANDS) {
-    const start = text.indexOf(`command.type === "${type}"`);
-    assert.notEqual(start, -1, `${type} is no longer in crmCommand`);
-    // The branch runs until the next `command.type ===` comparison.
-    const next = text.indexOf('command.type === "', start + 20);
-    const branch = text.slice(start, next === -1 ? undefined : next);
+    const head = heads.find((match) => match[0].includes(`"${type}"`));
+    assert.ok(head, `${type} is no longer in crmCommand`);
+    const next = heads.find((match) => match.index! > head.index!);
+    const branch = text.slice(head.index, next?.index);
     assert.match(
       branch,
       /hasProjectAccess\(membershipData, /,

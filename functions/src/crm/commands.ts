@@ -1,5 +1,13 @@
 import { normalizeUnitLabel } from "../packages/unit-label.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  eventPrice,
+  eventSignupSettingsProblem,
+  eventSignupSettingsSchema,
+  normaliseEventSignup,
+  normalisePayLinkUrl,
+  normaliseVenmoHandle,
+} from "../group-events/signup.js";
 import { tradeAllows, tradeMoves, tradeProfile } from "../trades/trades.js";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
@@ -1015,6 +1023,29 @@ const commandSchema = z.discriminatedUnion("type", [
       restore: z.boolean().default(false),
     }),
   }),
+  // Sign-up: the event's packages, how parents may pay, and its link
+  // (features/group-events/signup.ts, docs/group-event-signup-plan-2026-10-10.md).
+  z.object({
+    type: z.literal("setGroupEventSignup"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ projectId: z.string().min(1), settings: eventSignupSettingsSchema }),
+  }),
+  z.object({
+    type: z.literal("resetGroupEventLink"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ projectId: z.string().min(1) }),
+  }),
+  z.object({
+    type: z.literal("inviteGroupEventParents"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      emails: z.array(z.string().trim().toLowerCase().email().max(254)).min(1).max(200),
+    }),
+  }),
   z.object({
     type: z.literal("recordParticipantPayment"),
     tenantId: z.string().min(1),
@@ -1023,7 +1054,7 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       participantId: z.string().min(1),
       amountCents: z.number().int().positive().max(1_000_000),
-      method: z.enum(["cash", "card", "online", "other"]),
+      method: z.enum(["cash", "check", "venmo", "zelle", "card", "online", "other"]),
       sendReceipt: z.boolean().default(true),
     }),
   }),
@@ -1104,6 +1135,13 @@ async function assertPackagesEditable(
 
 const managerRoles = ["studio_owner", "studio_admin"];
 const allowedRoles = [...managerRoles, "studio_coordinator"];
+/**
+ * Crew at a group event take each parent's payment at the field — on the
+ * event they're assigned to (`hasProjectAccess`), and nothing else here
+ * (sign-up, docs/group-event-signup-plan-2026-10-10.md).
+ */
+const fieldCrewRoles = ["staff_photographer", "staff_videographer", "subcontractor"];
+const fieldCrewCommands: readonly string[] = ["recordParticipantPayment"];
 
 /** The states in which a job's client may be archived: the job is over. */
 export const CONTACT_ARCHIVABLE_PROJECT_STATES = ["CLOSED", "CANCELLED", "ARCHIVED", "LOST"];
@@ -1166,6 +1204,21 @@ function hasProjectAccess(
     managerRoles.includes(membership.role) ||
     membership.projectIds?.includes(projectId) === true
   );
+}
+
+/** The public sign-up link's lookup document: keyed by the token's hash, never the token. */
+export function eventSignupLinkId(token: string): string {
+  return createHash("sha256").update(`event-signup:${token}`).digest("hex");
+}
+
+/** A parent's own order page (`/e/order/{token}`): opens that one order, nothing else. */
+export function newEventOrderToken(): string {
+  return randomBytes(18).toString("base64url");
+}
+
+/** A new sign-up token: 24 URL-safe characters, unguessable. */
+function newEventSignupToken(): string {
+  return randomBytes(18).toString("base64url");
 }
 
 /** The job a group-event command acts on; with `requireRoster`, only once its roster is on. */
@@ -1269,7 +1322,10 @@ export const crmCommand = onRequest(
     if (
       !membershipData ||
       membershipData.status !== "active" ||
-      !allowedRoles.includes(membershipData.role)
+      !(
+        allowedRoles.includes(membershipData.role) ||
+        (fieldCrewRoles.includes(membershipData.role) && fieldCrewCommands.includes(command.type))
+      )
     ) {
       response.status(403).json({ error: "FORBIDDEN" });
       return;
@@ -4883,7 +4939,11 @@ export const crmCommand = onRequest(
           if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
           const project = await groupEventProject(transaction, db, command.tenantId, command.input.projectId, false);
           transaction.update(project.ref, {
-            groupEvent: { enabled: command.input.enabled, updatedAt: timestamp, updatedBy: identity.uid },
+            // Field by field: the event's sign-up settings live beside these
+            // (groupEvent.signup) and must survive turning the roster off and on.
+            "groupEvent.enabled": command.input.enabled,
+            "groupEvent.updatedAt": timestamp,
+            "groupEvent.updatedBy": identity.uid,
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
@@ -5030,6 +5090,13 @@ export const crmCommand = onRequest(
           if (participant.get("status") === "cancelled") throw new Error("PARTICIPANT_CANCELLED");
           const email = typeof participant.get("email") === "string" ? String(participant.get("email")) : "";
           if (command.input.sendReceipt && !email) throw new Error("PARTICIPANT_EMAIL_REQUIRED");
+          // The receipt links to the parent's own order page — never the
+          // job's client home, which is the organiser's portal or inquiry.
+          // A parent the studio added by hand gets their page now.
+          const orderToken =
+            typeof participant.get("orderToken") === "string" && participant.get("orderToken")
+              ? String(participant.get("orderToken"))
+              : newEventOrderToken();
           const payment = {
             amountCents: command.input.amountCents,
             method: command.input.method,
@@ -5039,6 +5106,7 @@ export const crmCommand = onRequest(
           transaction.update(participant.ref, {
             status: "paid",
             payment,
+            orderToken,
             receiptQueuedAt: command.input.sendReceipt ? timestamp : null,
             updatedAt: timestamp,
             updatedBy: identity.uid,
@@ -5057,10 +5125,12 @@ export const crmCommand = onRequest(
               // One email to the parent who paid; nobody else on the job is
               // copied (the job's own clients are the organiser, not them).
               soleRecipient: true,
+              audience: "parent",
+              actionUrl: `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "")}/e/order/${orderToken}`,
               athleteName: participant.get("athleteName") ?? null,
               packageName: participant.get("packageName") ?? null,
               amountText: new Intl.NumberFormat("en-US", { style: "currency", currency }).format(command.input.amountCents / 100),
-              methodText: ({ cash: "in cash", card: "by card", online: "online", other: "" } as Record<string, string>)[command.input.method] ?? "",
+              methodText: ({ cash: "in cash", check: "by check", venmo: "by Venmo", zelle: "by Zelle", card: "by card", online: "online", other: "" } as Record<string, string>)[command.input.method] ?? "",
               eventDate: project.get("eventDate") ?? null,
               status: "queued",
               attempts: 0,
@@ -5082,6 +5152,147 @@ export const crmCommand = onRequest(
             userAgent: request.header("user-agent") ?? null,
           });
           const output = { participantId: command.input.participantId, paid: true, receiptQueued: command.input.sendReceipt };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "setGroupEventSignup" || command.type === "resetGroupEventLink") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          const project = await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const current = normaliseEventSignup(project.get("groupEvent"));
+          // One branch for both: a reset carries no settings.
+          const settings = "settings" in command.input ? command.input.settings : null;
+          const reset = settings === null;
+          if (reset && !current.token) throw new Error("EVENT_SIGNUP_NOT_SET_UP");
+          if (settings) {
+            const problem = eventSignupSettingsProblem(settings);
+            if (problem) throw new Error(problem);
+          }
+          // One link per event; a reset retires the old one (a QR code printed
+          // for the wrong event, a link posted somewhere it shouldn't be).
+          const token = reset || !current.token ? newEventSignupToken() : current.token;
+          const open = settings ? settings.open : current.open;
+          if (reset && current.token) {
+            transaction.set(
+              db.doc(`eventSignupLinks/${eventSignupLinkId(current.token)}`),
+              { status: "revoked", updatedAt: timestamp },
+              { merge: true },
+            );
+          }
+          transaction.set(db.doc(`eventSignupLinks/${eventSignupLinkId(token)}`), {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            status: open ? "open" : "closed",
+            updatedAt: timestamp,
+          });
+          const stored = settings
+            ? {
+                options: settings.options,
+                methods: settings.methods,
+                venmoHandle: normaliseVenmoHandle(settings.venmoHandle),
+                zelleTo: settings.zelleTo?.trim() || null,
+                checkPayableTo: settings.checkPayableTo?.trim() || null,
+                payLinkUrl: normalisePayLinkUrl(settings.payLinkUrl),
+                open: settings.open,
+                closesAt: settings.closesAt || null,
+                capacity: settings.capacity,
+              }
+            : {};
+          transaction.update(project.ref, {
+            "groupEvent.signup": {
+              ...(project.get("groupEvent.signup") ?? {}),
+              ...stored,
+              token,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: reset ? "group_event.link_reset" : "group_event.signup_set",
+            entityId: command.input.projectId,
+            before: { open: current.open, options: current.options.length, methods: current.methods },
+            after: settings ? { open: settings.open, options: settings.options.length, methods: settings.methods } : { linkReset: true },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { projectId: command.input.projectId, token, open };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "inviteGroupEventParents") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          const project = await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const signup = normaliseEventSignup(project.get("groupEvent"));
+          if (!signup.token || !signup.options.length || !signup.methods.length) throw new Error("EVENT_SIGNUP_NOT_SET_UP");
+          if (!signup.open) throw new Error("EVENT_SIGNUP_CLOSED");
+          const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
+          const signupUrl = `${appUrl}/e/${signup.token}`;
+          const emails = [...new Set(command.input.emails)];
+          // One invite per parent per link: a pasted list that repeats a
+          // parent, or a second paste, never emails them twice. A new link
+          // (resetGroupEventLink) can be sent to the same parents again.
+          const jobs = emails.map((email) => ({
+            email,
+            reference: db.doc(
+              `emailJobs/group_invite_${command.input.projectId}_${createHash("sha256").update(`${signup.token}|${email}`).digest("hex").slice(0, 24)}`,
+            ),
+          }));
+          const existing = await Promise.all(jobs.map((job) => transaction.get(job.reference)));
+          const from = Math.min(...signup.options.map((option) => option.priceCents));
+          let queued = 0;
+          jobs.forEach((job, index) => {
+            if (existing[index]!.exists) return;
+            queued += 1;
+            transaction.create(job.reference, {
+              id: job.reference.id,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              type: "group_event_invite",
+              recipient: job.email,
+              // A parent, not the job's client: nobody else is copied.
+              soleRecipient: true,
+              audience: "parent",
+              eventDate: project.get("eventDate") ?? null,
+              actionUrl: signupUrl,
+              priceFrom: eventPrice(from),
+              optionCount: signup.options.length,
+              status: "queued",
+              attempts: 0,
+              maxAttempts: 5,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: "group_event.parents_invited",
+            entityId: command.input.projectId,
+            before: null,
+            after: { invited: queued, alreadyInvited: emails.length - queued },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { projectId: command.input.projectId, invited: queued, alreadyInvited: emails.length - queued };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

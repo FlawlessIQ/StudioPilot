@@ -92,7 +92,7 @@ test("Cue can prepare it, the card publishes it, and the job panel shows what Cu
 
 test("crew and vendor mail is never the couple's, even at the couple's address", () => {
   const worker = read("functions/src/operations/jobs.ts");
-  assert.match(worker, /!CREW_EMAIL_TYPES\.has\(templateKey\) &&\s+!\["crew", "vendor"\]\.includes\(String\(document\.get\("audience"\) \?\? ""\)\) &&\s+clientContactEmails\.has/);
+  assert.match(worker, /!CREW_EMAIL_TYPES\.has\(templateKey\) &&\s+!\["crew", "vendor", "parent"\]\.includes\(String\(document\.get\("audience"\) \?\? ""\)\) &&\s+clientContactEmails\.has/);
   const planning = read("functions/src/planning/commands.ts");
   assert.match(planning, /type: "final_schedule_published",\s+\/\/[^\n]*\n[^\n]*\n\s+audience: "crew",/);
   assert.match(planning, /type: "manual_message",\s+audience: "vendor",/);

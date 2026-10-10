@@ -11707,6 +11707,59 @@ textarea:focus-visible {
 .participant-roster-actions small{color:var(--muted)}
 .record-sheet-fields label.participant-roster-check{display:flex;align-items:center;gap:8px;flex-direction:row}
 .record-sheet-fields label.participant-roster-check input{width:auto}
+/* Group event sign-up on the roster (components/group-events/event-signup-panel.tsx).
+   Wraps, never squeezes: the job column is narrow even on a desktop. */
+.participant-roster-who small.participant-roster-signup{color:var(--accent);white-space:normal;overflow:visible}
+.event-signup-panel{display:grid;gap:10px;padding:12px 14px;border:1px dashed var(--line);border-radius:11px;background:var(--soft)}
+.event-signup-panel>p{margin:0;font-size:14px;line-height:1.5}
+.event-signup-panel>header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 12px}
+.event-signup-panel>header>span{display:grid;gap:2px;flex:1 1 12rem;min-width:0}
+.event-signup-panel .eyebrow{margin:0}
+.event-signup-panel-summary small{color:var(--muted)}
+.event-signup-panel-link{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.ds-root .event-signup-panel .form-notice,.ds-root .event-signup-panel .form-error{margin:0}
+.event-qr{display:block;width:min(100%,320px);aspect-ratio:1;margin:0 auto;background:#fff}
+.event-qr svg{display:block;width:100%;height:100%}
+.event-qr.is-loading{background:var(--soft);border-radius:8px}
+.event-qr-sheet .event-signup-panel-link{text-align:center}
+.event-signup-reset{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.event-signup-reset p{margin:0;font-size:13px}
+.record-sheet.event-signup-settings{gap:22px}
+.event-signup-settings-group{display:grid;gap:10px;margin:0;padding:0;border:0;min-width:0}
+.event-signup-settings-group>legend{padding:0;margin-bottom:8px;font-weight:700}
+.event-signup-settings-group label{display:grid;gap:5px;font-size:13px;font-weight:600;min-width:0}
+.event-signup-settings-group input:not([type=checkbox]),.event-signup-settings-group textarea{border:1px solid var(--line);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px;background:var(--surface);min-width:0;width:100%}
+.event-signup-settings-group label.participant-roster-check{display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:600}
+.event-signup-settings-group label.participant-roster-check input{width:auto}
+.event-signup-settings-option{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 10px;padding:10px;border:1px solid var(--line);border-radius:10px}
+.event-signup-settings-name{flex:2 1 12rem}
+.event-signup-settings-price{flex:0 1 7rem}
+.event-signup-settings-detail{flex:3 1 14rem}
+.event-signup-settings-method{display:grid;gap:6px}
+.event-signup-settings-group>.button{justify-self:start}
+.event-signup-settings-group label>span small{font-weight:400;color:var(--muted)}
+.event-signup-settings-method>label:not(.participant-roster-check){margin-left:26px}
+/* The printed sign (components/group-events/event-sign.tsx): only the sign prints. */
+.event-sign-page{display:grid;gap:16px;justify-items:center;padding:16px}
+.event-sign-actions{display:flex;justify-content:center}
+.event-sign{display:grid;gap:14px;justify-items:center;width:min(100%,640px);padding:32px 24px;border:1px solid var(--line);border-radius:16px;background:#fff;color:#111;text-align:center}
+.event-sign h1{margin:0;font-size:clamp(32px,6vw,48px);line-height:1.05}
+.event-sign-studio{margin:0;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:14px}
+.event-sign-event{margin:0;font-size:18px}
+.event-sign .event-qr{width:min(100%,360px)}
+.event-sign-options{display:grid;gap:8px;width:100%;margin:0;padding:0;list-style:none}
+.event-sign-options li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px;padding:10px 14px;border:1px solid #ddd;border-radius:10px;text-align:left}
+.event-sign-options li>span{display:grid;gap:2px;flex:1 1 12rem;min-width:0}
+.event-sign-options small{color:#555}
+.event-sign-pay{margin:0;font-size:16px}
+.event-sign-url{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:#555;overflow-wrap:anywhere}
+@media print{
+  /* Only on the sign's own page: every other page prints as it always has. */
+  body:has(.event-sign) *{visibility:hidden}
+  .event-sign,.event-sign *{visibility:visible}
+  .event-sign{position:absolute;inset:0;margin:auto;border:0;width:100%;max-width:none}
+  .event-sign-actions{display:none}
+}
 .project-crew-panel{display:grid;gap:12px}
 .project-crew-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .project-crew-panel>header h2{margin:0;font-size:18px}

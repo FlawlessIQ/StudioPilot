@@ -8,6 +8,7 @@ import {
   Circle,
   MapPin,
   ReceiptText,
+  Wallet,
 } from "lucide-react";
 import { Button, Card, List, Main, Note, Pill, PoweredBy, Row } from "@/components/kit/kit";
 import { CrewClientBrief } from "@/components/crew/client-brief";
@@ -16,6 +17,7 @@ import { crewCloseoutIsSubmitted } from "@/features/crew/closeout-moment";
 import { SCHEDULE_REQUIREMENT_ID } from "@/features/crew/requirements";
 import { statusLabel } from "@/features/format/status-label";
 import { tradeProfile } from "@/features/trades/trades";
+import { rosterEnabled } from "@/features/group-events/participants";
 import { crewPublicError } from "@/lib/crew/public-error";
 import {
   assignmentPlace,
@@ -135,6 +137,15 @@ function JobDetail({ data, assignment, now }: { data: CrewData; assignment: Valu
           }
           title="Day sheet"
         />
+        {/* A group event where each parent pays: crew take payment at the field. */}
+        {rosterEnabled(project ? { groupEvent: project.groupEvent } : null) ? (
+          <Row
+            href={`/crew/field?project=${encodeURIComponent(text(assignment.projectId))}`}
+            icon={Wallet}
+            subtitle="Who's signed up, and taking each parent's payment"
+            title="Payments at the event"
+          />
+        ) : null}
         <Row
           href={`/crew/closeout${query}`}
           icon={ReceiptText}

@@ -772,12 +772,14 @@ service cloud.firestore {
     }
     // Group events (features/group-events/participants.ts): the parents on
     // an event's roster. Read by the studio — owners and admins, and a
-    // coordinator assigned to the job; written only by crmCommand. Never by
-    // the parents themselves, and never by crew in Phase 1.
+    // coordinator assigned to the job — and by the crew assigned to that
+    // event, who take payment at the field (sign-up, 2026-10-10). Written
+    // only by crmCommand and the public sign-up route. Never by the parents
+    // themselves, and never by the job's client (the organiser).
     match /eventParticipants/{participantId} {
       allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
         || (
-          hasRole(resource.data.tenantId, ["studio_coordinator"])
+          hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer","staff_videographer","subcontractor"])
           && isAssignedToProject(resource.data.tenantId, resource.data.projectId)
         );
       allow write: if false;
@@ -1123,6 +1125,13 @@ service cloud.firestore {
     }
 
     match /publicRateLimits/{limitId} {
+      allow read, write: if false;
+    }
+
+    // A group event's public sign-up link, looked up by the token's hash. The
+    // server alone reads it (app/api/public/event-signup); studios see the
+    // link on the job.
+    match /eventSignupLinks/{linkId} {
       allow read, write: if false;
     }
 

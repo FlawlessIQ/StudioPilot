@@ -702,8 +702,12 @@ async function emailContext(
     clientContacts.find(
       (snapshot) => String(snapshot.get("email") ?? "").trim().toLowerCase() === recipient.trim().toLowerCase(),
     ) ?? contact;
-  let clientHome = projectId ? `${appUrl}/client` : "";
-  const homeLeadId = leadId ?? firstString(project?.get("leadId"));
+  // A parent on a group event is not the job's client: the job's home is the
+  // organiser's portal or inquiry page, and must never be a parent's link.
+  // Parent mail carries its own (their order page).
+  const parentMail = document.get("audience") === "parent";
+  let clientHome = projectId && !parentMail ? `${appUrl}/client` : "";
+  const homeLeadId = parentMail ? null : (leadId ?? firstString(project?.get("leadId")));
   if (!recipientContact?.get("portalUserId") && homeLeadId) {
     const link = await db.doc(`inquiryLinks/${homeLeadId}`).get();
     const token = link.exists && link.get("tenantId") === tenantId ? firstString(link.get("token")) : null;
@@ -807,7 +811,7 @@ async function emailContext(
     // revised run of show.
     recipientIsClient:
       !CREW_EMAIL_TYPES.has(templateKey) &&
-      !["crew", "vendor"].includes(String(document.get("audience") ?? "")) &&
+      !["crew", "vendor", "parent"].includes(String(document.get("audience") ?? "")) &&
       clientContactEmails.has(recipient.trim().toLowerCase()),
     clientContactEmails,
     values: {

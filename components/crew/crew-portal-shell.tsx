@@ -34,6 +34,8 @@ export const crewPageTitles: Record<string, string> = {
   closeout: "Hours and expenses",
   documents: "Documents",
   "event-day": "Day sheet",
+  // A group event's roster and payments at the field.
+  field: "Payments",
   jobs: "Jobs",
   pending: "Offer",
   prep: "Job",
@@ -50,6 +52,7 @@ export const crewRouteLabels: Record<string, string> = {
   closeout: "Jobs",
   documents: "Jobs",
   "event-day": "Jobs",
+  field: "Jobs",
   jobs: "Jobs",
   pending: "Jobs",
   prep: "Jobs",

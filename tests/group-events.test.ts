@@ -118,12 +118,14 @@ test("a receipt still reaches the parent if the studio's billing lapses", () => 
 
 // ── Data handling ──
 
-test("participants are readable by the studio only, written only by the server, exported and purged with the job", () => {
+test("participants are readable by the studio and its crew on the event, written only by the server, exported and purged with the job", () => {
   const rules = read("firestore.rules");
   const block = rules.slice(rules.indexOf("match /eventParticipants/{participantId}"), rules.indexOf("match /crewMessages/{messageId}"));
   assert.match(block, /allow write: if false;/);
   assert.match(block, /hasRole\(resource\.data\.tenantId, \["studio_owner","studio_admin"\]\)/);
-  assert.doesNotMatch(block, /subcontractor|client/);
+  // Crew read only the event they're assigned to; the organiser (the job's client) never.
+  assert.match(block, /"subcontractor"\]\)\s*&& isAssignedToProject\(resource\.data\.tenantId, resource\.data\.projectId\)/);
+  assert.doesNotMatch(block, /"client"/);
   assert.match(read("functions/src/saas/data-lifecycle.ts"), /"eventParticipants",/);
   for (const file of ["functions/src/projects/purge-policy.ts", "features/projects/purge-policy.ts"]) {
     assert.match(read(file), /eventParticipants: \{ one: "participant", many: "participants" \}/, file);

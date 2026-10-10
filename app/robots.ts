@@ -14,6 +14,7 @@ export default function robots(): MetadataRoute.Robots {
         // Private token links (a couple's gallery, a vendor's run of show, a
         // reply approval): never in search, whoever forwards one.
         "/d/",
+        "/e/",
         "/i/",
         "/inquiry",
         "/kit",
