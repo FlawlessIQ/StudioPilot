@@ -4,6 +4,7 @@ import { Calculator, CheckCircle2, CircleAlert, ShieldCheck } from "lucide-react
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { FinalBalanceActions } from "@/components/booking/final-balance-actions";
+import { StudioInvoiceActions } from "@/components/booking/studio-invoice-actions";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -59,8 +60,9 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
             </InfoHint>
           </h2>
           <p>
-            StudioCue prepares the arithmetic; QuickBooks remains authoritative
-            for the invoice, balance, tax, and payment evidence.
+            StudioCue prepares the arithmetic. On a QuickBooks job, QuickBooks
+            stays authoritative for the invoice, tax and payments; on a job you
+            bill yourself, the invoice is your own, numbered with its PDF.
           </p>
         </div>
         <Calculator aria-hidden="true" />
@@ -110,6 +112,9 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
           const discrepancies = list(calculation.discrepancies).map(String);
           const inReview = invoice.status === "review_required";
           const provider = invoice.provider === "stripe" ? "Stripe" : "QuickBooks";
+          // An invoice the studio issued itself (own invoicing): its own
+          // number, PDF and send buttons in place of the provider's state.
+          const studioIssued = invoice.billedBy === "studio" && !invoice.provider;
           // In QuickBooks already, waiting on the tax check: its own figures
           // (QuickBooks' total) and its own buttons.
           const held = heldInvoiceView(invoice);
@@ -217,6 +222,8 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
                     ))}
                   </span>
                 </div>
+              ) : studioIssued ? (
+                <StudioInvoiceActions invoice={invoice} onDone={setSettled} />
               ) : (
                 <div className="invoice-ready">
                   <CheckCircle2 />

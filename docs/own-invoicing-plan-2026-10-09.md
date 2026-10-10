@@ -6,8 +6,9 @@
 |---|---|
 | 0 — Foundation (per-job choice, settings, numbering, no dead ends) | Live 2026-10-09 (f98f2cb3) |
 | 1 — The PDF invoice (`/v1/invoices/pdf`, `invoice_pdf` jobs, portal, sample preview) | Live 2026-10-09 (70b20acf) |
-| 2 — Deposits: drafted on signing / no-agreement booking, emailed with the PDF or marked sent, Today card, booking panel, PDF re-rendered on payment/void | Built 2026-10-09 |
-| 3–6 | Not started |
+| 2 — Deposits: drafted on signing / no-agreement booking, emailed with the PDF or marked sent, Today card, booking panel, PDF re-rendered on payment/void | Live 2026-10-09 (779fbd93) |
+| 3 — Finals, single bills, booking changes, closeout: the final-bill core drafts the studio's own final (taxed on the whole price, deposit shown as paid), "Create the final invoice" on Today/Invoices, closeout reads the standing final or a paid-in-full bill | Built 2026-10-10 |
+| 4–6 | Not started |
 
 Phase 2 decisions made while building: a deposit is never taxed (tax goes on
 the bill that completes the price, as QuickBooks does on its final); the

@@ -63,6 +63,12 @@ export type StudioInvoiceSource = {
   paidInFull: boolean;
   payLinkUrl: string | null;
   lines: Array<{ description: string; quantity: number; unitAmountCents: number; amountCents: number }>;
+  /**
+   * Paid towards the price before this bill — a final's deposit. Printed with
+   * the payments, after the total, so the tax line reads against the whole
+   * price it was worked out on.
+   */
+  credits: Array<{ description: string; amountCents: number }>;
   payments: Array<{ amountCents: number; paidAt: string | null; method: string | null }>;
 };
 
@@ -178,6 +184,11 @@ export function studioInvoiceSource(id: string, raw: unknown): StudioInvoiceSour
       paidAt: textOf(payment.paidAt) || null,
       method: textOf(payment.method) || null,
     }));
+  const credits = (Array.isArray(invoice.credits) ? invoice.credits : [])
+    .map(record)
+    .map((credit) => ({ description: textOf(credit.description) || "Paid earlier", amountCents: Math.max(0, cents(credit.amountCents)) }))
+    .filter((credit) => credit.amountCents > 0)
+    .slice(0, 10);
   return {
     id,
     projectId: textOf(invoice.projectId),
@@ -193,6 +204,7 @@ export function studioInvoiceSource(id: string, raw: unknown): StudioInvoiceSour
     paidInFull: invoice.paidInFull === true,
     payLinkUrl: textOf(invoice.payLinkUrl) || null,
     lines,
+    credits,
     payments,
   };
 }
@@ -217,7 +229,11 @@ export function studioInvoicePdfPayload(input: {
   const currency = invoice.currency;
   const settings = studio.settings;
   const taxCents = invoice.taxCents;
-  const subtotalCents = invoice.amountCents - taxCents;
+  // The whole price the tax was worked out on: this bill plus what was paid
+  // towards it before (a final's deposit).
+  const creditCents = invoice.credits.reduce((sum, credit) => sum + credit.amountCents, 0);
+  const priceCents = invoice.amountCents + creditCents;
+  const subtotalCents = priceCents - taxCents;
   const lines = invoice.lines.length
     ? invoice.lines
     : [
@@ -238,14 +254,18 @@ export function studioInvoicePdfPayload(input: {
       amount: invoiceMoney(taxCents, currency),
     });
   }
-  totals.push({ label: "Total", amount: invoiceMoney(invoice.amountCents, currency) });
+  totals.push({ label: "Total", amount: invoiceMoney(priceCents, currency) });
+  const creditRows: StudioInvoicePdfRow[] = invoice.credits.map((credit) => ({
+    label: clip(credit.description, 120),
+    amount: invoiceMoney(-credit.amountCents, currency),
+  }));
   // Each payment received, when they account for exactly what's been paid.
   // A correction, or a whole bill recorded paid with no entries, can leave
   // them out of step with the balance — then one "Paid to date" line, so the
   // printed arithmetic always holds.
   const paidCents = Math.max(0, invoice.amountCents - invoice.balanceCents);
   const listed = invoice.payments.reduce((sum, payment) => sum + payment.amountCents, 0);
-  const payments: StudioInvoicePdfRow[] =
+  const paidRows: StudioInvoicePdfRow[] =
     paidCents === 0
       ? []
       : listed === paidCents
@@ -256,6 +276,7 @@ export function studioInvoicePdfPayload(input: {
             amount: invoiceMoney(-payment.amountCents, currency),
           }))
         : [{ label: "Paid to date", amount: invoiceMoney(-paidCents, currency) }];
+  const payments = [...creditRows, ...paidRows];
   const voided = invoice.status === "voided";
   const paid = !voided && invoice.balanceCents === 0 && invoice.amountCents > 0;
   const addressLines = (settings.businessAddress ?? "")

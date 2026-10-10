@@ -654,7 +654,7 @@ export function DeliveryCloseoutWorkspace({
                   {/**
                     * Money is not attestable at closeout — it is recorded.
                     *
-                    * "Final QuickBooks balance settled" is deliberately absent
+                    * "Final balance settled" is deliberately absent
                     * from the attestable list: a job should not be closed by
                     * someone ticking a box next to the money. But the only
                     * thing that could satisfy it was an invoice a scheduler

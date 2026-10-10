@@ -550,7 +550,7 @@ const commandSchema = z.discriminatedUnion("type", [
      * QuickBooks webhook that was never coming. The balance had no equivalent,
      * and the final invoice is not created until 28 days before the event — so
      * a couple who settled up early left the job stuck on the last closeout
-     * requirement, "Final QuickBooks balance settled", with nothing in the
+     * requirement, "Final balance settled", with nothing in the
      * product able to satisfy it. Same shape, same authority, same audit trail.
      */
     type: z.literal("recordFinalPayment"),

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { isStandingInvoice } from "../booking/invoice-standing.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -851,9 +852,23 @@ export const postEventCommand = onRequest(
         const signedContract = contracts.docs.find((item) =>
           ["completed", "signed"].includes(String(item.get("status"))),
         );
-        const finalInvoice = invoices.docs.find(
-          (item) => item.get("kind") === "final",
-        );
+        // The final that stands: a booking change can supersede the first, and
+        // reading that one left closeout waiting on a bill nobody owes.
+        const finalInvoice =
+          invoices.docs
+            .filter((item) => item.get("kind") === "final" && isStandingInvoice(item.get("status")))
+            .sort((left, right) => String(right.get("createdAt") ?? "").localeCompare(String(left.get("createdAt") ?? "")))[0] ??
+          null;
+        // Paid in full to book (family, portraits): no final follows
+        // (job-kinds.ts hasFinalBalance), so that one bill, paid, settles it.
+        const paidInFullBill =
+          invoices.docs.find(
+            (item) =>
+              item.get("kind") === "retainer" &&
+              item.get("paidInFull") === true &&
+              item.get("status") === "paid" &&
+              Number(item.get("balanceCents") ?? 1) === 0,
+          ) ?? null;
         const currentSchedule = schedules.docs
           .filter((item) =>
             ["approved", "published"].includes(String(item.get("status"))),
@@ -899,12 +914,14 @@ export const postEventCommand = onRequest(
           },
           {
             key: "final_balance",
-            label: "Final QuickBooks balance settled",
+            // QuickBooks, the studio's own invoice, or paid in full up front.
+            label: "Final balance settled",
             complete:
-              Boolean(finalInvoice) &&
-              Number(finalInvoice?.get("balanceCents") ?? 1) === 0 &&
-              finalInvoice?.get("status") === "paid",
-            evidenceId: finalInvoice?.id ?? null,
+              (Boolean(finalInvoice) &&
+                Number(finalInvoice?.get("balanceCents") ?? 1) === 0 &&
+                finalInvoice?.get("status") === "paid") ||
+              (!finalInvoice && Boolean(paidInFullBill)),
+            evidenceId: finalInvoice?.id ?? paidInFullBill?.id ?? null,
             // An imported or legacy job with no package: nothing to record a
             // payment against, so it may be vouched for (closeout-attestation.ts).
             noAgreedBalance: !String(project.get("packageSnapshotId") ?? ""),

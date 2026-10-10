@@ -13,7 +13,7 @@
  * the final balance could only ever be settled by a QuickBooks invoice that
  * the scheduler does not create until 28 days before the event. So a wedding
  * whose couple settled up early — or in cash, or by cheque — reached the last
- * closeout requirement, "Final QuickBooks balance settled", with no control
+ * closeout requirement, "Final balance settled", with no control
  * anywhere in the product that could satisfy it, and the job could never be
  * closed. The walk of 2026-08-27 ended on exactly that wall.
  *

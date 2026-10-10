@@ -1501,7 +1501,7 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
     <ActionShell
       detail={
         studioBilled
-          ? "The amount is what they agreed less everything already paid. You're billing this job yourself, so record the payment once it's in."
+          ? "The amount is what they agreed less everything already paid. You bill this job yourself: StudioCue makes your own final invoice, with its PDF, for you to check and send."
           : "The amount is what they agreed less everything already paid. It goes through your invoicing provider, which emails it to them."
       }
       icon={<HandCoins size={15} />}

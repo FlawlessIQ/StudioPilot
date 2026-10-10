@@ -45,6 +45,7 @@ export function sampleStudioInvoice(input: {
     paidInFull: false,
     payLinkUrl: null,
     lines,
+    credits: [],
     payments: [{ amountCents: 50_000, paidAt: input.today, method: "Deposit" }],
   };
 }

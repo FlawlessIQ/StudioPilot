@@ -1866,20 +1866,46 @@ function FinalBalanceCardActions({
       </ConfirmStep>
     );
   }
+  // A job the studio bills itself: the same command drafts its own final
+  // invoice, numbered with its PDF. Nothing is sent, so no confirm step; the
+  // "Send … final invoice" card takes this one's place (own invoicing).
   if (studioBilled) {
     return (
       <>
+        <button
+          className="today-card-primary"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            setNotice(null);
+            void sendFinalBalance(action.projectId)
+              .then(() => {
+                refreshTenantRecords("invoiceReferences", "pdfJobs", "projects");
+                onCleared?.();
+              })
+              .catch((caught: unknown) => {
+                setNotice(friendlyError(caught, "The final invoice couldn't be made. Open the job to check."));
+                setBusy(false);
+              });
+          }}
+          type="button"
+        >
+          {busy ? <LoaderCircle className="spin" size={14} /> : <Send size={14} />}
+          {busy ? "Making it…" : action.singleBill ? "Create the invoice" : "Create the final invoice"}
+        </button>
         {action.packageSnapshotId ? (
-          <button className="today-card-primary" onClick={() => onSettle?.(action)} type="button">
-            {amount ? `Record the payment · ${amount}` : "Record the payment"}
+          <button className="today-card-secondary" disabled={busy} onClick={() => onSettle?.(action)} type="button">
+            Paid another way
           </button>
         ) : null}
-        <Link
-          className={action.packageSnapshotId ? "today-card-secondary" : "today-card-primary"}
-          href={`/studio/projects/${action.projectId}`}
-        >
+        <Link className="today-card-secondary" href={`/studio/projects/${action.projectId}`}>
           Open the job
         </Link>
+        {notice ? (
+          <span className="today-card-notice" role="status">
+            {notice}
+          </span>
+        ) : null}
       </>
     );
   }

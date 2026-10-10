@@ -1,7 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { resolveProviderForTenant } from "../integrations/capability-resolution.js";
-import { STUDIO_BILLED_JOB, jobBillingFor } from "../billing/job-billing-reader.js";
+import { jobBillingFor } from "../billing/job-billing-reader.js";
 import { balanceMayBeAttested } from "./agreed-final-balance.js";
 import { raiseFinalInvoice } from "./final-invoice.js";
 import { bookingGateNeeds, projectProfile, singleBillDueDate } from "../job-kinds/job-kinds.js";
@@ -49,13 +49,16 @@ export async function sendFinalBalance(
   if (!balanceMayBeAttested(String(project.get("state")))) throw new Error("BALANCE_NOT_READY");
 
   // A job the studio bills itself never goes to QuickBooks from here
-  // (billing/job-billing.ts). Until StudioCue issues its own invoices
-  // (own-invoicing plan, Phase 3) the studio records the payment instead.
+  // (billing/job-billing.ts): its final is drafted as the studio's own
+  // invoice, numbered with its PDF, for the studio to check and send
+  // (own invoicing, Phase 3).
   const billing = await jobBillingFor(db, input.tenantId, input.projectId, project.data() ?? null);
-  if (billing.method === "studio") throw new Error(STUDIO_BILLED_JOB);
-  const provider = (await resolveProviderForTenant(db, input.tenantId, "invoicing", "quickbooks")) as string;
-  if (provider !== "quickbooks" && provider !== "stripe") throw new Error("INVOICING_NOT_CONNECTED");
-  if (!input.mockMode) {
+  const studioBilled = billing.method === "studio";
+  const provider = studioBilled
+    ? "studio"
+    : ((await resolveProviderForTenant(db, input.tenantId, "invoicing", "quickbooks")) as string);
+  if (!studioBilled && provider !== "quickbooks" && provider !== "stripe") throw new Error("INVOICING_NOT_CONNECTED");
+  if (!studioBilled && !input.mockMode) {
     const connections = await db
       .collection("integrationConnections")
       .where("tenantId", "==", input.tenantId)
@@ -77,7 +80,7 @@ export async function sendFinalBalance(
       invoiceId,
       actor: input.actorId,
       now: new Date().toISOString(),
-      provider,
+      ...(studioBilled ? {} : { provider: provider as "quickbooks" | "stripe" }),
       billing,
       resolveCustomer: true,
       // Booked with nothing paid (paid on the day, invoiced after): this bill
@@ -88,5 +91,5 @@ export async function sendFinalBalance(
     }),
   );
   if (!outcome.raised) throw new Error(REASON_TO_ERROR[outcome.reason] ?? "FINAL_INVOICE_NOT_RAISED");
-  return { ...outcome, provider };
+  return { ...outcome, provider, ...(studioBilled ? { studioInvoice: true } : {}) };
 }

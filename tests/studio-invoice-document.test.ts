@@ -211,3 +211,22 @@ test("the sample invoice adds up, and uses the studio's next number without taki
   const preview = read("functions/src/billing/studio-invoice-preview.ts");
   assert.doesNotMatch(preview, /reserveInvoiceNumber|\.set\(|\.update\(/);
 });
+
+test("a final reads true: tax on the whole price, then the deposit paid, then what's owed", () => {
+  const pdf = payload({
+    kind: "final",
+    amountCents: 582_988,
+    balanceCents: 582_988,
+    taxCents: 58_988,
+    lines: [{ description: "The Signature Collection", quantity: 1, unitAmountCents: 715_000, amountCents: 715_000 }],
+    credits: [{ description: "Deposit paid (INV-0001)", amountCents: 191_000 }],
+    studioPayments: [],
+  });
+  assert.deepEqual(pdf.totals, [
+    { label: "Subtotal", amount: "$7,150.00" },
+    { label: "Sales tax (8.25%)", amount: "$589.88" },
+    { label: "Total", amount: "$7,739.88" },
+  ]);
+  assert.deepEqual(pdf.payments, [{ label: "Deposit paid (INV-0001)", amount: "−$1,910.00" }]);
+  assert.equal(pdf.balance_due, "$5,829.88");
+});

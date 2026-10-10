@@ -134,11 +134,12 @@ test("every server path that raises a bill asks how the job is billed", () => {
     ["functions/src/booking/commands.ts", /\.method === "studio"\s*\)\s*throw new Error\(STUDIO_BILLED_JOB\)/],
     ["functions/src/booking/commands.ts", /\.method === "quickbooks";/],
     // "Send the final bill", the 28-day scheduler and a booking change.
-    ["functions/src/booking/send-final-balance.ts", /billing\.method === "studio"\) throw new Error\(STUDIO_BILLED_JOB\)/],
+    // Phase 3: a self-billed final is drafted as the studio's own invoice, never sent to a provider.
+    ["functions/src/booking/send-final-balance.ts", /const studioBilled = billing\.method === "studio";/],
     ["functions/src/operations/invoice-scheduler.ts", /jobBillingFor\(db, tenantId, project\.id/],
     ["functions/src/booking/amendment-apply.ts", /jobBillingFor\(db, core\.tenantId, core\.projectId/],
-    // And the shared final-bill core refuses without being told.
-    ["functions/src/booking/final-invoice.ts", /options\.billing\.method === "studio"\) return \{ raised: false, reason: "studio_billed" \}/],
+    // And the shared final-bill core drafts the studio's own invoice for one.
+    ["functions/src/booking/final-invoice.ts", /if \(studioBilled\) \{[\s\S]{0,200}writeStudioInvoiceDraft|const written = await writeStudioInvoiceDraft/],
   ];
   for (const [path, pattern] of paths) assert.match(read(path), pattern, path);
   // The invoicing provider is never assumed for a deposit any more: the only
@@ -150,7 +151,8 @@ test("every server path that raises a bill asks how the job is billed", () => {
 test("no screen offers a QuickBooks bill on a job the studio bills itself", () => {
   const screens: Array<[string, RegExp]> = [
     ["components/booking/project-booking-workspace.tsx", /studioBilled \? null : confirmingRetainer === "create"/],
-    ["components/booking/final-balance-actions.tsx", /confirming \|\| studioBilled \? null/],
+    // Phase 3: a self-billed job's button drafts its own final, never "Send the final bill".
+    ["components/booking/final-balance-actions.tsx", /confirming \? null : studioBilled \? \(/],
     ["components/today/today-inbox.tsx", /if \(studioBilled\) \{/],
     ["components/ai/actions/booking-actions.tsx", /billing\?\.method === "studio"/],
   ];
@@ -168,16 +170,4 @@ test("the choice is a booking command, owner/admin, and never a browser write", 
   assert.match(command, /action: "billing\.job_method_set"/);
   assert.match(read("functions/src/booking/commands.ts"), /type: z\.literal\("setJobBillingMethod"\)/);
   assert.match(read("lib/ai/friendly-error.ts"), /BILLING_STUDIO_JOB:/);
-});
-
-test("the final-bill core raises nothing for a job the studio bills itself", async () => {
-  const { raiseFinalInvoice } = await import("../functions/src/booking/final-invoice");
-  const untouched = new Proxy({}, { get: () => assert.fail("nothing is read or written") });
-  const outcome = await raiseFinalInvoice(untouched as never, untouched as never, untouched as never, {
-    invoiceId: "final_p",
-    actor: "final-invoice-scheduler",
-    now: "2026-10-09T00:00:00.000Z",
-    billing: { method: "studio", decided: true, canChoose: false, reason: "only_option" },
-  });
-  assert.deepEqual(outcome, { raised: false, reason: "studio_billed" });
 });

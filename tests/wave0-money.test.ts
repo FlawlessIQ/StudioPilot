@@ -466,3 +466,54 @@ test("the cancelled and on-hold copy promises only what the server does", () => 
   const thread = read("components/projects/project-thread.tsx");
   assert.doesNotMatch(thread, /nothing is being chased/);
 });
+
+// ── Own invoicing, Phase 3: a job the studio bills itself ────────────────
+// Its final is the studio's own invoice: numbered, its PDF queued, taxed at
+// the studio's rate on the whole agreed price, the deposit paid taken off,
+// and nothing sent to QuickBooks (docs/own-invoicing-plan-2026-10-09.md).
+
+const studioBilling = { method: "studio" as const, decided: true, canChoose: false, reason: "only_option" as const };
+
+for (const exempt of [false, true]) {
+  test(`a studio-billed final is drafted as the studio's own invoice${exempt ? " (tax-exempt job)" : ""}`, async () => {
+    const { db, transaction, snap, writes } = fakeFirestore(
+      finalBillStore({
+        "projects/p": { tenantId: "t", state: "PLANNING", eventDate: "2026-10-20", packageSnapshotId: "s", ...(exempt ? { salesTaxExempt: true } : {}) },
+        "packageSnapshots/s": { tenantId: "t", totalCents: 300000, taxCents: 0, retainerCents: 100000, currency: "USD", packageName: "Gold Collection" },
+        "invoiceReferences/dep": { tenantId: "t", projectId: "p", kind: "retainer", provider: null, billedBy: "studio", number: "INV-0004", status: "paid", amountCents: 100000, balanceCents: 0 },
+        "billingSettings/t": { tenantId: "t", studioInvoices: { tax: { rateBasisPoints: 800, label: "Sales tax" } } },
+        "invoiceCounters/t": { tenantId: "t", next: 5 },
+      }),
+    );
+    const outcome = await raiseFinalInvoice(db as never, transaction as never, snap("projects/p") as never, {
+      billing: studioBilling,
+      invoiceId: "final_p",
+      actor: "final-invoice-scheduler",
+      now: "2026-09-22T00:00:00.000Z",
+    });
+    const tax = exempt ? 0 : 24000;
+    assert.deepEqual(outcome, { raised: true, invoiceId: "final_p", amountCents: 300000 + tax - 100000, reviewRequired: false });
+    const invoice = writes.find(([, path]) => path === "invoiceReferences/final_p")![2];
+    assert.equal(invoice.billedBy, "studio");
+    assert.equal(invoice.provider, null);
+    assert.equal(invoice.number, "INV-0005");
+    assert.equal(invoice.status, "draft");
+    assert.equal(invoice.taxCents, tax);
+    assert.equal(invoice.amountCents, 300000 + tax - 100000);
+    assert.deepEqual(invoice.lines, [
+      { description: "Gold Collection", quantity: 1, unitAmountCents: 300000, amountCents: 300000 },
+    ]);
+    // The deposit is printed with the payments, after the total, so the tax
+    // line reads against the whole price it was worked out on.
+    assert.deepEqual(invoice.credits, [{ description: "Deposit paid (INV-0004)", amountCents: 100000 }]);
+    const lines = invoice.lines as Array<{ amountCents: number }>;
+    const credits = invoice.credits as Array<{ amountCents: number }>;
+    assert.equal(
+      lines.reduce((sum, line) => sum + line.amountCents, 0) + tax - credits.reduce((sum, credit) => sum + credit.amountCents, 0),
+      Number(invoice.amountCents),
+    );
+    assert.ok(writes.some(([, path]) => path === "pdfJobs/invoice_final_p_r1"));
+    // Nothing for QuickBooks.
+    assert.ok(!writes.some(([, path]) => path.startsWith("providerJobs/")));
+  });
+}

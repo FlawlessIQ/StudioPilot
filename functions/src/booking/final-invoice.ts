@@ -5,6 +5,8 @@ import { isStandingInvoice } from "./invoice-standing.js";
 import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
 import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
 import type { JobBilling } from "../billing/job-billing.js";
+import { writeStudioInvoiceDraft } from "../billing/studio-invoice-issue.js";
+import { normaliseStudioInvoiceSettings, studioInvoiceTaxCents } from "../billing/studio-invoice-settings.js";
 
 /**
  * Raising the final-balance invoice.
@@ -67,7 +69,7 @@ export async function raiseFinalInvoice(
     billing: JobBilling;
   },
 ): Promise<FinalInvoiceOutcome> {
-  if (options.billing.method === "studio") return { raised: false, reason: "studio_billed" };
+  const studioBilled = options.billing.method === "studio";
   const tenantId = String(project.get("tenantId") ?? "");
   const invoiceReference = db.doc(`invoiceReferences/${options.invoiceId}`);
   if ((await transaction.get(invoiceReference)).exists) return { raised: false, reason: "exists" };
@@ -119,14 +121,18 @@ export async function raiseFinalInvoice(
   // no provider, and then the studio's invoicing provider decides. Before
   // this, every final went to QuickBooks — a Stripe studio's final carried a
   // Stripe customer id into QuickBooks and failed there.
+  // A job the studio bills itself (billing/job-billing.ts) has no provider
+  // and no provider customer: its final is drafted below as the studio's own
+  // invoice, numbered with its PDF, for the studio to send.
   const retainerProvider = String(retainer?.get("provider") ?? "");
   const provider: "quickbooks" | "stripe" =
     retainerProvider === "stripe" || retainerProvider === "quickbooks"
       ? retainerProvider
       : (options.provider ?? "quickbooks");
   const retainerCustomer = retainer?.get("providerCustomerId");
-  let customerId: string;
-  if (typeof retainerCustomer === "string" && retainerCustomer && retainerProvider === provider) customerId = retainerCustomer;
+  let customerId = "";
+  if (studioBilled) customerId = "";
+  else if (typeof retainerCustomer === "string" && retainerCustomer && retainerProvider === provider) customerId = retainerCustomer;
   else if (options.resolveCustomer) customerId = `pending_${project.id}`;
   else return { raised: false, reason: "no_provider_customer" };
 
@@ -152,10 +158,23 @@ export async function raiseFinalInvoice(
     : Number(packageSnapshot.get("taxCents") ?? 0);
   // QuickBooks as the sales-tax authority (switched-on studios): the balance
   // is raised pre-tax and QuickBooks adds the tax — final-tax-authority.ts.
-  const quickBooksTax = await quickBooksIsTaxAuthority(db, transaction, tenantId, provider);
+  const quickBooksTax = studioBilled ? false : await quickBooksIsTaxAuthority(db, transaction, tenantId, provider);
   const basis = finalBillBasis({ totalCents: agreedTotalCents, agreedTaxCents, quickBooksTax });
-  const totalCents = basis.billedTotalCents;
-  const taxCents = basis.taxCents;
+  // The studio's own rate on the whole agreed price (Settings → Invoices),
+  // in place of any QuickBooks estimate the proposal carried; none on a job
+  // exempted from sales tax.
+  let studioSettings: ReturnType<typeof normaliseStudioInvoiceSettings> | null = null;
+  if (studioBilled) {
+    const settingsDoc = await transaction.get(db.doc(`billingSettings/${tenantId}`));
+    studioSettings = normaliseStudioInvoiceSettings(
+      settingsDoc.exists && settingsDoc.get("tenantId") === tenantId ? settingsDoc.data() : null,
+    );
+  }
+  const studioPreTaxCents = agreedTotalCents - (Number.isSafeInteger(agreedTaxCents) ? agreedTaxCents : 0);
+  const studioTaxCents =
+    studioSettings && project.get("salesTaxExempt") !== true ? studioInvoiceTaxCents(studioPreTaxCents, studioSettings) : 0;
+  const totalCents = studioBilled ? studioPreTaxCents + studioTaxCents : basis.billedTotalCents;
+  const taxCents = studioBilled ? studioTaxCents : basis.taxCents;
   // Waived: nothing was expected, so nothing paid is not a discrepancy.
   const retainerExpectedCents = retainer
     ? retainerFromSchedule(
@@ -216,10 +235,47 @@ export async function raiseFinalInvoice(
     retainerPaidCents,
     expectedBalanceCents: amountCents,
     discrepancies,
-    authority: provider,
+    authority: studioBilled ? "studio" : provider,
     requiresHumanReview: true,
     calculatedAt: options.now,
   };
+  if (studioBilled) {
+    // The agreed price as the line, taxed whole (above); what was paid
+    // towards it before is printed with the payments, after the total, so
+    // the tax reads against the price it was worked out on.
+    const packageName = String(packageSnapshot.get("packageName") ?? "") || "Your booking";
+    const lines = [
+      { description: packageName, quantity: 1, unitAmountCents: studioPreTaxCents, amountCents: studioPreTaxCents },
+    ];
+    const credits = [
+      ...(retainerPaidCents
+        ? [{ description: `Deposit paid${retainer?.get("number") ? ` (${String(retainer.get("number"))})` : ""}`, amountCents: retainerPaidCents }]
+        : []),
+      ...(earlierFinalsPaidCents ? [{ description: "Earlier balance payments", amountCents: earlierFinalsPaidCents }] : []),
+    ];
+    const written = await writeStudioInvoiceDraft(db, transaction, {
+      tenantId,
+      projectId: project.id,
+      invoiceId: options.invoiceId,
+      draft: {
+        kind: "final",
+        paidInFull: false,
+        subtotalCents: amountCents - taxCents,
+        completesPrice: true,
+        taxCents,
+        lines,
+        currency: String(packageSnapshot.get("currency") ?? "USD"),
+        dueDate: date(due),
+        // The studio checks the draft before sending; a mismatch is kept
+        // on record for it, as a QuickBooks final would be held.
+        extra: { calculation, credits },
+      },
+      actor: options.actor,
+      now: options.now,
+    });
+    if (!written.created) return { raised: false, reason: "exists" };
+    return { raised: true, invoiceId: options.invoiceId, amountCents, reviewRequired: false };
+  }
   transaction.create(invoiceReference, {
     id: options.invoiceId,
     tenantId,

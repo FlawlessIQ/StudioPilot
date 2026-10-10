@@ -58,6 +58,14 @@ export type StudioInvoiceDraft = {
   lines: Array<{ description: string; quantity: number; unitAmountCents: number; amountCents: number }>;
   currency: string;
   dueDate: string;
+  /**
+   * Tax worked out by the caller, when its base isn't this bill's subtotal:
+   * a final balance is taxed on the whole agreed price, while its subtotal
+   * nets off the deposit already paid. Overrides `completesPrice`.
+   */
+  taxCents?: number;
+  /** Stored alongside (a final's calculation trail). */
+  extra?: Record<string, unknown>;
 };
 
 /** A deposit (or the whole price, for a job paid in full), as a draft. */
@@ -126,12 +134,15 @@ export async function writeStudioInvoiceDraft(
   );
   const draft = input.draft;
   const taxCents =
-    draft.completesPrice && project.get("salesTaxExempt") !== true
-      ? studioInvoiceTaxCents(draft.subtotalCents, settings)
-      : 0;
+    draft.taxCents !== undefined
+      ? draft.taxCents
+      : draft.completesPrice && project.get("salesTaxExempt") !== true
+        ? studioInvoiceTaxCents(draft.subtotalCents, settings)
+        : 0;
   const amountCents = draft.subtotalCents + taxCents;
   reserved.commit();
   transaction.set(invoiceReference, {
+    ...(draft.extra ?? {}),
     id: input.invoiceId,
     tenantId: input.tenantId,
     projectId: input.projectId,

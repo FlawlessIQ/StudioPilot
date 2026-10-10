@@ -51,9 +51,9 @@ export function FinalBalanceActions({
    */
   const [confirming, setConfirming] = useState(false);
   const checkedFirst = useFinalBillCheckedFirst();
-  // A job the studio bills itself (features/billing/job-billing.ts) has no
-  // bill to send from here: the server refuses it (BILLING_STUDIO_JOB), so
-  // recording the payment is the one action, and it leads.
+  // A job the studio bills itself (features/billing/job-billing.ts): the
+  // same command drafts its own final invoice — numbered, with its PDF — for
+  // the studio to check and send. Drafting sends nothing, so no confirm step.
   const studioBilled = useJobBilling(projectId)?.method === "studio";
   const recipient = recipientLabel(
     jobClientRecipient(
@@ -74,7 +74,9 @@ export function FinalBalanceActions({
       refreshTenantRecords("invoiceReferences", "providerJobs", "projects");
       const payload = (outcome as { payload?: Record<string, unknown> }).payload ?? {};
       const provider = payload.provider === "stripe" ? "Stripe" : "QuickBooks";
-      const message = payload.reviewRequired
+      const message = payload.studioInvoice
+        ? "The final invoice is ready, with its PDF. Check it, then email it or send it yourself — it's on Today and Invoices. Nothing has gone to the client yet."
+        : payload.reviewRequired
         ? "The final bill is drafted but needs a look: the retainer on record doesn't match what was agreed. Open Invoices to check it before it goes."
         : provider === "QuickBooks" && checkedFirst
           ? words.done
@@ -92,9 +94,7 @@ export function FinalBalanceActions({
   if (!mayBill) {
     return (
       <p className="form-notice" role="status">
-        {studioBilled
-          ? "An owner or admin records the payment when it comes in."
-          : "An owner or admin sends the final bill, or records it as paid another way."}
+        An owner or admin sends the final bill, or records it as paid another way.
       </p>
     );
   }
@@ -116,20 +116,20 @@ export function FinalBalanceActions({
         </ConfirmStep>
       ) : null}
       <div className="final-balance-buttons">
-        {confirming || studioBilled ? null : (
+        {confirming ? null : studioBilled ? (
+          <button className={buttonClassName} disabled={busy} onClick={() => void send()} type="button">
+            {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : <Send aria-hidden size={14} />}
+            {busy ? "Making it…" : "Create the final invoice"}
+          </button>
+        ) : (
           <button className={buttonClassName} disabled={busy} onClick={() => setConfirming(true)} type="button">
             {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : <Send aria-hidden size={14} />}
             {busy ? "Sending…" : balanceLabel ? `Send the final bill · ${balanceLabel}` : "Send the final bill"}
           </button>
         )}
         {packageSnapshotId && !recording && !confirming ? (
-          <button
-            className={studioBilled ? buttonClassName : secondaryClassName}
-            disabled={busy}
-            onClick={() => setRecording(true)}
-            type="button"
-          >
-            {studioBilled ? (balanceLabel ? `Record the payment · ${balanceLabel}` : "Record the payment") : "Paid another way"}
+          <button className={secondaryClassName} disabled={busy} onClick={() => setRecording(true)} type="button">
+            Paid another way
           </button>
         ) : null}
       </div>
