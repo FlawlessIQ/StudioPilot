@@ -227,13 +227,17 @@ export function smsHref(message: string): string {
   return `sms:?&body=${encodeURIComponent(message)}`;
 }
 
-/** How a parent pays, in a sentence, for the confirmation screen and email. */
+/**
+ * How a parent pays, in a sentence, for the confirmation screen and email.
+ * Only how to pay: the screen and the email each say to show the
+ * confirmation number, so it isn't said here too (prod walk, 2026-10-10).
+ */
 export function howToPay(method: EventPaymentMethod, config: Pick<EventSignupConfig, "venmoHandle" | "zelleTo" | "checkPayableTo">, studioName: string): string {
   switch (method) {
     case "cash":
-      return `Pay ${studioName} in cash at the event. Show your confirmation number.`;
+      return `Pay ${studioName} in cash at the event.`;
     case "check":
-      return `Bring a check to the event${config.checkPayableTo ? `, payable to ${config.checkPayableTo}` : ""}. Show your confirmation number.`;
+      return `Bring a check to the event${config.checkPayableTo ? `, payable to ${config.checkPayableTo}` : ""}.`;
     case "venmo":
       return `Pay @${config.venmoHandle ?? ""} on Venmo. Put the athlete's name in the note.`;
     case "zelle":

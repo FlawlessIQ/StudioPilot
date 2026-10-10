@@ -313,7 +313,7 @@ function InviteParentsSheet({
           <h3>Email parents the link</h3>
           <p>Paste parents&rsquo; emails from a team list or spreadsheet. Each gets one email with the link; nobody is emailed twice.</p>
         </header>
-        <div className="record-sheet-fields">
+        <div className="record-sheet-fields event-invite-fields">
           <label>
             Parents&rsquo; emails
             <textarea

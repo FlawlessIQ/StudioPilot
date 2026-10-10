@@ -11722,6 +11722,9 @@ textarea:focus-visible {
 .event-qr svg{display:block;width:100%;height:100%}
 .event-qr.is-loading{background:var(--soft);border-radius:8px}
 .event-qr-sheet .event-signup-panel-link{text-align:center}
+/* One column: the count of emails found reads under the box, not beside it. */
+.record-sheet-fields.event-invite-fields{grid-template-columns:minmax(0,1fr);gap:6px}
+.record-sheet-fields.event-invite-fields small{color:var(--muted)}
 .event-signup-reset{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px}
 .event-signup-reset p{margin:0;font-size:13px}
 .record-sheet.event-signup-settings{gap:22px}

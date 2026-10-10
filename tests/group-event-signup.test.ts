@@ -149,6 +149,9 @@ test("Venmo opens to the studio with the amount and the athlete; the text is the
 test("how to pay says where the money goes, for every method", () => {
   const config = { venmoHandle: "GR", zelleTo: "pay@gr.example", checkPayableTo: "GR Productions LLC" };
   assert.match(howToPay("cash", config, "GR"), /cash at the event/);
+  // The screen and the email say to show the number; this sentence doesn't repeat it.
+  for (const method of ["cash", "check", "venmo", "zelle", "pay_link"] as const)
+    assert.doesNotMatch(howToPay(method, config, "GR"), /confirmation number/i, method);
   assert.match(howToPay("check", config, "GR"), /payable to GR Productions LLC/);
   assert.match(howToPay("venmo", config, "GR"), /@GR on Venmo/);
   assert.match(howToPay("zelle", config, "GR"), /Zelle to pay@gr\.example/);
