@@ -49,6 +49,9 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
   // What a package is offered in: a photographer's or a DJ's proposal, a
   // makeup artist's or hair stylist's quote (trades.ts).
   const offer = tradeVocab(trade).proposal.toLowerCase();
+  // A photographer's retainer, a vendor's deposit (trades.ts `deposit`).
+  const deposit = tradeVocab(trade).deposit;
+  const Deposit = `${deposit.charAt(0).toUpperCase()}${deposit.slice(1)}`;
   const roles = tradeShape.coverageRoles as readonly CoverageRole[];
   const router = useRouter();
   const { records, loading } = useTenantDocuments("packages");
@@ -204,7 +207,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
       return;
     }
     if (mode === "per_crew_member" && !billPhotographers && !billVideographers) {
-      setError("Choose at least one role the retainer charges for.");
+      setError(`Choose at least one role the ${deposit} charges for.`);
       return;
     }
     if (perCrewProblem) {
@@ -341,7 +344,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         {hasDeposit ? (
         <>
         <label>
-          Retainer type
+          {deposit === "deposit" ? "Deposit type" : "Retainer type"}
           <select
             onChange={(event) => set("mode", event.target.value as RetainerMode)}
             value={mode}
@@ -353,9 +356,9 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         </label>
         <label>
           {mode === "percentage"
-            ? "Retainer percent"
+            ? `${Deposit} percent`
             : mode === "fixed"
-              ? "Retainer amount (USD)"
+              ? `${Deposit} amount (USD)`
               : "Amount per crew member (USD)"}
           <input
             min="0"

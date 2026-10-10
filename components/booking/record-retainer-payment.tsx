@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import { Banknote } from "lucide-react";
 import { recordRetainerPayment } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 
 /**
  * Recording a retainer that arrived outside StudioCue.
@@ -49,7 +51,9 @@ export function RecordRetainerPayment({
   /** A job paid in full to book (a family session): the whole price, not a retainer. */
   paidInFull?: boolean;
 }) {
-  const noun = paidInFull ? "payment" : "retainer";
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const deposit = tradeVocab(useWorkspace().tenantTrade).deposit;
+  const noun = paidInFull ? "payment" : deposit;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -81,7 +85,7 @@ export function RecordRetainerPayment({
         // Not "Confirm the booking to finish": with the agreement signed the
         // job usually books itself seconds later (prod walk, 2026-10-06), and
         // the page re-reads to show which happened.
-        `${paidInFull ? "Payment" : "Retainer"} recorded against your name.`,
+        `${noun.charAt(0).toUpperCase()}${noun.slice(1)} recorded against your name.`,
       );
     } catch (caught: unknown) {
       setNotice(
@@ -96,7 +100,7 @@ export function RecordRetainerPayment({
     <details className="record-signed-agreement">
       <summary>
         <Banknote aria-hidden="true" size={15} />
-        {paidInFull ? "Paid outside StudioCue? Record it" : "Retainer paid outside StudioCue? Record it"}
+        {paidInFull ? "Paid outside StudioCue? Record it" : `${deposit.charAt(0).toUpperCase()}${deposit.slice(1)} paid outside StudioCue? Record it`}
       </summary>
       <form onSubmit={(event) => void submit(event)}>
         <p>
@@ -111,7 +115,7 @@ export function RecordRetainerPayment({
             in and change them. */}
         {standingInvoice ? (
           <p className="record-attestation-caveat">
-            {`This marks the ${paidInFull ? "invoice" : "retainer invoice"} already out with the client as paid,`}{" "}
+            {`This marks the ${paidInFull ? "invoice" : `${deposit} invoice`} already out with the client as paid,`}{" "}
             rather than raising a second one. It does not mark it paid in{" "}
             {providerLabel ?? "your accounting tool"} — do that there too, so the
             two agree.

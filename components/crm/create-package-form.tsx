@@ -174,6 +174,8 @@ export function CreatePackageForm({
   // "Coverage hours" and "Deliverables" are a photographer's words: a DJ's
   // "Hours of music", an artist's "Hours on site", and "What's included".
   const words = tradeVocab(trade);
+  // A photographer's retainer, a vendor's deposit (trades.ts `deposit`).
+  const Deposit = `${words.deposit.charAt(0).toUpperCase()}${words.deposit.slice(1)}`;
   const ownDefaults = VENDOR_DEFAULTS[tradeId];
   useEffect(() => {
     if (!ownDefaults) return;
@@ -328,7 +330,7 @@ export function CreatePackageForm({
         {hasDeposit ? (
         <>
         <label>
-          Retainer type <span className="required-mark">Required</span>
+          {words.deposit === "deposit" ? "Deposit type" : "Retainer type"} <span className="required-mark">Required</span>
           <select {...register("retainerMode")}>
             <option value="percentage">Percent of total</option>
             <option value="fixed">Fixed amount</option>
@@ -338,9 +340,9 @@ export function CreatePackageForm({
         </label>
         <label>
           {retainerMode === "percentage"
-            ? "Retainer percent"
+            ? `${Deposit} percent`
             : retainerMode === "fixed"
-              ? "Retainer amount (USD)"
+              ? `${Deposit} amount (USD)`
               : "Amount per crew member (USD)"}{" "}
           <span className="required-mark">Required</span>
           <input
@@ -401,7 +403,7 @@ export function CreatePackageForm({
             <InfoHint term="coverage" />
           ) : (
             <InfoHint label={words.coverage}>
-              {`Who you send and for how long: your ${words.crew} and their hours. It fills your contract and can set a per-crew retainer.`}
+              {`Who you send and for how long: your ${words.crew} and their hours. It fills your contract and can set a per-crew ${words.deposit}.`}
             </InfoHint>
           )}
         </p>

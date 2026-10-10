@@ -1,4 +1,5 @@
 import { clientRef, jobKindOf } from "@/features/job-kinds/job-kinds";
+import { tradeVocab } from "@/features/trades/trades";
 
 /**
  * The morning handoff on Today: "Since yesterday, Cue handled 7 things. 4 need
@@ -44,6 +45,8 @@ export type HandoffInput = {
   bookingOrchestrations?: HandoffRecord[] | null;
   crewAssignments?: HandoffRecord[] | null;
   aiActions?: HandoffRecord[] | null;
+  /** The studio's trade, for its words: a vendor's client pays a deposit, not a retainer (trades.ts). */
+  tenantTrade?: unknown;
 };
 
 /** How far back "since yesterday" reaches: the last 24 hours. */
@@ -94,7 +97,7 @@ type Lookup = {
   job: HandoffRecord;
   primaryId: string;
   client: string;
-  byId: (collection: keyof Omit<HandoffInput, "now" | "emailJobs">, id: string) => HandoffRecord | null;
+  byId: (collection: keyof Omit<HandoffInput, "now" | "emailJobs" | "tenantTrade">, id: string) => HandoffRecord | null;
 };
 
 /**
@@ -254,8 +257,10 @@ export function cueHandoff(input: HandoffInput): HandoffItem[] {
     const projectId = text(job.projectId) || null;
     const project = projectId ? byId("projects", projectId) : null;
     const client = clientNameFor(job, project);
-    const line = describe({ job, primaryId, client, byId });
-    if (!line) continue;
+    const described = describe({ job, primaryId, client, byId });
+    if (!described) continue;
+    // "Sent Riley Park their deposit invoice" for a DJ (trades.ts `deposit`).
+    const line = described.replace(/\bretainer\b/g, tradeVocab(input.tenantTrade).deposit);
     seen.add(primaryId);
     items.push({
       id: primaryId,

@@ -143,7 +143,8 @@ test("a superseded agreement emails the couple, gets its own card, and the job's
   const record = booking.slice(booking.indexOf('command.type === "recordSignedAgreement") {'));
   assert.match(record, /emailJobs\/contract_superseded_\$\{outstanding\.id\}/);
   assert.match(record, /type: "contract_superseded"/);
-  assert.match(record, /nextAction: "Collect the retainer"/);
+  // In the studio's word: a vendor's client pays a deposit (trades.ts).
+  assert.match(record, /nextAction: `Collect the \$\{tradeVocab\(await tenantTrade\(firestore, command\.tenantId\)\)\.deposit\}`/);
   const email = renderEmailTemplate({
     key: "contract_superseded",
     brand,

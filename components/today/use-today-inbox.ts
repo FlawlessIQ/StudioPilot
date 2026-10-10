@@ -496,6 +496,7 @@ export function useTodayInbox(): {
     ),
     handoff: cueHandoff({
       now,
+      tenantTrade: workspace.tenantTrade,
       emailJobs: recentEmailJobs,
       projects: projects.records,
       leads: leads.records,

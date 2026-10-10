@@ -24,7 +24,7 @@ export function packagesPageDescription(trade: unknown): string {
 export function newPackageIntro(trade: unknown): string {
   return tradeProfile(trade).family === "photo"
     ? "Define the price, coverage, retainer, and deliverables clients can choose."
-    : `Define the price, hours, retainer, and ${tradeVocab(trade).includedLabel.toLowerCase()} for each package clients can choose.`;
+    : `Define the price, hours, ${tradeVocab(trade).deposit}, and ${tradeVocab(trade).includedLabel.toLowerCase()} for each package clients can choose.`;
 }
 
 /** The Library's Packages shelf. */

@@ -915,6 +915,8 @@ function ProjectLifecycleLanes({
   related: RelatedRecords;
   evidence: ReadinessEvidence;
 }) {
+  // Its words: a vendor's client pays a deposit, not a retainer (trades.ts).
+  const trade = useWorkspace().tenantTrade;
   // P23: a cancelled or on-hold job owes nobody anything. Listing "Client
   // needs: pay the balance" and "Crew needs: acknowledge the schedule" on a
   // cancelled wedding — with a live readiness % — is wrong and confusing.
@@ -959,6 +961,7 @@ function ProjectLifecycleLanes({
   // stays: that is the tray's blind spot, not a duplicate.
   const projection = projectLifecycleProjection({
     project,
+    trade,
     checkpoints,
     evidence,
     ...related,

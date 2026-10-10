@@ -920,6 +920,8 @@ export function StudioProposalComposer() {
   // is a vendor's "service" (trades.ts).
   const words = offerWords(workspace.tenantTrade);
   const vocab = tradeVocab(workspace.tenantTrade);
+  // A photographer's retainer, a vendor's deposit (trades.ts `deposit`).
+  const Deposit = `${vocab.deposit.charAt(0).toUpperCase()}${vocab.deposit.slice(1)}`;
   const photo = tradeProfile(workspace.tenantTrade).family === "photo";
   // A makeup artist or hair stylist is paid on the day (trades.ts).
   const balanceDaysBefore = tradeProfile(workspace.tenantTrade).balanceDueDaysBefore;
@@ -1749,7 +1751,7 @@ export function StudioProposalComposer() {
                 </label>
                 {selectedPayment === "deposit_and_balance" || selectedPayment === "paid_in_full" ? (
                   <label className="proposal-field">
-                    <span>{selectedPayment === "paid_in_full" ? "Payment due" : "Retainer due"}</span>
+                    <span>{selectedPayment === "paid_in_full" ? "Payment due" : vocab.deposit === "deposit" ? "Deposit due" : "Retainer due"}</span>
                     <input
                       onChange={(event) =>
                         setRetainerDueDate(event.target.value)
@@ -1890,7 +1892,7 @@ export function StudioProposalComposer() {
                       ? "Paid on the day"
                       : "Invoiced after the event"}
                 </small>
-                <em>No retainer and no final balance for this kind of job.</em>
+                <em>{`No ${vocab.deposit} and no final balance for this kind of job.`}</em>
               </span>
             </div>
           ) : (
@@ -1901,7 +1903,7 @@ export function StudioProposalComposer() {
                 Retainer <InfoHint term="retainer" />
               </small>
               <input
-                aria-label="Retainer amount"
+                aria-label={`${Deposit} amount`}
                 min="0"
                 onChange={(event) => setRetainerOverride(event.target.value)}
                 step="0.01"
@@ -1967,6 +1969,9 @@ export function StudioProposalWorkspace({
   const words = offerWords(workspace.tenantTrade);
   const offer = words.offer;
   const coverageWord = tradeVocab(workspace.tenantTrade).coverage;
+  // A photographer's retainer, a vendor's deposit (trades.ts `deposit`).
+  const depositWord = tradeVocab(workspace.tenantTrade).deposit;
+  const DepositWord = `${depositWord.charAt(0).toUpperCase()}${depositWord.slice(1)}`;
   // The job, for how its kind books and is paid (job-kinds.ts).
   const { records: proposalProjects } = useTenantDocuments("projects");
   const { records: proposalContacts } = useTenantDocuments("contacts");
@@ -2639,7 +2644,7 @@ export function StudioProposalWorkspace({
               <h2>
                 Clear milestones, before accounting.
                 <InfoHint label="Payment schedule">
-                  {`When the ${offer} expires, and when the retainer and the final balance are due. The couple sees these as their payment plan.`}
+                  {`When the ${offer} expires, and when the ${depositWord} and the final balance are due. The couple sees these as their payment plan.`}
                 </InfoHint>
               </h2>
             </div>
@@ -2662,9 +2667,9 @@ export function StudioProposalWorkspace({
                     the studio no way to change it (GR, 2026-09-30). */}
                 {jobPayment === "deposit_and_balance" ? (
                 <label className="proposal-field">
-                  <span>Retainer amount</span>
+                  <span>{`${DepositWord} amount`}</span>
                   <input
-                    aria-label="Retainer amount"
+                    aria-label={`${DepositWord} amount`}
                     min="0"
                     onChange={(eventValue) => setDraftRetainer(eventValue.target.value)}
                     step="0.01"
@@ -2683,7 +2688,7 @@ export function StudioProposalWorkspace({
                 ) : null}
                 {jobPayment === "deposit_and_balance" || jobPayment === "paid_in_full" ? (
                 <label className="proposal-field">
-                  <span>{jobPayment === "paid_in_full" ? "Payment due" : "Retainer due"}</span>
+                  <span>{jobPayment === "paid_in_full" ? "Payment due" : depositWord === "deposit" ? "Deposit due" : "Retainer due"}</span>
                   <input
                     onChange={(eventValue) =>
                       setRetainerDueDate(eventValue.target.value)
@@ -3179,8 +3184,8 @@ export function StudioProposalWorkspace({
                 <p>
                   {jobNeeds.agreement
                     ? oneLink && proposal.acceptedWithContractId
-                      ? "Accepted and signed in one go, through the booking link, and the client pays the deposit straight after. The job shows where that stands."
-                      : "The project can now move into the agreement and retainer workflow."
+                      ? `Accepted and signed in one go, through the booking link; the client then pays the ${depositWord}. The job shows where that stands.`
+                      : `The project can now move into the agreement and ${depositWord} workflow.`
                     : jobNeeds.payment
                       ? "Their invoice is next; paying it books the job."
                       : "The job books on its date and contact details."}

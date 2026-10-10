@@ -1793,7 +1793,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const plan of rows(input.bookingOrchestrations)) {
     if (text(plan.status) !== "needs_attention") continue;
     const blockers = Array.isArray(plan.blockers)
-      ? [...new Set(plan.blockers.map((value) => bookingBlockerLabel(value)))].join(", ")
+      ? [...new Set(plan.blockers.map((value) => bookingBlockerLabel(value, input.tenantTrade)))].join(", ")
       : "";
     exception({
       id: `booking-${plan.id}`,
@@ -2091,7 +2091,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       id: `retainer-review-${invoice.id}`,
       lane: "act",
       kind: "invoice",
-      title: `Check and send ${clientOf(job)}'s retainer · ${amount}`,
+      title: `Check and send ${clientOf(job)}'s ${tradeVocab(input.tenantTrade).deposit} · ${amount}`,
       detail: "It's in QuickBooks, held for you to check. Nothing has gone to them yet.",
       evidence: null,
       projectId,

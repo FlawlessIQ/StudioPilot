@@ -334,7 +334,7 @@ export function NativeContractStep({
           )}
           {status !== "completed" ? (
             <p className="native-contract-note">
-              {`${bookingLink ? "They sign in their portal, then pay the deposit on the next screen." : "They sign in their portal."} A reminder goes out at 3 and 7 days if it’s still unsigned${
+              {`${bookingLink ? `They sign in their portal, then pay the ${tradeVocab(workspace.tenantTrade).deposit}.` : "They sign in their portal."} A reminder goes out at 3 and 7 days if it’s still unsigned${
                 live.lastResentAt ? `; you sent it again ${formatSignedAt(live.lastResentAt)}` : ""
               }.${ownerOrAdmin ? "" : " An owner or admin can send it again or withdraw it."}`}
             </p>

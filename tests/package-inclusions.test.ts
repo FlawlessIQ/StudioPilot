@@ -68,7 +68,7 @@ test("a draft save that leaves the retainer out keeps it", () => {
     /command\.input\.retainerOverrideCents === undefined\s*\? typeof storedOverride === "number"\s*\? storedOverride\s*: null\s*: command\.input\.retainerOverrideCents;/,
   );
   const page = source("components/proposals/studio-proposal-workspace.tsx");
-  assert.match(page, /aria-label="Retainer amount"[\s\S]*onChange=\{\(eventValue\) => setDraftRetainer/);
+  assert.match(page, /aria-label=\{`\$\{DepositWord\} amount`\}[\s\S]*onChange=\{\(eventValue\) => setDraftRetainer/);
   assert.match(page, /if \(draftRetainer !== null\) \{\s*input\.retainerOverrideCents =/);
   // Cue's draft save sends the schedule's dates, not fields that don't exist.
   const cue = source("components/ai/actions/booking-actions.tsx");

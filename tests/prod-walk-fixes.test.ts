@@ -14,7 +14,9 @@ test("a booking-check blocker reads as a sentence, old codes included", () => {
   assert.equal(bookingBlockerLabel("retainerSatisfied"), "the retainer isn't paid");
   assert.equal(bookingBlockerLabel("someNewThing"), "some new thing");
   assert.equal(bookingBlockerLabel(undefined), "something needs checking");
-  assert.match(source("features/today/inbox.ts"), /plan\.blockers\.map\(\(value\) => bookingBlockerLabel\(value\)\)/);
+  // A vendor's client pays a deposit (vendor wording sweep, 2026-10-10).
+  assert.equal(bookingBlockerLabel("retainerSatisfied", "dj"), "the deposit isn't paid");
+  assert.match(source("features/today/inbox.ts"), /plan\.blockers\.map\(\(value\) => bookingBlockerLabel\(value, input\.tenantTrade\)\)/);
 });
 
 test("a stage change without a reason says so instead of doing nothing", () => {

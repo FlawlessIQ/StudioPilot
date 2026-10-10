@@ -340,7 +340,7 @@ export function ClientProposal() {
               {proposal.combinedContractId
                 ? tradeProfile(workspace.tenantTrade).journey.oneLinkBooking
                   ? "These prices are Part 2 of your booking agreement. Signing it accepts them, and you pay your deposit right after."
-                  : "These prices are Part 2 of your booking agreement. Signing it accepts them — no payment is taken until the retainer."
+                  : `These prices are Part 2 of your booking agreement. Signing it accepts them — no payment is taken until the ${tradeVocab(workspace.tenantTrade).deposit}.`
                 : needs.agreement
                   ? "Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps."
                   : "Accepting doesn’t take a payment. Any payment is a separate, secure step."}

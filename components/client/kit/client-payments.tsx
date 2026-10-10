@@ -7,6 +7,7 @@ import { resolveFile } from "@/lib/documents/resolve-file";
 import { Actions, Button, Card, List, Main, Pill, PoweredBy, Row, Steps } from "@/components/kit/kit";
 import { ClientAutopay } from "@/components/client/client-autopay";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
 import { morningBalance } from "@/features/billing/balance-on-the-day";
@@ -26,10 +27,16 @@ import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
 import { todayLocalIso } from "@/lib/format/event-date";
 
-/** "retainer" and "final" are the system's words, not a couple's. */
-function invoiceName(kind: unknown): string {
+/**
+ * "retainer" and "final" are the system's words, not a couple's — and a
+ * vendor's client pays a deposit (trades.ts `deposit`).
+ */
+function invoiceName(kind: unknown, trade?: unknown): string {
   const value = text(kind, "");
-  if (value === "retainer") return "Retainer";
+  if (value === "retainer") {
+    const word = tradeVocab(trade).deposit;
+    return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+  }
   if (value === "final") return "Final balance";
   return value ? value.replace(/^\w/, (c) => c.toUpperCase()) : "Invoice";
 }
@@ -154,7 +161,7 @@ export function ClientPayments() {
     due && payRoute
       ? invoicePayNote(payRoute, {
           studioName,
-          invoiceName: invoiceName(due.kind),
+          invoiceName: invoiceName(due.kind, workspace.tenantTrade),
           providerName: provider,
           hasInstructions: payRoute === "direct" && Boolean(instructions),
         })
@@ -195,7 +202,7 @@ export function ClientPayments() {
         {due ? (
           <Card tone="accent">
             <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
-              {invoiceName(due.kind)} · {invoiceOverdue(due) ? "overdue" : `due ${date(due.dueDate)}`}
+              {invoiceName(due.kind, workspace.tenantTrade)} · {invoiceOverdue(due) ? "overdue" : `due ${date(due.dueDate)}`}
             </p>
             <p className="kit-amount">{money(due.balanceCents, due.currency)}</p>
             {number(due.balanceCents) < number(due.amountCents) ? (
@@ -267,7 +274,7 @@ export function ClientPayments() {
                 ]
                   .filter(Boolean)
                   .join(" · ")}
-                title={invoiceName(invoice.kind)}
+                title={invoiceName(invoice.kind, workspace.tenantTrade)}
                 trailing={
                   <>
                     {invoiceOverdue(invoice) ? (

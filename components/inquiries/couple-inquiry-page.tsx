@@ -508,8 +508,8 @@ export function CoupleInquiryPage({ token }: { token: string }) {
             lede: `${studio} has emailed your invoice; paying it books ${words.yourEvent}.`,
           }
         : {
-            heading: "one last step: your retainer",
-            lede: `Your agreement is signed. ${studio} has emailed the retainer invoice; paying it holds your date.`,
+            heading: `one last step: your ${tradeWords.deposit}`,
+            lede: `Your agreement is signed. ${studio} has emailed the ${tradeWords.deposit} invoice; paying it holds your date.`,
           },
     booked: {
       heading: "you’re booked",

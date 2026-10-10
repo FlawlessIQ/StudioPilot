@@ -1,4 +1,4 @@
-import { helpTrade, type HelpAudience, type HelpTerm, type HelpTermSource, type HelpTrade } from "./types";
+import { helpTrade, inTradeWords, type HelpAudience, type HelpTerm, type HelpTermSource, type HelpTrade } from "./types";
 
 /**
  * StudioCue's vocabulary, defined once.
@@ -406,9 +406,9 @@ const WORDS: readonly HelpTermSource[] = [
 function inTrade(source: HelpTermSource, t: HelpTrade): HelpTerm {
   const word: HelpTerm = {
     id: source.id,
-    term: typeof source.term === "function" ? source.term(t) : source.term,
+    term: inTradeWords(typeof source.term === "function" ? source.term(t) : source.term, t),
     audience: source.audience,
-    hint: typeof source.hint === "function" ? source.hint(t) : source.hint,
+    hint: inTradeWords(typeof source.hint === "function" ? source.hint(t) : source.hint, t),
   };
   if (source.explainer) word.explainer = source.explainer;
   if (source.trades) word.trades = source.trades;

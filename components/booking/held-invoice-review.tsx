@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CircleAlert, LoaderCircle, Mail, PencilLine, RefreshCw, Send } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { heldInvoiceView } from "@/features/billing/held-invoice-review";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { requestBillingAddress, sendHeldInvoice } from "@/lib/booking/command-client";
@@ -158,7 +159,7 @@ export function HeldInvoiceReview({
               ? view.taxCents > 0
                 ? `Send with tax · ${money(view.totalCents, currency)}`
                 : `Send · ${money(view.totalCents, currency)}`
-              : `Send the retainer · ${money(view.totalCents, currency)}`}
+              : `Send the ${tradeVocab(workspace.tenantTrade).deposit} · ${money(view.totalCents, currency)}`}
           </button>
           {view.offerWithoutTax ? (
             <button
@@ -213,7 +214,7 @@ export function HeldInvoiceReview({
           <p>
             {final
               ? "To change the bill, void this one — here and in QuickBooks — then send a corrected final bill. Check the job's packages, payments and sales tax setting first."
-              : "To change the retainer, void this one — here and in QuickBooks — then raise a corrected retainer invoice."}
+              : `To change the ${tradeVocab(workspace.tenantTrade).deposit}, void this one — here and in QuickBooks — then raise a corrected ${tradeVocab(workspace.tenantTrade).deposit} invoice.`}
           </p>
           <VoidInvoice defaultReason="Correcting the bill before it goes" invoice={invoice} onDone={onDone} />
         </>

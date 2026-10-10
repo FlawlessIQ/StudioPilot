@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BookingAutopilotWorkspace } from "@/components/booking/booking-autopilot-workspace";
+import { BookingEvidenceIntro } from "@/components/booking/booking-evidence-intro";
 import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProjectContextBar, StudioDomainPage } from "@/components/studio/live-domain-view";
@@ -8,7 +9,7 @@ import { BookingChecklistIntro } from "@/components/studio/page-intros";
 export const metadata: Metadata = {
   title: "Booking",
   description:
-    "Turn an inquiry into a package, an offer, an agreement, and a paid retainer — with the studio approving each step.",
+    "Turn an inquiry into a package, an offer, an agreement, and a paid retainer or deposit — with the studio approving each step.",
 };
 
 export default async function BookingPage({
@@ -26,11 +27,7 @@ export default async function BookingPage({
           <section className="booking-evidence-heading">
             <p className="eyebrow">Agreement and payment</p>
             <h2>Getting them booked</h2>
-            <p>
-              The job is booked once what its kind asks for is in — a signed
-              agreement and a retainer for a wedding, payment alone for a
-              family session — confirmed by a connected app, or recorded by you.
-            </p>
+            <BookingEvidenceIntro />
           </section>
           <ProjectBookingWorkspace projectId={project} />
         </div>

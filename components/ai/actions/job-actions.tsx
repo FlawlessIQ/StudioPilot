@@ -63,9 +63,10 @@ import {
 /** The steps only evidence moves, in the trade's words: no delivery for a trade that delivers nothing. */
 function proofSteps(trade: unknown): string {
   const offer = tradeVocab(trade).proposal.toLowerCase();
+  const deposit = tradeVocab(trade).deposit;
   return tradeProfile(trade).delivery
-    ? `an accepted ${offer}, a signature, a paid retainer, a delivery`
-    : `an accepted ${offer}, a signature, a paid retainer`;
+    ? `an accepted ${offer}, a signature, a paid ${deposit}, a delivery`
+    : `an accepted ${offer}, a signature, a paid ${deposit}`;
 }
 
 const PRE_BOOKING = new Set(["LEAD", "CONSULTATION", "PROPOSAL", "CONTRACT_PENDING", "RETAINER_PENDING"]);

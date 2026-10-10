@@ -112,6 +112,10 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   const gate = useWorkspaceGate();
   // A makeup artist or hair stylist sends a quote, not a proposal (trades.ts).
   const offer = tradeVocab(workspace.tenantTrade).proposal.toLowerCase();
+  // The payment that books the date: a photographer's retainer, a vendor's
+  // deposit (trades.ts `deposit`; vendor wording sweep, 2026-10-10).
+  const depositWord = tradeVocab(workspace.tenantTrade).deposit;
+  const DepositWord = `${depositWord.charAt(0).toUpperCase()}${depositWord.slice(1)}`;
   const [project, setProject] = useState<RecordValue | null>(null);
   const [proposal, setProposal] = useState<RecordValue | null>(null);
   /**
@@ -721,7 +725,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
     },
     {
       number: 2,
-      title: kindNeeds.payment && kindProfile.payment !== "paid_in_full" ? (oneLink ? "Deposit" : "Retainer") : "Payment",
+      title: kindNeeds.payment && kindProfile.payment !== "paid_in_full" ? DepositWord : "Payment",
       state: bookingComplete ? "done" : stepState(2),
       // "Waits for the signature" is only true while it is waiting. Once
       // this becomes the live step that sentence describes the past and
@@ -739,7 +743,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             : agreementSettled
               ? "Ready to raise"
               : oneLink
-                ? "Paid straight after signing"
+                ? "Paid after signing"
                 : "Waits for the signature",
     },
     {
@@ -752,9 +756,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
           ? "Ready to confirm"
           : paidInFull
             ? "Waits for the payment"
-            : oneLink
-              ? "Waits for the deposit"
-              : "Waits for the retainer",
+            : `Waits for the ${depositWord}`,
     },
   ];
 
@@ -788,7 +790,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         },
       });
       setNotice(
-        `Booking sequence approved. The contract is queued through ${signingProviderLabel}; StudioCue will prepare the retainer after signature and confirm the booking after payment.`,
+        `Booking sequence approved. The contract is queued through ${signingProviderLabel}; StudioCue will prepare the ${depositWord} after signature and confirm the booking after payment.`,
       );
       // Refresh the shared tenant store too, so the project badge in the
       // context bar, the autopilot hero, and the readiness gauge reflect the
@@ -850,7 +852,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
         },
       });
       setNotice(
-        `The retainer invoice is being raised in ${invoicingName}; ${
+        `The ${depositWord} invoice is being raised in ${invoicingName}; ${
           recipient ?? "the couple"
         } gets it by email.`,
       );
@@ -1343,9 +1345,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                   /* No signing app to send through. Say what happens instead,
                      and let the record control below be the action. */
                   <p className="booking-signing-absent">
-                    Send your agreement the way you usually do — by email or in
-                    person — then record the signature below. The retainer
-                    follows, exactly as it would through a signing app.
+                    {`Send your agreement the way you usually do — by email or in person — then record the signature below. The ${depositWord} follows, exactly as it would through a signing app.`}
                   </p>
                 ) : templateConfigured ? (
                   // Provider internals stay out of the flow: a configured
@@ -1476,10 +1476,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <aside className="booking-provider-migration">
                 <strong>One approval completes the routine booking work</strong>
                 <small>
-                  Approve this sequence once. StudioCue will wait for verified
-                  signature evidence, create the retainer, wait for provider
-                  payment evidence, and finish project setup. It stops if an
-                  exception needs you.
+                  {`Approve this sequence once. StudioCue will wait for verified signature evidence, create the ${depositWord}, wait for provider payment evidence, and finish project setup. It stops if an exception needs you.`}
                 </small>
               </aside>
             ) : null}
@@ -1508,8 +1505,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
             <div className="booking-step-heading">
               <ReceiptText aria-hidden="true" />
               <span>
-                <small>{paidInFull ? "Paid in full" : oneLink ? "Paid straight after signing" : "The deposit"}</small>
-                <h2>{paidInFull ? "Payment" : oneLink ? "Deposit" : "Retainer"}</h2>
+                <small>{paidInFull ? "Paid in full" : oneLink ? "Paid after signing" : "The deposit"}</small>
+                <h2>{paidInFull ? "Payment" : DepositWord}</h2>
               </span>
               <StatusBadge
                 tone={invoicePaid ? "success" : invoice ? "warning" : "neutral"}
@@ -1554,11 +1551,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     busy={busy === "retainer"}
                     cancelLabel="Not now"
                     confirmLabel={`Send the ${currency(agreedRetainerCents, packageSnapshot?.currency)} invoice`}
-                    label="Send the retainer invoice again?"
+                    label={`Send the ${depositWord} invoice again?`}
                     onCancel={() => setConfirmingRetainer(null)}
                     onConfirm={() => void createRetainer().then(() => setConfirmingRetainer(null))}
                   >
-                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} ${paidInFull ? "invoice for the full price" : "retainer invoice"}, due ${formatDueDate(dueDate)}, and ${recipient ?? "the client"} is emailed it. Once it's out it can only be voided, not unsent.`}
+                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} ${paidInFull ? "invoice for the full price" : `${depositWord} invoice`}, due ${formatDueDate(dueDate)}, and ${recipient ?? "the client"} is emailed it. Once it's out it can only be voided, not unsent.`}
                   </ConfirmStep>
                 ) : (
                   <button
@@ -1778,7 +1775,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <VoidInvoice
                   invoice={invoice}
                   onDone={(message) => {
-                    setNotice(`${message} Raise the corrected retainer below.`);
+                    setNotice(`${message} Raise the corrected ${depositWord} below.`);
                     void load();
                   }}
                 />
@@ -1796,8 +1793,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <span>
                   <strong>Waiting for verified signature</strong>
                   <small>
-                    StudioCue will create this retainer automatically after{" "}
-                    {signingProviderLabel}{" "} confirms completion.
+                    {`StudioCue will create this ${depositWord} automatically after ${signingProviderLabel} confirms completion.`}
                   </small>
                 </span>
               </div>
@@ -1805,7 +1801,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
               <div className="booking-action-form">
                 {voidedRetainer ? (
                   <small>
-                    {`The last retainer invoice (${currency(
+                    {`The last ${depositWord} invoice (${currency(
                       voidedRetainer.amountCents,
                       voidedRetainer.currency,
                     )}) was voided${
@@ -1820,8 +1816,8 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     {paidInFull
                       ? "Payment due"
                       : agreedRetainerDueDate
-                        ? "Retainer due, as the client agreed"
-                        : "Retainer due"}
+                        ? `${DepositWord} due, as the client agreed`
+                        : `${DepositWord} due`}
                   </small>
                   <strong>{formatDueDate(dueDate)}</strong>
                 </span>
@@ -1830,7 +1826,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {studioBilled ? (
                   <>
                     <small>
-                      {`You're billing this job yourself, so nothing goes to QuickBooks. Send the invoice from here, then record the ${paidInFull ? "payment" : oneLink ? "deposit" : "retainer"} below once it's paid.`}
+                      {`You're billing this job yourself, so nothing goes to QuickBooks. Send the invoice from here, then record the ${paidInFull ? "payment" : depositWord} below once it's paid.`}
                     </small>
                     <StudioDepositPanel
                       canCreate={projectState === "RETAINER_PENDING" && agreementSettled}
@@ -1846,11 +1842,11 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     busy={busy === "retainer"}
                     cancelLabel="Not now"
                     confirmLabel={`Send the ${currency(agreedRetainerCents, packageSnapshot?.currency)} invoice`}
-                    label={paidInFull ? "Send the invoice?" : oneLink ? "Send the deposit invoice?" : "Send the retainer invoice?"}
+                    label={paidInFull ? "Send the invoice?" : `Send the ${depositWord} invoice?`}
                     onCancel={() => setConfirmingRetainer(null)}
                     onConfirm={() => void createRetainer().then(() => setConfirmingRetainer(null))}
                   >
-                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} ${oneLink ? "deposit" : "retainer"} invoice, due ${formatDueDate(dueDate)}, and ${recipient ?? "the couple"} is emailed it. Once it's out it can only be voided, not unsent.`}
+                    {`${invoicingName} raises a ${currency(agreedRetainerCents, packageSnapshot?.currency)} ${depositWord} invoice, due ${formatDueDate(dueDate)}, and ${recipient ?? "the couple"} is emailed it. Once it's out it can only be voided, not unsent.`}
                   </ConfirmStep>
                 ) : (
                   <button
@@ -1863,7 +1859,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     onClick={() => setConfirmingRetainer("create")}
                     type="button"
                   >
-                    {`${paidInFull ? "Send the invoice" : oneLink ? "Create deposit invoice" : "Create retainer invoice"} · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
+                    {`${paidInFull ? "Send the invoice" : `Create ${depositWord} invoice`} · ${currency(agreedRetainerCents, packageSnapshot?.currency)}`}
                     <ArrowRight size={15} />
                   </button>
                 )}
@@ -1984,8 +1980,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 <span>
                   <strong>Automatic confirmation is active</strong>
                   <small>
-                    StudioCue will run the evidence check as soon as the
-                    connected provider reports the retainer paid.
+                    {`StudioCue will run the evidence check as soon as the connected provider reports the ${depositWord} paid.`}
                   </small>
                 </span>
               </div>
@@ -2028,7 +2023,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                 {gateBlockers.map((blocker) => (
                   <li key={blocker}>
                     <CircleAlert size={14} />
-                    {bookingBlockerLabel(blocker)}
+                    {bookingBlockerLabel(blocker, workspace.tenantTrade)}
                   </li>
                 ))}
               </ul>

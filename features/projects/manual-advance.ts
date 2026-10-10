@@ -101,8 +101,13 @@ export function manualAdvanceFor(
   const entry = ROUTES[`${from}:${to}`];
   if (!entry) return null;
   // A makeup artist or hair stylist records the yes on a quote (trades.ts).
-  const detail = entry.detail.replace(/\bthe proposal\b/, `the ${tradeVocab(trade).proposal.toLowerCase()}`);
-  return { ...entry, detail, href: entry.href.replaceAll(":projectId", projectId) };
+  // And a vendor's client pays a deposit, not a retainer (trades.ts `deposit`).
+  const deposit = tradeVocab(trade).deposit;
+  const detail = entry.detail
+    .replace(/\bthe proposal\b/, `the ${tradeVocab(trade).proposal.toLowerCase()}`)
+    .replace(/\bretainer\b/g, deposit);
+  const label = entry.label.replace(/\bretainer\b/g, deposit);
+  return { ...entry, label, detail, href: entry.href.replaceAll(":projectId", projectId) };
 }
 
 /**

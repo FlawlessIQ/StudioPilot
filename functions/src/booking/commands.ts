@@ -16,6 +16,8 @@ import {
 import { productEvent } from "../operations/product-events.js";
 import { availabilityWindowSchema } from "./availability.js";
 import { agreedRetainerCents } from "./agreed-retainer.js";
+import { tenantTrade } from "../trades/tenant-trade.js";
+import { tradeVocab } from "../trades/trades.js";
 import {
   balanceFromTotals,
   balanceMayBeAttested,
@@ -1836,8 +1838,9 @@ export const bookingCommand = onRequest(
           stateVersion: priorStateVersion + 1,
           // As the couple's own signature sets it (server/contracts/
           // client-signing.ts); left alone it still said "Waiting for the
-          // client to sign the agreement" on a signed job.
-          nextAction: "Collect the retainer",
+          // client to sign the agreement" on a signed job. A vendor's
+          // client pays a deposit, not a retainer (trades.ts `deposit`).
+          nextAction: `Collect the ${tradeVocab(await tenantTrade(firestore, command.tenantId)).deposit}`,
           updatedAt: timestamp,
           updatedBy: identity.uid,
         });

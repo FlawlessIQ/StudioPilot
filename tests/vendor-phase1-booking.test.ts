@@ -254,7 +254,8 @@ test("a vendor sends the booking link; a photographer's send reads as before", (
   assert.match(proposal, /const oneLink = jobNeeds\.agreement && tradeProfile\(workspace\.tenantTrade\)\.journey\.oneLinkBooking;/);
   assert.match(proposal, /oneLink \? `Send the \$\{offer\} on its own` : offer === "proposal" \? "Send proposal" : `Send \$\{offer\}`/);
   assert.match(proposal, /oneLink \? "Booking link sent" : "Sent as a booking agreement"/);
-  assert.match(proposal, /: "The project can now move into the agreement and retainer workflow\."/);
+  // The trade's word: a photographer's retainer, a vendor's deposit (2026-10-10).
+  assert.match(proposal, /: `The project can now move into the agreement and \$\{depositWord\} workflow\.`/);
 });
 
 test("the booking page reads as one booking for a vendor, and unchanged for a photographer", () => {
@@ -263,7 +264,7 @@ test("the booking page reads as one booking for a vendor, and unchanged for a ph
   assert.match(booking, /title: kindNeeds\.agreement \? \(oneLink \? "Booking link" : "Contract"\) : "Agreement",/);
   assert.match(booking, /\? "Signed and paid"\s*: "Signed — deposit due"/);
   assert.match(booking, /\? "Sent — waiting to sign"/);
-  assert.match(booking, /\(oneLink \? "Deposit" : "Retainer"\)/);
+  assert.match(booking, /title: kindNeeds\.payment && kindProfile\.payment !== "paid_in_full" \? DepositWord : "Payment",/);
   // The quote that went alone can still go as the booking link.
   assert.match(booking, /<CombinedAgreementSend[\s\S]*?proposalId=\{String\(openProposal\.id\)\}/);
 

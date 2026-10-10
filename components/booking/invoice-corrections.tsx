@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Ban, Banknote, LoaderCircle, PencilLine, Send } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import {
   invoiceAtProvider,
   invoiceVoidRefusal,
@@ -46,7 +47,9 @@ function providerLabel(provider: unknown): string {
   return provider === "stripe" ? "Stripe" : provider === "quickbooks" ? "QuickBooks" : "your invoicing app";
 }
 
-const kindLabel = (invoice: InvoiceRow) => (invoice.kind === "final" ? "final balance" : "retainer");
+// A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+const kindLabel = (invoice: InvoiceRow, trade?: unknown) =>
+  invoice.kind === "final" ? "final balance" : tradeVocab(trade).deposit;
 
 function refreshMoney() {
   refreshTenantRecords("invoiceReferences", "projects", "tasks", "checkpoints", "readinessAssessments");
@@ -115,12 +118,12 @@ export function VoidInvoice({
       </summary>
       <form onSubmit={(event) => void submit(event)}>
         <p>
-          {`Voids the ${money(invoice.amountCents, invoice.currency)} ${kindLabel(invoice)} invoice${
+          {`Voids the ${money(invoice.amountCents, invoice.currency)} ${kindLabel(invoice, workspace.tenantTrade)} invoice${
             atProvider ? ` here and in ${provider}` : ""
           }, so the couple can no longer pay it. It stays on the record with your reason. `}
           {invoice.kind === "final"
             ? "You can send a new final bill afterwards."
-            : "You can raise a new retainer invoice afterwards."}
+            : `You can raise a new ${tradeVocab(workspace.tenantTrade).deposit} invoice afterwards.`}
         </p>
         <label>
           Why
@@ -211,7 +214,7 @@ export function RecordInvoicePayment({
       const message =
         left > 0
           ? `Recorded ${money(amountCents, invoice.currency)}; ${money(left, invoice.currency)} is still owed.${there}`
-          : `Recorded. The ${kindLabel(invoice)} is paid.${there}`;
+          : `Recorded. The ${kindLabel(invoice, workspace.tenantTrade)} is paid.${there}`;
       form.reset();
       setNotice(message);
       refreshMoney();
@@ -231,7 +234,7 @@ export function RecordInvoicePayment({
       </summary>
       <form onSubmit={(event) => void submit(event)}>
         <p>
-          {`${money(balance, invoice.currency)} is left on this ${kindLabel(invoice)} invoice. Enter what arrived — all of it or part. It's recorded against your name${
+          {`${money(balance, invoice.currency)} is left on this ${kindLabel(invoice, workspace.tenantTrade)} invoice. Enter what arrived — all of it or part. It's recorded against your name${
             atProvider ? ` and in ${provider} too, so the couple's link asks only for the rest` : ""
           }.`}
         </p>
@@ -498,7 +501,7 @@ export function InvoiceRecordActions({ invoice }: { invoice: InvoiceRow }) {
       ) : null}
       {checkRetainer ? (
         <a className="button button-dark" href={`/studio/booking?project=${String(invoice.projectId ?? "")}`}>
-          <Send aria-hidden="true" size={14} /> Check and send the retainer
+          <Send aria-hidden="true" size={14} /> Check and send the {tradeVocab(workspace.tenantTrade).deposit}
         </a>
       ) : null}
       <RecordInvoicePayment invoice={invoice} />

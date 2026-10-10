@@ -382,14 +382,12 @@ export function BookingAutopilotWorkspace({
   const oneLink = kindNeeds.agreement && tradeProfile(workspace.tenantTrade).journey.oneLinkBooking;
   const nextAfterAcceptance = kindNeeds.agreement
     ? kindNeeds.payment
-      ? oneLink
-        ? "The agreement and the deposit are"
-        : "The agreement and the retainer are"
+      ? `The agreement and the ${tradeWords.deposit} are`
       : "The agreement is"
     : kindNeeds.payment
       ? kindProfile.payment === "paid_in_full"
         ? "The payment is"
-        : "The retainer is"
+        : `The ${tradeWords.deposit} is`
       : "The booking check is";
   // PROPOSAL is past preparing one, not past the couple's answer.
   const proposalSettled = proposalAccepted(liveState);
@@ -757,7 +755,7 @@ export function BookingAutopilotWorkspace({
                 <h1>The booking link is with the client.</h1>
                 <p>
                   {kindNeeds.payment
-                    ? `They sign it, which accepts the ${offer}, then pay the deposit on the next screen. To change anything, withdraw it in the booking step below.`
+                    ? `They sign it, which accepts the ${offer}, then pay the ${tradeWords.deposit}. To change anything, withdraw it in the booking step below.`
                     : `They sign it, which accepts the ${offer} and books the job. To change anything, withdraw it in the booking step below.`}
                 </p>
               </>
@@ -765,7 +763,7 @@ export function BookingAutopilotWorkspace({
               <>
                 <h1>The booking agreement is with the client.</h1>
                 <p>
-                  {`Signing it accepts the ${offer}, and the retainer follows. To change anything, withdraw it in the contract step below.`}
+                  {`Signing it accepts the ${offer}, and the ${tradeWords.deposit} follows. To change anything, withdraw it in the contract step below.`}
                 </p>
               </>
             ) : (
@@ -775,7 +773,7 @@ export function BookingAutopilotWorkspace({
                   {oneLink
                     ? `It went on its own, so once they accept it the agreement and the deposit follow. To have them sign and pay in one visit instead, send the booking link from the ${offer}. Already have their yes by email or on a call? Record it in the booking step below.`
                     : kindNeeds.agreement
-                    ? "Once they accept it, the agreement and the retainer are the next steps. Already have their yes by email or on a call? Record it in the contract step below."
+                    ? `Once they accept it, the agreement and the ${tradeWords.deposit} are the next steps. Already have their yes by email or on a call? Record it in the contract step below.`
                     : kindNeeds.payment
                       ? `Once they accept it, the invoice goes to them, and paying it books the job. Already have their yes by email or on a call? Record it on the ${offer}.`
                       : `Once they accept it, the job books itself. Already have their yes by email or on a call? Record it on the ${offer}.`}

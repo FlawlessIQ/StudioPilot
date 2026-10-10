@@ -1,3 +1,5 @@
+import { tradeVocab } from "@/features/trades/trades";
+
 /**
  * Evidence is not the same shape as requirements.
  *
@@ -106,10 +108,11 @@ const BLOCKER_LABELS: Record<string, string> = {
   requiredContactsComplete: "the couple's contact details are incomplete",
 };
 
-export function bookingBlockerLabel(code: unknown): string {
+export function bookingBlockerLabel(code: unknown, trade?: unknown): string {
   const text = typeof code === "string" ? code.trim() : "";
   if (!text) return "something needs checking";
-  if (BLOCKER_LABELS[text]) return BLOCKER_LABELS[text];
+  // A vendor's client pays a deposit, not a retainer (trades.ts `deposit`).
+  if (BLOCKER_LABELS[text]) return BLOCKER_LABELS[text].replace(/\bretainer\b/g, tradeVocab(trade).deposit);
   return text
     .replace(/[_-]+/g, " ")
     .replace(/([a-z])([A-Z])/g, "$1 $2")

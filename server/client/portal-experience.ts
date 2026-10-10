@@ -222,7 +222,7 @@ function defaultNextAction(state: string, trade?: unknown): ClientNextAction {
       actionLabel: "Review contract",
     },
     RETAINER_PENDING: {
-      name: "Review your retainer",
+      name: `Review your ${words.deposit}`,
       description:
         "Open payments to view the amount, due date, and secure provider link.",
       dueDate: null,
@@ -380,6 +380,10 @@ export function buildClientMilestones(
   const photo = tradeProfile(options.trade).family === "photo";
   // The light vendor journey (trades.ts `journey`): one link to book, one form.
   const light = tradeProfile(options.trade).journey.oneForm;
+  // An optional call (a DJ's vibe call): offered while it can still happen,
+  // never ticked off as done once the booking has moved past it. Riley Park's
+  // portal showed "Vibe call ✓" for a call that never took place (2026-10-10).
+  const skippedCall = call && !tradeProfile(options.trade).journey.callRequired && index > 1;
   const definitions = [
     {
       id: "inquiry",
@@ -401,7 +405,7 @@ export function buildClientMilestones(
           },
         ]
       : []),
-    ...(call
+    ...(call && !skippedCall
       ? [
           {
             id: "consultation",
@@ -421,8 +425,8 @@ export function buildClientMilestones(
       // (simpler vendor journeys; trades.ts `journey.oneLinkBooking`).
       label: light ? "Book your date" : "Booking",
       description: light
-        ? `Accept your ${words.proposal.toLowerCase()}, sign, and pay the deposit — all in one visit.`
-        : "Review your offer, agreement, and retainer.",
+        ? `Accept your ${words.proposal.toLowerCase()}, sign, and pay the ${words.deposit} to book your date.`
+        : `Review your offer, agreement, and ${words.deposit}.`,
       // With no call, booking is where an inquiry goes next.
       current: () => (call ? index >= 2 : !formOwed) && index <= 4,
       complete: () => index >= 5,

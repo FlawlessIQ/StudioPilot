@@ -135,6 +135,12 @@ export type TradeVocabulary = {
   verb: string;
   /** The day itself on the journey: a photographer's "Event day", a DJ's "The night", a makeup artist's "The morning". */
   dayName: string;
+  /**
+   * The payment that books the date, lowercase mid-sentence: a photographer's
+   * "retainer", a vendor's "deposit" — what a DJ's, makeup artist's or hair
+   * stylist's client calls it (vendor wording sweep, Riley Park, 2026-10-10).
+   */
+  deposit: string;
 };
 
 const VOCAB: Record<Trade, TradeVocabulary> = {
@@ -167,6 +173,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     includedLabel: "Deliverables",
     verb: "shoot",
     dayName: "Event day",
+    deposit: "retainer",
   },
   dj: {
     provider: "DJ",
@@ -205,6 +212,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     includedLabel: "What's included",
     verb: "play",
     dayName: "The night",
+    deposit: "deposit",
   },
   makeup: {
     provider: "makeup artist",
@@ -253,6 +261,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     includedLabel: "What's included",
     verb: "work",
     dayName: "The morning",
+    deposit: "deposit",
   },
   hair: {
     provider: "hair stylist",
@@ -301,6 +310,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     includedLabel: "What's included",
     verb: "work",
     dayName: "The morning",
+    deposit: "deposit",
   },
 };
 

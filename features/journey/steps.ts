@@ -474,10 +474,10 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
       // The whole price, paid to book: no "retainer rule", no signature.
       const payment = steps.find((candidate) => candidate.key === "retainer");
       if (payment) {
-        if (payment.detail === "Computed from your retainer rule") payment.detail = "The whole price, paid to book";
+        if (/^Computed from your \w+ rule$/.test(payment.detail)) payment.detail = "The whole price, paid to book";
         if (payment.detail === "Starts once the agreement is signed")
           payment.detail = `Starts once they accept the ${tradeVocab(input.trade).proposal.toLowerCase()}`;
-        if (payment.action?.kind === "link" && payment.action.label === "Create retainer invoice")
+        if (payment.action?.kind === "link" && /^Create \w+ invoice$/.test(payment.action.label))
           payment.action = { ...payment.action, label: "Send the invoice" };
       }
       break;
@@ -938,10 +938,11 @@ export function projectJourney(input: JourneyInput): {
   // Signed, with no invoice at all: the studio records the payment.
   const recordByHand =
     Boolean(input.depositByStudio) && contractDone && !retainerDone && !retainerWaiting && !draftToSend;
-  const retainerWord = tradeProfile(input.trade).journey.oneLinkBooking ? "deposit" : "retainer";
+  // A photographer's retainer, a vendor's deposit (trades.ts `deposit`).
+  const retainerWord = tradeVocab(input.trade).deposit;
   push({
     key: "retainer",
-    title: "Retainer paid",
+    title: `${retainerWord.charAt(0).toUpperCase()}${retainerWord.slice(1)} paid`,
     explain: retainerInferred,
     detail: retainerDone
       ? retainerInferred
@@ -954,7 +955,7 @@ export function projectJourney(input: JourneyInput): {
           : recordByHand
           ? `Signed — they pay you directly. Record the ${retainerWord} when it arrives`
           : contractDone
-            ? "Computed from your retainer rule"
+            ? `Computed from your ${retainerWord} rule`
             : "Starts once the agreement is signed",
     status: retainerDone
       ? "complete"
@@ -972,7 +973,7 @@ export function projectJourney(input: JourneyInput): {
                 ? `Send the ${retainerWord} invoice`
                 : recordByHand
                   ? `Record the ${retainerWord}`
-                  : "Create retainer invoice",
+                  : `Create ${retainerWord} invoice`,
             href: draftToSend || recordByHand ? project("/studio/booking") : project("/studio/contracts"),
           },
   });
@@ -1362,7 +1363,7 @@ export function projectJourney(input: JourneyInput): {
         ? "Past its due date — worth a nudge"
         : finalWaiting
           ? "Invoice with the client"
-          : "Total − retainer, computed exactly · one month out",
+          : `Total − ${tradeVocab(input.trade).deposit}, computed exactly · one month out`,
     status: finalDone
       ? "complete"
       : finalOverdue
@@ -1566,7 +1567,7 @@ export function projectJourney(input: JourneyInput): {
     consultation: { label: "Open calendar", href: project("/studio/calendar") },
     proposal: { label: `Open ${tradeVocab(input.trade).proposal.toLowerCase()}`, href: project("/studio/proposals") },
     contract: { label: "Open contract", href: project("/studio/booking") },
-    retainer: { label: "Open retainer", href: project("/studio/booking") },
+    retainer: { label: `Open ${tradeVocab(input.trade).deposit}`, href: project("/studio/booking") },
     trial: { label: "Open calendar", href: project("/studio/calendar") },
     schedule_form: {
       label: "Open form",

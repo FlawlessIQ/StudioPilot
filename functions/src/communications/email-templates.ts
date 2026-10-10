@@ -694,6 +694,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
   const recipient = input.recipientName?.trim();
   const greeting = recipient ? `Hi ${firstNameOf(recipient)},` : "Hello,";
   const project = projectReference(input.projectName);
+  // The payment that books the date in the studio's own word: a
+  // photographer's "retainer", a vendor's "deposit" (trades.ts).
+  const deposit = tradeVocab(values.trade).deposit;
+  const Deposit = `${deposit.charAt(0).toUpperCase()}${deposit.slice(1)}`;
   const inviteUrl = safeUrl(stringValue(values, "inviteUrl"));
   const actionUrl = safeUrl(stringValue(values, "actionUrl"));
   const destinationUrl = safeUrl(stringValue(values, "destinationUrl"));
@@ -1173,8 +1177,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               : oneLink
                 ? `${signerName ? `${signerName} has already signed both parts for ${brand.studioName}. ` : ""}Once you sign, you'll get a copy by email, and ${brand.studioName} will send your deposit invoice — paying it books your date.`
                 : signerName
-                  ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your retainer.`
-                  : "Once you sign, you'll get a copy by email and the next step is your retainer.",
+                  ? `${signerName} has already signed both parts for ${brand.studioName}. Once you sign, you'll get a copy by email and the next step is your ${deposit}.`
+                  : `Once you sign, you'll get a copy by email and the next step is your ${deposit}.`,
           ],
           action: actionUrl
             ? { label: oneLink && payOnline ? "Review and book" : "Read and sign", url: actionUrl }
@@ -1256,7 +1260,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         paragraphs: [
           greeting,
           `We've recorded your signature on the agreement${project} you signed with us another way, so the copy we sent you to sign online is no longer needed. There's nothing more for you to sign.`,
-          "The next step is your retainer, and we'll be in touch about it. Questions? Just reply to this email.",
+          `The next step is your ${deposit}, and we'll be in touch about it. Questions? Just reply to this email.`,
         ],
         action: portalUrl ? { label: "Open your client portal", url: portalUrl } : undefined,
       };
@@ -1286,7 +1290,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const clientName = stringValue(values, "clientName") || "Your client";
       return {
         subject: `${clientName} signed the agreement${project}`,
-        preheader: "The agreement is complete. The retainer is the next step.",
+        preheader: `The agreement is complete. The ${deposit} is the next step.`,
         eyebrow: "Agreement signed",
         heading: `${clientName} signed`,
         paragraphs: [
@@ -1372,9 +1376,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               : undefined,
         };
       }
-      const label = isRetainer ? "retainer" : "final balance";
+      const label = isRetainer ? deposit : "final balance";
       return {
-        subject: `${isReminder ? "Reminder: " : ""}${isRetainer ? "Retainer" : "Final invoice"} from ${brand.studioName}`,
+        subject: `${isReminder ? "Reminder: " : ""}${isRetainer ? Deposit : "Final invoice"} from ${brand.studioName}`,
         preheader: `Review your ${label} in the secure accounting portal.`,
         eyebrow: isReminder ? "Payment reminder" : "Invoice ready",
         heading: isReminder
@@ -1398,7 +1402,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Your date is officially booked",
         paragraphs: [
           greeting,
-          `Your signed agreement and retainer are both in${project} — your date is secured.`,
+          `Your signed agreement and ${deposit} are both in${project} — your date is secured.`,
           "Your portal keeps the next steps, planning details, documents, and schedule together in one place.",
         ],
         action: portalUrl
@@ -2487,12 +2491,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: "Cue starts today",
         paragraphs: [
           greeting,
-          `Cue is the office manager in ${possessive(studio)} StudioCue. Some of the work it does on its own, at any hour: it acknowledges every inquiry from your form and checks the date, reminds clients to sign, books the job when the retainer is paid, and sends crew their call times.`,
+          `Cue is the office manager in ${possessive(studio)} StudioCue. Some of the work it does on its own, at any hour: it acknowledges every inquiry from your form and checks the date, reminds clients to sign, books the job when the ${deposit} is paid, and sends crew their call times.`,
           "The rest it prepares and leaves on Today for you: your first reply to an inquiry, follow-ups, payment reminders and crew offers. Payments, signatures and anything Cue wrote in its own words always wait for your tap.",
           "Three things make it useful in the first week:",
           [
             "- Send it your inquiries: your website form, inbox forwarding or your inquiry link (Settings, Inquiry capture).",
-            "- Connect QuickBooks, so retainers and final balances go out from your own books (Integrations).",
+            `- Connect QuickBooks, so ${deposit}s and final balances go out from your own books (Integrations).`,
             "- Bring in the jobs you've already booked. Their clients aren't emailed (Jobs, Import bookings).",
           ].join("\n"),
           "Setup walks through each one and shows what's done. Most take a few minutes.",
@@ -2599,11 +2603,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "studio_booking_confirmed":
       return {
         subject: `You're booked${project}`,
-        preheader: "The agreement is signed and the retainer is paid.",
+        preheader: `The agreement is signed and the ${deposit} is paid.`,
         eyebrow: "New booking",
         heading: "The date is yours",
         paragraphs: [
-          `The agreement is signed and the retainer is paid${project}, so StudioCue confirmed the booking.`,
+          `The agreement is signed and the ${deposit} is paid${project}, so StudioCue confirmed the booking.`,
           "The client portal, planning checklist, calendar entry and job folder are being set up now. Nothing else is needed from you.",
         ],
         action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,

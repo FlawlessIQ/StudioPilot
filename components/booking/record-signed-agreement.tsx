@@ -5,6 +5,7 @@ import { FileCheck2 } from "lucide-react";
 import { recordSignedAgreement } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 
 /**
  * Recording an agreement signed outside StudioCue.
@@ -100,8 +101,8 @@ export function RecordSignedAgreement({
        */
       onRecorded(
         supersedes
-          ? "Signature recorded against your name. The agreement you sent is retired and the couple is being told there's nothing more to sign. The retainer is the next step."
-          : "Signature recorded against your name. The retainer is the next step.",
+          ? `Signature recorded against your name. The agreement you sent is retired and the couple is being told there's nothing more to sign. The ${tradeVocab(workspace.tenantTrade).deposit} is the next step.`
+          : `Signature recorded against your name. The ${tradeVocab(workspace.tenantTrade).deposit} is the next step.`,
       );
     } catch (caught: unknown) {
       setNotice(
@@ -159,7 +160,7 @@ export function RecordSignedAgreement({
         {confirming ? (
           <div className="form-notice" role="group" aria-label="Confirm the signature">
             <p>
-              {`Record it? The job moves on to the retainer now, and this can’t be undone here — it stands as signed on your word.${
+              {`Record it? The job moves on to the ${tradeVocab(workspace.tenantTrade).deposit} now, and this can’t be undone here — it stands as signed on your word.${
                 supersedes
                   ? " The agreement you sent them to sign in StudioCue is retired: they can no longer sign it, and they're emailed that there's nothing more to sign."
                   : ""

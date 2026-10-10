@@ -1229,6 +1229,9 @@ function liveContract(contracts: Rec[] | null, projectId: string): Rec | null {
 
 /** Prepare, sign and send, or void: StudioCue's own contract step. */
 export function ContractCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
@@ -1270,7 +1273,7 @@ export function ContractCard({ action }: ActionCardProps) {
           ? "Voiding tells them the contract is withdrawn. A signed contract can't be voided."
           : action.action === "resend_contract"
             ? "Send it again emails them the same contract to sign, now — at most once an hour. The 3- and 7-day reminders still go."
-            : "You read it, then sign and send it; they sign in their portal. The retainer follows their signature."
+            : `You read it, then sign and send it; they sign in their portal. The ${deposit} follows their signature.`
       }
       icon={<FileSignature size={15} />}
       title={title}
@@ -1292,6 +1295,9 @@ export function ContractCard({ action }: ActionCardProps) {
 }
 
 export function RecordSignedContractCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { offer } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
   const proposals = useRecords("proposals");
@@ -1314,7 +1320,7 @@ export function RecordSignedContractCard({ action }: ActionCardProps) {
       </ActionShell>
     );
   return (
-    <ActionShell detail="Who signed and when, and the signed copy if you have it. The job moves on to the retainer." icon={<FileSignature size={15} />} title={title}>
+    <ActionShell detail={`Who signed and when, and the signed copy if you have it. The job moves on to the ${deposit}.`} icon={<FileSignature size={15} />} title={title}>
       <Embedded>
         <RecordSignedAgreement
           onRecorded={(text) => {
@@ -1333,13 +1339,16 @@ export function RecordSignedContractCard({ action }: ActionCardProps) {
 // ─── Money ──────────────────────────────────────────────────────────────────
 
 export function RetainerInvoiceCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { job, loading } = useJob(action.projectId);
   const snapshots = useRecords("packageSnapshots");
   const proposals = useRecords("proposals");
   const invoices = useRecords("invoiceReferences");
   const runner = useRunner();
   const billing = useJobBilling(action.projectId);
-  const title = `Raise the retainer invoice · ${jobName(job)}`;
+  const title = `Raise the ${deposit} invoice · ${jobName(job)}`;
   if (loading || !snapshots || !proposals || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (runner.done) return <ActionShell title={title}><Done>{runner.done}</Done></ActionShell>;
@@ -1348,7 +1357,7 @@ export function RetainerInvoiceCard({ action }: ActionCardProps) {
   if (billing?.method === "studio")
     return (
       <ActionShell title={title}>
-        <Blocked>{`You're billing ${jobName(job)} yourself, so nothing goes to QuickBooks. Record the retainer on the booking page once it's paid.`}</Blocked>
+        <Blocked>{`You're billing ${jobName(job)} yourself, so nothing goes to QuickBooks. Record the ${deposit} on the booking page once it's paid.`}</Blocked>
       </ActionShell>
     );
   const snapshot = snapshots.find((item) => item.id === str(job.packageSnapshotId)) ?? null;
@@ -1357,9 +1366,9 @@ export function RetainerInvoiceCard({ action }: ActionCardProps) {
   const existing = onJob(invoices, job.id).find(
     (item) => /retainer/i.test(str(item.kind) + str(item.type) + str(item.label)) && isStandingInvoice(item.status),
   );
-  if (existing) return <ActionShell title={title}><Done>{`A retainer invoice already exists (${str(existing.status) || "raised"}).`}</Done></ActionShell>;
+  if (existing) return <ActionShell title={title}><Done>{`A ${deposit} invoice already exists (${str(existing.status) || "raised"}).`}</Done></ActionShell>;
   if (str(job.state) !== "RETAINER_PENDING" || !snapshot)
-    return <ActionShell title={title}><Blocked>{`The retainer is invoiced once the contract is signed, and ${jobName(job)} isn't there yet.`}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`The ${deposit} is invoiced once the contract is signed, and ${jobName(job)} isn't there yet.`}</Blocked></ActionShell>;
   const proposal = acceptedProposal(proposals, job.id);
   const schedule = arr(proposal?.paymentSchedule).map((item) => item as Rec);
   const retainerItem = schedule.find((item) => /retainer/i.test(str(item.label))) ?? schedule[0];
@@ -1382,7 +1391,7 @@ export function RetainerInvoiceCard({ action }: ActionCardProps) {
                 idempotencyKey: crypto.randomUUID(),
                 input: { projectId: job.id, packageSnapshotId: snapshot.id, customerId: null, dueDate },
               });
-              return "The retainer invoice is on its way to them.";
+              return `The ${deposit} invoice is on its way to them.`;
             },
             { refresh: ["invoiceReferences", "projects"] },
           )
@@ -1395,6 +1404,9 @@ export function RetainerInvoiceCard({ action }: ActionCardProps) {
 
 /** Retainer or balance paid outside StudioCue: the booking page's own form. */
 export function RecordPaymentCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { job, loading } = useJob(action.projectId);
   const snapshots = useRecords("packageSnapshots");
   const invoices = useRecords("invoiceReferences");
@@ -1420,9 +1432,9 @@ export function RecordPaymentCard({ action }: ActionCardProps) {
   // A job booked on an approved exception still owes its retainer, and the
   // couple paying it later is recorded here like any other retainer.
   if (!final && retainerPaid)
-    return <ActionShell title={title}><Done>{`${jobName(job)}'s retainer is already paid.`}</Done></ActionShell>;
+    return <ActionShell title={title}><Done>{`${jobName(job)}'s ${deposit} is already paid.`}</Done></ActionShell>;
   if (!final && state !== "RETAINER_PENDING" && !booked)
-    return <ActionShell title={title}><Blocked>{`${jobName(job)} isn't waiting on its retainer.`}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`${jobName(job)} isn't waiting on its ${deposit}.`}</Blocked></ActionShell>;
   if (final && !["BOOKED", "PLANNING", "READY", "EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED"].includes(state))
     return <ActionShell title={title}><Blocked>{`${jobName(job)} isn't booked yet, so there is no balance to record.`}</Blocked></ActionShell>;
   const invoice = onJob(invoices, job.id).find(
@@ -1530,11 +1542,14 @@ function namedInvoiceKind(subject: string | null): "retainer" | "final" | null {
   return null;
 }
 
-const invoiceLine = (invoice: Rec) =>
-  `${str(invoice.kind) === "final" ? "Final balance" : "Retainer"} · ${dollars(invoice.amountCents)} · ${statusLabel(invoice.status)}`;
+const invoiceLine = (invoice: Rec, deposit = "retainer") =>
+  `${str(invoice.kind) === "final" ? "Final balance" : `${deposit.charAt(0).toUpperCase()}${deposit.slice(1)}`} · ${dollars(invoice.amountCents)} · ${statusLabel(invoice.status)}`;
 
 /** Void a wrong or no-longer-owed bill: the booking page's own control. */
 export function VoidInvoiceCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { job, loading } = useJob(action.projectId);
   const invoices = useRecords("invoiceReferences");
   const ownerOrAdmin = useIsOwnerOrAdmin();
@@ -1565,7 +1580,7 @@ export function VoidInvoiceCard({ action }: ActionCardProps) {
       <Embedded>
         {voidable.map((invoice) => (
           <div key={invoice.id}>
-            <p className="cue-action-note">{invoiceLine(invoice)}</p>
+            <p className="cue-action-note">{invoiceLine(invoice, deposit)}</p>
             <VoidInvoice defaultReason={action.text ?? ""} invoice={invoice} onDone={setMessage} />
           </div>
         ))}
@@ -1580,6 +1595,9 @@ export function VoidInvoiceCard({ action }: ActionCardProps) {
  * holds it to the balance and records it in QuickBooks or Stripe too.
  */
 export function RecordPartialPaymentCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { job, loading } = useJob(action.projectId);
   const invoices = useRecords("invoiceReferences");
   const ownerOrAdmin = useIsOwnerOrAdmin();
@@ -1597,7 +1615,7 @@ export function RecordPartialPaymentCard({ action }: ActionCardProps) {
     return (
       <ActionShell title={title}>
         <Blocked>
-          {`${jobName(job)} has no ${kind ?? ""} invoice out with the client with anything left to pay. If they paid before a bill went out, record it from the retainer or final balance step instead.`.replace(/\s+/g, " ")}
+          {`${jobName(job)} has no ${kind ?? ""} invoice out with the client with anything left to pay. If they paid before a bill went out, record it from the ${deposit} or final balance step instead.`.replace(/\s+/g, " ")}
         </Blocked>
       </ActionShell>
     );
@@ -1610,7 +1628,7 @@ export function RecordPartialPaymentCard({ action }: ActionCardProps) {
       <Embedded>
         {payable.map((invoice) => (
           <div key={invoice.id}>
-            <p className="cue-action-note">{`${invoiceLine(invoice)} · ${dollars(invoice.balanceCents)} left`}</p>
+            <p className="cue-action-note">{`${invoiceLine(invoice, deposit)} · ${dollars(invoice.balanceCents)} left`}</p>
             <RecordInvoicePayment invoice={invoice} onDone={setMessage} />
           </div>
         ))}
@@ -1621,6 +1639,9 @@ export function RecordPartialPaymentCard({ action }: ActionCardProps) {
 
 /** Correct a payment the studio recorded: added to the record, never rewritten. */
 export function CorrectPaymentCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { job, loading } = useJob(action.projectId);
   const invoices = useRecords("invoiceReferences");
   const ownerOrAdmin = useIsOwnerOrAdmin();
@@ -1651,7 +1672,7 @@ export function CorrectPaymentCard({ action }: ActionCardProps) {
       <Embedded>
         {correctable.map((invoice) => (
           <div key={invoice.id}>
-            <p className="cue-action-note">{invoiceLine(invoice)}</p>
+            <p className="cue-action-note">{invoiceLine(invoice, deposit)}</p>
             <CorrectPayment invoice={invoice} onDone={setMessage} />
           </div>
         ))}
@@ -1661,18 +1682,21 @@ export function CorrectPaymentCard({ action }: ActionCardProps) {
 }
 
 export function RetainerExceptionCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { job, loading } = useJob(action.projectId);
   const ownerOrAdmin = useIsOwnerOrAdmin();
   const [message, setMessage] = useState<string | null>(null);
-  const title = `Book without the retainer · ${jobName(job)}`;
+  const title = `Book without the ${deposit} · ${jobName(job)}`;
   if (!ownerOrAdmin) return <OwnerOnly title={title} />;
   if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
   if (!["RETAINER_PENDING", "POSTPONED"].includes(str(job.state)))
-    return <ActionShell title={title}><Blocked>{`This is for a signed job waiting on its retainer, and ${jobName(job)} isn't.`}</Blocked></ActionShell>;
+    return <ActionShell title={title}><Blocked>{`This is for a signed job waiting on its ${deposit}, and ${jobName(job)} isn't.`}</Blocked></ActionShell>;
   return (
-    <ActionShell detail="You record why; the job books now and the retainer stays owed." icon={<Landmark size={15} />} title={title}>
+    <ActionShell detail={`You record why; the job books now and the ${deposit} stays owed.`} icon={<Landmark size={15} />} title={title}>
       <Embedded>
         <BookWithoutRetainer
           onBooked={(text) => {
@@ -1741,6 +1765,9 @@ export function QuickBooksLookupCard({ action }: ActionCardProps) {
 // ─── Booking ────────────────────────────────────────────────────────────────
 
 export function ConfirmBookingCard({ action }: ActionCardProps) {
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const cardTrade = useWorkspace().tenantTrade;
+  const deposit = tradeVocab(cardTrade).deposit;
   const { job, loading } = useJob(action.projectId);
   const projects = useRecords("projects");
   const runner = useRunner();
@@ -1773,13 +1800,13 @@ export function ConfirmBookingCard({ action }: ActionCardProps) {
     );
   return (
     <ActionShell
-      detail="It checks the signature, the retainer, the date and their details. If all are there, the job books, the client's portal opens and they get a confirmation."
+      detail={`It checks the signature, the ${deposit}, the date and their details. If all are there, the job books, the client's portal opens and they get a confirmation.`}
       icon={<ShieldCheck size={15} />}
       title={title}
     >
       {blockers?.length ? (
         <Blocked>
-          {`Still waiting on ${blockers.map(bookingBlockerLabel).join("; ")}.`}
+          {`Still waiting on ${blockers.map((blocker) => bookingBlockerLabel(blocker, cardTrade)).join("; ")}.`}
           {blockers.includes("eventDateAvailable") && sameDay.length
             ? ` ${sameDay.map((other) => str(other.name)).join(", ")} is booked on ${str(job.eventDate)}.`
             : ""}

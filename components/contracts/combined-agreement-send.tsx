@@ -125,7 +125,7 @@ export function CombinedAgreementSend({
         </button>
         <small className="native-contract-note">
           {oneLink
-            ? `Your terms and this ${offer} in one link. The client signs, then pays the deposit on the next screen — booked in one visit.`
+            ? `Your terms and this ${offer} in one link. The client signs, then pays the ${tradeVocab(workspace.tenantTrade).deposit} to book the date.`
             : `Your terms and these prices together — the couple signs both at once, and that accepts the ${offer}.`}
         </small>
         {error ? <p className="client-contract-error" role="alert">{error}</p> : null}

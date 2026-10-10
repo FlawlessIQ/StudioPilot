@@ -21,6 +21,8 @@ export function tradeInstruction(trade: unknown): string {
       ? ""
       : ` There is no sales call: an inquiry gets a ${words.proposal.toLowerCase()}${words.trial ? `, and the ${words.trial.toLowerCase()} is where the look is settled` : ""}. Never offer to schedule a consultation or a call to talk it through; offer the ${words.proposal.toLowerCase()}${words.trial ? ` and the ${words.trial.toLowerCase()}` : ""} instead.`,
     words.proposal === "Proposal" ? "" : ` Call the proposal a ${words.proposal.toLowerCase()}.`,
+    // The payment that books the date (trades.ts `deposit`; vendor wording sweep, 2026-10-10).
+    words.deposit === "retainer" ? "" : ` Call the retainer a ${words.deposit}, to the operator and to clients.`,
     profile.extensions
       ? " Hair extensions are settled at the trial and noted on the job's trial card; extensions to buy or rent are ordered about eight weeks before the day."
       : "",

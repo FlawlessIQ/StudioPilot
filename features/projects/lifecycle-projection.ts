@@ -7,6 +7,7 @@ import {
 } from "@/features/readiness/checkpoint-evidence";
 import { checkpointWaitingReason } from "@/features/readiness/checkpoint-resolution";
 import { taskIsSettled } from "@/features/tasks/schema";
+import { tradeVocab } from "@/features/trades/trades";
 
 export type LifecycleRecord = Record<string, unknown> & { id: string };
 
@@ -117,6 +118,8 @@ function item(input: Omit<LifecycleWorkItem, "evidence"> & {
 
 export function projectLifecycleProjection(input: {
   project: LifecycleRecord;
+  /** The studio's trade: a vendor's client pays a deposit, not a retainer (trades.ts). */
+  trade?: unknown;
   checkpoints?: LifecycleRecord[];
   tasks?: LifecycleRecord[];
   contracts?: LifecycleRecord[];
@@ -363,7 +366,7 @@ export function projectLifecycleProjection(input: {
         id: `invoice-${invoice.id}`,
         label:
           text(invoice.kind) === "retainer"
-            ? "Pay booking retainer"
+            ? `Pay booking ${tradeVocab(input.trade).deposit}`
             : "Pay outstanding invoice",
         detail: `${money(number(invoice.balanceCents))} still owed`,
         status: overdue(dueAt, now) ? "blocked" : "waiting",

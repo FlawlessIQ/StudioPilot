@@ -1,5 +1,5 @@
 import { glossaryTerm } from "./glossary";
-import { helpTrade, type Explainer, type ExplainerSource, type HelpTrade, type TradeLine, type TradeText } from "./types";
+import { helpTrade, inTradeWords, type Explainer, type ExplainerSource, type HelpTrade, type TradeLine, type TradeText } from "./types";
 import { videoSuitsTrade } from "./videos";
 
 /**
@@ -1107,9 +1107,12 @@ const GUIDES: readonly ExplainerSource[] = [
   },
 ];
 
-const text = (value: TradeText, t: HelpTrade): string => (typeof value === "function" ? value(t) : value);
+const text = (value: TradeText, t: HelpTrade): string => inTradeWords(typeof value === "function" ? value(t) : value, t);
 const lines = (list: readonly TradeLine[], t: HelpTrade): string[] =>
-  list.map((line) => (typeof line === "function" ? line(t) : line)).filter((line): line is string => line !== null);
+  list
+    .map((line) => (typeof line === "function" ? line(t) : line))
+    .filter((line): line is string => line !== null)
+    .map((line) => inTradeWords(line, t));
 
 /** A guide in a trade's words, with only the words and the video that read right for it. */
 function inTrade(source: ExplainerSource, t: HelpTrade): Explainer {

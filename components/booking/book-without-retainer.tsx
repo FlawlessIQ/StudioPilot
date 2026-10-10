@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 
@@ -28,6 +29,8 @@ export function BookWithoutRetainer({
   onBooked: (message: string) => void;
 }) {
   const workspace = useWorkspace();
+  // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
+  const deposit = tradeVocab(workspace.tenantTrade).deposit;
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -54,7 +57,7 @@ export function BookWithoutRetainer({
         ? approved.payload.voidedInvoiceIds.length
         : 0;
       const voidedLine = voidedCount
-        ? " The retainer invoice that was out with the couple is voided."
+        ? ` The ${deposit} invoice that was out with the couple is voided.`
         : "";
       const gate = await sendBookingCommand({
         type: "runBookingGate",
@@ -67,7 +70,7 @@ export function BookWithoutRetainer({
       });
       const payload = gate.mode === "live" ? gate.payload : {};
       if (payload.passed === true) {
-        onBooked(`Booked without the retainer, recorded against your name.${voidedLine}`);
+        onBooked(`Booked without the ${deposit}, recorded against your name.${voidedLine}`);
         return;
       }
       const blockers = Array.isArray(payload.blockers)
@@ -75,11 +78,11 @@ export function BookWithoutRetainer({
         : [];
       setNotice(
         blockers.length
-          ? `The retainer is waived, but the booking is still waiting on: ${blockers.join(", ")}.${voidedLine}`
-          : `The retainer is waived, but the booking couldn't be confirmed yet.${voidedLine}`,
+          ? `The ${deposit} is waived, but the booking is still waiting on: ${blockers.join(", ")}.${voidedLine}`
+          : `The ${deposit} is waived, but the booking couldn't be confirmed yet.${voidedLine}`,
       );
     } catch (caught: unknown) {
-      setNotice(friendlyError(caught, "The booking couldn't be confirmed without the retainer."));
+      setNotice(friendlyError(caught, `The booking couldn't be confirmed without the ${deposit}.`));
     } finally {
       setBusy(false);
     }
@@ -87,7 +90,7 @@ export function BookWithoutRetainer({
 
   return (
     <details className="record-signed-agreement book-without-retainer">
-      <summary>Booking without a retainer? Waive it</summary>
+      <summary>{deposit === "deposit" ? "Booking without a deposit? Waive it" : "Booking without a retainer? Waive it"}</summary>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -95,10 +98,7 @@ export function BookWithoutRetainer({
         }}
       >
         <p>
-          For a booking you&rsquo;re confirming without taking a retainer. The
-          booking goes ahead now, and the record says the retainer was waived,
-          by you, and why. A retainer invoice already out with the couple is
-          voided, so they aren&rsquo;t asked for it.
+          {`For a booking you’re confirming without taking a ${deposit}. The booking goes ahead now, and the record says the ${deposit} was waived, by you, and why. A ${deposit} invoice already out with the couple is voided, so they aren’t asked for it.`}
         </p>
         <label>
           Why
@@ -114,7 +114,7 @@ export function BookWithoutRetainer({
         </label>
         <button className="button" disabled={busy || reason.trim().length < 10} type="submit">
           {busy ? <LoaderCircle className="spin" size={14} aria-hidden="true" /> : null}
-          Confirm the booking without a retainer
+          {deposit === "deposit" ? "Confirm the booking without a deposit" : "Confirm the booking without a retainer"}
         </button>
         {notice ? (
           <p className="form-notice" role="status">

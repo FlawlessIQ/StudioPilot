@@ -31,6 +31,22 @@ export function helpTrade(trade?: unknown): HelpTrade {
   return { trade: tradeOf(trade), words: tradeVocab(trade), has: tradeProfile(trade) };
 }
 
+/**
+ * A guide or word in the trade's word for the payment that books the date: a
+ * vendor's client pays a deposit, not a retainer (trades.ts `deposit`; vendor
+ * wording sweep, 2026-10-10). A photographer's reads exactly as written.
+ */
+export function inTradeWords(value: string, t: HelpTrade): string {
+  const word = t.words.deposit;
+  if (word === "retainer") return value;
+  const Word = `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+  return value
+    .replace(/\bretainers\b/g, `${word}s`)
+    .replace(/\bretainer\b/g, word)
+    .replace(/\bRetainers\b/g, `${Word}s`)
+    .replace(/\bRetainer\b/g, Word);
+}
+
 /** Text that reads the same for every trade, or is written from the trade's words. */
 export type TradeText = string | ((t: HelpTrade) => string);
 /** One step, note or word in a list; null leaves it out for that trade. */
