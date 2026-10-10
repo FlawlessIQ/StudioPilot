@@ -14,6 +14,46 @@ open questions Q3 (payment on the day: mostly cash, studio's choice of
 methods) and Q4 (assumed one sign-up per athlete; a parent with two athletes
 signs up twice — see Decisions).
 
+## Status (2026-10-10)
+
+Conor's answers: texts go from the studio's own phone only; a QuickBooks
+invoice per parent comes later; the owner, admins, coordinators and the crew
+assigned to the event take payment; one sign-up per athlete; no tax on event
+prices.
+
+Phases 1–3, plus Phase 4's own pay link, are built in 75523baa:
+
+- **Event packages and payment methods:** `project.groupEvent.signup`
+  (features/group-events/signup.ts), set from the roster's sign-up panel. This
+  uses crmCommand `setGroupEventSignup`, `resetGroupEventLink` and
+  `inviteGroupEventParents`.
+- **The parent's page:** `/e/{token}`, backed by the public route
+  `app/api/public/event-signup`. Each parent's order is at
+  `/e/order/{orderToken}`, which keeps working after the link is replaced. The
+  confirmation email gives the confirmation number and how to pay, with a
+  Venmo or pay-link button.
+- **Sharing:**
+  - a QR code on screen
+  - a printable sign at `/studio/projects/{id}/sign`
+  - copy link
+  - email invites from a pasted list, sending each parent the same link only once
+  - "Text from your phone", through the share sheet or Messages
+- **Field mode:**
+  - for the studio at `/studio/projects/{id}/field`, and for crew at
+    `/crew/field?project=`
+  - a full-screen QR, the live roster and two-tap payments
+  - the day's totals by method
+  - crew can read the roster of their own event and can only record a payment
+- **Also fixed:** parent mail never falls back to the job's client home. That
+  link is the organiser's portal or inquiry page, and the Phase 1 receipt used
+  it when it had no button of its own.
+
+Still to do:
+- A QuickBooks invoice per parent (Phase 4b).
+- Phase 5: delivery and review per parent.
+- A walk on production with a FlawlessIQ test event. It sends real email, so it
+  needs Conor's OK.
+
 ## What exists (Phase 1, live since 2026-10-04)
 
 - `eventParticipants`: parent, email, phone, athlete, team, package name,
