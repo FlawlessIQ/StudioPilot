@@ -1905,6 +1905,35 @@
   opacity: 0.6;
 }
 
+/* Card actions lifted into the dark hero — a deposit invoice to send, a final
+   balance, a bounced email, an inquiry to close — wore the light card's
+   colours there: a near-black pill and grey links at 2.5:1 on the green
+   (Riley Park's deposit invoice, Spin Theory DJs, 2026-10-09). The hero's
+   own pill and link colours instead. */
+.ds-root .today-hero .today-inquiry-buttons .today-card-primary {
+  background: #f3f7f3;
+  border: 0;
+  border-radius: 99px;
+  color: #1a3c30;
+}
+
+.ds-root .today-hero .today-inquiry-buttons .today-card-primary:hover {
+  background: #fff;
+  color: #1a3c30;
+}
+
+.ds-root .today-hero .today-inquiry-buttons .today-card-secondary {
+  color: rgb(255 255 255 / 82%);
+}
+
+.ds-root .today-hero .today-inquiry-buttons .today-card-secondary:hover {
+  color: #fff;
+}
+
+.ds-root .today-hero .today-inquiry-buttons :is(.today-card-notice, .form-notice) {
+  color: rgb(255 255 255 / 88%);
+}
+
 /* A card carrying a drafted reply needs the width: the preview and its
    buttons sit under the body, never squeezed into the right-hand column. */
 @media (min-width: 720px) {
