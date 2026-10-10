@@ -119,6 +119,9 @@ const REACHED: Record<string, string> = {
   lookupQuickBooksPayments: "lookupQuickBooksPayments", runBookingGate: "\"runBookingGate\"",
   // "Don't charge sales tax on this job", on the final-bill card as on the booking page.
   setJobSalesTaxExempt: "JobSalesTax",
+  // Own invoicing (Phase 6): Cue prepares these as cards too.
+  setJobBillingMethod: "JobBillingChoice",
+  sendStudioInvoice: "StudioInvoiceActions",
   previewExistingBookings: "ExistingBookingForm", importExistingBooking: "ExistingBookingForm",
   attachImportedSignedCopy: "ExistingBookingForm", bringImportedBookingLive: "ImportedBookingBanner",
   // Planning
@@ -242,11 +245,9 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   setPlanningTimeline: "Settings → Planning timeline",
   // Own invoicing, Phase 0 (docs/own-invoicing-plan-2026-10-09.md). Cue
   // offers the per-job choice in Phase 6; until then it's on the booking page.
-  setJobBillingMethod: "the booking page's How this job is billed",
   setStudioInvoiceSettings: "Settings → Invoices and payments",
   previewStudioInvoice: "Settings → Invoices and payments",
   // Own invoicing Phase 2: sent from Today's card and the booking page; Cue in Phase 6.
-  sendStudioInvoice: "Today's invoice card and the booking page",
   createStudioDeposit: "the booking page's deposit panel",
   // Own invoicing Phase 5: deleting records is a typed, deliberate act on the
   // Invoices page — never something Cue prepares.

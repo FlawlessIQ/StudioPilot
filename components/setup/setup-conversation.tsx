@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { SalesTaxQuestion } from "@/components/integrations/sales-tax-question";
+import { PaymentDetailsQuestion } from "@/components/setup/payment-details-question";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -405,6 +406,10 @@ export function SetupConversation() {
         {/* Not one of the questions: only for a studio whose QuickBooks
             charges tax and hasn't said whether to add it. */}
         <SalesTaxQuestion />
+
+        {/* Not one of the questions either: how clients pay, until it's said
+            (own invoicing — every invoice StudioCue sends says it). */}
+        <PaymentDetailsQuestion />
 
         {workspace.tenantSlug ? <HostedFormLink slug={workspace.tenantSlug} /> : null}
 

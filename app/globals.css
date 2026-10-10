@@ -15322,6 +15322,53 @@ form:has(> .address-field) > .address-field,
   font-size: 12.5px;
 }
 
+/* Setup: "How do clients pay you?" (components/setup/payment-details-question.tsx). */
+.setup-payment-details {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 20px 22px;
+}
+
+.setup-payment-details-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.setup-payment-details-head h2,
+.setup-payment-details p {
+  margin: 0;
+}
+
+.setup-payment-details-head h2 {
+  font-size: 18px;
+}
+
+.setup-payment-details-field {
+  display: grid;
+  font-size: 13px;
+  font-weight: 620;
+  gap: 6px;
+}
+
+.setup-payment-details-field textarea,
+.setup-payment-details-field input {
+  border: 1px solid var(--ds-line, var(--line));
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 12px;
+}
+
+.setup-payment-details > .button {
+  justify-self: start;
+}
+
+.setup-payment-details .invoice-settings-picks {
+  margin-top: 0;
+}
+
 .invoice-settings-picks {
   display: flex;
   flex-wrap: wrap;

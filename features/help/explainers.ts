@@ -170,7 +170,7 @@ const GUIDES: readonly ExplainerSource[] = [
     steps: [
       "Open the job's **Booking** tab. The strip at the top — **Contract**, **Retainer**, **Booking** — shows what's next.",
       "Send the agreement: **Prepare the contract**, type your name to sign for the studio, then **Sign & send**. With Dropbox Sign or Docusign connected, it's **Approve sequence & send**.",
-      "Once it's signed, **Create retainer invoice**. The client pays it online.",
+      "Once it's signed, the deposit invoice follows: QuickBooks raises it on a job billed there; otherwise StudioCue drafts your own, ready to **Email it**.",
       "Signed or paid outside StudioCue? **Record the signature** or **Record the payment**. Booking without a retainer? **Confirm the booking without a retainer**.",
       "Under **Confirm booking**, tap **Check and confirm**. When **Automatic confirmation is active**, it confirms by itself.",
     ],
@@ -178,7 +178,7 @@ const GUIDES: readonly ExplainerSource[] = [
     goodToKnow: [
       "Recording a payment doesn't book the job by itself — confirm the booking to finish.",
       "With StudioCue signing, the client is reminded to sign after 3 and 7 days.",
-      "The retainer invoice goes through QuickBooks, so connect it first.",
+      "No QuickBooks? You bill it yourself — add how clients pay you under **Invoices and payments** in Studio settings.",
     ],
     terms: ["agreement", "retainer", "booking-gate"],
   },
@@ -328,6 +328,30 @@ const GUIDES: readonly ExplainerSource[] = [
       "Prefer your own paperwork? Record the signature on the job's **Booking** tab instead.",
     ],
     terms: ["agreement", "proposal", "beauty-quote"],
+  },
+  {
+    id: "invoices-and-payments",
+    title: "Bill clients yourself",
+    summary: "Send your own invoices from StudioCue — with or without QuickBooks — and keep track of what's paid.",
+    audience: "studio",
+    stage: "getting-started",
+    routes: ["/studio/settings/invoices"],
+    alsoOn: ["/studio/invoices"],
+    purpose:
+      "StudioCue can issue your invoices itself: numbered, with a PDF, emailed to the client with how to pay. With QuickBooks connected you choose job by job.",
+    steps: [
+      "Open **Studio settings** and choose **Invoices and payments**.",
+      "Add how clients pay you — Zelle, checks, a pay link — and your business details. Tap **Save**.",
+      "Tap **Preview a sample invoice** to see exactly what clients get.",
+      "With QuickBooks, choose **Bill it myself** or **Bill through QuickBooks** on each job's **Booking** tab.",
+      "When a bill is ready, Today shows it: **Email it**, or **I sent it myself**. Record the payment when it arrives.",
+    ],
+    next: "Every bill — yours and QuickBooks' — is on **Invoices**, with what's owed, what's late and a CSV for your bookkeeper.",
+    goodToKnow: [
+      "A deposit is never taxed; your sales tax goes on the bill that completes the price.",
+      "You can delete an invoice record from **Invoices**; a paid one leaves a note that it was settled, with no amounts.",
+    ],
+    terms: ["retainer", "final-balance"],
   },
   {
     id: "inquiry-capture",
@@ -494,7 +518,7 @@ const GUIDES: readonly ExplainerSource[] = [
     purpose:
       "The final balance is what's left after the retainer. StudioCue bills it 28 days before the event when it can, and asks you on Today when it can't.",
     steps: [
-      "Most final bills go out by themselves, 28 days before the event, through QuickBooks or Stripe.",
+      "Most final bills are raised by themselves 28 days before the event — in QuickBooks, or as your own invoice waiting on Today for you to send.",
       "When one can't — booked late, date moved, retainer recorded by hand — Today shows it. Tap **Send the final bill**.",
       "Paid by transfer, check or cash? Tap **Paid another way** and record it.",
       "See what's owed on **Invoices**. **Final invoice review** shows how each bill was worked out.",
@@ -705,7 +729,7 @@ const GUIDES: readonly ExplainerSource[] = [
       "**Where inquiries stop becoming bookings** shows the step where clients drop off.",
       "**What StudioCue handled for you** counts the approvals, sends and time saved.",
     ],
-    next: "Use **Export CSV** or **Print** to share it. QuickBooks stays the record for your books.",
+    next: "Use **Export CSV** or **Print** to share it. For your books, **Invoices** has a CSV of every bill.",
     goodToKnow: ["The range filters jobs by their event date, and inquiries by the date they arrived."],
   },
   {
@@ -889,7 +913,7 @@ const GUIDES: readonly ExplainerSource[] = [
       "Your payments page shows every invoice for your booking and what's due next. You pay on your payment provider's own secure page; StudioCue never sees your card.",
     steps: [
       "Open **Your payments** from the email, or from **Plan**.",
-      "Tap the pay button on what's due. Your invoice opens on Stripe's or QuickBooks' secure page.",
+      "Tap the pay button on what's due. It opens your studio's secure payment page — or the invoice says how to pay them.",
       "Come back here afterwards. The page checks for your payment by itself, or tap **Check payment status**.",
       "**Schedule** lists every invoice, soonest first, and which are paid.",
       "If you see **Pay your final balance automatically**, tap **Save a card** and your final balance is charged on its due date.",

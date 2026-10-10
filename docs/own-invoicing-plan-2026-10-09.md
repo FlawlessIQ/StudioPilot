@@ -9,8 +9,10 @@
 | 2 — Deposits: drafted on signing / no-agreement booking, emailed with the PDF or marked sent, Today card, booking panel, PDF re-rendered on payment/void | Live 2026-10-09 (779fbd93) |
 | 3 — Finals, single bills, booking changes, closeout: the final-bill core drafts the studio's own final (taxed on the whole price, deposit shown as paid), "Create the final invoice" on Today/Invoices, closeout reads the standing final or a paid-in-full bill | Live 2026-10-10 (fe1aecea) |
 | 4 — Tracking: Invoices ledger (totals, filters, every bill with its source, CSV), overdue studio invoices chased with number/instructions/pay link and "Email it again", pre-draft balances include the studio's tax | Live 2026-10-10 (28950ce5) |
-| 5 — Delete: one bill or a whole job's records (typed name), settled note for paid bills, audit money scrubbed, tombstone, emulator sweep test (`npm run test:invoice-purge`); unpaid deletes leave no "records deleted" mark | Built 2026-10-10 |
-| 6 | Not started |
+| 5 — Delete: one bill or a whole job's records (typed name), settled note for paid bills, audit money scrubbed, tombstone, emulator sweep test (`npm run test:invoice-purge`); unpaid deletes leave no "records deleted" mark | Live 2026-10-10 (058ad4bb) |
+| 6 — Cue (`send_invoice`, `choose_job_billing`), retired-claims copy guard, help guide "Bill clients yourself", setup "How do clients pay you?" | Built 2026-10-10 |
+| 6 — Group events: an invoice per parent | Deferred: waits on Gabe's Q3 (how pay-on-the-day works) and Q4 (one order for several athletes). Parent invoices must stay out of the job client's portal and out of the job's balance sums. |
+| 6 — Prod walk | Needs Conor's go-ahead: it sends real emails to FlawlessIQ's test addresses |
 
 Phase 5 notes: a paid deposit can only go once its final is paid (or the job has
 no final) — before then the balance is worked out from it. Part-paid bills and

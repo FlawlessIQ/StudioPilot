@@ -1,5 +1,7 @@
 "use client";
 
+import { StudioInvoiceActions } from "@/components/booking/studio-invoice-actions";
+import { JobBillingChoice } from "@/components/booking/job-billing-choice";
 import { invoiceRecordsDeleted } from "@/features/billing/invoice-purge-policy";
 import { useJobBilling } from "@/components/booking/use-job-billing";
 import { isSalesConsultation } from "@/features/consultations/purpose";
@@ -1906,4 +1908,79 @@ function scheduleDue(schedule: unknown, index: number): string | null {
   const entry = Array.isArray(schedule) ? schedule[index] : null;
   const due = entry && typeof entry === "object" ? (entry as Record<string, unknown>).dueDate : null;
   return typeof due === "string" && due ? due.slice(0, 10) : null;
+}
+
+/**
+ * "Bill this job through QuickBooks, or bill it myself" (own invoicing,
+ * features/billing/job-billing.ts): the booking page's own control. With no
+ * QuickBooks there's nothing to choose, and the card says so.
+ */
+export function ChooseJobBillingCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const billing = useJobBilling(action.projectId);
+  const [message, setMessage] = useState<string | null>(null);
+  const title = `How ${jobName(job)} is billed`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !billing) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
+  if (!billing.canChoose)
+    return (
+      <ActionShell title={title}>
+        <Done>
+          {billing.reason === "quickbooks_disconnected"
+            ? `${jobName(job)} was set to QuickBooks, which isn't connected now — you bill it yourself until it's reconnected.`
+            : `You bill ${jobName(job)} yourself: QuickBooks isn't connected, so there's nothing to choose.`}
+        </Done>
+      </ActionShell>
+    );
+  return (
+    <ActionShell detail="Bills already raised stay where they are; this decides the next one." icon={<Receipt size={15} />} title={title}>
+      <JobBillingChoice billing={billing} onChanged={(text) => { setMessage(text); refreshTenantRecords("projects", "billingSettings"); }} projectId={job.id} />
+    </ActionShell>
+  );
+}
+
+/**
+ * Send the studio's own invoice — email it with its PDF, or mark it sent
+ * (own invoicing). 'retainer'/'deposit' or 'final' in the subject; without
+ * one, the bill still waiting to go or still owed.
+ */
+export function SendStudioInvoiceCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const invoices = useRecords("invoiceReferences");
+  const ownerOrAdmin = useIsOwnerOrAdmin();
+  const [message, setMessage] = useState<string | null>(null);
+  const title = `Send the invoice · ${jobName(job)}`;
+  if (!ownerOrAdmin) return <OwnerOnly title={title} />;
+  if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
+  const named = namedInvoiceKind(action.subject);
+  const owed = onJob(invoices, job.id)
+    .filter(
+      (invoice) =>
+        invoice.billedBy === "studio" &&
+        !invoice.provider &&
+        isStandingInvoice(invoice.status) &&
+        num(invoice.balanceCents) > 0 &&
+        (!named || str(invoice.kind) === named),
+    )
+    // The one not yet sent first, then the newest.
+    .sort((left, right) => Number(right.status === "draft") - Number(left.status === "draft") || str(right.createdAt).localeCompare(str(left.createdAt)));
+  const invoice = owed[0];
+  if (!invoice)
+    return (
+      <ActionShell title={title}>
+        <Blocked>
+          {`There's no invoice of yours waiting to go on ${jobName(job)}${named ? ` (${named === "retainer" ? "deposit" : "final"})` : ""}. A deposit is drafted when they sign — or create it on the booking page; a final is made with "Create the final invoice".`}
+        </Blocked>
+      </ActionShell>
+    );
+  return (
+    <ActionShell icon={<Receipt size={15} />} title={title}>
+      <StudioInvoiceActions invoice={invoice} onDone={setMessage} />
+    </ActionShell>
+  );
 }

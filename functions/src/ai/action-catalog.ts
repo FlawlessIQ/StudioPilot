@@ -110,7 +110,9 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   // Money
   { id: "create_retainer_invoice", scope: "project", when: "raise / send the retainer (deposit) invoice" },
   { id: "record_retainer_payment", scope: "project", when: "the couple paid the retainer/deposit outside StudioCue (check, cash, Venmo) — the operator types the amount" },
-  { id: "send_final_balance", scope: "project", when: "send / raise the final balance invoice (the rest of what they owe) now, through QuickBooks or Stripe" },
+  { id: "send_final_balance", scope: "project", when: "send / raise the final balance invoice (the rest of what they owe) now — through QuickBooks, or as the studio's own invoice on a job the studio bills itself" },
+  { id: "send_invoice", scope: "project", ownerAdminOnly: true, when: "email the studio's own invoice (deposit or final, with its PDF) to the client, send it again, or record that the studio sent it itself — 'retainer'/'deposit' or 'final' in `subject`" },
+  { id: "choose_job_billing", scope: "project", ownerAdminOnly: true, when: "decide how this job is billed: through QuickBooks, or the studio bills it itself (its own invoices, no QuickBooks)" },
   { id: "record_final_payment", scope: "project", when: "the couple paid the balance/final payment outside StudioCue — the operator types the amount" },
   { id: "approve_retainer_exception", scope: "project", when: "let a job book before the retainer is paid (an agreed exception)" },
   { id: "void_invoice", scope: "project", when: "void / cancel / take back an unpaid retainer or final invoice that's wrong or no longer owed (it's voided in QuickBooks or Stripe too) — 'retainer' or 'final' in `subject`, why in `text`" },

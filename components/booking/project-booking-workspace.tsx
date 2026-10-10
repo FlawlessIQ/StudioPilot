@@ -959,7 +959,7 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
   if (gate.status === "loading" || loading) {
     return (
       <PanelLoading
-        detail={`Checking ${offer}, signing, and QuickBooks records.`}
+        detail={`Checking ${offer}, signing, and payment records.`}
         label="Loading booking evidence…"
       />
     );

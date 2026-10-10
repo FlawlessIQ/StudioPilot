@@ -317,7 +317,7 @@ export const EXPECTED_TIMELINE: readonly ExpectedStage[] = [
       },
       {
         text: "Raises the retainer invoice as soon as they sign.",
-        note: "Only with QuickBooks connected. Otherwise, record the payment yourself.",
+        note: "Through QuickBooks when the job is billed there. Otherwise StudioCue drafts your own invoice, with its PDF, for you to send.",
       },
       {
         text: "Confirms the booking once the agreement is signed and the retainer has cleared. The job moves from Inquiries to **Jobs**.",
@@ -408,7 +408,7 @@ export const EXPECTED_TIMELINE: readonly ExpectedStage[] = [
         note: "Only with QuickBooks itemized invoices and sales tax.",
       },
       {
-        text: `Raises the final invoice through QuickBooks, due ${distance(S.finalInvoiceDueDaysBefore)} before the wedding.`,
+        text: `Raises the final invoice — through QuickBooks, or as your own invoice for you to send — due ${distance(S.finalInvoiceDueDaysBefore)} before the wedding.`,
         at: wedding(-S.finalInvoiceRaisedDaysBefore),
       },
       {
