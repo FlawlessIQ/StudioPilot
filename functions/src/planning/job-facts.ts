@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { TRADE_FAMILY, tradeOf } from "../trades/trades.js";
 import { isTbd, suggestedFromOf, suggestedTime } from "./field-extras.js";
 
 /**
@@ -68,6 +69,17 @@ const RULE_ONLY_FACTS: ReadonlySet<FactKey> = new Set(["ready_by_time"]);
 
 /** The facts the AI map may name. */
 export const MAPPABLE_FACT_KEYS: readonly FactKey[] = FACT_KEYS.filter((key) => !RULE_ONLY_FACTS.has(key));
+
+/**
+ * Whether a studio's forms are read for the ready-by time: a makeup artist's
+ * or a hair stylist's, whose inquiry is the only one that asks it. Every other
+ * trade's form is read exactly as before — a photographer's "What time will
+ * you be ready?" still goes to the AI map, as it always has (review of the
+ * hair walk, 2026-10-10).
+ */
+export function readsReadyBy(trade: unknown): boolean {
+  return TRADE_FAMILY[tradeOf(trade)] === "beauty";
+}
 
 /** What each fact is, in words — for the AI map's instructions and for people reading a provenance. */
 export const FACT_DESCRIPTIONS: Record<FactKey, string> = {
@@ -209,8 +221,12 @@ export function clockTime(value: unknown): string {
 
 /**
  * A time in the couple's own words — "12:30 PM", "by 1pm", "noon" — as HH:MM.
- * "1:30" with no AM or PM stays blank: nobody is ready at 1:30 at night, but
- * the afternoon is a guess.
+ *
+ * With no AM or PM, only an hour that can mean one thing is read: "9:30" and
+ * "12:30" are the morning and midday (nobody is ready by 9:30 at night), and
+ * anything before 8 stays blank for the couple. "1:30" is a guess at the
+ * afternoon, and "7:30" is as likely an evening wedding's as an early
+ * ceremony's (review of Priya Shah's walk, 2026-10-10).
  */
 export function spokenClock(value: unknown): string {
   const raw = text(value)
@@ -221,7 +237,7 @@ export function spokenClock(value: unknown): string {
     .replace(/\s+/g, "");
   if (/^(?:12)?noon$/.test(raw)) return "12:00";
   const time = clockTime(raw);
-  if (time && time < "07:00" && !/[ap]m$/.test(raw)) return "";
+  if (time && time < "08:00" && !/[ap]m$/.test(raw)) return "";
   return time;
 }
 
@@ -381,16 +397,23 @@ export function jobFactSheet(input: {
 /** Field types a fact can fill. Choices only from their own options. */
 const FILLABLE = new Set(["text", "long_text", "email", "phone", "date", "time", "address", "contact", "dropdown", "radio", ""]);
 
+/** A box the couple types into: a time can go in as words ("12:30 PM"). */
+const TEXT_LIKE: ReadonlySet<string> = new Set(["text", "long_text", ""]);
+
 /**
  * Which fact a field asks for, from its label and type alone. Null when the
  * question isn't one the job can answer — or could mean two things ("Bride's
  * name" doesn't say which contact; "Reception venue" may not be the venue).
+ * `trade` is the studio's (tenants/{id}.trade): only a makeup artist's or a
+ * hair stylist's forms are read for the ready-by time (`readsReadyBy`).
  */
-export function factForField(field: { label?: unknown; id?: unknown; type?: unknown }): FactKey | null {
+export function factForField(field: { label?: unknown; id?: unknown; type?: unknown }, trade?: unknown): FactKey | null {
   const type = text(field.type);
   if (!FILLABLE.has(type)) return null;
   const n = ` ${normalisedQuestion(field.label ?? field.id)} `;
   const has = (...words: string[]) => words.some((word) => n.includes(` ${word} `) || n.includes(` ${word}`));
+  /** Whole words only: "we" is not "wedding". */
+  const says = (...words: string[]) => words.some((word) => n.includes(` ${word} `));
   const partnerOne = has("first partner", "partner 1", "partner one");
   const partnerTwo =
     !partnerOne &&
@@ -417,15 +440,26 @@ export function factForField(field: { label?: unknown; id?: unknown; type?: unkn
 
   // "Photo/Video Start and End Time" asks about hours, not who the videographer is.
   const askingTime = type === "time" || has("time", "times", "start", "end", "hours", "arrival", "arrive");
+  // "When does everyone need to be ready?" — the morning's finish on a makeup
+  // or hair party list, and only theirs. A time or a text box only: a date, a
+  // choice or a contact worded "ready by" asks something else. And the whole
+  // party's finish, never a thing's ("When do the extensions need to be ready
+  // by?") or a yes or no ("Will everyone be ready by the time photos
+  // start?"). Not "getting ready", which is a place or a start. Review of
+  // Priya Shah's walk, Jess Styles Bridal, 2026-10-10.
+  if (readsReadyBy(trade) && (type === "time" || TEXT_LIKE.has(type)) && has("be ready", "ready by") && !has("ceremony")) {
+    const said = n.trim();
+    const bare = /^(?:be )?ready by(?: time)?$/.test(said);
+    const yesOrNo = /^(?:will|would|can|could|is|are|am|do|does|did|should|shall|must|has|have|had) /.test(said) || has("by the time");
+    const everyone = says("everyone", "everybody", "we", "you all", "all of you", "party", "parties", "group");
+    if (bare || (everyone && !yesOrNo && (askingTime || has("when")))) return "ready_by_time";
+  }
   if (!askingTime && has("videographer", "videography", "video")) return "videographer";
   if (!askingTime && has("florist", "flowers", "floral")) return "florist";
   if (!askingTime && has("dj", "disc jockey")) return "dj";
   if (!askingTime && has("band", "live music")) return "band";
   if (!askingTime && has("caterer", "catering")) return "caterer";
   if (!askingTime && has("hair", "makeup", "make up", "mua")) return "hair_makeup";
-  // "When does everyone need to be ready?" — the morning's finish on a makeup
-  // or hair party list. Not "getting ready", which is a place or a start.
-  if (has("be ready", "ready by") && (askingTime || has("when")) && !has("ceremony")) return "ready_by_time";
   if (askingTime && !has("ceremony")) return null;
   // The reception, getting ready, the hotel: often not the venue on the job.
   if (has("reception", "getting ready", "hotel", "after party") && !has("ceremony")) return null;
@@ -469,7 +503,10 @@ function spokenTime(value: string): string {
 export function valueForField(field: { type?: unknown; options?: unknown }, value: string, fact?: FactKey): string | undefined {
   const type = text(field.type);
   if (!value) return undefined;
-  if ((fact === "ceremony_time" || fact === "ready_by_time") && type !== "time") return spokenTime(value);
+  if (fact === "ceremony_time" && type !== "time") return spokenTime(value);
+  // The ready-by time goes into a time or a text box, never a date, a choice
+  // or a contact (review of Priya Shah's walk, 2026-10-10).
+  if (fact === "ready_by_time") return type === "time" ? clockTime(value) || undefined : TEXT_LIKE.has(type) ? spokenTime(value) : undefined;
   if (type === "date") return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
   if (type === "time") return clockTime(value) || undefined;
   if (type === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : undefined;
@@ -506,6 +543,8 @@ export function prefillFromFacts(input: {
   factMap?: Record<string, FactKey> | null;
   existing?: Record<string, unknown> | null;
   touched?: ReadonlySet<string>;
+  /** The studio's trade (tenants/{id}.trade); absent reads as a photographer's. */
+  trade?: unknown;
 }): { answers: Record<string, unknown>; answerProvenance: Record<string, unknown> } {
   const answers: Record<string, unknown> = {};
   const answerProvenance: Record<string, unknown> = {};
@@ -553,7 +592,7 @@ export function prefillFromFacts(input: {
         }
       }
 
-      const key = factForField(field) ?? input.factMap?.[fieldId] ?? null;
+      const key = factForField(field, input.trade) ?? input.factMap?.[fieldId] ?? null;
       const fact = key ? input.sheet.facts[key] : undefined;
       if (!fact || (ONE_PERSON.has(fact.key) && used.has(fact.key))) continue;
       const value = valueForField(field, fact.value, fact.key);
@@ -666,15 +705,18 @@ export function coupleRoleChoices(input: {
   return inquirerFills ? choices : null;
 }
 
-/** Fields the sheet can't place by rule or by an earlier answer: what an AI map is asked about. */
-export function unmatchedFields(sections: unknown): Array<{ id: string; label: string; type: string; options: string[] }> {
+/**
+ * Fields the sheet can't place by rule or by an earlier answer: what an AI map
+ * is asked about. `trade` as for `factForField`.
+ */
+export function unmatchedFields(sections: unknown, trade?: unknown): Array<{ id: string; label: string; type: string; options: string[] }> {
   const fields: Array<{ id: string; label: string; type: string; options: string[] }> = [];
   for (const section of list(sections)) {
     for (const candidate of list(record(section).fields)) {
       const field = record(candidate);
       const id = text(field.id);
       if (!id || field.internalOnly === true || field.locked === true) continue;
-      if (!FILLABLE.has(text(field.type)) || factForField(field) || suggestedFromOf(field.suggestedFrom)) continue;
+      if (!FILLABLE.has(text(field.type)) || factForField(field, trade) || suggestedFromOf(field.suggestedFrom)) continue;
       fields.push({ id, label: text(field.label) || id, type: text(field.type), options: list(field.options).map((option) => text(option)).filter(Boolean) });
     }
   }

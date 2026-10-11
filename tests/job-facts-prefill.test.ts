@@ -11,6 +11,7 @@ import {
   unmatchedFields,
   valueForField,
 } from "../functions/src/planning/job-facts.ts";
+import { jobPrefill } from "../functions/src/planning/job-prefill.ts";
 import { acceptedMappings } from "../functions/src/planning/questionnaire-fact-map.ts";
 import { recommendedFor } from "../functions/src/planning/recommended-templates.ts";
 import { starterQuestionnaires } from "../functions/src/planning/starter-questionnaires.ts";
@@ -248,7 +249,7 @@ const beautyJob = (answer: string | null) =>
 test("the party list's ready-by time comes from the inquiry's, for hair and makeup alike", () => {
   for (const trade of ["hair", "makeup"] as const) {
     const form = recommendedFor(trade)[0]!;
-    const { answers, answerProvenance } = prefillFromFacts({ sheet: beautyJob("12:30 PM"), sections: form.sections });
+    const { answers, answerProvenance } = prefillFromFacts({ sheet: beautyJob("12:30 PM"), sections: form.sections, trade });
     assert.equal(answers["ready-by-time"], "12:30", trade);
     assert.deepEqual(
       answerProvenance["ready-by-time"],
@@ -265,26 +266,70 @@ test("the party list's ready-by time comes from the inquiry's, for hair and make
     );
   }
   // A studio's own wording, or a text box, takes it too.
-  assert.equal(factForField({ label: "What time should everyone be ready by?", type: "text" }), "ready_by_time");
+  for (const label of ["What time should everyone be ready by?", "What time does the bridal party need to be ready?", "Ready by", "Ready-by time"])
+    assert.equal(factForField({ label, type: "text" }, "hair"), "ready_by_time", label);
   const { answers } = prefillFromFacts({
     sheet: beautyJob("12:30 PM"),
     sections: [{ fields: [{ id: "when", label: "When does everyone need to be ready?", type: "text" }] }],
+    trade: "hair",
   });
   assert.equal(answers.when, "12:30 PM");
 });
 
 test("a ready-by time the inquiry didn't give clearly stays blank — never the ceremony's", () => {
   const form = recommendedFor("hair")[0]!;
-  for (const answer of [null, "around 1", "1:30", "after lunch", "12:30 or 1"])
-    assert.equal(prefillFromFacts({ sheet: beautyJob(answer), sections: form.sections }).answers["ready-by-time"], undefined, String(answer));
+  for (const answer of [null, "around 1", "1:30", "7:30", "after lunch", "12:30 or 1"])
+    assert.equal(prefillFromFacts({ sheet: beautyJob(answer), sections: form.sections, trade: "hair" }).answers["ready-by-time"], undefined, String(answer));
   // A job with a ceremony time, and an AI map that read the question as it: the rule places it, and it stays blank.
   const { answers } = prefillFromFacts({
     sheet: job(),
     sections: form.sections,
     factMap: { "ready-by-time": "ceremony_time" },
+    trade: "hair",
   });
   assert.equal(answers["ready-by-time"], undefined);
-  assert.ok(!unmatchedFields(form.sections).some((field) => field.id === "ready-by-time"), "never sent to the AI map");
+  assert.ok(!unmatchedFields(form.sections, "hair").some((field) => field.id === "ready-by-time"), "never sent to the AI map");
+});
+
+/**
+ * The ready-by time goes into a time or a text box asking when everyone must
+ * be ready — nothing else worded "ready by". A date, a choice, a yes or no and
+ * a contact each took "12:30 PM" before (review of Priya Shah's walk, Jess
+ * Styles Bridal, 2026-10-10); nothing checks a choice against its options on
+ * submit, and a required date passed with the box showing blank.
+ */
+test("the ready-by time only goes where it fits", () => {
+  const sections = [
+    {
+      fields: [
+        { id: "extensions-date", label: "When do the extensions need to be ready by?", type: "date" },
+        { id: "extensions-text", label: "When do the extensions need to be ready by?", type: "text" },
+        {
+          id: "window",
+          label: "When does everyone need to be ready?",
+          type: "dropdown",
+          options: ["Before 10 AM", "10 AM to noon", "After noon"],
+        },
+        { id: "photos-radio", label: "Will everyone be ready by the time photos start?", type: "radio", options: ["Yes", "No"] },
+        { id: "photos-text", label: "Will everyone be ready by the time photos start?", type: "text" },
+        { id: "who", label: "Ready by", type: "contact" },
+        { id: "where", label: "Ready by", type: "address" },
+      ],
+    },
+  ];
+  for (const trade of ["hair", "makeup"] as const) {
+    const { answers } = prefillFromFacts({ sheet: beautyJob("12:30 PM"), sections, trade });
+    assert.deepEqual(answers, {}, trade);
+    for (const field of sections[0]!.fields) assert.notEqual(factForField(field, trade), "ready_by_time", `${trade}: ${field.label} (${field.type})`);
+  }
+  // Shaped for the box, and nothing for a box it doesn't fit.
+  assert.equal(valueForField({ type: "time" }, "12:30", "ready_by_time"), "12:30");
+  assert.equal(valueForField({ type: "text" }, "12:30", "ready_by_time"), "12:30 PM");
+  assert.equal(valueForField({ type: "long_text" }, "12:30", "ready_by_time"), "12:30 PM");
+  for (const type of ["date", "dropdown", "radio", "contact", "address", "email", "phone"])
+    assert.equal(valueForField({ type, options: ["12:30 PM", "12:30"] }, "12:30", "ready_by_time"), undefined, type);
+  // The ceremony's time goes into a text box as it always has.
+  assert.equal(valueForField({ type: "text" }, "16:30", "ceremony_time"), "4:30 PM");
 });
 
 test("the couple's own words for a time", () => {
@@ -298,8 +343,15 @@ test("the couple's own words for a time", () => {
     ["12:30", "12:30"],
     ["9:30 am", "09:30"],
     ["6:30 AM", "06:30"],
+    ["7:30 PM", "19:30"],
     ["13:00", "13:00"],
-    // No AM or PM on an hour that could be either: theirs to fill in.
+    // No AM or PM: from 8 a bare hour is the morning — nobody is ready by
+    // 9:30 at night — and before 8 it could be either.
+    ["8:00", "08:00"],
+    ["9:30", "09:30"],
+    ["11:45", "11:45"],
+    ["7:59", ""],
+    ["7:30", ""],
     ["1:30", ""],
     ["11", ""],
     ["after lunch", ""],
@@ -312,12 +364,74 @@ test("a photographer's forms and AI map are as they were", () => {
   // No photographer question asks the ready-by time, and the AI map is never offered it.
   for (const form of [...starterQuestionnaires(), ...recommendedFor("photographer")])
     for (const section of form.sections)
-      for (const field of section.fields) assert.notEqual(factForField(field), "ready_by_time", `${form.name}: ${field.label}`);
+      for (const field of section.fields) {
+        assert.notEqual(factForField(field), "ready_by_time", `${form.name}: ${field.label}`);
+        assert.equal(factForField(field, "photographer"), factForField(field), `${form.name}: ${field.label}`);
+      }
   assert.deepEqual(MAPPABLE_FACT_KEYS, FACT_KEYS.filter((key) => key !== "ready_by_time"));
   assert.deepEqual(acceptedMappings([{ id: "t", label: "Ready by", type: "text" }], { mappings: [{ fieldId: "t", fact: "ready_by_time" }] }), {});
-  // "Getting ready" is a place or a start, not the morning's finish.
-  for (const label of ["Getting ready location", "Getting ready start time", "Where are you getting ready?"])
-    assert.notEqual(factForField({ label, type: label.includes("time") ? "time" : "text" }), "ready_by_time", label);
+  // "Getting ready" is a place or a start, not the morning's finish — for any trade.
+  for (const trade of ["photographer", "hair", "makeup"])
+    for (const label of ["Getting ready location", "Getting ready start time", "Where are you getting ready?"])
+      assert.notEqual(factForField({ label, type: label.includes("time") ? "time" : "text" }, trade), "ready_by_time", `${trade}: ${label}`);
   // A photographer's lead has no ready-by answer, so its sheet has no such fact.
   assert.equal(job().facts.ready_by_time, undefined);
+});
+
+/**
+ * Only a makeup artist's or hair stylist's forms are read for the ready-by
+ * time. A photographer's own "What time will everyone be ready?" is placed as
+ * it always was: by no rule, so it goes to the AI map, and what the map read
+ * stands (review of Priya Shah's walk, 2026-10-10).
+ */
+test("a photographer's question worded like the party list's is read as it always was", () => {
+  const ready = { id: "ready", label: "What time will everyone be ready?", type: "time" };
+  const partyList = { id: "ready-by-time", label: "When does everyone need to be ready?", type: "time" };
+  for (const trade of [undefined, null, "", "photographer", "dj"]) {
+    assert.equal(factForField(ready, trade), null, String(trade));
+    assert.equal(factForField(partyList, trade), null, String(trade));
+    assert.deepEqual(
+      unmatchedFields([{ fields: [ready, partyList] }], trade).map((field) => field.id),
+      ["ready", "ready-by-time"],
+      `${String(trade)}: still asked of the AI map`,
+    );
+    const { answers } = prefillFromFacts({ sheet: job(), sections: [{ fields: [ready] }], factMap: { ready: "ceremony_time" }, trade });
+    assert.equal(answers.ready, "16:30", `${String(trade)}: the map's reading stands`);
+  }
+  for (const trade of ["hair", "makeup"]) assert.equal(factForField(ready, trade), "ready_by_time", trade);
+});
+
+/**
+ * The studio's trade reaches the rules: jobPrefill reads tenants/{id}.trade.
+ * Without it the hair walk's fix would do nothing on prod.
+ */
+test("a form sent by a hair studio is read for the ready-by time; a photographer's is not", async () => {
+  const docs: Record<string, Record<string, unknown> | undefined> = {
+    "tenants/t-hair": { trade: "hair" },
+    "tenants/t-photo": { trade: "photographer" },
+  };
+  const db = {
+    doc: (path: string) => ({
+      get: async () => ({ exists: Boolean(docs[path]), data: () => docs[path], get: (key: string) => docs[path]?.[key] }),
+    }),
+  } as unknown as Parameters<typeof jobPrefill>[0];
+  const sections = recommendedFor("hair")[0]!.sections;
+  const prefill = (tenantId: string) =>
+    jobPrefill(db, {
+      tenantId,
+      projectId: null,
+      leadId: "l1",
+      lead: {
+        tenantId,
+        firstName: "Priya",
+        lastName: "Shah",
+        customAnswers: [{ questionId: "ready-by", question: "What time does everyone need to be ready?", answer: "12:30 PM" }],
+      },
+      templateId: null,
+      templateVersion: 1,
+      sections,
+      allowAi: false,
+    });
+  assert.equal((await prefill("t-hair")).answers["ready-by-time"], "12:30");
+  assert.equal((await prefill("t-photo")).answers["ready-by-time"], undefined);
 });

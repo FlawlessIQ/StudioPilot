@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { tenantTrade } from "../trades/tenant-trade.js";
 import { coupleRoleChoices, loadJobFactSheet, prefillFromFacts, type CoupleRoleChoices } from "./job-facts.js";
 import { templateFactMap } from "./questionnaire-fact-map.js";
 
@@ -42,7 +43,10 @@ export async function jobPrefill(
     actorId?: string | null;
   },
 ) {
-  const [sheet, factMap] = await Promise.all([
+  // The studio's trade decides which questions the rules read: only a makeup
+  // artist's or hair stylist's forms take the ready-by time (job-facts.ts).
+  const studioTrade = tenantTrade(db, input.tenantId);
+  const [sheet, factMap, trade] = await Promise.all([
     loadJobFactSheet(db, {
       tenantId: input.tenantId,
       projectId: input.projectId,
@@ -51,14 +55,20 @@ export async function jobPrefill(
       lead: input.lead,
       excludeResponseId: input.excludeResponseId,
     }),
-    templateFactMap(db, {
-      tenantId: input.tenantId,
-      templateId: input.templateId,
-      templateVersion: input.templateVersion,
-      sections: input.sections,
-      allowAi: input.allowAi,
-      actorId: input.actorId,
-    }).catch(() => ({})),
+    studioTrade
+      .then((trade) =>
+        templateFactMap(db, {
+          tenantId: input.tenantId,
+          templateId: input.templateId,
+          templateVersion: input.templateVersion,
+          sections: input.sections,
+          allowAi: input.allowAi,
+          actorId: input.actorId,
+          trade,
+        }),
+      )
+      .catch(() => ({})),
+    studioTrade,
   ]);
   const touched = touchedFields(input.changeHistory);
   const prefill = prefillFromFacts({
@@ -67,6 +77,7 @@ export async function jobPrefill(
     factMap,
     existing: input.existing,
     touched,
+    trade,
   });
   // "I'm the bride / I'm the groom": what's still blank after the prefill.
   const roleChoices = coupleRoleChoices({

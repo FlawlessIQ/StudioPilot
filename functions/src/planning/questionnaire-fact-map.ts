@@ -134,6 +134,8 @@ export async function templateFactMap(
     sections: unknown;
     allowAi: boolean;
     actorId?: string | null;
+    /** The studio's trade: which questions the rules already place (job-facts.ts `readsReadyBy`). */
+    trade?: unknown;
   },
 ): Promise<Record<string, FactKey>> {
   if (!input.templateId) return {};
@@ -148,7 +150,7 @@ export async function templateFactMap(
   )
     return (cached.get("map") ?? {}) as Record<string, FactKey>;
 
-  const fields = unmatchedFields(input.sections);
+  const fields = unmatchedFields(input.sections, input.trade);
   if (!fields.length || !input.allowAi || process.env.PROVIDER_MOCK_MODE === "true") return {};
 
   const reservedAt = new Date().toISOString();
