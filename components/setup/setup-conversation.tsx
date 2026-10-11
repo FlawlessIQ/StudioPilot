@@ -17,6 +17,8 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { JourneySetupBanner, useOffersWeddingFilm } from "@/components/help/journey-film";
 import { useSetupState } from "@/components/setup/use-setup-state";
+import { useTenantDocuments } from "@/components/live/tenant-records";
+import { hasPerPersonPrice } from "@/features/packages/per-person-price";
 import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
 import { fromSetup } from "@/components/setup/back-to-setup";
 import { setSignatureMode, startProviderConnect } from "@/lib/integrations/command-client";
@@ -245,6 +247,17 @@ export function SetupConversation() {
   // insurance on purpose. The page said "Your studio is set up." over "5 of 6
   // answered"; now it only says that when every question is answered.
   const allAnswered = !loading && gaps.length === 0;
+  // Any package answers "What do you charge?", so a makeup artist or hair
+  // stylist who imported one lost the way to her per-person prices with it
+  // (Priya Shah, Jess Styles Bridal, 2026-10-10). Only her trade reads the
+  // add-ons; undefined until both lists are in.
+  const perPersonPricing = tradeProfile(workspace.tenantTrade).perPersonPricing;
+  const addOnRecords = useTenantDocuments("addOns", { enabled: perPersonPricing }).records;
+  const packageRecords = useTenantDocuments("packages", { enabled: perPersonPricing }).records;
+  const pricedPerPerson =
+    addOnRecords === null || packageRecords === null
+      ? undefined
+      : hasPerPersonPrice({ addOns: addOnRecords, packages: packageRecords });
 
   /** What a question offers when it isn't answered yet. */
   const answer = (question: Question, gap: SetupGap): ReactNode => {
@@ -307,6 +320,24 @@ export function SetupConversation() {
 
   /** What an answered question still offers. */
   const afterwards = (question: Question): ReactNode => {
+    // Packages answer the question; per-person prices are still asked for
+    // until one exists, then stay a quiet link.
+    if (question.key === "packages" && perPersonPricing) {
+      if (pricedPerPerson === undefined) return null;
+      return (
+        <div className="setup-answer-row">
+          {pricedPerPerson ? (
+            <Link className="setup-answer-link" href={PER_PERSON_PRICES}>
+              Per-person prices
+            </Link>
+          ) : (
+            <Link className="button button-light button-sm" href={PER_PERSON_PRICES}>
+              Set per-person prices <ArrowRight size={14} />
+            </Link>
+          )}
+        </div>
+      );
+    }
     if (question.key === "availability")
       return (
         <div className="setup-answer-row">
