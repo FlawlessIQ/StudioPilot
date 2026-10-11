@@ -57,6 +57,16 @@ async function cloudAccessToken(){const value=await metadataToken("token");const
 async function cloudRunIdentityToken(audience:string){const response=await fetch(`http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}&format=full`,{headers:{"Metadata-Flavor":"Google"}});if(!response.ok)throw new Error("PDF_SERVICE_IDENTITY_UNAVAILABLE");return response.text()}
 const money=(value:unknown,currency:string)=>new Intl.NumberFormat("en-US",{style:"currency",currency}).format(Number(value)/100);
 
+/**
+ * Which prompt wrote a draft, by trade. A photographer's prompts did not
+ * change, so neither do their versions; a vendor's now carry the trade
+ * (tradeInstruction), and the new version tells those drafts apart from the
+ * ones written before (Jess Styles Bridal, 2026-10-10).
+ */
+export function draftInstructionVersion(photoVersion:string,vendorVersion:string,trade:unknown):string{
+  return tradeProfile(trade).family==="photo"?photoVersion:vendorVersion;
+}
+
 /** Which "missing" items the studio's form actually asked this inquiry. */
 async function inquiryAskedFor(db:FirebaseFirestore.Firestore,lead:DocumentSnapshot):Promise<{matches:(item:string)=>boolean}>{
   const settings=await db.doc(`leadCaptureSettings/${string(lead.get("tenantId"))}`).get().catch(()=>null);
@@ -308,7 +318,11 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
       packageId:recommended?.id??null,
       packageRationale:recommended?`${String(recommended.name)} is the first active package available for human review.`:"No active package is available.",
       fitGaps:recommended?[]:["Create or activate a package."],
-      proposalIntroduction:`Thank you for sharing what matters most for your celebration. This draft reflects the priorities discussed during your ${words.consultation.toLowerCase()}.`,
+      // As the quote composer's fallback says it (copilot.ts generateProposalDraft):
+      // a makeup artist or hair stylist holds no consultation to point back to.
+      proposalIntroduction:tradeProfile(trade).consultation
+        ?`Thank you for sharing what matters most for your celebration. This draft reflects the priorities discussed during your ${words.consultation.toLowerCase()}.`
+        :"Thank you for sharing what matters most for your celebration. This draft reflects what you shared with us.",
       followUpQuestions:[],
       confidence:recommended?0.82:0.45,
     };
@@ -364,7 +378,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
     actorId:"vertex-ai-worker",
     modelProvider:"google_vertex_ai",
     modelVersion,
-    instructionVersion:"consultation-booking-v1",
+    instructionVersion:draftInstructionVersion("consultation-booking-v1","consultation-booking-v2",trade),
     outputSchemaVersion:"consultation-booking-v1",
     confidence:{overall:confidence,label:confidence>=0.9?"high":confidence>=0.7?"medium":"low",uncertainFields:missingInformation},
     decision:null,
@@ -573,7 +587,7 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     status:"review_required",
     modelProvider:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex_ai",
     modelVersion:process.env.VERTEX_AI_EXTRACTION_MODEL??"mock-questionnaire-v1",
-    instructionVersion:"questionnaire-review-v2",
+    instructionVersion:draftInstructionVersion("questionnaire-review-v2","questionnaire-review-v3",trade),
     outputSchemaVersion:"questionnaire-review-v2",
     sourceReferences:[
       {entityType:"questionnaire_response",entityId:responseId,versionId:String(response.get("templateVersion")??1),label:String(response.get("templateName")??"Questionnaire"),locator:"submitted answers"},
@@ -605,7 +619,7 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
       status:"review_required",
       modelProvider:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex_ai",
       modelVersion:process.env.VERTEX_AI_EXTRACTION_MODEL??"mock-questionnaire-v1",
-      instructionVersion:"planning-followup-v1",
+      instructionVersion:draftInstructionVersion("planning-followup-v1","planning-followup-v2",trade),
       outputSchemaVersion:"communication-draft-v1",
       sourceReferences:[{entityType:"questionnaire_response",entityId:responseId,versionId:String(response.get("templateVersion")??1),label:String(response.get("templateName")??"Questionnaire"),locator:"planning gaps"}],
       structuredOutput:{subject:followupSubject,body:followupBody,recipientEmail:clientContact.get("email"),recipientName:clientContact.get("displayName")??null,contactId:clientContact.id,projectName:project.get("name")??null},
@@ -784,7 +798,7 @@ async function runInboundReplyDraft(job: DocumentSnapshot) {
         process.env.VERTEX_AI_MESSAGE_MODEL ??
         process.env.VERTEX_AI_SCHEDULE_MODEL ??
         "vertex",
-      instructionVersion: "inbound_reply_v1",
+      instructionVersion: draftInstructionVersion("inbound_reply_v1", "inbound_reply_v2", trade),
       outputSchemaVersion: "message_draft_output_v1",
       // Who it goes to and which inquiry it answers travel with it, as they do
       // on a first reply: without them an approved draft had no recipient and

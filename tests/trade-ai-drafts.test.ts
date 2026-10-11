@@ -4,6 +4,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { generateProposalDraft, proposalDraftInstruction } from "../functions/src/ai/copilot.js";
 import { fallbackDraft } from "../functions/src/ai/message-draft.js";
+import { runOfShowInstruction } from "../functions/src/ai/schedule.js";
+import { draftInstructionVersion } from "../functions/src/operations/ai-pdf.js";
 import { tradeVocab } from "../functions/src/trades/trades";
 
 /**
@@ -27,18 +29,53 @@ const between = (source: string, from: string, to: string) => {
   return source.slice(start, end);
 };
 
-// --- every model call is either a drafting route in the trade's words, or an extraction
+// --- every model call is classified, function by function --------------------
 
-/** Calls that only read a document or a message into fields; nobody else reads their output. */
-const EXTRACTION_ONLY: Record<string, string> = {
-  "functions/src/ai/signed-agreement.ts": "reads a signed agreement into fields",
-  "functions/src/ai/timing-rules.ts": "learns the studio's own timing rules",
-  "functions/src/intake/enrich.ts": "fills an inquiry's empty fields from its message",
-  "functions/src/planning/questionnaire-fact-map.ts": "maps form fields to job facts",
-  "functions/src/studio-import/extraction.ts": "reads imported bookings",
+/**
+ * Every function in functions/src that calls the model or writes its prompt,
+ * as `file#function`, and what it is. A draft is read by a client, the crew or
+ * the operator, so it must be told the studio's trade; anything else says why
+ * it need not.
+ *
+ * Classified per function, not per file: copilot.ts and ai-pdf.ts each hold
+ * several calls, and a file that named the trade anywhere passed for all of
+ * them, so a new drafting call added beside an old one would have drafted as a
+ * photographer unnoticed (review of the hair walk's fix, 2026-10-10).
+ */
+const MODEL_CALLS: Record<string, { kind: "draft" | "extraction" | "retrieval" | "transport"; why: string }> = {
+  "functions/src/ai/communications.ts#generateCommunication": { kind: "draft", why: "client emails" },
+  "functions/src/ai/copilot.ts#finalAnswerBody": { kind: "draft", why: "Cue's answers and the client emails it writes" },
+  "functions/src/ai/copilot.ts#generateProposalDraft": { kind: "draft", why: "the quote composer's introduction and terms" },
+  "functions/src/ai/copilot.ts#generateIntake": {
+    kind: "extraction",
+    why: "reads a pasted message into intake fields the studio confirms",
+  },
+  "functions/src/ai/copilot.ts#runToolLoop": {
+    kind: "retrieval",
+    why: "picks the records to read and the card to prepare, in the operator's own words; finalAnswerBody writes the answer",
+  },
+  "functions/src/ai/copilot.ts#generateStructuredOnce": { kind: "transport", why: "sends the body finalAnswerBody built" },
+  "functions/src/ai/copilot.ts#streamStructuredBody": { kind: "transport", why: "streams the body finalAnswerBody built" },
+  "functions/src/ai/message-draft.ts#generateDraft": { kind: "draft", why: "message drafts and lifecycle emails" },
+  "functions/src/ai/schedule.ts#generate": { kind: "draft", why: "the run-of-show the client and crew read" },
+  "functions/src/ai/signed-agreement.ts#readWithVertex": { kind: "extraction", why: "reads a signed agreement into fields" },
+  "functions/src/ai/timing-rules.ts#propose": { kind: "extraction", why: "learns the studio's own timing rules" },
+  "functions/src/intake/enrich.ts#modelExtraction": { kind: "extraction", why: "fills an inquiry's empty fields from its message" },
+  "functions/src/operations/ai-pdf.ts#runLeadIntakeAnalysis": { kind: "draft", why: "the first reply to an inquiry" },
+  "functions/src/operations/ai-pdf.ts#runConsultationAnalysis": { kind: "draft", why: "the brief's introduction and follow-up questions" },
+  "functions/src/operations/ai-pdf.ts#runQuestionnaireAnalysis": { kind: "draft", why: "the questionnaire follow-up email" },
+  "functions/src/operations/ai-pdf.ts#runInboundReplyDraft": { kind: "draft", why: "the reply to a client's message" },
+  "functions/src/operations/ai-pdf.ts#runAiJob": { kind: "extraction", why: "reads a certificate of insurance into fields" },
+  "functions/src/planning/questionnaire-fact-map.ts#askModel": { kind: "extraction", why: "maps form fields to job facts" },
+  "functions/src/studio-import/extraction.ts#vertexExtraction": { kind: "extraction", why: "reads imported bookings" },
 };
 const TRANSPORT = new Set(["functions/src/ai/vertex-endpoint.ts", "functions/src/ai/vertex-transport.ts"]);
-const TRADE_AWARE = /tradeInstruction\(|inquiryReplySystemInstruction\(|messageDraftSystemInstruction\(/;
+/** The trade instruction, or a prompt builder pinned below to append it. */
+const TRADE_AWARE =
+  /tradeInstruction\(|inquiryReplySystemInstruction\(|messageDraftSystemInstruction\(|proposalDraftInstruction\(/;
+/** A top-level function or const, where a model call is named. */
+const DECLARATION = /^(?:export )?(?:async )?function\s+(\w+)|^(?:export )?(?:const|let)\s+(\w+)\s*[:=]/gm;
+const MODEL_SITE = /vertexEndpoint\(|vertexGenerate\(|systemInstruction\s*:/g;
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -48,16 +85,67 @@ function sources(dir: string): string[] {
   });
 }
 
+/** Each function that calls the model or writes a prompt: how many of each, and its body. */
+function modelFunctions(): Map<string, { calls: number; prompts: number; body: string }> {
+  const found = new Map<string, { calls: number; prompts: number; body: string }>();
+  for (const path of sources("functions/src")) {
+    if (TRANSPORT.has(path)) continue;
+    const source = readFileSync(path, "utf8");
+    const declarations = [...source.matchAll(DECLARATION)].map((match) => ({
+      name: match[1] ?? match[2],
+      at: match.index ?? 0,
+    }));
+    for (const site of source.matchAll(MODEL_SITE)) {
+      const at = site.index ?? 0;
+      let index = -1;
+      for (let candidate = 0; candidate < declarations.length; candidate++) {
+        if (declarations[candidate]!.at < at) index = candidate;
+      }
+      assert.ok(index >= 0, `${path}: a model call outside any function`);
+      const declaration = declarations[index]!;
+      const key = `${path}#${declaration.name}`;
+      const entry = found.get(key) ?? {
+        calls: 0,
+        prompts: 0,
+        body: source.slice(declaration.at, declarations[index + 1]?.at ?? source.length),
+      };
+      if (site[0].startsWith("systemInstruction")) entry.prompts += 1;
+      else entry.calls += 1;
+      found.set(key, entry);
+    }
+  }
+  return found;
+}
+
 test("every model call that writes for a client or the crew is told the studio's trade", () => {
-  const callers = sources("functions/src").filter(
-    (path) => !TRANSPORT.has(path) && /vertexEndpoint\(|vertexGenerate\(/.test(readFileSync(path, "utf8")),
+  const found = modelFunctions();
+  assert.ok(found.size >= 15, "the scan found the model calls");
+  // A new call is classified before it ships, and a gone one leaves the list.
+  assert.deepEqual(
+    [...found.keys()].sort(),
+    Object.keys(MODEL_CALLS).sort(),
+    "classify every model call in MODEL_CALLS: a draft carries tradeInstruction(), anything else says why not",
   );
-  assert.ok(callers.length >= 10, "the scan found the model calls");
-  for (const path of callers) {
-    if (EXTRACTION_ONLY[path]) continue;
-    assert.match(readFileSync(path, "utf8"), TRADE_AWARE, `${path} drafts without the studio's trade`);
+  for (const [key, { calls, prompts, body }] of found) {
+    const { kind } = MODEL_CALLS[key]!;
+    // One call per function, so each is classified on its own: a second
+    // prompt beside a draft's would pass on the draft's trade.
+    assert.ok(calls <= 1 && prompts <= 1, `${key}: one model call per function — give the new one its own`);
+    if (kind === "transport") assert.equal(prompts, 0, `${key} sends a prompt it did not write`);
+    if (kind === "draft") assert.match(body, TRADE_AWARE, `${key} drafts without the studio's trade`);
+  }
+  // The prompt builders a draft may use in place of tradeInstruction() append it.
+  for (const [path, builder] of [
+    ["functions/src/ai/copilot.ts", "export function proposalDraftInstruction("],
+    ["functions/src/ai/message-draft.ts", "export function messageDraftSystemInstruction("],
+    ["functions/src/ai/studio-voice.ts", "export function inquiryReplySystemInstruction("],
+  ] as const) {
+    assert.match(between(read(path), builder, "\n}\n"), /tradeInstruction\(/, builder);
   }
 });
+
+/** The quote composer's prompt before the hair walk's fix, word for word. */
+const PHOTO_PROPOSAL_PROMPT = "Write proposal copy for a photography studio, grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Write as the studio, to the client: turn their words into the second person (“your family of four”, never “the four of us”), and never add people, relationships or details they did not write — no partner, children or guests unless the facts name them. Call the event what a client calls it, by `project.eventKind`: their wedding only for a wedding, their session for portraits, their event otherwise (or simply their day) — and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. `packages` is EVERY package the client is being offered (photography and video are often sold together) and `combinedCoverage` is everyone they send between them: when the introduction mentions what is on offer, name every package, never just the first, and describe each only from its own facts. termsSummary: restate each package's approved terms in plain client-friendly language, under that package's name when there is more than one; never add, soften, or remove a term, never apply one package's terms to another, and never write legal language of your own. If no package has terms, restate nothing. The studio edits and approves this before anything is sent. Return JSON only.";
 
 test("the quote composer's draft carries the trade instruction", () => {
   const copilot = read("functions/src/ai/copilot.ts");
@@ -79,11 +167,15 @@ test("the quote composer's draft carries the trade instruction", () => {
   assert.match(hair, /Never offer to schedule a consultation/);
   assert.match(proposalDraftInstruction("makeup"), /Call the proposal a quote\./);
   assert.match(proposalDraftInstruction("dj"), /vibe call/);
-  // A photographer's prompt is what it was.
+  // Only a photographer sells photography and video together.
+  for (const vendor of ["hair", "makeup", "dj"]) {
+    const prompt = proposalDraftInstruction(vendor);
+    assert.match(prompt, /`packages` is EVERY package the client is being offered and `combinedCoverage`/);
+    assert.doesNotMatch(prompt, /photography and video/);
+  }
+  // A photographer's prompt is what it was, byte for byte.
   const photo = proposalDraftInstruction("photographer");
-  assert.ok(photo.startsWith("Write proposal copy for a photography studio, grounded ONLY"));
-  assert.ok(photo.endsWith("Return JSON only."));
-  assert.doesNotMatch(photo, /not a photography studio/);
+  assert.equal(photo, PHOTO_PROPOSAL_PROMPT);
   assert.equal(proposalDraftInstruction(undefined), photo);
 });
 
@@ -136,12 +228,27 @@ test("a photographer's prompts read exactly as they did", () => {
   assert.match(render(inbound, "hair"), /^Draft one reply from a hair business to its client/);
 });
 
+/** The run-of-show prompt's opening before the hair walk's fix, word for word. */
+const PHOTO_RUN_OF_SHOW_PROMPT = "Draft a photography and video run-of-show from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (card backups, gear staging, travel buffers, meal breaks). Default any client-relevant moment to \"shared\". Packages: packageFact can list several packages for the same day (a photo package and a video package, say); plan for every role in its coverage across the whole coverage window, and never shorten the day to one package's minutes. ";
+
 test("the run-of-show is drafted in the trade, and a photographer's still says photography and video", () => {
   const schedule = read("functions/src/ai/schedule.ts");
-  assert.match(schedule, /momentsInstruction \+\n\s+tradeInstruction\(trade\) \+\n\s+" This is an unapproved draft/);
-  assert.match(schedule, /\? "Draft a photography and video run-of-show"\n\s+: `Draft a \$\{tradeVocab\(trade\)\.service\} run-of-show`\) \+\n\s+" from only the supplied facts\./);
+  assert.match(
+    schedule,
+    /runOfShowInstruction\(trade\) \+\n\s+scheduleCrewInstruction \+\n\s+momentsInstruction \+\n\s+tradeInstruction\(trade\) \+\n\s+" This is an unapproved draft/,
+  );
   assert.match(schedule, /tenantTrade\(db, input\.tenantId\),/);
   assert.match(schedule, /momentsInstructionFor\(project\.data\(\)\), trade\);/);
+  // A photographer's, byte for byte.
+  assert.equal(runOfShowInstruction("photographer"), PHOTO_RUN_OF_SHOW_PROMPT);
+  assert.equal(runOfShowInstruction(undefined), PHOTO_RUN_OF_SHOW_PROMPT);
+  // A vendor's has no photo or video package, and no card backups.
+  const hair = runOfShowInstruction("hair");
+  assert.ok(hair.startsWith("Draft a hair run-of-show from only the supplied facts."));
+  assert.match(hair, /internal logistics they should not see \(setup, travel buffers, meal breaks\)/);
+  assert.match(hair, /several packages for the same day; plan for every role/);
+  assert.doesNotMatch(hair, /photo|video|card backups/);
+  assert.ok(runOfShowInstruction("dj").startsWith("Draft a music run-of-show"));
 });
 
 // --- the deterministic fallbacks use the trade's offer word ---------------------
@@ -197,6 +304,49 @@ test("the fallback reply to an inquiry offers a hair studio's quote, not coverag
     assert.match(photo, /I'd love to talk through what coverage would suit the day you have in mind\./);
     assert.match(photo, /Would a short call this week suit\? I'll walk you through how I work/);
   }
+  // With packages published, as Jess Styles Bridal has: the price in a
+  // vendor's words, then the quote and the trial — never only a range.
+  const priced = {
+    ...context,
+    packages: [
+      { name: "Bridal hair", basePriceCents: 35000 },
+      { name: "Bridal hair and party", basePriceCents: 90000 },
+    ],
+  };
+  const hairPriced = fallbackDraft({ trigger: "inquiry_reply", context: priced, trade: "hair" }).body;
+  assert.match(
+    hairPriced,
+    /Our packages run from \$350 to \$900\. I'd love to put together a quote for the day you have in mind\./,
+  );
+  assert.match(hairPriced, /I can also set up a hair trial, so we can settle the look before the day\./);
+  assert.match(hairPriced, /If you have any questions, just reply/);
+  assert.doesNotMatch(hairPriced, /collection|coverage|a short call|consultation|proposal/i);
+  // One package priced per person only starts at its price.
+  const onePackage = { ...context, packages: [{ name: "Bridal hair", basePriceCents: 35000 }] };
+  assert.match(
+    fallbackDraft({ trigger: "inquiry_reply", context: onePackage, trade: "hair" }).body,
+    /Our package starts at \$350\. I'd love to put together a quote/,
+  );
+  assert.match(
+    fallbackDraft({ trigger: "inquiry_reply", context: onePackage, trade: "dj" }).body,
+    /Our package is \$350\. I'd love to put together a proposal for the day you have in mind\.\n\nWould a short vibe call this week suit\?/,
+  );
+  assert.match(
+    fallbackDraft({ trigger: "inquiry_reply", context: priced, trade: "makeup" }).body,
+    /I can also set up a makeup trial/,
+  );
+  // A photographer's priced reply, word for word: the range, then the call.
+  for (const photo of [
+    fallbackDraft({ trigger: "inquiry_reply", context: priced, trade: "photographer" }).body,
+    fallbackDraft({ trigger: "inquiry_reply", context: priced }).body,
+  ]) {
+    assert.match(photo, /\n\nOur collections run from \$350 to \$900\.\n\nWould a short call this week suit\?/);
+    assert.doesNotMatch(photo, /quote|trial/);
+  }
+  assert.match(
+    fallbackDraft({ trigger: "inquiry_reply", context: onePackage, trade: "photographer" }).body,
+    /\n\nOur collection is \$350\.\n\n/,
+  );
   // Every fallback route is handed the tenant's trade.
   const drafts = read("functions/src/ai/message-draft.ts");
   assert.equal((drafts.match(/fallbackDraft\(\{ trigger: input\.trigger, context: input\.context, trade: input\.trade \}\)/g) ?? []).length, 2);
@@ -209,8 +359,13 @@ test("the worker's own fallbacks use the trade's words", () => {
   assert.match(worker, /const nextStep=tradeProfile\(tenant\.get\("trade"\)\)\.consultation\?`a short \$\{replyWords\.consultation\.toLowerCase\(\)\}`:`your \$\{replyWords\.proposal\.toLowerCase\(\)\}`;/);
   assert.match(worker, /The next step is \$\{nextStep\} so we can confirm/);
   assert.equal((worker.match(/\|\|replyWords\.service\} inquiry`/g) ?? []).length, 2);
-  // The brief's introduction names the trade's own call.
-  assert.match(worker, /priorities discussed during your \$\{words\.consultation\.toLowerCase\(\)\}\.`/);
+  // The brief's introduction names the trade's own call, and with none says
+  // what the quote composer's fallback says (copilot.ts generateProposalDraft).
+  const briefIntro = between(worker, "proposalIntroduction:", "followUpQuestions:");
+  assert.match(
+    briefIntro,
+    /tradeProfile\(trade\)\.consultation\n\s+\?`Thank you for sharing what matters most for your celebration\. This draft reflects the priorities discussed during your \$\{words\.consultation\.toLowerCase\(\)\}\.`\n\s+:"Thank you for sharing what matters most for your celebration\. This draft reflects what you shared with us\.",/,
+  );
   // The follow-up names the trade's plan of the day; a photographer's is the photography timeline.
   assert.match(worker, /begin preparing your \$\{dayPlan\}\.`/);
   assert.equal(tradeVocab("photographer").planOfDay, null);
@@ -218,4 +373,20 @@ test("the worker's own fallbacks use the trade's words", () => {
   assert.equal(tradeVocab("hair").planOfDay, "Getting-ready schedule");
   // A reply with no subject: a photographer's as before, nobody else's "your photography".
   assert.match(worker, /\(tradeProfile\(trade\)\.family === "photo" \? "Re: your photography" : "Re: your message"\)/);
+});
+
+test("a vendor's drafts record the prompt version that carries the trade; a photographer's keep theirs", () => {
+  assert.equal(draftInstructionVersion("inbound_reply_v1", "inbound_reply_v2", "photographer"), "inbound_reply_v1");
+  assert.equal(draftInstructionVersion("inbound_reply_v1", "inbound_reply_v2", undefined), "inbound_reply_v1");
+  assert.equal(draftInstructionVersion("inbound_reply_v1", "inbound_reply_v2", "hair"), "inbound_reply_v2");
+  assert.equal(draftInstructionVersion("inbound_reply_v1", "inbound_reply_v2", "dj"), "inbound_reply_v2");
+  const worker = read("functions/src/operations/ai-pdf.ts");
+  for (const pinned of [
+    'instructionVersion:draftInstructionVersion("consultation-booking-v1","consultation-booking-v2",trade),',
+    'instructionVersion:draftInstructionVersion("questionnaire-review-v2","questionnaire-review-v3",trade),',
+    'instructionVersion:draftInstructionVersion("planning-followup-v1","planning-followup-v2",trade),',
+    'instructionVersion: draftInstructionVersion("inbound_reply_v1", "inbound_reply_v2", trade),',
+  ]) {
+    assert.ok(worker.includes(pinned), pinned);
+  }
 });

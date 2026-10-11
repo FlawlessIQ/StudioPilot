@@ -206,6 +206,29 @@ async function fetchVertexWithRetry(url: string, init: RequestInit) {
   throw new Error("AI_SCHEDULE_TEMPORARILY_UNAVAILABLE");
 }
 
+/**
+ * What the run-of-show draft is told before the crew and the day's moments,
+ * in the studio's own trade, as every other drafting prompt is.
+ *
+ * A DJ's night is not a "photography and video run-of-show", and a
+ * stylist's internal lines are not card backups or a video package
+ * (trades.ts; Jess Styles Bridal, 2026-10-10). A photographer's reads exactly
+ * as it always has.
+ */
+export function runOfShowInstruction(trade: unknown): string {
+  const photo = tradeProfile(trade).family === "photo";
+  return (
+    (photo
+      ? "Draft a photography and video run-of-show"
+      : `Draft a ${tradeVocab(trade).service} run-of-show`) +
+    " from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (" +
+    (photo ? "card backups, gear staging" : "setup") +
+    ", travel buffers, meal breaks). Default any client-relevant moment to \"shared\". Packages: packageFact can list several packages for the same day" +
+    (photo ? " (a photo package and a video package, say)" : "") +
+    "; plan for every role in its coverage across the whole coverage window, and never shorten the day to one package's minutes. "
+  );
+}
+
 async function generate(
   input: z.infer<typeof inputSchema>,
   context: Json,
@@ -232,13 +255,7 @@ async function generate(
           parts: [
             {
               text:
-                // In the studio's own trade, as every other drafting prompt is:
-                // a DJ's night is not a "photography and video run-of-show"
-                // (trades.ts; Jess Styles Bridal, 2026-10-10).
-                (tradeProfile(trade).family === "photo"
-                  ? "Draft a photography and video run-of-show"
-                  : `Draft a ${tradeVocab(trade).service} run-of-show`) +
-                " from only the supplied facts. Never invent a confirmed venue, person, vendor, travel time, approval, or provider status. Put unknowns in missingInformation and assumptions. Use ISO 8601 timestamps with offsets. coverageStartsAt and coverageEndsAt are absolute UTC instants that already account for the venue's local offset — never add that offset to them again, and never treat them as local wall-clock times. All items must fit within coverage start and end unless a conflict is explicitly reported, and a conflict on every item is never correct: it means the timestamps are offset. Every item must cite at least one sourceReferences entry from a project_fact, questionnaire_answer, timing_rule, package_fact, or crew_fact. If no verified source supports an item, cite an assumption and label it plainly. Visibility: the couple's portal shows only items marked \"client\" or \"shared\", so the client-facing running order (getting ready, first look, ceremony, portraits, cocktail hour, reception, dancing, and the like) MUST be \"shared\" — a run-of-show the couple cannot see is a failure. Reserve \"crew\" or \"studio\" only for genuinely internal logistics they should not see (card backups, gear staging, travel buffers, meal breaks). Default any client-relevant moment to \"shared\". Packages: packageFact can list several packages for the same day (a photo package and a video package, say); plan for every role in its coverage across the whole coverage window, and never shorten the day to one package's minutes. " +
+                runOfShowInstruction(trade) +
                 scheduleCrewInstruction +
                 momentsInstruction +
                 tradeInstruction(trade) +

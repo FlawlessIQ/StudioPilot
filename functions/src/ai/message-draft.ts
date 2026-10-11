@@ -227,10 +227,22 @@ export function fallbackDraft(input: {
     const prices = packages
       .map((item) => Number(item.basePriceCents))
       .filter((value) => Number.isFinite(value) && value > 0);
+    // A photographer's words exactly as they were; a vendor offers its own
+    // sales call (a DJ's vibe call) or, with none, its quote.
+    const words = tradeVocab(input.trade);
+    const profile = tradeProfile(input.trade);
+    const photo = profile.family === "photo";
+    // "Collections" is a photographer's word. A vendor's packages are just
+    // packages, and one priced per person only starts at its price: everyone
+    // else getting ready is added on top (Jess Styles Bridal, 2026-10-10).
     const range = prices.length
-      ? prices.length === 1
-        ? `Our collection is ${money(prices[0])}.`
-        : `Our collections run from ${money(Math.min(...prices))} to ${money(Math.max(...prices))}.`
+      ? photo
+        ? prices.length === 1
+          ? `Our collection is ${money(prices[0])}.`
+          : `Our collections run from ${money(Math.min(...prices))} to ${money(Math.max(...prices))}.`
+        : prices.length === 1
+          ? `Our package ${profile.perPersonPricing ? "starts at" : "is"} ${money(prices[0])}.`
+          : `Our packages run from ${money(Math.min(...prices))} to ${money(Math.max(...prices))}.`
       : null;
     if (!range)
       missingInformation.push(
@@ -244,26 +256,27 @@ export function fallbackDraft(input: {
     const when = dateWords(eventDate);
     if (when) highlights.push(`Their date: ${when}`);
     if (venue) highlights.push(`Venue: ${venue}`);
-    // A photographer's words exactly as they were; a vendor offers its own
-    // sales call (a DJ's vibe call) or, with none, its quote.
-    const words = tradeVocab(input.trade);
-    const profile = tradeProfile(input.trade);
-    const photo = profile.family === "photo";
+    // A vendor always offers its quote, prices or not: with packages published
+    // a hair studio's reply quoted a range and then offered nothing, though
+    // its prompt says to offer the quote and the trial (Jess Styles Bridal,
+    // 2026-10-10).
+    const offer = `I'd love to put together a ${words.proposal.toLowerCase()} for the day you have in mind.`;
     const body = [
       `Hi ${who},`,
       "",
       `Thank you for getting in touch — ${when ? `${when}${venue ? ` at ${venue}` : ""} sounds wonderful` : "I would love to hear more about your day"}.`,
       "",
-      range ??
-        (photo
-          ? "I'd love to talk through what coverage would suit the day you have in mind."
-          : `I'd love to put together a ${words.proposal.toLowerCase()} for the day you have in mind.`),
+      photo
+        ? (range ?? "I'd love to talk through what coverage would suit the day you have in mind.")
+        : range
+          ? `${range} ${offer}`
+          : offer,
       "",
       photo
         ? "Would a short call this week suit? I'll walk you through how I work and answer anything you're wondering about."
         : profile.consultation
           ? `Would a short ${words.consultation.toLowerCase()} this week suit? I'll walk you through how I work and answer anything you're wondering about.`
-          : "If you have any questions, just reply — I'm happy to help.",
+          : `${words.trial ? `I can also set up a ${words.trial.toLowerCase()}, so we can settle the look before the day. ` : ""}If you have any questions, just reply — I'm happy to help.`,
       "",
       "Warmly,",
       studioName,
