@@ -11693,6 +11693,8 @@ textarea:focus-visible {
 .participant-roster>header h2{margin:0;font-size:18px}
 .ds-root .participant-roster>.form-notice{margin:0}
 .participant-roster-summary{margin:0;color:var(--muted);font-size:13px}
+.participant-roster-bulk{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.participant-roster-bulk>span{flex:1 1 220px;min-width:0;font-size:13px}
 .participant-roster-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 /* Two rows, always: the job column is narrow even on a desktop, and a third
    column squeezed the athlete's name to nothing. */

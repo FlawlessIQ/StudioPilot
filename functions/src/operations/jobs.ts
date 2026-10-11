@@ -91,7 +91,7 @@ import {
   reconcileQuickBooksParticipantInvoice,
   voidQuickBooksParticipantInvoice,
 } from "../group-events/participant-invoices.js";
-import { participantReminderPlanFor } from "../group-events/participant-reminders.js";
+import { participantBalancePlanFor, participantReminderPlanFor } from "../group-events/participant-reminders.js";
 import {
   CREATE_PARTICIPANT_INVOICE_JOB,
   RECONCILE_PARTICIPANT_INVOICE_JOB,
@@ -1014,6 +1014,11 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   // the time they're booked for now, and what they owe now.
   if (type === "group_event_reminder" && document.get("participantId")) {
     const plan = await participantReminderPlanFor(getFirestore(), document);
+    if ("hold" in plan) return { held: plan.hold, type };
+    reminderValues = plan.values;
+  }
+  if (type === "group_event_balance" && document.get("participantId")) {
+    const plan = await participantBalancePlanFor(getFirestore(), document);
     if ("hold" in plan) return { held: plan.hold, type };
     reminderValues = plan.values;
   }

@@ -271,6 +271,8 @@ export const clientAutomationEmailTypes: readonly string[] = [
   // The day-before note to each parent or family at a group event
   // (group-events/participant-reminders.ts).
   "group_event_reminder",
+  // And the nudge after it, to anyone who still owes.
+  "group_event_balance",
   // Two weeks before a gallery closes; nothing for a quiet couple.
   "delivery_expiry_reminder",
 ];

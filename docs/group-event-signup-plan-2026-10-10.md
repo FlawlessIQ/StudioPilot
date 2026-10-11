@@ -152,7 +152,44 @@ and an email, from 9 AM the day before, in the event's own time zone.
 - **Treated as a client automation:** held for a quieted (imported) job and
   while the studio's billing has lapsed.
 
-Not built yet: letting a family move their own time from their order page.
+**A family moves their own time (built 2026-10-11).** Their order page
+(`/e/order/{orderToken}`) has a "Change your time" control. It shows the
+event's times with room and saves with `PATCH /api/public/event-signup`
+(`{ orderToken, slot }`).
+
+- **Checks:** App Check and a rate limit, as a sign-up has. The time must be
+  one the event offers.
+- **Room:** each time's room is counted in the same write, leaving out the
+  family's own place.
+- **Who and when:** only a place that isn't cancelled, and only until the day
+  before. The date is compared in UTC, so changes close in the evening before
+  in the US. On the day, the studio moves people from the roster.
+- **Record:** an audit entry, `participant.slot_changed`. The roster is live,
+  and the day-before reminder reads the new time as it sends.
+
+**Balance nudge after the event (built 2026-10-11).** One email,
+`group_event_balance`, goes to anyone still owing: status unpaid or pay on
+the day, with an amount and an email.
+
+- **When:** from 9 AM two days after the event, in the event's time zone. A
+  missed sweep catches up for 3 days.
+- **What it says:** what's owed, with the Venmo, pay-link or QuickBooks
+  button when there is one.
+- **Switch:** the same per-event switch as the day-before reminder.
+- **Held as it sends:** if they've paid since, been cancelled, or the date
+  moved.
+- **The sweep:** it now reaches back 7 days. Crew reminders still read only
+  from the day before onward.
+
+**Send QuickBooks invoices to everyone at once (built 2026-10-11).**
+`sendParticipantInvoices` is a crmCommand behind the roster's "Send
+QuickBooks invoices (N)" button, with a confirm step.
+
+- **Who gets one:** everyone whose status is unpaid, who has an email and an
+  amount, and whose invoice is sendable. Nobody paying on the day gets one.
+- **Limit:** at most 150 per press.
+- **What it writes:** the same as the single send (`queueParticipantInvoice`),
+  plus one audit entry, `participant.invoices_requested`.
 
 ## What exists (Phase 1, live since 2026-10-04)
 

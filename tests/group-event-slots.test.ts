@@ -175,3 +175,26 @@ test("the confirmation leads with the time; the invite says there's one to pick"
   assert.match(invite.text, /Booking for two families\? Book once for each\./);
   assert.match(read("functions/src/crm/commands.ts"), /slotSpan: slotSpan\(signup\.slots\),/);
 });
+
+// ── A family moves their own time ──
+
+test("a family can move their own time from their order page, until the day before, into a time with room", () => {
+  const route = read("app/api/public/event-signup/route.ts");
+  const patch = route.slice(route.indexOf("export async function PATCH"));
+  assert.match(patch, /adminAppCheck\.verifyToken\(appCheckToken\)/);
+  assert.match(patch, /withinRateLimit\(request,/);
+  assert.match(patch, /if \(!config\.slots \|\| !eventSlots\(config\.slots\)\.some\(\(choice\) => choice\.id === slot\)\)/);
+  // Counted in the same write, without their own place.
+  assert.match(patch, /const others = placesOf\(docs\.filter\(\(candidate\) => candidate\.id !== participant\.id\)\);/);
+  assert.match(patch, /\(others\.booked\[slot\] \?\? 0\) >= config\.slots!\.perSlot/);
+  assert.match(patch, /!slotChangeOpen\(config, participant, eventDate\)\) return \{ error: "SLOT_CHANGE_CLOSED"/);
+  assert.match(patch, /transaction\.update\(participant\.ref, \{ slot, updatedAt: now, updatedBy: "event_order" \}\)/);
+  assert.match(patch, /action: "participant\.slot_changed"/);
+  // Not a cancelled place, and not on the day itself.
+  assert.match(route, /if \(!config\.slots \|\| participant\.get\("status"\) === "cancelled"\) return false;/);
+  assert.match(route, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\) < day/);
+  const page = read("components/group-events/event-signup-page.tsx");
+  assert.match(page, /method: "PATCH",/);
+  assert.match(page, /orderToken && order\.canChangeSlot && view\.slots\?\.length/);
+  assert.match(page, /SLOT_CHANGE_CLOSED:/);
+});

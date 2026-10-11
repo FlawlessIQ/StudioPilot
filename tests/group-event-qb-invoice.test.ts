@@ -226,3 +226,27 @@ test("a refused parent invoice says why, reaches Today, and stops promising the 
   assert.match(inbox, /forParents \? `\$\{attempts\} parents` : `tried \$\{attempts\} times`/);
   assert.match(read("app/api/public/event-signup/route.ts"), /invoice\?\.state === "failed"\s*\?[^\n]*\n\s*`\$\{studioName\} will email you an invoice to pay online/);
 });
+
+test("one press bills everyone still owing — never someone paying on the day — and leaves one receipt", () => {
+  const crm = read("functions/src/crm/commands.ts");
+  assert.match(crm, /type: z\.literal\("sendParticipantInvoices"\)/);
+  const branch = crm.slice(crm.indexOf('if (command.type === "sendParticipantInvoices")'));
+  const body = branch.slice(0, branch.indexOf("return output;"));
+  assert.match(body, /hasProjectAccess\(membershipData, command\.input\.projectId\)/);
+  assert.match(body, /quickBooksConnectedIn\(transaction, db, command\.tenantId\)/);
+  assert.match(body, /participant\.get\("status"\) === "unpaid" &&/);
+  assert.match(body, /participantInvoiceSendable\(invoice\)/);
+  assert.match(body, /\.slice\(0, PARTICIPANT_INVOICE_BATCH\)/);
+  assert.match(body, /throw new Error\("PARTICIPANT_INVOICES_NONE_DUE"\)/);
+  assert.match(body, /queueParticipantInvoice\(transaction, db, participant,/);
+  assert.match(body, /action: "participant\.invoices_requested"/);
+  assert.match(body, /transaction\.create\(commandReference/);
+  // One and many write the same invoice and job.
+  const single = crm.slice(crm.indexOf('if (command.type === "sendParticipantInvoice")'));
+  assert.match(single.slice(0, single.indexOf("return output;")), /const attempt = queueParticipantInvoice\(transaction, db, participant, current,/);
+  assert.match(read("lib/ai/friendly-error.ts"), /PARTICIPANT_INVOICES_NONE_DUE:/);
+  const roster = read("components/group-events/participant-roster.tsx");
+  assert.match(roster, /participant\.status === "unpaid" &&[\s\S]*participantInvoiceSendable\(participant\.qbInvoice \?\? null\)/);
+  assert.match(roster, /sendParticipantInvoices\(projectId\)/);
+  assert.match(roster, /Anyone paying on the day isn't sent one\./);
+});

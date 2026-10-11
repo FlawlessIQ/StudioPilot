@@ -162,3 +162,71 @@ export function participantReminderPlan(input: {
     },
   };
 }
+
+/**
+ * After the event: one nudge to anyone who still owes, two days on, from
+ * 9 AM in the event's zone — what's owed and how to pay it. Under the same
+ * switch as the day-before note, and held as it sends if they've paid since.
+ */
+export const GROUP_BALANCE_EMAIL = "group_event_balance";
+export const BALANCE_DAYS_AFTER = 2;
+/** Missed sweeps catch up for this many days, then it's left to the studio. */
+const BALANCE_CATCH_UP_DAYS = 3;
+
+export const groupBalanceJobId = (participantId: string, eventDate: string) => `group_balance_${participantId}_${eventDate}`;
+
+export function balanceDue(project: Row, now: Date, zone: string): "due" | "not_yet" | "too_late" | "no_date" {
+  const eventDate = dateOnly(project.eventDate);
+  if (!eventDate) return "no_date";
+  const day = addCalendarDays(eventDate, BALANCE_DAYS_AFTER)!;
+  const last = addCalendarDays(day, BALANCE_CATCH_UP_DAYS)!;
+  const today = zonedCalendarDate(now, zone);
+  if (today < day) return "not_yet";
+  if (today > last) return "too_late";
+  if (today === day && zonedHour(now, zone) < REMINDER_SEND_HOUR) return "not_yet";
+  return "due";
+}
+
+const owes = (participant: Row) =>
+  ["unpaid", "pay_on_day"].includes(text(participant.status)) && Number(participant.amountCents ?? 0) > 0;
+
+export function participantBalanceDecision(input: {
+  project: Row;
+  participantId: string;
+  participant: Row;
+  now: Date;
+  zone: string;
+}): ParticipantReminderDecision {
+  const on = eventRemindersOn(input.project);
+  if (!on.on) return { send: false, reason: on.reason };
+  const due = balanceDue(input.project, input.now, input.zone);
+  if (due !== "due") return { send: false, reason: `balance_${due}` };
+  if (!owes(input.participant)) return { send: false, reason: "nothing_owed" };
+  if (!text(input.participant.email).includes("@")) return { send: false, reason: "no_email" };
+  const eventDate = dateOnly(input.project.eventDate)!;
+  return { send: true, id: groupBalanceJobId(input.participantId, eventDate), eventDate };
+}
+
+/** At send time: hold if they've paid, been cancelled, or the event moved; else what's owed now. */
+export function participantBalancePlan(input: {
+  job: Row;
+  project: Row | null;
+  participant: Row | null;
+  studioName: string;
+}): ParticipantReminderPlan {
+  const { job, project, participant } = input;
+  if (!project) return { hold: "job_missing" };
+  const on = eventRemindersOn(project);
+  if (!on.on) return { hold: on.reason };
+  if (!participant || text(participant.status) === "cancelled") return { hold: "participant_cancelled" };
+  if (!owes(participant)) return { hold: "paid" };
+  if (dateOnly(project.eventDate) !== text(job.eventDate)) return { hold: "event_date_moved" };
+  return {
+    values: {
+      athleteName: text(participant.athleteName) || null,
+      packageName: text(participant.packageName) || null,
+      confirmationCode: text(participant.confirmationCode) || null,
+      ...reminderPayment({ participant, project, studioName: input.studioName }),
+    },
+  };
+}

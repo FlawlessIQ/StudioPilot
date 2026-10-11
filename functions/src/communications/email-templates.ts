@@ -180,6 +180,8 @@ export const emailTemplateKeys = [
   "group_participant_invoice",
   // The day before a group event: their time, where, and what's owed.
   "group_event_reminder",
+  // After it: a nudge to anyone who still owes.
+  "group_event_balance",
   // Studio-facing: inbox capture has gone quiet — the forwarding filter may
   // have broken, and inquiries may be sitting unanswered in the inbox.
   "studio_capture_silent",
@@ -2720,6 +2722,35 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: !paid && payUrl ? order : undefined,
       };
     }
+    case "group_event_balance": {
+      // Two days after a group event, to anyone who still owes
+      // (group-events/participant-reminders.ts); held as it sends if they've paid.
+      const event = input.projectName?.trim() || "the event";
+      const athlete = stringValue(values, "athleteName");
+      const item = stringValue(values, "packageName");
+      const amount = stringValue(values, "amountText");
+      const how = stringValue(values, "howToPay");
+      const payUrl = safeUrl(stringValue(values, "payUrl"));
+      const order = actionUrl ? { label: "See your order", url: actionUrl } : undefined;
+      return {
+        subject: `Still to pay: ${amount || "your order"} for ${event}`,
+        preheader: `${brand.studioName} still shows ${amount || "a balance"} to pay${athlete ? ` for ${athlete}` : ""}.`,
+        eyebrow: "Balance",
+        heading: "A little left to pay",
+        paragraphs: [
+          greeting,
+          `Thank you for coming to ${event}${athlete ? ` with ${athlete}` : ""}. ${brand.studioName} still shows ${amount || "a balance"} to pay${item ? ` for ${item}` : ""}.`,
+          how,
+          "Already paid? Reply and the studio will put it right.",
+        ].filter(Boolean),
+        details: [
+          { label: "Confirmation", value: stringValue(values, "confirmationCode") },
+          { label: "To pay", value: amount },
+        ],
+        action: payUrl ? { label: amount ? `Pay ${amount}` : "Pay online", url: payUrl } : order,
+        secondaryAction: payUrl ? order : undefined,
+      };
+    }
     case "group_participant_invoice": {
       // A parent's own QuickBooks invoice at a group event
       // (group-events/participant-invoices.ts): its pay link leads, their
@@ -3040,7 +3071,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
   "event_reminder", "thank_you", "delivery", "delivery_correction", "album_selection_reminder",
   "delivery_expiry_reminder", "review_request", "manual_message", "client_message_received", "autopay_charged",
   "autopay_charge_failed", "participant_receipt", "group_event_invite", "group_signup_confirmation",
-  "group_participant_invoice", "group_event_reminder",
+  "group_participant_invoice", "group_event_reminder", "group_event_balance",
 ]);
 
 /** Mail a crew member reads. */

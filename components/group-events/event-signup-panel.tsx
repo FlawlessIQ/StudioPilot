@@ -744,7 +744,7 @@ function EventSignupSettingsForm({
         </label>
         <label className="participant-roster-check">
           <input checked={reminders} onChange={(event) => setReminders(event.target.checked)} type="checkbox" />
-          {`Email ${words.payers} a reminder the day before${slotsOn ? ", with their time" : ""}`}
+          {`Email ${words.payers} a reminder the day before${slotsOn ? ", with their time" : ""}, and a nudge after if they still owe`}
         </label>
         <div className="record-sheet-fields">
           <label>

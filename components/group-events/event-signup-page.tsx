@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { CalendarDays, CheckCircle2, Clock, CreditCard, LoaderCircle, MapPin, UserPlus } from "lucide-react";
 import { Actions, AppBar, Button, Card, Field, KitRoot, Main, Note, PoweredBy, Screen, type Studio } from "@/components/kit/kit";
 import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
@@ -23,6 +23,9 @@ type Order = {
   confirmationCode: string;
   /** The time they booked on a mini-session day ("9:20 AM"). */
   slotLabel?: string | null;
+  slot?: string | null;
+  /** From their order page, until the day before: they can move their own time. */
+  canChangeSlot?: boolean;
   athleteName: string;
   packageName: string;
   amount: string;
@@ -40,7 +43,7 @@ type View = {
   order: Order | null;
   /** From an order page: where to sign up another athlete, while sign-up is open. */
   signupPath: string | null;
-  /** A mini-session day's times, each with the room it has left. Absent on an order page. */
+  /** A mini-session day's times, each with the room it has left; on an order page, only while they can move theirs. */
   slots?: { id: string; label: string; left: number }[] | null;
   slotSpan?: string | null;
   /** The job's kind, for its words (features/group-events/words.ts). */
@@ -58,6 +61,7 @@ const friendly: Record<string, string> = {
   EVENT_OPTION_UNAVAILABLE: "That package isn’t offered any more. Please choose another.",
   EVENT_METHOD_UNAVAILABLE: "That way to pay isn’t offered any more. Please choose another.",
   ORDER_NOT_FOUND: "We couldn’t find that order. Check the link in your email.",
+  SLOT_CHANGE_CLOSED: "Times can’t be changed here any more. Reply to the studio’s email and they’ll help.",
   RATE_LIMITED: "Too many sign-ups from here just now. Please wait a few minutes and try again.",
   APP_CHECK_REQUIRED: "Your browser couldn’t be checked. Reload the page and try again.",
   INVALID_SIGNUP: "A few details are missing. Check the fields marked below.",
@@ -87,14 +91,110 @@ function eventDay(date: string | null): string | null {
   );
 }
 
+/** A family's own time, moved from their order page (PATCH /api/public/event-signup). */
+function ChangeTime({
+  order,
+  orderToken,
+  slots,
+  onChanged,
+}: {
+  order: Order;
+  orderToken: string;
+  slots: { id: string; label: string; left: number }[];
+  onChanged: (order: Order) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [choice, setChoice] = useState<string | null>(order.slot ?? null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    if (!choice || choice === order.slot) {
+      setOpen(false);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const appCheck = await getOptionalAppCheckToken();
+      const response = await fetch("/api/public/event-signup", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", ...(appCheck ? { "x-firebase-appcheck": appCheck } : {}) },
+        body: JSON.stringify({ orderToken, slot: choice }),
+      });
+      const body = (await response.json()) as { order?: Order; error?: string };
+      if (!response.ok || !body.order) {
+        setError(friendly[body.error ?? ""] ?? "Your time didn’t change. Please try again.");
+        return;
+      }
+      onChanged(body.order);
+      setOpen(false);
+    } catch {
+      setError("Your time didn’t change. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open)
+    return (
+      <Button icon={Clock} onClick={() => setOpen(true)} variant="secondary">
+        Change your time
+      </Button>
+    );
+  return (
+    <Card>
+      <h2 className="event-signup-heading">Pick a new time</h2>
+      <span className="kit-chip-list event-signup-slots">
+        {slots.map((slot) => {
+          // Their own time is always theirs to keep.
+          const full = slot.left <= 0 && slot.id !== order.slot && slot.id !== choice;
+          return (
+            <button
+              aria-label={full ? `${slot.label}, full` : slot.label}
+              aria-pressed={slot.id === choice}
+              className="kit-chip"
+              disabled={full}
+              key={slot.id}
+              onClick={() => setChoice(slot.id)}
+              type="button"
+            >
+              {slot.label}
+            </button>
+          );
+        })}
+      </span>
+      {error ? <Note tone="danger">{error}</Note> : null}
+      <div className="event-signup-change-actions">
+        <Button disabled={busy || !choice || choice === order.slot} onClick={() => void save()}>
+          {busy ? "Saving…" : "Save new time"}
+        </Button>
+        <Button
+          disabled={busy}
+          onClick={() => {
+            setOpen(false);
+            setChoice(order.slot ?? null);
+            setError(null);
+          }}
+          variant="secondary"
+        >
+          Keep {order.slotLabel ?? "my time"}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function OrderCard({
   order,
   onAnother,
+  changeTime,
   studioName,
   words,
 }: {
   order: Order;
   onAnother?: () => void;
+  changeTime?: ReactNode;
   studioName: string;
   words: GroupEventWords;
 }) {
@@ -146,6 +246,7 @@ function OrderCard({
           ) : null}
         </Card>
       ) : null}
+      {changeTime}
       {!order.paid && !order.cancelled ? (
         <Note>We’ve emailed this to you. Show the confirmation number to {studioName} at the event.</Note>
       ) : null}
@@ -341,6 +442,20 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
 
               {order ? (
                 <OrderCard
+                  changeTime={
+                    orderToken && order.canChangeSlot && view.slots?.length ? (
+                      <ChangeTime
+                        onChanged={(changed) => {
+                          setOrder(changed);
+                          // The times' room has moved: read them again.
+                          void load();
+                        }}
+                        order={order}
+                        orderToken={orderToken}
+                        slots={view.slots}
+                      />
+                    ) : undefined
+                  }
                   onAnother={(token && view.state === "open") || view.signupPath ? another : undefined}
                   order={order}
                   studioName={view.studio.name}

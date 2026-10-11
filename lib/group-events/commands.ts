@@ -63,6 +63,11 @@ export function inviteGroupEventParents(projectId: string, emails: string[]) {
   return runCrmCommand("inviteGroupEventParents", { projectId, emails }, once());
 }
 
+/** A QuickBooks invoice for everyone still owing who isn't paying on the day. */
+export function sendParticipantInvoices(projectId: string) {
+  return runCrmCommand("sendParticipantInvoices", { projectId }, once());
+}
+
 /** A QuickBooks invoice for one parent, or another after one failed or was withdrawn. */
 export function sendParticipantInvoice(projectId: string, participantId: string) {
   return runCrmCommand("sendParticipantInvoice", { projectId, participantId }, once());

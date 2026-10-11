@@ -171,8 +171,10 @@ async function remindCrew(db: Firestore, project: DocumentSnapshot, zone: string
 export async function sweepEventReminders(db: Firestore, now: Date): Promise<Record<string, number>> {
   // The window, widened by a day each side for zones either side of UTC.
   const first = now.toISOString().slice(0, 10);
-  const from = addCalendarDays(first, -1)!;
+  // Back far enough for a group event's balance nudge, two days after and a few to catch up.
+  const from = addCalendarDays(first, -7)!;
   const to = addCalendarDays(first, Math.max(EVENT_REMINDER_DAYS_BEFORE, CREW_REMINDER_DAYS_BEFORE + 1) + 1)!;
+  const crewFrom = addCalendarDays(first, -1)!;
   const crewUntil = addCalendarDays(first, CREW_REMINDER_DAYS_BEFORE + 2)!;
   const zones = new Map<string, Promise<unknown>>();
   const tally: Record<string, number> = {};
@@ -192,10 +194,12 @@ export async function sweepEventReminders(db: Firestore, now: Date): Promise<Rec
         const zone = resolveEventZone(data.timezone, await zones.get(tenantId));
         const outcome = await remindCouple(db, project, zone, now);
         tally[outcome] = (tally[outcome] ?? 0) + 1;
-        if (text(data.eventDate).slice(0, 10) <= crewUntil) await remindCrew(db, project, zone, now, tally);
-        // Each parent or family at a group event, the day before
-        // (group-events/participant-reminders.ts). Nothing is read for a job
-        // without a roster, or before its reminder day.
+        // Crew only before their day: the window reaches back for the balance nudge, not for them.
+        const day = text(data.eventDate).slice(0, 10);
+        if (day >= crewFrom && day <= crewUntil) await remindCrew(db, project, zone, now, tally);
+        // Each parent or family at a group event, the day before, and a nudge
+        // after to anyone still owing (group-events/participant-reminders.ts).
+        // Nothing is read for a job without a roster, or off those days.
         await remindParticipants(db, project, zone, now, tally);
       } catch (caught) {
         tally.failed = (tally.failed ?? 0) + 1;

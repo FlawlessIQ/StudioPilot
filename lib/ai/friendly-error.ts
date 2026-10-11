@@ -378,9 +378,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   EVENT_SLOT_REQUIRED: "Pick a time.",
   EVENT_SLOT_UNAVAILABLE: "That time isn't offered any more. Please pick another.",
   EVENT_SLOT_FULL: "That time was just taken. Please pick another.",
+  SLOT_CHANGE_CLOSED: "Times can’t be changed online any more. Reply to the studio’s email and they’ll help.",
   EVENT_QUICKBOOKS_NOT_CONNECTED: "Connect QuickBooks first (Studio settings → Integrations), then choose QuickBooks invoices.",
   EVENT_ONLINE_TWICE: "Choose one way to pay online: your own payment link or QuickBooks invoices.",
   PARTICIPANT_INVOICE_OPEN: "Their QuickBooks invoice is already out. It's on its way or waiting to be paid.",
+  PARTICIPANT_INVOICES_NONE_DUE: "Nobody needs an invoice: everyone owing has one already, is paying on the day, or has no email.",
   PARTICIPANT_AMOUNT_REQUIRED: "Add what they owe first, then send the invoice.",
   // A parent's sign-up page (app/api/public/event-signup); the page words these the same.
   EVENT_LINK_NOT_FOUND: "This link isn't working. Ask the studio for a new one.",

@@ -67,6 +67,7 @@ const CRM_PROJECT_COMMANDS = [
   "inviteGroupEventParents",
   // A parent's own QuickBooks invoice (2026-10-10).
   "sendParticipantInvoice",
+  "sendParticipantInvoices",
 ];
 
 test("each project-scoped crmCommand branch checks assignment", () => {

@@ -29,6 +29,7 @@ import {
   cancelParticipant,
   recordParticipantPayment,
   sendParticipantInvoice,
+  sendParticipantInvoices,
   setGroupEvent,
   updateParticipant,
   type ParticipantInput,
@@ -78,6 +79,7 @@ export function ParticipantRoster({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Participant | "new" | null>(null);
   const [paying, setPaying] = useState<Participant | null>(null);
+  const [confirmInvoices, setConfirmInvoices] = useState(false);
 
   // Live, so the day's roster updates on every device as payments are taken.
   useEffect(() => {
@@ -112,6 +114,14 @@ export function ParticipantRoster({
     [participants, slots.length],
   );
   const words = groupEventWords(job);
+  // Who "Send invoices" would bill: as the server picks them (sendParticipantInvoices).
+  const invoicesDue = participants.filter(
+    (participant) =>
+      participant.status === "unpaid" &&
+      String(participant.email ?? "").includes("@") &&
+      participant.amountCents > 0 &&
+      participantInvoiceSendable(participant.qbInvoice ?? null),
+  ).length;
 
   if (!rosterOffered(job)) return null;
 
@@ -200,6 +210,31 @@ export function ParticipantRoster({
         {`${summary.total} on the roster · ${summary.paid} paid · ${formatCentsExact(summary.collectedCents)} collected`}
         {summary.outstandingCents ? ` · ${formatCentsExact(summary.outstandingCents)} still to take` : ""}
       </p>
+      {quickBooks && invoicesDue ? (
+        <div className="participant-roster-bulk">
+          {confirmInvoices ? (
+            <>
+              <span>{`Email ${invoicesDue} QuickBooks ${invoicesDue === 1 ? "invoice" : "invoices"}, one to each ${words.payer} still owing? Anyone paying on the day isn't sent one.`}</span>
+              <button
+                className="button button-sm button-dark"
+                disabled={busy}
+                onClick={() => void run(() => sendParticipantInvoices(projectId)).then(() => setConfirmInvoices(false))}
+                type="button"
+              >
+                {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
+                Send {invoicesDue}
+              </button>
+              <button className="button button-sm button-light" disabled={busy} onClick={() => setConfirmInvoices(false)} type="button">
+                Not now
+              </button>
+            </>
+          ) : (
+            <button className="button button-sm button-light" onClick={() => setConfirmInvoices(true)} type="button">
+              {`Send QuickBooks invoices (${invoicesDue})`}
+            </button>
+          )}
+        </div>
+      ) : null}
       <EventSignupPanel
         project={job}
         projectId={projectId}

@@ -198,10 +198,23 @@ function payment(
   };
 }
 
+/**
+ * Whether a family can move their own time from their order page: a
+ * mini-session day, a place that isn't cancelled, and until the day before
+ * (UTC, so it closes the evening before in the US). On the day, the studio
+ * moves people from the roster.
+ */
+function slotChangeOpen(config: EventSignupConfig, participant: FirebaseFirestore.DocumentSnapshot, eventDate: string | null): boolean {
+  if (!config.slots || participant.get("status") === "cancelled") return false;
+  const day = /^\d{4}-\d{2}-\d{2}/.test(eventDate ?? "") ? eventDate!.slice(0, 10) : null;
+  return Boolean(day && new Date().toISOString().slice(0, 10) < day);
+}
+
 function orderView(
   participant: FirebaseFirestore.DocumentSnapshot,
   config: EventSignupConfig,
   studioName: string,
+  eventDate: string | null,
 ) {
   const method = text(participant.get("chosenMethod")) as EventPaymentMethod;
   const amountCents = Number(participant.get("amountCents") ?? 0);
@@ -210,6 +223,8 @@ function orderView(
   return {
     confirmationCode: text(participant.get("confirmationCode")),
     slotLabel: text(participant.get("slot")) ? slotLabel(text(participant.get("slot"))) : null,
+    slot: text(participant.get("slot")) || null,
+    canChangeSlot: slotChangeOpen(config, participant, eventDate),
     athleteName: athlete,
     packageName,
     amount: eventPrice(amountCents),
@@ -268,15 +283,22 @@ async function orderResponse(orderToken: string): Promise<Response> {
     return Response.json({ error: "ORDER_NOT_FOUND" }, { status: 404 });
   const config = normaliseEventSignup(project.get("groupEvent"));
   const studio = studioOf(tenant);
-  const state = signupState(config, new Date().toISOString(), (await places(tenantId, projectId)).count);
+  const taken = await places(tenantId, projectId);
+  const state = signupState(config, new Date().toISOString(), taken.count);
+  const changeable = slotChangeOpen(config, participant, text(project.get("eventDate")) || null);
   return Response.json({
     studio,
     event: eventOf(project),
     state,
+    // The times they could move to, each with its room; their own counts as theirs.
+    slots:
+      changeable && config.slots
+        ? slotsWithRoom(config.slots, taken.booked).map(({ id, label, left }) => ({ id, label, left }))
+        : null,
     closesAt: config.closesAt,
     options: [],
     methods: [],
-    order: orderView(participant, config, studio.name),
+    order: orderView(participant, config, studio.name, text(project.get("eventDate")) || null),
     signupPath: state === "open" && config.token ? `/e/${config.token}` : null,
   });
 }
@@ -469,11 +491,95 @@ export async function POST(request: Request): Promise<Response> {
   if (result.kind === "repeat") {
     const orderToken = text(result.participant.get("orderToken"));
     return Response.json({
-      order: orderView(result.participant, config, studio.name),
+      order: orderView(result.participant, config, studio.name, text(project.get("eventDate")) || null),
       orderPath: orderToken ? `/e/order/${orderToken}` : null,
       repeat: true,
     });
   }
   const participant = await adminFirestore.doc(`eventParticipants/${result.record.id}`).get();
-  return Response.json({ order: orderView(participant, config, studio.name), orderPath: result.orderPath, repeat: false });
+  return Response.json({ order: orderView(participant, config, studio.name, text(project.get("eventDate")) || null), orderPath: result.orderPath, repeat: false });
+}
+
+const SLOT = /^\d{2}:\d{2}$/;
+
+/**
+ * A family moves their own time, from their order page: `{ orderToken, slot }`.
+ * Checked as a sign-up is — App Check, a rate limit, the time one of the
+ * event's with room — and the room is counted in the same write, without
+ * the family's own place. The day-before reminder reads the time as it sends,
+ * so it says the new one; the studio sees it on the live roster.
+ */
+export async function PATCH(request: Request): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return Response.json({ error: "INVALID_SIGNUP" }, { status: 400 });
+  }
+  const orderToken = text(body?.orderToken);
+  const slot = text(body?.slot);
+  if (!TOKEN.test(orderToken)) return Response.json({ error: "ORDER_NOT_FOUND" }, { status: 404 });
+  if (!SLOT.test(slot)) return Response.json({ error: "EVENT_SLOT_UNAVAILABLE" }, { status: 409 });
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true") {
+    const appCheckToken = request.headers.get("x-firebase-appcheck");
+    try {
+      if (!appCheckToken) throw new Error("APP_CHECK_REQUIRED");
+      await adminAppCheck.verifyToken(appCheckToken);
+    } catch {
+      return Response.json({ error: "APP_CHECK_REQUIRED" }, { status: 401 });
+    }
+  }
+  if (!(await withinRateLimit(request, createHash("sha256").update(`event-order:${orderToken}`).digest("hex"))))
+    return Response.json({ error: "RATE_LIMITED" }, { status: 429 });
+  const match = await adminFirestore.collection("eventParticipants").where("orderToken", "==", orderToken).limit(1).get();
+  const found = match.docs[0];
+  if (!found) return Response.json({ error: "ORDER_NOT_FOUND" }, { status: 404 });
+  const tenantId = text(found.get("tenantId"));
+  const projectId = text(found.get("projectId"));
+  const [project, tenant] = await Promise.all([
+    adminFirestore.doc(`projects/${projectId}`).get(),
+    adminFirestore.doc(`tenants/${tenantId}`).get(),
+  ]);
+  if (!project.exists || project.get("tenantId") !== tenantId || project.get("archivedAt") || !tenant.exists)
+    return Response.json({ error: "ORDER_NOT_FOUND" }, { status: 404 });
+  const config = normaliseEventSignup(project.get("groupEvent"));
+  const eventDate = text(project.get("eventDate")) || null;
+  if (!config.slots || !eventSlots(config.slots).some((choice) => choice.id === slot))
+    return Response.json({ error: "EVENT_SLOT_UNAVAILABLE" }, { status: 409 });
+  const now = new Date().toISOString();
+  const roster = adminFirestore.collection("eventParticipants").where("tenantId", "==", tenantId).where("projectId", "==", projectId);
+  const result = await adminFirestore.runTransaction(async (transaction) => {
+    const docs = (await transaction.get(roster)).docs;
+    const participant = docs.find((candidate) => candidate.id === found.id);
+    if (!participant || !slotChangeOpen(config, participant, eventDate)) return { error: "SLOT_CHANGE_CLOSED" as const };
+    const from = text(participant.get("slot")) || null;
+    if (from === slot) return { participant };
+    // The time's room, without their own place.
+    const others = placesOf(docs.filter((candidate) => candidate.id !== participant.id));
+    if ((others.booked[slot] ?? 0) >= config.slots!.perSlot) return { error: "EVENT_SLOT_FULL" as const };
+    transaction.update(participant.ref, { slot, updatedAt: now, updatedBy: "event_order" });
+    const auditId = randomUUID();
+    transaction.create(adminFirestore.doc(`auditEvents/${auditId}`), {
+      id: auditId,
+      tenantId,
+      projectId,
+      actorId: "event_order",
+      actorType: "client",
+      action: "participant.slot_changed",
+      entityType: "eventParticipant",
+      entityId: participant.id,
+      timestamp: now,
+      before: { slot: from },
+      after: { slot },
+      ipAddress: null,
+      userAgent: request.headers.get("user-agent"),
+      correlationId: participant.id,
+      automationRunId: null,
+      providerEventId: null,
+    });
+    return { participant };
+  });
+  if ("error" in result) return Response.json({ error: result.error }, { status: 409 });
+  const participant = await adminFirestore.doc(`eventParticipants/${found.id}`).get();
+  return Response.json({ order: orderView(participant, config, studioOf(tenant).name, eventDate) });
 }

@@ -2094,6 +2094,12 @@ textarea.kit-input {
   text-decoration: line-through;
   cursor: not-allowed;
 }
+.event-signup-change-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
 
 /* A booked time at the head of a field-mode row (mini-session days). */
 .event-field-time {

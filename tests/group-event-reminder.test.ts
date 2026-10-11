@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  balanceDue,
   eventRemindersOn,
+  groupBalanceJobId,
+  participantBalanceDecision,
+  participantBalancePlan,
   groupReminderJobId,
   participantReminderDecision,
   participantReminderPlan,
@@ -133,7 +137,7 @@ test("the sweep and the sender both use it, and it waits like any client automat
   assert.match(jobs, /type === "group_event_reminder" && document\.get\("participantId"\)[\s\S]*participantReminderPlanFor\(getFirestore\(\), document\)[\s\S]*if \("hold" in plan\) return \{ held: plan\.hold, type \};/);
   const queue = read("functions/src/group-events/participant-reminders.ts");
   assert.match(queue, /soleRecipient: true,\s*audience: "parent",/);
-  assert.match(queue, /if \(reminderDue\(data, now, zone\) !== "due"\) return;/, "the roster is read only on its reminder day");
+  assert.match(queue, /if \(!beforeDue && !afterDue\) return;/, "the roster is read only on its reminder day or its nudge days");
   assert.ok(clientAutomationEmailTypes.includes("group_event_reminder"), "a quieted job holds it");
   assert.equal(billingHoldApplies("emailJobs", "group_event_reminder"), true);
   assert.ok(CLIENT_EMAIL_TYPES.has("group_event_reminder"));
@@ -186,4 +190,77 @@ test("a family's reminder leads with their time and where; a team day's with the
   assert.match(venmo.html, />Pay \$45</);
   assert.match(venmo.html, />See your order</);
   assert.doesNotMatch(session.text + team.text, /wedding|couple/i);
+});
+
+// ── After the event: anyone still owing ──
+
+test("the balance nudge is due from 9 AM two days after, catches up for three days, then leaves it to the studio", () => {
+  assert.equal(balanceDue(event(), new Date("2026-10-19T12:59:00Z"), ZONE), "not_yet");
+  assert.equal(balanceDue(event(), new Date("2026-10-19T13:00:00Z"), ZONE), "due");
+  assert.equal(balanceDue(event(), new Date("2026-10-22T20:00:00Z"), ZONE), "due", "a missed sweep catches up");
+  assert.equal(balanceDue(event(), new Date("2026-10-23T13:00:00Z"), ZONE), "too_late");
+  assert.equal(balanceDue(event({ eventDate: "" }), new Date(), ZONE), "no_date");
+});
+
+test("only someone who still owes hears, once per event date, under the same switch", () => {
+  const due = new Date("2026-10-19T14:00:00Z");
+  const decide = (participant: Record<string, unknown>, project = event()) =>
+    participantBalanceDecision({ project, participantId: "p1", participant, now: due, zone: ZONE });
+  assert.deepEqual(decide(family()), { send: true, id: groupBalanceJobId("p1", "2026-10-17"), eventDate: "2026-10-17" });
+  assert.equal(decide(family({ status: "unpaid" })).send, true);
+  assert.deepEqual(decide(family({ status: "paid" })), { send: false, reason: "nothing_owed" });
+  assert.deepEqual(decide(family({ status: "cancelled" })), { send: false, reason: "nothing_owed" });
+  assert.deepEqual(decide(family({ amountCents: 0 })), { send: false, reason: "nothing_owed" });
+  assert.deepEqual(decide(family({ email: "" })), { send: false, reason: "no_email" });
+  assert.deepEqual(decide(family(), event({}, { reminders: false })), { send: false, reason: "turned_off" });
+  assert.equal(groupBalanceJobId("p1", "2026-10-17"), "group_balance_p1_2026-10-17");
+});
+
+test("read again as it sends: held once they've paid, else what's owed and how", () => {
+  const job = { eventDate: "2026-10-17", timezone: ZONE };
+  const plan = (participant: Record<string, unknown> | null, project: Record<string, unknown> | null = event()) =>
+    participantBalancePlan({ job, project, participant, studioName: "GR Productions" });
+  assert.deepEqual(plan(family({ status: "paid" })), { hold: "paid" });
+  assert.deepEqual(plan(family({ status: "cancelled" })), { hold: "participant_cancelled" });
+  assert.deepEqual(plan(family(), event({ eventDate: "2026-10-24" })), { hold: "event_date_moved" });
+  assert.deepEqual(plan(family(), null), { hold: "job_missing" });
+  const venmo = plan(family({ chosenMethod: "venmo" }));
+  assert.ok("values" in venmo);
+  assert.equal(venmo.values.amountText, "$150");
+  assert.match(String(venmo.values.payUrl), /^https:\/\/venmo\.com\/GR-Productions/);
+});
+
+test("the nudge is swept, sent, held like any client automation, and the sweep reaches back for it", () => {
+  const jobs = read("functions/src/operations/jobs.ts");
+  assert.match(jobs, /type === "group_event_balance" && document\.get\("participantId"\)[\s\S]*participantBalancePlanFor\(getFirestore\(\), document\)[\s\S]*if \("hold" in plan\) return \{ held: plan\.hold, type \};/);
+  assert.ok(clientAutomationEmailTypes.includes("group_event_balance"));
+  assert.equal(billingHoldApplies("emailJobs", "group_event_balance"), true);
+  assert.ok(CLIENT_EMAIL_TYPES.has("group_event_balance"));
+  assert.ok(EDITABLE_EMAILS.some((entry) => entry.key === "group_event_balance"));
+  const sweep = read("functions/src/communications/event-reminders.ts");
+  assert.match(sweep, /const from = addCalendarDays\(first, -7\)!;/);
+  // Crew aren't reminded about a day that's gone.
+  assert.match(sweep, /if \(day >= crewFrom && day <= crewUntil\) await remindCrew/);
+  assert.match(read("components/group-events/event-signup-panel.tsx"), /and a nudge after if they still owe/);
+});
+
+test("the nudge says what's left and leads with the way to pay it", () => {
+  const nudge = renderEmailTemplate({
+    key: "group_event_balance",
+    brand,
+    recipientName: "Ana Garcia",
+    projectName: "Fall Mini Sessions",
+    values: {
+      athleteName: "The Garcia family",
+      packageName: "Mini",
+      amountText: "$150",
+      howToPay: "Pay GR Productions on Venmo.",
+      payUrl: "https://venmo.com/GR?txn=pay&amount=150.00",
+      actionUrl: "https://studio-cue.com/e/order/abc",
+    },
+  });
+  assert.equal(nudge.subject, "Still to pay: $150 for Fall Mini Sessions");
+  assert.match(nudge.text, /Thank you for coming to Fall Mini Sessions with The Garcia family\. GR Productions still shows \$150 to pay for Mini\./);
+  assert.match(nudge.html, />Pay \$150</);
+  assert.doesNotMatch(nudge.text, /wedding|couple/i);
 });

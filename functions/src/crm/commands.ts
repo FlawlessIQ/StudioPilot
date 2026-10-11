@@ -1064,6 +1064,12 @@ const commandSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    type: z.literal("sendParticipantInvoices"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({ projectId: z.string().min(1) }),
+  }),
+  z.object({
     type: z.literal("inviteGroupEventParents"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -1168,6 +1174,8 @@ const allowedRoles = [...managerRoles, "studio_coordinator"];
  */
 const fieldCrewRoles = ["staff_photographer", "staff_videographer", "subcontractor"];
 const fieldCrewCommands: readonly string[] = ["recordParticipantPayment"];
+/** Parents' QuickBooks invoices sent in one go, at most (a Firestore transaction's writes). */
+const PARTICIPANT_INVOICE_BATCH = 150;
 
 /** The states in which a job's client may be archived: the job is over. */
 export const CONTACT_ARCHIVABLE_PROJECT_STATES = ["CLOSED", "CANCELLED", "ARCHIVED", "LOST"];
@@ -1314,6 +1322,58 @@ function withdrawParticipantInvoice(
   });
   transaction.set(db.doc(`providerJobs/${job.id}`), job.data, { merge: true });
   return { "qbInvoice.state": "void_queued", "qbInvoice.updatedAt": timestamp };
+}
+
+/**
+ * Ask for a parent's QuickBooks invoice: the participant's `qbInvoice` and
+ * the job that makes it, renewed for each attempt. A failed attempt may have
+ * made the invoice before falling over, so its id is kept for the worker to
+ * adopt; a withdrawn one is not. Returns the attempt number.
+ */
+function queueParticipantInvoice(
+  transaction: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  participant: FirebaseFirestore.DocumentSnapshot,
+  current: Record<string, unknown> | null,
+  at: { tenantId: string; projectId: string; timestamp: string; actor: string },
+): number {
+  const attempt = Number(current?.attempt ?? 0) + 1;
+  const jobId = participantInvoiceJobId(participant.id);
+  const keepInvoice = current?.state === "failed" && typeof current.providerInvoiceId === "string" ? current.providerInvoiceId : null;
+  transaction.update(participant.ref, {
+    qbInvoice: {
+      state: "queued",
+      jobId,
+      attempt,
+      providerInvoiceId: keepInvoice,
+      providerCustomerId: (current?.providerCustomerId as string | undefined) ?? null,
+      docNumber: null,
+      hostedUrl: null,
+      totalCents: null,
+      balanceCents: null,
+      deliveredBy: null,
+      error: null,
+      requestedAt: at.timestamp,
+      updatedAt: at.timestamp,
+    },
+    updatedAt: at.timestamp,
+    updatedBy: at.actor,
+  });
+  transaction.set(db.doc(`providerJobs/${jobId}`), {
+    id: jobId,
+    tenantId: at.tenantId,
+    projectId: at.projectId,
+    participantId: participant.id,
+    type: CREATE_PARTICIPANT_INVOICE_JOB,
+    attempt,
+    idempotencyKey: participantInvoiceRequestId(participant.id, attempt),
+    status: "queued",
+    attempts: 0,
+    error: null,
+    createdAt: at.timestamp,
+    updatedAt: at.timestamp,
+  });
+  return attempt;
 }
 
 function participantAudit(
@@ -5348,43 +5408,11 @@ export const crmCommand = onRequest(
           const current = (participant.get("qbInvoice") ?? null) as Record<string, unknown> | null;
           if (!participantInvoiceSendable(current)) throw new Error("PARTICIPANT_INVOICE_OPEN");
           if (!(await quickBooksConnectedIn(transaction, db, command.tenantId))) throw new Error("EVENT_QUICKBOOKS_NOT_CONNECTED");
-          const attempt = Number(current?.attempt ?? 0) + 1;
-          const jobId = participantInvoiceJobId(command.input.participantId);
-          // A failed attempt may have made the invoice before falling over:
-          // its id is kept so the worker adopts it. A withdrawn one is not.
-          const keepInvoice = current?.state === "failed" && typeof current.providerInvoiceId === "string" ? current.providerInvoiceId : null;
-          transaction.update(participant.ref, {
-            qbInvoice: {
-              state: "queued",
-              jobId,
-              attempt,
-              providerInvoiceId: keepInvoice,
-              providerCustomerId: (current?.providerCustomerId as string | undefined) ?? null,
-              docNumber: null,
-              hostedUrl: null,
-              totalCents: null,
-              balanceCents: null,
-              deliveredBy: null,
-              error: null,
-              requestedAt: timestamp,
-              updatedAt: timestamp,
-            },
-            updatedAt: timestamp,
-            updatedBy: identity.uid,
-          });
-          transaction.set(db.doc(`providerJobs/${jobId}`), {
-            id: jobId,
+          const attempt = queueParticipantInvoice(transaction, db, participant, current, {
             tenantId: command.tenantId,
             projectId: command.input.projectId,
-            participantId: command.input.participantId,
-            type: CREATE_PARTICIPANT_INVOICE_JOB,
-            attempt,
-            idempotencyKey: participantInvoiceRequestId(command.input.participantId, attempt),
-            status: "queued",
-            attempts: 0,
-            error: null,
-            createdAt: timestamp,
-            updatedAt: timestamp,
+            timestamp,
+            actor: identity.uid,
           });
           participantAudit(transaction, db, {
             tenantId: command.tenantId,
@@ -5399,6 +5427,56 @@ export const crmCommand = onRequest(
             userAgent: request.header("user-agent") ?? null,
           });
           const output = { participantId: command.input.participantId, invoice: "queued", attempt };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "sendParticipantInvoices") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          if (!(await quickBooksConnectedIn(transaction, db, command.tenantId))) throw new Error("EVENT_QUICKBOOKS_NOT_CONNECTED");
+          const roster = await transaction.get(
+            db.collection("eventParticipants").where("tenantId", "==", command.tenantId).where("projectId", "==", command.input.projectId),
+          );
+          // Everyone still owing who isn't paying on the day: an invoice
+          // to someone bringing cash would only confuse them.
+          const due = roster.docs
+            .filter((participant) => {
+              const invoice = (participant.get("qbInvoice") ?? null) as Record<string, unknown> | null;
+              return (
+                participant.get("status") === "unpaid" &&
+                String(participant.get("email") ?? "").includes("@") &&
+                Number(participant.get("amountCents") ?? 0) > 0 &&
+                participantInvoiceSendable(invoice)
+              );
+            })
+            .slice(0, PARTICIPANT_INVOICE_BATCH);
+          if (!due.length) throw new Error("PARTICIPANT_INVOICES_NONE_DUE");
+          for (const participant of due)
+            queueParticipantInvoice(transaction, db, participant, (participant.get("qbInvoice") ?? null) as Record<string, unknown> | null, {
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              timestamp,
+              actor: identity.uid,
+            });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: "participant.invoices_requested",
+            entityId: command.input.projectId,
+            before: null,
+            after: { invoices: due.length },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { projectId: command.input.projectId, queued: due.length };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,
