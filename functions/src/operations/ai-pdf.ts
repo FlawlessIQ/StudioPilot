@@ -37,6 +37,8 @@ import { isCataloguePackage } from "../packages/one-off.js";
 import { statedCoverageMinutes } from "../packages/job-package-facts.js";
 import { proposalPdfAdjustments, proposalPdfPaymentAmount, proposalPdfSalesTax } from "../proposals/pdf-adjustments.js";
 import { TRADE_LABELS, tradeProfile, tradeVocab } from "../trades/trades.js";
+import { tradeInstruction } from "../trades/trade-instruction.js";
+import { tenantTrade } from "../trades/tenant-trade.js";
 
 /**
  * Fit a field to the PDF service's limit (cloud-run/pdf/main.py). The service
@@ -95,14 +97,19 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
   // What the studio's form asked this kind of inquiry: a gap it never asked
   // about is not something to chase (inquiry-form-config.ts).
   const askedFor=await inquiryAskedFor(db,lead);
+  // The fallback in the studio's own words: a hair studio's inquiry is not a
+  // "photography inquiry", and a trade with no sales call is offered its quote
+  // (trades.ts; Priya Shah, Jess Styles Bridal, 2026-10-10).
+  const replyWords=tradeVocab(tenant.get("trade"));
+  const nextStep=tradeProfile(tenant.get("trade")).consultation?`a short ${replyWords.consultation.toLowerCase()}`:`your ${replyWords.proposal.toLowerCase()}`;
   let analysis:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){
     analysis={
       summary:string(lead.get("aiSummary"))||"Inquiry received and ready for studio review.",
       missingInformation:missing.map(String),
       suggestedConsultationQuestions:Array.isArray(lead.get("suggestedConsultationQuestions"))?lead.get("suggestedConsultationQuestions"):[],
-      replySubject:`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`,
-      replyBody:`Hi ${string(lead.get("firstName"))||"there"},\n\nThank you for reaching out. I would love to learn more about what matters most to you and your plans for ${string(lead.get("eventDate"))||"your event date"}.\n\nThe next step is a short consultation so we can confirm the details and make sure the experience is a great fit.\n\nWarmly,`,
+      replySubject:`Thank you for your ${string(lead.get("eventTypeLabel"))||replyWords.service} inquiry`,
+      replyBody:`Hi ${string(lead.get("firstName"))||"there"},\n\nThank you for reaching out. I would love to learn more about what matters most to you and your plans for ${string(lead.get("eventDate"))||"your event date"}.\n\nThe next step is ${nextStep} so we can confirm the details and make sure the experience is a great fit.\n\nWarmly,`,
     };
   }else{
     const project=process.env.VERTEX_AI_PROJECT_ID;
@@ -171,7 +178,7 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     .map((item)=>item.replace(/([a-z])([A-Z])/g,(_,a:string,b:string)=>`${a} ${b.toLowerCase()}`));
   const suggestedConsultationQuestions=Array.isArray(analysis.suggestedConsultationQuestions)?analysis.suggestedConsultationQuestions.map(String).filter(Boolean).slice(0,8):[];
   const now=new Date().toISOString();
-  const cueSubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||"photography"} inquiry`;
+  const cueSubject=string(analysis.replySubject)||`Thank you for your ${string(lead.get("eventTypeLabel"))||replyWords.service} inquiry`;
   // The studio's own first reply, when it has saved one (Settings → Email
   // templates → "Your reply to a new inquiry"): its words, with this
   // inquiry's details filled in, replace or lead Cue's (inquiry-reply-template.ts).
@@ -261,10 +268,15 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
   if(briefRunOf(consultation.get("briefRun"))!==run)return{consultationId,skipped:"superseded_by_newer_brief",briefRun:run};
   const actionIds=briefActionIds(consultationId,run);
   const projectId=string(consultation.get("projectId"));
-  const [project,packages]=await Promise.all([
+  const [project,packages,trade]=await Promise.all([
     db.doc(`projects/${projectId}`).get(),
     db.collection("packages").where("tenantId","==",job.get("tenantId")).where("active","==",true).limit(50).get(),
+    tenantTrade(db,string(job.get("tenantId"))),
   ]);
+  // The brief drafts the client's proposal introduction, so it is told the
+  // studio's trade, as every other drafting prompt is (a DJ's vibe call is not
+  // "photography consultation notes"; Jess Styles Bridal, 2026-10-10).
+  const words=tradeVocab(trade);
   if(!project.exists||project.get("tenantId")!==job.get("tenantId"))throw new Error("PROJECT_NOT_FOUND");
   // The studio's catalogue, plus a one-off written for this job; never
   // another couple's one-off (features/packages/one-off.ts).
@@ -296,7 +308,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
       packageId:recommended?.id??null,
       packageRationale:recommended?`${String(recommended.name)} is the first active package available for human review.`:"No active package is available.",
       fitGaps:recommended?[]:["Create or activate a package."],
-      proposalIntroduction:"Thank you for sharing what matters most for your celebration. This draft reflects the priorities discussed during your consultation.",
+      proposalIntroduction:`Thank you for sharing what matters most for your celebration. This draft reflects the priorities discussed during your ${words.consultation.toLowerCase()}.`,
       followUpQuestions:[],
       confidence:recommended?0.82:0.45,
     };
@@ -309,7 +321,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
       method:"POST",
       headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},
       body:JSON.stringify({
-        systemInstruction:{parts:[{text:"Analyze photography consultation notes using only supplied project facts and the exact active package catalog. Summarize stated priorities, missing information, and follow-up questions. Recommend only a supplied package id or null. Do not invent pricing, discounts, availability, deliverables, legal terms, or client agreement. Draft a short proposal introduction in the studio's professional voice. All outputs require human review."},US_ENGLISH_PART]},
+        systemInstruction:{parts:[{text:`Analyze ${words.service} ${words.consultation.toLowerCase()} notes using only supplied project facts and the exact active package catalog. Summarize stated priorities, missing information, and follow-up questions. Recommend only a supplied package id or null. Do not invent pricing, discounts, availability, deliverables, legal terms, or client agreement. Draft a short ${words.proposal.toLowerCase()} introduction in the studio's professional voice. All outputs require human review.`+tradeInstruction(trade)},US_ENGLISH_PART]},
         contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
         generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{
           summary:{type:"STRING"},
@@ -443,10 +455,16 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
   if(!response.exists)throw new Error("QUESTIONNAIRE_RESPONSE_NOT_FOUND");
   if(response.get("status")!=="submitted")throw new Error("QUESTIONNAIRE_NOT_SUBMITTED");
   if(job.get("humanReviewRequired")!==true)throw new Error("AI_HUMAN_REVIEW_GUARD_MISSING");
-  const [template,project]=await Promise.all([
+  const [template,project,trade]=await Promise.all([
     db.doc(`questionnaireTemplates/${String(response.get("templateId"))}`).get(),
     db.doc(`projects/${String(response.get("projectId"))}`).get(),
+    tenantTrade(db,string(job.get("tenantId"))),
   ]);
+  // The follow-up email goes to the client, so it is drafted in the studio's
+  // trade: a hair studio's party list is not a "photography planning
+  // questionnaire" (Jess Styles Bridal, 2026-10-10).
+  const words=tradeVocab(trade);
+  const dayPlan=words.planOfDay?`${words.planOfDay.charAt(0).toLowerCase()}${words.planOfDay.slice(1)}`:`${words.service} timeline`;
   if(!template.exists)throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
   const sections=Array.isArray(template.get("sections"))?template.get("sections") as unknown[]:[];
   const fields=sections.flatMap(section=>{
@@ -481,14 +499,14 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
   };
   let analysis:Json;
   if(process.env.PROVIDER_MOCK_MODE==="true"){
-    analysis={summary:"Questionnaire submitted and ready for studio review.",missingInformation:deterministicMissing,contradictions:[],planningRisks:[],suggestedQuestions:deterministicMissing.map(value=>`Can you confirm ${value}?`),followupSubject:`A few planning details for ${string(project.get("name"))||"your event"}`,followupBody:deterministicMissing.length?`Thanks for completing the planning questionnaire. Could you help us confirm the remaining details below?\n\n${deterministicMissing.map(value=>`• ${value}`).join("\n")}`:"Thanks for completing the planning questionnaire. We have the details we need to begin preparing your photography timeline."};
+    analysis={summary:"Questionnaire submitted and ready for studio review.",missingInformation:deterministicMissing,contradictions:[],planningRisks:[],suggestedQuestions:deterministicMissing.map(value=>`Can you confirm ${value}?`),followupSubject:`A few planning details for ${string(project.get("name"))||"your event"}`,followupBody:deterministicMissing.length?`Thanks for completing the planning questionnaire. Could you help us confirm the remaining details below?\n\n${deterministicMissing.map(value=>`• ${value}`).join("\n")}`:`Thanks for completing the planning questionnaire. We have the details we need to begin preparing your ${dayPlan}.`};
   }else{
     const projectId=process.env.VERTEX_AI_PROJECT_ID;
     const model=process.env.VERTEX_AI_EXTRACTION_MODEL;
     if(!projectId||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
     const token=await cloudAccessToken();
     const vertex=await fetch(vertexEndpoint(projectId, model),{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({
-      systemInstruction:{parts:[{text:"Review a photography planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Also draft a concise, warm follow-up email that asks only the necessary supplied follow-up questions; its body must not include a greeting or sign-off. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review."},US_ENGLISH_PART]},
+      systemInstruction:{parts:[{text:`Review a ${words.service} planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Also draft a concise, warm follow-up email that asks only the necessary supplied follow-up questions; its body must not include a greeting or sign-off. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review.`+tradeInstruction(trade)},US_ENGLISH_PART]},
       contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
       generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{summary:{type:"STRING"},missingInformation:{type:"ARRAY",items:{type:"STRING"}},contradictions:{type:"ARRAY",items:{type:"STRING"}},planningRisks:{type:"ARRAY",items:{type:"STRING"}},suggestedQuestions:{type:"ARRAY",items:{type:"STRING"}},followupSubject:{type:"STRING"},followupBody:{type:"STRING"}},required:["summary","missingInformation","contradictions","planningRisks","suggestedQuestions","followupSubject","followupBody"]}},
     })});
@@ -643,16 +661,24 @@ async function runInboundReplyDraft(job: DocumentSnapshot) {
     at: string(document.get("createdAt")),
     body: string(document.get("body") ?? document.get("bodyPreview")).slice(0, 1500),
   }));
-  const facts = await gatherAnswerFacts(db, {
-    tenantId,
-    projectId: (conversation.get("projectId") as string | null) ?? null,
-  });
+  const [facts, trade] = await Promise.all([
+    gatherAnswerFacts(db, {
+      tenantId,
+      projectId: (conversation.get("projectId") as string | null) ?? null,
+    }),
+    // The reply goes to the client in the studio's own trade, as every other
+    // drafting prompt does (trades.ts; Jess Styles Bridal, 2026-10-10).
+    tenantTrade(db, tenantId),
+  ]);
+  const words = tradeVocab(trade);
 
   const now = new Date().toISOString();
   const actionId = `ai_inbound_${conversationId}_${job.id}`.slice(0, 200);
 
   let draft = {
-    subject: string(conversation.get("subject")) || "Re: your photography",
+    subject:
+      string(conversation.get("subject")) ||
+      (tradeProfile(trade).family === "photo" ? "Re: your photography" : "Re: your message"),
     body: "",
     missingInformation: [] as string[],
   };
@@ -678,7 +704,9 @@ async function runInboundReplyDraft(job: DocumentSnapshot) {
           systemInstruction: {
             parts: [
               {
-                text: "Draft one reply from a photography studio to its client, answering their most recent message. Use only the supplied facts. Never invent prices, dates, times, links or promises — put anything you would need to guess in missingInformation instead. Do not restate the thread. Never mention AI. Plain text, short paragraphs. A person reviews this before it is sent.",
+                text:
+                  `Draft one reply from a ${words.business} to its client, answering their most recent message. Use only the supplied facts. Never invent prices, dates, times, links or promises — put anything you would need to guess in missingInformation instead. Do not restate the thread. Never mention AI. Plain text, short paragraphs. A person reviews this before it is sent.` +
+                  tradeInstruction(trade),
               },
               US_ENGLISH_PART,
             ],

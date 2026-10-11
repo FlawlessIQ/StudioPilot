@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
+import { tradeProfile, tradeVocab } from "../trades/trades.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -160,9 +161,15 @@ const money = (cents: unknown): string | null => {
  * These templates use only facts already in `context`, exactly like the
  * lifecycle renderer, and flag what they could not fill.
  */
-function fallbackDraft(input: {
+export function fallbackDraft(input: {
   trigger: string;
   context: Json;
+  /**
+   * The studio's trade (trades.ts). Without it a hair studio's fallback reply
+   * offered "coverage" and a call it never holds; it offers the quote instead
+   * (Jess Styles Bridal, 2026-10-10).
+   */
+  trade?: unknown;
 }): z.infer<typeof modelOutputSchema> {
   const lead = record(input.context.lead);
   const project = record(input.context.project);
@@ -237,15 +244,26 @@ function fallbackDraft(input: {
     const when = dateWords(eventDate);
     if (when) highlights.push(`Their date: ${when}`);
     if (venue) highlights.push(`Venue: ${venue}`);
+    // A photographer's words exactly as they were; a vendor offers its own
+    // sales call (a DJ's vibe call) or, with none, its quote.
+    const words = tradeVocab(input.trade);
+    const profile = tradeProfile(input.trade);
+    const photo = profile.family === "photo";
     const body = [
       `Hi ${who},`,
       "",
       `Thank you for getting in touch — ${when ? `${when}${venue ? ` at ${venue}` : ""} sounds wonderful` : "I would love to hear more about your day"}.`,
       "",
       range ??
-        "I'd love to talk through what coverage would suit the day you have in mind.",
+        (photo
+          ? "I'd love to talk through what coverage would suit the day you have in mind."
+          : `I'd love to put together a ${words.proposal.toLowerCase()} for the day you have in mind.`),
       "",
-      "Would a short call this week suit? I'll walk you through how I work and answer anything you're wondering about.",
+      photo
+        ? "Would a short call this week suit? I'll walk you through how I work and answer anything you're wondering about."
+        : profile.consultation
+          ? `Would a short ${words.consultation.toLowerCase()} this week suit? I'll walk you through how I work and answer anything you're wondering about.`
+          : "If you have any questions, just reply — I'm happy to help.",
       "",
       "Warmly,",
       studioName,
@@ -317,12 +335,12 @@ async function generateDraft(input: {
   trade?: unknown;
 }): Promise<z.infer<typeof modelOutputSchema>> {
   if (process.env.PROVIDER_MOCK_MODE === "true")
-    return fallbackDraft({ trigger: input.trigger, context: input.context });
+    return fallbackDraft({ trigger: input.trigger, context: input.context, trade: input.trade });
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const model =
     process.env.VERTEX_AI_MESSAGE_MODEL ?? process.env.VERTEX_AI_SCHEDULE_MODEL;
   if (!project || !model)
-    return fallbackDraft({ trigger: input.trigger, context: input.context });
+    return fallbackDraft({ trigger: input.trigger, context: input.context, trade: input.trade });
   const token = await accessToken();
   const endpoint = vertexEndpoint(project, model);
   const callModel = async (contents: Array<Json>) => {
@@ -814,7 +832,7 @@ export const aiMessageDraftCommand = onRequest(
           // A model outage must not become a dead button on the screen that
           // decides whether the studio wins the job. Fall back to the
           // grounded template and label it honestly.
-          draft = fallbackDraft({ trigger: input.trigger, context });
+          draft = fallbackDraft({ trigger: input.trigger, context, trade: tenant.get("trade") });
           // The inbound fallback already labels itself, so prepending here put
           // two overlapping cautions on one card — "read it closely" above
           // "write the actual answer before sending". Add the label only when

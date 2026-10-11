@@ -2094,6 +2094,25 @@ async function generateIntake(
 }
 
 /**
+ * What the model is told when it drafts a proposal's copy, in the studio's own
+ * trade.
+ *
+ * The trade's words stopped at the first line ("Write quote copy for a hair
+ * business"), and a hair studio's quote opened "We are delighted to put
+ * together your proposal for Bridal hair" (Priya Shah, Jess Styles Bridal,
+ * 2026-10-10): every other drafting prompt appends tradeInstruction(), and this
+ * one did not. That is empty for a photographer, whose prompt is unchanged.
+ */
+export function proposalDraftInstruction(trade: unknown): string {
+  const words = tradeVocab(trade);
+  const offer = words.proposal.toLowerCase();
+  return (
+    `Write ${offer} copy for a ${words.business}, ` + "grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Write as the studio, to the client: turn their words into the second person (“your family of four”, never “the four of us”), and never add people, relationships or details they did not write — no partner, children or guests unless the facts name them. Call the event what a client calls it, by `project.eventKind`: their wedding only for a wedding, their session for portraits, their event otherwise (or simply their day) — and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. `packages` is EVERY package the client is being offered (photography and video are often sold together) and `combinedCoverage` is everyone they send between them: when the introduction mentions what is on offer, name every package, never just the first, and describe each only from its own facts. termsSummary: restate each package's approved terms in plain client-friendly language, under that package's name when there is more than one; never add, soften, or remove a term, never apply one package's terms to another, and never write legal language of your own. If no package has terms, restate nothing. The studio edits and approves this before anything is sent. Return JSON only." +
+    tradeInstruction(trade)
+  );
+}
+
+/**
  * Proposal-copy drafting: introduction and terms summary in the studio's
  * voice, grounded ONLY in the consultation review and the locked package
  * snapshot. Pricing, dates, and legal terms are never authored here — the
@@ -2111,7 +2130,7 @@ async function generateIntake(
  * again, and asked for two photographers so the ceremony was never left. Their
  * own words are the point of the letter.
  */
-async function generateProposalDraft(facts: {
+export async function generateProposalDraft(facts: {
   studioName: string;
   /**
    * The studio's trade (features/trades): its offer word, whether a call came
@@ -2197,7 +2216,7 @@ async function generateProposalDraft(facts: {
           systemInstruction: {
             parts: [
               {
-                text: `Write ${offer} copy for a ${words.business}, ` + "grounded ONLY in the supplied facts. introduction: 2-4 warm, professional sentences addressed to the client. Name at least one specific thing THEY said — in `inquiry.message`, `inquiry.summary` or the consultation priorities — in their terms, not a generic line about capturing their special day; if they mentioned particular people, moments or worries, that is what to reflect back. Write as the studio, to the client: turn their words into the second person (“your family of four”, never “the four of us”), and never add people, relationships or details they did not write — no partner, children or guests unless the facts name them. Call the event what a client calls it, by `project.eventKind`: their wedding only for a wedding, their session for portraits, their event otherwise (or simply their day) — and never the studio’s internal job name. Never invent prices, dates, discounts, deliverables, or promises not in the facts. `packages` is EVERY package the client is being offered (photography and video are often sold together) and `combinedCoverage` is everyone they send between them: when the introduction mentions what is on offer, name every package, never just the first, and describe each only from its own facts. termsSummary: restate each package's approved terms in plain client-friendly language, under that package's name when there is more than one; never add, soften, or remove a term, never apply one package's terms to another, and never write legal language of your own. If no package has terms, restate nothing. The studio edits and approves this before anything is sent. Return JSON only.",
+                text: proposalDraftInstruction(facts.trade),
               },
               US_ENGLISH_PART,
             ],
