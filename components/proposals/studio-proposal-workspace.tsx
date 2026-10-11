@@ -1267,12 +1267,11 @@ export function StudioProposalComposer() {
   const canWriteOneOff = workspace.role === "studio_owner" || workspace.role === "studio_admin";
   const oneOffForm = (job: ProjectNeedingPackage) => {
     const current = selectedFor(job.id);
-    const mainMinutes = number(objectValue(current?.packageSnapshot).includedCoverageMinutes);
     return (
       <OneOffPackageForm
         busy={lockingPackageId === "one-off"}
         currency={text(objectValue(current?.packageSnapshot).currency, text(pickerPackages?.[0]?.currency, "USD"))}
-        defaultHours={mainMinutes > 0 ? Math.round((mainMinutes / 60) * 10) / 10 : null}
+        mainCoverageMinutes={objectValue(current?.packageSnapshot).includedCoverageMinutes}
         hasPackage={Boolean(current)}
         initialMode="add"
         // A different job starts a fresh form, never another couple's draft.

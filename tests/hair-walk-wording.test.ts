@@ -5,6 +5,7 @@ import { checkNote, uncertainItem } from "@/features/ai/check-note";
 import { FILE_BEARING } from "@/features/documents/file-ref";
 import { projectThread } from "@/features/journey/thread";
 import { couplePackageView, snapshotInclusions } from "@/features/packages/job-packages";
+import { oneOffCoverageMinutes } from "@/features/packages/one-off";
 import { hoursText } from "@/features/packages/unit-label";
 import { formatCentsAsNeeded } from "@/lib/format/money";
 import { buildClientPortalExperience } from "@/server/client/portal-experience";
@@ -67,7 +68,25 @@ test("hours are singular at one, everywhere a package's hours are summed up", ()
     read("components/booking/booking-autopilot-workspace.tsx"),
     /Number\(studioPackage\.includedCoverageMinutes \?\? 0\) > 0 \? `\$\{hoursText\(Math\.round\(Number\(studioPackage\.includedCoverageMinutes\) \/ 60\)\)\} · ` : ""/,
   );
-  assert.match(read("components/proposals/one-off-package-form.tsx"), /for \$\{hoursText\(hours\)\}\./);
+  const oneOffForm = read("components/proposals/one-off-package-form.tsx");
+  assert.match(oneOffForm, /for \$\{hoursText\(hours\)\}\./);
+  // Its blank hours are what the server saves (oneOffCoverageMinutes): a main
+  // package stating none gives none, so the hint never promises eight hours
+  // the one-off is saved without.
+  assert.match(oneOffForm, /const hours = Math\.round\(\(oneOffCoverageMinutes\(undefined, mainCoverageMinutes\) \/ 60\) \* 10\) \/ 10;/);
+  assert.match(oneOffForm, /`Left blank: one \$\{coverageRoleLabel\(firstRole, 1\)\}, no set hours\.`/);
+  assert.doesNotMatch(oneOffForm, /: 8;/);
+  assert.equal(Math.round((oneOffCoverageMinutes(undefined, 0) / 60) * 10) / 10, 0);
+  assert.equal(Math.round((oneOffCoverageMinutes(undefined, undefined) / 60) * 10) / 10, 8);
+  assert.equal(Math.round((oneOffCoverageMinutes(undefined, 450) / 60) * 10) / 10, 7.5);
+  for (const caller of [
+    "components/proposals/proposal-packages-panel.tsx",
+    "components/proposals/studio-proposal-workspace.tsx",
+    "components/booking/booking-amendment.tsx",
+  ]) {
+    assert.match(read(caller), /mainCoverageMinutes=\{[^}]*includedCoverageMinutes\}/, caller);
+    assert.doesNotMatch(read(caller), /defaultHours=/, caller);
+  }
 });
 
 test("the package form previews the deposit to the cent, as the quote asks for it", () => {
@@ -128,6 +147,18 @@ test("a vendor's client is asked for the open planning form by name and date", (
   assert.equal(
     photoThanked.description,
     "Thank you — your planning form is in. Your studio will share the event-day schedule for you to approve next.",
+  );
+  // A photographer's step reads the status alone, as before: an open form
+  // beside a sent-back one (the Final schedule assigned at booking) changes
+  // nothing — never "Continue planning your event" in place of what they had.
+  for (const state of ["BOOKED", "PLANNING"]) {
+    const photoOpen = ask("photographer", { questionnaireStatus: "submitted", state });
+    assert.deepEqual(photoOpen, ask("photographer", { questionnaireStatus: "submitted", state, planningForm: null }), state);
+    assert.notEqual(photoOpen.name, "Continue planning your event", state);
+  }
+  assert.equal(
+    ask("photographer", { questionnaireStatus: "submitted", state: "PLANNING" }).name,
+    "Your details are with the studio",
   );
   // The portal route hands it the open form: not the inquiry page's, not one sent back.
   const route = read("app/api/client/portal/route.ts");

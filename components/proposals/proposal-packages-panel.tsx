@@ -518,11 +518,7 @@ export function ProposalPackagesPanel({
               <OneOffPackageForm
                 busy={busy === `edit-${oneOffPackage.id}`}
                 currency={text(snapshot?.currency, "USD")}
-                defaultHours={
-                  cents(snapshot?.includedCoverageMinutes) > 0
-                    ? Math.round((cents(snapshot?.includedCoverageMinutes) / 60) * 10) / 10
-                    : null
-                }
+                mainCoverageMinutes={snapshot?.includedCoverageMinutes}
                 hasPackage
                 initial={oneOffFormValuesFrom(oneOffPackage)}
                 initialMode="add"
@@ -572,11 +568,7 @@ export function ProposalPackagesPanel({
             <OneOffPackageForm
               busy={busy === "one-off"}
               currency={text(onJob[0]?.snapshot?.currency, "USD")}
-              defaultHours={
-                cents(onJob[0]?.snapshot?.includedCoverageMinutes) > 0
-                  ? Math.round((cents(onJob[0]?.snapshot?.includedCoverageMinutes) / 60) * 10) / 10
-                  : null
-              }
+              mainCoverageMinutes={onJob[0]?.snapshot?.includedCoverageMinutes}
               hasPackage={onJob.length > 0}
               initialMode={picking}
               key={picking}

@@ -644,7 +644,7 @@ export function BookingAmendmentPanel({
             <OneOffPackageForm
               busy={false}
               currency={str(onJob[0]?.currency) || "USD"}
-              defaultHours={num(onJob[0]?.includedCoverageMinutes) ? num(onJob[0]?.includedCoverageMinutes) / 60 : null}
+              mainCoverageMinutes={onJob[0]?.includedCoverageMinutes}
               forBookingChange
               hasPackage={false}
               initial={

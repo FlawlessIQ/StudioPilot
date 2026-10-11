@@ -12,6 +12,7 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { COVERAGE_ROLES, coverageCount, coverageRoleLabel, resolveCoverage, type CoverageRole } from "@/features/packages/coverage";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { hoursText } from "@/features/packages/unit-label";
+import { oneOffCoverageMinutes } from "@/features/packages/one-off";
 
 /** What a one-off might include, in each trade's own work: the textarea's example. */
 const INCLUDED_EXAMPLE: Record<"photo" | "music" | "beauty", string> = {
@@ -55,7 +56,7 @@ export function OneOffPackageForm({
   currency,
   hasPackage,
   initialMode,
-  defaultHours,
+  mainCoverageMinutes,
   busy,
   onSubmit,
   onCancel,
@@ -84,8 +85,14 @@ export function OneOffPackageForm({
   /** The job already has a package: ask whether this joins it or replaces it. */
   hasPackage: boolean;
   initialMode: "add" | "replace";
-  /** What blank hours become: the main package's, else 8. */
-  defaultHours: number | null;
+  /**
+   * The main package's minutes as stored, or nothing with no main package.
+   * Blank hours become what the server makes of them (oneOffCoverageMinutes):
+   * these, else 8 — and none when the main package states none, so an
+   * imported price list's one-off is never promised eight hours it is saved
+   * without (Jess Styles Bridal, 2026-10-10).
+   */
+  mainCoverageMinutes: unknown;
   busy: boolean;
   /**
    * The same key on every try from this form, so a retry after the package
@@ -125,7 +132,7 @@ export function OneOffPackageForm({
   const [attemptKey] = useState(() => `${editing ? "one-off-edit" : "one-off"}-${crypto.randomUUID()}`);
   const set = <K extends keyof OneOffFormValues>(key: K, value: OneOffFormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
-  const hours = defaultHours && defaultHours > 0 ? defaultHours : 8;
+  const hours = Math.round((oneOffCoverageMinutes(undefined, mainCoverageMinutes) / 60) * 10) / 10;
 
   const submit = () => {
     const parsed = parseOneOffForm(values);
@@ -223,11 +230,15 @@ export function OneOffPackageForm({
           <input
             inputMode="decimal"
             onChange={(event) => set("hours", event.target.value)}
-            placeholder={String(hours)}
+            placeholder={hours > 0 ? String(hours) : ""}
             value={values.hours}
           />
         </label>
-        <small>{`Left blank: one ${coverageRoleLabel(firstRole, 1)} for ${hoursText(hours)}.`}</small>
+        <small>
+          {hours > 0
+            ? `Left blank: one ${coverageRoleLabel(firstRole, 1)} for ${hoursText(hours)}.`
+            : `Left blank: one ${coverageRoleLabel(firstRole, 1)}, no set hours.`}
+        </small>
       </fieldset>
       {hasPackage && !editing && !forBookingChange ? (
         <fieldset className="one-off-package-mode">
