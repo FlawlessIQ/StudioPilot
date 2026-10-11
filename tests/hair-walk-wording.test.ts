@@ -61,7 +61,12 @@ test("hours are singular at one, everywhere a package's hours are summed up", ()
   const list = read("components/studio/live-domain-view.tsx");
   assert.match(list, /hoursText\(minutes \/ 60, true\)/);
   assert.doesNotMatch(list, / hrs`/);
-  assert.match(read("components/booking/booking-autopilot-workspace.tsx"), /\{hoursText\(Math\.round\(Number\(studioPackage\.includedCoverageMinutes \?\? 0\) \/ 60\)\)\}/);
+  // The booking picker also skips the hours for a package that states none
+  // (an imported vendor list), so it never reads "0 hours".
+  assert.match(
+    read("components/booking/booking-autopilot-workspace.tsx"),
+    /Number\(studioPackage\.includedCoverageMinutes \?\? 0\) > 0 \? `\$\{hoursText\(Math\.round\(Number\(studioPackage\.includedCoverageMinutes\) \/ 60\)\)\} · ` : ""/,
+  );
   assert.match(read("components/proposals/one-off-package-form.tsx"), /for \$\{hoursText\(hours\)\}\./);
 });
 
