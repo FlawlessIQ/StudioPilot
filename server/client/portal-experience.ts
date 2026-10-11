@@ -580,11 +580,18 @@ export function buildClientPortalExperience({
   const offer = tradeVocab(trade).proposal.toLowerCase();
   const eventHasPassed =
     Boolean(eventDate) && Boolean(today) && String(today) > String(eventDate);
-  // An open planning form outranks the status: that is read from whichever
-  // form the portal route met first, and a sent-back inquiry-page form must
-  // not mark the party list still waiting on them as done.
+  /**
+   * The trade's own name for the planning form ("Party list"); a
+   * photographer's has none (trades.ts `detailsForm`).
+   */
+  const formWord = tradeVocab(trade).detailsForm?.toLowerCase() ?? null;
+  // For a trade that names its form, an open planning form outranks the
+  // status: that is read from whichever form the portal route met first, and
+  // a sent-back inquiry-page form must not mark the party list still waiting
+  // on them as done. A photographer's step reads the status alone, as it
+  // always has.
   const questionnaireDone =
-    !planningForm && ["submitted", "locked"].includes(String(questionnaireStatus ?? ""));
+    !(formWord && planningForm) && ["submitted", "locked"].includes(String(questionnaireStatus ?? ""));
   /**
    * A schedule waiting on the couple outranks everything but overdue money.
    * It is the one thing here that is unambiguously theirs to do, and the one
@@ -695,7 +702,6 @@ export function buildClientPortalExperience({
    * 2026-10-10). A photographer's form has no trade word (trades.ts
    * `detailsForm`), so theirs reads as it always has.
    */
-  const formWord = tradeVocab(trade).detailsForm?.toLowerCase() ?? null;
   const askForForm = (action: ClientNextAction): ClientNextAction =>
     formWord && planningForm && !questionnaireDone && action.href === "/client/questionnaire"
       ? {
