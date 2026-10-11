@@ -18,6 +18,7 @@ export function TrialNotes({
   trialWord,
   notes,
   extensions = false,
+  clientPlan = null,
 }: {
   projectId: string;
   /** "Makeup trial" or "Hair trial" (trades.ts). */
@@ -29,10 +30,18 @@ export function TrialNotes({
    * (features/trades/extensions.ts).
    */
   extensions?: boolean;
+  /**
+   * What the client said about extensions on their form (`clientExtensionPlan`):
+   * the starting choice while the job has none saved. Shown, never saved
+   * until the stylist saves.
+   */
+  clientPlan?: ExtensionPlan | null;
 }) {
   const [look, setLook] = useState(typeof notes?.look === "string" ? notes.look : "");
   const [products, setProducts] = useState(typeof notes?.products === "string" ? notes.products : "");
-  const [plan, setPlan] = useState<ExtensionPlan | "">(extensionPlanOf(notes?.extensions) ?? "");
+  // Null until the stylist picks: the saved plan, else the client's answer.
+  const [chosen, setPlan] = useState<ExtensionPlan | "" | null>(extensionPlanOf(notes?.extensions));
+  const plan: ExtensionPlan | "" = chosen ?? clientPlan ?? "";
   const [colorMatch, setColorMatch] = useState(typeof notes?.colorMatch === "string" ? notes.colorMatch : "");
   // A hair trial's examples are a style and its tools, not a face.
   const hair = /^hair/i.test(trialWord);
@@ -95,6 +104,7 @@ export function TrialNotes({
               ))}
             </select>
           </label>
+          {chosen === null && clientPlan ? <small>From their form. Change it if the trial settles something else.</small> : null}
           {plan && plan !== "none" ? (
             <label>
               Color match

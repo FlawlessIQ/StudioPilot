@@ -58,6 +58,9 @@ import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
+import { trialState, trialWanted } from "@/features/consultations/trial";
+import { jobPackageSnapshotIds } from "@/features/crew/staffing-plan";
+import { clientOutreachStop } from "@/features/post-event/client-outreach";
 import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
 import { BOOKING_BRIEF_CAPABILITIES, blockingIssues } from "@/features/ai/blocking-issues";
 import { emailProblemOf } from "@/features/today/email-problems";
@@ -69,6 +72,13 @@ const BILLING_ADDRESS_ASK_AGAIN_DAYS = 5;
 
 /** When a final balance becomes Today's business: four weeks out, when the scheduler raises it (B11). */
 const FINAL_BALANCE_WINDOW_DAYS = 28;
+
+/**
+ * A trial invitation sent this recently keeps its Today card away: the
+ * client has the link. After that, unbooked, the card asks again (a hair
+ * trial often waits months for the veil).
+ */
+export const TRIAL_INVITE_QUIET_DAYS = 30;
 
 export type TodayLane = "act" | "approve" | "fyi";
 
@@ -120,6 +130,17 @@ export type TodayAction =
       kind: "billing_address";
       label: string;
       projectId: string;
+    }
+  | {
+      /**
+       * A client who asked for or bought a makeup or hair trial, booked and
+       * not yet invited to it: send the trial link from the card
+       * (components/today/today-inbox.tsx), as the job's trial card does.
+       */
+      kind: "trial_invite";
+      label: string;
+      projectId: string;
+      contactId: string;
     }
   | {
       /** A couple sent their own shot list (features/planning/shot-list.ts): open it, or mark it seen. */
@@ -368,6 +389,12 @@ export type TodayInput = {
   planningTimeline?: unknown;
   /** Billing addresses StudioCue asked couples for (functions/src/billing/billing-address-request.ts). */
   billingAddressRequests?: TodayRecord[] | null;
+  /**
+   * Booked calls and trials, and the jobs' package snapshots: whether a
+   * makeup or hair client who bought a trial has booked it yet.
+   */
+  consultations?: TodayRecord[] | null;
+  packageSnapshots?: TodayRecord[] | null;
   /**
    * Run-of-show versions, so the couple's answer to the day plan reaches
    * Today: a card when they ask for changes, a line when they approve it.
@@ -1325,6 +1352,80 @@ export function todayInbox(input: TodayInput): TodayInbox {
       eventDate,
       score: score({ lane: "act", severity: "step", eventDate, updatedAt: text(request.updatedAt) || null, now }),
     });
+  }
+
+  // ── Act · a trial the client wants, not booked or invited to ───────
+  // Priya Shah paid for a "Bridal hair trial" and said yes to one on her
+  // inquiry, and once she had booked nothing prompted the studio to invite
+  // her to it (Jess Styles Bridal, 2026-10-10). Its own card, never the
+  // journey's next move: the trial is optional there (journey/steps.ts). A
+  // quiet job, imported or paused, is left to the studio (ADR 0005).
+  const trialWord = tradeVocab(input.tenantTrade).trial;
+  if (tradeProfile(input.tenantTrade).trial && trialWord) {
+    for (const job of rows(input.projects)) {
+      if (!["BOOKED", "PLANNING", "READY"].includes(text(job.state)) || clientOutreachStop(job)) continue;
+      // A trial needs a day before the event to happen on.
+      const eventDate = text(job.eventDate) || null;
+      const daysOut = calendarDayDiff(eventDate, now);
+      if (daysOut !== null && daysOut < 2) continue;
+      // Notes from the trial mean it happened, booked here or not.
+      if (job.trialNotes) continue;
+      const jobConsultations = rows(input.consultations).filter((record) => text(record.projectId) === job.id);
+      if (trialState({ consultations: jobConsultations, now: input.now }).state !== "not_booked") continue;
+      const snapshotIds = jobPackageSnapshotIds(job);
+      const wanted = trialWanted({
+        snapshots: rows(input.packageSnapshots).filter((snapshot) => snapshotIds.includes(snapshot.id)),
+        leads: rows(input.leads).filter((lead) => lead.id === text(job.leadId) || text(lead.projectId) === job.id),
+      });
+      if (!wanted) continue;
+      // The link the job's trial card sends (public-scheduling.ts create_link).
+      const invitedAt =
+        rows(input.emailJobs)
+          .filter(
+            (email) =>
+              text(email.projectId) === job.id &&
+              text(email.type) === "consultation_invitation" &&
+              text(email.purpose) === "trial",
+          )
+          .map((email) => text(email.createdAt))
+          .filter(Boolean)
+          .sort()
+          .at(-1) ?? null;
+      const invitedDaysAgo = invitedAt ? Math.abs(Math.min(0, elapsedDayDiff(invitedAt, now) ?? 0)) : null;
+      if (invitedDaysAgo !== null && invitedDaysAgo < TRIAL_INVITE_QUIET_DAYS) continue;
+      const contactId =
+        Array.isArray(job.clientContactIds) && typeof job.clientContactIds[0] === "string" ? job.clientContactIds[0] : null;
+      const trialHint = tradeVocab(input.tenantTrade).trialHint;
+      act.push({
+        id: `trial-invite-${job.id}`,
+        lane: "act",
+        kind: "calendar",
+        title: `Invite ${clientOf(job)} to book their ${trialWord.toLowerCase()}`,
+        detail: [
+          wanted.reason === "bought" ? `${wanted.item} is in their booking.` : "They asked for one on their inquiry.",
+          trialHint ? `They can pick a date months ahead, ${trialHint}.` : "They pick a time from your openings.",
+        ].join(" "),
+        evidence: null,
+        projectId: job.id,
+        projectName: text(job.name) || null,
+        action: contactId
+          ? {
+              kind: "trial_invite",
+              label: invitedAt ? "Send the link again" : "Send the invite",
+              projectId: job.id,
+              contactId,
+            }
+          : { kind: "link", label: "Open the trial card", href: `/studio/projects/${job.id}#trial` },
+        jobHref: `/studio/projects/${job.id}#trial`,
+        facts: [
+          eventFact(eventDate, now),
+          invitedDaysAgo !== null ? `last invited ${invitedDaysAgo} ${invitedDaysAgo === 1 ? "day" : "days"} ago` : null,
+        ].filter((fact): fact is string => Boolean(fact)),
+        band: bandFor({ eventDate, now }),
+        eventDate,
+        score: score({ lane: "act", severity: "step", eventDate, now }),
+      });
+    }
   }
 
   // ── Act · exceptions ───────────────────────────────────────────────

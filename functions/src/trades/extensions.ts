@@ -23,6 +23,40 @@ export function extensionPlanOf(value: unknown): ExtensionPlan | null {
   return (EXTENSION_PLANS as readonly unknown[]).includes(value) ? (value as ExtensionPlan) : null;
 }
 
+/**
+ * The client's answer to the hair form's "Extensions" question (field
+ * `extensions`, questionnaires/recommended-templates.ts) as a plan. "Please
+ * recommend" asks the stylist, so it is no plan.
+ *
+ * The trial card said "Not decided" beside a client who had answered "I'd
+ * like to buy them" (Priya Shah, Jess Styles Bridal, 2026-10-10). It is the
+ * card's starting choice only: nothing is saved until the stylist saves.
+ */
+const CLIENT_EXTENSION_ANSWERS: Readonly<Record<string, ExtensionPlan>> = {
+  "i have my own": "own",
+  "i'd like to buy them": "buy",
+  "i'd like to rent them": "rent",
+  "no extensions": "none",
+};
+
+export function extensionPlanFromAnswer(answer: unknown): ExtensionPlan | null {
+  if (typeof answer !== "string") return null;
+  return CLIENT_EXTENSION_ANSWERS[answer.trim().toLowerCase().replace(/[‘’]/g, "'")] ?? null;
+}
+
+/** The newest answer to that question on the job's forms, as a plan; null when none gives one. */
+export function clientExtensionPlan(responses: ReadonlyArray<Record<string, unknown>>): ExtensionPlan | null {
+  const answered = responses
+    .filter((response) => !response.archivedAt)
+    .map((response) => {
+      const answers = response.answers && typeof response.answers === "object" ? (response.answers as Record<string, unknown>) : {};
+      return { at: String(response.updatedAt ?? response.submittedAt ?? response.createdAt ?? ""), answer: answers.extensions };
+    })
+    .filter((entry) => typeof entry.answer === "string" && entry.answer.trim())
+    .sort((left, right) => right.at.localeCompare(left.at));
+  return answered.length ? extensionPlanFromAnswer(answered[0]!.answer) : null;
+}
+
 /** Extensions the studio has to get: bought or rented. Their own need nothing ordered. */
 export function extensionsToOrder(plan: unknown): boolean {
   return plan === "buy" || plan === "rent";

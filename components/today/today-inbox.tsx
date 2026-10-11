@@ -23,6 +23,7 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
 import { requestBillingAddress, sendFinalBalance } from "@/lib/booking/command-client";
+import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { ConfirmStep } from "@/components/ui/confirm-step";
@@ -1176,6 +1177,8 @@ function TodayCard({
           <DetailChangeActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "billing_address" ? (
           <BillingAddressActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
+        ) : item.action.kind === "trial_invite" ? (
+          <TrialInviteActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "package_request" ? (
           <PackageRequestActions action={item.action} onChangeBooking={onChangeBooking} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
@@ -1726,6 +1729,82 @@ function BillingAddressActions({
         onConfirm={() => void ask()}
       >
         {`${recipient ?? "The couple"} gets an email from you with a link to their portal, where they add it once. QuickBooks then works out the tax on their final invoice.`}
+      </ConfirmStep>
+    );
+  }
+  return (
+    <>
+      <button className="today-card-primary" disabled={busy} onClick={() => setConfirming(true)} type="button">
+        {action.label} <ArrowRight size={14} />
+      </button>
+      {jobHref ? (
+        <Link className="today-card-secondary" href={jobHref}>
+          Open the job
+        </Link>
+      ) : null}
+      {notice ? <span className="today-card-notice">{notice}</span> : null}
+    </>
+  );
+}
+
+type TrialInviteAction = Extract<TodayItem["action"], { kind: "trial_invite" }>;
+
+/**
+ * "Send the invite": the makeup or hair trial link the job's trial card sends
+ * (public-scheduling.ts create_link, in person), naming who gets it before it
+ * goes. Sent, the card goes; it comes back after a month if nothing is booked
+ * (features/today/inbox.ts `TRIAL_INVITE_QUIET_DAYS`).
+ */
+function TrialInviteActions({
+  action,
+  jobHref,
+  onCleared,
+}: {
+  action: TrialInviteAction;
+  jobHref: string | null;
+  onCleared?: () => void;
+}) {
+  const trialWord = (tradeVocab(useWorkspace().tenantTrade).trial ?? "Trial").toLowerCase();
+  const { records: contacts } = useTenantDocuments("contacts");
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const contact = contacts?.find((candidate) => candidate.id === action.contactId);
+  const email = typeof contact?.email === "string" ? contact.email.trim() : "";
+  const name = typeof contact?.displayName === "string" ? contact.displayName.trim() : "";
+  const recipient = email ? recipientLabel({ name: name || null, email }) : null;
+  async function send() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await runPublicScheduling({
+        type: "create_link",
+        idempotencyKey: crypto.randomUUID(),
+        // A trial is in person, at the studio or the bride's: never a video call.
+        input: { projectId: action.projectId, contactId: action.contactId, mode: "in_person", purpose: "trial" },
+      });
+      refreshTenantRecords("emailJobs");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The invitation couldn't be sent. Open the job to check."));
+      setConfirming(false);
+      setBusy(false);
+    }
+  }
+  if (confirming) {
+    return (
+      <ConfirmStep
+        busy={busy}
+        cancelClassName="today-card-secondary"
+        cancelLabel="Not now"
+        className="today-confirm-step"
+        confirmClassName="today-card-primary"
+        confirmLabel="Send it"
+        label={`Invite them to book the ${trialWord}?`}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => void send()}
+      >
+        {`${recipient ?? "Your client"} gets an email from you with a link to pick a time for it, any day before the event.`}
       </ConfirmStep>
     );
   }

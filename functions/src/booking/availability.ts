@@ -150,8 +150,15 @@ export function generateConsultationSlots(input: {
   daysAhead: number;
   busy: readonly { start: string; end: string }[];
   maxSlots: number;
+  /**
+   * Minutes between one start and the next; the duration plus the buffer
+   * when absent. A two-hour trial still starts on the studio's usual cadence
+   * (features/consultations/slots.ts).
+   */
+  stepMinutes?: number;
 }): ConsultationSlot[] {
   const { settings, timezone, now, startInDays, daysAhead, busy, maxSlots } = input;
+  const step = input.stepMinutes && input.stepMinutes > 0 ? input.stepMinutes : settings.durationMinutes + settings.bufferMinutes;
   const busyMs = busy.map((interval) => ({
     start: Date.parse(interval.start),
     end: Date.parse(interval.end),
@@ -183,7 +190,7 @@ export function generateConsultationSlots(input: {
       for (
         let minute = window.startMinute;
         minute + settings.durationMinutes <= window.endMinute && slots.length < maxSlots;
-        minute += settings.durationMinutes + settings.bufferMinutes
+        minute += step
       ) {
         const start = zonedTimeToUtc(year, month, day, minute, timezone);
         const end = new Date(start.getTime() + settings.durationMinutes * 60_000);

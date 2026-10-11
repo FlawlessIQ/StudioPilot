@@ -123,6 +123,12 @@ function resolveDayWindows(
  * calendar, not whatever weekday that instant happens to be in UTC), skips
  * `blockedDates`, and drops any candidate slot that overlaps `busy` once
  * `bufferMinutes` padding is applied on both sides.
+ *
+ * `stepMinutes` spaces the starts apart when the appointment is longer than
+ * the studio's usual slot: a two-hour hair trial still starts on the hour,
+ * and every start leaves the whole two hours inside the studio's hours
+ * (Priya Shah, Jess Styles Bridal, 2026-10-10). Without it, starts follow
+ * one another back to back, as they always have.
  */
 export function generateConsultationSlots(input: {
   settings: Pick<ConsultationSettings, "durationMinutes" | "bufferMinutes" | "windows" | "blockedDates"> &
@@ -133,9 +139,12 @@ export function generateConsultationSlots(input: {
   daysAhead: number;
   busy: readonly BusyInterval[];
   maxSlots: number;
+  /** Minutes between one start and the next; the duration plus the buffer when absent. */
+  stepMinutes?: number;
 }): ConsultationSlot[] {
   const { settings, timezone, now, startInDays, daysAhead, busy, maxSlots } = input;
   const mode = settings.mode ?? "closed_default";
+  const step = input.stepMinutes && input.stepMinutes > 0 ? input.stepMinutes : settings.durationMinutes + settings.bufferMinutes;
   const busyMs = busy.map((interval) => ({
     start: Date.parse(interval.start),
     end: Date.parse(interval.end),
@@ -167,7 +176,7 @@ export function generateConsultationSlots(input: {
       for (
         let minute = window.startMinute;
         minute + settings.durationMinutes <= window.endMinute && slots.length < maxSlots;
-        minute += settings.durationMinutes + settings.bufferMinutes
+        minute += step
       ) {
         const start = zonedTimeToUtc(year, month, day, minute, timezone);
         const end = new Date(start.getTime() + settings.durationMinutes * 60_000);

@@ -9,6 +9,7 @@ import { commandTypeOf, respondToCommandError } from "../security/command-errors
 import { getCalendarBusyIntervals } from "../operations/provider-runtime.js";
 import { studioHubCors } from "../security/cors.js";
 import { generateConsultationSlots, getConsultationSettings } from "./availability.js";
+import { daysBetween, shiftDate, studioDay, trialLinkDays, trialWindow, BOOKING_LINK_DAYS } from "./trial-window.js";
 import {
   detailsOf,
   meetingOptions,
@@ -72,7 +73,11 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("availability"),
     idempotencyKey: z.string().min(8).max(160),
-    input: z.object({ token: z.string().min(32).max(200) }),
+    input: z.object({
+      token: z.string().min(32).max(200),
+      /** A trial's week to show, from this day (trial-window.ts). A call's link ignores it. */
+      from: z.string().date().optional(),
+    }),
   }),
   // The couple's own inquiry link (intake/inquiry-link.ts): their details,
   // then a time and a way to meet, and later a reschedule or cancel.
@@ -173,18 +178,13 @@ async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
   return slotsForTenant(String(link.get("tenantId")));
 }
 
-async function slotsForTenant(tenantId: string) {
-  const db = getFirestore();
-  const tenant = await db.doc(`tenants/${tenantId}`).get();
-  const timezone = String(tenant.get("timezone") ?? "America/New_York");
-  const settings = await getConsultationSettings(db, tenantId);
-  const rangeStart = new Date();
-  rangeStart.setUTCDate(rangeStart.getUTCDate() + 29);
+/** What is already taken between two instants: booked calls and trials, and the studio's own calendar. */
+async function busyBetween(db: FirebaseFirestore.Firestore, tenantId: string, fromIso: string, toIso: string) {
   const existing = await db
     .collection("consultations")
     .where("tenantId", "==", tenantId)
-    .where("startsAt", ">=", new Date().toISOString())
-    .where("startsAt", "<", rangeStart.toISOString())
+    .where("startsAt", ">=", fromIso)
+    .where("startsAt", "<", toIso)
     .limit(500)
     .get();
   const busy = existing.docs
@@ -196,12 +196,62 @@ async function slotsForTenant(tenantId: string) {
   // Real calendar conflicts auto-block alongside internal bookings; an
   // unconnected or failing provider degrades to no extra busy time rather
   // than failing the whole scheduling read.
-  const calendarBusy = await getCalendarBusyIntervals(
-    tenantId,
-    new Date().toISOString(),
-    rangeStart.toISOString(),
-  );
+  const calendarBusy = await getCalendarBusyIntervals(tenantId, fromIso, toIso);
   if (calendarBusy.ok) busy.push(...calendarBusy.busy);
+  return busy;
+}
+
+/**
+ * A makeup or hair trial's openings, a week at a time, up to the day before
+ * the event (trial-window.ts), each long enough for the trial itself
+ * (trades.ts `trialMinutes`) inside the studio's hours. `from` is the first
+ * day to show; `at`, a time the client picked, shows the week it starts, so
+ * booking checks the pick against the same openings.
+ */
+async function trialSlotsFor(
+  link: FirebaseFirestore.QueryDocumentSnapshot,
+  tenant: FirebaseFirestore.DocumentSnapshot,
+  project: FirebaseFirestore.DocumentSnapshot,
+  pick: { from?: string | null; at?: string },
+) {
+  const db = getFirestore();
+  const tenantId = String(link.get("tenantId"));
+  const timezone = String(tenant.get("timezone") ?? "America/New_York");
+  const settings = await getConsultationSettings(db, tenantId);
+  // The trade's trial length; the studio's call length when it has none.
+  const durationMinutes = tradeProfile(tenant.get("trade")).trialMinutes ?? settings.durationMinutes;
+  const now = new Date();
+  const today = studioDay(now, timezone);
+  const from = pick.at ? studioDay(new Date(pick.at), timezone) : (pick.from ?? null);
+  const window = trialWindow({ today, eventDate: project.get("eventDate"), from });
+  if (!window) return { timezone, durationMinutes, slots: [], window: null };
+  // A day either side, so a booking that runs across midnight still counts.
+  const fromIso = new Date(Math.max(now.valueOf(), Date.parse(`${shiftDate(window.start, -1)}T00:00:00Z`))).toISOString();
+  const toIso = new Date(Date.parse(`${shiftDate(window.end, 2)}T00:00:00Z`)).toISOString();
+  const busy = await busyBetween(db, tenantId, fromIso, toIso);
+  const slots = generateConsultationSlots({
+    settings: { ...settings, durationMinutes },
+    timezone,
+    now,
+    startInDays: daysBetween(today, window.start),
+    daysAhead: daysBetween(window.start, window.end) + 1,
+    busy,
+    maxSlots: 200,
+    // Starts keep the studio's usual cadence; each leaves the whole trial
+    // inside its hours (Priya Shah, Jess Styles Bridal, 2026-10-10).
+    stepMinutes: settings.durationMinutes + settings.bufferMinutes,
+  });
+  return { timezone, durationMinutes, slots, window };
+}
+
+async function slotsForTenant(tenantId: string) {
+  const db = getFirestore();
+  const tenant = await db.doc(`tenants/${tenantId}`).get();
+  const timezone = String(tenant.get("timezone") ?? "America/New_York");
+  const settings = await getConsultationSettings(db, tenantId);
+  const rangeStart = new Date();
+  rangeStart.setUTCDate(rangeStart.getUTCDate() + 29);
+  const busy = await busyBetween(db, tenantId, new Date().toISOString(), rangeStart.toISOString());
   const slots = generateConsultationSlots({
     settings,
     timezone,
@@ -283,7 +333,15 @@ export const publicConsultationScheduling = onRequest(
           purpose: command.input.purpose,
           actorId: identity.uid,
           now,
-          days: 14,
+          // A trial's link stays open to the day before the event: the
+          // invitation tells a bride to book once her veil is chosen.
+          days:
+            command.input.purpose === "trial"
+              ? trialLinkDays({
+                  today: studioDay(new Date(now), String(tenant.get("timezone") ?? "America/New_York")),
+                  eventDate: project.get("eventDate"),
+                })
+              : BOOKING_LINK_DAYS,
         });
         const { linkId, bookingUrl, expiresAt } = minted;
         const emailJobId = `consultation_invite_${linkId}_${Date.now()}`;
@@ -378,7 +436,17 @@ export const publicConsultationScheduling = onRequest(
         });
         return;
       }
-      const availability = await slotsFor(link);
+      // A trial is browsed a week at a time up to the day before the event;
+      // a call keeps its next openings (trial-window.ts).
+      const availability =
+        consultationPurpose(link.data()) === "trial"
+          ? await trialSlotsFor(
+              link,
+              tenant,
+              project,
+              command.type === "availability" ? { from: command.input.from ?? null } : { at: command.input.startsAt },
+            )
+          : await slotsFor(link);
       if (command.type === "availability") {
         response.status(200).json(availability);
         return;

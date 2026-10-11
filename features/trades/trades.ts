@@ -408,6 +408,14 @@ export type TradeProfile = {
   consultation: boolean;
   /** A trial appointment before the day (Phase 3). */
   trial: boolean;
+  /**
+   * How long a trial takes, in minutes, so every time a client is offered
+   * ends inside the studio's hours. The studio's consultation length is a
+   * sales call's: a hair trial of about two hours was offered at 4:00 PM
+   * against hours ending at 5:00 PM (Priya Shah, Jess Styles Bridal,
+   * 2026-10-10). A trade default for now; null for a trade with no trial.
+   */
+  trialMinutes: number | null;
   /** Services are priced per person (Phase 3). */
   perPersonPricing: boolean;
   /**
@@ -457,6 +465,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     clientDayBefore: true,
     consultation: true,
     trial: false,
+    trialMinutes: null,
     perPersonPricing: false,
     extensions: false,
     chairSchedule: false,
@@ -474,6 +483,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     clientDayBefore: true,
     consultation: true,
     trial: false,
+    trialMinutes: null,
     perPersonPricing: false,
     extensions: false,
     chairSchedule: false,
@@ -491,6 +501,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     clientDayBefore: false,
     consultation: false,
     trial: true,
+    trialMinutes: 90,
     perPersonPricing: true,
     extensions: false,
     chairSchedule: true,
@@ -508,6 +519,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     clientDayBefore: false,
     consultation: false,
     trial: true,
+    trialMinutes: 120,
     perPersonPricing: true,
     extensions: true,
     chairSchedule: true,

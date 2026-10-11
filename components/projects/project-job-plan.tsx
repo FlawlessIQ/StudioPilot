@@ -37,6 +37,8 @@ function stepHref(step: JourneyStep): string | null {
 function thirdParty(step: JourneyStep): string {
   if (step.key === "crew") return "Crew";
   if (step.key === "coi") return "Agent";
+  // A booked makeup or hair trial waits only for its day (journey/steps.ts).
+  if (step.key === "trial") return "Booked";
   return "Waiting";
 }
 

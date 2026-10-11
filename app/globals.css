@@ -23342,6 +23342,14 @@ label {
   margin: 0 0 8px;
 }
 
+/* When the client's trial is, once booked or held (Priya Shah, Jess Styles Bridal, 2026-10-10). */
+.trial-booked {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 8px;
+}
+
 /* What a makeup or hair trial settled, on the job's trial card (vendor journeys, 3.2). */
 .trial-notes {
   border-top: 1px solid var(--line);

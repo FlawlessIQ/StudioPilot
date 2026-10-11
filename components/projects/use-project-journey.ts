@@ -3,7 +3,7 @@
 import { paidInFullSettledByDeletion, settledInvoiceStatus } from "@/features/billing/invoice-purge-policy";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { finalCallState } from "@/features/consultations/final-call";
-import { trialState } from "@/features/consultations/trial";
+import { trialState, trialWhen, type TrialState } from "@/features/consultations/trial";
 import { extensionsState } from "@/features/trades/extensions";
 import { tradeProfile } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
@@ -71,6 +71,12 @@ export function useProjectJourney({
    * derivation feeding both is what stops that recurring.
    */
   readinessEvidence: ReadinessEvidence;
+  /**
+   * The makeup or hair trial, for the job's trial card as well as its step:
+   * the card kept inviting a client who had already booked (Priya Shah, Jess
+   * Styles Bridal, 2026-10-10). `when` is on the job's clock.
+   */
+  trial: TrialState & { when: string | null };
 } {
   const tenantTrade = useWorkspace().tenantTrade;
   const leads = useTenantDocuments("leads");
@@ -185,6 +191,13 @@ export function useProjectJourney({
     delivery: { files: forProject(deliveries.records).flatMap((delivery) => FILE_BEARING.deliveryRecords(delivery)) },
   };
 
+  // A makeup or hair trial, when the trade has one (trades.ts), with its
+  // time on the job's clock for the step and the job's trial card.
+  const trial = {
+    ...trialState({ consultations: forProject(consultations.records), now: new Date().toISOString() }),
+    when: trialWhen({ consultations: forProject(consultations.records), timeZone: text(journeyProject?.timezone) || null }),
+  };
+
   const journey = projectJourney({
     projectId,
     // Which steps this kind of job has (job-kinds.ts).
@@ -224,8 +237,7 @@ export function useProjectJourney({
           today: todayLocalIso(),
           now: new Date().toISOString(),
         }),
-    // A makeup or hair trial, when the trade has one (trades.ts).
-    trial: trialState({ consultations: forProject(consultations.records), now: new Date().toISOString() }),
+    trial,
     // Hair extensions to buy or rent, from the trial notes.
     extensions: tradeProfile(tenantTrade).extensions
       ? extensionsState({ projectId, trialNotes: journeyProject?.trialNotes, eventDate, tasks: forProject(tasks.records) })
@@ -324,5 +336,5 @@ export function useProjectJourney({
     evidence,
   });
 
-  return { ...journey, readinessEvidence };
+  return { ...journey, readinessEvidence, trial };
 }

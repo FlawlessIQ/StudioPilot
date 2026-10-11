@@ -665,6 +665,24 @@ textarea.kit-input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
+/* A trial's week-by-week browse (components/booking/public-consultation-scheduler.tsx).
+   Wraps, never squeezes: on a narrow phone the dates take their own line. */
+.kit-week-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kit-space-2);
+}
+.kit-week-nav > .kit-button {
+  flex: 0 0 auto;
+}
+.kit-week-nav-label {
+  flex: 1 1 9rem;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
 .kit-time {
   min-height: 52px;
   border: 1px solid var(--kit-line);

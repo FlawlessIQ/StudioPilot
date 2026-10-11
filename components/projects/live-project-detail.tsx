@@ -47,6 +47,7 @@ import {
 import { WithdrawCrewControl } from "@/components/crew/withdraw-crew-control";
 import { OwnerShootingToggle } from "@/components/crew/owner-shooting-toggle";
 import { TrialNotes } from "@/components/crew/trial-notes";
+import { clientExtensionPlan } from "@/features/trades/extensions";
 import { ownerShootsJob } from "@/features/crew/staffing-plan";
 import {
   allowedProjectTransitions,
@@ -828,12 +829,15 @@ function ConsultationInviteAction({
   contactId,
   purpose,
   label = "Invite client to choose a time",
+  quiet = false,
 }: {
   projectId: string;
   contactId: string;
   /** "trial": a makeup or hair trial (features/consultations/purpose.ts). */
   purpose?: "trial";
   label?: string;
+  /** A second send, not the card's main move: "Send the link again" once a trial is booked. */
+  quiet?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -866,7 +870,7 @@ function ConsultationInviteAction({
   return (
     <div className="project-consultation-invite">
       <button
-        className="button project-action-secondary"
+        className={quiet ? "button button-light button-sm" : "button project-action-secondary"}
         disabled={busy}
         onClick={() => void send()}
         type="button"
@@ -1538,6 +1542,11 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   // A makeup or hair trial (trades.ts): the client picks a time from the
   // studio's link, at any point before the day.
   const trialWord = tradeVocab(workspace.tenantTrade).trial;
+  // Booked, the card says when and the invite steps back to a second send;
+  // held, it says so. It went on reading "Invite them to book the hair
+  // trial" after the client had booked (Priya Shah, Jess Styles Bridal,
+  // 2026-10-10).
+  const trial = journey.trial;
   const trialInviteEl =
     trialWord &&
     !["CANCELLED", "CLOSED", "ARCHIVED", "LOST", "EVENT_COMPLETE", "REVIEW_REQUESTED", "DELIVERED", "POST_PRODUCTION"].includes(state) &&
@@ -1545,17 +1554,35 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
     typeof project.clientContactIds[0] === "string" ? (
       <aside className="job-rail-card" id="trial">
         <p className="eyebrow">{trialWord}</p>
-        {/* A hair trial waits for the veil (trades.ts `trialHint`). */}
-        {tradeVocab(workspace.tenantTrade).trialHint ? (
-          <p className="trial-hint">{`Usually ${tradeVocab(workspace.tenantTrade).trialHint}.`}</p>
-        ) : null}
-        <ConsultationInviteAction
-          contactId={project.clientContactIds[0]}
-          label={`Invite them to book the ${trialWord.toLowerCase()}`}
-          projectId={projectId}
-          purpose="trial"
-        />
+        {trial.state === "held" ? (
+          <p className="trial-booked">{`Done${trial.when ? ` — ${trial.when}` : ""}. Note what you settled on below.`}</p>
+        ) : trial.state === "booked" ? (
+          <>
+            <p className="trial-booked">{trial.when ? `Booked for ${trial.when}` : "Booked"}</p>
+            <ConsultationInviteAction
+              contactId={project.clientContactIds[0]}
+              label="Send the link again"
+              projectId={projectId}
+              purpose="trial"
+              quiet
+            />
+          </>
+        ) : (
+          <>
+            {/* A hair trial waits for the veil (trades.ts `trialHint`). */}
+            {tradeVocab(workspace.tenantTrade).trialHint ? (
+              <p className="trial-hint">{`Usually ${tradeVocab(workspace.tenantTrade).trialHint}.`}</p>
+            ) : null}
+            <ConsultationInviteAction
+              contactId={project.clientContactIds[0]}
+              label={`Invite them to book the ${trialWord.toLowerCase()}`}
+              projectId={projectId}
+              purpose="trial"
+            />
+          </>
+        )}
         <TrialNotes
+          clientPlan={tradeProfile(workspace.tenantTrade).extensions ? clientExtensionPlan(related.questionnaires) : null}
           extensions={tradeProfile(workspace.tenantTrade).extensions}
           notes={project.trialNotes as { look?: unknown; products?: unknown; extensions?: unknown; colorMatch?: unknown } | null | undefined}
           projectId={projectId}

@@ -289,8 +289,12 @@ export type JourneyInput = {
     lockOn: string | null;
     startsAt: string | null;
   } | null;
-  /** A makeup or hair trial (features/consultations/trial.ts); only read for a trade with one. */
-  trial?: { state: "not_booked" | "booked" | "held"; startsAt: string | null } | null;
+  /**
+   * A makeup or hair trial (features/consultations/trial.ts); only read for a
+   * trade with one. `when` is its time on the job's clock (`trialWhen`), as
+   * the job's trial card says it; without it the step formats `startsAt`.
+   */
+  trial?: { state: "not_booked" | "booked" | "held"; startsAt: string | null; when?: string | null } | null;
   /**
    * Hair extensions to buy or rent, from the trial notes, and whether the
    * order task is done (features/trades/extensions.ts). Null or absent: none
@@ -995,7 +999,7 @@ export function projectJourney(input: JourneyInput): {
   const trialWord = tradeWords.trial;
   if (trialWord) {
     const trial = input.trial ?? { state: "not_booked", startsAt: null };
-    const trialWhen = trial.startsAt ? formatCallTime(trial.startsAt) : null;
+    const trialWhen = trial.when || (trial.startsAt ? formatCallTime(trial.startsAt) : null);
     push({
       key: "trial",
       title: trialWord,
@@ -1007,7 +1011,19 @@ export function projectJourney(input: JourneyInput): {
             : `Optional — invite them from the ${trialWord} card on this job${tradeWords.trialHint ? `, ${tradeWords.trialHint}` : " whenever suits"}`,
       // Never "current": an optional step must not take the next-move card.
       // The button lives on the job's own trial card.
-      status: trial.state === "held" ? "complete" : prepStatus("upcoming"),
+      //
+      // Booked, it is in motion with its date showing. It was "upcoming" —
+      // grey, no date, "Unlocks when the steps above are done" — so a trial
+      // the client had booked looked like one nobody had asked for (Priya
+      // Shah, Jess Styles Bridal, 2026-10-10). `waiting_other` is never the
+      // next move, and `explain` puts "Booked for …" on the rail.
+      status:
+        trial.state === "held"
+          ? "complete"
+          : trial.state === "booked"
+            ? prepStatus("waiting_other")
+            : prepStatus("upcoming"),
+      explain: trial.state === "booked",
       action: null,
     });
   }

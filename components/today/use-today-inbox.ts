@@ -387,6 +387,9 @@ export function useTodayInbox(): {
     conversations: conversations.records,
     packageRequests: packageRequests.records,
     billingAddressRequests: billingAddressRequests.records,
+    // A makeup or hair client who bought a trial and hasn't booked it.
+    consultations: consultations.records,
+    packageSnapshots: packageSnapshots.records,
     detailChangeRequests: detailChangeRequests.records,
     clientShotLists: clientShotLists.records,
     detailSignoffs: detailSignoffs.records,

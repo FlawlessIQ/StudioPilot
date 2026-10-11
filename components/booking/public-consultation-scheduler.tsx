@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, CheckCircle2, LoaderCircle } from "lucide-react";
 import {
   Actions,
   AppBar,
   Button,
   Card,
+  Field,
   KitRoot,
   Main,
   Note,
@@ -42,6 +43,42 @@ type Preview = {
   callName?: string;
 };
 type Slot = { startsAt: string; endsAt: string };
+/**
+ * The week of a trial's openings on show, and how far it can go
+ * (functions/src/booking/trial-window.ts). YYYY-MM-DD on the studio's clock.
+ */
+type TrialRange = {
+  start: string;
+  end: string;
+  earliest: string;
+  latest: string;
+  previous: string | null;
+  next: string | null;
+};
+
+const readSlots = (value: unknown): Slot[] =>
+  Array.isArray(value)
+    ? value
+        .filter((slot): slot is Record<string, unknown> => typeof slot === "object" && slot !== null)
+        .map((slot) => ({ startsAt: String(slot.startsAt), endsAt: String(slot.endsAt) }))
+    : [];
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const readRange = (value: unknown): TrialRange | null => {
+  if (typeof value !== "object" || value === null) return null;
+  const range = value as Record<string, unknown>;
+  const day = (key: string) => (typeof range[key] === "string" && DAY.test(range[key] as string) ? (range[key] as string) : null);
+  const start = day("start");
+  const end = day("end");
+  const earliest = day("earliest");
+  const latest = day("latest");
+  if (!start || !end || !earliest || !latest) return null;
+  return { start, end, earliest, latest, previous: day("previous"), next: day("next") };
+};
+
+/** "Mar 9" for a studio-local YYYY-MM-DD. */
+const shortDay = (day: string) =>
+  new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
 
 export function PublicConsultationScheduler({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -52,6 +89,15 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
   const callWord = preview ? (preview.callName ?? (finalCall ? "final details call" : "consultation")).toLowerCase() : null;
   const chooseTime = callWord ? `Choose a ${callWord} time` : "Choose a time";
   const [slots, setSlots] = useState<Slot[]>([]);
+  // A trial's openings come a week at a time, up to the day before the
+  // event: a hair trial waits for the veil, often months (Priya Shah, Jess
+  // Styles Bridal, 2026-10-10). Null for a call, which keeps its next openings.
+  const [range, setRange] = useState<TrialRange | null>(null);
+  const [browsing, setBrowsing] = useState(false);
+  const browseAsk = useRef(0);
+  // What they typed in "Or jump to a date": theirs, not the week's start, so a
+  // date half typed is never overwritten.
+  const [jumpTo, setJumpTo] = useState("");
   const [timezone, setTimezone] = useState("");
   const [selected, setSelected] = useState("");
   const [status, setStatus] = useState<
@@ -100,19 +146,8 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
           purpose: typeof previewResult.purpose === "string" ? previewResult.purpose : undefined,
           callName: typeof previewResult.callName === "string" ? previewResult.callName : undefined,
         });
-        setSlots(
-          Array.isArray(availability.slots)
-            ? availability.slots
-                .filter(
-                  (slot): slot is Record<string, unknown> =>
-                    typeof slot === "object" && slot !== null,
-                )
-                .map((slot) => ({
-                  startsAt: String(slot.startsAt),
-                  endsAt: String(slot.endsAt),
-                }))
-            : [],
-        );
+        setSlots(readSlots(availability.slots));
+        setRange(readRange(availability.window));
         setTimezone(String(availability.timezone ?? ""));
         setStatus("ready");
       })
@@ -125,6 +160,29 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       active = false;
     };
   }, [token]);
+
+  /** Another week of a trial's openings. The pick stays until they book or pick again. */
+  async function browse(from: string) {
+    if (!DAY.test(from)) return;
+    // Only the latest ask lands: a date typed digit by digit asks several times.
+    const ask = ++browseAsk.current;
+    setBrowsing(true);
+    setMessage("");
+    try {
+      const availability = await runPublicScheduling({
+        type: "availability",
+        idempotencyKey: crypto.randomUUID(),
+        input: { token, from },
+      });
+      if (ask !== browseAsk.current) return;
+      setSlots(readSlots(availability.slots));
+      setRange(readRange(availability.window));
+    } catch (caught: unknown) {
+      if (ask === browseAsk.current) setMessage(words(caught, "Those times couldn’t be loaded. Please try again."));
+    } finally {
+      if (ask === browseAsk.current) setBrowsing(false);
+    }
+  }
 
   async function book() {
     if (!selected) return;
@@ -186,7 +244,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
                 {finalCall
                   ? "A short call to go over your final details and timeline together. Pick one of the studio’s openings — nothing is booked until you confirm."
                   : trial
-                    ? "Your look, tried before the day. Pick one of the studio’s openings — nothing is booked until you confirm."
+                    ? "Your look, tried before the day. Pick an opening this week, or browse ahead to any week before the day. Nothing is booked until you confirm."
                     : "Pick one of the studio’s openings. Nothing is booked until you confirm."}
               </p>
             )}
@@ -214,9 +272,66 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
                   {preview.projectName} · {preview.mode.replaceAll("_", " ")}
                 </p>
               ) : null}
+              {range ? (
+                <>
+                  {/* Wraps rather than squeezes: the dates drop under the
+                      buttons on a narrow phone. */}
+                  <div aria-label="Week" className="kit-week-nav" role="group">
+                    <Button
+                      aria-label="Earlier week"
+                      disabled={!range.previous || browsing}
+                      onClick={() => {
+                        if (!range.previous) return;
+                        setJumpTo("");
+                        void browse(range.previous);
+                      }}
+                      size="compact"
+                      variant="secondary"
+                    >
+                      Earlier
+                    </Button>
+                    <span aria-live="polite" className="kit-week-nav-label">
+                      {browsing
+                        ? "Loading…"
+                        : range.start === range.end
+                          ? shortDay(range.start)
+                          : `${shortDay(range.start)} – ${shortDay(range.end)}`}
+                    </span>
+                    <Button
+                      aria-label="Later week"
+                      disabled={!range.next || browsing}
+                      onClick={() => {
+                        if (!range.next) return;
+                        setJumpTo("");
+                        void browse(range.next);
+                      }}
+                      size="compact"
+                      variant="secondary"
+                    >
+                      Later
+                    </Button>
+                  </div>
+                  <Field
+                    hint={`Any day up to ${shortDay(range.latest)}.`}
+                    label="Or jump to a date"
+                    max={range.latest}
+                    min={range.earliest}
+                    onChange={(event) => {
+                      const day = event.target.value;
+                      setJumpTo(day);
+                      // A year half typed ("0002-03-08") is not a date to fetch.
+                      if (day >= range.earliest && day <= range.latest) void browse(day);
+                    }}
+                    type="date"
+                    value={jumpTo}
+                  />
+                </>
+              ) : null}
               <SlotPicker onSelect={setSelected} selected={selected} slots={slots} timezone={timezone} />
               {slots.length ? (
                 <p className="kit-caption">Times shown in {zone}.</p>
+              ) : range ? (
+                <Note>No openings that week. Try a later one, or jump to another date.</Note>
               ) : (
                 <Note>No times are open right now. Reply to the studio’s email and they’ll find one.</Note>
               )}
