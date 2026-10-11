@@ -1,6 +1,7 @@
 import { combinePricedSalesTax, readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
 import type { PricedSalesTax } from "@/features/pricing/package-price";
 import { coverageRoleLabel, resolveCoverage } from "@/features/packages/coverage";
+import { tradeVocab } from "@/features/trades/trades";
 
 /**
  * The packages on a job, as the job itself names them.
@@ -57,8 +58,12 @@ export function jobCoverageMinutes(snapshots: readonly Json[]): number | null {
   return minutes.length ? Math.max(...minutes) : null;
 }
 
-/** The bullets for one package from its snapshot, when no proposal has them. */
-export function snapshotInclusions(value: Json): string[] {
+/**
+ * The bullets for one package from its snapshot, when no proposal has them.
+ * The hours are the trade's own: a photographer's "8 hours of coverage", a
+ * vendor's "1 hour of service" (trades.ts `coverage`).
+ */
+export function snapshotInclusions(value: Json, trade?: unknown): string[] {
   const minutes = minutesOf(value);
   const hours = minutes ? minutes / 60 : 0;
   const deliverables = Array.isArray(value.includedDeliverables)
@@ -68,7 +73,9 @@ export function snapshotInclusions(value: Json): string[] {
       : [];
   return [
     // "1 hour of coverage", never "1 hours" (2026-10-10); the figure as stored.
-    ...(hours ? [`${hours} ${hours === 1 ? "hour" : "hours"} of coverage`] : []),
+    ...(hours
+      ? [`${hours} ${hours === 1 ? "hour" : "hours"} of ${tradeVocab(trade).coverage.toLowerCase()}`]
+      : []),
     ...resolveCoverage(value).map(
       (item) => `${item.count} ${coverageRoleLabel(item.role, item.count)}`,
     ),
@@ -101,6 +108,8 @@ const salesTaxField = (salesTax: PricedSalesTax | null): { salesTax?: PricedSale
 export function couplePackageView(input: {
   snapshots: readonly (Json & { id: string })[];
   proposals: readonly Json[];
+  /** The studio's trade, for the bullets' words (snapshotInclusions). Omitted reads as a photographer. */
+  trade?: unknown;
 }): CouplePackageView | null {
   const accepted = [...input.proposals]
     .filter((proposal) => proposal.status === "accepted")
@@ -121,7 +130,7 @@ export function couplePackageView(input: {
         return {
           key: String(detail.snapshotId ?? index),
           name: String(detail.packageName ?? "Package"),
-          items: items.length ? items : snapshot ? snapshotInclusions(snapshot) : [],
+          items: items.length ? items : snapshot ? snapshotInclusions(snapshot, input.trade) : [],
         };
       }),
       totalCents: Number(pricing.totalCents ?? 0),
@@ -136,7 +145,7 @@ export function couplePackageView(input: {
     packages: input.snapshots.map((snapshot) => ({
       key: snapshot.id,
       name: String(snapshot.packageName ?? snapshot.name ?? "Package"),
-      items: snapshotInclusions(snapshot),
+      items: snapshotInclusions(snapshot, input.trade),
     })),
     totalCents: input.snapshots.reduce((sum, snapshot) => sum + Number(snapshot.totalCents ?? 0), 0),
     currency: String(input.snapshots[0]!.currency ?? "USD"),

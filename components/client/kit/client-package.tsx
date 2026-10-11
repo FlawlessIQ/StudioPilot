@@ -47,8 +47,6 @@ const MOCK_PACKAGES: Pkg[] = [
   },
 ];
 
-const inclusions = snapshotInclusions;
-
 /**
  * The package, on a phone (M5 of docs/mobile-first-client-crew-plan-2026-09-28.md
  * brings the last couple pages into the kit).
@@ -104,6 +102,7 @@ export function ClientPackage() {
   const held = couplePackageView({
     snapshots: locked ? [{ id: "chosen", ...locked }] : snapshots.value,
     proposals: locked ? [] : proposals.value,
+    trade: workspace.tenantTrade,
   });
   if (held) {
     const several = held.packages.length > 1;
@@ -221,7 +220,7 @@ export function ClientPackage() {
               </button>
               {item.description ? <p className="kit-body">{text(item.description)}</p> : null}
               <ul className="kit-inclusions">
-                {inclusions(item).map((line) => (
+                {snapshotInclusions(item, workspace.tenantTrade).map((line) => (
                   <li key={line}>
                     <Check aria-hidden size={16} /> {line}
                   </li>

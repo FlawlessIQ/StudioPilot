@@ -101,6 +101,11 @@ function stageLabel(state: string, trade: unknown): string {
   return stageLabels[state] ?? "In progress";
 }
 
+/** Mid-sentence, keeping the rest as written: "run of show & MC script", never "mc". */
+function lowerFirst(value: string): string {
+  return `${value.charAt(0).toLowerCase()}${value.slice(1)}`;
+}
+
 function stateIndex(state: string) {
   const index = clientProjectStates.indexOf(
     state as (typeof clientProjectStates)[number],
@@ -575,9 +580,11 @@ export function buildClientPortalExperience({
   const offer = tradeVocab(trade).proposal.toLowerCase();
   const eventHasPassed =
     Boolean(eventDate) && Boolean(today) && String(today) > String(eventDate);
-  const questionnaireDone = ["submitted", "locked"].includes(
-    String(questionnaireStatus ?? ""),
-  );
+  // An open planning form outranks the status: that is read from whichever
+  // form the portal route met first, and a sent-back inquiry-page form must
+  // not mark the party list still waiting on them as done.
+  const questionnaireDone =
+    !planningForm && ["submitted", "locked"].includes(String(questionnaireStatus ?? ""));
   /**
    * A schedule waiting on the couple outranks everything but overdue money.
    * It is the one thing here that is unambiguously theirs to do, and the one
@@ -727,8 +734,13 @@ export function buildClientPortalExperience({
       return {
         ...fallback,
         name: "Your details are with the studio",
-        description:
-          "Thank you — your planning form is in. Your studio will share the event-day schedule for you to approve next.",
+        // A vendor's client is never asked to approve the plan (trades.ts
+        // `scheduleApproval`): it is shared for them to read.
+        description: tradeProfile(trade).journey.scheduleApproval
+          ? "Thank you — your planning form is in. Your studio will share the event-day schedule for you to approve next."
+          : `Thank you — your ${formWord ?? "planning form"} is in. Your studio will share the ${lowerFirst(
+              tradeVocab(trade).planOfDay ?? "plan for the day",
+            )} with you next.`,
         ownerType: "studio",
         responsibility: "studio",
         href: "/client/project",

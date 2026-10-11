@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { checkNote, uncertainItem } from "@/features/ai/check-note";
 import { FILE_BEARING } from "@/features/documents/file-ref";
-import { snapshotInclusions } from "@/features/packages/job-packages";
+import { projectThread } from "@/features/journey/thread";
+import { couplePackageView, snapshotInclusions } from "@/features/packages/job-packages";
 import { hoursText } from "@/features/packages/unit-label";
 import { formatCentsAsNeeded } from "@/lib/format/money";
 import { buildClientPortalExperience } from "@/server/client/portal-experience";
@@ -36,6 +37,23 @@ test("hours are singular at one, everywhere a package's hours are summed up", ()
   // The client's package bullets: "1 hour of coverage", a photographer's as before.
   assert.equal(snapshotInclusions({ includedCoverageMinutes: 60 })[0], "1 hour of coverage");
   assert.equal(snapshotInclusions({ includedCoverageMinutes: 480 })[0], "8 hours of coverage");
+  assert.equal(snapshotInclusions({ includedCoverageMinutes: 480 }, "photographer")[0], "8 hours of coverage");
+  // A vendor's client reads the trade's word, never "coverage" (trades.ts).
+  assert.equal(snapshotInclusions({ includedCoverageMinutes: 60 }, "hair")[0], "1 hour of service");
+  assert.equal(snapshotInclusions({ includedCoverageMinutes: 300 }, "dj")[0], "5 hours of service");
+  assert.equal(
+    couplePackageView({ snapshots: [{ id: "s1", packageName: "Bridal", includedCoverageMinutes: 60 }], proposals: [], trade: "hair" })
+      ?.packages[0]?.items[0],
+    "1 hour of service",
+  );
+  assert.equal(
+    couplePackageView({ snapshots: [{ id: "s1", packageName: "Gold", includedCoverageMinutes: 480 }], proposals: [] })
+      ?.packages[0]?.items[0],
+    "8 hours of coverage",
+  );
+  const kit = read("components/client/kit/client-package.tsx");
+  assert.match(kit, /snapshotInclusions\(item, workspace\.tenantTrade\)/);
+  assert.match(kit, /proposals: locked \? \[\] : proposals\.value,\s*trade: workspace\.tenantTrade,/);
   // The quote composer, the package list, the booking picker and the one-off form.
   const composer = read("components/proposals/studio-proposal-workspace.tsx");
   assert.match(composer, /\{hoursText\(\s*Math\.round\(number\(studioPackage\.includedCoverageMinutes\) \/ 60\),\s*\)\}/);
@@ -78,14 +96,34 @@ test("a vendor's client is asked for the open planning form by name and date", (
   assert.equal(ask("dj").description, "Your studio plans the night from it.");
   // No open form known: the general step, as before.
   assert.equal(ask("hair", { planningForm: null }).name, "Continue planning your event");
-  // Sent back: thanked, never asked again.
-  assert.equal(ask("hair", { questionnaireStatus: "submitted", planningForm: null, state: "PLANNING" }).name, "Your details are with the studio");
+  // Sent back: thanked, never asked again — and a vendor's client is never
+  // told a schedule is coming for them to approve.
+  const thanked = ask("hair", { questionnaireStatus: "submitted", planningForm: null, state: "PLANNING" });
+  assert.equal(thanked.name, "Your details are with the studio");
+  assert.equal(thanked.description, "Thank you — your party list is in. Your studio will share the getting-ready schedule with you next.");
+  assert.equal(
+    ask("dj", { questionnaireStatus: "submitted", planningForm: null, state: "PLANNING" }).description,
+    "Thank you — your music & moments planner is in. Your studio will share the run of show & MC script with you next.",
+  );
+  // The status is read from whichever form the route met first: a sent-back
+  // inquiry-page form must not hide the party list still open.
+  for (const state of ["BOOKED", "PLANNING"]) {
+    const open = ask("hair", { questionnaireStatus: "submitted", state });
+    assert.equal(open.name, "Fill in your party list", state);
+    assert.equal(open.dueDate, "2027-04-22", state);
+  }
   // A photographer's step is exactly as it was.
   const photo = ask("photographer");
   assert.equal(photo.name, "Continue planning your event");
   assert.equal(photo.description, "Review the planning information and complete anything your studio has shared.");
   assert.equal(photo.dueDate, null);
   assert.equal(photo.actionLabel, "Continue planning");
+  const photoThanked = ask("photographer", { questionnaireStatus: "submitted", planningForm: null, state: "PLANNING" });
+  assert.equal(photoThanked.name, "Your details are with the studio");
+  assert.equal(
+    photoThanked.description,
+    "Thank you — your planning form is in. Your studio will share the event-day schedule for you to approve next.",
+  );
   // The portal route hands it the open form: not the inquiry page's, not one sent back.
   const route = read("app/api/client/portal/route.ts");
   assert.match(route, /document\.get\("source"\) !== "inquiry_page" &&\s*!document\.get\("archivedAt"\) &&\s*!\["withdrawn", "submitted", "locked"\]\.includes/);
@@ -108,6 +146,33 @@ test("the quote's file chip on the job is called a quote", () => {
   );
 });
 
+test("the job thread's deposit invoice is called what the trade calls it", () => {
+  const titles = (trade?: string) =>
+    projectThread({
+      projectId: "job1",
+      projectName: "Priya Shah",
+      projectCreatedAt: "2026-10-01T10:00:00.000Z",
+      clientName: "Priya Shah",
+      invoices: [
+        { id: "i1", kind: "retainer", status: "paid", amountCents: 11250, createdAt: "2026-10-10T10:00:00.000Z", paidAt: "2026-10-10T11:00:00.000Z" },
+        { id: "i2", kind: "final", status: "sent", amountCents: 26250, createdAt: "2026-10-10T12:00:00.000Z" },
+      ],
+      trade,
+    }).map((entry) => entry.title);
+  for (const trade of ["dj", "makeup", "hair"]) {
+    const vendor = titles(trade);
+    assert.ok(vendor.includes("Deposit invoice"), trade);
+    assert.ok(vendor.includes("Deposit paid"), trade);
+    assert.ok(vendor.includes("Final balance invoice"), trade);
+    assert.ok(!vendor.some((title) => /retainer/i.test(title)), trade);
+  }
+  for (const photo of [titles(), titles("photographer")]) {
+    assert.ok(photo.includes("Retainer invoice"));
+    assert.ok(photo.includes("Retainer paid"));
+    assert.ok(photo.includes("Final balance invoice"));
+  }
+});
+
 test("the new schedule page's tab says what its heading says", () => {
   const page = read("app/studio/schedules/new/page.tsx");
   assert.match(page, /export const metadata: Metadata = \{ title: "Plan the day" \};/);
@@ -123,6 +188,10 @@ test("a draft's check note is in sentence case, in the AI's own words", () => {
   assert.equal(uncertainItem("Priya's veil and the DJ's load-in."), "Priya's veil and the DJ's load-in");
   assert.equal(uncertainItem("event_date"), "Event date");
   assert.equal(uncertainItem("venueName"), "Venue name");
+  assert.equal(uncertainItem("EVENT_DATE"), "Event date");
+  // A one-word name with a capital inside is a name, not a field name.
+  for (const name of ["McKenzie", "LaRosa", "DeLuca"]) assert.equal(uncertainItem(name), name);
+  assert.equal(checkNote(["McKenzie"]), "Check: McKenzie");
   assert.equal(uncertainItem("  "), "");
   assert.equal(checkNote([]), null);
   assert.equal(checkNote(["", 7]), null);

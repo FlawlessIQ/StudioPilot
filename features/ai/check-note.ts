@@ -18,8 +18,9 @@
 export function uncertainItem(value: unknown): string {
   let item = (typeof value === "string" ? value : "").trim().replace(/[\s.;,]+$/, "");
   if (!item) return "";
-  // A field name: event_date, venueName.
-  if (!/\s/.test(item) && /_|[a-z][A-Z]/.test(item)) {
+  // A field name: event_date, venueName. Only snake case or lower camel case:
+  // a one-word name with a capital inside ("McKenzie", "DeLuca") is a name.
+  if (!/\s/.test(item) && (item.includes("_") || /^[a-z][a-z0-9]*([A-Z][a-z0-9]*)+$/.test(item))) {
     item = item.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replaceAll("_", " ").toLowerCase();
   }
   return `${item.charAt(0).toUpperCase()}${item.slice(1)}`;

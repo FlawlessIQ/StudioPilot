@@ -328,7 +328,11 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
 
   // ── Invoices ───────────────────────────────────────────────────────
   for (const invoice of rows(input.invoices)) {
-    const kind = text(invoice.kind) === "final" ? "Final balance" : "Retainer";
+    // A vendor's "Deposit invoice", as the offer above is their own word.
+    const kind =
+      text(invoice.kind) === "final"
+        ? "Final balance"
+        : `${tradeWords.deposit.charAt(0).toUpperCase()}${tradeWords.deposit.slice(1)}`;
     const created = firstAt(invoice, "createdAt", "issuedAt");
     const status = text(invoice.status);
     push(
