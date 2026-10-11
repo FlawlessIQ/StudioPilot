@@ -25,12 +25,21 @@ import {
   addParticipant,
   cancelParticipant,
   recordParticipantPayment,
+  sendParticipantInvoice,
   setGroupEvent,
   updateParticipant,
   type ParticipantInput,
 } from "@/lib/group-events/commands";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { EVENT_PAYMENT_LABEL, type EventPaymentMethod } from "@/features/group-events/signup";
+import {
+  EVENT_PAYMENT_LABEL,
+  participantInvoiceOpen,
+  participantInvoiceSendable,
+  participantInvoiceSummary,
+  type EventPaymentMethod,
+} from "@/features/group-events/signup";
+import { quickBooksReadyFrom } from "@/features/billing/job-billing-from-records";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 import { EventSignupPanel } from "@/components/group-events/event-signup-panel";
 
 /**
@@ -88,6 +97,9 @@ export function ParticipantRoster({
   }, [enabled, projectId, tenantId]);
 
   const summary = useMemo(() => rosterSummary(participants), [participants]);
+  // A QuickBooks invoice per parent needs QuickBooks connected (Phase 4b).
+  const { records: connections } = useTenantDocuments("integrationConnections", { enabled });
+  const quickBooks = quickBooksReadyFrom(connections);
   const ordered = useMemo(() => rosterOrder(participants), [participants]);
 
   if (!rosterOffered(job)) return null;
@@ -176,6 +188,11 @@ export function ParticipantRoster({
                     {participant.team ? ` · ${participant.team}` : ""}
                     {participant.packageName ? ` · ${participant.packageName}` : ""}
                   </small>
+                  {participantInvoiceSummary(participant.qbInvoice) ? (
+                    <small className="participant-roster-invoice" data-failed={participant.qbInvoice?.state === "failed" ? "" : undefined}>
+                      {participantInvoiceSummary(participant.qbInvoice)}
+                    </small>
+                  ) : null}
                   {participant.source === "signup_link" ? (
                     <small className="participant-roster-signup">
                       Signed up{participant.confirmationCode ? ` · ${participant.confirmationCode}` : ""}
@@ -199,6 +216,16 @@ export function ParticipantRoster({
                   {open ? (
                     <button className="button button-sm button-dark" onClick={() => setPaying(participant)} type="button">
                       Take payment
+                    </button>
+                  ) : null}
+                  {open && quickBooks && participant.qbInvoice?.state === "failed" ? (
+                    <button
+                      className="button button-sm button-light"
+                      disabled={busy}
+                      onClick={() => void run(() => sendParticipantInvoice(projectId, participant.id))}
+                      type="button"
+                    >
+                      Send invoice again
                     </button>
                   ) : null}
                   {participant.status === "cancelled" ? (
@@ -251,6 +278,12 @@ export function ParticipantRoster({
             participant ? updateParticipant(projectId, participant.id, input) : addParticipant(projectId, input),
           ).then((ok) => ok && setEditing(null))
         }
+        onSendInvoice={
+          quickBooks
+            ? (participant) =>
+                void run(() => sendParticipantInvoice(projectId, participant.id)).then((ok) => ok && setEditing(null))
+            : undefined
+        }
         participant={editing === "new" ? null : editing}
         open={editing !== null}
       />
@@ -271,12 +304,15 @@ export function ParticipantRoster({
 export function chosenMethodLabel(method: string): string {
   const label = EVENT_PAYMENT_LABEL[method as EventPaymentMethod];
   if (!label) return "";
-  return method === "cash" || method === "check" ? `pays ${method} on the day` : method === "pay_link" ? "pays online" : `pays by ${label}`;
+  if (method === "cash" || method === "check") return `pays ${method} on the day`;
+  if (method === "pay_link") return "pays online";
+  if (method === "quickbooks") return "pays by QuickBooks invoice";
+  return `pays by ${label}`;
 }
 
 /** The payment method a parent chose, as the roster records it. */
 export function recordedMethodFor(chosen: string | null | undefined): ParticipantPaymentMethod {
-  if (chosen === "pay_link") return "online";
+  if (chosen === "pay_link" || chosen === "quickbooks") return "online";
   return (PARTICIPANT_PAYMENT_METHODS as readonly string[]).includes(chosen ?? "") ? (chosen as ParticipantPaymentMethod) : "cash";
 }
 
@@ -297,6 +333,7 @@ function ParticipantSheet({
   onClose,
   onSave,
   onCancelParticipant,
+  onSendInvoice,
 }: {
   open: boolean;
   participant: Participant | null;
@@ -304,6 +341,8 @@ function ParticipantSheet({
   onClose: () => void;
   onSave: (input: ParticipantInput, participant: Participant | null) => void;
   onCancelParticipant: (participant: Participant) => void;
+  /** Present when QuickBooks is connected: bill this parent through it (Phase 4b). */
+  onSendInvoice?: (participant: Participant) => void;
 }) {
   const [problem, setProblem] = useState<string | null>(null);
   const paid = participant?.status === "paid";
@@ -392,6 +431,33 @@ function ParticipantSheet({
           )}
         </div>
         {paid ? <p className="form-notice">They&apos;ve paid, so the amount stays as recorded.</p> : null}
+        {participant && !paid && participant.status !== "cancelled" && onSendInvoice ? (
+          <div className="participant-invoice-send">
+            {participantInvoiceSendable(participant.qbInvoice) ? (
+              <>
+                <p>
+                  {participant.email
+                    ? "Bill them through QuickBooks: they get their own invoice by email, with a link to pay by card or bank."
+                    : "Add their email to send them a QuickBooks invoice."}
+                </p>
+                <button
+                  className="button button-sm button-light"
+                  disabled={busy || !participant.email || participant.amountCents <= 0}
+                  onClick={() => onSendInvoice(participant)}
+                  type="button"
+                >
+                  {participant.qbInvoice?.state === "failed" ? "Send the QuickBooks invoice again" : "Send a QuickBooks invoice"}
+                </button>
+              </>
+            ) : (
+              <p>
+                {`${participantInvoiceSummary(participant.qbInvoice)}.${
+                  participantInvoiceOpen(participant.qbInvoice) ? " If they pay another way, recording it withdraws the invoice." : ""
+                }`}
+              </p>
+            )}
+          </div>
+        ) : null}
         {problem ? (
           <p className="form-error" role="alert">
             {problem}
@@ -454,6 +520,12 @@ function PaymentSheet({
           <p className="eyebrow">Take payment</p>
           <h3>{participant ? `${participant.athleteName} · ${participant.parentName}` : ""}</h3>
           <p>Record money you&apos;ve taken. StudioCue doesn&apos;t charge the card — this is the record and the receipt.</p>
+          {participantInvoiceOpen(participant?.qbInvoice) ? (
+            <p>
+              They have a QuickBooks invoice. Recording another way withdraws it; choose Online if they paid it, and
+              StudioCue checks QuickBooks.
+            </p>
+          ) : null}
         </header>
         <div className="record-sheet-fields">
           <label>

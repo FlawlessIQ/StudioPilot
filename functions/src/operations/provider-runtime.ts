@@ -509,7 +509,7 @@ export async function getCalendarBusyIntervals(
  */
 function providerErrorMessage(body:Record<string,unknown>):string{const fault=asRecord(body.Fault);const errors=Array.isArray(fault.Error)?fault.Error:[];const first=asRecord(errors[0]);const detail=text(first.Detail)||text(first.Message);if(detail)return detail.replace(/\s+/g," ").slice(0,300);return text(asRecord(body.error).message)||text(body.message)||"PROVIDER_ERROR"}
 export async function providerJson(url:string,init:RequestInit,code:string):Promise<Json>{const response=await fetch(url,init);const body=asRecord(await response.json().catch(()=>({})));if(!response.ok)throw new Error(`${code}:${response.status}:${providerErrorMessage(body)}`);return body}
-const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").update(id).digest("hex").slice(0,16)}`;
+export const mockId=(scope:string,id:string)=>`mock_${scope}_${createHash("sha256").update(id).digest("hex").slice(0,16)}`;
 
 // Cancel and reschedule are the write-back half of the calendar integration.
 // Until August 19, 2026 the runtime only ever created events: a studio could
@@ -1348,7 +1348,7 @@ export async function quickBooksCustomerId(
  * QuickBooks, and an integration that quietly grows items in their chart
  * is a worse neighbour than one that uses what is already there.
  */
-async function quickBooksItemRef(
+export async function quickBooksItemRef(
   base:string,
   realmId:string,
   credential:Credential,
@@ -1519,7 +1519,7 @@ async function clientEmailFor(
  * are already fine. The same read says how the company handles sales tax
  * (quickBooksTaxMode); null there means "send no tax codes", as before.
  */
-async function quickBooksPreferences(
+export async function quickBooksPreferences(
   base:string,
   realmId:string,
   credential:Credential,
@@ -1618,7 +1618,7 @@ export const QUICKBOOKS_ONLINE_PAYMENT_FLAGS = {
  * Absent is not an error — a company without online payments enabled has no
  * link to give, and the email falls back to the portal.
  */
-async function quickBooksInvoiceLink(
+export async function quickBooksInvoiceLink(
   base:string,
   realmId:string,
   credential:Credential,

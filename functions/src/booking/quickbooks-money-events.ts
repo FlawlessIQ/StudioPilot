@@ -9,6 +9,7 @@ import {
   refundRecordedTask,
   refundSummary,
 } from "./quickbooks-money-events-core.js";
+import { queueParticipantInvoiceReconciles } from "../group-events/participant-invoices.js";
 
 /**
  * A QuickBooks Payment, CreditMemo or RefundReceipt event, worked through
@@ -51,6 +52,8 @@ export async function reconcileQuickBooksMoneyEvent(job: DocumentSnapshot) {
 
   const invoices = db.collection("invoiceReferences");
   const touched: QueryDocumentSnapshot[] = [];
+  // Parents' invoices at group events, which live on the parent's record.
+  let parentInvoiceIds: string[] = [];
   let refundTask: ReturnType<typeof refundRecordedTask> | null = null;
 
   const link = await connection(tenantId, "quickbooks");
@@ -97,6 +100,7 @@ export async function reconcileQuickBooksMoneyEvent(job: DocumentSnapshot) {
       // and for a credit memo every invoice of that customer (a credit can be
       // applied later, by a payment that names only the memo).
       const ids = invoiceIdsLinkedTo(entity);
+      parentInvoiceIds = [...ids];
       for (const id of ids.slice(0, 20)) {
         const found = await invoices.where("tenantId", "==", tenantId).where("providerInvoiceId", "==", id).limit(1).get();
         touched.push(...found.docs);
@@ -113,6 +117,14 @@ export async function reconcileQuickBooksMoneyEvent(job: DocumentSnapshot) {
       // that QuickBooks still shows paid exactly as they are.
       for (const status of ["paid", "partially_paid"]) {
         touched.push(...(await invoices.where("tenantId", "==", tenantId).where("status", "==", status).limit(100).get()).docs);
+        // And parents QuickBooks had reported paid, at group events.
+        const parents = await db
+          .collection("eventParticipants")
+          .where("tenantId", "==", tenantId)
+          .where("qbInvoice.state", "==", status)
+          .limit(100)
+          .get();
+        parentInvoiceIds.push(...parents.docs.map((parent) => String(parent.get("qbInvoice.providerInvoiceId") ?? "")).filter(Boolean));
       }
     }
   }
@@ -146,6 +158,20 @@ export async function reconcileQuickBooksMoneyEvent(job: DocumentSnapshot) {
       { merge: true },
     );
   }
+  const parentsQueued = parentInvoiceIds.length
+    ? await queueParticipantInvoiceReconciles({
+        db,
+        batch,
+        tenantId,
+        providerInvoiceIds: parentInvoiceIds,
+        eventKey,
+        realmId: String(job.get("realmId") ?? ""),
+        // Not the money event's operation: a deleted payment must not void the invoice.
+        operation: "update",
+        occurredAt: String(job.get("occurredAt") ?? now),
+        now,
+      })
+    : [];
   if (refundTask) batch.set(db.doc(`tasks/${refundTask.id}`), refundTask, { merge: true });
   if (webhookEventId) batch.update(db.doc(`webhookEvents/${webhookEventId}`), { status: "processed", processedAt: now });
   await batch.commit();
@@ -155,6 +181,7 @@ export async function reconcileQuickBooksMoneyEvent(job: DocumentSnapshot) {
     operation,
     mock: link.mock,
     reconcileQueued: unique.map((invoice) => invoice.id),
+    parentInvoicesQueued: parentsQueued,
     refundTaskId: refundTask?.id ?? null,
   };
 }

@@ -60,3 +60,8 @@ export function resetGroupEventLink(projectId: string) {
 export function inviteGroupEventParents(projectId: string, emails: string[]) {
   return runCrmCommand("inviteGroupEventParents", { projectId, emails }, once());
 }
+
+/** A QuickBooks invoice for one parent, or another after one failed or was withdrawn. */
+export function sendParticipantInvoice(projectId: string, participantId: string) {
+  return runCrmCommand("sendParticipantInvoice", { projectId, participantId }, once());
+}

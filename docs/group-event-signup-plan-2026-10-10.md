@@ -48,8 +48,51 @@ Phases 1–3, plus Phase 4's own pay link, are built in 75523baa:
   link is the organiser's portal or inquiry page, and the Phase 1 receipt used
   it when it had no button of its own.
 
+**Phase 4b (a QuickBooks invoice for each parent) is built.** It is offered
+only while the studio's QuickBooks is connected, and never together with the
+studio's own pay link.
+
+- **Where it lives:** the invoice is stored on the parent's own record
+  (`eventParticipants/{id}.qbInvoice`), never in `invoiceReferences`. About
+  twenty readers sum a job's invoices, including the organiser's client
+  portal, the final balance and the overdue cards on Today. On a group event
+  the job's client is the organiser, so a parent's bill there would have
+  shown up as the organiser's balance.
+- **Who it bills:** the parent is the QuickBooks customer, matched by email.
+  If their name is already taken by a customer with a different email, they
+  are named apart, as "Name (email)".
+- **What it says:** one line (the athlete, the package and the event) with
+  no sales tax. On a company that charges sales tax the line is marked
+  non-taxable.
+- **Delivery:** the invoice has BillEmail and online payment, so it gets a
+  pay link. StudioCue emails the parent that link
+  (`group_participant_invoice`). A company with no online payment has no
+  link, so QuickBooks sends that invoice itself.
+- **Jobs** (functions/src/group-events/participant-invoices.ts):
+  - `create_quickbooks_participant_invoice`, queued at sign-up or by the
+    studio's "Send a QuickBooks invoice". It is held while the studio's
+    billing has lapsed. The invoice id is stored the moment QuickBooks
+    returns it, so a retry picks up that invoice instead of billing twice.
+  - `reconcile_quickbooks_participant_invoice`, queued by the QuickBooks
+    webhook (only when the invoice isn't one of the job's) and by Payment and
+    credit-memo events applied to the invoice. "Paid there" marks the parent
+    paid (online) and emails their receipt. A payment QuickBooks later takes
+    back makes them owe again.
+  - `void_quickbooks_participant_invoice`: when the parent pays another way
+    (cash, check, Venmo and so on) or their place is cancelled, the invoice
+    is withdrawn. Recording "Online" re-reads QuickBooks instead.
+- **Studio controls:** crmCommand `sendParticipantInvoice` sends an invoice,
+  or sends it again after a failure or a withdrawal. Crew can't send
+  invoices; they still only record payments.
+- **Proven against the QuickBooks sandbox** with
+  `scripts/uat/quickbooks-participant-invoice-sandbox.mts`. The sandbox
+  company charges 8% sales tax, and the invoice still totalled $45 with no
+  tax. The script also checked the customer match, a same-name parent being
+  named apart, and voiding (including voiding twice).
+
 Still to do:
-- A QuickBooks invoice per parent (Phase 4b).
+- A real pay link and a real payment on a company with QuickBooks Payments.
+  Sandboxes have no Payments, so this needs a prod walk.
 - Phase 5: delivery and review per parent.
 - A walk on production with a FlawlessIQ test event. It sends real email, so it
   needs Conor's OK.

@@ -8,7 +8,12 @@
 import { z } from "zod";
 
 /** The ways a studio can let parents pay for an event, in the order offered. */
-export const EVENT_PAYMENT_METHODS = ["cash", "check", "venmo", "zelle", "pay_link"] as const;
+/**
+ * `quickbooks`: a QuickBooks invoice for each parent, emailed with its pay
+ * link (Phase 4b). Offered only while the studio's QuickBooks is connected;
+ * the invoice lives on the parent's own record, never the job's invoices.
+ */
+export const EVENT_PAYMENT_METHODS = ["cash", "check", "venmo", "zelle", "pay_link", "quickbooks"] as const;
 export type EventPaymentMethod = (typeof EVENT_PAYMENT_METHODS)[number];
 
 /** What a parent reads when choosing. */
@@ -18,6 +23,7 @@ export const EVENT_PAYMENT_LABEL: Record<EventPaymentMethod, string> = {
   venmo: "Venmo",
   zelle: "Zelle",
   pay_link: "Pay online now",
+  quickbooks: "Pay online by card or bank",
 };
 
 /** In a list for the studio and on the sign: "Pay by cash, check, Venmo". */
@@ -27,6 +33,7 @@ export const EVENT_PAYMENT_SHORT: Record<EventPaymentMethod, string> = {
   venmo: "Venmo",
   zelle: "Zelle",
   pay_link: "card online",
+  quickbooks: "card or bank by invoice",
 };
 
 /** Paid at the field, so the roster says "pays on the day". */
@@ -193,6 +200,8 @@ export function eventSignupSettingsProblem(settings: EventSignupSettings): strin
   if (settings.methods.includes("venmo") && !normaliseVenmoHandle(settings.venmoHandle)) return "EVENT_VENMO_HANDLE_REQUIRED";
   if (settings.methods.includes("zelle") && !text(settings.zelleTo, 200)) return "EVENT_ZELLE_REQUIRED";
   if (settings.methods.includes("pay_link") && !normalisePayLinkUrl(settings.payLinkUrl)) return "EVENT_PAY_LINK_INVALID";
+  // Two ways to "pay online" side by side would leave a parent guessing.
+  if (settings.methods.includes("pay_link") && settings.methods.includes("quickbooks")) return "EVENT_ONLINE_TWICE";
   const ids = settings.options.map((option) => option.id);
   if (new Set(ids).size !== ids.length) return "EVENT_OPTIONS_INVALID";
   if (settings.closesAt && Number.isNaN(Date.parse(settings.closesAt))) return "EVENT_CLOSES_AT_INVALID";
@@ -244,6 +253,8 @@ export function howToPay(method: EventPaymentMethod, config: Pick<EventSignupCon
       return `Send it by Zelle to ${config.zelleTo ?? studioName}. Put the athlete's name in the memo.`;
     case "pay_link":
       return `Pay online with ${studioName}'s secure payment page.`;
+    case "quickbooks":
+      return `${studioName} is emailing you a secure invoice to pay online by card or bank.`;
   }
 }
 
@@ -261,4 +272,71 @@ export function emailsFrom(text: string): { emails: string[]; rejected: string[]
     .filter(Boolean);
   const valid = (part: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(part);
   return { emails: [...new Set(parts.filter(valid))], rejected: parts.filter((part) => !valid(part)) };
+}
+
+/**
+ * A parent's QuickBooks invoice (Phase 4b): the job that makes it, one per
+ * parent and renewed for each attempt, and its QuickBooks request id
+ * (capped at 50 characters; a participant id is a UUID). Queued by the
+ * sign-up route and by crmCommand; worked by
+ * functions/src/group-events/participant-invoices.ts.
+ */
+export const CREATE_PARTICIPANT_INVOICE_JOB = "create_quickbooks_participant_invoice";
+export function participantInvoiceJobId(participantId: string): string {
+  return `participant_invoice_${participantId}`;
+}
+export function participantInvoiceRequestId(participantId: string, attempt: number): string {
+  return `pinv-${participantId}-${attempt}`.slice(0, 50);
+}
+
+/**
+ * Where a parent's QuickBooks invoice stands (`participant.qbInvoice.state`):
+ * asked for, open, part or fully paid, being withdrawn or withdrawn (they
+ * paid another way, or their place was cancelled), never made (they'd paid
+ * first), or refused by QuickBooks.
+ */
+export type ParticipantInvoiceState =
+  | "queued"
+  | "open"
+  | "partially_paid"
+  | "paid"
+  | "void_queued"
+  | "voided"
+  | "skipped"
+  | "failed";
+
+type InvoiceLike = { state?: unknown; providerInvoiceId?: unknown } | null | undefined;
+
+/** Still asking the parent for money: an invoice that exists and has a balance. */
+export function participantInvoiceOpen(invoice: InvoiceLike): boolean {
+  return Boolean(invoice?.providerInvoiceId) && (invoice?.state === "open" || invoice?.state === "partially_paid");
+}
+
+/** Whether the studio may send (or send again) a parent's invoice. */
+export function participantInvoiceSendable(invoice: InvoiceLike): boolean {
+  if (!invoice || !invoice.state) return true;
+  return invoice.state === "failed" || invoice.state === "voided" || invoice.state === "skipped";
+}
+
+/** The parent's invoice in a few words, for the roster. Null when there's nothing to say. */
+export function participantInvoiceSummary(invoice: (InvoiceLike & { docNumber?: unknown }) | null | undefined): string | null {
+  if (!invoice?.state) return null;
+  const number = typeof invoice.docNumber === "string" && invoice.docNumber ? ` #${invoice.docNumber}` : "";
+  switch (invoice.state) {
+    case "queued":
+      return "QuickBooks invoice on its way";
+    case "open":
+      return `QuickBooks invoice${number} sent`;
+    case "partially_paid":
+      return `QuickBooks invoice${number} part paid`;
+    case "paid":
+      return `QuickBooks invoice${number} paid`;
+    case "void_queued":
+    case "voided":
+      return `QuickBooks invoice${number} withdrawn`;
+    case "failed":
+      return "QuickBooks invoice failed";
+    default:
+      return null;
+  }
 }

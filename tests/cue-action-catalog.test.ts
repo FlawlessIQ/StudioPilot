@@ -265,6 +265,8 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   setGroupEventSignup: "group events: the roster's sign-up panel",
   resetGroupEventLink: "group events: the roster's sign-up panel",
   inviteGroupEventParents: "group events: the roster's sign-up panel",
+  // Phase 4b: a parent's own QuickBooks invoice, sent from their roster entry.
+  sendParticipantInvoice: "group events: a parent's roster entry",
   // Not offered: StudioCue has no signing provider (features/integrations/schema.ts offeredProviders).
   createEnvelope: "no signing provider is offered",
 };

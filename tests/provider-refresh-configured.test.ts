@@ -77,6 +77,8 @@ test("only modules reachable from a credentialed Function open a connection", ()
     "functions/src/billing/autopay.ts",
     // The job workers' reconcile_quickbooks_money_event (operations/jobs.ts).
     "functions/src/booking/quickbooks-money-events.ts",
+    // The job workers' parent invoices at group events (operations/jobs.ts), beside the above.
+    "functions/src/group-events/participant-invoices.ts",
     "functions/src/integrations/signing-templates.ts",
     // quickbooksSetupCommand, which declares the QuickBooks credentials (below).
     "functions/src/integrations/quickbooks-setup.ts",

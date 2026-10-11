@@ -85,6 +85,17 @@ import {
   removeQuickBooksCard,
   saveQuickBooksCard,
 } from "../billing/autopay.js";
+import {
+  createQuickBooksParticipantInvoice,
+  participantInvoiceFailed,
+  reconcileQuickBooksParticipantInvoice,
+  voidQuickBooksParticipantInvoice,
+} from "../group-events/participant-invoices.js";
+import {
+  CREATE_PARTICIPANT_INVOICE_JOB,
+  RECONCILE_PARTICIPANT_INVOICE_JOB,
+  VOID_PARTICIPANT_INVOICE_JOB,
+} from "../group-events/participant-invoice-core.js";
 
 type Result = Record<string, unknown>;
 
@@ -369,6 +380,19 @@ async function finish(
         // not be lost to a missing invoice.
       });
     }
+    // A parent's invoice QuickBooks would not make, or would not withdraw:
+    // on the parent's row for the studio, with what went wrong.
+    if (
+      document.ref.parent.id === "providerJobs" &&
+      [CREATE_PARTICIPANT_INVOICE_JOB, VOID_PARTICIPANT_INVOICE_JOB].includes(
+        String(document.get("type")),
+      ) &&
+      !retryable
+    ) {
+      await participantInvoiceFailed(document, { code, message }).catch(() => {
+        // The job's own error record is the authority.
+      });
+    }
     // A void the provider refused. The invoice stays voided in StudioCue —
     // the studio decided that — and the studio is asked to void it where it
     // was raised, so the couple isn't left holding a payable bill.
@@ -540,6 +564,13 @@ async function providerJob(document: DocumentSnapshot) {
   if (type === "save_quickbooks_card") return saveQuickBooksCard(document);
   if (type === "remove_quickbooks_card") return removeQuickBooksCard(document);
   if (type === "charge_saved_card") return chargeSavedCard(document);
+  // A parent's own QuickBooks invoice at a group event (group-events/participant-invoices.ts).
+  if (type === CREATE_PARTICIPANT_INVOICE_JOB)
+    return createQuickBooksParticipantInvoice(document);
+  if (type === RECONCILE_PARTICIPANT_INVOICE_JOB)
+    return reconcileQuickBooksParticipantInvoice(document);
+  if (type === VOID_PARTICIPANT_INVOICE_JOB)
+    return voidQuickBooksParticipantInvoice(document);
   throw new Error("UNSUPPORTED_PROVIDER_JOB");
 }
 

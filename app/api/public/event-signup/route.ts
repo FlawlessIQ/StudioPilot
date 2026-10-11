@@ -2,12 +2,15 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { adminAppCheck, adminFirestore } from "@/server/firebase/admin";
 import { requestClientIp } from "@/lib/security/client-ip";
 import {
+  CREATE_PARTICIPANT_INVOICE_JOB,
   EVENT_PAYMENT_LABEL,
   confirmationCodeFrom,
   eventPrice,
   eventSignupInputSchema,
   howToPay,
   normaliseEventSignup,
+  participantInvoiceJobId,
+  participantInvoiceRequestId,
   signupState,
   statusForMethod,
   venmoPayUrl,
@@ -93,6 +96,27 @@ async function resolve(token: string): Promise<Resolved | { error: string; statu
 
 const TOKEN = /^[A-Za-z0-9_-]{16,80}$/;
 
+/**
+ * Whether a QuickBooks invoice can be raised for a parent right now: the
+ * method is only offered while the studio's QuickBooks is connected.
+ */
+async function quickBooksConnected(tenantId: string): Promise<boolean> {
+  const found = await adminFirestore
+    .collection("integrationConnections")
+    .where("tenantId", "==", tenantId)
+    .where("provider", "==", "quickbooks")
+    .where("status", "==", "connected")
+    .limit(1)
+    .get();
+  return !found.empty;
+}
+
+/** The event's ways to pay, less a QuickBooks invoice when QuickBooks isn't connected. */
+async function offeredMethods(config: EventSignupConfig, tenantId: string): Promise<EventPaymentMethod[]> {
+  if (!config.methods.includes("quickbooks")) return config.methods;
+  return (await quickBooksConnected(tenantId)) ? config.methods : config.methods.filter((method) => method !== "quickbooks");
+}
+
 async function signedUpCount(tenantId: string, projectId: string): Promise<number> {
   const snapshot = await adminFirestore
     .collection("eventParticipants")
@@ -120,18 +144,38 @@ function eventOf(project: FirebaseFirestore.DocumentSnapshot) {
   };
 }
 
-/** How the parent pays, and the button that does it, for one order. */
-function payment(method: EventPaymentMethod, config: EventSignupConfig, studioName: string, amountCents: number, note: string) {
+/**
+ * How the parent pays, and the button that does it, for one order. A
+ * QuickBooks invoice's link is the parent's own (`qbInvoice.hostedUrl`), and
+ * only once QuickBooks has made it and while it's still owed.
+ */
+function payment(
+  method: EventPaymentMethod,
+  config: EventSignupConfig,
+  studioName: string,
+  amountCents: number,
+  note: string,
+  invoice: Record<string, unknown> | null = null,
+) {
+  const invoiceLink =
+    invoice && (invoice.state === "open" || invoice.state === "partially_paid") && typeof invoice.hostedUrl === "string"
+      ? invoice.hostedUrl
+      : null;
   return {
     method,
     label: EVENT_PAYMENT_LABEL[method],
-    howToPay: howToPay(method, config, studioName),
+    howToPay:
+      method === "quickbooks" && invoice?.deliveredBy === "quickbooks"
+        ? `${studioName} has emailed you a secure invoice. It comes from QuickBooks.`
+        : howToPay(method, config, studioName),
     payUrl:
       method === "venmo" && config.venmoHandle
         ? venmoPayUrl(config.venmoHandle, amountCents, note)
         : method === "pay_link" && config.payLinkUrl
           ? config.payLinkUrl
-          : null,
+          : method === "quickbooks"
+            ? invoiceLink
+            : null,
   };
 }
 
@@ -151,9 +195,12 @@ function orderView(
     amount: eventPrice(amountCents),
     paid: participant.get("status") === "paid",
     cancelled: participant.get("status") === "cancelled",
-    payment: config.methods.includes(method)
-      ? payment(method, config, studioName, amountCents, `${athlete} — ${packageName}`)
-      : null,
+    // The way they chose, as long as the studio still offers it — or, for a
+    // QuickBooks invoice, as long as theirs exists.
+    payment:
+      config.methods.includes(method) || (method === "quickbooks" && participant.get("qbInvoice"))
+        ? payment(method, config, studioName, amountCents, `${athlete} — ${packageName}`, (participant.get("qbInvoice") ?? null) as Record<string, unknown> | null)
+        : null,
   };
 }
 
@@ -170,7 +217,7 @@ export async function GET(request: Request): Promise<Response> {
     state: signupState(config, new Date().toISOString(), await signedUpCount(tenantId, projectId)),
     closesAt: config.closesAt,
     options: config.options.map((option) => ({ ...option, price: eventPrice(option.priceCents) })),
-    methods: config.methods.map((method) => ({ method, label: EVENT_PAYMENT_LABEL[method] })),
+    methods: (await offeredMethods(config, tenantId)).map((method) => ({ method, label: EVENT_PAYMENT_LABEL[method] })),
     order: null,
     signupPath: null,
   });
@@ -233,7 +280,8 @@ export async function POST(request: Request): Promise<Response> {
   if (!(await withinRateLimit(request, linkId))) return Response.json({ error: "RATE_LIMITED" }, { status: 429 });
   const option = config.options.find((candidate) => candidate.id === input.optionId);
   if (!option) return Response.json({ error: "EVENT_OPTION_UNAVAILABLE" }, { status: 409 });
-  if (!config.methods.includes(input.method)) return Response.json({ error: "EVENT_METHOD_UNAVAILABLE" }, { status: 409 });
+  if (!(await offeredMethods(config, tenantId)).includes(input.method))
+    return Response.json({ error: "EVENT_METHOD_UNAVAILABLE" }, { status: 409 });
   const studio = studioOf(tenant);
   const now = new Date().toISOString();
 
@@ -276,6 +324,27 @@ export async function POST(request: Request): Promise<Response> {
       confirmationCode,
       // Opens this one order (/e/order/{orderToken}), from the parent's emails.
       orderToken,
+      // Paying by QuickBooks invoice: asked for now, made by the worker
+      // (functions/src/group-events/participant-invoices.ts).
+      ...(input.method === "quickbooks"
+        ? {
+            qbInvoice: {
+              state: "queued",
+              jobId: participantInvoiceJobId(participantId),
+              attempt: 1,
+              providerInvoiceId: null,
+              providerCustomerId: null,
+              docNumber: null,
+              hostedUrl: null,
+              totalCents: null,
+              balanceCents: null,
+              deliveredBy: null,
+              error: null,
+              requestedAt: now,
+              updatedAt: now,
+            },
+          }
+        : {}),
       consentAt: now,
       payment: null,
       receiptQueuedAt: null,
@@ -285,6 +354,22 @@ export async function POST(request: Request): Promise<Response> {
       updatedBy: "event_signup",
     };
     transaction.create(reference, record);
+    if (input.method === "quickbooks") {
+      const jobId = participantInvoiceJobId(participantId);
+      transaction.create(adminFirestore.doc(`providerJobs/${jobId}`), {
+        id: jobId,
+        tenantId,
+        projectId,
+        participantId,
+        type: CREATE_PARTICIPANT_INVOICE_JOB,
+        attempt: 1,
+        idempotencyKey: participantInvoiceRequestId(participantId, 1),
+        status: "queued",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
     const orderPath = `/e/order/${orderToken}`;
     const orderUrl = `${appUrl()}${orderPath}`;
     const pay = payment(input.method, config, studio.name, option.priceCents, `${input.athleteName} — ${option.name}`);

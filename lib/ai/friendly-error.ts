@@ -373,6 +373,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   EVENT_CLOSES_AT_INVALID: "Check the closing time.",
   EVENT_SIGNUP_NOT_SET_UP: "Set up the packages and how parents pay first.",
   EVENT_SIGNUP_CLOSED: "Sign-up is closed. Open it again to send the link.",
+  EVENT_QUICKBOOKS_NOT_CONNECTED: "Connect QuickBooks first (Studio settings → Integrations), then choose QuickBooks invoices.",
+  EVENT_ONLINE_TWICE: "Choose one way to pay online: your own payment link or QuickBooks invoices.",
+  PARTICIPANT_INVOICE_OPEN: "Their QuickBooks invoice is already out. It's on its way or waiting to be paid.",
+  PARTICIPANT_AMOUNT_REQUIRED: "Add what they owe first, then send the invoice.",
   // A parent's sign-up page (app/api/public/event-signup); the page words these the same.
   EVENT_LINK_NOT_FOUND: "This link isn't working. Ask the studio for a new one.",
   EVENT_LINK_RETIRED: "This link has been replaced. Ask the studio for the new one.",

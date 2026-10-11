@@ -15,6 +15,7 @@
  */
 
 import { jobKindOf } from "@/features/job-kinds/job-kinds";
+import type { ParticipantInvoiceState } from "@/features/group-events/signup";
 
 export type ParticipantStatus = "unpaid" | "pay_on_day" | "paid" | "cancelled";
 
@@ -59,6 +60,20 @@ export type Participant = {
   chosenMethod?: string | null;
   /** What they show at the field. */
   confirmationCode?: string | null;
+  /**
+   * Their own QuickBooks invoice, when they pay that way (Phase 4b,
+   * functions/src/group-events/participant-invoices.ts). Never one of the
+   * job's invoices.
+   */
+  qbInvoice?: {
+    state: ParticipantInvoiceState;
+    attempt?: number;
+    providerInvoiceId?: string | null;
+    docNumber?: string | null;
+    hostedUrl?: string | null;
+    balanceCents?: number | null;
+    error?: { code: string; message: string } | null;
+  } | null;
 };
 
 export type RosterSummary = {
@@ -111,7 +126,7 @@ export const PAYMENT_METHOD_LABEL: Record<ParticipantPaymentMethod, string> = {
   venmo: "Venmo",
   zelle: "Zelle",
   card: "Card",
-  online: "Paid online",
+  online: "Online",
   other: "Other",
 };
 

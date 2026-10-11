@@ -7,7 +7,16 @@ import {
   normaliseEventSignup,
   normalisePayLinkUrl,
   normaliseVenmoHandle,
+  CREATE_PARTICIPANT_INVOICE_JOB,
+  participantInvoiceJobId,
+  participantInvoiceRequestId,
 } from "../group-events/signup.js";
+import {
+  RECONCILE_PARTICIPANT_INVOICE_JOB,
+  participantInvoiceOpen,
+  participantInvoiceSendable,
+  participantInvoiceVoidJob,
+} from "../group-events/participant-invoice-core.js";
 import { tradeAllows, tradeMoves, tradeProfile } from "../trades/trades.js";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
@@ -1038,6 +1047,15 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({ projectId: z.string().min(1) }),
   }),
   z.object({
+    type: z.literal("sendParticipantInvoice"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      participantId: z.string().min(1),
+    }),
+  }),
+  z.object({
     type: z.literal("inviteGroupEventParents"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -1247,6 +1265,47 @@ async function groupEventParticipant(
   if (!participant.exists || participant.get("tenantId") !== tenantId || participant.get("projectId") !== projectId)
     throw new Error("PARTICIPANT_NOT_FOUND");
   return participant;
+}
+
+/** Whether the studio's QuickBooks is connected now (as the worker will find it). */
+async function quickBooksConnectedIn(
+  transaction: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+): Promise<boolean> {
+  const found = await transaction.get(
+    db
+      .collection("integrationConnections")
+      .where("tenantId", "==", tenantId)
+      .where("provider", "==", "quickbooks")
+      .where("status", "==", "connected")
+      .limit(1),
+  );
+  return !found.empty;
+}
+
+/**
+ * A parent's open QuickBooks invoice, once they've paid another way or been
+ * cancelled: withdrawn, so the parent isn't chased for money they paid in
+ * cash, and QuickBooks shows nothing owing.
+ */
+function withdrawParticipantInvoice(
+  transaction: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  participant: FirebaseFirestore.DocumentSnapshot,
+  timestamp: string,
+): Record<string, unknown> {
+  const invoice = (participant.get("qbInvoice") ?? null) as Record<string, unknown> | null;
+  if (!participantInvoiceOpen(invoice)) return {};
+  const job = participantInvoiceVoidJob({
+    participantId: participant.id,
+    tenantId: String(participant.get("tenantId")),
+    projectId: String(participant.get("projectId") ?? "") || null,
+    providerInvoiceId: String(invoice?.providerInvoiceId),
+    now: timestamp,
+  });
+  transaction.set(db.doc(`providerJobs/${job.id}`), job.data, { merge: true });
+  return { "qbInvoice.state": "void_queued", "qbInvoice.updatedAt": timestamp };
 }
 
 function participantAudit(
@@ -5057,6 +5116,8 @@ export const crmCommand = onRequest(
           transaction.update(participant.ref, {
             status,
             cancelledFromStatus: command.input.restore ? null : participant.get("status"),
+            // Their QuickBooks invoice is withdrawn with their place.
+            ...(command.input.restore ? {} : withdrawParticipantInvoice(transaction, db, participant, timestamp)),
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
@@ -5103,7 +5164,32 @@ export const crmCommand = onRequest(
             paidAt: timestamp,
             recordedBy: identity.uid,
           };
+          // A parent with an open QuickBooks invoice. Paid online: QuickBooks
+          // is read again to agree. Paid any other way: the invoice is
+          // withdrawn, so they aren't chased for money they've handed over.
+          const parentInvoice = (participant.get("qbInvoice") ?? null) as Record<string, unknown> | null;
+          let invoiceFields: Record<string, unknown> = {};
+          if (participantInvoiceOpen(parentInvoice) && command.input.method === "online") {
+            const reconcileId = `participant_reconcile_${createHash("sha256").update(`recorded:${command.input.participantId}:${timestamp}`).digest("hex")}`;
+            transaction.set(db.doc(`providerJobs/${reconcileId}`), {
+              id: reconcileId,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              participantId: command.input.participantId,
+              providerInvoiceId: String(parentInvoice?.providerInvoiceId),
+              operation: "update",
+              type: RECONCILE_PARTICIPANT_INVOICE_JOB,
+              idempotencyKey: reconcileId,
+              status: "queued",
+              attempts: 0,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          } else {
+            invoiceFields = withdrawParticipantInvoice(transaction, db, participant, timestamp);
+          }
           transaction.update(participant.ref, {
+            ...invoiceFields,
             status: "paid",
             payment,
             orderToken,
@@ -5172,6 +5258,9 @@ export const crmCommand = onRequest(
           if (settings) {
             const problem = eventSignupSettingsProblem(settings);
             if (problem) throw new Error(problem);
+            // An invoice per parent needs a QuickBooks to raise it in.
+            if (settings.methods.includes("quickbooks") && !(await quickBooksConnectedIn(transaction, db, command.tenantId)))
+              throw new Error("EVENT_QUICKBOOKS_NOT_CONNECTED");
           }
           // One link per event; a reset retires the old one (a QR code printed
           // for the wrong event, a link posted somewhere it shouldn't be).
@@ -5227,6 +5316,77 @@ export const crmCommand = onRequest(
             userAgent: request.header("user-agent") ?? null,
           });
           const output = { projectId: command.input.projectId, token, open };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "sendParticipantInvoice") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const participant = await groupEventParticipant(transaction, db, command.tenantId, command.input.projectId, command.input.participantId);
+          if (participant.get("status") === "paid") throw new Error("PARTICIPANT_ALREADY_PAID");
+          if (participant.get("status") === "cancelled") throw new Error("PARTICIPANT_CANCELLED");
+          if (!String(participant.get("email") ?? "")) throw new Error("PARTICIPANT_EMAIL_REQUIRED");
+          if (!(Number(participant.get("amountCents") ?? 0) > 0)) throw new Error("PARTICIPANT_AMOUNT_REQUIRED");
+          const current = (participant.get("qbInvoice") ?? null) as Record<string, unknown> | null;
+          if (!participantInvoiceSendable(current)) throw new Error("PARTICIPANT_INVOICE_OPEN");
+          if (!(await quickBooksConnectedIn(transaction, db, command.tenantId))) throw new Error("EVENT_QUICKBOOKS_NOT_CONNECTED");
+          const attempt = Number(current?.attempt ?? 0) + 1;
+          const jobId = participantInvoiceJobId(command.input.participantId);
+          // A failed attempt may have made the invoice before falling over:
+          // its id is kept so the worker adopts it. A withdrawn one is not.
+          const keepInvoice = current?.state === "failed" && typeof current.providerInvoiceId === "string" ? current.providerInvoiceId : null;
+          transaction.update(participant.ref, {
+            qbInvoice: {
+              state: "queued",
+              jobId,
+              attempt,
+              providerInvoiceId: keepInvoice,
+              providerCustomerId: (current?.providerCustomerId as string | undefined) ?? null,
+              docNumber: null,
+              hostedUrl: null,
+              totalCents: null,
+              balanceCents: null,
+              deliveredBy: null,
+              error: null,
+              requestedAt: timestamp,
+              updatedAt: timestamp,
+            },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          transaction.set(db.doc(`providerJobs/${jobId}`), {
+            id: jobId,
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            participantId: command.input.participantId,
+            type: CREATE_PARTICIPANT_INVOICE_JOB,
+            attempt,
+            idempotencyKey: participantInvoiceRequestId(command.input.participantId, attempt),
+            status: "queued",
+            attempts: 0,
+            error: null,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: "participant.invoice_requested",
+            entityId: command.input.participantId,
+            before: { invoice: current?.state ?? null },
+            after: { invoice: "queued", attempt },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { participantId: command.input.participantId, invoice: "queued", attempt };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

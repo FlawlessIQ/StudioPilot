@@ -15,7 +15,12 @@ import {
   type Participant,
   type ParticipantPaymentMethod,
 } from "@/features/group-events/participants";
-import { normaliseEventSignup, signupState } from "@/features/group-events/signup";
+import {
+  normaliseEventSignup,
+  participantInvoiceOpen,
+  participantInvoiceSummary,
+  signupState,
+} from "@/features/group-events/signup";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { formatCentsExact } from "@/lib/format/money";
@@ -247,6 +252,7 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
                     <small>
                       {[participant.parentName, participant.team, participant.packageName].filter(Boolean).join(" · ")}
                     </small>
+                    {participantInvoiceSummary(participant.qbInvoice) ? <small>{participantInvoiceSummary(participant.qbInvoice)}</small> : null}
                     {participant.confirmationCode || participant.chosenMethod ? (
                       <small>
                         {[participant.confirmationCode, owing && participant.chosenMethod ? chosenMethodLabel(participant.chosenMethod) : null]
@@ -271,6 +277,11 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
                     <div className="event-field-confirm">
                       <span>
                         {`Record ${[formatCentsExact(participant.amountCents), PAID_HOW[confirming]].filter(Boolean).join(" ")}?`}
+                        {participantInvoiceOpen(participant.qbInvoice)
+                          ? confirming === "online"
+                            ? " StudioCue checks their QuickBooks invoice."
+                            : " Their QuickBooks invoice is withdrawn."
+                          : ""}
                       </span>
                       <button className="kit-button" data-size="compact" data-variant="secondary" onClick={() => setPending(null)} type="button">
                         Back

@@ -184,7 +184,8 @@ test("the public route checks the browser, limits the rate, catches bots and tak
   // The price and the package are the studio's, never what the browser sent.
   assert.match(route, /amountCents: option\.priceCents,/);
   assert.doesNotMatch(route, /input\.(amountCents|priceCents|price)\b/);
-  assert.match(route, /if \(!config\.methods\.includes\(input\.method\)\)/);
+  // The studio's ways to pay, less a QuickBooks invoice while QuickBooks is disconnected.
+  assert.match(route, /if \(!\(await offeredMethods\(config, tenantId\)\)\.includes\(input\.method\)\)/);
   // Capacity and a repeat are checked inside the transaction that creates the sign-up.
   const transaction = route.slice(route.indexOf("adminFirestore.runTransaction(async (transaction) => {\n    const roster"));
   assert.match(transaction, /const repeat = live\.find/);

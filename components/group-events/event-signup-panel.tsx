@@ -8,6 +8,7 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { normaliseStudioInvoiceSettings } from "@/features/billing/studio-invoice-settings";
+import { quickBooksReadyFrom } from "@/features/billing/job-billing-from-records";
 import {
   EVENT_PAYMENT_LABEL,
   EVENT_PAYMENT_SHORT,
@@ -344,6 +345,12 @@ function InviteParentsSheet({
   );
 }
 
+/** How the studio reads each way to pay in its settings, where it differs from the parent's words. */
+const STUDIO_METHOD_LABEL: Partial<Record<EventPaymentMethod, string>> = {
+  pay_link: "Pay online with your own link",
+  quickbooks: "Pay online with a QuickBooks invoice",
+};
+
 type OptionDraft = { id: string; name: string; price: string; description: string };
 
 const newOptionId = () => `opt_${Math.random().toString(36).slice(2, 10)}`;
@@ -408,6 +415,9 @@ function EventSignupSettingsForm({
   const workspace = useWorkspace();
   const ownerOrAdmin = workspace.role === "studio_owner" || workspace.role === "studio_admin";
   const { records: billing } = useTenantDocuments("billingSettings", { enabled: ownerOrAdmin });
+  // An invoice per parent is offered only with QuickBooks connected (Phase 4b).
+  const { records: connections } = useTenantDocuments("integrationConnections");
+  const quickBooks = quickBooksReadyFrom(connections);
   const studioPayLink = useMemo(
     () => normaliseStudioInvoiceSettings(billing?.find((record) => record.tenantId === workspace.tenantId) ?? null).payLinkUrl,
     [billing, workspace.tenantId],
@@ -550,11 +560,11 @@ function EventSignupSettingsForm({
 
       <fieldset className="event-signup-settings-group">
         <legend>How parents can pay</legend>
-        {EVENT_PAYMENT_METHODS.map((method) => (
+        {EVENT_PAYMENT_METHODS.filter((method) => method !== "quickbooks" || quickBooks || methods.includes(method)).map((method) => (
           <div className="event-signup-settings-method" key={method}>
             <label className="participant-roster-check">
               <input checked={methods.includes(method)} onChange={() => toggle(method)} type="checkbox" />
-              {EVENT_PAYMENT_LABEL[method]}
+              {STUDIO_METHOD_LABEL[method] ?? EVENT_PAYMENT_LABEL[method]}
             </label>
             {method === "venmo" && methods.includes("venmo") ? (
               <label>
@@ -591,6 +601,13 @@ function EventSignupSettingsForm({
                 Your payment link (Square, PayPal, Stripe…)
                 <input inputMode="url" onChange={(event) => setPayLinkUrl(event.target.value)} placeholder="https://" value={payLinkUrl} />
               </label>
+            ) : null}
+            {method === "quickbooks" && methods.includes("quickbooks") ? (
+              <small className="event-signup-settings-hint">
+                {quickBooks
+                  ? "Each parent who chooses this gets their own QuickBooks invoice by email, with a link to pay by card or bank. These are kept apart from the job's own bills."
+                  : "QuickBooks isn't connected, so parents won't be offered this. Connect it under Studio settings → Integrations."}
+              </small>
             ) : null}
           </div>
         ))}

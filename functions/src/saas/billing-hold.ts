@@ -64,6 +64,8 @@ const HELD_PROVIDER_TYPES: readonly string[] = [
   "create_stripe_invoice",
   HELD_INVOICE_JOB_TYPE,
   "charge_saved_card",
+  // A parent's QuickBooks invoice at a group event is a bill like any other.
+  "create_quickbooks_participant_invoice",
 ];
 
 /** Automated nudges whose moment passes; retired if they sat parked too long. */

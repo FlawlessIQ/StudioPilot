@@ -176,6 +176,8 @@ export const emailTemplateKeys = [
   // confirmation (features/group-events/signup.ts).
   "group_event_invite",
   "group_signup_confirmation",
+  // A parent's own QuickBooks invoice, with its pay link.
+  "group_participant_invoice",
   // Studio-facing: inbox capture has gone quiet — the forwarding filter may
   // have broken, and inquiries may be sitting unanswered in the inbox.
   "studio_capture_silent",
@@ -2662,6 +2664,32 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: payUrl ? order : undefined,
       };
     }
+    case "group_participant_invoice": {
+      // A parent's own QuickBooks invoice at a group event
+      // (group-events/participant-invoices.ts): its pay link leads, their
+      // order page follows. Not the organiser's, and nobody else is copied.
+      const athlete = stringValue(values, "athleteName");
+      const item = stringValue(values, "packageName");
+      const amount = stringValue(values, "amountText");
+      const payUrl = safeUrl(stringValue(values, "payUrl"));
+      const order = actionUrl ? { label: "See your order", url: actionUrl } : undefined;
+      return {
+        subject: `Your invoice from ${brand.studioName}`,
+        preheader: `${amount}${athlete ? ` for ${athlete}` : ""}${item ? ` · ${item}` : ""}. Pay online by card or bank.`,
+        eyebrow: "Invoice",
+        heading: "Your invoice is ready",
+        paragraphs: [
+          greeting,
+          `${brand.studioName} has sent your invoice${athlete ? ` for ${athlete}` : ""}${project}${item ? `: ${item}` : ""}${amount ? `, ${amount}` : ""}.`,
+          payUrl
+            ? "Pay online by card or bank transfer. It takes a minute, and your receipt follows by email."
+            : "Open your order to see what's owed and how to pay.",
+          "If anything looks wrong, reply and the studio will put it right.",
+        ],
+        action: payUrl ? { label: amount ? `Pay ${amount}` : "Pay online", url: payUrl } : order,
+        secondaryAction: payUrl ? order : undefined,
+      };
+    }
     case "studio_booking_confirmed":
       return {
         subject: `You're booked${project}`,
@@ -2956,6 +2984,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
   "event_reminder", "thank_you", "delivery", "delivery_correction", "album_selection_reminder",
   "delivery_expiry_reminder", "review_request", "manual_message", "client_message_received", "autopay_charged",
   "autopay_charge_failed", "participant_receipt", "group_event_invite", "group_signup_confirmation",
+  "group_participant_invoice",
 ]);
 
 /** Mail a crew member reads. */

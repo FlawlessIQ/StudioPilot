@@ -10,6 +10,7 @@ import {
   normalizeDocusignWebhook,
   normalizeQuickBooksWebhooks,
 } from "./webhook-normalizers.js";
+import { RECONCILE_PARTICIPANT_INVOICE_JOB } from "../group-events/participant-invoice-core.js";
 
 function verify(rawBody: Buffer, supplied: string | undefined, secret: string | undefined): boolean {
   if (!supplied || !secret) return false;
@@ -192,6 +193,16 @@ export const quickbooksWebhook = onRequest(
           .get()
         : null;
       const invoice = invoices?.docs[0];
+      // Not one of the job's invoices: perhaps a parent's at a group event,
+      // which lives on the parent's record (group-events/participant-invoices.ts).
+      const parentInvoices = event.entityName === "invoice" && !invoice
+        ? await firestore.collection("eventParticipants")
+          .where("tenantId", "==", tenantId)
+          .where("qbInvoice.providerInvoiceId", "==", event.entityId)
+          .limit(1)
+          .get()
+        : null;
+      const parentInvoice = parentInvoices?.docs[0];
       const jobReference = invoice
         ? firestore.doc(`providerJobs/quickbooks_reconcile_${createHash("sha256").update(event.providerEventId).digest("hex")}`)
         : null;
@@ -205,7 +216,7 @@ export const quickbooksWebhook = onRequest(
       await firestore.runTransaction(async (transaction) => {
         if ((await transaction.get(eventReference)).exists) return;
         const now = new Date().toISOString();
-        const status = (invoice && jobReference) || moneyJobReference ? "queued" : "ignored";
+        const status = (invoice && jobReference) || parentInvoice || moneyJobReference ? "queued" : "ignored";
         transaction.create(eventReference, {
           tenantId,
           provider: "quickbooks",
@@ -237,6 +248,28 @@ export const quickbooksWebhook = onRequest(
             webhookEventId: eventId,
             type: "reconcile_quickbooks_invoice",
             idempotencyKey: event.providerEventId,
+            status: "queued",
+            attempts: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (parentInvoice) {
+          const parentJob = firestore.doc(
+            `providerJobs/participant_reconcile_${createHash("sha256").update(`${event.providerEventId}:${parentInvoice.id}`).digest("hex")}`,
+          );
+          transaction.create(parentJob, {
+            id: parentJob.id,
+            tenantId,
+            projectId: parentInvoice.get("projectId") ?? null,
+            participantId: parentInvoice.id,
+            providerInvoiceId: event.entityId,
+            realmId: event.realmId,
+            operation: event.operation,
+            occurredAt: event.occurredAt,
+            webhookEventId: eventId,
+            type: RECONCILE_PARTICIPANT_INVOICE_JOB,
+            idempotencyKey: `${event.providerEventId}:${parentInvoice.id}`,
             status: "queued",
             attempts: 0,
             createdAt: now,
