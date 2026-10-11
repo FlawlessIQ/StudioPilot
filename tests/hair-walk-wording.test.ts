@@ -163,7 +163,51 @@ test("a vendor's client is asked for the open planning form by name and date", (
   // The portal route hands it the open form: not the inquiry page's, not one sent back.
   const route = read("app/api/client/portal/route.ts");
   assert.match(route, /document\.get\("source"\) !== "inquiry_page" &&\s*!document\.get\("archivedAt"\) &&\s*!\["withdrawn", "submitted", "locked"\]\.includes/);
-  assert.match(route, /inquiryForm,\s*planningForm,\s*trade: tenantSnapshot\.get\("trade"\)/);
+  assert.match(route, /inquiryForm,\s*planningForm,\s*planningFormIn,\s*trade: tenantSnapshot\.get\("trade"\)/);
+});
+
+test("a vendor's client who has sent the form back is thanked, on the hero and the journey", () => {
+  // Priya Shah sent her party list; her portal, still booked, said "Your
+  // studio is preparing the planning details you will need next" above
+  // "Party list (now) — Tell us who's getting ready" (prod, 2026-10-11).
+  const portal = (trade: string, extra: Record<string, unknown> = {}) =>
+    buildClientPortalExperience({
+      state: "BOOKED",
+      availability: { questionnaire: true },
+      checkpoints: [],
+      questionnaireStatus: "submitted",
+      planningForm: null,
+      planningFormIn: true,
+      trade,
+      ...extra,
+    });
+  const hair = portal("hair");
+  assert.equal(hair.nextClientAction.name, "Your details are with the studio");
+  assert.equal(
+    hair.nextClientAction.description,
+    "Thank you — your party list is in. Your studio will share the getting-ready schedule with you next.",
+  );
+  assert.equal(hair.nextClientAction.href, "/client/project");
+  const planning = (trade: string, extra: Record<string, unknown> = {}) =>
+    portal(trade, extra).milestones.find((milestone) => milestone.id === "planning");
+  assert.equal(planning("hair")?.description, "Thank you — your party list is in. Your morning's schedule is built from it.");
+  assert.equal(planning("dj")?.description, "Thank you — your music & moments planner is in. The night's plan is built from it.");
+  assert.equal(
+    portal("dj").nextClientAction.description,
+    "Thank you — your music & moments planner is in. Your studio will share the run of show & MC script with you next.",
+  );
+  // Only a planning form counts: an inquiry-page form sent back says nothing of a party list.
+  assert.equal(portal("hair", { planningFormIn: false }).nextClientAction.name, "Your date is booked");
+  assert.equal(planning("hair", { planningFormIn: false })?.description, "Tell us who's getting ready, and when. Your morning's schedule is built from it.");
+  // A photographer's portal is exactly as it was.
+  for (const state of ["BOOKED", "PLANNING"]) {
+    const photo = portal("photographer", { state });
+    const before = portal("photographer", { state, planningFormIn: false });
+    assert.deepEqual(photo.nextClientAction, before.nextClientAction, state);
+    assert.deepEqual(photo.milestones, before.milestones, state);
+  }
+  const route = read("app/api/client/portal/route.ts");
+  assert.match(route, /const planningFormIn =\s*!planningFormDoc &&/);
 });
 
 test("the quote's file chip on the job is called a quote", () => {

@@ -1032,6 +1032,15 @@ async function clientProject(tenantId: string, projectId: string) {
   const planningForm = planningFormDoc
     ? { dueDate: safeString(planningFormDoc.get("dueDate"))?.slice(0, 10) ?? null }
     : null;
+  // Sent back, with none still open: "your party list is in" (portal-experience.ts).
+  const planningFormIn =
+    !planningFormDoc &&
+    availabilitySnapshots[questionnaireIndex].docs.some(
+      (document) =>
+        document.get("source") !== "inquiry_page" &&
+        !document.get("archivedAt") &&
+        ["submitted", "locked"].includes(String(document.get("status"))),
+    );
   const proposalIndex = Object.keys(availabilityCollections).indexOf("proposal");
   // Only a version the couple has been given. A draft, one in review or
   // approved-but-unsent after a reissue or revise was taken as "current", and
@@ -1102,6 +1111,7 @@ async function clientProject(tenantId: string, projectId: string) {
     questionnaireStatus,
     inquiryForm,
     planningForm,
+    planningFormIn,
     trade: tenantSnapshot.get("trade"),
     consultation: projectProfile(projectSnapshot.data()).consultation,
     shotList: await (async () => {

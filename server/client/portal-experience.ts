@@ -368,6 +368,8 @@ export function buildClientMilestones(
     trade?: unknown;
     /** The job kind's profile says a consultation is offered (job-kinds.ts). */
     consultation?: boolean;
+    /** Their planning form is sent back and none is still open (`planningFormIn` below). */
+    planningFormIn?: boolean;
   } = {},
 ): ClientMilestone[] {
   const index = stateIndex(state);
@@ -440,10 +442,16 @@ export function buildClientMilestones(
       id: "planning",
       // A vendor's one form; the plan is drawn from it, nothing to approve.
       label: light && words.detailsForm ? words.detailsForm : "Planning",
+      // Once it is in, it says so: Priya Shah's portal still asked "Tell us
+      // who's getting ready" the evening she sent her party list (2026-10-11).
       description: light
-        ? tradeProfile(options.trade).perPersonPricing
-          ? "Tell us who's getting ready, and when. Your morning's schedule is built from it."
-          : "Your songs and the moments that matter. The night's plan is built from it."
+        ? options.planningFormIn && words.detailsForm
+          ? `Thank you — your ${words.detailsForm.toLowerCase()} is in. ${
+              tradeProfile(options.trade).perPersonPricing ? "Your morning's schedule" : "The night's plan"
+            } is built from it.`
+          : tradeProfile(options.trade).perPersonPricing
+            ? "Tell us who's getting ready, and when. Your morning's schedule is built from it."
+            : "Your songs and the moments that matter. The night's plan is built from it."
         : "Complete details and approve the event plan.",
       // READY (7) belongs to the event milestone, not to planning: two
       // milestones read "current" at once before this.
@@ -500,6 +508,7 @@ export function buildClientPortalExperience({
   currentSchedule = null,
   questionnaireStatus = null,
   planningForm = null,
+  planningFormIn = false,
   inquiryForm = null,
   trade = null,
   consultation,
@@ -551,6 +560,12 @@ export function buildClientPortalExperience({
    * form, and not yet sent back. `dueDate` is a plain YYYY-MM-DD.
    */
   planningForm?: { dueDate: string | null } | null;
+  /**
+   * A planning form (not the inquiry page's) they have sent back, with none
+   * still open. Unlike `questionnaireStatus`, never read from the inquiry
+   * page's form, so "your party list is in" is only ever said of one.
+   */
+  planningFormIn?: boolean;
   /** The event form from their inquiry page, when the job has one. */
   inquiryForm?: InquiryFormMilestone;
   /** The studio's trade (features/trades): its words, its call, whether it delivers. Omitted reads as a photographer. */
@@ -729,6 +744,23 @@ export function buildClientPortalExperience({
         actionLabel: "View project",
       } satisfies ClientNextAction;
     }
+    // A vendor's client who has sent the form back while the job still reads
+    // booked: thanked, never told the studio is preparing what they just
+    // sent (Priya Shah, Jess Styles Bridal, 2026-10-11). A photographer has
+    // no trade word for the form, so theirs reads as it always has.
+    if (state === "BOOKED" && formWord && planningFormIn) {
+      return {
+        name: "Your details are with the studio",
+        description: `Thank you — your ${formWord} is in. Your studio will share the ${lowerFirst(
+          tradeVocab(trade).planOfDay ?? "plan for the day",
+        )} with you next.`,
+        dueDate: null,
+        ownerType: "studio",
+        responsibility: "studio",
+        href: "/client/project",
+        actionLabel: "View project",
+      } satisfies ClientNextAction;
+    }
     // Booked, with the studio's planning form already shared: that is theirs
     // to do now. The checkpoint path said so, under the name "Questionnaire
     // complete", before the records answered it (ANSWERED_BY_RECORDS).
@@ -842,7 +874,7 @@ export function buildClientPortalExperience({
           actionLabel: "View payments",
         }
       : null;
-  const milestones = buildClientMilestones(state, { inquiryForm, trade, consultation });
+  const milestones = buildClientMilestones(state, { inquiryForm, trade, consultation, planningFormIn });
   const completedMilestones = milestones.filter(
     (milestone) => milestone.status === "complete",
   ).length;
