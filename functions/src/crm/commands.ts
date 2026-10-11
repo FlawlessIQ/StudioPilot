@@ -5300,6 +5300,8 @@ export const crmCommand = onRequest(
                 capacity: settings.capacity,
                 // Times to book on a mini-session day, or none.
                 slots: normaliseSlotPlan(settings.slots),
+                // The day-before reminder to everyone with a place.
+                reminders: settings.reminders,
               }
             : {};
           transaction.update(project.ref, {

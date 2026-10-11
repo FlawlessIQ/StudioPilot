@@ -131,8 +131,28 @@ sign-up.
   - Today shows "2 of 3 times booked" and, on the day, who's next.
   - The printed sign gives the session hours.
 
-Not built yet: a reminder email the day before with the family's time, and
-letting a family move their own time from their order page.
+**Day-before reminder (built 2026-10-11).** It goes to everyone with a place
+and an email, from 9 AM the day before, in the event's own time zone.
+
+- **What it says:**
+  - their time on a mini-session day ("Tomorrow at 9:20 AM: Fall Mini
+    Sessions") and where
+  - their confirmation number
+  - what they still owe, with a Venmo, pay-link or QuickBooks invoice button
+    when there is one, or "You're all paid"
+- **Where it runs:** inside the hourly event-reminder sweep
+  (functions/src/group-events/participant-reminders.ts), so there's no new
+  function and no invoker change. Each email's id,
+  `group_reminder_{participant}_{eventDate}`, is its idempotency key.
+- **When it goes:** only once the studio has set up sign-up, and the studio
+  can turn it off per event (`signup.reminders`, on by default).
+- **Held as it sends:** a cancelled place, a job put away or quieted, a moved
+  date, or the day having passed. A time the studio has moved is stated as it
+  is now.
+- **Treated as a client automation:** held for a quieted (imported) job and
+  while the studio's billing has lapsed.
+
+Not built yet: letting a family move their own time from their order page.
 
 ## What exists (Phase 1, live since 2026-10-04)
 

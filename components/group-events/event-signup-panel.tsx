@@ -460,6 +460,8 @@ function EventSignupSettingsForm({
     config.slots?.windows.length ? config.slots.windows : [{ start: "09:00", end: "12:00" }],
   );
   const [slotLength, setSlotLength] = useState(String(config.slots?.lengthMinutes ?? 20));
+  // The day-before email to everyone with a place (on by default).
+  const [reminders, setReminders] = useState(config.reminders);
   const [perSlot, setPerSlot] = useState(String(config.slots?.perSlot ?? 1));
   const slotPlan = slotsOn
     ? normaliseSlotPlan({ windows, lengthMinutes: Number(slotLength), perSlot: Number(perSlot) })
@@ -511,6 +513,7 @@ function EventSignupSettingsForm({
         closesAt: closes ? closes.toISOString() : null,
         capacity: capacityNumber,
         slots: slotsOn ? slotPlan : null,
+        reminders,
       });
       refreshTenantRecords("projects");
       onSaved();
@@ -738,6 +741,10 @@ function EventSignupSettingsForm({
         <label className="participant-roster-check">
           <input checked={isOpen} onChange={(event) => setIsOpen(event.target.checked)} type="checkbox" />
           Taking sign-ups
+        </label>
+        <label className="participant-roster-check">
+          <input checked={reminders} onChange={(event) => setReminders(event.target.checked)} type="checkbox" />
+          {`Email ${words.payers} a reminder the day before${slotsOn ? ", with their time" : ""}`}
         </label>
         <div className="record-sheet-fields">
           <label>

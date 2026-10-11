@@ -99,6 +99,8 @@ export type EventSignupConfig = {
   token: string | null;
   /** Times to book, for a mini-session day (null: no times, just sign up). */
   slots: SlotPlan | null;
+  /** Email everyone a reminder the day before (on unless the studio turns it off). */
+  reminders: boolean;
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -163,6 +165,7 @@ export function normaliseEventSignup(groupEvent: unknown): EventSignupConfig {
     capacity: Number.isSafeInteger(capacity) && capacity > 0 ? Math.min(capacity, EVENT_SIGNUP_LIMITS.maxCapacity) : null,
     token: text(signup.token, 80),
     slots: normaliseSlotPlan(signup.slots),
+    reminders: signup.reminders !== false,
   };
 }
 
@@ -232,6 +235,7 @@ export const eventSignupSettingsSchema = z.object({
     })
     .nullable()
     .default(null),
+  reminders: z.boolean().default(true),
 });
 export type EventSignupSettings = z.infer<typeof eventSignupSettingsSchema>;
 

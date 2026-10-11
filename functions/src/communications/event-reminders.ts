@@ -14,6 +14,7 @@ import {
   resolveEventZone,
   type CrewReminderPlan,
 } from "./event-reminders-core.js";
+import { remindParticipants } from "../group-events/participant-reminders.js";
 
 /**
  * The week-of note to the couple and the call-time reminder to each accepted
@@ -192,6 +193,10 @@ export async function sweepEventReminders(db: Firestore, now: Date): Promise<Rec
         const outcome = await remindCouple(db, project, zone, now);
         tally[outcome] = (tally[outcome] ?? 0) + 1;
         if (text(data.eventDate).slice(0, 10) <= crewUntil) await remindCrew(db, project, zone, now, tally);
+        // Each parent or family at a group event, the day before
+        // (group-events/participant-reminders.ts). Nothing is read for a job
+        // without a roster, or before its reminder day.
+        await remindParticipants(db, project, zone, now, tally);
       } catch (caught) {
         tally.failed = (tally.failed ?? 0) + 1;
         console.error(

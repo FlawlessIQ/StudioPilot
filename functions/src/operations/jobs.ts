@@ -91,6 +91,7 @@ import {
   reconcileQuickBooksParticipantInvoice,
   voidQuickBooksParticipantInvoice,
 } from "../group-events/participant-invoices.js";
+import { participantReminderPlanFor } from "../group-events/participant-reminders.js";
 import {
   CREATE_PARTICIPANT_INVOICE_JOB,
   RECONCILE_PARTICIPANT_INVOICE_JOB,
@@ -1006,6 +1007,15 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   if (type === "event_reminder" && document.get("eventDate")) {
     const hold = await eventReminderHoldFor(getFirestore(), document);
     if (hold) return { held: hold, type };
+  }
+  // A parent's or family's day-before note at a group event
+  // (group-events/participant-reminders-core.ts): held if their place was
+  // cancelled, the job put away or quieted, or the date moved — and it says
+  // the time they're booked for now, and what they owe now.
+  if (type === "group_event_reminder" && document.get("participantId")) {
+    const plan = await participantReminderPlanFor(getFirestore(), document);
+    if ("hold" in plan) return { held: plan.hold, type };
+    reminderValues = plan.values;
   }
   if (type === "crew_reminder" && document.get("callDate") && document.get("assignmentId")) {
     const plan = await crewReminderPlanFor(getFirestore(), document);

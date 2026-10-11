@@ -61,6 +61,7 @@ export const EDITABLE_EMAILS: readonly EditableEmail[] = [
   { key: "group_event_invite", group: "Payments", label: "Group event sign-up invite", when: "When you email parents the event's sign-up link" },
   { key: "group_signup_confirmation", group: "Payments", label: "Group event sign-up", when: "When a parent signs up — their confirmation and how to pay" },
   { key: "group_participant_invoice", group: "Payments", label: "Group event invoice", when: "When a parent's QuickBooks invoice is ready — its pay link" },
+  { key: "group_event_reminder", group: "Planning", label: "Group event reminder", when: "The day before a group event — their time, where, and what's owed" },
 
   { key: "questionnaire_request", group: "Planning", label: "Planning form", when: "When you send them a form" },
   { key: "questionnaire_reminder", group: "Planning", label: "Form reminder", when: "When a form is still waiting near its due date" },

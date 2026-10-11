@@ -178,6 +178,8 @@ export const emailTemplateKeys = [
   "group_signup_confirmation",
   // A parent's own QuickBooks invoice, with its pay link.
   "group_participant_invoice",
+  // The day before a group event: their time, where, and what's owed.
+  "group_event_reminder",
   // Studio-facing: inbox capture has gone quiet — the forwarding filter may
   // have broken, and inquiries may be sitting unanswered in the inbox.
   "studio_capture_silent",
@@ -2675,6 +2677,49 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: payUrl ? order : undefined,
       };
     }
+    case "group_event_reminder": {
+      // The day before a group event, to each parent or family with a place
+      // (group-events/participant-reminders.ts). Values are read again as it
+      // sends, so the time and what's owed are as they stand now.
+      const event = input.projectName?.trim() || "the event";
+      const athlete = stringValue(values, "athleteName");
+      const time = stringValue(values, "slotLabel");
+      const where = stringValue(values, "where");
+      const code = stringValue(values, "confirmationCode");
+      const amount = stringValue(values, "amountText");
+      const how = stringValue(values, "howToPay");
+      const paid = values.paid === true;
+      const payUrl = safeUrl(stringValue(values, "payUrl"));
+      const sessions = stringValue(values, "eventKind") === "portraits";
+      const order = actionUrl ? { label: "See your order", url: actionUrl } : undefined;
+      const at = where ? ` at ${where}` : "";
+      return {
+        subject: time ? `Tomorrow at ${time}: ${event}` : `Tomorrow: ${event}`,
+        preheader: `${time ? `${sessions ? "Your session" : "Your time"} is at ${time}${at}.` : `${brand.studioName} is at ${event} tomorrow${at}.`}${paid ? " You're all paid." : amount ? ` ${amount} still to pay.` : ""}`,
+        eyebrow: "Tomorrow",
+        heading: time ? `See you at ${time} tomorrow` : "See you tomorrow",
+        paragraphs: [
+          greeting,
+          time
+            ? sessions
+              ? `Your session${athlete ? ` for ${athlete}` : ""} is tomorrow at ${time}${at}. Please arrive a few minutes early.`
+              : `${athlete ? `${athlete}'s` : "Your"} time at ${event} is tomorrow at ${time}${at}. Please arrive a few minutes early.`
+            : `${brand.studioName} is at ${event} tomorrow${at}${athlete ? `, ready for ${athlete}` : ""}.`,
+          code ? `Show your confirmation number, ${code}, when you get there.` : "",
+          paid ? "You're all paid. Thank you." : amount ? `Still to pay: ${amount}. ${how}`.trim() : how,
+          "If you can't make it, reply and the studio will help.",
+        ].filter(Boolean),
+        details: [
+          { label: "Confirmation", value: code },
+          ...(time ? [{ label: "Time", value: time }] : []),
+          ...(where ? [{ label: "Where", value: where }] : []),
+          ...(amount && !paid ? [{ label: "To pay", value: amount }] : []),
+        ],
+        // Pay now when there's a way to; their order page always.
+        action: !paid && payUrl ? { label: amount ? `Pay ${amount}` : "Pay online", url: payUrl } : order,
+        secondaryAction: !paid && payUrl ? order : undefined,
+      };
+    }
     case "group_participant_invoice": {
       // A parent's own QuickBooks invoice at a group event
       // (group-events/participant-invoices.ts): its pay link leads, their
@@ -2995,7 +3040,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
   "event_reminder", "thank_you", "delivery", "delivery_correction", "album_selection_reminder",
   "delivery_expiry_reminder", "review_request", "manual_message", "client_message_received", "autopay_charged",
   "autopay_charge_failed", "participant_receipt", "group_event_invite", "group_signup_confirmation",
-  "group_participant_invoice",
+  "group_participant_invoice", "group_event_reminder",
 ]);
 
 /** Mail a crew member reads. */
