@@ -49,6 +49,25 @@ export function CapabilityNote({
     );
   }
   if (!readiness) return null;
+  /**
+   * No QuickBooks is not a gap any more: StudioCue drafts the studio's own
+   * invoices, says how to pay on them, and books the job when the payment is
+   * recorded (own invoicing). "Nothing is connected… Connect QuickBooks" in
+   * warning colours undersold it on the quote page (prod hair walk,
+   * 2026-10-10). QuickBooks stays one link away, as a choice.
+   */
+  if (capability === "invoicing" && readiness.state === "none_connected") {
+    return (
+      <p className={`capability-note is-ready${className ? ` ${className}` : ""}`} role="note">
+        <ShieldCheck aria-hidden="true" size={14} />
+        <span>
+          {"StudioCue drafts each invoice for you to send, with how to pay, and you record the payment on the booking. "}
+          <Link href="/studio/integrations">Connect QuickBooks</Link>
+          {" to bill through it instead."}
+        </span>
+      </p>
+    );
+  }
   const Icon = readiness.ok
     ? ShieldCheck
     : readiness.state === "none_connected"

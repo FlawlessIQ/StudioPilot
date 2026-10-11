@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { refreshTenantRecords } from "@/components/live/tenant-records";
+import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { JobBillingChoice } from "@/components/booking/job-billing-choice";
 import { useJobBilling } from "@/components/booking/use-job-billing";
 import { createPortal } from "react-dom";
@@ -13,6 +13,7 @@ import { sectionDocument } from "@/features/contracts/combined";
 import { STUDIO_SIGNING_STATEMENT } from "@/features/contracts/esign-consent";
 import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { normaliseStudioInvoiceSettings, studioInvoicePaymentReady } from "@/features/billing/studio-invoice-settings";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
@@ -61,6 +62,15 @@ export function CombinedAgreementSend({
   // (features/billing/job-billing.ts): asked here, before it goes, when the
   // studio has QuickBooks and hasn't chosen for this job.
   const billing = useJobBilling(projectId);
+  // Whether the studio has said how clients pay: asked for only when it
+  // hasn't. A studio with Zelle saved in setup was still told to add its
+  // payment details (prod hair walk, 2026-10-10).
+  const { records: billingRecords } = useTenantDocuments("billingSettings");
+  const paymentDetailsMissing =
+    billingRecords !== null &&
+    !studioInvoicePaymentReady(
+      normaliseStudioInvoiceSettings(billingRecords.find((record) => record.tenantId === workspace.tenantId) ?? null),
+    );
 
   if (!native.combined || !canSign) return null;
 
@@ -257,7 +267,7 @@ export function CombinedAgreementSend({
           // studio's to send (own invoicing), not paid on the next screen.
           <p className="native-contract-note" role="note">
             {`Once ${preview.clientName || "the client"} signs, StudioCue drafts the deposit invoice for you to send — it waits on Today and the job's Booking tab. `}
-            {billing?.canChoose ? null : (
+            {billing?.canChoose || !paymentDetailsMissing ? null : (
               <>
                 <Link href="/studio/settings/invoices">Add your payment details</Link>
                 {" so it says how to pay."}

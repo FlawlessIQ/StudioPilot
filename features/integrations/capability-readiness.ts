@@ -100,7 +100,7 @@ const CAPABILITY_WITHOUT_PROVIDER: Record<IntegrationCapability, string> = {
   signing:
     "You send the agreement yourself and record the signature on the booking.",
   invoicing:
-    "Raise your own invoice and record the payment on the booking — StudioCue books the job either way.",
+    "StudioCue drafts each invoice for you to send, with how to pay, and you record the payment on the booking.",
   calendar: "Events stay in your own calendar and StudioCue will not add them.",
   meetings: "You will need to paste your own meeting link.",
   storage: "Files stay wherever you put them and StudioCue will not deliver them.",
