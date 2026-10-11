@@ -34,6 +34,7 @@ import { proposalTermsFor } from "../proposals/default-terms.js";
 import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
 import { isCataloguePackage } from "../packages/one-off.js";
+import { statedCoverageMinutes } from "../packages/job-package-facts.js";
 import { proposalPdfAdjustments, proposalPdfPaymentAmount, proposalPdfSalesTax } from "../proposals/pdf-adjustments.js";
 import { TRADE_LABELS, tradeProfile, tradeVocab } from "../trades/trades.js";
 
@@ -273,7 +274,7 @@ async function runConsultationAnalysis(job:DocumentSnapshot){
     description:document.get("description"),
     basePriceCents:document.get("basePriceCents"),
     currency:document.get("currency"),
-    includedCoverageMinutes:document.get("includedCoverageMinutes"),
+    includedCoverageMinutes:statedCoverageMinutes(document.get("includedCoverageMinutes")),
     includedPhotographers:document.get("includedPhotographers"),
     coverage:describeCoverage(resolveCoverage(document.data())),
     includedDeliverables:document.get("includedDeliverables"),

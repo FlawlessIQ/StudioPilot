@@ -23,6 +23,7 @@ import {
   jobPackageFacts,
   loadAcceptedProposal,
   loadJobPackageSnapshots,
+  statedCoverageMinutes,
 } from "../packages/job-package-facts.js";
 import {
   describeCoverage,
@@ -646,7 +647,7 @@ export const aiMessageDraftCommand = onRequest(
           .map((item) => ({
             name: item.get("name"),
             basePriceCents: item.get("basePriceCents"),
-            includedCoverageMinutes: item.get("includedCoverageMinutes"),
+            includedCoverageMinutes: statedCoverageMinutes(item.get("includedCoverageMinutes")),
             includedPhotographers: item.get("includedPhotographers"),
             coverage: describeCoverage(resolveCoverage(item.data())),
           }));

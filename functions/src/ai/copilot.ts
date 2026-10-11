@@ -35,6 +35,7 @@ import {
   jobPackageFacts,
   loadAcceptedProposal,
   loadJobPackageSnapshots,
+  statedCoverageMinutes,
 } from "../packages/job-package-facts.js";
 import { deriveFlowRole, deriveFlowSubject } from "./flow-derive.js";
 import {
@@ -672,7 +673,7 @@ async function rawSelectedPackage(tenantId: string, projectId: string) {
       totalCents: primary.get("totalCents") ?? null,
       retainerCents: primary.get("retainerCents") ?? null,
       includedCoverage: primary.get("includedCoverage") ?? null,
-      includedCoverageMinutes: primary.get("includedCoverageMinutes") ?? null,
+      includedCoverageMinutes: statedCoverageMinutes(primary.get("includedCoverageMinutes")),
       includedDeliverables: primary.get("includedDeliverables") ?? null,
       terms: primary.get("terms") ?? null,
       selectionDate: primary.get("selectionDate") ?? null,
@@ -2482,7 +2483,7 @@ export const aiCopilotCommand = onRequest(
           packages: jobSnapshots.map(({ data }) => ({
             packageName: data.packageName,
             description: data.description,
-            includedCoverageMinutes: data.includedCoverageMinutes,
+            includedCoverageMinutes: statedCoverageMinutes(data.includedCoverageMinutes),
             includedPhotographers: data.includedPhotographers,
             // Written out, so a draft never calls a videographer a photographer.
             coverage: describeCoverage(resolveCoverage(data)),

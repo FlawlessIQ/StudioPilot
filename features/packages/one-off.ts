@@ -26,8 +26,8 @@
  *     shares; else none.
  *   - terms: replacing keeps the replaced package's written terms; otherwise
  *     the default proposal wording.
- *   - coverage: one photographer and the main package's hours (else 8) when
- *     the studio leaves them blank.
+ *   - coverage: one photographer and the main package's hours (else 8; none
+ *     when the main package states none) when the studio leaves them blank.
  *
  * functions/src/packages/one-off.ts mirrors everything below the marker;
  * tests/one-off-package.test.ts compares the two.
@@ -200,9 +200,14 @@ export function oneOffCoverage(
   return people.length ? normaliseCoverage(people) : [{ role: defaultRole, count: 1 }];
 }
 
-/** How long: what the studio said, else the main package's hours, else a wedding day. */
+/**
+ * How long: what the studio said, else the main package's hours, else a
+ * wedding day. A main package that states none (0: an imported vendor price
+ * list) gives none, not eight hours nobody stated.
+ */
 export function oneOffCoverageMinutes(given: number | undefined | null, mainMinutes: unknown): number {
   if (typeof given === "number" && Number.isInteger(given) && given > 0) return given;
+  if (mainMinutes === 0) return 0;
   const main = Number(mainMinutes);
   return Number.isInteger(main) && main > 0 ? main : ONE_OFF_FALLBACK_COVERAGE_MINUTES;
 }

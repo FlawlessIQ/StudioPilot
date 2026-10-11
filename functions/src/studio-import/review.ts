@@ -14,6 +14,7 @@ import {
   type StudioAssetType,
 } from "./extraction.js";
 import { productEvent } from "../operations/product-events.js";
+import { normalizeUnitLabel } from "../packages/unit-label.js";
 import { tenantTrade } from "../trades/tenant-trade.js";
 import { questionnaireEventType } from "./event-type-guess.js";
 import {
@@ -724,6 +725,20 @@ function importedAddOnDocument(
   };
 }
 
+/** A library add-on as a package keeps its copy (libraryAddOns, crm/commands.ts). */
+function libraryAddOnCopy(document: DocumentSnapshot): ImportedAddOn {
+  return {
+    id: document.id,
+    name: String(document.get("name") ?? ""),
+    description: String(document.get("description") ?? ""),
+    unitPriceCents: Number(document.get("unitPriceCents") ?? 0),
+    taxable: document.get("taxable") !== false,
+    allowQuantity: document.get("allowQuantity") === true,
+    unitLabel: normalizeUnitLabel(document.get("unitLabel")),
+    active: true,
+  };
+}
+
 export async function activateStudioImport(input: {
   tenantId: string;
   sessionId: string;
@@ -759,8 +774,39 @@ export async function activateStudioImport(input: {
     );
     if (activatedVersions.length) {
       const now = new Date().toISOString();
+      const studioPackages = new Map(
+        activatedVersions.flatMap((version, index) =>
+          version.get("assetType") === "package"
+            ? [
+                [
+                  version.id,
+                  importedStudioPackage({
+                    name: string(version.get("name")) || "Imported package",
+                    structuredContent: version.get("structuredContent"),
+                    displayOrder: index,
+                    trade,
+                    sourceText: draftSourceText(version, items),
+                    addOnIdPrefix: `imported_addon_${string(version.get("assetId"))}`,
+                  }),
+                ] as const,
+              ]
+            : [],
+        ),
+      );
+      // An extra this import already put in the library is the studio's
+      // from then on. A repair never rewrites one it has edited, and never
+      // brings back one it archived.
+      const addOnReferences = [...studioPackages.values()].flatMap(
+        (studioPackage) =>
+          studioPackage.addOns.map((addOn) => db.doc(`addOns/${addOn.id}`)),
+      );
+      const libraryAddOns = new Map(
+        (addOnReferences.length ? await db.getAll(...addOnReferences) : []).map(
+          (document) => [document.id, document] as const,
+        ),
+      );
       const batch = db.batch();
-      activatedVersions.forEach((version, index) => {
+      activatedVersions.forEach((version) => {
         const assetId = string(version.get("assetId"));
         const assetType = string(version.get("assetType"));
         const shared = {
@@ -774,26 +820,28 @@ export async function activateStudioImport(input: {
           updatedBy: input.actorId,
           archivedAt: null,
         };
-        if (assetType === "package") {
+        const studioPackage = studioPackages.get(version.id);
+        if (assetType === "package" && studioPackage) {
           const packageId = `imported_package_${assetId}`;
-          const studioPackage = importedStudioPackage({
-            name: string(version.get("name")) || "Imported package",
-            structuredContent: version.get("structuredContent"),
-            displayOrder: index,
-            trade,
-            sourceText: draftSourceText(version, items),
-            addOnIdPrefix: `imported_addon_${assetId}`,
-          });
           batch.set(
             db.doc(`packages/${packageId}`),
             {
               id: packageId,
               ...shared,
               ...studioPackage,
+              addOns: studioPackage.addOns.flatMap((addOn) => {
+                const library = libraryAddOns.get(addOn.id);
+                if (!library?.exists) return [addOn];
+                return library.get("tenantId") === input.tenantId &&
+                  !library.get("archivedAt")
+                  ? [libraryAddOnCopy(library)]
+                  : [];
+              }),
             },
             { merge: true },
           );
           for (const addOn of studioPackage.addOns) {
+            if (libraryAddOns.get(addOn.id)?.exists) continue;
             batch.set(
               db.doc(`addOns/${addOn.id}`),
               importedAddOnDocument(addOn, shared),

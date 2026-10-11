@@ -172,9 +172,14 @@ export function oneOffCoverage(
   return people.length ? normaliseCoverage(people) : [{ role: defaultRole, count: 1 }];
 }
 
-/** How long: what the studio said, else the main package's hours, else a wedding day. */
+/**
+ * How long: what the studio said, else the main package's hours, else a
+ * wedding day. A main package that states none (0: an imported vendor price
+ * list) gives none, not eight hours nobody stated.
+ */
 export function oneOffCoverageMinutes(given: number | undefined | null, mainMinutes: unknown): number {
   if (typeof given === "number" && Number.isInteger(given) && given > 0) return given;
+  if (mainMinutes === 0) return 0;
   const main = Number(mainMinutes);
   return Number.isInteger(main) && main > 0 ? main : ONE_OFF_FALLBACK_COVERAGE_MINUTES;
 }

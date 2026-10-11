@@ -87,38 +87,64 @@ const fixedRule = (dollars: number): ImportedRetainerRule => ({
   amountCents: Math.round(dollars * 100),
 });
 
-const DEPOSIT_WORD = String.raw`(?:non-?refundable\s+)?(?:deposit|retainer|booking\s+fee)`;
+/**
+ * Spaces and tabs, never a line break. A deposit statement is one line:
+ * "Full day $3,000" over "Retainer required to book." is a price and then a
+ * sentence, and reading across the break made the whole price the deposit.
+ */
+const SP = String.raw`[^\S\r\n]`;
+const DEPOSIT_WORD = String.raw`(?:non-?refundable${SP}+)?(?:deposit|retainer|booking${SP}+fee)`;
 // "No deposit — $375 on the day" states no deposit at all.
-const DEPOSIT_LEAD = String.raw`(?<!\bno\s+)\b${DEPOSIT_WORD}\s*(?:of|is|:|[–—-])?\s*`;
-const PERCENT = String.raw`(\d{1,3}(?:\.\d+)?)\s?(?:%|percent\b)`;
-const DOLLARS = String.raw`\$\s?(\d[\d,]*(?:\.\d{1,2})?)`;
+const DEPOSIT_LEAD = String.raw`(?<!\bno${SP}+)\b${DEPOSIT_WORD}${SP}*(?:of|is|:|[–—-])?${SP}*`;
+const PERCENT = String.raw`(\d{1,3}(?:\.\d+)?)${SP}?(?:%|percent\b)`;
+const DOLLARS = String.raw`\$${SP}?(\d[\d,]*(?:\.\d{1,2})?)`;
 const DEPOSIT_STATEMENTS: ReadonlyArray<[RegExp, "percent" | "fixed"]> = [
-  [new RegExp(String.raw`${PERCENT}\s+${DEPOSIT_WORD}\b`, "gi"), "percent"],
+  [new RegExp(String.raw`${PERCENT}${SP}+${DEPOSIT_WORD}\b`, "gi"), "percent"],
   [new RegExp(`${DEPOSIT_LEAD}${PERCENT}`, "gi"), "percent"],
-  [new RegExp(String.raw`${DOLLARS}\s+${DEPOSIT_WORD}\b`, "gi"), "fixed"],
+  [new RegExp(String.raw`${DOLLARS}${SP}+${DEPOSIT_WORD}\b`, "gi"), "fixed"],
   [new RegExp(`${DEPOSIT_LEAD}${DOLLARS}`, "gi"), "fixed"],
 ];
+
+/** The one rule a set of readings agrees on; none, or two, is null. */
+function agreed(
+  rules: ReadonlyArray<ImportedRetainerRule | null>,
+): ImportedRetainerRule | null {
+  const found = new Map<string, ImportedRetainerRule>();
+  for (const rule of rules) if (rule) found.set(JSON.stringify(rule), rule);
+  return found.size === 1 ? ([...found.values()][0] ?? null) : null;
+}
 
 /**
  * The deposit a price list states in words: "A 30% deposit holds the date",
  * "$500 non-refundable retainer", "Booking fee: $100". Null when it states
  * none, or states two that disagree — then nothing is guessed.
  *
+ * Each text is read on its own and each statement within one line, so a
+ * price at the end of one field or line is never read as the deposit the
+ * next one names.
+ *
  * The import read only structured retainer fields, so Jess Styles Bridal's
  * "A 30% deposit holds the date." became a $0 deposit (2026-10-10).
  */
-export function statedDeposit(source: string): ImportedRetainerRule | null {
-  const found = new Map<string, ImportedRetainerRule>();
-  for (const [pattern, kind] of DEPOSIT_STATEMENTS) {
-    for (const match of source.matchAll(pattern)) {
-      const value = Number((match[1] ?? "").replace(/,/g, ""));
-      if (!Number.isFinite(value) || value <= 0) continue;
-      if (kind === "percent" && value > 100) continue;
-      const rule = kind === "percent" ? percentRule(value) : fixedRule(value);
-      found.set(JSON.stringify(rule), rule);
+export function statedDeposit(
+  ...sources: readonly string[]
+): ImportedRetainerRule | null {
+  return agreed(depositReadings(sources));
+}
+
+function depositReadings(sources: readonly string[]): ImportedRetainerRule[] {
+  const found: ImportedRetainerRule[] = [];
+  for (const source of sources) {
+    for (const [pattern, kind] of DEPOSIT_STATEMENTS) {
+      for (const match of source.matchAll(pattern)) {
+        const value = Number((match[1] ?? "").replace(/,/g, ""));
+        if (!Number.isFinite(value) || value <= 0) continue;
+        if (kind === "percent" && value > 100) continue;
+        found.push(kind === "percent" ? percentRule(value) : fixedRule(value));
+      }
     }
   }
-  return found.size === 1 ? ([...found.values()][0] ?? null) : null;
+  return found;
 }
 
 /** Every string in a draft, however deep the AI nested it. */
@@ -131,34 +157,68 @@ function strings(value: unknown, depth = 0): string[] {
 }
 
 /**
- * The deposit: a structured field when the draft has one, as it always was;
- * else what the draft's own words state; else what the source the studio
- * gave states; else none.
+ * A deposit field as the AI wrote it: 500, "$500", "30%". Words around a
+ * figure ("30% due at booking, the rest 14 days before") are read for the
+ * figure the field names, never as one number run together.
+ */
+function depositField(value: unknown): ImportedRetainerRule | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 ? fixedRule(value) : null;
+  }
+  if (typeof value !== "string") return null;
+  // "30%" in a deposit field is 30 percent, never $30.
+  const percent = Number(value.match(new RegExp(PERCENT, "i"))?.[1]);
+  if (percent > 0 && percent <= 100) return percentRule(percent);
+  const dollars = value.match(new RegExp(DOLLARS))?.[1];
+  if (dollars) return fixedRule(Number(dollars.replace(/,/g, "")));
+  return /^\s*\d[\d,]*(?:\.\d{1,2})?\s*$/.test(value)
+    ? fixedRule(Number(value.replace(/[\s,]/g, "")))
+    : null;
+}
+
+/**
+ * The deposit.
+ *
+ * A photographer's import reads its structured retainer fields exactly as it
+ * always has, and nothing else.
+ *
+ * A vendor's reads a structured field when the draft has one; else a
+ * deposit line in its price list ("Deposit — 30%"); else what the draft's
+ * own words state; else what the source the studio gave states; else none.
+ * Jess Styles Bridal's "A 30% deposit holds the date." became a $0 deposit
+ * because only the fields were read (2026-10-10).
  */
 function importedRetainerRule(
   content: Json,
-  sourceText: string,
+  vendor: { sourceText: string; listed: readonly PriceListItem[] } | null,
 ): ImportedRetainerRule {
+  if (!vendor) {
+    const retainerAmount = money(
+      content.retainer ?? content.retainerAmount ?? content.bookingFee,
+    );
+    const retainerPercent = money(content.retainerPercent);
+    return retainerPercent !== null
+      ? percentRule(retainerPercent)
+      : fixedRule(retainerAmount ?? 0);
+  }
   const percent = money(content.retainerPercent ?? content.depositPercent);
   if (percent !== null) return percentRule(percent);
-  const stated = [
+  const field = [
     content.retainer,
     content.retainerAmount,
     content.bookingFee,
     content.deposit,
     content.depositAmount,
-  ].find((value) => value !== undefined && value !== null && value !== "");
-  const amount =
-    typeof stated === "string" && !/\d/.test(stated) ? null : money(stated);
-  if (amount !== null) {
-    // "30%" in a retainer field is a percentage, not $30.
-    return typeof stated === "string" && /%|percent/i.test(stated)
-      ? percentRule(amount)
-      : fixedRule(amount);
-  }
+  ]
+    .map(depositField)
+    .find((rule) => rule !== null);
+  if (field) return field;
   return (
-    statedDeposit(strings(content).join("\n")) ??
-    statedDeposit(sourceText) ??
+    agreed([
+      ...vendor.listed.map((item) => item.deposit),
+      ...depositReadings(strings(content)),
+    ]) ??
+    statedDeposit(vendor.sourceText) ??
     fixedRule(0)
   );
 }
@@ -176,13 +236,24 @@ type PriceListItem = {
   byQuantity: boolean;
   /** A deposit, balance or total line: terms, never something to sell. */
   terms: boolean;
+  /** What a deposit line states: "Deposit — 30%", "Retainer $100". */
+  deposit: ImportedRetainerRule | null;
 };
 
 const PRICE_TOKEN =
   /(?:USD\s*)?\$\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{2})?)\s?USD/i;
 const UNIT_PHRASE =
-  /\(?\s*(?:\bper\s+|\/\s*)(person|people|guest|head|child|children|kid|hour|hr)s?\b\s*\)?/i;
+  /\(?\s*(?:\bper\s+|\/\s*)(person|people|guest|head|child|children|kid|hour|hr|mile|mi)s?\b\s*\)?/i;
 const PER_PERSON_SHORT = /\bpp\b/i;
+/**
+ * "$20/table": a unit the list names right after a price, though not one
+ * above. It is still what the price is per, and left in the name the couple
+ * would read "Travel over 30 miles /mile" (Jess import review, 2026-10-10).
+ */
+const PRICE_PER_UNIT = new RegExp(
+  String.raw`(?:${PRICE_TOKEN.source})\s*\/\s*([a-z]{2,20})\b`,
+  "i",
+);
 // "Deposit $100", "Balance due on the day", "Total: $815" — not "Total glam".
 const TERMS_LINE =
   /\b(?:deposit|retainer|booking\s+fee)\b|^\s*(?:(?:remaining\s+)?balance|(?:sub)?total|(?:sales\s+)?tax)\s*(?:due\b|:|$|[–—-]|\$)/i;
@@ -192,7 +263,9 @@ const unitFor = (word: string): string =>
     ? "child"
     : /^(?:hour|hr)/i.test(word)
       ? "hour"
-      : "person";
+      : /^mi/i.test(word)
+        ? "mile"
+        : "person";
 
 const dollarsToCents = (dollars: number | null): number | null =>
   dollars !== null && Number.isFinite(dollars) && dollars >= 0
@@ -207,11 +280,8 @@ const tokenCents = (value: string): number | null => {
     : null;
 };
 
-function itemCents(
-  entry: Json,
-  label: string,
-  described: string,
-): number | null {
+/** The price an item's own fields give; undefined when it has none. */
+function fieldCents(entry: Json): number | null | undefined {
   const cents = [entry.amountCents, entry.priceCents, entry.unitPriceCents].find(
     (value) =>
       typeof value === "number" ||
@@ -226,7 +296,51 @@ function itemCents(
   if (typeof amount === "string" && /\d/.test(amount)) {
     return tokenCents(amount) ?? dollarsToCents(money(amount));
   }
+  return undefined;
+}
+
+function itemCents(
+  entry: Json,
+  label: string,
+  described: string,
+): number | null {
+  const own = fieldCents(entry);
+  if (own !== undefined) return own;
   return tokenCents(label) ?? (described ? tokenCents(described) : null);
+}
+
+/**
+ * A line that is the deposit: "Deposit", "Deposit holds the date", "A 30%
+ * deposit", "Non-refundable retainer". Not a service that mentions one —
+ * "Bridal hair, deposit required" at $375 is the service's price.
+ */
+const DEPOSIT_LINE = new RegExp(
+  String.raw`^\W*(?:(?:a|the|your)${SP}+)?(?:${PERCENT}${SP}*|${DOLLARS}${SP}*)?${DEPOSIT_WORD}\b`,
+  "i",
+);
+
+/**
+ * The deposit a deposit line in the price list states. The AI often lists
+ * it as one more item — {description: "Deposit holds the date", amount:
+ * "30%"} — and it is the deposit, not a price. Only the line's own amount
+ * or its own words are read, never another price in it: "Deposit applied
+ * to the $375 total" states no deposit.
+ */
+function lineDeposit(
+  entry: Json,
+  label: string,
+  amountText: string,
+): ImportedRetainerRule | null {
+  if (!DEPOSIT_LINE.test(label)) return null;
+  const percent = Number(
+    `${label} ${amountText}`.match(new RegExp(PERCENT, "i"))?.[1],
+  );
+  if (percent > 0 && percent <= 100) return percentRule(percent);
+  const cents = fieldCents(entry);
+  if (typeof cents === "number" && cents > 0) {
+    return { type: "fixed", amountCents: cents };
+  }
+  return statedDeposit(label);
 }
 
 const tidy = (value: string): string => {
@@ -261,14 +375,17 @@ function priceListItems(value: unknown): PriceListItem[] {
       label,
     ].join(" ");
     const unitWord = unitSource.match(UNIT_PHRASE)?.[1];
+    // PRICE_TOKEN's two groups come first.
+    const slashUnit = unitSource.match(PRICE_PER_UNIT)?.[3]?.toLowerCase();
     const unit = unitWord
       ? unitFor(unitWord)
       : PER_PERSON_SHORT.test(unitSource)
         ? "person"
-        : null;
+        : (slashUnit ?? null);
     const name =
       tidy(
         label
+          .replace(new RegExp(PRICE_PER_UNIT.source, "gi"), " ")
           .replace(new RegExp(PRICE_TOKEN.source, "gi"), " ")
           .replace(new RegExp(UNIT_PHRASE.source, "gi"), " ")
           .replace(/\bpp\b/gi, " ")
@@ -288,6 +405,7 @@ function priceListItems(value: unknown): PriceListItem[] {
           /^each$/i.test(unitField) ||
           /\beach\b/i.test(`${amountText} ${label}`),
         terms: TERMS_LINE.test(label) || statedDeposit(label) !== null,
+        deposit: lineDeposit(entry, label, amountText),
       },
     ];
   });
@@ -311,6 +429,12 @@ export type ImportedAddOn = {
   unitLabel: string | null;
   active: boolean;
 };
+
+/** updatePackage's limit on a package's suggested extras (crm/commands.ts). */
+const MAX_IMPORTED_ADD_ONS = 20;
+
+/** The words that make "6 guests per stylist" a ratio, not a crew of six. */
+const RATIO_WORD = /\b(?:per|each|every|a|an)\b/i;
 
 // "48 hours notice" is not a service length.
 const VENDOR_HOURS =
@@ -381,7 +505,16 @@ export function importedStudioPackage(input: {
     statedPriceCents === null
       ? 0
       : priced.findIndex((item) => item.cents === statedPriceCents);
-  const base = priced.length >= 2 && baseIndex >= 0 ? priced[baseIndex] : null;
+  // A package suggests at most 20 extras (updatePackage's addOnIds), or the
+  // studio could not save it again. A longer list is a menu of services, not
+  // one service and its extras: it reads as one package, as it always did,
+  // and no line is lost.
+  const base =
+    priced.length >= 2 &&
+    priced.length - 1 <= MAX_IMPORTED_ADD_ONS &&
+    baseIndex >= 0
+      ? priced[baseIndex]
+      : null;
   const inclusions = base
     ? [
         base,
@@ -429,7 +562,9 @@ export function importedStudioPackage(input: {
       ? (base.cents ?? 0)
       : statedPriceCents !== null
         ? statedPriceCents
-        : firstItemPriceCents,
+        : // A vendor's list of more lines than a package keeps as extras is
+          // priced from its first priced line, written however the AI wrote it.
+          (priced[0]?.cents ?? firstItemPriceCents),
   );
   const coverage = source.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)/i);
   /**
@@ -444,7 +579,7 @@ export function importedStudioPackage(input: {
    */
   const roles = tradeRoles(trade);
   const crewPattern = new RegExp(
-    String.raw`\b(\d+|one|two|three|four|five|six)\s+(?:[a-z]+\s+){0,2}(${roles
+    String.raw`\b(\d+|one|two|three|four|five|six)\s+((?:[a-z]+\s+){0,2})(${roles
       .map((role) => ROLE_WORDS[role])
       .join("|")})\b`,
     "gi",
@@ -454,7 +589,10 @@ export function importedStudioPackage(input: {
     const value = (match[1] ?? "").toLowerCase();
     const count = Number(value) || wordsToNumber[value] || 0;
     if (count < 1) continue;
-    const word = match[2] ?? "";
+    // "Up to 6 guests per stylist", "8 faces per artist": a ratio, not a
+    // crew of six. It read as six stylists, on the quote and in the offers.
+    if (vendor && RATIO_WORD.test(match[2] ?? "")) continue;
+    const word = match[3] ?? "";
     const role =
       roles.find((candidate) =>
         new RegExp(`^(?:${ROLE_WORDS[candidate]})$`, "i").test(word),
@@ -486,10 +624,20 @@ export function importedStudioPackage(input: {
   const currency = /^[A-Z]{3}$/.test(extractedCurrency)
     ? extractedCurrency
     : "USD";
-  const description =
+  const written =
     packageDescription ||
-    (base ? inclusions.join(". ") : details.join(". ")).slice(0, 3000) ||
-    `${input.name} imported from an approved studio source.`;
+    (base ? inclusions.join(". ") : details.join(". ")).slice(0, 3000);
+  const fallback = `${input.name} imported from an approved studio source.`;
+  // A package's description is ten characters or more (createPackage, the
+  // package schema). A vendor's base line can be shorter — "Updo" — so it is
+  // named for the package: "Bridal hair: Updo".
+  const named =
+    written && written.toLowerCase() !== input.name.trim().toLowerCase()
+      ? `${input.name}: ${written}`
+      : "";
+  const description = vendor
+    ? ([written, named].find((candidate) => candidate.length >= 10) ?? fallback)
+    : written || fallback;
 
   return {
     name: input.name,
@@ -498,7 +646,10 @@ export function importedStudioPackage(input: {
     eventTypeLabel: text(content.eventTypeLabel) || "Wedding",
     basePriceCents,
     currency,
-    retainerRule: importedRetainerRule(content, text(input.sourceText)),
+    retainerRule: importedRetainerRule(
+      content,
+      vendor ? { sourceText: text(input.sourceText), listed } : null,
+    ),
     includedCoverageMinutes,
     includedCoverage,
     includedPhotographers,

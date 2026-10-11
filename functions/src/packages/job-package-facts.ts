@@ -50,6 +50,17 @@ const cents = (value: unknown): number | null => {
   return Number.isSafeInteger(number) && number >= 0 ? number : null;
 };
 
+/**
+ * A package's hours as the AI is given them: null when it states none.
+ * Zero means none stated (an imported vendor price list, see
+ * studio-import/native-assets.ts), and handed to a model raw it can become
+ * "0 hours" in a message to the couple.
+ */
+export function statedCoverageMinutes(value: unknown): number | null {
+  const minutes = Number(value);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
 export function jobPackageFacts(input: {
   snapshots: readonly { id: string; data: Row }[];
   acceptedProposal?: Row | null;
@@ -60,14 +71,16 @@ export function jobPackageFacts(input: {
   const packages = input.snapshots.map(({ id, data }): JobPackageFact => {
     const detail = details.find((entry) => entry && entry.snapshotId === id);
     const agreedItems = Array.isArray(detail?.items) ? detail.items.map(String) : [];
-    const minutes = Number(data.includedCoverageMinutes ?? data.coverageMinutes);
+    const minutes = statedCoverageMinutes(
+      data.includedCoverageMinutes ?? data.coverageMinutes,
+    );
     const terms = typeof data.terms === "string" ? data.terms.trim() : "";
     return {
       snapshotId: id,
       packageName:
         typeof data.packageName === "string" && data.packageName ? data.packageName : "Package",
       coverage: describeCoverage(resolveCoverage(data)),
-      includedCoverageMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : null,
+      includedCoverageMinutes: minutes,
       inclusions: agreedItems.length ? agreedItems : packageInclusionItems(data.description),
       includedDeliverables: Array.isArray(data.includedDeliverables) ? data.includedDeliverables : [],
       terms: terms || null,

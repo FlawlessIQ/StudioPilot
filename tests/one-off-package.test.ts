@@ -147,6 +147,9 @@ test("coverage left blank: one photographer, and the main package's hours or a w
   assert.equal(oneOffCoverageMinutes(undefined, 600), 600);
   assert.equal(oneOffCoverageMinutes(null, undefined), ONE_OFF_FALLBACK_COVERAGE_MINUTES);
   assert.equal(ONE_OFF_FALLBACK_COVERAGE_MINUTES, 480);
+  // A main package that states no hours (an imported vendor list) lends none.
+  assert.equal(oneOffCoverageMinutes(undefined, 0), 0);
+  assert.equal(oneOffCoverageMinutes(120, 0), 120);
 });
 
 test("what's included, one per line, becomes the same bullets on the proposal", () => {

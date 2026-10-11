@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { activationSummary, approvalEdits } from "../features/studio-import/review-actions.ts";
+import { statedCoverageMinutes } from "../functions/src/packages/job-package-facts.ts";
 import { deterministicExtraction } from "../functions/src/studio-import/extraction.ts";
 import {
   importedStudioPackage,
@@ -242,6 +244,242 @@ test("a stated deposit is read from words; a structured field still wins", () =>
   assert.deepEqual(asText.retainerRule, { type: "percentage", basisPoints: 3000 });
 });
 
+/**
+ * The review of the first fix (2026-10-10): a deposit read across a line
+ * break or across two of the draft's fields, a deposit given as a line
+ * item, a per-stylist ratio read as crew, and a photographer whose import
+ * changed when it must not.
+ */
+test("a price on one line is never the deposit the next line names", () => {
+  assert.equal(statedDeposit("Full day $3,000\nRetainer required to book."), null);
+  assert.equal(statedDeposit("Gold collection 30%\nDeposit holds the date"), null);
+  // Each text on its own: two fields, two answers, nothing guessed.
+  assert.equal(statedDeposit("Gold collection $3,500", "Retainer secures your date"), null);
+  assert.deepEqual(statedDeposit("Bridal hair $375", "A 30% deposit holds the date."), {
+    type: "percentage",
+    basisPoints: 3000,
+  });
+
+  const gold = {
+    price: 3500,
+    lineItems: [{ description: "Gold collection, 8 hours", amount: "$3,500" }],
+    exclusions: ["Retainer secures your date"],
+  };
+  for (const trade of ["hair", "makeup", "dj"]) {
+    // The draft's fields, each read alone.
+    assert.deepEqual(
+      importedStudioPackage({ name: "Gold", structuredContent: gold, displayOrder: 0, trade }).retainerRule,
+      { type: "fixed", amountCents: 0 },
+    );
+    // The pasted text, read a line at a time.
+    assert.deepEqual(
+      importedStudioPackage({
+        name: "Gold",
+        structuredContent: { price: 3500 },
+        displayOrder: 0,
+        trade,
+        sourceText: "Gold collection, 8 hours $3,500\nRetainer secures your date",
+      }).retainerRule,
+      { type: "fixed", amountCents: 0 },
+    );
+  }
+});
+
+test("a deposit the AI lists as one more line item is the deposit, never an extra", () => {
+  const percent = importedStudioPackage({
+    name: "Jess Styles Bridal pricing",
+    structuredContent: {
+      ...JESS_DRAFT,
+      lineItems: [...JESS_DRAFT.lineItems, { description: "Deposit holds the date", amount: "30%" }],
+    },
+    displayOrder: 0,
+    trade: "hair",
+    sourceText: JESS_PRICE_LIST,
+    addOnIdPrefix: "imported_addon_asset_jess",
+  });
+  // Not $100, the extensions' price on the line before it.
+  assertJessPackage(percent);
+
+  const fixed = importedStudioPackage({
+    name: "Jess Styles Bridal pricing",
+    structuredContent: {
+      ...JESS_DRAFT,
+      lineItems: [...JESS_DRAFT.lineItems, { description: "Deposit", amount: "$100" }],
+    },
+    displayOrder: 0,
+    trade: "hair",
+  });
+  assert.deepEqual(fixed.retainerRule, { type: "fixed", amountCents: 10000 });
+  assert.equal(fixed.addOns.length, 4);
+  assert.ok(!fixed.addOns.some((addOn) => /deposit/i.test(addOn.name)));
+
+  // A line that only mentions a deposit is not one: its price is no deposit.
+  for (const lineItems of [
+    [{ description: "Bridal hair, deposit required", amount: "$375" }, { description: "Trial", amount: "$150" }],
+    [{ description: "Bridal hair", amount: "$375" }, "Deposit applied to the $375 total"],
+  ]) {
+    assert.deepEqual(
+      importedStudioPackage({ name: "Bridal hair", structuredContent: { lineItems }, displayOrder: 0, trade: "hair" })
+        .retainerRule,
+      { type: "fixed", amountCents: 0 },
+    );
+  }
+
+  // A deposit field written in words is read for its figure, not run together.
+  assert.deepEqual(
+    importedStudioPackage({
+      name: "Bridal hair",
+      structuredContent: { ...JESS_DRAFT, retainer: "30% due at booking, the rest 14 days before" },
+      displayOrder: 0,
+      trade: "hair",
+    }).retainerRule,
+    { type: "percentage", basisPoints: 3000 },
+  );
+});
+
+test("guests per stylist is a ratio, not the crew", () => {
+  for (const description of ["Up to 6 guests per stylist.", "Bridal hair for the bride. Up to 6 guests per stylist."]) {
+    // On its own, and beside the extras (the description is kept).
+    for (const lineItems of [[], JESS_DRAFT.lineItems]) {
+      const hair = importedStudioPackage({
+        name: "Bridal hair",
+        structuredContent: { description, price: 375, lineItems },
+        displayOrder: 0,
+        trade: "hair",
+      });
+      assert.deepEqual(hair.includedCoverage, [{ role: "hair_stylist", count: 1 }]);
+    }
+  }
+  const makeup = importedStudioPackage({
+    name: "Glam",
+    structuredContent: { description: "8 faces per makeup artist. Two artists on site.", price: 900, lineItems: [] },
+    displayOrder: 0,
+    trade: "makeup",
+  });
+  assert.deepEqual(makeup.includedCoverage, [{ role: "makeup_artist", count: 2 }]);
+  assert.deepEqual(
+    importedStudioPackage({
+      name: "Glam",
+      structuredContent: { description: "Six faces each artist", price: 900, lineItems: [] },
+      displayOrder: 0,
+      trade: "makeup",
+    }).includedCoverage,
+    [{ role: "makeup_artist", count: 1 }],
+  );
+});
+
+test("a photographer's deposit reads its fields exactly as before, and nothing else", () => {
+  const cases: Array<[Record<string, unknown>, { type: "fixed"; amountCents: number }]> = [
+    // A stated deposit in words, the pasted list, the cited excerpts: unread.
+    [JESS_DRAFT, { type: "fixed", amountCents: 0 }],
+    [{ ...JESS_DRAFT, terms: "A 30% deposit holds the date." }, { type: "fixed", amountCents: 0 }],
+    // "30%" in the retainer field has always been $30 for a photographer.
+    [{ ...JESS_DRAFT, retainer: "30%" }, { type: "fixed", amountCents: 3000 }],
+    // An empty or wordy retainer has always been $0, whatever comes after it.
+    [{ ...JESS_DRAFT, retainer: "", retainerAmount: 500 }, { type: "fixed", amountCents: 0 }],
+    [{ ...JESS_DRAFT, retainer: "TBD", retainerAmount: 500 }, { type: "fixed", amountCents: 0 }],
+    [{ ...JESS_DRAFT, retainerAmount: 500 }, { type: "fixed", amountCents: 50000 }],
+  ];
+  for (const trade of [undefined, "photographer"]) {
+    for (const [structuredContent, expected] of cases) {
+      assert.deepEqual(
+        importedStudioPackage({
+          name: "Gold",
+          structuredContent,
+          displayOrder: 0,
+          trade,
+          sourceText: JESS_PRICE_LIST,
+        }).retainerRule,
+        expected,
+      );
+    }
+    assert.deepEqual(
+      importedStudioPackage({
+        name: "Gold",
+        structuredContent: { ...JESS_DRAFT, retainerPercent: 25 },
+        displayOrder: 0,
+        trade,
+      }).retainerRule,
+      { type: "percentage", basisPoints: 2500 },
+    );
+    // Its crew words read as they always have.
+    assert.deepEqual(
+      importedStudioPackage({
+        name: "Gold",
+        structuredContent: { description: "Two photographers and one videographer", price: 3500 },
+        displayOrder: 0,
+        trade,
+      }).includedCoverage,
+      [
+        { role: "photographer", count: 2 },
+        { role: "videographer", count: 1 },
+      ],
+    );
+  }
+});
+
+test("more priced lines than a package keeps as extras: one package, as before, and nothing lost", () => {
+  const lines = (count: number) =>
+    Array.from({ length: count }, (_, index) => `Service ${index + 1} $${100 + index}`);
+  // Twenty extras is the most a package keeps (updatePackage's addOnIds).
+  const twenty = importedStudioPackage({ name: "Menu", structuredContent: { lineItems: lines(21) }, displayOrder: 0, trade: "hair" });
+  assert.equal(twenty.addOns.length, 20);
+  assert.equal(twenty.basePriceCents, 10000);
+  const menu = importedStudioPackage({ name: "Menu", structuredContent: { lineItems: lines(25) }, displayOrder: 0, trade: "hair" });
+  assert.deepEqual(menu.addOns, []);
+  assert.equal(menu.basePriceCents, 10000);
+  assert.equal(menu.includedDeliverables.length, 25);
+});
+
+test("an extra keeps its unit, and its name loses the leftover", () => {
+  const studioPackage = importedStudioPackage({
+    name: "Bridal hair",
+    structuredContent: {
+      lineItems: [
+        "Bridal hair $375",
+        "Travel over 30 miles $1/mile",
+        "Hair and makeup touch-ups $20/table",
+        "Hair / veil styling $50",
+      ],
+    },
+    displayOrder: 0,
+    trade: "hair",
+  });
+  assert.deepEqual(
+    studioPackage.addOns.map(({ name, unitPriceCents, allowQuantity, unitLabel }) => ({
+      name,
+      unitPriceCents,
+      allowQuantity,
+      unitLabel,
+    })),
+    [
+      { name: "Travel over 30 miles", unitPriceCents: 100, allowQuantity: true, unitLabel: "mile" },
+      { name: "Hair and makeup touch-ups", unitPriceCents: 2000, allowQuantity: true, unitLabel: "table" },
+      // A slash in a name is part of the name.
+      { name: "Hair / veil styling", unitPriceCents: 5000, allowQuantity: false, unitLabel: null },
+    ],
+  );
+});
+
+test("a vendor package's description is long enough to save", () => {
+  const updo = importedStudioPackage({
+    name: "Bridal hair",
+    structuredContent: { lineItems: ["Updo $200", "Bridesmaids $90 pp"] },
+    displayOrder: 0,
+    trade: "hair",
+  });
+  assert.equal(updo.description, "Bridal hair: Updo");
+  assert.deepEqual(updo.addOns.map((addOn) => [addOn.name, addOn.unitLabel]), [["Bridesmaids", "person"]]);
+  const named = importedStudioPackage({
+    name: "Updo",
+    structuredContent: { lineItems: ["Updo $200", "Bridesmaids $90 pp"] },
+    displayOrder: 0,
+    trade: "hair",
+  });
+  assert.equal(named.description, "Updo imported from an approved studio source.");
+  for (const studioPackage of [updo, named]) assert.ok(studioPackage.description.length >= 10);
+});
+
 const source = (path: string) => readFileSync(path, "utf8");
 
 test("activation reads the studio's trade and saves the extras to the add-on library", () => {
@@ -249,16 +487,76 @@ test("activation reads the studio's trade and saves the extras to the add-on lib
   assert.match(review, /const trade = await tenantTrade\(db, input\.tenantId\);/);
   // Both the first activation and "Sync to library".
   assert.equal(review.match(/importedStudioPackage\(\{[^}]*\btrade,/g)?.length, 2);
-  assert.equal(review.match(/db\.doc\(`addOns\/\$\{addOn\.id\}`\)/g)?.length, 2);
+  assert.equal(review.match(/batch\.set\(\s*db\.doc\(`addOns\/\$\{addOn\.id\}`\)/g)?.length, 1);
+  assert.equal(review.match(/transaction\.set\(\s*db\.doc\(`addOns\/\$\{addOn\.id\}`\)/g)?.length, 1);
+  // "Sync to library" never rewrites an extra the studio has since edited,
+  // and never brings back one it archived.
+  assert.match(review, /if \(libraryAddOns\.get\(addOn\.id\)\?\.exists\) continue;/);
+  assert.match(review, /!library\.get\("archivedAt"\)\s*\? \[libraryAddOnCopy\(library\)\]\s*: \[\]/);
 });
 
-test("the review screen approves what's on screen and says only what was activated", () => {
+test("the AI is never handed zero hours as a package's coverage", () => {
+  assert.equal(statedCoverageMinutes(0), null);
+  assert.equal(statedCoverageMinutes(undefined), null);
+  assert.equal(statedCoverageMinutes(480), 480);
+  assert.match(source("functions/src/ai/copilot.ts"), /includedCoverageMinutes: statedCoverageMinutes\(primary\.get\("includedCoverageMinutes"\)\)/);
+  assert.match(source("functions/src/ai/copilot.ts"), /includedCoverageMinutes: statedCoverageMinutes\(data\.includedCoverageMinutes\)/);
+  assert.match(source("functions/src/ai/message-draft.ts"), /includedCoverageMinutes: statedCoverageMinutes\(item\.get\("includedCoverageMinutes"\)\)/);
+  assert.match(source("functions/src/operations/ai-pdf.ts"), /includedCoverageMinutes:statedCoverageMinutes\(document\.get\("includedCoverageMinutes"\)\)/);
+});
+
+test("Approve carries a name typed but not saved", () => {
+  const selected = {
+    id: "version_1",
+    name: "Pasted Price List",
+    assetType: "package",
+    structuredContent: JESS_DRAFT as Record<string, unknown>,
+  };
+  // Jess renamed the draft and clicked Approve.
+  assert.deepEqual(
+    approvalEdits({ action: "approve", versionId: "version_1", selected, name: "Bridal hair ", content: selected.structuredContent }),
+    { name: "Bridal hair", assetType: "package", structuredContent: JESS_DRAFT },
+  );
+  // An edited field goes too; a blank name keeps the draft's.
+  const content = { ...JESS_DRAFT, currency: "CAD" };
+  assert.deepEqual(
+    approvalEdits({ action: "approve", versionId: "version_1", selected, name: "  ", content }),
+    { name: "Pasted Price List", assetType: "package", structuredContent: content },
+  );
+  // Nothing changed, a rejection, or another draft: no edits.
+  assert.equal(
+    approvalEdits({ action: "approve", versionId: "version_1", selected, name: selected.name, content: { ...JESS_DRAFT } }),
+    null,
+  );
+  assert.equal(approvalEdits({ action: "reject", versionId: "version_1", selected, name: "Bridal hair", content }), null);
+  assert.equal(approvalEdits({ action: "approve", versionId: "version_2", selected, name: "Bridal hair", content }), null);
+
   const workspace = source("components/ai/studio-import-review-workspace.tsx");
-  // Approve carries an unsaved name and edits with it.
-  assert.match(workspace, /name: name\.trim\(\) \|\| selected\.name,/);
-  // No list of everything an import could have done.
+  assert.match(workspace, /const edits = approvalEdits\(\{ action, versionId, selected, name, content \}\);/);
+  assert.match(workspace, /\.\.\.\(edits \?\? \{\}\),/);
+});
+
+test("the activation banner says only what was activated", () => {
+  const approved = (assetType: string) => ({ assetType, reviewDecision: "approved" });
+  // Jess's one price list.
+  assert.equal(activationSummary([approved("package")]), "1 package is in your library.");
+  assert.equal(
+    activationSummary([
+      approved("package"),
+      approved("package"),
+      approved("questionnaire"),
+      approved("message_template"),
+      approved("delivery_instruction"),
+      approved("workflow"),
+      { assetType: "timing_rule", reviewDecision: "rejected" },
+    ]),
+    "2 packages are in your library. 1 form is ready to send. 1 message is ready to turn on. Delivery instructions are saved as your defaults. 1 more item is saved to your library.",
+  );
+  assert.equal(activationSummary([{ assetType: "package", reviewDecision: "pending" }]), "");
+
+  const workspace = source("components/ai/studio-import-review-workspace.tsx");
+  assert.match(workspace, /const activated = activationSummary\(visibleDrafts\);/);
   assert.doesNotMatch(workspace, /timing rules are active\. Imported messages/);
-  assert.match(workspace, /count\("package", "package is", "packages are", "in your library"\)/);
 });
 
 test("setup's paste box asks for a price list, not an email", () => {

@@ -32,6 +32,7 @@ import {
 } from "@/lib/studio-import/command-client";
 import { StructuredContentFields } from "@/components/ai/structured-content-fields";
 import { statusLabel } from "@/features/format/status-label";
+import { activationSummary, approvalEdits } from "@/features/studio-import/review-actions";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -240,41 +241,8 @@ export function StudioImportReviewWorkspace({
   const hasApprovedPackages = approvedOf("package") > 0;
   const hasApprovedQuestionnaires = approvedOf("questionnaire") > 0;
   const hasApprovedMessages = approvedOf("message_template") > 0;
-  /**
-   * What activating actually did, and nothing else. This listed forms,
-   * timing rules, messages and delivery defaults after Jess Styles Bridal
-   * imported one price list — and a hair studio delivers nothing
-   * (2026-10-10).
-   */
-  const activated = (() => {
-    const count = (assetType: string, one: string, many: string, done: string) => {
-      const n = approvedOf(assetType);
-      return n ? `${n} ${n === 1 ? one : many} ${done}` : "";
-    };
-    const otherTypes = [
-      "proposal",
-      "schedule",
-      "crew_preference",
-      "coi_instruction",
-      "workflow",
-    ];
-    const others = otherTypes.reduce((sum, assetType) => sum + approvedOf(assetType), 0);
-    return [
-      count("package", "package is", "packages are", "in your library"),
-      count("contract", "agreement is", "agreements are", "in your library"),
-      count("questionnaire", "form is", "forms are", "ready to send"),
-      count("timing_rule", "timing rule is", "timing rules are", "active"),
-      count("message_template", "message is", "messages are", "ready to turn on"),
-      approvedOf("delivery_instruction")
-        ? "Delivery instructions are saved as your defaults"
-        : "",
-      approvedOf("review_request") ? "Your review link is saved" : "",
-      others ? `${others} more ${others === 1 ? "item is" : "items are"} saved to your library` : "",
-    ]
-      .filter(Boolean)
-      .map((sentence) => `${sentence}.`)
-      .join(" ");
-  })();
+  // What activating actually did, and nothing else (review-actions.ts).
+  const activated = activationSummary(visibleDrafts);
 
   /**
    * Decide the current draft, then move to the next one that still needs a
@@ -290,26 +258,15 @@ export function StudioImportReviewWorkspace({
     versionId: string,
   ) {
     const advanceTo = nextPendingDraft?.id ?? null;
-    // Approve what's on screen. A name typed without "Save & confirm" first
-    // was dropped, and the package went live under the old one (Jess Styles
-    // Bridal, 2026-10-10). The edits go with the approval, in one write.
-    const edited =
-      action === "approve" &&
-      selected?.id === versionId &&
-      (name !== selected.name ||
-        JSON.stringify(content) !== JSON.stringify(selected.structuredContent));
+    // Approve what's on screen: unsaved edits go with the approval
+    // (review-actions.ts; Jess Styles Bridal, 2026-10-10).
+    const edits = approvalEdits({ action, versionId, selected, name, content });
     await run(action, () =>
       reviewStudioImportDraft({
         sessionId: review.session.id,
         versionId,
         action,
-        ...(edited && selected
-          ? {
-              name: name.trim() || selected.name,
-              assetType: selected.assetType,
-              structuredContent: content,
-            }
-          : {}),
+        ...(edits ?? {}),
       }),
     );
     if (advanceTo && advanceTo !== versionId) selectDraftAndReveal(advanceTo);
