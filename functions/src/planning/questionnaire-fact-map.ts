@@ -2,7 +2,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { vertexEndpoint } from "../ai/vertex-endpoint.js";
 import { consumeAiQuota, refundAiQuota } from "../saas/usage.js";
-import { FACT_DESCRIPTIONS, FACT_KEYS, normalisedQuestion, unmatchedFields, type FactKey } from "./job-facts.js";
+import { FACT_DESCRIPTIONS, MAPPABLE_FACT_KEYS, normalisedQuestion, unmatchedFields, type FactKey } from "./job-facts.js";
 
 /**
  * Which job fact each of a form's oddly worded questions asks for — read once
@@ -46,7 +46,7 @@ export function acceptedMappings(
   const accepted: Record<string, FactKey> = {};
   for (const { fieldId, fact } of parsed.data.mappings) {
     const field = byId.get(fieldId);
-    if (!field || !fact || !(FACT_KEYS as readonly string[]).includes(fact)) continue;
+    if (!field || !fact || !(MAPPABLE_FACT_KEYS as readonly string[]).includes(fact)) continue;
     const key = fact as FactKey;
     const allows = TYPE_ALLOWS[field.type];
     if (allows && !allows(key)) continue;
@@ -72,7 +72,7 @@ async function askModel(fields: ReadonlyArray<{ id: string; label: string; type:
   const project = process.env.VERTEX_AI_PROJECT_ID;
   const model = process.env.VERTEX_AI_EXTRACTION_MODEL;
   if (!project || !model) throw new Error("VERTEX_AI_NOT_CONFIGURED");
-  const facts = FACT_KEYS.map((key) => `${key}: ${FACT_DESCRIPTIONS[key]}`).join("\n");
+  const facts = MAPPABLE_FACT_KEYS.map((key) => `${key}: ${FACT_DESCRIPTIONS[key]}`).join("\n");
   const questions = fields
     .map((field) => `${field.id} | ${field.type || "text"} | ${field.label}${field.options.length ? ` | options: ${field.options.join(" / ")}` : ""}`)
     .join("\n");

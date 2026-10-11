@@ -423,6 +423,22 @@ const PARTY_LIST: RecommendedSection[] = [
 ];
 
 /**
+ * A hair stylist's party line asks about hair alone. The shared one's "hair,
+ * makeup or both" and its lashes and sensitive skin read as if the studio did
+ * makeup too (Priya Shah, Jess Styles Bridal, 2026-10-10). A line naming no
+ * service is the studio's own (party-list.ts), so a hair client never has to
+ * write "hair".
+ */
+const HAIR_PARTY: RecommendedSection = {
+  ...PARTY_LIST[1]!,
+  fields: [
+    field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, {
+      help: "Name — who they are — anything we should know about their hair. For example: \"Priya Shah — bride — veil, clip-in extensions\", \"Meera — mother of the bride — short hair, a soft blowout\", \"Diya — flower girl — a simple braid\".",
+    }),
+  ],
+};
+
+/**
  * What a makeup artist asks the bride about her own skin (docs/vendor-journeys-plan.md,
  * Phase 4): the type and anything to be careful of decide the products, and
  * lashes are an extra she may want for her party too.
@@ -542,7 +558,7 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       trades: ["hair"],
       dueDaysBeforeEvent: 37,
       reminderDaysBeforeDue: [14, 3],
-      sections: [PARTY_LIST[0]!, PARTY_LIST[1]!, HAIR_DETAILS, PARTY_LIST[2]!],
+      sections: [PARTY_LIST[0]!, HAIR_PARTY, HAIR_DETAILS, PARTY_LIST[2]!],
     },
   ];
 }

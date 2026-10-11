@@ -4,6 +4,7 @@ import test from "node:test";
 import { glossaryFor } from "../features/help/glossary";
 import { projectJourney, type JourneyInput } from "../features/journey/steps";
 import { recommendedFor } from "../features/questionnaires/recommended-templates";
+import { parsePartyList } from "../features/schedules/party-list";
 import {
   EXTENSIONS_ORDER_DAYS_BEFORE,
   extensionTasksFor,
@@ -154,6 +155,26 @@ test("the hair Party list asks about length, texture, style, extensions and the 
   assert.ok(!makeup.sections.some((candidate) => candidate.id === "your-hair"));
   // The morning and the party, which the chair schedule reads, stay first.
   assert.deepEqual(hair.sections.map((candidate) => candidate.id), ["the-morning", "your-party", "your-hair", "good-to-know"]);
+});
+
+test("the hair party line asks about hair alone; makeup's is as it was (Priya Shah, Jess Styles Bridal, 2026-10-10)", () => {
+  const partyLine = (trade: "hair" | "makeup") =>
+    recommendedFor(trade)[0]!.sections.find((section) => section.id === "your-party")!.fields.find((field) => field.id === "party-list")!;
+  const hair = partyLine("hair");
+  assert.doesNotMatch(hair.help!, /make.?up|lashes|skin|\bboth\b/i);
+  // Each example reads as a hair client, with who they are and the note kept.
+  const examples = [...hair.help!.matchAll(/"([^"]+)"/g)].map((match) => match[1]!);
+  assert.equal(examples.length, 3);
+  const people = parsePartyList(examples.join("\n"), "hair");
+  assert.deepEqual(people.map((person) => [person.role, person.services]), [["bride", ["hair"]], ["mother", ["hair"]], ["child", ["hair"]]]);
+  assert.ok(people.every((person) => person.notes), "every example carries something to know");
+  const makeup = partyLine("makeup");
+  assert.equal(
+    makeup.help,
+    "Name — who they are — hair, makeup or both — anything we should know. For example: \"Maya Brooks — bride — hair and makeup — sensitive skin\", \"Jess Lee — bridesmaid — makeup — lashes\", \"Ava — flower girl — hair\".",
+  );
+  // The same question otherwise: the chair schedule and the headcount read it as before.
+  assert.deepEqual({ ...hair, help: null }, { ...makeup, help: null });
 });
 
 test("help and Cue know about extensions, for a hair studio only", () => {

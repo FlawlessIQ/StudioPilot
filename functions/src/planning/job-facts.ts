@@ -34,6 +34,7 @@ export const FACT_KEYS = [
   "venue_address",
   "venue_city",
   "ceremony_time",
+  "ready_by_time",
   "guest_count",
   "partner_one_name",
   "partner_two_name",
@@ -57,6 +58,17 @@ export const FACT_KEYS = [
 
 export type FactKey = (typeof FACT_KEYS)[number];
 
+/**
+ * Facts placed by rule alone, never offered to the AI map
+ * (questionnaire-fact-map.ts): the ready-by time only a makeup or hair
+ * inquiry asks. Leaving it off keeps the map's instructions, and so every
+ * photographer's form it reads, as they were.
+ */
+const RULE_ONLY_FACTS: ReadonlySet<FactKey> = new Set(["ready_by_time"]);
+
+/** The facts the AI map may name. */
+export const MAPPABLE_FACT_KEYS: readonly FactKey[] = FACT_KEYS.filter((key) => !RULE_ONLY_FACTS.has(key));
+
 /** What each fact is, in words — for the AI map's instructions and for people reading a provenance. */
 export const FACT_DESCRIPTIONS: Record<FactKey, string> = {
   event_date: "the wedding or event date",
@@ -65,6 +77,7 @@ export const FACT_DESCRIPTIONS: Record<FactKey, string> = {
   venue_address: "the street address of the event venue",
   venue_city: "the city or town of the event",
   ceremony_time: "the time the ceremony starts",
+  ready_by_time: "the time everyone having their hair or makeup done must be ready by",
   guest_count: "how many guests are expected",
   partner_one_name: "the full name of the person who booked (the first partner)",
   partner_two_name: "the full name of the other person getting married (the second partner)",
@@ -194,6 +207,32 @@ export function clockTime(value: unknown): string {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+/**
+ * A time in the couple's own words — "12:30 PM", "by 1pm", "noon" — as HH:MM.
+ * "1:30" with no AM or PM stays blank: nobody is ready at 1:30 at night, but
+ * the afternoon is a guess.
+ */
+export function spokenClock(value: unknown): string {
+  const raw = text(value)
+    .toLowerCase()
+    .replace(/([ap])\.\s*m\b\.?/g, "$1m")
+    .replace(/^(?:by|at|around|about)\s+/, "")
+    .replace(/[.!]+$/, "")
+    .replace(/\s+/g, "");
+  if (/^(?:12)?noon$/.test(raw)) return "12:00";
+  const time = clockTime(raw);
+  if (time && time < "07:00" && !/[ap]m$/.test(raw)) return "";
+  return time;
+}
+
+/** One of the studio's own inquiry questions, as the couple answered it (public-lead.ts `customAnswers`). */
+function inquiryAnswer(lead: Row, questionId: string): string {
+  const row = list(lead.customAnswers)
+    .map(record)
+    .find((entry) => text(entry.questionId) === questionId);
+  return text(row?.answer);
+}
+
 /** The ceremony's start in the schedule's own zone, as HH:MM. */
 function ceremonyFromSchedule(schedule: Row | null): string {
   if (!schedule) return "";
@@ -299,6 +338,10 @@ export function jobFactSheet(input: {
   fromLead("venue_address", formattedAddress(lead.venuePlace), "venuePlace");
   fromLead("venue_city", text(lead.city), "city");
   fromLead("ceremony_time", clockTime(lead.ceremonyTime), "ceremonyTime");
+  // A makeup or hair inquiry asks when everyone must be ready (inquiry-form-config.ts,
+  // "ready-by"), and the party list asks it again: Priya Shah answered "12:30 PM"
+  // and got the party list with it blank (Jess Styles Bridal, 2026-10-10).
+  fromLead("ready_by_time", spokenClock(inquiryAnswer(lead, "ready-by")), "customAnswers.ready-by");
   const guests = Number(lead.estimatedGuestCount);
   if (Number.isInteger(guests) && guests > 0) fromLead("guest_count", String(guests), "estimatedGuestCount");
   fromLead("partner_one_name", [text(lead.firstName), text(lead.lastName)].filter(Boolean).join(" "), "firstName");
@@ -380,6 +423,9 @@ export function factForField(field: { label?: unknown; id?: unknown; type?: unkn
   if (!askingTime && has("band", "live music")) return "band";
   if (!askingTime && has("caterer", "catering")) return "caterer";
   if (!askingTime && has("hair", "makeup", "make up", "mua")) return "hair_makeup";
+  // "When does everyone need to be ready?" — the morning's finish on a makeup
+  // or hair party list. Not "getting ready", which is a place or a start.
+  if (has("be ready", "ready by") && (askingTime || has("when")) && !has("ceremony")) return "ready_by_time";
   if (askingTime && !has("ceremony")) return null;
   // The reception, getting ready, the hotel: often not the venue on the job.
   if (has("reception", "getting ready", "hotel", "after party") && !has("ceremony")) return null;
@@ -423,7 +469,7 @@ function spokenTime(value: string): string {
 export function valueForField(field: { type?: unknown; options?: unknown }, value: string, fact?: FactKey): string | undefined {
   const type = text(field.type);
   if (!value) return undefined;
-  if (fact === "ceremony_time" && type !== "time") return spokenTime(value);
+  if ((fact === "ceremony_time" || fact === "ready_by_time") && type !== "time") return spokenTime(value);
   if (type === "date") return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
   if (type === "time") return clockTime(value) || undefined;
   if (type === "email") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : undefined;

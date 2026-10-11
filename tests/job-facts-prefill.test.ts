@@ -2,13 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   clockTime,
+  FACT_KEYS,
   factForField,
   jobFactSheet,
+  MAPPABLE_FACT_KEYS,
   prefillFromFacts,
+  spokenClock,
   unmatchedFields,
   valueForField,
 } from "../functions/src/planning/job-facts.ts";
 import { acceptedMappings } from "../functions/src/planning/questionnaire-fact-map.ts";
+import { recommendedFor } from "../functions/src/planning/recommended-templates.ts";
 import { starterQuestionnaires } from "../functions/src/planning/starter-questionnaires.ts";
 
 /**
@@ -214,4 +218,106 @@ test("the AI map only names a real fact, for a question it was asked about, in a
   // And a mapped question is filled from the records.
   const { answers } = prefillFromFacts({ sheet: job(), sections: [{ fields: [{ id: "party", label: "Where's the party?", type: "text" }] }], factMap: map });
   assert.equal(answers.party, "The Barn at Hudson");
+});
+
+/**
+ * A makeup or hair inquiry asks "What time does everyone need to be ready?",
+ * and the party list asks it again. Priya Shah answered "12:30 PM" and got the
+ * party list with its required ready-by time blank (Jess Styles Bridal,
+ * 2026-10-10).
+ */
+const beautyJob = (answer: string | null) =>
+  jobFactSheet({
+    projectId: "p1",
+    project: { eventDate: "2027-05-22", eventType: "Wedding", state: "BOOKED" },
+    leadId: "l1",
+    lead: {
+      firstName: "Priya",
+      lastName: "Shah",
+      customAnswers: [
+        { questionId: "party-size", question: "How many people need hair styling, including you?", answer: "4–6" },
+        ...(answer === null ? [] : [{ questionId: "ready-by", question: "What time does everyone need to be ready?", answer }]),
+      ],
+    },
+    contacts: [],
+    vendors: [],
+    schedule: null,
+    responses: [],
+  });
+
+test("the party list's ready-by time comes from the inquiry's, for hair and makeup alike", () => {
+  for (const trade of ["hair", "makeup"] as const) {
+    const form = recommendedFor(trade)[0]!;
+    const { answers, answerProvenance } = prefillFromFacts({ sheet: beautyJob("12:30 PM"), sections: form.sections });
+    assert.equal(answers["ready-by-time"], "12:30", trade);
+    assert.deepEqual(
+      answerProvenance["ready-by-time"],
+      {
+        sourceType: "inquiry_fact",
+        sourceId: "l1",
+        sourceCollection: "leads",
+        sourceField: "customAnswers.ready-by",
+        fact: "ready_by_time",
+        label: "your inquiry",
+        verified: false,
+      },
+      `${trade}: the couple's own word, not the studio's record`,
+    );
+  }
+  // A studio's own wording, or a text box, takes it too.
+  assert.equal(factForField({ label: "What time should everyone be ready by?", type: "text" }), "ready_by_time");
+  const { answers } = prefillFromFacts({
+    sheet: beautyJob("12:30 PM"),
+    sections: [{ fields: [{ id: "when", label: "When does everyone need to be ready?", type: "text" }] }],
+  });
+  assert.equal(answers.when, "12:30 PM");
+});
+
+test("a ready-by time the inquiry didn't give clearly stays blank — never the ceremony's", () => {
+  const form = recommendedFor("hair")[0]!;
+  for (const answer of [null, "around 1", "1:30", "after lunch", "12:30 or 1"])
+    assert.equal(prefillFromFacts({ sheet: beautyJob(answer), sections: form.sections }).answers["ready-by-time"], undefined, String(answer));
+  // A job with a ceremony time, and an AI map that read the question as it: the rule places it, and it stays blank.
+  const { answers } = prefillFromFacts({
+    sheet: job(),
+    sections: form.sections,
+    factMap: { "ready-by-time": "ceremony_time" },
+  });
+  assert.equal(answers["ready-by-time"], undefined);
+  assert.ok(!unmatchedFields(form.sections).some((field) => field.id === "ready-by-time"), "never sent to the AI map");
+});
+
+test("the couple's own words for a time", () => {
+  const cases: Array<[string, string]> = [
+    ["12:30 PM", "12:30"],
+    ["12:30 pm.", "12:30"],
+    ["by 1pm", "13:00"],
+    ["1 p.m.", "13:00"],
+    ["around 1:30 PM", "13:30"],
+    ["noon", "12:00"],
+    ["12:30", "12:30"],
+    ["9:30 am", "09:30"],
+    ["6:30 AM", "06:30"],
+    ["13:00", "13:00"],
+    // No AM or PM on an hour that could be either: theirs to fill in.
+    ["1:30", ""],
+    ["11", ""],
+    ["after lunch", ""],
+    ["12:30 or 1", ""],
+  ];
+  for (const [said, expected] of cases) assert.equal(spokenClock(said), expected, said);
+});
+
+test("a photographer's forms and AI map are as they were", () => {
+  // No photographer question asks the ready-by time, and the AI map is never offered it.
+  for (const form of [...starterQuestionnaires(), ...recommendedFor("photographer")])
+    for (const section of form.sections)
+      for (const field of section.fields) assert.notEqual(factForField(field), "ready_by_time", `${form.name}: ${field.label}`);
+  assert.deepEqual(MAPPABLE_FACT_KEYS, FACT_KEYS.filter((key) => key !== "ready_by_time"));
+  assert.deepEqual(acceptedMappings([{ id: "t", label: "Ready by", type: "text" }], { mappings: [{ fieldId: "t", fact: "ready_by_time" }] }), {});
+  // "Getting ready" is a place or a start, not the morning's finish.
+  for (const label of ["Getting ready location", "Getting ready start time", "Where are you getting ready?"])
+    assert.notEqual(factForField({ label, type: label.includes("time") ? "time" : "text" }), "ready_by_time", label);
+  // A photographer's lead has no ready-by answer, so its sheet has no such fact.
+  assert.equal(job().facts.ready_by_time, undefined);
 });
