@@ -53,9 +53,7 @@ export function SlotPicker({
   }, [slots, zone, maxDays]);
 
   const [dayKey, setDayKey] = useState<string | null>(null);
-  const selectedDay =
-    days.find((day) => day.slots.some((slot) => slot.startsAt === selected))?.key ?? null;
-  const activeKey = dayKey ?? selectedDay ?? days[0]?.key ?? null;
+  const activeKey = activeDayKey({ days, dayKey, selected });
   const active = days.find((day) => day.key === activeKey) ?? null;
 
   if (!days.length) return null;
@@ -100,6 +98,27 @@ export function SlotPicker({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The day whose times show: the one they tapped, else the one holding their
+ * pick, else the first.
+ *
+ * A tapped day the slots no longer hold counts for nothing. A trial's page
+ * swaps in another week of openings (public-consultation-scheduler.tsx), and
+ * the day tapped in the last week left the new one with no day pressed, no
+ * times, and no "No openings" note either (review of the hair walk, Jess
+ * Styles Bridal, 2026-10-10).
+ */
+export function activeDayKey(input: {
+  days: readonly { key: string; slots: readonly Slot[] }[];
+  dayKey: string | null;
+  selected: string;
+}): string | null {
+  const { days, dayKey, selected } = input;
+  if (dayKey && days.some((day) => day.key === dayKey)) return dayKey;
+  const selectedDay = days.find((day) => day.slots.some((slot) => slot.startsAt === selected))?.key ?? null;
+  return selectedDay ?? days[0]?.key ?? null;
 }
 
 /** "Tue, Oct 6 · 11:30 AM" for a button that books it. */

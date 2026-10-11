@@ -118,6 +118,29 @@ test("a phase reports what the event overtook, separately from what is done", ()
   assert.equal(prepare.active, false);
 });
 
+/**
+ * A booked makeup or hair trial waits months on its date in Booking. It is
+ * optional and never the job's current step, so it must not keep Booking lit
+ * beside Preparation (review of the hair walk, Jess Styles Bridal, 2026-10-10).
+ */
+test("a booked trial does not hold the Booking phase active", () => {
+  const groups = groupJourneyByPhase([
+    step("proposal", "complete"),
+    step("contract", "complete"),
+    step("retainer", "complete"),
+    step("trial", "waiting_other"),
+    step("schedule_form", "current"),
+  ]);
+  const book = groups.find((group) => group.phase === "book");
+  const prepare = groups.find((group) => group.phase === "prepare");
+  assert.equal(book?.active, false);
+  assert.equal(book?.complete, 3);
+  assert.equal(prepare?.active, true);
+  // Any other step waiting in Booking still holds it.
+  const waiting = groupJourneyByPhase([step("contract", "waiting_client"), step("trial", "waiting_other")]);
+  assert.equal(waiting.find((group) => group.phase === "book")?.active, true);
+});
+
 test("nothing missed reports zero, not null", () => {
   const groups = groupJourneyByPhase([step("crew", "complete")]);
   assert.equal(groups[0]?.missed, 0);

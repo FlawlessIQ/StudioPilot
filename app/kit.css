@@ -666,8 +666,10 @@ textarea.kit-input {
   gap: 10px;
 }
 /* A trial's week-by-week browse (components/booking/public-consultation-scheduler.tsx).
-   Wraps, never squeezes: on a narrow phone the dates take their own line. */
+   Wraps, never squeezes. */
 .kit-week-nav {
+  container-type: inline-size;
+  container-name: kit-week-nav;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -682,6 +684,18 @@ textarea.kit-input {
   font-size: 15px;
   font-weight: 600;
   text-align: center;
+}
+/* Too narrow for all three on one line (about 330px): the dates take their
+   own row above the two buttons. Left to wrap in order, "Later" sat alone
+   under "Earlier" and the dates. By the nav's own width, not the window's. */
+@container kit-week-nav (max-width: 22rem) {
+  .kit-week-nav-label {
+    order: -1;
+    flex-basis: 100%;
+  }
+  .kit-week-nav > .kit-button {
+    flex: 1 1 0;
+  }
 }
 .kit-time {
   min-height: 52px;

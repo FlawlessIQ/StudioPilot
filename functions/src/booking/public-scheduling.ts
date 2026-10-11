@@ -9,7 +9,7 @@ import { commandTypeOf, respondToCommandError } from "../security/command-errors
 import { getCalendarBusyIntervals } from "../operations/provider-runtime.js";
 import { studioHubCors } from "../security/cors.js";
 import { generateConsultationSlots, getConsultationSettings } from "./availability.js";
-import { daysBetween, shiftDate, studioDay, trialLinkDays, trialWindow, BOOKING_LINK_DAYS } from "./trial-window.js";
+import { studioDay, trialLinkDays, trialSlotPlan, BOOKING_LINK_DAYS } from "./trial-window.js";
 import {
   detailsOf,
   meetingOptions,
@@ -219,29 +219,33 @@ async function trialSlotsFor(
   const timezone = String(tenant.get("timezone") ?? "America/New_York");
   const settings = await getConsultationSettings(db, tenantId);
   // The trade's trial length; the studio's call length when it has none.
-  const durationMinutes = tradeProfile(tenant.get("trade")).trialMinutes ?? settings.durationMinutes;
+  const trialMinutes = tradeProfile(tenant.get("trade")).trialMinutes;
   const now = new Date();
-  const today = studioDay(now, timezone);
-  const from = pick.at ? studioDay(new Date(pick.at), timezone) : (pick.from ?? null);
-  const window = trialWindow({ today, eventDate: project.get("eventDate"), from });
-  if (!window) return { timezone, durationMinutes, slots: [], window: null };
-  // A day either side, so a booking that runs across midnight still counts.
-  const fromIso = new Date(Math.max(now.valueOf(), Date.parse(`${shiftDate(window.start, -1)}T00:00:00Z`))).toISOString();
-  const toIso = new Date(Date.parse(`${shiftDate(window.end, 2)}T00:00:00Z`)).toISOString();
-  const busy = await busyBetween(db, tenantId, fromIso, toIso);
+  const plan = trialSlotPlan({
+    now,
+    timezone,
+    eventDate: project.get("eventDate"),
+    from: pick.from ?? null,
+    at: pick.at ?? null,
+    callMinutes: settings.durationMinutes,
+    bufferMinutes: settings.bufferMinutes,
+    trialMinutes,
+  });
+  if (!plan) return { timezone, durationMinutes: trialMinutes ?? settings.durationMinutes, slots: [], window: null };
+  const busy = await busyBetween(db, tenantId, plan.busyFrom, plan.busyTo);
   const slots = generateConsultationSlots({
-    settings: { ...settings, durationMinutes },
+    settings: { ...settings, durationMinutes: plan.durationMinutes },
     timezone,
     now,
-    startInDays: daysBetween(today, window.start),
-    daysAhead: daysBetween(window.start, window.end) + 1,
+    startInDays: plan.startInDays,
+    daysAhead: plan.daysAhead,
     busy,
-    maxSlots: 200,
+    maxSlots: plan.maxSlots,
     // Starts keep the studio's usual cadence; each leaves the whole trial
     // inside its hours (Priya Shah, Jess Styles Bridal, 2026-10-10).
-    stepMinutes: settings.durationMinutes + settings.bufferMinutes,
+    stepMinutes: plan.stepMinutes,
   });
-  return { timezone, durationMinutes, slots, window };
+  return { timezone, durationMinutes: plan.durationMinutes, slots, window: plan.window };
 }
 
 async function slotsForTenant(tenantId: string) {
@@ -347,6 +351,15 @@ export const publicConsultationScheduling = onRequest(
         const emailJobId = `consultation_invite_${linkId}_${Date.now()}`;
         const batch = db.batch();
         batch.set(db.doc(`consultationBookingLinks/${linkId}`), minted.record);
+        // The job keeps when its trial invite went and how long the link is
+        // open. Today read it from the studio's email jobs, a sample of a
+        // hundred in no order, so on a busy studio a sent invite went
+        // missing, the card came back, and a second send replaced the link
+        // the client already had (features/today/inbox.ts). Evidence, not a
+        // change to the job: its state and version stay as they are.
+        if (command.input.purpose === "trial") {
+          batch.update(project.ref, { trialInvitedAt: now, trialInviteExpiresAt: expiresAt });
+        }
         batch.create(db.doc(`emailJobs/${emailJobId}`), {
           id: emailJobId,
           tenantId: command.tenantId,
@@ -502,6 +515,13 @@ export const publicConsultationScheduling = onRequest(
           updatedAt: now,
           updatedBy: "public-consultation-scheduler",
         });
+      }
+      // A trial booked here: the job says so itself, so Today never asks the
+      // studio to invite a client who booked because the consultation fell
+      // outside the hundred it reads (features/today/inbox.ts). Kept if the
+      // trial is canceled later: what happens then is the studio's call.
+      if (consultationPurpose(link.data()) === "trial") {
+        batch.update(project.ref, { trialBookedAt: now });
       }
       if (process.env.PROVIDER_MOCK_MODE !== "true") {
         batch.create(db.doc(`providerJobs/consultation_${consultationId}`), {

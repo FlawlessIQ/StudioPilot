@@ -1752,8 +1752,9 @@ type TrialInviteAction = Extract<TodayItem["action"], { kind: "trial_invite" }>;
 /**
  * "Send the invite": the makeup or hair trial link the job's trial card sends
  * (public-scheduling.ts create_link, in person), naming who gets it before it
- * goes. Sent, the card goes; it comes back after a month if nothing is booked
- * (features/today/inbox.ts `TRIAL_INVITE_QUIET_DAYS`).
+ * goes. Sent, the card goes, and stays gone while the link is open: to the
+ * day before the event (features/today/inbox.ts, from the job's own
+ * `trialInvitedAt`).
  */
 function TrialInviteActions({
   action,
@@ -1783,7 +1784,8 @@ function TrialInviteActions({
         // A trial is in person, at the studio or the bride's: never a video call.
         input: { projectId: action.projectId, contactId: action.contactId, mode: "in_person", purpose: "trial" },
       });
-      refreshTenantRecords("emailJobs");
+      // The job now carries the invite (trialInvitedAt), which is what Today reads.
+      refreshTenantRecords("projects", "emailJobs");
       onCleared?.();
     } catch (caught: unknown) {
       setNotice(friendlyError(caught, "The invitation couldn't be sent. Open the job to check."));

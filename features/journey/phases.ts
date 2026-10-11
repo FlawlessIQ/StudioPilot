@@ -104,8 +104,15 @@ export function groupJourneyByPhase(steps: JourneyStep[], trade?: unknown): Jour
         // `passed` is not activity: a preparation step the event overtook is
         // neither done nor being worked on, and marking its phase active kept
         // Preparation lit up on a job that had already been shot.
+        //
+        // Nor is a booked makeup or hair trial. It is optional and never the
+        // job's current step, yet it sits in Booking for the months it waits
+        // on its date, and kept Booking lit beside Preparation on a job long
+        // since booked (review of the hair walk, Jess Styles Bridal,
+        // 2026-10-10). Its own step still shows it booked.
         active: inPhase.some(
           (step) =>
+            step.key !== "trial" &&
             !["complete", "upcoming", "passed"].includes(step.status),
         ),
       };

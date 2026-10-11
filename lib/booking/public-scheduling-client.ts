@@ -1,5 +1,7 @@
 "use client";
 
+import { markTenantRecordsWritten } from "@/lib/live/record-writes";
+
 /**
  * Firebase loads when a call is made, not with the page. The couple's
  * inquiry link and the consultation invite are public pages reached from an
@@ -45,5 +47,11 @@ export async function runPublicScheduling(
       String(payload.error ?? "Consultation scheduling could not continue."),
     );
   }
+  // A trial invite writes the job (trialInvitedAt), and Today reads it to
+  // keep its "Invite them" card away: a page opened next must not be handed
+  // the job from before the send, or the card offers a second send that
+  // replaces the link just emailed (lib/live/record-writes.ts).
+  const input = body.input as Record<string, unknown> | undefined;
+  if (body.type === "create_link" && input?.purpose === "trial") markTenantRecordsWritten();
   return payload;
 }

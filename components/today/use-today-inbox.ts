@@ -2,7 +2,7 @@
 
 import { paidInFullSettledByDeletion, settledInvoiceStatus } from "@/features/billing/invoice-purge-policy";
 import { isSalesConsultation } from "@/features/consultations/purpose";
-import { TRADE_LABELS, tradeOf } from "@/features/trades/trades";
+import { TRADE_LABELS, tradeOf, tradeProfile } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deliverables";
@@ -42,6 +42,7 @@ import { studioHasBookedAJob } from "@/features/journey/expected-timeline";
 import { depositByStudio } from "@/features/booking/deposit-by-studio";
 import { cueHandoff, type HandoffItem } from "@/features/today/handoff";
 import { useRecentEmailJobs } from "@/components/today/use-recent-email-jobs";
+import { useJobPackageSnapshots } from "@/components/today/use-job-package-snapshots";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -148,6 +149,12 @@ export function useTodayInbox(): {
   const leads = {
     records: useKeptWhileReloading(leadsRead.records, workspace.tenantId),
   };
+  // Today's trial card (makeup, hair) reads each booked job's own snapshot.
+  const jobSnapshots = useJobPackageSnapshots({
+    enabled: Boolean(tradeProfile(workspace.tenantTrade).trial),
+    projects: projects.records,
+    sampled: packageSnapshots.records,
+  });
   const tasks = useTenantDocuments("tasks");
   const conversations = useTenantDocuments("conversations");
   const packageRequests = useTenantDocuments("packageRequests");
@@ -387,9 +394,10 @@ export function useTodayInbox(): {
     conversations: conversations.records,
     packageRequests: packageRequests.records,
     billingAddressRequests: billingAddressRequests.records,
-    // A makeup or hair client who bought a trial and hasn't booked it.
+    // A makeup or hair client who bought a trial and hasn't booked it: every
+    // booked job's own snapshot, not just the hundred the sample holds.
     consultations: consultations.records,
-    packageSnapshots: packageSnapshots.records,
+    packageSnapshots: jobSnapshots,
     detailChangeRequests: detailChangeRequests.records,
     clientShotLists: clientShotLists.records,
     detailSignoffs: detailSignoffs.records,

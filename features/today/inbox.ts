@@ -58,7 +58,7 @@ import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
-import { trialState, trialWanted } from "@/features/consultations/trial";
+import { trialInvite, trialState, trialWanted } from "@/features/consultations/trial";
 import { jobPackageSnapshotIds } from "@/features/crew/staffing-plan";
 import { clientOutreachStop } from "@/features/post-event/client-outreach";
 import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
@@ -72,13 +72,6 @@ const BILLING_ADDRESS_ASK_AGAIN_DAYS = 5;
 
 /** When a final balance becomes Today's business: four weeks out, when the scheduler raises it (B11). */
 const FINAL_BALANCE_WINDOW_DAYS = 28;
-
-/**
- * A trial invitation sent this recently keeps its Today card away: the
- * client has the link. After that, unbooked, the card asks again (a hair
- * trial often waits months for the veil).
- */
-export const TRIAL_INVITE_QUIET_DAYS = 30;
 
 export type TodayLane = "act" | "approve" | "fyi";
 
@@ -134,8 +127,9 @@ export type TodayAction =
   | {
       /**
        * A client who asked for or bought a makeup or hair trial, booked and
-       * not yet invited to it: send the trial link from the card
-       * (components/today/today-inbox.tsx), as the job's trial card does.
+       * not yet invited to it, or whose link has closed: send the trial link
+       * from the card (components/today/today-inbox.tsx), as the job's trial
+       * card does.
        */
       kind: "trial_invite";
       label: string;
@@ -1370,31 +1364,30 @@ export function todayInbox(input: TodayInput): TodayInbox {
       if (daysOut !== null && daysOut < 2) continue;
       // Notes from the trial mean it happened, booked here or not.
       if (job.trialNotes) continue;
+      // Booked through its link, now or earlier: the job says so itself
+      // (public-scheduling.ts). The consultations Today reads are a hundred
+      // of the studio's, so a booked trial can be missing from them.
+      if (text(job.trialBookedAt)) continue;
       const jobConsultations = rows(input.consultations).filter((record) => text(record.projectId) === job.id);
       if (trialState({ consultations: jobConsultations, now: input.now }).state !== "not_booked") continue;
+      // Nobody to send it to: the job's trial card needs a client too, so
+      // there is nothing to invite from here.
+      const contactId =
+        Array.isArray(job.clientContactIds) && typeof job.clientContactIds[0] === "string" ? job.clientContactIds[0] : null;
+      if (!contactId) continue;
+      // Sent, with a link that still works: nothing to do. A trial link
+      // stays open to the day before the event, so a bride waiting months
+      // for her veil is never sent it again every month, and a second send
+      // never replaces the link she has. Closed, the card asks again.
+      const invite = trialInvite({ project: job, emailJobs: rows(input.emailJobs), now: input.now });
+      if (invite?.open) continue;
       const snapshotIds = jobPackageSnapshotIds(job);
       const wanted = trialWanted({
         snapshots: rows(input.packageSnapshots).filter((snapshot) => snapshotIds.includes(snapshot.id)),
         leads: rows(input.leads).filter((lead) => lead.id === text(job.leadId) || text(lead.projectId) === job.id),
       });
       if (!wanted) continue;
-      // The link the job's trial card sends (public-scheduling.ts create_link).
-      const invitedAt =
-        rows(input.emailJobs)
-          .filter(
-            (email) =>
-              text(email.projectId) === job.id &&
-              text(email.type) === "consultation_invitation" &&
-              text(email.purpose) === "trial",
-          )
-          .map((email) => text(email.createdAt))
-          .filter(Boolean)
-          .sort()
-          .at(-1) ?? null;
-      const invitedDaysAgo = invitedAt ? Math.abs(Math.min(0, elapsedDayDiff(invitedAt, now) ?? 0)) : null;
-      if (invitedDaysAgo !== null && invitedDaysAgo < TRIAL_INVITE_QUIET_DAYS) continue;
-      const contactId =
-        Array.isArray(job.clientContactIds) && typeof job.clientContactIds[0] === "string" ? job.clientContactIds[0] : null;
+      const invitedDaysAgo = invite ? Math.abs(Math.min(0, elapsedDayDiff(invite.sentAt, now) ?? 0)) : null;
       const trialHint = tradeVocab(input.tenantTrade).trialHint;
       act.push({
         id: `trial-invite-${job.id}`,
@@ -1403,19 +1396,21 @@ export function todayInbox(input: TodayInput): TodayInbox {
         title: `Invite ${clientOf(job)} to book their ${trialWord.toLowerCase()}`,
         detail: [
           wanted.reason === "bought" ? `${wanted.item} is in their booking.` : "They asked for one on their inquiry.",
-          trialHint ? `They can pick a date months ahead, ${trialHint}.` : "They pick a time from your openings.",
+          invite
+            ? "The link you sent them has closed."
+            : trialHint
+              ? `They can pick a date months ahead, ${trialHint}.`
+              : "They pick a time from your openings.",
         ].join(" "),
         evidence: null,
         projectId: job.id,
         projectName: text(job.name) || null,
-        action: contactId
-          ? {
-              kind: "trial_invite",
-              label: invitedAt ? "Send the link again" : "Send the invite",
-              projectId: job.id,
-              contactId,
-            }
-          : { kind: "link", label: "Open the trial card", href: `/studio/projects/${job.id}#trial` },
+        action: {
+          kind: "trial_invite",
+          label: invite ? "Send the link again" : "Send the invite",
+          projectId: job.id,
+          contactId,
+        },
         jobHref: `/studio/projects/${job.id}#trial`,
         facts: [
           eventFact(eventDate, now),

@@ -80,6 +80,16 @@ const readRange = (value: unknown): TrialRange | null => {
 const shortDay = (day: string) =>
   new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
 
+/**
+ * A trial week with nothing open, pointing only where there is somewhere to
+ * go: the last week before the event has no later one.
+ */
+export function noOpeningsThatWeek(range: Pick<TrialRange, "previous" | "next">): string {
+  if (range.next) return "No openings that week. Try a later one, or jump to another date.";
+  if (range.previous) return "No openings that week. Try an earlier one, or reply to the studio’s email.";
+  return "No openings before the day. Reply to the studio’s email and they’ll find a time.";
+}
+
 export function PublicConsultationScheduler({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const finalCall = preview?.purpose === "final_details";
@@ -274,8 +284,8 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
               ) : null}
               {range ? (
                 <>
-                  {/* Wraps rather than squeezes: the dates drop under the
-                      buttons on a narrow phone. */}
+                  {/* Wraps rather than squeezes: in a narrow column the dates
+                      take their own row above the two buttons (app/kit.css). */}
                   <div aria-label="Week" className="kit-week-nav" role="group">
                     <Button
                       aria-label="Earlier week"
@@ -327,11 +337,19 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
                   />
                 </>
               ) : null}
-              <SlotPicker onSelect={setSelected} selected={selected} slots={slots} timezone={timezone} />
+              {/* Keyed by the week: a new week starts on its own first day,
+                  not on a day tapped in the last one. */}
+              <SlotPicker
+                key={range?.start ?? "calls"}
+                onSelect={setSelected}
+                selected={selected}
+                slots={slots}
+                timezone={timezone}
+              />
               {slots.length ? (
                 <p className="kit-caption">Times shown in {zone}.</p>
               ) : range ? (
-                <Note>No openings that week. Try a later one, or jump to another date.</Note>
+                <Note>{noOpeningsThatWeek(range)}</Note>
               ) : (
                 <Note>No times are open right now. Reply to the studio’s email and they’ll find one.</Note>
               )}

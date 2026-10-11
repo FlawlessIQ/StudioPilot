@@ -99,3 +99,65 @@ export function trialLinkDays(input: { today: string; eventDate: unknown }): num
   if (!window) return BOOKING_LINK_DAYS;
   return Math.min(TRIAL_HORIZON_DAYS, Math.max(BOOKING_LINK_DAYS, daysBetween(input.today, window.latest) + 1));
 }
+
+/** What the slot generator is asked for, for one week of a trial (availability.ts generateConsultationSlots). */
+export type TrialSlotPlan = {
+  window: TrialWindow;
+  /** The trial's own length: every start leaves room for all of it inside the studio's hours. */
+  durationMinutes: number;
+  /** Starts keep the studio's usual cadence: a call's length plus its buffer. */
+  stepMinutes: number;
+  /** From the studio's today to the window's first day, and how many days it shows. */
+  startInDays: number;
+  daysAhead: number;
+  /** Room for every start in the week, however short the cadence. */
+  maxSlots: number;
+  /** What is already booked is read a day either side, so a booking that runs across midnight still counts. */
+  busyFrom: string;
+  busyTo: string;
+};
+
+/**
+ * One week of a trial's openings, as the slot generator is asked for them.
+ *
+ * Pure, so what the server offers, and checks a pick against, is tested as
+ * it runs (public-scheduling.ts `trialSlotsFor`). A pick (`at`) shows the
+ * week it starts in: a time before tomorrow, after the day before the event,
+ * or outside the studio's hours is never among the openings it is checked
+ * against. Null when no day is left to book.
+ */
+export function trialSlotPlan(input: {
+  now: Date;
+  /** The studio's clock. */
+  timezone: string;
+  eventDate: unknown;
+  /** The first day to show: "Earlier", "Later", or a date they jumped to. */
+  from?: string | null;
+  /** A time the client picked, to book it. */
+  at?: string | null;
+  /** The studio's call length and buffer (its consultation settings). */
+  callMinutes: number;
+  bufferMinutes: number;
+  /** The trade's trial length (trades.ts `trialMinutes`); the call's when it has none. */
+  trialMinutes?: number | null;
+}): TrialSlotPlan | null {
+  const today = studioDay(input.now, input.timezone);
+  const picked = input.at && !Number.isNaN(Date.parse(input.at)) ? studioDay(new Date(input.at), input.timezone) : null;
+  const window = trialWindow({ today, eventDate: input.eventDate, from: picked ?? input.from ?? null });
+  if (!window) return null;
+  const stepMinutes = Math.max(1, input.callMinutes + input.bufferMinutes);
+  const daysAhead = daysBetween(window.start, window.end) + 1;
+  return {
+    window,
+    durationMinutes: input.trialMinutes && input.trialMinutes > 0 ? input.trialMinutes : input.callMinutes,
+    stepMinutes,
+    startInDays: daysBetween(today, window.start),
+    daysAhead,
+    // Every start the week could hold. A fixed 200 ran out partway through a
+    // week of 15-minute starts over long days, and the last days showed no
+    // times with nothing saying why.
+    maxSlots: daysAhead * Math.ceil((24 * 60) / stepMinutes),
+    busyFrom: new Date(Math.max(input.now.valueOf(), Date.parse(`${shiftDate(window.start, -1)}T00:00:00Z`))).toISOString(),
+    busyTo: new Date(Date.parse(`${shiftDate(window.end, 2)}T00:00:00Z`)).toISOString(),
+  };
+}
