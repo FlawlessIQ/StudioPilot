@@ -18,7 +18,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { JourneySetupBanner, useOffersWeddingFilm } from "@/components/help/journey-film";
 import { useSetupState } from "@/components/setup/use-setup-state";
 import { useTenantDocuments } from "@/components/live/tenant-records";
-import { hasPerPersonPrice } from "@/features/packages/per-person-price";
+import { perPersonPricesLink } from "@/features/packages/per-person-price";
 import { LeadCaptureRoutes } from "@/components/intake/lead-capture-setup";
 import { fromSetup } from "@/components/setup/back-to-setup";
 import { setSignatureMode, startProviderConnect } from "@/lib/integrations/command-client";
@@ -250,14 +250,15 @@ export function SetupConversation() {
   // Any package answers "What do you charge?", so a makeup artist or hair
   // stylist who imported one lost the way to her per-person prices with it
   // (Priya Shah, Jess Styles Bridal, 2026-10-10). Only her trade reads the
-  // add-ons; undefined until both lists are in.
+  // add-ons; nothing shows until both lists are in.
   const perPersonPricing = tradeProfile(workspace.tenantTrade).perPersonPricing;
-  const addOnRecords = useTenantDocuments("addOns", { enabled: perPersonPricing }).records;
-  const packageRecords = useTenantDocuments("packages", { enabled: perPersonPricing }).records;
-  const pricedPerPerson =
-    addOnRecords === null || packageRecords === null
-      ? undefined
-      : hasPerPersonPrice({ addOns: addOnRecords, packages: packageRecords });
+  const addOnRead = useTenantDocuments("addOns", { enabled: perPersonPricing });
+  const packageRead = useTenantDocuments("packages", { enabled: perPersonPricing });
+  const perPersonLink = perPersonPricesLink({
+    trade: workspace.tenantTrade,
+    addOns: addOnRead,
+    packages: packageRead,
+  });
 
   /** What a question offers when it isn't answered yet. */
   const answer = (question: Question, gap: SetupGap): ReactNode => {
@@ -320,13 +321,13 @@ export function SetupConversation() {
 
   /** What an answered question still offers. */
   const afterwards = (question: Question): ReactNode => {
-    // Packages answer the question; per-person prices are still asked for
-    // until one exists, then stay a quiet link.
-    if (question.key === "packages" && perPersonPricing) {
-      if (pricedPerPerson === undefined) return null;
+    // Packages answer the question; per-person prices are what is left of it,
+    // so here they are the button (beside the prices themselves, before any
+    // package, they were the quieter link) until one exists.
+    if (question.key === "packages" && perPersonLink) {
       return (
         <div className="setup-answer-row">
-          {pricedPerPerson ? (
+          {perPersonLink === "quiet" ? (
             <Link className="setup-answer-link" href={PER_PERSON_PRICES}>
               Per-person prices
             </Link>
