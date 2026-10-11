@@ -63,6 +63,7 @@ import { useJobBilling } from "@/components/booking/use-job-billing";
 import { StudioInvoiceActions } from "@/components/booking/studio-invoice-actions";
 import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
 import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
+import { TodayGroupEvents } from "@/components/today/today-group-events";
 
 const DATE_LABEL = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -601,6 +602,11 @@ export function TodayInbox() {
               </Link>
             </section>
           ) : null}
+
+          {/* Group events (features/group-events/today-summary.ts): on the
+              day, who's signed up and what's still to take, with Field mode a
+              tap away. Renders nothing when no roster event is near. */}
+          {!loading ? <TodayGroupEvents /> : null}
 
           {laneApprove.length ? (
             <section className="today-lane" aria-label="Ready for your approval">
