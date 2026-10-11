@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { LoaderCircle, Plus } from "lucide-react";
-import { PAYMENT_SHAPE_LABELS, PAYMENT_SHAPES } from "@/features/job-kinds/job-kinds";
+import { PAYMENT_SHAPES, paymentShapeLabel } from "@/features/job-kinds/job-kinds";
 import {
   parseOneOffForm,
   type OneOffFormValues,
@@ -11,6 +11,7 @@ import {
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { COVERAGE_ROLES, coverageCount, coverageRoleLabel, resolveCoverage, type CoverageRole } from "@/features/packages/coverage";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { hoursText } from "@/features/packages/unit-label";
 
 /** What a one-off might include, in each trade's own work: the textarea's example. */
 const INCLUDED_EXAMPLE: Record<"photo" | "music" | "beauty", string> = {
@@ -226,7 +227,7 @@ export function OneOffPackageForm({
             value={values.hours}
           />
         </label>
-        <small>{`Left blank: one ${coverageRoleLabel(firstRole, 1)} for ${hours} hours.`}</small>
+        <small>{`Left blank: one ${coverageRoleLabel(firstRole, 1)} for ${hoursText(hours)}.`}</small>
       </fieldset>
       {hasPackage && !editing && !forBookingChange ? (
         <fieldset className="one-off-package-mode">
@@ -256,7 +257,7 @@ export function OneOffPackageForm({
             <option value="">As this kind of job usually is</option>
             {PAYMENT_SHAPES.map((shape) => (
               <option key={shape} value={shape}>
-                {PAYMENT_SHAPE_LABELS[shape]}
+                {paymentShapeLabel(shape, profile.journey.balanceOnTheDay)}
               </option>
             ))}
           </select>

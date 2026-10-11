@@ -4,7 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { AiScheduleGenerator } from "@/components/planning/ai-schedule-generator";
 
-export const metadata: Metadata = { title: "Generate Schedule" };
+// The tab says what the heading says (hair walk, 2026-10-10).
+export const metadata: Metadata = { title: "Plan the day" };
 
 export default async function NewSchedulePage({
   searchParams,

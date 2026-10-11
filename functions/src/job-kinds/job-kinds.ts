@@ -233,6 +233,19 @@ export const PAYMENT_SHAPE_LABELS: Record<PaymentShape, string> = {
   invoice_after: "Invoiced after the event",
 };
 
+/**
+ * A shape's label for this studio. A makeup artist or hair stylist collects
+ * the balance on the day itself (trades.ts `journey.balanceOnTheDay`, passed
+ * in, since this file imports nothing): "before the day" told Jess Styles
+ * Bridal the opposite of how she is paid (2026-10-10). Every other studio
+ * reads PAYMENT_SHAPE_LABELS as written.
+ */
+export function paymentShapeLabel(shape: PaymentShape, balanceOnTheDay = false): string {
+  return shape === "deposit_and_balance" && balanceOnTheDay
+    ? "Deposit to book, balance on the day"
+    : PAYMENT_SHAPE_LABELS[shape];
+}
+
 export function isPaymentShape(value: unknown): value is PaymentShape {
   return (PAYMENT_SHAPES as readonly string[]).includes(String(value ?? ""));
 }

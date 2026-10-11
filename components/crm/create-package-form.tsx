@@ -24,8 +24,8 @@ import {
   JOB_KIND_LABELS,
   JOB_KINDS,
   journeyProfile,
-  PAYMENT_SHAPE_LABELS,
   PAYMENT_SHAPES,
+  paymentShapeLabel,
 } from "@/features/job-kinds/job-kinds";
 
 const schema = z
@@ -307,7 +307,7 @@ export function CreatePackageForm({
           <select {...register("paymentShape")}>
             {PAYMENT_SHAPES.map((shape) => (
               <option key={shape} value={shape}>
-                {PAYMENT_SHAPE_LABELS[shape]}
+                {paymentShapeLabel(shape, tradeProfile(trade).journey.balanceOnTheDay)}
               </option>
             ))}
           </select>

@@ -36,6 +36,17 @@ export function formatCentsExact(cents: number | null | undefined): string {
   return exactDollars.format(Math.round(Number(cents ?? 0)) / 100);
 }
 
+/**
+ * Whole dollars when the amount is whole, the cents when it isn't: "$300",
+ * "$112.50". For a figure a client will be asked for, previewed beside a
+ * form: 30% of $375 read "$113" there and $112.50 on the quote (Jess Styles
+ * Bridal, 2026-10-10).
+ */
+export function formatCentsAsNeeded(cents: number | null | undefined): string {
+  const value = Math.round(Number(cents ?? 0));
+  return value % 100 === 0 ? formatCents(value) : formatCentsExact(value);
+}
+
 /** Loading and empty states share one dash so columns line up. */
 export const moneyPlaceholder = "—";
 

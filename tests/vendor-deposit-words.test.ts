@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { tradeVocab } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { bookedOnceClause, journeyProfile } from "@/features/job-kinds/job-kinds";
 import { projectJourney, type JourneyInput } from "@/features/journey/steps";
 import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
@@ -9,7 +9,12 @@ import { bookingBlockerLabel as blockerLabel } from "@/features/booking/blocker-
 import { manualAdvanceFor } from "@/features/projects/manual-advance";
 import { cueHandoff } from "@/features/today/handoff";
 import { explainersFor } from "@/features/help/explainers";
-import { glossaryFor } from "@/features/help/glossary";
+import { glossaryFor, glossaryTerm } from "@/features/help/glossary";
+import { scheduleLineLabel } from "@/features/billing/schedule-label";
+import { buildCombinedAgreement, sectionDocument } from "@/features/contracts/combined";
+import { PAYMENT_SHAPE_LABELS, paymentShapeLabel } from "@/features/job-kinds/job-kinds";
+import { paymentShapeLabel as functionsPaymentShapeLabel } from "../functions/src/job-kinds/job-kinds";
+import { extraExamples, extraUnitExamples } from "@/features/packages/extra-ideas";
 import { buildClientMilestones } from "../server/client/portal-experience";
 import { emailTemplateKeys, renderEmailTemplate } from "../functions/src/communications/email-templates";
 import { tradeVocab as functionsVocab } from "../functions/src/trades/trades";
@@ -172,4 +177,117 @@ test("the studio's screens take the trade's word, labels both spelled out", () =
   assert.match(read("components/booking/invoice-corrections.tsx"), /invoice\.kind === "final" \? "final balance" : tradeVocab\(trade\)\.deposit;/);
   assert.match(read("components/client/kit/client-payments.tsx"), /if \(value === "retainer"\) \{\s*const word = tradeVocab\(trade\)\.deposit;/);
   assert.match(read("components/ai/actions/booking-actions.tsx"), /const deposit = tradeVocab\(cardTrade\)\.deposit;/);
+});
+
+/**
+ * The hair walk (Priya Shah, Jess Styles Bridal, 2026-10-10): the quote, the
+ * package forms, the Library and the client's agreement still spoke a
+ * photographer's words in places. A photographer's read exactly as before.
+ */
+test("the quote composer's deposit field and its ⓘ are the trade's", () => {
+  const proposal = read("components/proposals/studio-proposal-workspace.tsx");
+  assert.match(proposal, /<small>\s*\{Deposit\} <InfoHint term="retainer" \/>\s*<\/small>/);
+  assert.doesNotMatch(proposal, /Retainer <InfoHint term="retainer" \/>/);
+  // InfoHint reads the studio's trade, so the ⓘ is the trade's own word.
+  assert.match(read("components/ui/info-hint.tsx"), /glossaryTerm\(props\.term, tenantTrade\)/);
+  assert.equal(glossaryTerm("retainer", "hair")?.term, "Deposit");
+  assert.doesNotMatch(glossaryTerm("retainer", "hair")?.hint ?? "", RETAINER);
+  assert.equal(glossaryTerm("retainer", "photographer")?.term, "Retainer");
+  // The panel's notes follow it.
+  assert.match(proposal, /the \$\{vocab\.deposit\} that holds their date\./);
+  assert.match(proposal, /The \$\{vocab\.deposit\} and final balance dates go on the payment plan they see\./);
+});
+
+test("a stored \"Retainer\" line reads as the trade's word, and only where it is shown", () => {
+  for (const trade of VENDORS) assert.equal(scheduleLineLabel("Retainer", trade), "Deposit");
+  assert.equal(scheduleLineLabel("Retainer", "photographer"), "Retainer");
+  assert.equal(scheduleLineLabel("Retainer"), "Retainer");
+  for (const label of ["Final balance", "Payment in full", "Payment on the day", "Booking fee"])
+    assert.equal(scheduleLineLabel(label, "hair"), label);
+  assert.match(
+    read("components/proposals/studio-proposal-workspace.tsx"),
+    /<small>\{scheduleLineLabel\(text\(payment\.label, "Payment"\), workspace\.tenantTrade\)\}<\/small>/,
+  );
+  assert.match(
+    read("components/client/kit/client-proposal.tsx"),
+    /title=\{scheduleLineLabel\(text\(payment\.label, "Payment"\), workspace\.tenantTrade\)\}/,
+  );
+  // A signed agreement's Part 2 is in its document hash, so it keeps the
+  // stored label: the swap is never made where it would change a hash.
+  const { document, sections } = buildCombinedAgreement(
+    { format: 1, title: "Agreement", blocks: [{ type: "paragraph", content: [{ text: "Terms." }] }] },
+    {
+      currency: "USD",
+      lineItems: [{ description: "Bridal hair", quantity: 1, totalCents: 37500, kind: "package" }],
+      discountCents: 0,
+      taxCents: 0,
+      totalCents: 37500,
+      paymentSchedule: [
+        { label: "Retainer", amountCents: 11250, dueDate: null },
+        { label: "Final balance", amountCents: 26250, dueDate: "2027-05-22" },
+      ],
+    },
+    "hair",
+  );
+  assert.match(JSON.stringify(sectionDocument(document, sections[1]!).blocks), /"label":"Retainer"/);
+  assert.doesNotMatch(read("features/contracts/combined.ts"), /scheduleLineLabel/);
+});
+
+test("a makeup artist's or hair stylist's package is paid the balance on the day", () => {
+  for (const trade of ["makeup", "hair"]) {
+    const onTheDay = tradeProfile(trade).journey.balanceOnTheDay;
+    assert.equal(paymentShapeLabel("deposit_and_balance", onTheDay), "Deposit to book, balance on the day");
+    assert.equal(functionsPaymentShapeLabel("deposit_and_balance", onTheDay), "Deposit to book, balance on the day");
+    assert.equal(paymentShapeLabel("paid_in_full", onTheDay), "Paid in full to book");
+  }
+  for (const trade of ["photographer", "dj"]) {
+    const onTheDay = tradeProfile(trade).journey.balanceOnTheDay;
+    assert.equal(paymentShapeLabel("deposit_and_balance", onTheDay), "Deposit to book, balance before the day");
+  }
+  assert.equal(PAYMENT_SHAPE_LABELS.deposit_and_balance, "Deposit to book, balance before the day");
+  for (const form of [
+    "components/crm/create-package-form.tsx",
+    "components/crm/edit-package-form.tsx",
+    "components/proposals/one-off-package-form.tsx",
+    "components/job-kinds/job-types-settings.tsx",
+  ]) {
+    const source = read(form);
+    assert.match(source, /paymentShapeLabel\(/, form);
+    assert.doesNotMatch(source, /PAYMENT_SHAPE_LABELS\[/, form);
+  }
+  const edit = read("components/crm/edit-package-form.tsx");
+  assert.match(edit, /\? "A deposit to book, the balance on the day\."\s*: "A deposit to book, the balance before the day\."/);
+});
+
+test("the extras a package form and the Library name are the trade's", () => {
+  assert.equal(extraExamples("photographer"), "an engagement session, an extra hour");
+  assert.equal(extraExamples(undefined), "an engagement session, an extra hour");
+  assert.equal(extraExamples("hair"), "bridesmaid hair, an early start");
+  assert.equal(extraExamples("makeup"), "lashes, a touch-up stay");
+  assert.equal(extraExamples("dj"), "uplighting, an extra hour");
+  for (const trade of VENDORS) {
+    assert.doesNotMatch(extraExamples(trade), /engagement/);
+    assert.equal(extraUnitExamples(trade), "people, hours");
+  }
+  assert.equal(extraUnitExamples("photographer"), "people, hours, prints");
+  assert.match(read("components/crm/package-add-on-picker.tsx"), /\{` — \$\{extraExamples\(trade\)\} — and they can be suggested here\.`\}/);
+  const shelves = read("components/library/library-shelves.tsx");
+  assert.match(shelves, /\? `Extras sold on top of a package — \$\{extraExamples\(trade\)\}\.`/);
+  assert.doesNotMatch(shelves, /an engagement session/);
+  const library = read("components/library/add-on-library.tsx");
+  assert.match(library, /`Sold by the unit \(\$\{extraUnitExamples\(workspace\.tenantTrade\)\}\) — pick how many`/);
+  assert.doesNotMatch(library, /Sold by the unit \(people, hours, prints\)/);
+});
+
+test("a client whose studio bills itself is told the studio sends the deposit invoice", () => {
+  const page = read("components/client/kit/client-contract.tsx");
+  assert.match(
+    page,
+    /you sign each part, then \$\{studioName \?\? "your studio"\} sends your \$\{needs\.paidInFull \? "invoice" : "deposit invoice"\}, and paying it books your date\./,
+  );
+  assert.doesNotMatch(page, /arrange your \$\{needs\.paidInFull/);
+  // The quote page says "then", not "right after": the invoice may come later.
+  const quote = read("components/client/kit/client-proposal.tsx");
+  assert.match(quote, /Signing it accepts them, and then you pay your deposit\./);
+  assert.doesNotMatch(quote, /right after/);
 });

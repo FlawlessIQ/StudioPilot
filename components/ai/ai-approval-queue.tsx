@@ -35,6 +35,7 @@ import {
   dispatchesOnApproval,
   sendsOnApproval,
 } from "@/features/ai/approval-consequence";
+import { checkNote } from "@/features/ai/check-note";
 import { decisionError, friendlyError } from "@/lib/ai/friendly-error";
 import {
   StructuredContentFields,
@@ -146,10 +147,11 @@ export function AiQueueCard({
     string | null
   >(null);
   const confidence = object(action.confidence);
-  /** The only part of `confidence` that says anything actionable. */
-  const uncertainFields = list(confidence.uncertainFields)
-    .map((entry) => readable(text(entry)))
-    .filter(Boolean);
+  /**
+   * The only part of `confidence` that says anything actionable, in the AI's
+   * own words and sentence case (check-note.ts): readable() title-cased it.
+   */
+  const checkText = checkNote(list(confidence.uncertainFields));
   const validation = object(action.validation);
   const issues = list(validation.issues).map(object);
   const blocking = issues.some((issue) => issue.severity === "blocking");
@@ -368,12 +370,7 @@ export function AiQueueCard({
             "a number implying precision the data does not have is worse than
             the order itself". What is real is `uncertainFields`, so that is
             what shows — and when nothing is uncertain, nothing does. */}
-        {uncertainFields.length ? (
-          <span className="ai-confidence is-medium">
-            Check {uncertainFields.slice(0, 3).join(", ")}
-            {uncertainFields.length > 3 ? ` +${uncertainFields.length - 3}` : ""}
-          </span>
-        ) : null}
+        {checkText ? <span className="ai-confidence is-medium">{checkText}</span> : null}
       </header>
 
       {/* What approving actually does, in one sentence. The entity type,

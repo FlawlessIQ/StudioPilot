@@ -5,7 +5,7 @@ import { isSalesConsultation } from "@/features/consultations/purpose";
 import { finalCallState } from "@/features/consultations/final-call";
 import { trialState, trialWhen, type TrialState } from "@/features/consultations/trial";
 import { extensionsState } from "@/features/trades/extensions";
-import { tradeProfile } from "@/features/trades/trades";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { journeyFor, projectProfile } from "@/features/job-kinds/job-kinds";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -173,7 +173,8 @@ export function useProjectJourney({
    */
   const evidence: JourneyEvidence = {
     proposal: proposal
-      ? { href: `/studio/proposals/${proposal.id}`, files: FILE_BEARING.proposals(proposal) }
+      ? // In the trade's word: a hair stylist's chip reads "Quote" (trades.ts).
+        { href: `/studio/proposals/${proposal.id}`, files: FILE_BEARING.proposals(proposal, tradeVocab(tenantTrade).proposal) }
       : undefined,
     contract: contract ? { files: FILE_BEARING.contracts(contract) } : undefined,
     retainer: retainerInvoice ? { files: FILE_BEARING.invoiceReferences(retainerInvoice) } : undefined,

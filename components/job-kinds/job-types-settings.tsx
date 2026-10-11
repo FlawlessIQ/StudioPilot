@@ -1,13 +1,15 @@
 "use client";
 
 import { InquiryFormEditor } from "@/components/intake/inquiry-form-editor";
+import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   JOB_KIND_LABELS,
   JOB_KINDS,
   journeyProfile,
-  PAYMENT_SHAPE_LABELS,
+  paymentShapeLabel,
   vocab,
 } from "@/features/job-kinds/job-kinds";
+import { tradeProfile } from "@/features/trades/trades";
 
 /**
  * Settings → Job types (docs/job-types-plan-2026-10-02.md).
@@ -20,6 +22,8 @@ import {
  * can change the payment.
  */
 export function JobTypesSettings() {
+  // A makeup artist or hair stylist is paid the balance on the day (trades.ts).
+  const balanceOnTheDay = tradeProfile(useWorkspace().tenantTrade).journey.balanceOnTheDay;
   return (
     <div className="job-types-settings">
       <InquiryFormEditor typesOnly />
@@ -39,7 +43,7 @@ export function JobTypesSettings() {
                 <span>
                   {[
                     profile.agreement ? "Agreement to book" : "No agreement",
-                    PAYMENT_SHAPE_LABELS[profile.payment],
+                    paymentShapeLabel(profile.payment, balanceOnTheDay),
                     profile.consultation ? "Consultation offered" : "No consultation",
                     profile.detailsFormDaysBefore
                       ? `${vocab(kind).detailsForm} ${

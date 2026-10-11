@@ -10,6 +10,7 @@ import {
   salesTaxEstimateText,
   salesTaxSentence,
 } from "@/features/billing/sales-tax-pricing";
+import { scheduleLineLabel } from "@/features/billing/schedule-label";
 import { useMemo, useState } from "react";
 import { ArrowLeft, BadgeCheck, MessageCircle, ShieldCheck, XCircle } from "lucide-react";
 import {
@@ -326,7 +327,8 @@ export function ClientProposal() {
                 <Row
                   key={`${String(payment.label)}-${index}`}
                   subtitle={payment.dueDate ? `Due ${date(payment.dueDate)}` : "Due date on the invoice"}
-                  title={text(payment.label, "Payment")}
+                  // A vendor's client pays a deposit; the stored line says "Retainer" (schedule-label.ts).
+                  title={scheduleLineLabel(text(payment.label, "Payment"), workspace.tenantTrade)}
                   // The last payment is the one the sales tax is added to.
                   trailing={
                     index === payments.length - 1
@@ -339,7 +341,8 @@ export function ClientProposal() {
             <p className="kit-caption">
               {proposal.combinedContractId
                 ? tradeProfile(workspace.tenantTrade).journey.oneLinkBooking
-                  ? "These prices are Part 2 of your booking agreement. Signing it accepts them, and you pay your deposit right after."
+                  ? // "Then": a studio that bills itself sends the invoice later (hair walk, 2026-10-10).
+                    "These prices are Part 2 of your booking agreement. Signing it accepts them, and then you pay your deposit."
                   : `These prices are Part 2 of your booking agreement. Signing it accepts them — no payment is taken until the ${tradeVocab(workspace.tenantTrade).deposit}.`
                 : needs.agreement
                   ? "Accepting doesn’t sign an agreement or take a payment. Those are separate, secure steps."

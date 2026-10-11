@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Archive, CheckCircle2, LoaderCircle, Pencil, Plus } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { extraIdeasFor } from "@/features/packages/extra-ideas";
+import { extraIdeasFor, extraUnitExamples } from "@/features/packages/extra-ideas";
 import { tradeOf, tradeVocab } from "@/features/trades/trades";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -177,7 +177,8 @@ export function AddOnLibrary() {
             onChange={(event) => setDraft({ ...draft, allowQuantity: event.target.checked })}
             type="checkbox"
           />
-          <span>Sold by the unit (people, hours, prints) — pick how many</span>
+          {/* Prints are a photographer's (extra-ideas.ts). */}
+          <span>{`Sold by the unit (${extraUnitExamples(workspace.tenantTrade)}) — pick how many`}</span>
         </label>
         {draft.allowQuantity ? (
           <label>

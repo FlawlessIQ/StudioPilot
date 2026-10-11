@@ -494,6 +494,7 @@ export function buildClientPortalExperience({
   today = null,
   currentSchedule = null,
   questionnaireStatus = null,
+  planningForm = null,
   inquiryForm = null,
   trade = null,
   consultation,
@@ -540,6 +541,11 @@ export function buildClientPortalExperience({
   currentSchedule?: { status: string; version: number; approvalState?: string } | null;
   /** So the fallback never sends them back to a form they have finished. */
   questionnaireStatus?: string | null;
+  /**
+   * The planning form waiting on them: assigned, not the inquiry page's event
+   * form, and not yet sent back. `dueDate` is a plain YYYY-MM-DD.
+   */
+  planningForm?: { dueDate: string | null } | null;
   /** The event form from their inquiry page, when the job has one. */
   inquiryForm?: InquiryFormMilestone;
   /** The studio's trade (features/trades): its words, its call, whether it delivers. Omitted reads as a photographer. */
@@ -675,6 +681,24 @@ export function buildClientPortalExperience({
                 actionLabel: `View accepted ${offer}`,
               }
             : null;
+  /**
+   * A vendor's client is asked for the form by its own name and date: "Fill
+   * in your party list", due the day it's due — not "Continue planning your
+   * event" while the party list sat open (Priya Shah, Jess Styles Bridal,
+   * 2026-10-10). A photographer's form has no trade word (trades.ts
+   * `detailsForm`), so theirs reads as it always has.
+   */
+  const formWord = tradeVocab(trade).detailsForm?.toLowerCase() ?? null;
+  const askForForm = (action: ClientNextAction): ClientNextAction =>
+    formWord && planningForm && !questionnaireDone && action.href === "/client/questionnaire"
+      ? {
+          ...action,
+          name: `Fill in your ${formWord}`,
+          description: `Your studio plans ${tradeVocab(trade).dayName.toLowerCase()} from it.`,
+          dueDate: planningForm.dueDate,
+          actionLabel: `Open your ${formWord}`,
+        }
+      : action;
   const stateFallback = (() => {
     const fallback = defaultNextAction(state, trade);
     // Past the day, a planning ask is a question about a wedding that has
@@ -696,7 +720,7 @@ export function buildClientPortalExperience({
     // to do now. The checkpoint path said so, under the name "Questionnaire
     // complete", before the records answered it (ANSWERED_BY_RECORDS).
     if (state === "BOOKED" && availability.questionnaire && !questionnaireDone) {
-      return defaultNextAction("PLANNING", trade);
+      return askForForm(defaultNextAction("PLANNING", trade));
     }
     // A finished form is not somewhere to send them back to.
     if (questionnaireDone && fallback.href === "/client/questionnaire") {
@@ -711,7 +735,7 @@ export function buildClientPortalExperience({
         actionLabel: "View project",
       } satisfies ClientNextAction;
     }
-    return fallback;
+    return askForForm(fallback);
   })();
   /**
    * A checkpoint is the studio's own record of work, and its wording shows it:

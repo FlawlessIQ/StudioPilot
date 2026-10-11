@@ -62,6 +62,7 @@ import {
 } from "@/features/projects/stage-progress";
 import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
 import { isCataloguePackage } from "@/features/packages/one-off";
+import { hoursText } from "@/features/packages/unit-label";
 import { ConsultationCorrections } from "@/components/booking/consultation-corrections";
 
 type Value = Record<string, unknown> & { id: string };
@@ -1135,8 +1136,9 @@ export function BookingAutopilotWorkspace({
                             : "Active package"}
                     </small>
                     <strong>{text(studioPackage.name)}</strong>
-                    {/* No "0 hours" for a package that states none (an imported vendor list). */}
-                    <em>{money(studioPackage.basePriceCents, studioPackage.currency)} · {Number(studioPackage.includedCoverageMinutes ?? 0) > 0 ? `${Math.round(Number(studioPackage.includedCoverageMinutes) / 60)} hours · ` : ""}{describeCoverage(resolveCoverage(studioPackage))}</em>
+                    {/* No "0 hours" for a package that states none (an imported
+                        vendor list); "1 hour", never "1 hours" (unit-label.ts). */}
+                    <em>{money(studioPackage.basePriceCents, studioPackage.currency)} · {Number(studioPackage.includedCoverageMinutes ?? 0) > 0 ? `${hoursText(Math.round(Number(studioPackage.includedCoverageMinutes) / 60))} · ` : ""}{describeCoverage(resolveCoverage(studioPackage))}</em>
                   </span>
                 </button>
                 );

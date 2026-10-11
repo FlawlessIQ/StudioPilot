@@ -14,8 +14,8 @@ import {
   isPaymentShape,
   jobKindOf,
   journeyProfile,
-  PAYMENT_SHAPE_LABELS,
   PAYMENT_SHAPES,
+  paymentShapeLabel,
   type PaymentShape,
 } from "@/features/job-kinds/job-kinds";
 import Link from "next/link";
@@ -24,7 +24,7 @@ import { CheckCircle2, LoaderCircle } from "lucide-react";
 import { useTenantDocuments, refreshTenantRecords } from "@/components/live/tenant-records";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
-import { formatCents } from "@/lib/format/money";
+import { formatCentsAsNeeded } from "@/lib/format/money";
 import {
   PackageDeliverablesEditor,
   type EditableDeliverable,
@@ -327,18 +327,21 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
           >
             {PAYMENT_SHAPES.map((shape) => (
               <option key={shape} value={shape}>
-                {PAYMENT_SHAPE_LABELS[shape]}
+                {paymentShapeLabel(shape, tradeShape.journey.balanceOnTheDay)}
               </option>
             ))}
           </select>
           <small>
             {paymentShape === "paid_in_full"
-              ? `Clients pay ${formatCents(priceCents)} to book.`
+              ? `Clients pay ${formatCentsAsNeeded(priceCents)} to book.`
               : paymentShape === "on_the_day"
                 ? "Nothing to book; the invoice is due on the day."
                 : paymentShape === "invoice_after"
                   ? "Nothing to book; invoiced after the event."
-                  : "A deposit to book, the balance before the day."}
+                  : // A makeup artist or hair stylist is paid the balance on the day (trades.ts).
+                    tradeShape.journey.balanceOnTheDay
+                    ? "A deposit to book, the balance on the day."
+                    : "A deposit to book, the balance before the day."}
           </small>
         </label>
         {hasDeposit ? (
@@ -367,7 +370,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             type="number"
             value={amount}
           />
-          <small>Clients are asked for {formatCents(retainerPreview)}.</small>
+          {/* The cents when there are any: the quote asks for $112.50, not $113. */}
+          <small>Clients are asked for {formatCentsAsNeeded(retainerPreview)}.</small>
           {perCrewProblem ? (
             <small className="form-error" role="alert">
               {perCrewProblem}

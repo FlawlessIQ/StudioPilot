@@ -58,3 +58,25 @@ const BY_TRADE = { photographer: PHOTOGRAPHER, dj: DJ, makeup: MAKEUP, hair: HAI
 export function extraIdeasFor(trade: unknown): readonly ExtraIdea[] {
   return BY_TRADE[tradeOf(trade)];
 }
+
+/**
+ * Two extras to name mid-sentence ("Extras sold on top of a package — …"),
+ * in the trade's own work. A photographer's are the ones these screens always
+ * named; a hair stylist was offered "an engagement session" on her package
+ * form and Library (Jess Styles Bridal, 2026-10-10).
+ */
+const EXAMPLES = {
+  photographer: "an engagement session, an extra hour",
+  dj: "uplighting, an extra hour",
+  makeup: "lashes, a touch-up stay",
+  hair: "bridesmaid hair, an early start",
+} as const;
+
+export function extraExamples(trade: unknown): string {
+  return EXAMPLES[tradeOf(trade)];
+}
+
+/** What an extra can be sold by, as the add-on editor lists it. Prints are a photographer's. */
+export function extraUnitExamples(trade: unknown): string {
+  return tradeOf(trade) === "photographer" ? "people, hours, prints" : "people, hours";
+}

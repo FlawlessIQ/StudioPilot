@@ -1021,6 +1021,17 @@ async function clientProject(tenantId: string, projectId: string) {
   const inquiryForm = inquiryFormDoc
     ? { returned: ["submitted", "locked"].includes(String(inquiryFormDoc.get("status"))) }
     : null;
+  // The planning form still waiting on them, so their next step can name it
+  // and its due date ("Fill in your party list"; portal-experience.ts).
+  const planningFormDoc = availabilitySnapshots[questionnaireIndex].docs.find(
+    (document) =>
+      document.get("source") !== "inquiry_page" &&
+      !document.get("archivedAt") &&
+      !["withdrawn", "submitted", "locked"].includes(String(document.get("status"))),
+  );
+  const planningForm = planningFormDoc
+    ? { dueDate: safeString(planningFormDoc.get("dueDate"))?.slice(0, 10) ?? null }
+    : null;
   const proposalIndex = Object.keys(availabilityCollections).indexOf("proposal");
   // Only a version the couple has been given. A draft, one in review or
   // approved-but-unsent after a reissue or revise was taken as "current", and
@@ -1090,6 +1101,7 @@ async function clientProject(tenantId: string, projectId: string) {
     currentSchedule,
     questionnaireStatus,
     inquiryForm,
+    planningForm,
     trade: tenantSnapshot.get("trade"),
     consultation: projectProfile(projectSnapshot.data()).consultation,
     shotList: await (async () => {

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { InfoHint } from "@/components/ui/info-hint";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { extraExamples } from "@/features/packages/extra-ideas";
 import { normalizeUnitLabel } from "@/features/packages/unit-label";
 
 type Row = Record<string, unknown> & { id: string };
@@ -28,6 +30,8 @@ export function PackageAddOnPicker({
   currency: string;
 }) {
   const { records, loading } = useTenantDocuments("addOns");
+  // The extras this trade sells, named in the empty hint (extra-ideas.ts).
+  const trade = useWorkspace().tenantTrade;
   const library = ((records ?? []) as Row[])
     .filter((row) => !row.archivedAt)
     .sort((a, b) => text(a.name).localeCompare(text(b.name)));
@@ -41,8 +45,8 @@ export function PackageAddOnPicker({
       {loading && !records ? <p className="field-hint">Loading your add-ons…</p> : null}
       {!loading && library.length === 0 ? (
         <p className="field-hint">
-          None in your library yet. <Link href="/studio/library/add-ons">Add your extras</Link> — an engagement
-          session, an extra hour — and they can be suggested here.
+          None in your library yet. <Link href="/studio/library/add-ons">Add your extras</Link>
+          {` — ${extraExamples(trade)} — and they can be suggested here.`}
         </p>
       ) : null}
       {library.map((row) => (

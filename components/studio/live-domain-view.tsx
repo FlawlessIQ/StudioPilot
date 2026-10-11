@@ -60,6 +60,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { withTimeout } from "@/lib/async/with-timeout";
 import { getStudioRecords } from "@/lib/studio/records-client";
 import { isCataloguePackage } from "@/features/packages/one-off";
+import { hoursText } from "@/features/packages/unit-label";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { readinessSummary } from "@/features/projects/readiness-summary";
 import { useReadinessEvidence } from "@/components/projects/use-readiness-evidence";
@@ -221,7 +222,7 @@ type DomainConfig = {
    * fails when a list reads a file-bearing collection and has neither this
    * nor `href`.
    */
-  files?: (record: Value) => FileRef[];
+  files?: (record: Value, trade: unknown) => FileRef[];
 };
 
 const configurations: Record<Domain, DomainConfig> = {
@@ -256,7 +257,8 @@ const configurations: Record<Domain, DomainConfig> = {
       { label: "Expires", fields: ["expiresAt"], kind: "date" },
     ],
     href: (record) => `/studio/proposals/${record.id}`,
-    files: (record) => FILE_BEARING.proposals(record),
+    // "Quote" on a makeup artist's or hair stylist's list (trades.ts).
+    files: (record, trade) => FILE_BEARING.proposals(record, tradeVocab(trade).proposal),
   },
   contracts: {
     collection: "contracts",
@@ -653,9 +655,10 @@ function display(
   if (kind === "percent") return `${Number(value)}%`;
   if (kind === "coverage") {
     const minutes = Number(value);
+    // "1 hr", never "1 hrs" (unit-label.ts).
     const hours =
       Number.isFinite(minutes) && minutes > 0
-        ? `${Math.round((minutes / 60) * 10) / 10} hrs`
+        ? hoursText(minutes / 60, true)
         : "";
     const crew = describeCoverage(resolveCoverage(record));
     return [hours, crew].filter(Boolean).join(" · ") || "—";
@@ -1072,7 +1075,7 @@ export function LiveDomainView({
           typeof rawStatus === "boolean" && config.statusLabels
             ? config.statusLabels[rawStatus ? 0 : 1]
             : rawStatus;
-        const fileRefs = config.files?.(record) ?? [];
+        const fileRefs = config.files?.(record, workspace.tenantTrade) ?? [];
         const content = (
           <>
             {/*

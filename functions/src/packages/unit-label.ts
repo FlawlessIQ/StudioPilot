@@ -27,3 +27,14 @@ export function quantityText(quantity: number, unitLabel: unknown): string {
   if (count === 1) return `1 ${unit}`;
   return `${count} ${IRREGULAR[unit] ?? (unit.endsWith("s") ? unit : `${unit}s`)}`;
 }
+
+/**
+ * A package's hours, to a tenth: "1 hour", "7.5 hours"; short, "1 hr",
+ * "8 hrs". A hair stylist's one-hour service read "1 hrs" in her
+ * package list and "1 hours" on the quote (Jess Styles Bridal, 2026-10-10).
+ */
+export function hoursText(hours: number, short = false): string {
+  const value = Math.round((Number.isFinite(hours) ? hours : 0) * 10) / 10;
+  const one = value === 1;
+  return `${value} ${short ? (one ? "hr" : "hrs") : one ? "hour" : "hours"}`;
+}

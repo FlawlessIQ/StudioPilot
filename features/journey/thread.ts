@@ -247,7 +247,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               ].filter(Boolean),
               href: `/studio/proposals/${proposal.id}`,
             },
-            files: FILE_BEARING.proposals(proposal),
+            files: FILE_BEARING.proposals(proposal, offer),
           }
         : null,
     );
@@ -264,7 +264,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
               ? `Viewed ${formatDueDate(text(proposal.viewedAt))}`
               : "Not opened yet",
             artifact: null,
-            files: FILE_BEARING.proposals(proposal),
+            files: FILE_BEARING.proposals(proposal, offer),
           }
         : null,
     );
@@ -279,7 +279,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             title: `${client} accepted the ${offer.toLowerCase()}`,
             detail: total,
             artifact: null,
-            files: FILE_BEARING.proposals(proposal),
+            files: FILE_BEARING.proposals(proposal, offer),
           }
         : null,
     );

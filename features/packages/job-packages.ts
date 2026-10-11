@@ -67,7 +67,8 @@ export function snapshotInclusions(value: Json): string[] {
       ? value.deliverables
       : [];
   return [
-    ...(hours ? [`${hours} hours of coverage`] : []),
+    // "1 hour of coverage", never "1 hours" (2026-10-10); the figure as stored.
+    ...(hours ? [`${hours} ${hours === 1 ? "hour" : "hours"} of coverage`] : []),
     ...resolveCoverage(value).map(
       (item) => `${item.count} ${coverageRoleLabel(item.role, item.count)}`,
     ),

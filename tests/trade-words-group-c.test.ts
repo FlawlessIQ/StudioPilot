@@ -191,7 +191,8 @@ test("the package forms and the one-off say each trade's hours, people and inclu
   const oneOff = read("components/proposals/one-off-package-form.tsx");
   assert.match(oneOff, /<span>\{roleHeading\(firstRole\)\}<\/span>/);
   assert.match(oneOff, /\{roles\[1\] \? \(/);
-  assert.match(oneOff, /Left blank: one \$\{coverageRoleLabel\(firstRole, 1\)\} for \$\{hours\} hours\./);
+  // "for 1 hour", never "for 1 hours" (unit-label.ts hoursText, 2026-10-10).
+  assert.match(oneOff, /Left blank: one \$\{coverageRoleLabel\(firstRole, 1\)\} for \$\{hoursText\(hours\)\}\./);
   // A vendor's count is its own role, never a photographer, on the wire too.
   assert.match(oneOff, /role: item\.role === "videographer" \? roles\[1\] : firstRole/);
   assert.match(read("components/proposals/proposal-packages-panel.tsx"), /record=\{oneOffPackage\}/);

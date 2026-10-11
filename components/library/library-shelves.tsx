@@ -6,7 +6,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { isCataloguePackage } from "@/features/packages/one-off";
 import { KindGlyph } from "@/components/library/kind-glyph";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { extraIdeasFor } from "@/features/packages/extra-ideas";
+import { extraExamples } from "@/features/packages/extra-ideas";
 import { packagesShelfDescription } from "@/components/crm/package-copy";
 import type { LibraryKind } from "@/features/library/kinds";
 
@@ -59,7 +59,8 @@ const SETUP: Shelf[] = [
   },
   {
     title: "Add-ons",
-    description: "Extras sold on top of a package — an engagement session, an extra hour.",
+    // Read per trade in ShelfCard; this is a photographer's.
+    description: `Extras sold on top of a package — ${extraExamples(undefined)}.`,
     href: "/studio/library/add-ons",
     kind: "package",
     icon: PackagePlus,
@@ -116,10 +117,9 @@ function ShelfCard({ shelf }: { shelf: Shelf }) {
   // and the packages shelf what a package holds in this trade's words
   // (package-copy.ts); a photographer's keep their own lines.
   const trade = useWorkspace().tenantTrade;
-  const ideas = extraIdeasFor(trade);
   const description =
-    shelf.collection === "addOns" && ideas !== extraIdeasFor(undefined)
-      ? `Extras sold on top of a package — ${ideas[0]?.name.toLowerCase()}, ${ideas.find((idea) => idea.perUnit === "hour")?.name.toLowerCase() ?? ideas[1]?.name.toLowerCase()}.`
+    shelf.collection === "addOns"
+      ? `Extras sold on top of a package — ${extraExamples(trade)}.`
       : shelf.collection === "packages"
         ? packagesShelfDescription(trade)
         : shelf.description;

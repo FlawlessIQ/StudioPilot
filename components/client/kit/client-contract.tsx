@@ -122,7 +122,10 @@ export function ClientContract() {
                     : oneLink && needs.payment && !depositByStudio
                       ? `Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, then ${needs.paidInFull ? "make your payment" : "pay your deposit"} right here, and your date is booked.`
                       : oneLink && needs.payment
-                        ? `Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, then arrange your ${needs.paidInFull ? "payment" : "deposit"} with ${studioName ?? "your studio"}, and paying it books your date.`
+                        ? // The studio sends the invoice (own invoicing drafts it on
+                          // signing), as the home card says; "arrange your deposit"
+                          // left Priya Shah to chase it (Jess Styles Bridal, 2026-10-10).
+                          `Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, then ${studioName ?? "your studio"} sends your ${needs.paidInFull ? "invoice" : "deposit invoice"}, and paying it books your date.`
                         : "Your terms, then what’s included and the price, in two parts. Read both, then tap Review & sign — you sign each part, and that books it."
                   : `Read it through, then tap Review & sign. It’s written from the ${tradeVocab(workspace.tenantTrade).proposal.toLowerCase()} you accepted.`}
           </p>

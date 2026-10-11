@@ -1,10 +1,11 @@
 "use client";
 
-import { quantityText } from "@/features/packages/unit-label";
+import { hoursText, quantityText } from "@/features/packages/unit-label";
 import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { CombinedAgreementSend } from "@/components/contracts/combined-agreement-send";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { undatedPaymentDue } from "@/features/contracts/document";
+import { scheduleLineLabel } from "@/features/billing/schedule-label";
 import {
   describeCoverage,
   resolveCoverage,
@@ -1501,13 +1502,14 @@ export function StudioProposalComposer() {
                               )}
                               {" · "}
                               {/* An imported vendor package states no hours
-                                  (native-assets.ts): no "0 hours". */}
+                                  (native-assets.ts): no "0 hours". And "1 hour",
+                                  never "1 hours" (unit-label.ts). */}
                               {number(studioPackage.includedCoverageMinutes) > 0 ? (
                                 <>
-                                  {Math.round(
-                                    number(studioPackage.includedCoverageMinutes) / 60,
+                                  {hoursText(
+                                    Math.round(number(studioPackage.includedCoverageMinutes) / 60),
                                   )}{" "}
-                                  hours ·{" "}
+                                  ·{" "}
                                 </>
                               ) : null}
                               {describeCoverage(resolveCoverage(studioPackage))}
@@ -1738,8 +1740,7 @@ export function StudioProposalComposer() {
                 <h2>
                   Set the decision and payment dates
                   <InfoHint label="Decision and payment dates">
-                    After the expiry date the couple can&apos;t accept it; you&apos;d send a new version. The retainer
-                    and final balance dates go on the payment plan they see.
+                    {`After the expiry date the couple can't accept it; you'd send a new version. The ${vocab.deposit} and final balance dates go on the payment plan they see.`}
                   </InfoHint>
                 </h2>
                 <p>{`Dates are explicit and preserved with this ${words.offer} version.`}</p>
@@ -1802,8 +1803,7 @@ export function StudioProposalComposer() {
           <div className="proposal-composer-preview-label">
             <Sparkles /> Offer snapshot
             <InfoHint label="Offer snapshot">
-              A running summary of what the couple will see: the total, the tax, and the retainer that holds their
-              date.
+              {`A running summary of what the couple will see: the total, the tax, and the ${vocab.deposit} that holds their date.`}
             </InfoHint>
           </div>
           {/* The job is known from the first step and from the URL. Telling
@@ -1905,8 +1905,12 @@ export function StudioProposalComposer() {
           <div className="proposal-composer-retainer">
             <CircleDollarSign />
             <span>
+              {/* The trade's word, and the ⓘ reads the trade's glossary
+                  (InfoHint passes the studio's trade): a hair stylist's
+                  quote said "Retainer" here (Priya Shah, Jess Styles Bridal,
+                  2026-10-10). */}
               <small>
-                Retainer <InfoHint term="retainer" />
+                {Deposit} <InfoHint term="retainer" />
               </small>
               <input
                 aria-label={`${Deposit} amount`}
@@ -2730,7 +2734,8 @@ export function StudioProposalWorkspace({
               <div className="proposal-workspace-payment-cards">
                 {payments.map((payment, index) => (
                   <article key={`${text(payment.label)}-${index}`}>
-                    <small>{text(payment.label, "Payment")}</small>
+                    {/* A vendor's "Deposit": the stored line says "Retainer" (schedule-label.ts). */}
+                    <small>{scheduleLineLabel(text(payment.label, "Payment"), workspace.tenantTrade)}</small>
                     <strong>
                       {index === payments.length - 1
                         ? balanceWithSalesTax(money(payment.amountCents, currency), proposalSalesTax)
@@ -3074,9 +3079,12 @@ export function StudioProposalWorkspace({
                   // the couple is signing (walked 2026-09-29).
                   <div className="proposal-combined-note">
                     <strong>{oneLink ? "Booking link sent" : "Sent as a booking agreement"}</strong>
+                    {/* "Then", not "straight after": a studio that bills
+                        itself sends the deposit invoice later (Priya Shah,
+                        Jess Styles Bridal, 2026-10-10). */}
                     <small>
                       {oneLink
-                        ? `Signing it accepts this ${offer}, and the client pays the deposit straight after. To change anything, withdraw the booking link on the job’s Booking tab first; then this ${offer} can be corrected and sent again.`
+                        ? `Signing it accepts this ${offer}, and the client then pays the deposit. To change anything, withdraw the booking link on the job’s Booking tab first; then this ${offer} can be corrected and sent again.`
                         : `Signing it accepts this ${offer}. To change anything, withdraw the agreement on the job’s Booking tab first; then this ${offer} can be corrected and sent again.`}
                     </small>
                     <Link className="button button-light" href={`/studio/booking?project=${encodeURIComponent(text(proposal.projectId, ""))}`}>

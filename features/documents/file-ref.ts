@@ -91,12 +91,17 @@ export const FILE_BEARING = {
       refFromPointer(contract.certificateDocumentId, "Signing certificate", "application/pdf"),
     ]);
   },
-  proposals(proposal: Row): FileRef[] {
+  /**
+   * `offer` is the studio's word for it (trades.ts `proposal`): a hair job's
+   * rail chip read "Proposal View" for a quote (Jess Styles Bridal,
+   * 2026-10-10). A photographer's, and a caller with no trade, read "Proposal".
+   */
+  proposals(proposal: Row, offer = "Proposal"): FileRef[] {
     const version = Number(proposal.version ?? 0);
     return unique([
       refFromPointer(
         proposal.pdfDocumentId,
-        version > 1 ? `Proposal (version ${version})` : "Proposal",
+        version > 1 ? `${offer} (version ${version})` : offer,
         "application/pdf",
       ),
     ]);
