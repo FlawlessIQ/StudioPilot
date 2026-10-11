@@ -40,6 +40,8 @@ import { kindTone, type LibraryKind } from "@/features/library/kinds";
 import { kindIcon } from "@/components/library/kind-glyph";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useNativeSigning } from "@/components/contracts/use-native-signing";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 
 type SourceMode = "files" | "email" | "website";
 type ImportKind =
@@ -188,9 +190,34 @@ function importStatusLabel(status: string | undefined) {
  * option says what to paste, sources are named for it, and it's what's
  * pre-selected. The server still reads the content and can find more.
  */
-const KIND_COPY: Partial<Record<ImportKind, { paste: string; name: string }>> = {
-  Package: { paste: "Paste your price list", name: "Pasted price list" },
-  Questionnaire: { paste: "Paste your details form", name: "Pasted details form" },
+type KindCopy = {
+  paste: string;
+  name: string;
+  /**
+   * The paste box itself. A price list opened on "Paste the full message"
+   * over an inquiry reply (Jess Styles Bridal, 2026-10-10).
+   */
+  label: string;
+  placeholder: (deposit: string) => string;
+  hint: string;
+};
+
+const KIND_COPY: Partial<Record<ImportKind, KindCopy>> = {
+  Package: {
+    paste: "Paste your price list",
+    name: "Pasted price list",
+    label: "Paste your price list",
+    placeholder: (deposit) =>
+      `Each package and its price, any extras (per person or per hour), and your ${deposit}…`,
+    hint: "StudioCue reads each price as you wrote it. Nothing goes live until you approve it.",
+  },
+  Questionnaire: {
+    paste: "Paste your details form",
+    name: "Pasted details form",
+    label: "Paste your details form",
+    placeholder: () => "Each question you ask, one per line…",
+    hint: "StudioCue keeps your questions, in your order.",
+  },
 };
 
 function isImportKind(value: string | null | undefined): value is ImportKind {
@@ -209,6 +236,8 @@ export function TemplateImportStudio({
 }) {
   const initialKind = isImportKind(requestedKind) ? requestedKind : null;
   const kindCopy = initialKind ? KIND_COPY[initialKind] ?? null : null;
+  // "Your retainer", "your deposit": the studio's own word (trades.ts).
+  const depositWord = tradeVocab(useWorkspace().tenantTrade).deposit;
   const nativeSigning = useNativeSigning();
   // Once known to be off, contracts aren't offered or pre-selected.
   const offered = (kinds: ImportKind[]) =>
@@ -832,7 +861,7 @@ export function TemplateImportStudio({
 
           {sourceMode === "email" ? (
             <label className="template-paste-source">
-              <span>Paste the full message</span>
+              <span>{kindCopy?.label ?? "Paste the full message"}</span>
               <textarea
                 onChange={(event) => {
                   setEmailText(event.target.value);
@@ -840,10 +869,17 @@ export function TemplateImportStudio({
                   setPipelineError(null);
                   setReview(null);
                 }}
-                placeholder="Hi {{first name}}, thank you for reaching out about your wedding…"
+                placeholder={
+                  kindCopy
+                    ? kindCopy.placeholder(depositWord)
+                    : "Hi {{first name}}, thank you for reaching out about your wedding…"
+                }
                 value={emailText}
               />
-              <small>StudioCue will keep the tone and replace personal details with safe variables.</small>
+              <small>
+                {kindCopy?.hint ??
+                  "StudioCue will keep the tone and replace personal details with safe variables."}
+              </small>
             </label>
           ) : null}
 

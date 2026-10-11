@@ -1500,10 +1500,16 @@ export function StudioProposalComposer() {
                                 text(studioPackage.currency, "USD"),
                               )}
                               {" · "}
-                              {Math.round(
-                                number(studioPackage.includedCoverageMinutes) / 60,
-                              )}{" "}
-                              hours ·{" "}
+                              {/* An imported vendor package states no hours
+                                  (native-assets.ts): no "0 hours". */}
+                              {number(studioPackage.includedCoverageMinutes) > 0 ? (
+                                <>
+                                  {Math.round(
+                                    number(studioPackage.includedCoverageMinutes) / 60,
+                                  )}{" "}
+                                  hours ·{" "}
+                                </>
+                              ) : null}
                               {describeCoverage(resolveCoverage(studioPackage))}
                               {totalCoverageCount(
                                 resolveCoverage(studioPackage),

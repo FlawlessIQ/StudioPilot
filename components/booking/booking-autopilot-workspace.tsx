@@ -1135,7 +1135,8 @@ export function BookingAutopilotWorkspace({
                             : "Active package"}
                     </small>
                     <strong>{text(studioPackage.name)}</strong>
-                    <em>{money(studioPackage.basePriceCents, studioPackage.currency)} · {Math.round(Number(studioPackage.includedCoverageMinutes ?? 0) / 60)} hours · {describeCoverage(resolveCoverage(studioPackage))}</em>
+                    {/* No "0 hours" for a package that states none (an imported vendor list). */}
+                    <em>{money(studioPackage.basePriceCents, studioPackage.currency)} · {Number(studioPackage.includedCoverageMinutes ?? 0) > 0 ? `${Math.round(Number(studioPackage.includedCoverageMinutes) / 60)} hours · ` : ""}{describeCoverage(resolveCoverage(studioPackage))}</em>
                   </span>
                 </button>
                 );

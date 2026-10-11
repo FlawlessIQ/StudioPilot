@@ -233,13 +233,48 @@ export function StudioImportReviewWorkspace({
           draft.reviewDecision === "pending",
       )
     : [];
-  const hasApprovedPackages = visibleDrafts.some(
-    (draft) => draft.assetType === "package" && draft.reviewDecision === "approved",
-  );
-  const hasApprovedQuestionnaires = visibleDrafts.some(
-    (draft) =>
-      draft.assetType === "questionnaire" && draft.reviewDecision === "approved",
-  );
+  const approvedOf = (assetType: string) =>
+    visibleDrafts.filter(
+      (draft) => draft.assetType === assetType && draft.reviewDecision === "approved",
+    ).length;
+  const hasApprovedPackages = approvedOf("package") > 0;
+  const hasApprovedQuestionnaires = approvedOf("questionnaire") > 0;
+  const hasApprovedMessages = approvedOf("message_template") > 0;
+  /**
+   * What activating actually did, and nothing else. This listed forms,
+   * timing rules, messages and delivery defaults after Jess Styles Bridal
+   * imported one price list — and a hair studio delivers nothing
+   * (2026-10-10).
+   */
+  const activated = (() => {
+    const count = (assetType: string, one: string, many: string, done: string) => {
+      const n = approvedOf(assetType);
+      return n ? `${n} ${n === 1 ? one : many} ${done}` : "";
+    };
+    const otherTypes = [
+      "proposal",
+      "schedule",
+      "crew_preference",
+      "coi_instruction",
+      "workflow",
+    ];
+    const others = otherTypes.reduce((sum, assetType) => sum + approvedOf(assetType), 0);
+    return [
+      count("package", "package is", "packages are", "in your library"),
+      count("contract", "agreement is", "agreements are", "in your library"),
+      count("questionnaire", "form is", "forms are", "ready to send"),
+      count("timing_rule", "timing rule is", "timing rules are", "active"),
+      count("message_template", "message is", "messages are", "ready to turn on"),
+      approvedOf("delivery_instruction")
+        ? "Delivery instructions are saved as your defaults"
+        : "",
+      approvedOf("review_request") ? "Your review link is saved" : "",
+      others ? `${others} more ${others === 1 ? "item is" : "items are"} saved to your library` : "",
+    ]
+      .filter(Boolean)
+      .map((sentence) => `${sentence}.`)
+      .join(" ");
+  })();
 
   /**
    * Decide the current draft, then move to the next one that still needs a
@@ -255,11 +290,26 @@ export function StudioImportReviewWorkspace({
     versionId: string,
   ) {
     const advanceTo = nextPendingDraft?.id ?? null;
+    // Approve what's on screen. A name typed without "Save & confirm" first
+    // was dropped, and the package went live under the old one (Jess Styles
+    // Bridal, 2026-10-10). The edits go with the approval, in one write.
+    const edited =
+      action === "approve" &&
+      selected?.id === versionId &&
+      (name !== selected.name ||
+        JSON.stringify(content) !== JSON.stringify(selected.structuredContent));
     await run(action, () =>
       reviewStudioImportDraft({
         sessionId: review.session.id,
         versionId,
         action,
+        ...(edited && selected
+          ? {
+              name: name.trim() || selected.name,
+              assetType: selected.assetType,
+              structuredContent: content,
+            }
+          : {}),
       }),
     );
     if (advanceTo && advanceTo !== versionId) selectDraftAndReveal(advanceTo);
@@ -742,17 +792,13 @@ export function StudioImportReviewWorkspace({
         <div className="studio-import-native-links" role="status">
           <div>
             <strong>Your approved content is now native StudioCue data.</strong>
-            <small>
-              Questionnaires and timing rules are active. Imported messages
-              are ready for one-click activation; approved delivery and review
-              instructions are saved as studio defaults.
-            </small>
+            {activated ? <small>{activated}</small> : null}
           </div>
           {hasApprovedPackages ? <Link href="/studio/packages">View packages</Link> : null}
           {hasApprovedQuestionnaires ? (
             <Link href="/studio/questionnaires">View questionnaires</Link>
           ) : null}
-          <Link href="/studio/messages">Review messages</Link>
+          {hasApprovedMessages ? <Link href="/studio/messages">Review messages</Link> : null}
           <Link href="/studio/library">Open studio library</Link>
         </div>
       ) : null}

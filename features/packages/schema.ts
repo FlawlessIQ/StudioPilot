@@ -57,7 +57,12 @@ export const packageSchema = auditFieldsSchema.extend({
   basePriceCents: centsSchema,
   currency: z.string().length(3),
   retainerRule: retainerRuleSchema,
-  includedCoverageMinutes: z.number().int().positive(),
+  /**
+   * Zero is "none stated": an imported vendor price list that names no hours
+   * (functions/src/studio-import/native-assets.ts). What prints hours skips
+   * zero rather than say "0 hours".
+   */
+  includedCoverageMinutes: z.number().int().nonnegative(),
   /**
    * What the studio sends: {role, count}. Read it via `resolveCoverage`,
    * never directly.
@@ -180,7 +185,8 @@ export const packageSnapshotSchema = z.object({
   retainerCents: centsSchema,
   totalCents: centsSchema,
   salesTax: pricedSalesTaxSchema.optional(),
-  includedCoverageMinutes: z.number().int().positive(),
+  /** Copied from the package; zero when it states no hours (see the package schema). */
+  includedCoverageMinutes: z.number().int().nonnegative(),
   /**
    * Optional only because snapshots are immutable: every proposal signed
    * before coverage had roles carries the legacy field alone, forever.

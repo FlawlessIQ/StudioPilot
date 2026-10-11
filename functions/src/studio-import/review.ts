@@ -14,12 +14,14 @@ import {
   type StudioAssetType,
 } from "./extraction.js";
 import { productEvent } from "../operations/product-events.js";
+import { tenantTrade } from "../trades/tenant-trade.js";
 import { questionnaireEventType } from "./event-type-guess.js";
 import {
   importedDeliveryDefaults,
   importedMessageTemplate,
   importedReviewLink,
   importedStudioPackage,
+  type ImportedAddOn,
 } from "./native-assets.js";
 
 type Json = Record<string, unknown>;
@@ -674,6 +676,54 @@ export async function mergeStudioImportDrafts(input: {
   };
 }
 
+/**
+ * What the studio gave the import for one draft: the text it pasted, and the
+ * excerpts the AI cited. A deposit the price list states in words ("A 30%
+ * deposit holds the date.") is read from here when the draft has no field
+ * for it (Jess Styles Bridal, 2026-10-10).
+ */
+function draftSourceText(
+  version: DocumentSnapshot,
+  items: readonly DocumentSnapshot[],
+): string {
+  const sourceItemIds = new Set(
+    Array.isArray(version.get("sourceItemIds"))
+      ? (version.get("sourceItemIds") as unknown[]).map(String)
+      : [],
+  );
+  const pasted = items
+    .filter((item) => sourceItemIds.has(item.id))
+    .map((item) => string(item.get("sourceText")));
+  const cited = Array.isArray(version.get("sourceCitations"))
+    ? (version.get("sourceCitations") as unknown[]).map((citation) =>
+        string(record(citation).excerpt),
+      )
+    : [];
+  return [...pasted, ...cited].filter(Boolean).join("\n");
+}
+
+/**
+ * An extra an imported price list suggests, as its entry in the studio's
+ * add-on library (H2). The package keeps its own copy; the library entry is
+ * what the package form lists and saves by id, so an extra only on the
+ * package could neither be seen nor kept there.
+ */
+function importedAddOnDocument(
+  addOn: ImportedAddOn,
+  shared: Record<string, unknown>,
+) {
+  return {
+    id: addOn.id,
+    name: addOn.name,
+    description: addOn.description,
+    unitPriceCents: addOn.unitPriceCents,
+    taxable: addOn.taxable,
+    allowQuantity: addOn.allowQuantity,
+    unitLabel: addOn.unitLabel,
+    ...shared,
+  };
+}
+
 export async function activateStudioImport(input: {
   tenantId: string;
   sessionId: string;
@@ -686,6 +736,8 @@ export async function activateStudioImport(input: {
     input.tenantId,
     input.sessionId,
   );
+  // A hair studio's price list is staffed with stylists, not photographers.
+  const trade = await tenantTrade(db, input.tenantId);
   if (session.get("status") === "activated") {
     const activatedIds = new Set(
       Array.isArray(session.get("activatedAssetVersionIds"))
@@ -724,19 +776,30 @@ export async function activateStudioImport(input: {
         };
         if (assetType === "package") {
           const packageId = `imported_package_${assetId}`;
+          const studioPackage = importedStudioPackage({
+            name: string(version.get("name")) || "Imported package",
+            structuredContent: version.get("structuredContent"),
+            displayOrder: index,
+            trade,
+            sourceText: draftSourceText(version, items),
+            addOnIdPrefix: `imported_addon_${assetId}`,
+          });
           batch.set(
             db.doc(`packages/${packageId}`),
             {
               id: packageId,
               ...shared,
-              ...importedStudioPackage({
-                name: string(version.get("name")) || "Imported package",
-                structuredContent: version.get("structuredContent"),
-                displayOrder: index,
-              }),
+              ...studioPackage,
             },
             { merge: true },
           );
+          for (const addOn of studioPackage.addOns) {
+            batch.set(
+              db.doc(`addOns/${addOn.id}`),
+              importedAddOnDocument(addOn, shared),
+              { merge: true },
+            );
+          }
         }
         if (assetType === "contract") {
           const templateId = `imported_agreement_${assetId}`;
@@ -937,27 +1000,41 @@ export async function activateStudioImport(input: {
       const assetId = string(version.get("assetId"));
       if (assetType === "package") {
         const packageId = `imported_package_${assetId}`;
+        const studioPackage = importedStudioPackage({
+          name: string(version.get("name")) || "Imported package",
+          structuredContent: version.get("structuredContent"),
+          displayOrder: index,
+          trade,
+          sourceText: draftSourceText(version, items),
+          addOnIdPrefix: `imported_addon_${assetId}`,
+        });
+        const provenance = {
+          tenantId: input.tenantId,
+          version: nextVersion,
+          sourceStudioAssetId: assetId,
+          sourceStudioAssetVersionId: version.id,
+          createdAt: asset.exists ? asset.get("createdAt") : now,
+          updatedAt: now,
+          createdBy: asset.exists ? asset.get("createdBy") : input.actorId,
+          updatedBy: input.actorId,
+          archivedAt: null,
+        };
         transaction.set(
           db.doc(`packages/${packageId}`),
           {
             id: packageId,
-            tenantId: input.tenantId,
-            ...importedStudioPackage({
-              name: string(version.get("name")) || "Imported package",
-              structuredContent: version.get("structuredContent"),
-              displayOrder: index,
-            }),
-            version: nextVersion,
-            sourceStudioAssetId: assetId,
-            sourceStudioAssetVersionId: version.id,
-            createdAt: asset.exists ? asset.get("createdAt") : now,
-            updatedAt: now,
-            createdBy: asset.exists ? asset.get("createdBy") : input.actorId,
-            updatedBy: input.actorId,
-            archivedAt: null,
+            ...studioPackage,
+            ...provenance,
           },
           { merge: true },
         );
+        for (const addOn of studioPackage.addOns) {
+          transaction.set(
+            db.doc(`addOns/${addOn.id}`),
+            importedAddOnDocument(addOn, provenance),
+            { merge: true },
+          );
+        }
       }
       // A contract becomes an agreement the studio can open in the editor.
       // This branch existed only in the "sync to library" repair path above,

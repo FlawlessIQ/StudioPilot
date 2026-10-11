@@ -1,9 +1,11 @@
 import {
-  coverageFromPhotographerCount,
+  COVERAGE_ROLES,
   legacyPhotographerCount,
   normaliseCoverage,
   type CoverageRole,
 } from "../packages/coverage.js";
+import { normalizeUnitLabel } from "../packages/unit-label.js";
+import { DEFAULT_TRADE, tradeOf, tradeProfile } from "../trades/trades.js";
 
 type Json = Record<string, unknown>;
 
@@ -48,12 +50,286 @@ function lineItemText(value: unknown): string[] {
     : [];
 }
 
+/**
+ * The words a price list uses for each role a studio sends. A photographer's
+ * two are the ones this importer has always read. A vendor reads its own crew
+ * (trades.ts `coverageRoles`): a hair studio's list was read for
+ * photographers only, and its package imported as one photographer (Priya
+ * Shah, Jess Styles Bridal, 2026-10-10).
+ */
+const ROLE_WORDS: Record<CoverageRole, string> = {
+  photographer: "photographers?",
+  videographer: "videographers?",
+  dj: String.raw`djs?|disc\s+jockeys?`,
+  makeup_artist: String.raw`(?:make-?up\s+)?artists?`,
+  hair_stylist: String.raw`(?:hair\s*)?stylists?`,
+};
+
+function tradeRoles(trade: unknown): CoverageRole[] {
+  const roles = tradeProfile(trade).coverageRoles.filter(
+    (role): role is CoverageRole =>
+      (COVERAGE_ROLES as readonly string[]).includes(role),
+  );
+  return roles.length ? roles : ["photographer"];
+}
+
+type ImportedRetainerRule =
+  | { type: "percentage"; basisPoints: number }
+  | { type: "fixed"; amountCents: number };
+
+const percentRule = (percent: number): ImportedRetainerRule => ({
+  type: "percentage",
+  basisPoints: Math.min(10_000, Math.round(percent * 100)),
+});
+
+const fixedRule = (dollars: number): ImportedRetainerRule => ({
+  type: "fixed",
+  amountCents: Math.round(dollars * 100),
+});
+
+const DEPOSIT_WORD = String.raw`(?:non-?refundable\s+)?(?:deposit|retainer|booking\s+fee)`;
+// "No deposit — $375 on the day" states no deposit at all.
+const DEPOSIT_LEAD = String.raw`(?<!\bno\s+)\b${DEPOSIT_WORD}\s*(?:of|is|:|[–—-])?\s*`;
+const PERCENT = String.raw`(\d{1,3}(?:\.\d+)?)\s?(?:%|percent\b)`;
+const DOLLARS = String.raw`\$\s?(\d[\d,]*(?:\.\d{1,2})?)`;
+const DEPOSIT_STATEMENTS: ReadonlyArray<[RegExp, "percent" | "fixed"]> = [
+  [new RegExp(String.raw`${PERCENT}\s+${DEPOSIT_WORD}\b`, "gi"), "percent"],
+  [new RegExp(`${DEPOSIT_LEAD}${PERCENT}`, "gi"), "percent"],
+  [new RegExp(String.raw`${DOLLARS}\s+${DEPOSIT_WORD}\b`, "gi"), "fixed"],
+  [new RegExp(`${DEPOSIT_LEAD}${DOLLARS}`, "gi"), "fixed"],
+];
+
+/**
+ * The deposit a price list states in words: "A 30% deposit holds the date",
+ * "$500 non-refundable retainer", "Booking fee: $100". Null when it states
+ * none, or states two that disagree — then nothing is guessed.
+ *
+ * The import read only structured retainer fields, so Jess Styles Bridal's
+ * "A 30% deposit holds the date." became a $0 deposit (2026-10-10).
+ */
+export function statedDeposit(source: string): ImportedRetainerRule | null {
+  const found = new Map<string, ImportedRetainerRule>();
+  for (const [pattern, kind] of DEPOSIT_STATEMENTS) {
+    for (const match of source.matchAll(pattern)) {
+      const value = Number((match[1] ?? "").replace(/,/g, ""));
+      if (!Number.isFinite(value) || value <= 0) continue;
+      if (kind === "percent" && value > 100) continue;
+      const rule = kind === "percent" ? percentRule(value) : fixedRule(value);
+      found.set(JSON.stringify(rule), rule);
+    }
+  }
+  return found.size === 1 ? ([...found.values()][0] ?? null) : null;
+}
+
+/** Every string in a draft, however deep the AI nested it. */
+function strings(value: unknown, depth = 0): string[] {
+  if (typeof value === "string") return value.trim() ? [value] : [];
+  if (depth > 6 || typeof value !== "object" || value === null) return [];
+  return (Array.isArray(value) ? value : Object.values(value)).flatMap(
+    (nested) => strings(nested, depth + 1),
+  );
+}
+
+/**
+ * The deposit: a structured field when the draft has one, as it always was;
+ * else what the draft's own words state; else what the source the studio
+ * gave states; else none.
+ */
+function importedRetainerRule(
+  content: Json,
+  sourceText: string,
+): ImportedRetainerRule {
+  const percent = money(content.retainerPercent ?? content.depositPercent);
+  if (percent !== null) return percentRule(percent);
+  const stated = [
+    content.retainer,
+    content.retainerAmount,
+    content.bookingFee,
+    content.deposit,
+    content.depositAmount,
+  ].find((value) => value !== undefined && value !== null && value !== "");
+  const amount =
+    typeof stated === "string" && !/\d/.test(stated) ? null : money(stated);
+  if (amount !== null) {
+    // "30%" in a retainer field is a percentage, not $30.
+    return typeof stated === "string" && /%|percent/i.test(stated)
+      ? percentRule(amount)
+      : fixedRule(amount);
+  }
+  return (
+    statedDeposit(strings(content).join("\n")) ??
+    statedDeposit(sourceText) ??
+    fixedRule(0)
+  );
+}
+
+/** One line of a vendor's price list. */
+type PriceListItem = {
+  /** The item as the list names it, its price and unit taken out. */
+  name: string;
+  /** Any further words the list gives it. */
+  detail: string;
+  cents: number | null;
+  /** What it is priced per ("person", "hour"), when the list says. */
+  unit: string | null;
+  /** Sold by the person or the hour, or "each". */
+  byQuantity: boolean;
+  /** A deposit, balance or total line: terms, never something to sell. */
+  terms: boolean;
+};
+
+const PRICE_TOKEN =
+  /(?:USD\s*)?\$\s?(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{2})?)\s?USD/i;
+const UNIT_PHRASE =
+  /\(?\s*(?:\bper\s+|\/\s*)(person|people|guest|head|child|children|kid|hour|hr)s?\b\s*\)?/i;
+const PER_PERSON_SHORT = /\bpp\b/i;
+// "Deposit $100", "Balance due on the day", "Total: $815" — not "Total glam".
+const TERMS_LINE =
+  /\b(?:deposit|retainer|booking\s+fee)\b|^\s*(?:(?:remaining\s+)?balance|(?:sub)?total|(?:sales\s+)?tax)\s*(?:due\b|:|$|[–—-]|\$)/i;
+
+const unitFor = (word: string): string =>
+  /^(?:child|children|kid)/i.test(word)
+    ? "child"
+    : /^(?:hour|hr)/i.test(word)
+      ? "hour"
+      : "person";
+
+const dollarsToCents = (dollars: number | null): number | null =>
+  dollars !== null && Number.isFinite(dollars) && dollars >= 0
+    ? Math.round(dollars * 100)
+    : null;
+
+/** "$125 per person" → 12500; only the dollar figure, never "under 12". */
+const tokenCents = (value: string): number | null => {
+  const token = value.match(PRICE_TOKEN);
+  return token
+    ? dollarsToCents(Number((token[1] ?? token[2] ?? "").replace(/,/g, "")))
+    : null;
+};
+
+function itemCents(
+  entry: Json,
+  label: string,
+  described: string,
+): number | null {
+  const cents = [entry.amountCents, entry.priceCents, entry.unitPriceCents].find(
+    (value) =>
+      typeof value === "number" ||
+      (typeof value === "string" && /\d/.test(value)),
+  );
+  if (cents !== undefined) {
+    const parsed = money(cents);
+    return parsed === null ? null : Math.round(parsed);
+  }
+  const amount = entry.amount ?? entry.price ?? entry.unitPrice;
+  if (typeof amount === "number") return dollarsToCents(amount);
+  if (typeof amount === "string" && /\d/.test(amount)) {
+    return tokenCents(amount) ?? dollarsToCents(money(amount));
+  }
+  return tokenCents(label) ?? (described ? tokenCents(described) : null);
+}
+
+const tidy = (value: string): string => {
+  const tidied = value
+    .replace(/\(\s*\)/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, "")
+    .trim();
+  // "Flower girls (under 12, per person)" keeps its closing bracket.
+  const open = tidied.split("(").length - tidied.split(")").length;
+  return open > 0 ? `${tidied})` : tidied;
+};
+
+function priceListItems(value: unknown): PriceListItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): PriceListItem[] => {
+    const entry = record(item);
+    const named = text(
+      entry.name ?? entry.label ?? entry.title ?? entry.item ?? entry.service,
+    );
+    const described =
+      typeof item === "string" ? item.trim() : text(entry.description);
+    const label = named || described;
+    if (!label) return [];
+    const unitField = text(
+      entry.unit ?? entry.unitLabel ?? entry.per ?? entry.priceUnit ?? entry.pricingUnit,
+    );
+    const amountText = text(entry.amount ?? entry.price);
+    const unitSource = [
+      unitField && !/^(?:per\b|\/)/i.test(unitField) ? `per ${unitField}` : unitField,
+      amountText,
+      label,
+    ].join(" ");
+    const unitWord = unitSource.match(UNIT_PHRASE)?.[1];
+    const unit = unitWord
+      ? unitFor(unitWord)
+      : PER_PERSON_SHORT.test(unitSource)
+        ? "person"
+        : null;
+    const name =
+      tidy(
+        label
+          .replace(new RegExp(PRICE_TOKEN.source, "gi"), " ")
+          .replace(new RegExp(UNIT_PHRASE.source, "gi"), " ")
+          .replace(/\bpp\b/gi, " ")
+          .replace(/\s+each\s*$/i, " "),
+      ) || label;
+    return [
+      {
+        name: name.slice(0, 120),
+        detail: [named ? described : "", text(entry.details), text(entry.notes)]
+          .filter(Boolean)
+          .join(" ")
+          .slice(0, 1000),
+        cents: itemCents(entry, label, named ? described : ""),
+        unit,
+        byQuantity:
+          unit !== null ||
+          /^each$/i.test(unitField) ||
+          /\beach\b/i.test(`${amountText} ${label}`),
+        terms: TERMS_LINE.test(label) || statedDeposit(label) !== null,
+      },
+    ];
+  });
+}
+
+const slugOf = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40) || "extra";
+
+/** An extra the package suggests, in the shape the package form and proposals read. */
+export type ImportedAddOn = {
+  id: string;
+  name: string;
+  description: string;
+  unitPriceCents: number;
+  taxable: boolean;
+  allowQuantity: boolean;
+  unitLabel: string | null;
+  active: boolean;
+};
+
+// "48 hours notice" is not a service length.
+const VENDOR_HOURS =
+  /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)\b(?!\s+(?:notice|before|prior|in\s+advance|ahead))/i;
+
 export function importedStudioPackage(input: {
   name: string;
   structuredContent: unknown;
   displayOrder: number;
+  /** The studio's trade (tenants/{id}.trade); missing is a photographer. */
+  trade?: unknown;
+  /** What the studio gave the import: the pasted list, the excerpts the AI cited. */
+  sourceText?: string;
+  /** Where the ids of the extras a vendor's list becomes start. */
+  addOnIdPrefix?: string;
 }) {
   const content = record(input.structuredContent);
+  const trade = tradeOf(input.trade);
+  const vendor = trade !== DEFAULT_TRADE;
   const details = lineItemText(
     content.lineItems ?? content.pricingItems ?? content.items,
   );
@@ -80,11 +356,79 @@ export function importedStudioPackage(input: {
         return dollars === null ? [] : [Math.round(dollars * 100)];
       })[0] ?? 0
     : 0;
-  const basePriceCents = Math.round(
+  const statedPriceCents =
     explicitPrice !== null
-      ? explicitPrice * 100
+      ? Math.round(explicitPrice * 100)
       : amountCents !== null
-        ? amountCents
+        ? Math.round(amountCents)
+        : null;
+
+  /**
+   * A vendor's price list is one service and its extras: "Bridal hair $375",
+   * then the trial, the bridesmaids per person, the extensions. It imported
+   * as one package whose description was all five lines run together (Jess
+   * Styles Bridal, 2026-10-10). The first priced line — or the one the draft
+   * names as the price — is the package; every other priced line becomes an
+   * extra it suggests, at the price the list gives and nothing else. A
+   * photographer's list reads as it always has.
+   */
+  const listed = vendor
+    ? priceListItems(content.lineItems ?? content.pricingItems ?? content.items)
+    : [];
+  // A line at $0 ("Veil placement, included") is part of the package.
+  const priced = listed.filter((item) => (item.cents ?? 0) > 0 && !item.terms);
+  const baseIndex =
+    statedPriceCents === null
+      ? 0
+      : priced.findIndex((item) => item.cents === statedPriceCents);
+  const base = priced.length >= 2 && baseIndex >= 0 ? priced[baseIndex] : null;
+  const inclusions = base
+    ? [
+        base,
+        ...listed.filter((item) => !priced.includes(item) && !item.terms),
+      ].map((item) => (item.detail ? `${item.name} — ${item.detail}` : item.name))
+    : [];
+  const addOnIds = new Set<string>();
+  const addOns: ImportedAddOn[] = base
+    ? priced
+        .filter((item) => item !== base)
+        .map((item) => {
+          const stem = `${input.addOnIdPrefix ?? "imported_addon"}_${slugOf(item.name)}`;
+          let id = stem;
+          for (let n = 2; addOnIds.has(id); n += 1) id = `${stem}_${n}`;
+          addOnIds.add(id);
+          return {
+            id,
+            name: item.name,
+            description: item.detail,
+            unitPriceCents: item.cents ?? 0,
+            taxable: true,
+            allowQuantity: item.byQuantity,
+            unitLabel: normalizeUnitLabel(item.unit),
+            active: true,
+          };
+        })
+    : [];
+  // What the package itself says, without its extras' lines. A draft
+  // description that walks through the extras too is the list again, not
+  // the package.
+  const ownDescription = text(content.description);
+  const packageDescription =
+    base &&
+    addOns.some((addOn) =>
+      ownDescription.toLowerCase().includes(addOn.name.toLowerCase()),
+    )
+      ? ""
+      : ownDescription;
+  const packageText = base
+    ? [packageDescription, ...inclusions].filter(Boolean).join("\n")
+    : source;
+
+  const basePriceCents = Math.round(
+    base
+      ? (base.cents ?? 0)
+      : statedPriceCents !== null
+        ? statedPriceCents
         : firstItemPriceCents,
   );
   const coverage = source.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)/i);
@@ -98,35 +442,53 @@ export function importedStudioPackage(input: {
    * names, and the highest count for a role wins — a list often states the
    * same role twice, once in a summary and once in a line item.
    */
-  const crewPattern =
-    /\b(\d+|one|two|three|four|five|six)\s+(?:[a-z]+\s+){0,2}(photographers?|videographers?)\b/gi;
+  const roles = tradeRoles(trade);
+  const crewPattern = new RegExp(
+    String.raw`\b(\d+|one|two|three|four|five|six)\s+(?:[a-z]+\s+){0,2}(${roles
+      .map((role) => ROLE_WORDS[role])
+      .join("|")})\b`,
+    "gi",
+  );
   const counts = new Map<CoverageRole, number>();
-  for (const match of source.matchAll(crewPattern)) {
+  for (const match of packageText.matchAll(crewPattern)) {
     const value = (match[1] ?? "").toLowerCase();
     const count = Number(value) || wordsToNumber[value] || 0;
     if (count < 1) continue;
-    const role: CoverageRole = (match[2] ?? "").toLowerCase().startsWith("video")
-      ? "videographer"
-      : "photographer";
+    const word = match[2] ?? "";
+    const role =
+      roles.find((candidate) =>
+        new RegExp(`^(?:${ROLE_WORDS[candidate]})$`, "i").test(word),
+      ) ?? roles[0];
+    if (!role) continue;
     counts.set(role, Math.max(counts.get(role) ?? 0, Math.min(50, count)));
   }
   const includedCoverage = counts.size
     ? normaliseCoverage([...counts].map(([role, count]) => ({ role, count })))
-    : // Nothing stated: one photographer, which is what this has always
-      // assumed rather than importing a package that sends nobody.
-      coverageFromPhotographerCount(1);
+    : // Nothing stated: one of the studio's own crew — one photographer, as
+      // this has always assumed, or a hair studio's one stylist — rather
+      // than importing a package that sends nobody.
+      normaliseCoverage([{ role: roles[0] ?? "photographer", count: 1 }]);
   const includedPhotographers = legacyPhotographerCount(includedCoverage);
-  const retainerAmount = money(
-    content.retainer ?? content.retainerAmount ?? content.bookingFee,
-  );
-  const retainerPercent = money(content.retainerPercent);
+  /**
+   * Hours. A photographer's import has always assumed one hour when the list
+   * names none. A vendor's names hours only when it means them, so none
+   * stated is none written: Jess Styles Bridal's quote read "1 hair stylist,
+   * 1 hour" from a list that never mentioned hours (2026-10-10). Zero is
+   * unstated: the agreement, the quote and the package lists skip it.
+   */
+  const vendorHours = Number(packageText.match(VENDOR_HOURS)?.[1]);
+  const includedCoverageMinutes = vendor
+    ? vendorHours > 0 && vendorHours <= 24
+      ? Math.round(vendorHours * 60)
+      : 0
+    : Math.max(1, Math.round(Number(coverage?.[1] ?? 1) * 60));
   const extractedCurrency = text(content.currency).toUpperCase();
   const currency = /^[A-Z]{3}$/.test(extractedCurrency)
     ? extractedCurrency
     : "USD";
   const description =
-    text(content.description) ||
-    details.join(". ").slice(0, 3000) ||
+    packageDescription ||
+    (base ? inclusions.join(". ") : details.join(". ")).slice(0, 3000) ||
     `${input.name} imported from an approved studio source.`;
 
   return {
@@ -136,27 +498,17 @@ export function importedStudioPackage(input: {
     eventTypeLabel: text(content.eventTypeLabel) || "Wedding",
     basePriceCents,
     currency,
-    retainerRule:
-      retainerPercent !== null
-        ? {
-            type: "percentage" as const,
-            basisPoints: Math.min(10_000, Math.round(retainerPercent * 100)),
-          }
-        : {
-            type: "fixed" as const,
-            amountCents: Math.round((retainerAmount ?? 0) * 100),
-          },
-    includedCoverageMinutes: Math.max(
-      1,
-      Math.round(Number(coverage?.[1] ?? 1) * 60),
-    ),
+    retainerRule: importedRetainerRule(content, text(input.sourceText)),
+    includedCoverageMinutes,
     includedCoverage,
     includedPhotographers,
-    includedDeliverables: details.length
-      ? details.slice(0, 40)
-      : [description],
+    includedDeliverables: base
+      ? inclusions.slice(0, 40)
+      : details.length
+        ? details.slice(0, 40)
+        : [description],
     includedTravelArea: text(content.travelArea),
-    addOns: [],
+    addOns,
     taxRateBasisPoints: 0,
     terms:
       text(content.terms) ||
