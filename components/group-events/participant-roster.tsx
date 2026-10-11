@@ -11,6 +11,7 @@ import {
   PARTICIPANT_PAYMENT_METHODS,
   PARTICIPANT_STATUS_LABEL,
   PAYMENT_METHOD_LABEL,
+  participantInvoiceProblem,
   rosterEnabled,
   rosterOffered,
   rosterOrder,
@@ -440,6 +441,11 @@ function ParticipantSheet({
                     ? "Bill them through QuickBooks: they get their own invoice by email, with a link to pay by card or bank."
                     : "Add their email to send them a QuickBooks invoice."}
                 </p>
+                {participant.qbInvoice?.state === "failed" && participantInvoiceProblem(participant.qbInvoice.error) ? (
+                  <p className="form-error" role="alert">
+                    {participantInvoiceProblem(participant.qbInvoice.error)}
+                  </p>
+                ) : null}
                 <button
                   className="button button-sm button-light"
                   disabled={busy || !participant.email || participant.amountCents <= 0}

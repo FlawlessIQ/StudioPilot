@@ -205,3 +205,24 @@ test("the invoice email leads with the pay link and always links the parent's or
   // A bill: held while the studio's billing lapses, like the job's own.
   assert.equal(billingHoldApplies("emailJobs", "group_participant_invoice"), true);
 });
+
+// ── When QuickBooks refuses (prod walk, 2026-10-10) ──
+
+test("a refused parent invoice says why, reaches Today, and stops promising the parent an email", async () => {
+  const { participantInvoiceProblem } = await import("../features/group-events/participants.ts");
+  const { describeProviderFailure } = await import("../features/today/provider-failure.ts");
+  // The words FlawlessIQ's QuickBooks returned when its subscription had ended.
+  const prod = {
+    code: "QUICKBOOKS_CUSTOMER_CREATE_FAILED",
+    message:
+      "QUICKBOOKS_CUSTOMER_CREATE_FAILED:400:Subscription period has ended or canceled or there was a billing problem : You can't add data to QuickBooks Online Plus because your trial or subscription period ended",
+  };
+  assert.match(participantInvoiceProblem(prod) ?? "", /subscription has ended or has a billing problem/);
+  assert.match(participantInvoiceProblem({ code: "QUICKBOOKS_REAUTH_REQUIRED", message: "QUICKBOOKS_REAUTH_REQUIRED" }) ?? "", /Reconnect it in Integrations/);
+  assert.equal(participantInvoiceProblem(null), null);
+  assert.equal(describeProviderFailure("create_quickbooks_participant_invoice").title, "A parent's QuickBooks invoice wasn't made");
+  const inbox = read("features/today/inbox.ts");
+  assert.match(inbox, /href: forParents && text\(job\.projectId\) \? `\/studio\/projects\/\$\{text\(job\.projectId\)\}` : "\/studio\/integrations"/);
+  assert.match(inbox, /forParents \? `\$\{attempts\} parents` : `tried \$\{attempts\} times`/);
+  assert.match(read("app/api/public/event-signup/route.ts"), /invoice\?\.state === "failed"\s*\?[^\n]*\n\s*`\$\{studioName\} will email you an invoice to pay online/);
+});

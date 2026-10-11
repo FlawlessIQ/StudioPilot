@@ -167,7 +167,10 @@ function payment(
     howToPay:
       method === "quickbooks" && invoice?.deliveredBy === "quickbooks"
         ? `${studioName} has emailed you a secure invoice. It comes from QuickBooks.`
-        : howToPay(method, config, studioName),
+        : method === "quickbooks" && invoice?.state === "failed"
+          ? // Not "is emailing you" while it hasn't gone: the studio is told and sends it again.
+            `${studioName} will email you an invoice to pay online. If it hasn't arrived, reply to their email.`
+          : howToPay(method, config, studioName),
     payUrl:
       method === "venmo" && config.venmoHandle
         ? venmoPayUrl(config.venmoHandle, amountCents, note)

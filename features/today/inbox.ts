@@ -1832,6 +1832,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
     rows(input.providerJobs).filter(failed),
   )) {
     const failure = describeProviderFailure(job.type, input.tenantTrade);
+    // A parent's invoice: each failed row is another parent, not another try,
+    // and what to do is on the job's roster ("Send invoice again").
+    const forParents = /participant_invoice/.test(text(job.type));
     exception({
       id: `provider-${job.id}`,
       // Every card carries a glyph, so every title starts on the same line;
@@ -1845,11 +1848,11 @@ export function todayInbox(input: TodayInput): TodayInbox {
         // Phrased with the provider last so it reads correctly whether the
         // name is "QuickBooks" or "your email provider".
         failure.provider ? `Couldn't be completed by ${failure.provider}` : null,
-        attempts > 1 ? `tried ${attempts} times` : null,
+        attempts > 1 ? (forParents ? `${attempts} parents` : `tried ${attempts} times`) : null,
       ]
         .filter(Boolean)
         .join(" · "),
-      href: "/studio/integrations",
+      href: forParents && text(job.projectId) ? `/studio/projects/${text(job.projectId)}` : "/studio/integrations",
       projectId: text(job.projectId) || null,
       projectName: nameFor(job.projectId),
       updatedAt: changedAt(job),

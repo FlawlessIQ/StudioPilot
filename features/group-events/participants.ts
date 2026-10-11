@@ -156,3 +156,22 @@ export function rosterOrder<T extends Pick<Participant, "status" | "athleteName"
       left.athleteName.localeCompare(right.athleteName, undefined, { sensitivity: "base" }),
   );
 }
+
+/**
+ * Why QuickBooks refused a parent's invoice, in words the studio can act on
+ * (`qbInvoice.error`). Found on the prod walk (2026-10-10): a company whose
+ * QuickBooks subscription had ended showed only "QuickBooks invoice failed".
+ */
+export function participantInvoiceProblem(error: { code?: string; message?: string } | null | undefined): string | null {
+  if (!error?.message) return null;
+  const message = error.message;
+  const status = Number(message.split(":")[1] ?? 0);
+  const said = message.split(":").slice(2).join(":").trim();
+  if (/subscription period has ended|billing problem|trial or subscription/i.test(said))
+    return "QuickBooks says your subscription has ended or has a billing problem, so it won't add anything. Sort that out in QuickBooks, then send it again.";
+  if (status === 401 || status === 403 || /REAUTH|NOT_CONNECTED|CREDENTIAL/.test(error.code ?? ""))
+    return "QuickBooks rejected the connection. Reconnect it in Integrations, then send it again.";
+  if (/EMAIL_REQUIRED/.test(error.code ?? "")) return "Add the parent's email, then send it again.";
+  if (said && /[a-z]/.test(said) && !/^[A-Z0-9_]+$/.test(said)) return `QuickBooks refused it: ${said.slice(0, 200)}`;
+  return "QuickBooks refused it. Check the connection in Integrations, then send it again.";
+}

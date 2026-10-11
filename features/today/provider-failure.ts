@@ -59,6 +59,20 @@ const FAILURES: Record<string, ProviderFailure> = {
     title: "The invoice wasn't voided — void it yourself",
     provider: "QuickBooks",
   },
+  // A parent's own invoice at a group event (Phase 4b): the card opens the
+  // job, where "Send invoice again" is.
+  create_quickbooks_participant_invoice: {
+    title: "A parent's QuickBooks invoice wasn't made",
+    provider: "QuickBooks",
+  },
+  reconcile_quickbooks_participant_invoice: {
+    title: "A parent's QuickBooks payment wasn't checked",
+    provider: "QuickBooks",
+  },
+  void_quickbooks_participant_invoice: {
+    title: "A parent's QuickBooks invoice wasn't withdrawn — void it in QuickBooks",
+    provider: "QuickBooks",
+  },
   void_stripe_invoice: {
     title: "The invoice wasn't voided — void it yourself",
     provider: "Stripe",
