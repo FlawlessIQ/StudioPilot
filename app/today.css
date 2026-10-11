@@ -2074,6 +2074,10 @@
   font-size: 12.5px;
   line-height: 1.45;
 }
+.today-group-text small.today-group-next {
+  color: var(--accent, #2f6f4f);
+  font-weight: 600;
+}
 .today-group-text small.today-group-failed {
   color: var(--danger, #9a4545);
 }

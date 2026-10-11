@@ -13,8 +13,10 @@ import {
   PAYMENT_METHOD_LABEL,
   participantInvoiceProblem,
   rosterEnabled,
+  rosterBySlot,
   rosterOffered,
   rosterOrder,
+  rosterProminent,
   rosterSummary,
   type Participant,
   type ParticipantPaymentMethod,
@@ -42,6 +44,8 @@ import {
 import { quickBooksReadyFrom } from "@/features/billing/job-billing-from-records";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { EventSignupPanel } from "@/components/group-events/event-signup-panel";
+import { eventSlots, normaliseEventSignup, slotLabel } from "@/features/group-events/signup";
+import { groupEventWords, type GroupEventWords } from "@/features/group-events/words";
 
 /**
  * The roster for an event where each parent pays (group events, Phase 1 —
@@ -101,7 +105,13 @@ export function ParticipantRoster({
   // A QuickBooks invoice per parent needs QuickBooks connected (Phase 4b).
   const { records: connections } = useTenantDocuments("integrationConnections", { enabled });
   const quickBooks = quickBooksReadyFrom(connections);
-  const ordered = useMemo(() => rosterOrder(participants), [participants]);
+  // A mini-session day runs by the clock: in time order. Otherwise who owes first.
+  const slots = useMemo(() => eventSlots(normaliseEventSignup(job?.groupEvent).slots), [job?.groupEvent]);
+  const ordered = useMemo(
+    () => (slots.length ? rosterBySlot(participants) : rosterOrder(participants)),
+    [participants, slots.length],
+  );
+  const words = groupEventWords(job);
 
   if (!rosterOffered(job)) return null;
 
@@ -120,19 +130,41 @@ export function ParticipantRoster({
     }
   }
 
+  if (!enabled && !rosterProminent(job as Record<string, unknown> | null)) {
+    // A portraits job is usually one family: the invitation is one quiet line.
+    return (
+      <section className="panel participant-roster is-quiet">
+        <p className="participant-roster-quiet">
+          <span>{`${words.rosterPrompt} Keep a roster: each ${words.person} books a time and pays for their own session.`}</span>
+          <button
+            className="button button-light button-sm"
+            disabled={busy}
+            onClick={() => void run(() => setGroupEvent(projectId, true))}
+            type="button"
+          >
+            {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : null}
+            Start a roster
+          </button>
+        </p>
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </section>
+    );
+  }
+
   if (!enabled) {
     return (
       <section className="panel participant-roster">
         <header>
           <span>
-            <p className="eyebrow">Each parent pays?</p>
+            <p className="eyebrow">{words.rosterPrompt}</p>
             <h2>Keep a roster for this event</h2>
           </span>
         </header>
-        <p className="form-notice">
-          List every athlete and parent, take each payment on the day or before, and email each parent their own
-          receipt. The organizer stays the job&rsquo;s contact.
-        </p>
+        <p className="form-notice">{words.rosterLead}</p>
         <div className="participant-roster-actions">
           <button
             className="button button-dark button-sm"
@@ -183,7 +215,10 @@ export function ParticipantRoster({
             return (
               <li className={rowClass} key={participant.id}>
                 <span className="participant-roster-who">
-                  <strong>{participant.athleteName}</strong>
+                  <strong>
+                    {participant.slot ? <span className="participant-roster-time">{slotLabel(participant.slot)}</span> : null}
+                    {participant.athleteName}
+                  </strong>
                   <small>
                     {participant.parentName}
                     {participant.team ? ` · ${participant.team}` : ""}
@@ -270,6 +305,8 @@ export function ParticipantRoster({
 
       <ParticipantSheet
         busy={busy}
+        slots={slots}
+        words={words}
         onCancelParticipant={(participant) =>
           void run(() => cancelParticipant(projectId, participant.id)).then((ok) => ok && setEditing(null))
         }
@@ -335,6 +372,8 @@ function ParticipantSheet({
   onSave,
   onCancelParticipant,
   onSendInvoice,
+  words,
+  slots,
 }: {
   open: boolean;
   participant: Participant | null;
@@ -344,6 +383,9 @@ function ParticipantSheet({
   onCancelParticipant: (participant: Participant) => void;
   /** Present when QuickBooks is connected: bill this parent through it (Phase 4b). */
   onSendInvoice?: (participant: Participant) => void;
+  /** The event's words (athletes, families) and its times, if it has any. */
+  words: GroupEventWords;
+  slots: ReadonlyArray<{ id: string; label: string }>;
 }) {
   const [problem, setProblem] = useState<string | null>(null);
   const paid = participant?.status === "paid";
@@ -371,6 +413,8 @@ function ParticipantSheet({
               packageName: optional(data.get("packageName")),
               amountCents,
               status: data.get("payOnDay") === "on" ? "pay_on_day" : "unpaid",
+              // Only on an event with times; otherwise left as it is.
+              ...(slots.length ? { slot: optional(data.get("slot")) } : {}),
             },
             participant,
           );
@@ -379,32 +423,57 @@ function ParticipantSheet({
         <header>
           <p className="eyebrow">Participants</p>
           <h3>{participant ? `Edit ${participant.athleteName}` : "Add a person to the roster"}</h3>
-          <p>The parent is who you deal with and who gets the receipt. Only the athlete&apos;s name is kept for them.</p>
+          <p>
+            {words.person === "athlete"
+              ? "The parent is who you deal with and who gets the receipt. Only the athlete’s name is kept for them."
+              : "Whoever books is who you deal with and who gets the receipt."}
+          </p>
         </header>
         <div className="record-sheet-fields">
           <label>
-            Athlete&apos;s name
-            <input defaultValue={participant?.athleteName ?? ""} maxLength={PARTICIPANT_LIMITS.name} name="athleteName" required />
+            {words.personLabel}
+            <input
+              defaultValue={participant?.athleteName ?? ""}
+              maxLength={PARTICIPANT_LIMITS.name}
+              name="athleteName"
+              placeholder={words.personHint ?? undefined}
+              required
+            />
           </label>
+          {slots.length ? (
+            <label>
+              Time
+              <select defaultValue={participant?.slot ?? ""} name="slot">
+                <option value="">No time yet</option>
+                {slots.map((slot) => (
+                  <option key={slot.id} value={slot.id}>
+                    {slot.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {words.teamLabel ? (
+            <label>
+              <span>
+                {words.teamLabel} <small>optional</small>
+              </span>
+              <input defaultValue={participant?.team ?? ""} maxLength={PARTICIPANT_LIMITS.team} name="team" />
+            </label>
+          ) : null}
           <label>
-            <span>
-              Team <small>optional</small>
-            </span>
-            <input defaultValue={participant?.team ?? ""} maxLength={PARTICIPANT_LIMITS.team} name="team" />
-          </label>
-          <label>
-            Parent&apos;s name
+            {words.studioPayerLabel}
             <input defaultValue={participant?.parentName ?? ""} maxLength={PARTICIPANT_LIMITS.name} name="parentName" required />
           </label>
           <label>
             <span>
-              Parent&apos;s email <small>for their receipt</small>
+              Email <small>for their receipt</small>
             </span>
             <input defaultValue={participant?.email ?? ""} name="email" type="email" />
           </label>
           <label>
             <span>
-              Parent&apos;s phone <small>optional</small>
+              Phone <small>optional</small>
             </span>
             <input defaultValue={participant?.phone ?? ""} maxLength={PARTICIPANT_LIMITS.phone} name="phone" type="tel" />
           </label>

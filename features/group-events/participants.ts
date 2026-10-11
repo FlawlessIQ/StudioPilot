@@ -60,6 +60,8 @@ export type Participant = {
   chosenMethod?: string | null;
   /** What they show at the field. */
   confirmationCode?: string | null;
+  /** The time they booked on a mini-session day ("09:20", the event's clock). */
+  slot?: string | null;
   /**
    * Their own QuickBooks invoice, when they pay that way (Phase 4b,
    * functions/src/group-events/participant-invoices.ts). Never one of the
@@ -139,8 +141,24 @@ export function rosterOffered(project: { eventKind?: unknown; groupEvent?: unkno
   if (!project) return false;
   const enabled = (project.groupEvent as { enabled?: unknown } | undefined)?.enabled === true;
   // jobKindOf, not the raw field: older jobs carry their kind in eventTypeId
-  // or the label (features/job-kinds/job-kinds.ts).
-  return enabled || jobKindOf(project) === "sports";
+  // or the label (features/job-kinds/job-kinds.ts). Family & portraits for
+  // mini-session days: one date, many families, each booking a time.
+  const kind = jobKindOf(project);
+  return enabled || kind === "sports" || kind === "portraits";
+}
+
+/**
+ * Whether the roster's invitation is the full card or one quiet line. A
+ * sports job is usually a team day; a portraits job is usually one family,
+ * and a mini-session day is the exception — unless its type or name says so.
+ */
+export function rosterProminent(project: Record<string, unknown> | null | undefined): boolean {
+  if (!project) return false;
+  if (jobKindOf(project) === "sports") return true;
+  const named = [project.eventTypeLabel, project.eventType, project.eventTypeId, project.name]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+  return /\bmini\b|mini[- ]?session/i.test(named);
 }
 
 export function rosterEnabled(project: { groupEvent?: unknown } | null | undefined): boolean {
@@ -153,6 +171,22 @@ export function rosterOrder<T extends Pick<Participant, "status" | "athleteName"
   return [...participants].sort(
     (left, right) =>
       rank[left.status] - rank[right.status] ||
+      left.athleteName.localeCompare(right.athleteName, undefined, { sensitivity: "base" }),
+  );
+}
+
+/**
+ * A mini-session day in the order it happens: by booked time, then the
+ * unbooked, with cancelled places last. What matters at the field is who's
+ * next, not who owes.
+ */
+export function rosterBySlot<T extends Pick<Participant, "status" | "athleteName"> & { slot?: string | null }>(
+  participants: readonly T[],
+): T[] {
+  return [...participants].sort(
+    (left, right) =>
+      Number(left.status === "cancelled") - Number(right.status === "cancelled") ||
+      (left.slot ?? "99:99").localeCompare(right.slot ?? "99:99") ||
       left.athleteName.localeCompare(right.athleteName, undefined, { sensitivity: "base" }),
   );
 }

@@ -28,6 +28,12 @@ import { dataIsLive } from "@/lib/runtime-mode";
  * Each event's roster is read live and on its own — the shared tenant read
  * stops at 100 records, and one cheer day can pass that.
  */
+/** "10:05", the reader's clock, to compare with a mini-session day's times. */
+function clockNow(): string {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
 export function TodayGroupEvents() {
   const workspace = useWorkspace();
   const tenantId = workspace.tenantId;
@@ -63,6 +69,8 @@ export function TodayGroupEvents() {
       day: groupEventDay(rosters[candidate.id] ?? [], candidate.groupEvent, {
         now,
         isToday: (iso) => todayLocalIso(new Date(iso)) === today,
+        // The reader's clock, for who's next at a mini-session day.
+        clock: candidate.dayOffset === 0 ? clockNow() : undefined,
       }),
     }))
     .filter(({ candidate, day }) => groupEventShown(candidate, day))
@@ -81,7 +89,9 @@ export function TodayGroupEvents() {
           const failed = failedInvoiceLine(day);
           const stats = day.signedUp
             ? [
-                `${day.signedUp} signed up`,
+                day.places
+                  ? `${day.places.booked} of ${day.places.total} ${day.places.perTime === 1 ? "times" : "places"} booked`
+                  : `${day.signedUp} signed up`,
                 onTheDay && day.takenTodayCents ? `${formatCentsExact(day.takenTodayCents)} taken today` : null,
                 !onTheDay && day.collectedCents ? `${formatCentsExact(day.collectedCents)} taken` : null,
                 day.outstandingCents ? `${formatCentsExact(day.outstandingCents)} still to take` : day.paid ? "everyone has paid" : null,
@@ -99,6 +109,7 @@ export function TodayGroupEvents() {
                   {day.signup === "open" ? " · sign-up open" : day.signup === "full" ? " · sign-up full" : ""}
                 </small>
                 <small>{stats.filter(Boolean).join(" · ")}</small>
+                {onTheDay && day.next ? <small className="today-group-next">{`Next: ${day.next.time}, ${day.next.name}`}</small> : null}
                 {failed ? <small className="today-group-failed">{failed} — send it again from the roster</small> : null}
               </span>
               <span className="today-group-actions">

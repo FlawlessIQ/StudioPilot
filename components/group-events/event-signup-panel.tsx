@@ -14,7 +14,11 @@ import {
   EVENT_PAYMENT_SHORT,
   EVENT_PAYMENT_METHODS,
   EVENT_SIGNUP_LIMITS,
+  EVENT_SLOT_LIMITS,
   emailsFrom,
+  eventSlots,
+  normaliseSlotPlan,
+  slotSpan,
   eventPrice,
   normaliseEventSignup,
   signupTextMessage,
@@ -24,6 +28,7 @@ import {
 } from "@/features/group-events/signup";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { inviteGroupEventParents, resetGroupEventLink, setGroupEventSignup } from "@/lib/group-events/commands";
+import { capitalized, groupEventWords, type GroupEventWords } from "@/features/group-events/words";
 
 /**
  * The event's sign-up link, on the roster (docs/group-event-signup-plan-2026-10-10.md).
@@ -82,6 +87,8 @@ export function EventSignupPanel({
 }) {
   const workspace = useWorkspace();
   const config = useMemo(() => normaliseEventSignup(project?.groupEvent), [project?.groupEvent]);
+  // The event in its own words: parents at a team day, families at a mini-session day.
+  const words = groupEventWords(project);
   const eventName = typeof project?.name === "string" && project.name.trim() ? project.name.trim() : "the event";
   const [sheet, setSheet] = useState<"settings" | "qr" | "email" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -140,8 +147,8 @@ export function EventSignupPanel({
     return (
       <div className="event-signup-panel">
         <p>
-          <strong>Let parents sign up themselves.</strong>{" "}
-          {"Set your packages and how parents can pay, then send the link ahead of time or put a QR code up at the field."}
+          <strong>{`Let ${words.payers} ${words.act === "Book" ? "book" : "sign up"} themselves.`}</strong>{" "}
+          {`Set your packages and how ${words.payers} can pay, then send the link ahead of time or put a QR code up at the event.`}
         </p>
         <div className="participant-roster-actions">
           <button className="button button-sm button-dark" onClick={() => setSheet("settings")} type="button">
@@ -149,6 +156,7 @@ export function EventSignupPanel({
           </button>
         </div>
         <EventSignupSettingsSheet
+          words={words}
           config={config}
           onClose={() => setSheet(null)}
           onSaved={() => {
@@ -180,7 +188,11 @@ export function EventSignupPanel({
       <p className="event-signup-panel-summary">
         {config.options.map((option) => `${option.name} ${eventPrice(option.priceCents)}`).join(" · ")}
         <br />
-        <small>Pay by {config.methods.map((method) => EVENT_PAYMENT_SHORT[method]).join(", ")}</small>
+        <small>
+          {`Pay by ${config.methods.map((method) => EVENT_PAYMENT_SHORT[method]).join(", ")}${
+            config.slots ? ` · ${eventSlots(config.slots).length} times, ${slotSpan(config.slots)}` : ""
+          }`}
+        </small>
       </p>
       {url ? <p className="event-signup-panel-link">{url}</p> : null}
       <div className="participant-roster-actions">
@@ -191,7 +203,7 @@ export function EventSignupPanel({
           <Copy aria-hidden size={14} /> Copy link
         </button>
         <button className="button button-sm button-light" disabled={state !== "Open"} onClick={() => setSheet("email")} type="button">
-          <Mail aria-hidden size={14} /> Email parents
+          <Mail aria-hidden size={14} /> {`Email ${words.payers}`}
         </button>
         <button className="button button-sm button-light" onClick={() => void text()} type="button">
           <MessageSquareText aria-hidden size={14} /> Text from your phone
@@ -204,11 +216,12 @@ export function EventSignupPanel({
       {error ? <p className="form-error" role="alert">{error}</p> : null}
 
       <EventSignupSettingsSheet
+        words={words}
         config={config}
         onClose={() => setSheet(null)}
         onSaved={() => {
           setSheet(null);
-          setNotice("Saved. Parents see the change the next time they open the link.");
+          setNotice(`Saved. ${capitalized(words.payers)} see the change the next time they open the link.`);
         }}
         open={sheet === "settings"}
         projectId={projectId}
@@ -218,13 +231,13 @@ export function EventSignupPanel({
           <header>
             <p className="eyebrow">Sign-up</p>
             <h3>Scan to sign up</h3>
-            <p>Parents scan this with their phone camera, pick a package and choose how they&rsquo;ll pay.</p>
+            <p>{`${capitalized(words.payers)} scan this with their phone camera, pick a package and choose how they’ll pay.`}</p>
           </header>
           {url ? <QrImage label={`QR code for ${url}`} url={url} /> : null}
           <p className="event-signup-panel-link">{url}</p>
           {confirmReset ? (
             <div className="event-signup-reset">
-              <p>The link and QR code you&rsquo;ve shared will stop working. Parents already signed up keep their orders.</p>
+              <p>{`The link and QR code you’ve shared will stop working. ${capitalized(words.payers)} already signed up keep their orders.`}</p>
               <div className="participant-roster-actions">
                 <button className="button button-sm button-light" onClick={() => setConfirmReset(false)} type="button">
                   Keep this link
@@ -252,6 +265,7 @@ export function EventSignupPanel({
         </div>
       </SheetDialog>
       <InviteParentsSheet
+        words={words}
         onClose={() => setSheet(null)}
         onSent={(message) => {
           setSheet(null);
@@ -269,11 +283,13 @@ function InviteParentsSheet({
   projectId,
   onClose,
   onSent,
+  words,
 }: {
   open: boolean;
   projectId: string;
   onClose: () => void;
   onSent: (message: string) => void;
+  words: GroupEventWords;
 }) {
   const [list, setList] = useState("");
   const [busy, setBusy] = useState(false);
@@ -286,7 +302,7 @@ function InviteParentsSheet({
       return;
     }
     if (emails.length > 200) {
-      setError("Up to 200 parents at a time. Send the rest in a second batch.");
+      setError(`Up to 200 ${words.payers} at a time. Send the rest in a second batch.`);
       return;
     }
     setBusy(true);
@@ -297,7 +313,7 @@ function InviteParentsSheet({
       if (!persisted) return onSent("Preview mode: nothing was sent.");
       const { invited = emails.length, alreadyInvited = 0 } = result as { invited?: number; alreadyInvited?: number };
       onSent(
-        `${invited} ${invited === 1 ? "parent" : "parents"} emailed.${alreadyInvited ? ` ${alreadyInvited} already had this link, so weren't emailed again.` : ""}`,
+        `${invited} ${invited === 1 ? words.payer : words.payers} emailed.${alreadyInvited ? ` ${alreadyInvited} already had this link, so weren't emailed again.` : ""}`,
       );
     } catch (caught) {
       setError(friendlyError(caught, "The invites didn't send. Try again."));
@@ -307,16 +323,16 @@ function InviteParentsSheet({
   }
 
   return (
-    <SheetDialog label="Email parents the sign-up link" onClose={onClose} open={open}>
+    <SheetDialog label={`Email ${words.payers} the sign-up link`} onClose={onClose} open={open}>
       <div className="record-sheet">
         <header>
           <p className="eyebrow">Sign-up</p>
-          <h3>Email parents the link</h3>
-          <p>Paste parents&rsquo; emails from a team list or spreadsheet. Each gets one email with the link; nobody is emailed twice.</p>
+          <h3>{`Email ${words.payers} the link`}</h3>
+          <p>Paste their emails from a list or spreadsheet. Each gets one email with the link; nobody is emailed twice.</p>
         </header>
         <div className="record-sheet-fields event-invite-fields">
           <label>
-            Parents&rsquo; emails
+            Emails
             <textarea
               onChange={(event) => setList(event.target.value)}
               placeholder={"dana@example.com, sam@example.com\nor one per line"}
@@ -337,7 +353,7 @@ function InviteParentsSheet({
           </button>
           <button className="button button-dark" disabled={busy || !emails.length} onClick={() => void send()} type="button">
             {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : <Mail aria-hidden size={14} />}
-            Email {emails.length || ""} {emails.length === 1 ? "parent" : "parents"}
+            {`Email ${emails.length || ""} ${emails.length === 1 ? words.payer : words.payers}`}
           </button>
         </footer>
       </div>
@@ -373,17 +389,19 @@ function EventSignupSettingsSheet({
   config,
   onClose,
   onSaved,
+  words,
 }: {
   open: boolean;
   projectId: string;
   config: EventSignupConfig;
   onClose: () => void;
   onSaved: () => void;
+  words: GroupEventWords;
 }) {
   return (
     <SheetDialog label="Sign-up settings" onClose={onClose} open={open} width="wide">
       {/* Mounted per opening, so each one starts from what's saved. */}
-      {open ? <EventSignupSettingsForm config={config} onClose={onClose} onSaved={onSaved} projectId={projectId} /> : null}
+      {open ? <EventSignupSettingsForm config={config} onClose={onClose} onSaved={onSaved} projectId={projectId} words={words} /> : null}
     </SheetDialog>
   );
 }
@@ -406,11 +424,13 @@ function EventSignupSettingsForm({
   config,
   onClose,
   onSaved,
+  words,
 }: {
   projectId: string;
   config: EventSignupConfig;
   onClose: () => void;
   onSaved: () => void;
+  words: GroupEventWords;
 }) {
   const workspace = useWorkspace();
   const ownerOrAdmin = workspace.role === "studio_owner" || workspace.role === "studio_admin";
@@ -434,6 +454,17 @@ function EventSignupSettingsForm({
   const [isOpen, setIsOpen] = useState(config.token ? config.open : true);
   const [closesAt, setClosesAt] = useState(localInput(config.closesAt));
   const [capacity, setCapacity] = useState(config.capacity ? String(config.capacity) : "");
+  // Times to book, for a mini-session day.
+  const [slotsOn, setSlotsOn] = useState(Boolean(config.slots));
+  const [windows, setWindows] = useState<Array<{ start: string; end: string }>>(
+    config.slots?.windows.length ? config.slots.windows : [{ start: "09:00", end: "12:00" }],
+  );
+  const [slotLength, setSlotLength] = useState(String(config.slots?.lengthMinutes ?? 20));
+  const [perSlot, setPerSlot] = useState(String(config.slots?.perSlot ?? 1));
+  const slotPlan = slotsOn
+    ? normaliseSlotPlan({ windows, lengthMinutes: Number(slotLength), perSlot: Number(perSlot) })
+    : null;
+  const slotCount = eventSlots(slotPlan).length;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -453,12 +484,14 @@ function EventSignupSettingsForm({
       if (cents === null || cents > EVENT_SIGNUP_LIMITS.maxPriceCents)
         return setError(`Give “${option.name.trim()}” a price in dollars, like 45 or 45.50.`);
     }
-    if (!methods.length) return setError("Choose at least one way parents can pay.");
+    if (!methods.length) return setError(`Choose at least one way ${words.payers} can pay.`);
     const capacityNumber = capacity.trim() ? Number(capacity) : null;
     if (capacityNumber !== null && (!Number.isSafeInteger(capacityNumber) || capacityNumber < 1))
       return setError("The limit is a whole number of sign-ups, or leave it blank.");
     const closes = closesAt ? new Date(closesAt) : null;
     if (closes && Number.isNaN(closes.valueOf())) return setError("Check the closing time.");
+    if (slotsOn && !slotCount)
+      return setError("Check the times: each stretch needs an end after its start, and room for at least one session.");
     setBusy(true);
     setError(null);
     try {
@@ -477,6 +510,7 @@ function EventSignupSettingsForm({
         open: isOpen,
         closesAt: closes ? closes.toISOString() : null,
         capacity: capacityNumber,
+        slots: slotsOn ? slotPlan : null,
       });
       refreshTenantRecords("projects");
       onSaved();
@@ -492,7 +526,7 @@ function EventSignupSettingsForm({
       <header>
         <p className="eyebrow">Sign-up</p>
         <h3>Packages and payment</h3>
-        <p>What parents can choose, and how they can pay you. Prices are what parents pay; no tax is added.</p>
+        <p>{`What ${words.payers} can choose, and how they can pay you. Prices are what they pay; no tax is added.`}</p>
       </header>
       <fieldset className="event-signup-settings-group">
         <legend>Packages</legend>
@@ -559,7 +593,7 @@ function EventSignupSettingsForm({
       </fieldset>
 
       <fieldset className="event-signup-settings-group">
-        <legend>How parents can pay</legend>
+        <legend>{`How ${words.payers} can pay`}</legend>
         {EVENT_PAYMENT_METHODS.filter((method) => method !== "quickbooks" || quickBooks || methods.includes(method)).map((method) => (
           <div className="event-signup-settings-method" key={method}>
             <label className="participant-roster-check">
@@ -605,12 +639,98 @@ function EventSignupSettingsForm({
             {method === "quickbooks" && methods.includes("quickbooks") ? (
               <small className="event-signup-settings-hint">
                 {quickBooks
-                  ? "Each parent who chooses this gets their own QuickBooks invoice by email, with a link to pay by card or bank. These are kept apart from the job's own bills."
-                  : "QuickBooks isn't connected, so parents won't be offered this. Connect it under Studio settings → Integrations."}
+                  ? `Each ${words.payer} who chooses this gets their own QuickBooks invoice by email, with a link to pay by card or bank. These are kept apart from the job's own bills.`
+                  : `QuickBooks isn't connected, so ${words.payers} won't be offered this. Connect it under Studio settings → Integrations.`}
               </small>
             ) : null}
           </div>
         ))}
+      </fieldset>
+
+      <fieldset className="event-signup-settings-group">
+        <legend>Times</legend>
+        <label className="participant-roster-check">
+          <input checked={slotsOn} onChange={(event) => setSlotsOn(event.target.checked)} type="checkbox" />
+          Each booking picks a time (a mini-session day)
+        </label>
+        {slotsOn ? (
+          <>
+            {windows.map((window, index) => (
+              <div className="event-signup-settings-window" key={index}>
+                <label>
+                  From
+                  <input
+                    onChange={(event) =>
+                      setWindows((current) => current.map((item, at) => (at === index ? { ...item, start: event.target.value } : item)))
+                    }
+                    step={300}
+                    type="time"
+                    value={window.start}
+                  />
+                </label>
+                <label>
+                  To
+                  <input
+                    onChange={(event) =>
+                      setWindows((current) => current.map((item, at) => (at === index ? { ...item, end: event.target.value } : item)))
+                    }
+                    step={300}
+                    type="time"
+                    value={window.end}
+                  />
+                </label>
+                {windows.length > 1 ? (
+                  <button
+                    aria-label="Remove this stretch"
+                    className="icon-button"
+                    onClick={() => setWindows((current) => current.filter((_, at) => at !== index))}
+                    type="button"
+                  >
+                    <Trash2 aria-hidden size={16} />
+                  </button>
+                ) : null}
+              </div>
+            ))}
+            {windows.length < EVENT_SLOT_LIMITS.maxWindows ? (
+              <button
+                className="button button-sm button-light"
+                onClick={() => setWindows((current) => [...current, { start: "13:00", end: "15:00" }])}
+                type="button"
+              >
+                <Plus aria-hidden size={14} /> Add another stretch (after a break)
+              </button>
+            ) : null}
+            <div className="record-sheet-fields">
+              <label>
+                Minutes each
+                <input
+                  inputMode="numeric"
+                  max={EVENT_SLOT_LIMITS.maxLength}
+                  min={EVENT_SLOT_LIMITS.minLength}
+                  onChange={(event) => setSlotLength(event.target.value)}
+                  type="number"
+                  value={slotLength}
+                />
+              </label>
+              <label>
+                Bookings per time
+                <input
+                  inputMode="numeric"
+                  max={EVENT_SLOT_LIMITS.maxPerSlot}
+                  min={1}
+                  onChange={(event) => setPerSlot(event.target.value)}
+                  type="number"
+                  value={perSlot}
+                />
+              </label>
+            </div>
+            <small className="event-signup-settings-hint-line">
+              {slotCount
+                ? `${slotCount} ${slotCount === 1 ? "time" : "times"}, ${slotSpan(slotPlan)}${Number(perSlot) > 1 ? `, ${perSlot} bookings each` : ""}.`
+                : "No times yet: check each stretch has an end after its start."}
+            </small>
+          </>
+        ) : null}
       </fieldset>
 
       <fieldset className="event-signup-settings-group">

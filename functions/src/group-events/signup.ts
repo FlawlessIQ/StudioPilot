@@ -53,6 +53,16 @@ export const EVENT_SIGNUP_LIMITS = {
   maxCapacity: 5000,
 } as const;
 
+/** Times on a mini-session day (eventSlots, below). */
+export const EVENT_SLOT_LIMITS = {
+  maxWindows: 3,
+  minLength: 5,
+  maxLength: 180,
+  maxPerSlot: 20,
+  /** A typo guard: 5-minute slots all day is 288. */
+  maxSlots: 200,
+} as const;
+
 export type EventOption = {
   id: string;
   name: string;
@@ -73,6 +83,8 @@ export type EventSignupConfig = {
   capacity: number | null;
   /** The link's token, once the studio has opened it (studio-only). */
   token: string | null;
+  /** Times to book, for a mini-session day (null: no times, just sign up). */
+  slots: SlotPlan | null;
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -136,6 +148,7 @@ export function normaliseEventSignup(groupEvent: unknown): EventSignupConfig {
     closesAt: closesAt && !Number.isNaN(Date.parse(closesAt)) ? closesAt : null,
     capacity: Number.isSafeInteger(capacity) && capacity > 0 ? Math.min(capacity, EVENT_SIGNUP_LIMITS.maxCapacity) : null,
     token: text(signup.token, 80),
+    slots: normaliseSlotPlan(signup.slots),
   };
 }
 
@@ -165,6 +178,8 @@ export const eventSignupInputSchema = z.object({
   team: z.string().trim().max(80).nullable().default(null),
   optionId: z.string().trim().min(1).max(40),
   method: z.enum(EVENT_PAYMENT_METHODS),
+  /** The time they booked ("09:20"), on a mini-session day; checked against the event's times. */
+  slot: z.string().trim().regex(/^\d{2}:\d{2}$/).nullable().default(null),
   consent: z.literal(true),
   /** Hidden from people; a bot fills every field. */
   website: z.string().max(200).optional().default(""),
@@ -192,6 +207,17 @@ export const eventSignupSettingsSchema = z.object({
   open: z.boolean(),
   closesAt: z.string().trim().max(40).nullable().default(null),
   capacity: z.number().int().min(1).max(EVENT_SIGNUP_LIMITS.maxCapacity).nullable().default(null),
+  slots: z
+    .object({
+      windows: z
+        .array(z.object({ start: z.string().trim().max(5), end: z.string().trim().max(5) }))
+        .min(1)
+        .max(EVENT_SLOT_LIMITS.maxWindows),
+      lengthMinutes: z.number().int().min(EVENT_SLOT_LIMITS.minLength).max(EVENT_SLOT_LIMITS.maxLength),
+      perSlot: z.number().int().min(1).max(EVENT_SLOT_LIMITS.maxPerSlot),
+    })
+    .nullable()
+    .default(null),
 });
 export type EventSignupSettings = z.infer<typeof eventSignupSettingsSchema>;
 
@@ -205,6 +231,8 @@ export function eventSignupSettingsProblem(settings: EventSignupSettings): strin
   const ids = settings.options.map((option) => option.id);
   if (new Set(ids).size !== ids.length) return "EVENT_OPTIONS_INVALID";
   if (settings.closesAt && Number.isNaN(Date.parse(settings.closesAt))) return "EVENT_CLOSES_AT_INVALID";
+  // Times that make no slot (an end before its start, a length longer than the stretch).
+  if (settings.slots && !eventSlots(normaliseSlotPlan(settings.slots)).length) return "EVENT_SLOTS_INVALID";
   return null;
 }
 
@@ -339,4 +367,80 @@ export function participantInvoiceSummary(invoice: (InvoiceLike & { docNumber?: 
     default:
       return null;
   }
+}
+
+/**
+ * Mini-session days: families book a time (docs/job-types-plan-2026-10-02.md,
+ * "one date, many families, time slots"). The studio sets up to three
+ * stretches of the day, a slot length and how many families each slot
+ * takes; the slots follow. Times are the event's own clock — "09:20" on the
+ * event date — so nothing is converted between zones.
+ */
+export type SlotWindow = { start: string; end: string };
+export type SlotPlan = { windows: SlotWindow[]; lengthMinutes: number; perSlot: number };
+export type EventSlot = { id: string; end: string; label: string };
+
+const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const minutesOf = (clock: string): number | null => {
+  const match = CLOCK.exec(clock);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+};
+const clockOf = (minutes: number): string =>
+  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+/** `signup.slots` as the exact shape, or null when there are no usable times. */
+export function normaliseSlotPlan(value: unknown): SlotPlan | null {
+  const plan = record(value);
+  const length = Number(plan.lengthMinutes);
+  const perSlot = Number(plan.perSlot);
+  if (!Number.isSafeInteger(length) || length < EVENT_SLOT_LIMITS.minLength || length > EVENT_SLOT_LIMITS.maxLength) return null;
+  if (!Number.isSafeInteger(perSlot) || perSlot < 1 || perSlot > EVENT_SLOT_LIMITS.maxPerSlot) return null;
+  const windows = (Array.isArray(plan.windows) ? plan.windows : [])
+    .map(record)
+    .map((window) => ({ start: text(window.start, 5) ?? "", end: text(window.end, 5) ?? "" }))
+    .filter((window) => {
+      const start = minutesOf(window.start);
+      const end = minutesOf(window.end);
+      return start !== null && end !== null && end > start;
+    })
+    .slice(0, EVENT_SLOT_LIMITS.maxWindows);
+  return windows.length ? { windows, lengthMinutes: length, perSlot } : null;
+}
+
+/** "09:20" → "9:20 AM". */
+export function slotLabel(clock: string): string {
+  const minutes = minutesOf(clock);
+  if (minutes === null) return clock;
+  const hours = Math.floor(minutes / 60);
+  return `${hours % 12 || 12}:${String(minutes % 60).padStart(2, "0")} ${hours < 12 ? "AM" : "PM"}`;
+}
+
+/** Every bookable time, in order, each once. */
+export function eventSlots(plan: SlotPlan | null): EventSlot[] {
+  if (!plan) return [];
+  const slots = new Map<string, EventSlot>();
+  for (const window of plan.windows) {
+    const start = minutesOf(window.start);
+    const end = minutesOf(window.end);
+    if (start === null || end === null) continue;
+    for (let at = start; at + plan.lengthMinutes <= end; at += plan.lengthMinutes) {
+      const id = clockOf(at);
+      if (!slots.has(id)) slots.set(id, { id, end: clockOf(at + plan.lengthMinutes), label: slotLabel(id) });
+      if (slots.size >= EVENT_SLOT_LIMITS.maxSlots) break;
+    }
+  }
+  return [...slots.values()].sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/** "9:00 AM – 11:40 AM": the first time to the last. */
+export function slotSpan(plan: SlotPlan | null): string | null {
+  const slots = eventSlots(plan);
+  if (!slots.length) return null;
+  return `${slots[0]!.label} – ${slots[slots.length - 1]!.label}`;
+}
+
+/** Each time, with how many families it can still take. */
+export function slotsWithRoom(plan: SlotPlan | null, booked: Readonly<Record<string, number>>): Array<EventSlot & { left: number }> {
+  if (!plan) return [];
+  return eventSlots(plan).map((slot) => ({ ...slot, left: Math.max(0, plan.perSlot - (booked[slot.id] ?? 0)) }));
 }

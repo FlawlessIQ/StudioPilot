@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CalendarDays, CheckCircle2, CreditCard, LoaderCircle, MapPin, UserPlus } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock, CreditCard, LoaderCircle, MapPin, UserPlus } from "lucide-react";
 import { Actions, AppBar, Button, Card, Field, KitRoot, Main, Note, PoweredBy, Screen, type Studio } from "@/components/kit/kit";
 import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import type { EventPaymentMethod, SignupState } from "@/features/group-events/signup";
+import { groupEventWords, type GroupEventWords } from "@/features/group-events/words";
 
 /**
  * A parent's sign-up for a group event: `/e/{token}`
@@ -20,6 +21,8 @@ import type { EventPaymentMethod, SignupState } from "@/features/group-events/si
 type Option = { id: string; name: string; priceCents: number; description: string | null; price: string };
 type Order = {
   confirmationCode: string;
+  /** The time they booked on a mini-session day ("9:20 AM"). */
+  slotLabel?: string | null;
   athleteName: string;
   packageName: string;
   amount: string;
@@ -37,6 +40,11 @@ type View = {
   order: Order | null;
   /** From an order page: where to sign up another athlete, while sign-up is open. */
   signupPath: string | null;
+  /** A mini-session day's times, each with the room it has left. Absent on an order page. */
+  slots?: { id: string; label: string; left: number }[] | null;
+  slotSpan?: string | null;
+  /** The job's kind, for its words (features/group-events/words.ts). */
+  kind?: string | null;
 };
 
 const friendly: Record<string, string> = {
@@ -44,6 +52,9 @@ const friendly: Record<string, string> = {
   EVENT_LINK_RETIRED: "This link has been replaced. Ask the studio for the new one.",
   EVENT_SIGNUP_CLOSED: "Sign-up for this event has closed. Talk to the studio at the event.",
   EVENT_FULL: "This event is full. Talk to the studio at the event.",
+  EVENT_SLOT_FULL: "That time was just taken. Please pick another.",
+  EVENT_SLOT_REQUIRED: "Pick a time.",
+  EVENT_SLOT_UNAVAILABLE: "That time isn’t offered any more. Please pick another.",
   EVENT_OPTION_UNAVAILABLE: "That package isn’t offered any more. Please choose another.",
   EVENT_METHOD_UNAVAILABLE: "That way to pay isn’t offered any more. Please choose another.",
   ORDER_NOT_FOUND: "We couldn’t find that order. Check the link in your email.",
@@ -58,14 +69,15 @@ const stateCopy: Record<Exclude<SignupState, "open">, string> = {
   full: friendly.EVENT_FULL!,
 };
 
-const fieldLabels: Record<string, string> = {
+const fieldLabels = (words: GroupEventWords): Record<string, string> => ({
   parentName: "Your name",
   email: "Your email",
-  athleteName: "Athlete’s name",
+  athleteName: words.personLabel,
   optionId: "A package",
+  slot: "A time",
   method: "How you’ll pay",
   consent: "Checking the box above",
-};
+});
 
 /** "Saturday, October 18" for a date-only event date. */
 function eventDay(date: string | null): string | null {
@@ -75,19 +87,41 @@ function eventDay(date: string | null): string | null {
   );
 }
 
-function OrderCard({ order, onAnother, studioName }: { order: Order; onAnother?: () => void; studioName: string }) {
+function OrderCard({
+  order,
+  onAnother,
+  studioName,
+  words,
+}: {
+  order: Order;
+  onAnother?: () => void;
+  studioName: string;
+  words: GroupEventWords;
+}) {
   return (
     <>
       <Card tone="accent">
         <p className="event-signup-done">
           <CheckCircle2 aria-hidden size={22} />
-          {order.cancelled ? "This order was canceled" : order.paid ? "Paid — thank you" : "You’re signed up"}
+          {order.cancelled
+            ? "This order was canceled"
+            : order.paid
+              ? "Paid — thank you"
+              : order.slotLabel
+                ? `You’re booked for ${order.slotLabel}`
+                : "You’re signed up"}
         </p>
         <p className="event-signup-code-label">Confirmation number</p>
         <p className="event-signup-code">{order.confirmationCode}</p>
         <dl className="event-signup-summary">
+          {order.slotLabel ? (
+            <div>
+              <dt>Time</dt>
+              <dd>{order.slotLabel}</dd>
+            </div>
+          ) : null}
           <div>
-            <dt>Athlete</dt>
+            <dt>{words.person === "athlete" ? "Athlete" : words.personLabel}</dt>
             <dd>{order.athleteName}</dd>
           </div>
           <div>
@@ -117,7 +151,7 @@ function OrderCard({ order, onAnother, studioName }: { order: Order; onAnother?:
       ) : null}
       {onAnother ? (
         <Button icon={UserPlus} onClick={onAnother} variant="secondary">
-          Sign up another athlete
+          {words.act === "Book" ? `Book another ${words.person}` : `Sign up another ${words.person}`}
         </Button>
       ) : null}
     </>
@@ -153,6 +187,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
   const [phone, setPhone] = useState("");
   const [athleteName, setAthleteName] = useState("");
   const [team, setTeam] = useState("");
+  const [slot, setSlot] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState("");
   const [busy, setBusy] = useState(false);
@@ -190,12 +225,13 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
       !parentName.trim() && "parentName",
       !/^\S+@\S+\.\S+$/.test(email.trim()) && "email",
       !athleteName.trim() && "athleteName",
+      Boolean(view?.slots?.length) && !slot && "slot",
       !method && "method",
       !consent && "consent",
     ].filter((gap): gap is string => Boolean(gap));
     setMissing(gaps);
     if (gaps.length) {
-      setError(`Still needed: ${gaps.map((gap) => fieldLabels[gap]).join(", ")}.`);
+      setError(`Still needed: ${gaps.map((gap) => fieldLabels(words)[gap]).join(", ")}.`);
       return;
     }
     setBusy(true);
@@ -214,6 +250,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
           team: team.trim() || null,
           optionId,
           method,
+          slot,
           consent,
           website,
         }),
@@ -222,7 +259,11 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
       if (!response.ok || !body.order) {
         if (body.fields?.length) setMissing(body.fields);
         setError(friendly[body.error ?? ""] ?? "Your sign-up didn’t go through. Please try again.");
-        if (body.error === "EVENT_OPTION_UNAVAILABLE" || body.error === "EVENT_METHOD_UNAVAILABLE") void load();
+        if (["EVENT_OPTION_UNAVAILABLE", "EVENT_METHOD_UNAVAILABLE", "EVENT_SLOT_FULL", "EVENT_SLOT_UNAVAILABLE"].includes(body.error ?? "")) {
+          // What's on offer changed under them: show it as it is now.
+          if (body.error?.startsWith("EVENT_SLOT")) setSlot(null);
+          void load();
+        }
         return;
       }
       setOrder(body.order);
@@ -245,10 +286,13 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
     setOrder(null);
     setAthleteName("");
     setTeam("");
+    setSlot(null);
     setConsent(false);
     setError(null);
     setMissing([]);
     if (view && view.options.length > 1) setOptionId(null);
+    // The times' room has changed by one: read them again.
+    if (view?.slots?.length) void load();
     window.history.replaceState(null, "", `/e/${token}`);
     window.scrollTo({ top: 0 });
   }
@@ -258,6 +302,8 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
   const where = [view?.event.venue, view?.event.city].filter(Boolean).join(", ");
   const chosen = view?.options.find((option) => option.id === optionId) ?? null;
   const flagged = (field: string) => (missing.includes(field) ? "Required" : undefined);
+  // An event in its own words: athletes at a cheer day, families at a mini-session day.
+  const words = groupEventWords(view?.kind ?? null);
 
   return (
     <KitRoot>
@@ -286,6 +332,11 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
                     <MapPin aria-hidden size={16} /> {where}
                   </p>
                 ) : null}
+                {view.slotSpan && !order ? (
+                  <p>
+                    <Clock aria-hidden size={16} /> {`Sessions ${view.slotSpan}`}
+                  </p>
+                ) : null}
               </header>
 
               {order ? (
@@ -293,6 +344,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
                   onAnother={(token && view.state === "open") || view.signupPath ? another : undefined}
                   order={order}
                   studioName={view.studio.name}
+                  words={words}
                 />
               ) : view.state !== "open" ? (
                 <Card>
@@ -321,24 +373,55 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
                     ))}
                   </fieldset>
 
+                  {view.slots?.length ? (
+                    <fieldset className="event-signup-group">
+                      <legend>Pick a time</legend>
+                      {flagged("slot") ? <span className="kit-error">Choose a time.</span> : null}
+                      <span className="kit-chip-list event-signup-slots">
+                        {view.slots.map((choice) => {
+                          const full = choice.left <= 0 && choice.id !== slot;
+                          return (
+                            <button
+                              aria-label={full ? `${choice.label}, full` : choice.label}
+                              aria-pressed={choice.id === slot}
+                              className="kit-chip"
+                              disabled={full}
+                              key={choice.id}
+                              onClick={() => setSlot(choice.id)}
+                              type="button"
+                            >
+                              {choice.label}
+                            </button>
+                          );
+                        })}
+                      </span>
+                      {view.slots.every((choice) => choice.left <= 0) ? (
+                        <Note>Every time is taken. Reply to the studio’s email to ask about another.</Note>
+                      ) : null}
+                    </fieldset>
+                  ) : null}
+
                   <fieldset className="event-signup-group">
-                    <legend>The athlete</legend>
+                    <legend>{words.personSection}</legend>
                     <Field
                       autoComplete="off"
                       error={flagged("athleteName")}
-                      label="Athlete’s name"
+                      hint={words.personHint ?? undefined}
+                      label={words.personLabel}
                       maxLength={120}
                       onChange={(event) => setAthleteName(event.target.value)}
                       value={athleteName}
                     />
-                    <Field
-                      autoComplete="off"
-                      hint="Optional"
-                      label="Team or group"
-                      maxLength={80}
-                      onChange={(event) => setTeam(event.target.value)}
-                      value={team}
-                    />
+                    {words.teamLabel ? (
+                      <Field
+                        autoComplete="off"
+                        hint="Optional"
+                        label={words.teamLabel}
+                        maxLength={80}
+                        onChange={(event) => setTeam(event.target.value)}
+                        value={team}
+                      />
+                    ) : null}
                   </fieldset>
 
                   <fieldset className="event-signup-group">
@@ -395,7 +478,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
                   <label className="event-signup-consent" data-missing={flagged("consent") ? "" : undefined}>
                     <input checked={consent} onChange={(event) => setConsent(event.target.checked)} type="checkbox" />
                     <span>
-                      {`I’m the athlete’s parent or guardian, and ${view.studio.name} may use these details for this order. See how StudioCue handles them in its`}{" "}
+                      {`${words.consentLead}, and ${view.studio.name} may use these details for this order. See how StudioCue handles them in its`}{" "}
                       <a href="/privacy" rel="noopener" target="_blank">
                         privacy policy
                       </a>
@@ -418,7 +501,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
           <Actions note={error ? <span className="kit-error" role="alert">{error}</span> : undefined}>
             <Button disabled={busy} form="event-signup" type="submit">
               {busy ? <LoaderCircle aria-hidden className="spin" size={18} /> : null}
-              {chosen ? `Sign up — ${chosen.price}` : "Sign up"}
+              {chosen ? `${words.act} — ${chosen.price}` : words.act}
             </Button>
           </Actions>
         ) : null}

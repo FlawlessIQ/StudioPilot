@@ -2087,3 +2087,17 @@ textarea.kit-input {
   top: 12px;
   right: 12px;
 }
+
+/* A mini-session day's times: chips that wrap; a full time is shown, not tappable. */
+.event-signup-slots .kit-chip:disabled {
+  opacity: 0.45;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+/* A booked time at the head of a field-mode row (mini-session days). */
+.event-field-time {
+  margin-right: 8px;
+  color: var(--kit-accent);
+  font-variant-numeric: tabular-nums;
+}

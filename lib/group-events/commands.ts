@@ -18,6 +18,8 @@ export type ParticipantInput = {
   packageName: string | null;
   amountCents: number;
   status: "unpaid" | "pay_on_day";
+  /** The time booked on a mini-session day; left out, it stays as it was. */
+  slot?: string | null;
 };
 
 const once = () => ({ idempotencyKey: crypto.randomUUID() });

@@ -373,6 +373,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   EVENT_CLOSES_AT_INVALID: "Check the closing time.",
   EVENT_SIGNUP_NOT_SET_UP: "Set up the packages and how parents pay first.",
   EVENT_SIGNUP_CLOSED: "Sign-up is closed. Open it again to send the link.",
+  // Mini-session days: times to book (features/group-events/signup.ts, eventSlots).
+  EVENT_SLOTS_INVALID: "Check the times: each stretch needs an end after its start, and room for at least one session.",
+  EVENT_SLOT_REQUIRED: "Pick a time.",
+  EVENT_SLOT_UNAVAILABLE: "That time isn't offered any more. Please pick another.",
+  EVENT_SLOT_FULL: "That time was just taken. Please pick another.",
   EVENT_QUICKBOOKS_NOT_CONNECTED: "Connect QuickBooks first (Studio settings → Integrations), then choose QuickBooks invoices.",
   EVENT_ONLINE_TWICE: "Choose one way to pay online: your own payment link or QuickBooks invoices.",
   PARTICIPANT_INVOICE_OPEN: "Their QuickBooks invoice is already out. It's on its way or waiting to be paid.",

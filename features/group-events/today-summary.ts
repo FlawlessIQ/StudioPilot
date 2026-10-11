@@ -11,9 +11,11 @@
 
 import { activeProjectStates } from "@/features/dashboard/active-states";
 import {
+  eventSlots,
   normaliseEventSignup,
   participantInvoiceSummary,
   signupState,
+  slotLabel,
   type SignupState,
 } from "@/features/group-events/signup";
 import { rosterEnabled, rosterSummary, type Participant } from "@/features/group-events/participants";
@@ -78,13 +80,17 @@ export type GroupEventDay = {
   /** Parents whose QuickBooks invoice QuickBooks refused. */
   failedInvoices: number;
   signup: SignupState;
+  /** A mini-session day: places booked of places offered (times × bookings each). */
+  places: { booked: number; total: number; perTime: number } | null;
+  /** On the day, the next booked time from now and who it is. */
+  next: { time: string; name: string } | null;
 };
 
 /** One event's roster as Today shows it. */
 export function groupEventDay(
   participants: readonly Participant[],
   groupEvent: unknown,
-  input: { now: string; isToday: (iso: string) => boolean },
+  input: { now: string; isToday: (iso: string) => boolean; clock?: string },
 ): GroupEventDay {
   const summary = rosterSummary(participants);
   let takenTodayCents = 0;
@@ -95,7 +101,21 @@ export function groupEventDay(
     if (participant.status !== "cancelled" && participant.status !== "paid" && participant.qbInvoice?.state === "failed")
       failedInvoices += 1;
   }
+  const config = normaliseEventSignup(groupEvent);
+  const times = eventSlots(config.slots);
+  const live = participants.filter((participant) => participant.status !== "cancelled");
+  const booked = live.filter((participant) => participant.slot && times.some((slot) => slot.id === participant.slot));
+  const upcoming = input.clock
+    ? booked
+        .filter((participant) => (participant.slot ?? "") >= input.clock!)
+        .sort((left, right) => (left.slot ?? "").localeCompare(right.slot ?? ""))[0]
+    : undefined;
   return {
+    places:
+      config.slots && times.length
+        ? { booked: booked.length, total: times.length * config.slots.perSlot, perTime: config.slots.perSlot }
+        : null,
+    next: upcoming?.slot ? { time: slotLabel(upcoming.slot), name: upcoming.athleteName } : null,
     signedUp: summary.total,
     paid: summary.paid,
     owing: summary.unpaid + summary.payOnDay,

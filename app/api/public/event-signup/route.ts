@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { adminAppCheck, adminFirestore } from "@/server/firebase/admin";
 import { requestClientIp } from "@/lib/security/client-ip";
+import { jobKindOf } from "@/features/job-kinds/job-kinds";
 import {
   CREATE_PARTICIPANT_INVOICE_JOB,
   EVENT_PAYMENT_LABEL,
@@ -9,9 +10,13 @@ import {
   eventSignupInputSchema,
   howToPay,
   normaliseEventSignup,
+  eventSlots,
   participantInvoiceJobId,
   participantInvoiceRequestId,
   signupState,
+  slotLabel,
+  slotSpan,
+  slotsWithRoom,
   statusForMethod,
   venmoPayUrl,
   type EventPaymentMethod,
@@ -117,13 +122,24 @@ async function offeredMethods(config: EventSignupConfig, tenantId: string): Prom
   return (await quickBooksConnected(tenantId)) ? config.methods : config.methods.filter((method) => method !== "quickbooks");
 }
 
-async function signedUpCount(tenantId: string, projectId: string): Promise<number> {
+/** Everyone with a place: how many signed up, and how many each time has taken. */
+async function places(tenantId: string, projectId: string): Promise<{ count: number; booked: Record<string, number> }> {
   const snapshot = await adminFirestore
     .collection("eventParticipants")
     .where("tenantId", "==", tenantId)
     .where("projectId", "==", projectId)
     .get();
-  return snapshot.docs.filter((participant) => participant.get("status") !== "cancelled").length;
+  return placesOf(snapshot.docs);
+}
+
+function placesOf(docs: FirebaseFirestore.QueryDocumentSnapshot[]): { count: number; booked: Record<string, number> } {
+  const live = docs.filter((participant) => participant.get("status") !== "cancelled");
+  const booked: Record<string, number> = {};
+  for (const participant of live) {
+    const slot = text(participant.get("slot"));
+    if (slot) booked[slot] = (booked[slot] ?? 0) + 1;
+  }
+  return { count: live.length, booked };
 }
 
 function studioOf(tenant: FirebaseFirestore.DocumentSnapshot) {
@@ -193,6 +209,7 @@ function orderView(
   const packageName = text(participant.get("packageName"));
   return {
     confirmationCode: text(participant.get("confirmationCode")),
+    slotLabel: text(participant.get("slot")) ? slotLabel(text(participant.get("slot"))) : null,
     athleteName: athlete,
     packageName,
     amount: eventPrice(amountCents),
@@ -217,7 +234,16 @@ export async function GET(request: Request): Promise<Response> {
   return Response.json({
     studio: studioOf(tenant),
     event: eventOf(project),
-    state: signupState(config, new Date().toISOString(), await signedUpCount(tenantId, projectId)),
+    ...(await (async () => {
+      const taken = await places(tenantId, projectId);
+      return {
+        state: signupState(config, new Date().toISOString(), taken.count),
+        // A mini-session day's times, each with the room it has left (never who booked it).
+        slots: config.slots ? slotsWithRoom(config.slots, taken.booked).map(({ id, label, left }) => ({ id, label, left })) : null,
+        slotSpan: slotSpan(config.slots),
+      };
+    })()),
+    kind: jobKindOf(project.data()),
     closesAt: config.closesAt,
     options: config.options.map((option) => ({ ...option, price: eventPrice(option.priceCents) })),
     methods: (await offeredMethods(config, tenantId)).map((method) => ({ method, label: EVENT_PAYMENT_LABEL[method] })),
@@ -242,7 +268,7 @@ async function orderResponse(orderToken: string): Promise<Response> {
     return Response.json({ error: "ORDER_NOT_FOUND" }, { status: 404 });
   const config = normaliseEventSignup(project.get("groupEvent"));
   const studio = studioOf(tenant);
-  const state = signupState(config, new Date().toISOString(), await signedUpCount(tenantId, projectId));
+  const state = signupState(config, new Date().toISOString(), (await places(tenantId, projectId)).count);
   return Response.json({
     studio,
     event: eventOf(project),
@@ -285,6 +311,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!option) return Response.json({ error: "EVENT_OPTION_UNAVAILABLE" }, { status: 409 });
   if (!(await offeredMethods(config, tenantId)).includes(input.method))
     return Response.json({ error: "EVENT_METHOD_UNAVAILABLE" }, { status: 409 });
+  // A mini-session day books a time; an event without times takes none.
+  const slotIds = eventSlots(config.slots).map((slot) => slot.id);
+  if (config.slots && !input.slot) return Response.json({ error: "EVENT_SLOT_REQUIRED" }, { status: 400 });
+  if (config.slots && !slotIds.includes(input.slot ?? "")) return Response.json({ error: "EVENT_SLOT_UNAVAILABLE" }, { status: 409 });
+  const slot = config.slots ? input.slot : null;
   const studio = studioOf(tenant);
   const now = new Date().toISOString();
 
@@ -305,6 +336,9 @@ export async function POST(request: Request): Promise<Response> {
     if (repeat) return { kind: "repeat" as const, participant: repeat };
     const state = signupState(config, now, live.length);
     if (state !== "open") return { kind: "refused" as const, state };
+    // The time's room, read in the same transaction that takes it.
+    if (slot && config.slots && (placesOf(live).booked[slot] ?? 0) >= config.slots.perSlot)
+      return { kind: "refused" as const, state: "slot_full" as const };
     const participantId = randomUUID();
     const orderToken = randomBytes(18).toString("base64url");
     const confirmationCode = confirmationCodeFrom(randomBytes(6));
@@ -323,6 +357,7 @@ export async function POST(request: Request): Promise<Response> {
       amountCents: option.priceCents,
       status: statusForMethod(input.method),
       chosenMethod: input.method,
+      slot,
       source: "signup_link",
       confirmationCode,
       // Opens this one order (/e/order/{orderToken}), from the parent's emails.
@@ -395,6 +430,7 @@ export async function POST(request: Request): Promise<Response> {
       chosenMethod: input.method,
       confirmationCode,
       eventDate: project.get("eventDate") ?? null,
+      slotLabel: slot ? slotLabel(slot) : null,
       // Their own order page; the Venmo or pay-link button leads when there is one.
       actionUrl: orderUrl,
       payUrl: pay.payUrl,
@@ -427,7 +463,8 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   if (result.kind === "refused") {
-    return Response.json({ error: result.state === "full" ? "EVENT_FULL" : "EVENT_SIGNUP_CLOSED" }, { status: 409 });
+    const error = result.state === "slot_full" ? "EVENT_SLOT_FULL" : result.state === "full" ? "EVENT_FULL" : "EVENT_SIGNUP_CLOSED";
+    return Response.json({ error }, { status: 409 });
   }
   if (result.kind === "repeat") {
     const orderToken = text(result.participant.get("orderToken"));

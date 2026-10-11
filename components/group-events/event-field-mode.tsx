@@ -10,6 +10,7 @@ import { chosenMethodLabel, recordedMethodFor } from "@/components/group-events/
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
   PAYMENT_METHOD_LABEL,
+  rosterBySlot,
   rosterOrder,
   rosterSummary,
   type Participant,
@@ -17,11 +18,13 @@ import {
 } from "@/features/group-events/participants";
 import {
   normaliseEventSignup,
+  slotLabel,
   participantInvoiceOpen,
   participantInvoiceSummary,
   signupState,
 } from "@/features/group-events/signup";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { groupEventWords } from "@/features/group-events/words";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { formatCentsExact } from "@/lib/format/money";
 import { recordParticipantPayment } from "@/lib/group-events/commands";
@@ -107,6 +110,9 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
   }, [projectId, tenantId]);
 
   const config = useMemo(() => normaliseEventSignup(project?.groupEvent), [project?.groupEvent]);
+  // An event in its own words; a mini-session day runs by the clock.
+  const words = groupEventWords(project);
+  const byTime = Boolean(config.slots);
   const name = typeof project?.name === "string" && project.name.trim() ? project.name.trim() : "The event";
   const summary = useMemo(() => rosterSummary(participants), [participants]);
   const today = useMemo(() => {
@@ -123,16 +129,16 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return rosterOrder(participants).filter((participant) => {
+    return (byTime ? rosterBySlot(participants) : rosterOrder(participants)).filter((participant) => {
       if (filter === "to_pay" && participant.status !== "unpaid" && participant.status !== "pay_on_day") return false;
       if (filter === "paid" && participant.status !== "paid") return false;
       if (filter === "all" && participant.status === "cancelled" && !term) return false;
       if (!term) return true;
-      return [participant.athleteName, participant.parentName, participant.team, participant.confirmationCode]
+      return [participant.athleteName, participant.parentName, participant.team, participant.confirmationCode, participant.slot ? slotLabel(participant.slot) : null]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term));
     });
-  }, [filter, participants, search]);
+  }, [byTime, filter, participants, search]);
 
   const url = config.token ? eventSignupUrl(config.token) : null;
   const open = signupState(config, new Date().toISOString(), summary.total) === "open";
@@ -190,7 +196,7 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
           <small>Still to take</small>
           <strong>{formatCentsExact(summary.outstandingCents)}</strong>
           <span>
-            {summary.unpaid + summary.payOnDay} of {summary.total} {summary.total === 1 ? "athlete" : "athletes"}
+            {`${summary.unpaid + summary.payOnDay} of ${summary.total} ${summary.total === 1 ? words.person : words.persons}`}
           </span>
         </div>
       </section>
@@ -201,10 +207,10 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
             <Search aria-hidden size={18} />
           </span>
           <input
-            aria-label="Search by athlete, parent or confirmation number"
+            aria-label="Search by name or confirmation number"
             className="kit-input"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Athlete, parent or code"
+            placeholder={byTime ? "Name, code or time" : "Name or code"}
             value={search}
           />
         </label>
@@ -248,7 +254,10 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
               <li data-status={participant.status} key={participant.id}>
                 <div className="event-field-row">
                   <span className="event-field-who">
-                    <strong>{participant.athleteName}</strong>
+                    <strong>
+                      {participant.slot ? <span className="event-field-time">{slotLabel(participant.slot)}</span> : null}
+                      {participant.athleteName}
+                    </strong>
                     <small>
                       {[participant.parentName, participant.team, participant.packageName].filter(Boolean).join(" · ")}
                     </small>
@@ -341,7 +350,7 @@ export function EventFieldMode({ projectId, backHref }: { projectId: string; bac
             <X aria-hidden size={26} />
           </button>
           <p className="event-field-qr-studio">{workspace.tenantName}</p>
-          <h2>Scan to sign up</h2>
+          <h2>{words.act === "Book" ? "Scan to book" : "Scan to sign up"}</h2>
           <p>{name}</p>
           <QrImage label={`QR code for ${url}`} url={url} />
           {open ? <p>Point your phone camera at the code.</p> : <p className="event-field-qr-closed">Sign-up is closed right now.</p>}

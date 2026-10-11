@@ -5,7 +5,8 @@ import { Printer } from "lucide-react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { QrImage, eventSignupUrl } from "@/components/group-events/event-signup-panel";
 import { useWorkspace } from "@/features/auth/workspace-context";
-import { EVENT_PAYMENT_SHORT, eventPrice, normaliseEventSignup } from "@/features/group-events/signup";
+import { EVENT_PAYMENT_SHORT, eventPrice, normaliseEventSignup, slotSpan } from "@/features/group-events/signup";
+import { groupEventWords } from "@/features/group-events/words";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 
@@ -51,7 +52,7 @@ export function EventSign({ projectId }: { projectId: string }) {
       </div>
       <article className="event-sign">
         <p className="event-sign-studio">{workspace.tenantName}</p>
-        <h1>Scan to sign up</h1>
+        <h1>{groupEventWords(project).act === "Book" ? "Scan to book" : "Scan to sign up"}</h1>
         <p className="event-sign-event">
           {name}
           {date ? ` · ${date}` : ""}
@@ -68,6 +69,7 @@ export function EventSign({ projectId }: { projectId: string }) {
             </li>
           ))}
         </ul>
+        {config.slots ? <p className="event-sign-pay">{`Sessions ${slotSpan(config.slots)} — pick your time`}</p> : null}
         <p className="event-sign-pay">Pay by {config.methods.map((method) => EVENT_PAYMENT_SHORT[method]).join(", ")}</p>
         <p className="event-sign-url">{url.replace(/^https?:\/\//, "")}</p>
       </article>

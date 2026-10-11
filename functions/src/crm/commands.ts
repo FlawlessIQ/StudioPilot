@@ -7,6 +7,8 @@ import {
   normaliseEventSignup,
   normalisePayLinkUrl,
   normaliseVenmoHandle,
+  normaliseSlotPlan,
+  slotSpan,
   CREATE_PARTICIPANT_INVOICE_JOB,
   participantInvoiceJobId,
   participantInvoiceRequestId,
@@ -222,6 +224,12 @@ const participantFields = {
   packageName: z.string().trim().max(120).nullable().default(null),
   amountCents: z.number().int().min(0).max(1_000_000),
   status: z.enum(["unpaid", "pay_on_day"]).default("unpaid"),
+  /**
+   * The time booked on a mini-session day ("09:20"); the studio can move
+   * anyone. Left out, a booked time stays as it was: an edit that doesn't
+   * mention it never clears it.
+   */
+  slot: z.string().trim().regex(/^\d{2}:\d{2}$/).nullable().optional(),
 };
 
 const commandSchema = z.discriminatedUnion("type", [
@@ -5078,7 +5086,7 @@ export const crmCommand = onRequest(
           // A paid participant keeps what they paid and their status; their
           // names and contact details can still be corrected.
           const changes = paid
-            ? { parentName: fields.parentName, email: fields.email, phone: fields.phone, athleteName: fields.athleteName, team: fields.team, packageName: fields.packageName }
+            ? { parentName: fields.parentName, email: fields.email, phone: fields.phone, athleteName: fields.athleteName, team: fields.team, packageName: fields.packageName, ...(fields.slot !== undefined ? { slot: fields.slot } : {}) }
             : fields;
           transaction.update(participant.ref, { ...changes, updatedAt: timestamp, updatedBy: identity.uid });
           participantAudit(transaction, db, {
@@ -5290,6 +5298,8 @@ export const crmCommand = onRequest(
                 open: settings.open,
                 closesAt: settings.closesAt || null,
                 capacity: settings.capacity,
+                // Times to book on a mini-session day, or none.
+                slots: normaliseSlotPlan(settings.slots),
               }
             : {};
           transaction.update(project.ref, {
@@ -5433,6 +5443,8 @@ export const crmCommand = onRequest(
               actionUrl: signupUrl,
               priceFrom: eventPrice(from),
               optionCount: signup.options.length,
+              // "9:00 AM – 11:40 AM" on a mini-session day, so the invite says there's a time to pick.
+              slotSpan: slotSpan(signup.slots),
               status: "queued",
               attempts: 0,
               maxAttempts: 5,

@@ -11709,6 +11709,10 @@ textarea:focus-visible {
 .record-sheet-fields label.participant-roster-check input{width:auto}
 /* Group event sign-up on the roster (components/group-events/event-signup-panel.tsx).
    Wraps, never squeezes: the job column is narrow even on a desktop. */
+.participant-roster.is-quiet{padding-block:12px}
+.participant-roster-quiet{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0;font-size:13.5px;line-height:1.5}
+.participant-roster-quiet>span{flex:1 1 16rem;min-width:0;color:var(--muted)}
+.participant-roster-who strong .participant-roster-time{margin-right:8px;color:var(--accent);font-variant-numeric:tabular-nums}
 .participant-roster-who small.participant-roster-invoice{white-space:normal;overflow:visible}
 .participant-roster-who small.participant-roster-invoice[data-failed]{color:var(--danger,#a63c3a)}
 .participant-invoice-send{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px}
@@ -11744,6 +11748,9 @@ textarea:focus-visible {
 .event-signup-settings-price{flex:0 1 7rem}
 .event-signup-settings-detail{flex:3 1 14rem}
 .event-signup-settings-method{display:grid;gap:6px}
+.event-signup-settings-window{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 10px}
+.event-signup-settings-window>label{flex:1 1 8rem}
+.event-signup-settings-hint-line{color:var(--muted);font-size:12.5px;line-height:1.5}
 .event-signup-settings-method>.event-signup-settings-hint{margin-left:26px;color:var(--muted);font-size:12.5px;line-height:1.5}
 .event-signup-settings-group>.button{justify-self:start}
 .event-signup-settings-group label>span small{font-weight:400;color:var(--muted)}

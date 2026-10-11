@@ -97,6 +97,43 @@ Still to do:
 - A walk on production with a FlawlessIQ test event. It sends real email, so it
   needs Conor's OK.
 
+## Mini-session days (built 2026-10-11)
+
+Mini-session days are "one date, many families, time slots"
+(docs/job-types-plan-2026-10-02.md). They are built on this roster and
+sign-up.
+
+- **Which jobs:** the roster is offered on Family & portraits jobs as well
+  as sports. A portraits job is usually one family, so it shows a one-line
+  invitation, unless the job's type or name says "mini"
+  (`rosterProminent`).
+- **Words:** wording follows the job's kind (features/group-events/words.ts).
+  - A team day talks about athletes and parents, and parents "sign up".
+  - A mini-session day talks about families and "Who's in the photos", and
+    families "book".
+  - The consent line, the edit sheet, field mode, the panel and the invite
+    email all follow.
+- **Times** (`signup.slots`):
+  - **Settings:** up to three stretches of the day, the minutes each session
+    lasts, and how many bookings each time takes. Times are on the event's
+    own clock ("09:20") and are never converted between time zones
+    (`eventSlots`, `slotLabel`).
+- **Booking:**
+  - The sign-up page shows the times, and a full time can't be picked.
+  - The route requires a time that the event offers. It enforces each time's
+    cap in the same write that books it (`EVENT_SLOT_REQUIRED`,
+    `EVENT_SLOT_UNAVAILABLE`, `EVENT_SLOT_FULL`).
+  - The confirmation page and email lead with the time.
+- **Studio:**
+  - The roster and field mode run in time order, and each row shows its time.
+  - The studio can move anyone from the edit sheet. An edit that doesn't
+    mention a time never clears it.
+  - Today shows "2 of 3 times booked" and, on the day, who's next.
+  - The printed sign gives the session hours.
+
+Not built yet: a reminder email the day before with the family's time, and
+letting a family move their own time from their order page.
+
 ## What exists (Phase 1, live since 2026-10-04)
 
 - `eventParticipants`: parent, email, phone, athlete, team, package name,
