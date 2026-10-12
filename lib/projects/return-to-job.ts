@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation";
 export function useReturnToJob(projectId: string | null) {
   const router = useRouter();
   return useCallback(
-    (options?: { delayMs?: number }) => {
+    (options?: { delayMs?: number; then?: "send_to_vendors" }) => {
       // `window.location` rather than `useSearchParams`, which would oblige
       // every page using this to sit inside a Suspense boundary. This only
       // ever runs from a click handler, so the window is always there.
@@ -36,9 +36,12 @@ export function useReturnToJob(projectId: string | null) {
         requested && /^\/[a-z]/.test(requested) && !requested.startsWith("//")
           ? requested
           : null;
+      // "Send each vendor their part" open and waiting on the job's vendor
+      // team, after a publish (docs/vendor-network-plan-2026-10-12.md, Phase 2).
+      const then = options?.then === "send_to_vendors" && projectId ? "?vendors=send#vendor-team" : "";
       const target =
         explicit ??
-        (projectId ? `/studio/projects/${projectId}` : "/studio/projects");
+        (projectId ? `/studio/projects/${projectId}${then}` : "/studio/projects");
       const delay = options?.delayMs ?? 1100;
       if (delay <= 0) {
         router.push(target);

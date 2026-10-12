@@ -132,6 +132,12 @@ export function VendorTeamPanel({
       .then(() => refreshTenantRecords("clientVendorTeams"))
       .catch(() => undefined);
   }, [fresh, canWork, projectId]);
+  // Sent here from a publish ("?vendors=send"): the send is open and waiting.
+  const loaded = !team.loading;
+  useEffect(() => {
+    if (!loaded || typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("vendors") === "send") setSending(true);
+  }, [loaded]);
   if (!canWork || team.loading) return null;
   const visibility = alwaysShow
     ? "panel"
@@ -354,7 +360,7 @@ export function VendorTeamPanel({
             <span>{`No email address for ${names(noEmail)}. Add one to send them the timeline.`}</span>
           </p>
         ) : null}
-        {sending ? (
+        {sending && reach > 0 && team.currentVersion !== null ? (
           <div className="vendor-team-send-confirm" role="group" aria-label="Send the timeline">
             {firstTime.length ? <p>{`Gets their link: ${names(firstTime)}.`}</p> : null}
             {updates.length ? <p>{`Gets version ${team.currentVersion}: ${names(updates)}.`}</p> : null}

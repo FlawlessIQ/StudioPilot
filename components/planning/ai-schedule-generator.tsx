@@ -801,6 +801,23 @@ export function AiScheduleGenerator({
     }
   }
 
+  // Booked vendors with an email and no link yet: once this is published,
+  // sending them their part is the next move (the job's vendor team opens on it).
+  const sharedVendorIds = new Set(
+    vendorTeam.shares
+      .filter((share) => share.status !== "revoked" && !share.revokedAt)
+      .map((share) => String(share.vendorContactId ?? "")),
+  );
+  const firstSendWaiting = vendorTeam.entries.some(
+    (entry) =>
+      entry.status === "booked" &&
+      !entry.archivedAt &&
+      typeof entry.vendorId === "string" &&
+      entry.vendorId &&
+      String(entry.email ?? "").includes("@") &&
+      !sharedVendorIds.has(entry.vendorId),
+  );
+
   async function publish() {
     if (!draft) return;
     setPublishing(true);
@@ -833,7 +850,7 @@ export function AiScheduleGenerator({
       // could not give from the bottom of a long page. Unless vendors hold
       // the old version: then the next move is here, and leaving would hide it.
       if (response.persisted && stale > 0) setStaleVendors(stale);
-      else if (response.persisted) returnToJob();
+      else if (response.persisted) returnToJob(firstSendWaiting ? { then: "send_to_vendors" } : undefined);
     } catch (caught: unknown) {
       setPublishNotice({ failed: true, message: friendlyError(caught, "Publish failed.") });
     } finally {

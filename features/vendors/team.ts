@@ -504,3 +504,37 @@ export function crewVendorContactsFrom(entries: ReadonlyArray<Record<string, unk
         left.company.localeCompare(right.company),
     );
 }
+
+// ─── Who's working the day ───────────────────────────────────────────────────
+
+export type ContactSheetRow = {
+  vendorId: string | null;
+  category: string;
+  company: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  arrival: string | null;
+};
+
+/**
+ * The contact sheet every vendor's schedule link carries
+ * (docs/vendor-network-plan-2026-10-12.md, Phase 2): each booked vendor, how
+ * to reach them, when they arrive — the reason the couple listed them. Never
+ * the money, never a vendor still being considered.
+ */
+export function vendorContactSheet(entries: ReadonlyArray<Record<string, unknown>>): ContactSheetRow[] {
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  return entries
+    .filter((entry) => !entry.archivedAt && entry.status === "booked" && text(entry.company) && (text(entry.phone) || text(entry.email)))
+    .map((entry) => ({
+      vendorId: text(entry.vendorId) || null,
+      category: vendorCategoryLabel(entry.category),
+      company: text(entry.company),
+      contactName: text(entry.contactName),
+      phone: text(entry.phone),
+      email: text(entry.email),
+      arrival: text(entry.arrivalTime) || text(entry.loadInTime) || null,
+    }))
+    .sort((left, right) => left.category.localeCompare(right.category) || left.company.localeCompare(right.company));
+}

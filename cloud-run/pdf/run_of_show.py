@@ -34,6 +34,15 @@ class RunOfShowRow(BaseModel):
     concludes: str = Field(default="", max_length=160)
 
 
+class RunOfShowContact(BaseModel):
+    """A vendor working the day, from the job's vendor team (features/vendors/team.ts)."""
+
+    company: str = Field(min_length=1, max_length=200)
+    role: str = Field(default="", max_length=200)
+    phone: str = Field(default="", max_length=60)
+    email: str = Field(default="", max_length=254)
+
+
 class RunOfShowDocument(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     subtitle: str = Field(default="", max_length=300)
@@ -41,6 +50,9 @@ class RunOfShowDocument(BaseModel):
     facts: list[RunOfShowFact] = Field(default_factory=list, max_length=10)
     rows: list[RunOfShowRow] = Field(min_length=1, max_length=250)
     footer: str = Field(default="", max_length=240)
+    # "Vendor contacts": everyone working the day and how to reach them.
+    # Absent from an older caller, so the page reads as it always did.
+    contacts: list[RunOfShowContact] = Field(default_factory=list, max_length=40)
 
 
 INK = HexColor("#1F1F1F")
@@ -167,5 +179,26 @@ def build_run_of_show_pdf(document: RunOfShowDocument) -> bytes:
         ])
     )
     story.append(table)
+
+    if document.contacts:
+        story += [Spacer(1, 0.3 * inch), Paragraph("Vendor Contacts", section), Spacer(1, 0.08 * inch)]
+        contact_rows: list[list[Any]] = [[Paragraph("VENDOR", head), Paragraph("ROLE", head), Paragraph("CONTACT", head)]]
+        for contact in document.contacts:
+            ways = "<br/>".join(escape(way) for way in (contact.phone, contact.email) if way)
+            contact_rows.append([Paragraph(escape(contact.company), time), Paragraph(escape(contact.role), cell), Paragraph(ways, cell)])
+        contacts = Table(contact_rows, repeatRows=1, colWidths=[2.2 * inch, 2.3 * inch, width - 4.5 * inch])
+        contacts.setStyle(
+            TableStyle([
+                ("LINEABOVE", (0, 0), (-1, 0), 1.4, RULE),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.4, RULE),
+                ("LINEBELOW", (0, 1), (-1, -1), 0.5, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ])
+        )
+        story.append(contacts)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return buffer.getvalue()

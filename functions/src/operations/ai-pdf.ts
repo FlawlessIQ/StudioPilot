@@ -31,6 +31,7 @@ import { dayFieldsFor, normaliseInquiryFormConfig, resolveInquiryEventType } fro
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { offerLastDay } from "../booking/proposal-expiry.js";
 import { runOfShowDocument } from "../planning/run-of-show-doc.js";
+import { vendorTeamCategoryLabel } from "../planning/vendor-team.js";
 import { crewLabels } from "../planning/crew-labels.js";
 import { eventZone } from "../planning/day-clock.js";
 import { itemCrewIds } from "../planning/item-crew.js";
@@ -885,10 +886,22 @@ export async function runAiJob(job:DocumentSnapshot){if(String(job.get("type"))=
 async function runOfShowFor(db:FirebaseFirestore.Firestore,schedule:DocumentSnapshot,items:Array<Json>){
   const tenantId=String(schedule.get("tenantId"));
   const projectId=String(schedule.get("projectId"));
-  const [project,assignments]=await Promise.all([
+  const [project,assignments,team]=await Promise.all([
     db.doc(`projects/${projectId}`).get(),
     db.collection("crewAssignments").where("tenantId","==",tenantId).where("projectId","==",projectId).where("status","==","accepted").get(),
+    // The vendor team, for the "Vendor Contacts" page (docs/vendor-network-plan-2026-10-12.md, Phase 2).
+    db.collection("projectVendors").where("tenantId","==",tenantId).where("projectId","==",projectId).get(),
   ]);
+  const contacts=team.docs
+    .map(entry=>entry.data())
+    .filter(entry=>!entry.archivedAt&&entry.status==="booked")
+    .map(entry=>({
+      company:String(entry.company??""),
+      role:[vendorTeamCategoryLabel(entry.category),String(entry.contactName??"").trim()].filter(Boolean).join(" · "),
+      phone:String(entry.phone??""),
+      email:String(entry.email??""),
+    }))
+    .sort((left,right)=>left.role.localeCompare(right.role)||left.company.localeCompare(right.company));
   const labels=crewLabels(assignments.docs.map(assignment=>({
     id:String(assignment.get("crewProfileId")??assignment.id),
     role:String(assignment.get("role")??""),
@@ -909,6 +922,7 @@ async function runOfShowFor(db:FirebaseFirestore.Firestore,schedule:DocumentSnap
     publishedAt:typeof schedule.get("publishedAt")==="string"?schedule.get("publishedAt"):schedule.get("createdAt")??null,
     project:{name:project.get("name")??null,eventDate:project.get("eventDate")??null,eventType:project.get("eventType")??project.get("eventTypeId")??null},
     crewLabels:new Map([...labels.values()].map(label=>[label.id,label.label])),
+    contacts,
   });
 }
 

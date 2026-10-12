@@ -4,6 +4,10 @@ import type { RequestEvidence, SignerIdentity } from "@/server/contracts/client-
 import type { FinalDetailsView } from "@/features/planning/final-details-view";
 import { headcountNames } from "@/features/schedules/party-list";
 import { tradeOf } from "@/features/trades/trades";
+import { resolvePlanningTimeline } from "@/features/planning/planning-timeline";
+import { coupleVendorAnswer, coupleVendorAsk, type CoupleVendorTeamRecord } from "@/features/vendors/couple-team";
+import { vendorCategoryLabel } from "@/features/vendors/team";
+import { todayInZone } from "@/lib/format/event-date";
 
 /**
  * The couple's side of the final-details sign-off
@@ -59,6 +63,46 @@ export function headcountHash(snapshotHash: string, people: readonly string[]): 
   return createHash("sha256").update(JSON.stringify({ snapshotHash, people })).digest("hex");
 }
 
+/**
+ * The vendor list the sign-off shows and, until it's answered, waits on
+ * (docs/vendor-network-plan-2026-10-12.md, Phase 2). Required only while the
+ * studio asks it of this job (couple-team.ts `coupleVendorAsk`): a planner-run
+ * wedding, or one whose day has gone, never waits on it.
+ */
+async function vendorTeamFor(
+  db: Firestore,
+  input: { tenantId: string; projectId: string },
+): Promise<NonNullable<FinalDetailsView["vendorTeam"]>> {
+  const [project, tenant, answer, team] = await Promise.all([
+    db.doc(`projects/${input.projectId}`).get(),
+    db.doc(`tenants/${input.tenantId}`).get(),
+    db.doc(`clientVendorTeams/${input.projectId}`).get(),
+    db.collection("projectVendors").where("tenantId", "==", input.tenantId).where("projectId", "==", input.projectId).get(),
+  ]);
+  const record = answer.exists && answer.get("tenantId") === input.tenantId ? (answer.data() as CoupleVendorTeamRecord) : null;
+  const ask = project.exists
+    ? coupleVendorAsk({
+        project: project.data() ?? {},
+        timeline: resolvePlanningTimeline(tenant.get("planningTimeline")),
+        today: todayInZone(text(project.get("timezone"))),
+        planningFormSent: true,
+      })
+    : null;
+  const answered = coupleVendorAnswer(record);
+  return {
+    required: Boolean(ask?.available) && answered === "unanswered",
+    none: answered === "none",
+    vendors: team.docs
+      .filter((entry) => !entry.get("archivedAt") && entry.get("status") === "booked" && text(entry.get("company")))
+      .map((entry) => ({
+        category: vendorCategoryLabel(entry.get("category")),
+        company: text(entry.get("company")),
+        contactName: text(entry.get("contactName")),
+      }))
+      .sort((left, right) => left.category.localeCompare(right.category) || left.company.localeCompare(right.company)),
+  };
+}
+
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null);
 
 export async function finalDetailsFor(db: Firestore, input: { tenantId: string; projectId: string }): Promise<FinalDetailsView | null> {
@@ -86,7 +130,17 @@ export async function finalDetailsFor(db: Firestore, input: { tenantId: string; 
       confirmedHeadcount: count(data.confirmedHeadcount),
     };
   }
+  const confirmedVendors = Array.isArray(data.confirmedVendors) ? data.confirmedVendors.map(record) : null;
+  const vendorTeam =
+    data.status === "confirmed" && confirmedVendors
+      ? {
+          required: false,
+          none: confirmedVendors.length === 0,
+          vendors: confirmedVendors.map((row) => ({ category: text(row.category), company: text(row.company), contactName: text(row.contactName) })),
+        }
+      : await vendorTeamFor(db, input);
   return {
+    vendorTeam,
     status: data.status === "confirmed" ? "confirmed" : "awaiting_couple",
     lockOn: text(data.lockOn) || null,
     rows: (Array.isArray(snapshot.rows) ? snapshot.rows : []).map(record).map((row) => ({ label: text(row.label), value: text(row.value) })),
@@ -128,6 +182,10 @@ export async function confirmFinalDetails(
   const people = headcount ? await livePeople(db, input) : [];
   if (!headcount && typedName.length < 2) throw new Error("FINAL_DETAILS_NAME_REQUIRED");
   if (headcount) return confirmHeadcount(db, { ...input, typedName, people, now });
+  // Who else is working the day, answered first (Phase 2): the list they
+  // confirm is the one on the team now, recorded with the sign-off.
+  const vendorTeam = await vendorTeamFor(db, input);
+  if (vendorTeam.required) throw new Error("FINAL_DETAILS_VENDORS_NEEDED");
   return db.runTransaction(async (transaction) => {
     const signoff = await transaction.get(reference);
     const data = signoff.data();
@@ -148,6 +206,7 @@ export async function confirmFinalDetails(
         typedName,
       },
       evidence: { ipAddress: input.evidence.ipAddress, userAgent: input.evidence.userAgent },
+      confirmedVendors: vendorTeam.vendors,
       updatedAt: now,
     });
     transaction.create(db.doc(`auditEvents/${auditId}`), {

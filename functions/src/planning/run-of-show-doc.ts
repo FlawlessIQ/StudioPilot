@@ -41,6 +41,8 @@ export type RunOfShowDocument = {
   rows: RunOfShowRow[];
   footer: string;
   fileName: string;
+  /** Everyone working the day and how to reach them (the vendor team); none, none printed. */
+  contacts: Array<{ company: string; role: string; phone: string; email: string }>;
 };
 
 const TBD_SUFFIX = " — time TBD";
@@ -63,6 +65,8 @@ export function runOfShowDocument(input: {
   project: { name?: string | null; eventDate?: string | null; eventType?: string | null };
   /** Crew profile id → "P1", "V2" (crew-labels.ts). */
   crewLabels?: ReadonlyMap<string, string>;
+  /** The job's booked vendors, for "Vendor Contacts" (cloud-run/pdf/run_of_show.py's limits). */
+  contacts?: ReadonlyArray<{ company: string; role: string; phone: string; email: string }>;
 }): RunOfShowDocument {
   const zone = input.timeZone;
   const items = [...input.items]
@@ -205,5 +209,14 @@ export function runOfShowDocument(input: {
     rows,
     footer: [`Version ${input.version}`, published ? `published ${published}` : null, `Times are ${zoneName}`].filter(Boolean).join(" · "),
     fileName: `${slug}-run-of-show-v${input.version}.pdf`,
+    contacts: (input.contacts ?? [])
+      .filter((contact) => contact.company.trim() && (contact.phone.trim() || contact.email.trim()))
+      .slice(0, 40)
+      .map((contact) => ({
+        company: contact.company.trim().slice(0, 200),
+        role: contact.role.trim().slice(0, 200),
+        phone: contact.phone.trim().slice(0, 60),
+        email: contact.email.trim().slice(0, 254),
+      })),
   };
 }

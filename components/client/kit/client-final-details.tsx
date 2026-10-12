@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { CheckCircle2, ClipboardCheck, UserPlus } from "lucide-react";
-import { Button, ButtonRow, Card, List, Row } from "@/components/kit/kit";
+import Link from "next/link";
+import { CheckCircle2, ClipboardCheck, UserPlus, Users } from "lucide-react";
+import { Button, ButtonRow, Card, List, Note, Row } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { confirmFinalDetailsRequest, getFinalDetails } from "@/lib/client/portal-client";
@@ -86,7 +87,9 @@ export function ClientFinalDetails() {
       setReload((value) => value + 1);
     } catch (caught) {
       const code = caught instanceof Error ? caught.message : "";
-      if (code === "FINAL_DETAILS_CHANGED") {
+      if (code === "FINAL_DETAILS_VENDORS_NEEDED") {
+        setError("Add your other vendors first — or tell us there aren't any.");
+      } else if (code === "FINAL_DETAILS_CHANGED") {
         setError(`${studio} updated something since you opened this. Here it is again — please check it once more.`);
         setReload((value) => value + 1);
       } else setError("That didn't go through. Check your connection and try again.");
@@ -120,6 +123,36 @@ export function ClientFinalDetails() {
             </List>
           </>
         ) : null}
+        {details.vendorTeam ? (
+          <>
+            <h3 className="kit-subsection">Your vendor team</h3>
+            {details.vendorTeam.required ? (
+              <>
+                <Note icon={Users} tone="accent">
+                  Before you confirm: who else is working your day? Everyone on the list gets the final schedule, with each other&rsquo;s contact details.
+                </Note>
+                <Button href="/client/vendors" icon={Users} variant="secondary">
+                  Add your vendors
+                </Button>
+              </>
+            ) : details.vendorTeam.vendors.length ? (
+              <List>
+                {details.vendorTeam.vendors.map((vendor) => (
+                  <Row
+                    key={`${vendor.category}-${vendor.company}`}
+                    subtitle={[vendor.category, vendor.contactName].filter(Boolean).join(" · ")}
+                    title={vendor.company}
+                  />
+                ))}
+                <Row href="/client/vendors" title="Change your vendor team" />
+              </List>
+            ) : details.vendorTeam.none ? (
+              <p className="kit-body">
+                No other vendors. <Link href="/client/vendors">Booked someone since?</Link>
+              </p>
+            ) : null}
+          </>
+        ) : null}
         <label className="kit-field">
           <span className="kit-field-label">Type your full name to confirm</span>
           <input
@@ -140,7 +173,7 @@ export function ClientFinalDetails() {
           </p>
         ) : null}
         <ButtonRow>
-          <Button disabled={busy} onClick={() => void confirm()}>
+          <Button disabled={busy || Boolean(details.vendorTeam?.required)} onClick={() => void confirm()}>
             {busy ? "Confirming…" : "Confirm our final details"}
           </Button>
         </ButtonRow>

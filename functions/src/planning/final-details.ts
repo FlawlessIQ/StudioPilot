@@ -229,6 +229,14 @@ export async function openSignoff(
           console.error(JSON.stringify({ severity: "ERROR", event: "final_call.link_failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));
           return null;
         });
+  // A wedding whose couple hasn't listed their other vendors yet: the email
+  // says the sign-off asks for them (features/vendors/couple-team.ts; the
+  // portal won't confirm without an answer).
+  const vendorsNeeded =
+    headcount === null &&
+    jobKindOf(project.data() ?? {}) === "wedding" &&
+    project.get("vendorTeamByPlanner") !== true &&
+    !(await db.doc(`clientVendorTeams/${project.id}`).get()).get("receivedAt");
   const batch = db.batch();
   if (call) batch.set(db.doc(`consultationBookingLinks/${call.linkId}`), call.record);
   batch.create(reference, {
@@ -258,6 +266,7 @@ export async function openSignoff(
     finalCallUrl: call?.bookingUrl ?? null,
     // Per person: "Still N getting ready?" (communications/email-templates.ts).
     ...(headcount !== null ? { headcount } : {}),
+    ...(vendorsNeeded ? { vendorsNeeded: true } : {}),
     clientOutreachGuard: true,
     status: "queued",
     attempts: 0,

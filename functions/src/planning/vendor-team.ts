@@ -42,6 +42,30 @@ export const VENDOR_TEAM_CATEGORIES = [
   "rentals",
   "other",
 ] as const;
+/** What each kind is called on a printed contact sheet (features/vendors/team.ts VENDOR_CATEGORY_LABELS). */
+const CATEGORY_LABELS: Record<(typeof VENDOR_TEAM_CATEGORIES)[number], string> = {
+  venue: "Venue",
+  planner: "Planner",
+  florist: "Florist",
+  dj: "DJ",
+  band: "Band",
+  videographer: "Videographer",
+  hair_makeup: "Hair and makeup",
+  caterer: "Caterer",
+  transportation: "Transportation",
+  insurance_agent: "Insurance agent",
+  corporate_contact: "Corporate contact",
+  sports_organizer: "Sports organizer",
+  photographer: "Photographer",
+  officiant: "Officiant",
+  bakery: "Cake",
+  rentals: "Rentals",
+  other: "Other",
+};
+export function vendorTeamCategoryLabel(category: unknown): string {
+  return CATEGORY_LABELS[category as keyof typeof CATEGORY_LABELS] ?? "Vendor";
+}
+
 export const VENDOR_TEAM_STATUSES = ["needed", "considering", "booked", "declined"] as const;
 
 const clock = z

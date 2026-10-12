@@ -20,4 +20,16 @@ export type FinalDetailsView = {
   lockedHeadcount?: number | null;
   /** The headcount they confirmed. */
   confirmedHeadcount?: number | null;
+  /**
+   * Who else is working the day (features/vendors/couple-team.ts): listed or
+   * "none" before they can confirm, when the studio asks. Absent for a
+   * headcount sign-off.
+   */
+  vendorTeam?: {
+    /** They still have to answer before confirming. */
+    required: boolean;
+    vendors: Array<{ category: string; company: string; contactName: string }>;
+    /** They said there are no other vendors. */
+    none: boolean;
+  };
 };

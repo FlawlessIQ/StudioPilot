@@ -5,6 +5,8 @@ import {
   vendorVisibleItems,
   type ScheduleShareScope,
 } from "@/features/schedules/vendor-share";
+import { vendorContactSheet } from "@/features/vendors/team";
+import { spokenClock } from "@/features/schedules/day-clock";
 import type { ScheduleItem } from "@/features/schedules/schema";
 import { tradeVocab } from "@/features/trades/trades";
 
@@ -77,11 +79,18 @@ export default async function RunOfShowSharePage({
     );
   }
 
-  const [scheduleSnap, projectSnap, tenantSnap] = await Promise.all([
+  const [scheduleSnap, projectSnap, tenantSnap, teamSnap] = await Promise.all([
     adminFirestore.doc(`schedules/${String(share.scheduleId)}`).get(),
     adminFirestore.doc(`projects/${String(share.projectId)}`).get(),
     adminFirestore.doc(`tenants/${String(share.tenantId)}`).get(),
+    adminFirestore
+      .collection("projectVendors")
+      .where("tenantId", "==", String(share.tenantId))
+      .where("projectId", "==", String(share.projectId))
+      .get(),
   ]);
+  // Everyone working the day, and how to reach them (features/vendors/team.ts).
+  const contacts = vendorContactSheet(teamSnap.docs.map((entry) => entry.data()));
   const schedule = scheduleSnap.data();
   if (!schedule) {
     return (
@@ -208,6 +217,28 @@ export default async function RunOfShowSharePage({
           ))
         )}
       </ol>
+
+      {contacts.length ? (
+        <section className="ros-contacts" aria-label="Who's working this day">
+          <h2>Who&rsquo;s working this day</h2>
+          <ul>
+            {contacts.map((contact) => (
+              <li key={`${contact.category}-${contact.company}`}>
+                <strong>{contact.company}</strong>
+                <span className="ros-contact-role">
+                  {[contact.category, contact.contactName, contact.arrival ? `arrives ${spokenClock(contact.arrival)}` : ""]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+                <span className="ros-contact-ways">
+                  {contact.phone ? <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{contact.phone}</a> : null}
+                  {contact.email ? <a href={`mailto:${contact.email}`}>{contact.email}</a> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="ros-confirm">
         {acknowledged ? (

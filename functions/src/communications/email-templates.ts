@@ -2262,6 +2262,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           beauty
             ? "Please check it and confirm. From here, people can be added but not taken off, and a change to the location or time comes to us to agree."
             : "Please check it and confirm. From here, small things you can still change yourself; a change to a location or time comes to us to agree.",
+          // Who else is working the day, if they haven't said yet
+          // (planning/final-details.ts `vendorsNeeded`).
+          ...(values.vendorsNeeded === true
+            ? [
+                "You'll also be asked who else is working your day — your planner, venue coordinator and other vendors — so everyone gets the same schedule and can reach each other.",
+              ]
+            : []),
           ...(safeUrl(stringValue(values, "finalCallUrl"))
             ? [
                 finalTrade.family === "photo"
