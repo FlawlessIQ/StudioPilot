@@ -62,6 +62,7 @@ import {
 } from "@/features/projects/stage-progress";
 import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
 import { isCataloguePackage } from "@/features/packages/one-off";
+import { capExpiryAtEvent } from "@/features/booking/proposal-expiry";
 import { hoursText } from "@/features/packages/unit-label";
 import { ConsultationCorrections } from "@/components/booking/consultation-corrections";
 
@@ -425,7 +426,8 @@ export function BookingAutopilotWorkspace({
   const clientContactId = Array.isArray(project?.clientContactIds)
     ? text((project.clientContactIds as unknown[])[0]) || null
     : null;
-  const expiry = useMemo(() => futureDate(14), []);
+  // Two weeks, or to the end of the event's day when that is sooner.
+  const expiry = useMemo(() => capExpiryAtEvent(futureDate(14), project?.eventDate, new Date()), [project?.eventDate]);
   const retainerDueDate = useMemo(() => futureDateString(7), []);
   const balanceDue = useMemo(() => {
     const eventDate = new Date(`${text(project?.eventDate)}T12:00:00`);

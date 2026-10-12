@@ -72,12 +72,16 @@ export function proposalPdfDetail(pdfState: ProposalPdfState, offer = "proposal"
  * failed" — the response was honest when it was written and stale a second
  * afterwards. A notice that promises generation is dropped once the record
  * says it stopped.
+ *
+ * Nor once it finished. "Approved. The branded PDF is being generated." stayed
+ * on screen after the panel said the PDF was ready and "Send the booking link"
+ * had appeared (Jess Styles Bridal, 2026-10-12). The panel says ready itself.
  */
 export function proposalNoticeStillHolds(
   notice: string | null,
   pdfState: ProposalPdfState,
 ): boolean {
   if (!notice) return false;
-  if (pdfState !== "failed") return true;
+  if (pdfState !== "failed" && pdfState !== "ready") return true;
   return !/being generated/.test(notice);
 }

@@ -19,6 +19,7 @@ import {
   sendBookingCommand,
 } from "@/lib/booking/command-client";
 import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
+import { defaultExpiryDay } from "@/features/booking/proposal-expiry";
 import { ProposalPackagesPanel } from "@/components/proposals/proposal-packages-panel";
 import { RecordProposalAcceptance } from "@/components/booking/record-proposal-acceptance";
 import { RecordSignedAgreement } from "@/components/booking/record-signed-agreement";
@@ -677,10 +678,6 @@ export function PackageRequestCard({ action }: ActionCardProps) {
   );
 }
 
-function in14Days(): string {
-  return addCalendarDays(todayLocalIso(), 14);
-}
-
 export function DraftProposalCard({ action }: ActionCardProps) {
   const { offer, trade } = useTradeWords();
   const { job, loading } = useJob(action.projectId);
@@ -688,7 +685,8 @@ export function DraftProposalCard({ action }: ActionCardProps) {
   const proposals = useRecords("proposals");
   const runner = useRunner();
   const [note, setNote] = useState(action.text ?? "");
-  const [expires, setExpires] = useState(action.date ?? in14Days());
+  /** null until the studio picks one: the default waits on the job's date. */
+  const [chosenExpiry, setExpires] = useState<string | null>(action.date ?? null);
   const [created, setCreated] = useState<string | null>(null);
   const title = `Draft a ${offer} for ${jobName(job)}`;
   if (loading || !snapshots || !proposals) return <ActionShell title={title}><Loading /></ActionShell>;
@@ -711,6 +709,9 @@ export function DraftProposalCard({ action }: ActionCardProps) {
   // video wedding, and seeded the draft with the photo package's terms alone.
   const onTheJob = currentJobSnapshots(snapshots, job);
   const packageNames = onTheJob.map((item) => str(item.packageName)).filter(Boolean);
+  // Two weeks, or the event's own date when that is sooner: an offer has
+  // nothing to stand for after the day (Jess Styles Bridal, 2026-10-12).
+  const expires = chosenExpiry ?? defaultExpiryDay({ today: todayLocalIso(), eventDate: job.eventDate, days: 14, now: new Date() });
   return (
     <ActionShell
       detail={`From ${packageNames.length ? packageNames.join(" + ") : "the selected package"}. It stays a draft for you to check, approve and send.`}

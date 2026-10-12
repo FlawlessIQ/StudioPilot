@@ -1,6 +1,7 @@
 import { isLiveConsultation } from "@/features/consultations/live";
 import { isTrial } from "@/features/consultations/purpose";
 import { callWhen } from "@/features/consultations/upcoming";
+import { tradeProfile } from "@/features/trades/trades";
 
 /**
  * Where a job's makeup or hair trial stands, for its journey step
@@ -59,6 +60,62 @@ export function trialWhen(input: { consultations: readonly Row[]; timeZone?: str
 const TRIAL_WORD = /\btrials?\b/i;
 
 const words = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const dayOf = (value: unknown): string | null => {
+  const day = typeof value === "string" ? value.slice(0, 10) : "";
+  return DAY.test(day) && !Number.isNaN(Date.parse(`${day}T12:00:00Z`)) ? day : null;
+};
+
+/**
+ * Whether a day is left to hold a trial on before the event: tomorrow at the
+ * earliest, the day before the event at the latest. Those are the days a
+ * trial link offers (functions/src/booking/trial-window.ts `trialWindow`,
+ * which is null exactly when this is false). A job with no date always has one.
+ *
+ * On a hair job dated today, the job's trial card still offered "Invite them
+ * to book the hair trial", the journey listed the trial as a step still to
+ * come, and the quote's extras suggested "Bridal hair trial · $150", though
+ * the link would have had no day to offer (Priya Shah Sangeet, Jess Styles
+ * Bridal, 2026-10-12).
+ */
+export function trialDayLeft(input: {
+  /** YYYY-MM-DD on the studio's clock. */
+  today: string;
+  eventDate: unknown;
+}): boolean {
+  const today = dayOf(input.today);
+  const eventDay = dayOf(input.eventDate);
+  if (!today || !eventDay) return true;
+  // Tomorrow is today + 1 and the last day is the event - 1: a day is left
+  // when the event is two or more days away.
+  return Math.round((Date.parse(`${eventDay}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000) >= 2;
+}
+
+/**
+ * The trial already happened or is on the books, as the job itself records it:
+ * booked through its link (public-scheduling.ts writes `trialBookedAt`), or
+ * the look noted from it (`trialNotes`). Today reads it the same way
+ * (features/today/inbox.ts).
+ */
+export function trialArrangedOnJob(project: Row | null | undefined): boolean {
+  return Boolean(project && (words(project.trialBookedAt) || project.trialNotes));
+}
+
+/**
+ * The package's own extras to suggest on a job's quote. A trial extra is not
+ * suggested once no day is left to hold the trial before the event, unless
+ * one was booked or held. Every other extra, and every trade without a trial
+ * (a photographer, a DJ), is suggested as before. The library still lists it,
+ * unmarked, for a studio that wants it anyway.
+ */
+export function extrasToSuggest<T extends Row>(
+  rows: readonly T[],
+  input: { trade: unknown; today: string; eventDate: unknown; trialArranged: boolean },
+): T[] {
+  if (!tradeProfile(input.trade).trial || input.trialArranged || trialDayLeft(input)) return [...rows];
+  return rows.filter((row) => !TRIAL_WORD.test(words(row.name)));
+}
 
 /**
  * Why the client should be asked to book a trial: they bought one (a package,

@@ -82,6 +82,7 @@ import { dataIsLive } from "@/lib/runtime-mode";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
+import { trialArrangedOnJob } from "@/features/consultations/trial";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
 import { useHashTarget } from "@/lib/ui/hash-target";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
@@ -1567,6 +1568,15 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
               quiet
             />
           </>
+        ) : !trial.dayLeft ? (
+          // No day left before the event to hold it on (trialDayLeft): a
+          // link would offer nothing. A hair job dated today still read
+          // "Invite them to book the hair trial" (Jess Styles Bridal,
+          // 2026-10-12). One held off the books, with its notes below, needs
+          // no line about it.
+          trialArrangedOnJob(project) ? null : (
+            <p className="trial-hint">{`No day is left before the ${vocab(jobKindOf(project)).event} to hold a ${trialWord.toLowerCase()}.`}</p>
+          )
         ) : (
           <>
             {/* A hair trial waits for the veil (trades.ts `trialHint`). */}

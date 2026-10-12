@@ -1,6 +1,6 @@
 import { normalizeUnitLabel } from "../packages/unit-label.js";
 import { packageDetails } from "../packages/inclusions.js";
-import { expiryOnSend } from "./proposal-expiry.js";
+import { expiryOnSend, MINIMUM_DAYS_AFTER_SEND } from "./proposal-expiry.js";
 import { createHash } from "node:crypto";
 import { getFirestore, type Transaction } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
@@ -1708,9 +1708,13 @@ export const proposalCommand = onRequest(
                 // Oct 2027 wedding expiring two days out. A validity window means
                 // "this stands for N days from when you receive it", so the clock
                 // starts here. A longer window the studio chose is preserved.
+                // It stops at the end of the event's day when that is sooner:
+                // a quote for a job today read "Valid through" a week later.
                 expiresAt: expiryOnSend(
                   proposal.get("expiresAt"),
                   new Date(timestamp),
+                  MINIMUM_DAYS_AFTER_SEND,
+                  project.get("eventDate"),
                 ),
                 emailJobId,
                 emailDeliveryStatus: "queued",
@@ -1761,12 +1765,18 @@ export const proposalCommand = onRequest(
                * this date and the decision refuses a yes past it. Resending a
                * lapsed proposal left the date alone, so the couple was emailed
                * an offer the server would refuse. The same floor as `send` —
-               * seven days from now, or the studio's later date — so a lapsed
+               * seven days from now (or to the end of the event's day, when
+               * that is sooner), or the studio's later date — so a lapsed
                * or nearly-lapsed proposal is extended, and a longer window
                * is kept. The audit event records both dates.
                */
               const priorExpiresAt = proposal.get("expiresAt");
-              const expiresAt = expiryOnSend(priorExpiresAt, new Date(timestamp));
+              const expiresAt = expiryOnSend(
+                priorExpiresAt,
+                new Date(timestamp),
+                MINIMUM_DAYS_AFTER_SEND,
+                projectForSend.get("eventDate"),
+              );
               const expiryExtended =
                 Date.parse(expiresAt) !== Date.parse(String(priorExpiresAt ?? ""));
               writeInvitation();

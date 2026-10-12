@@ -14,6 +14,8 @@ import { tradeVocab } from "@/features/trades/trades";
 import { sendBookingCommand } from "@/lib/booking/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { InfoHint } from "@/components/ui/info-hint";
+import { extrasToSuggest, trialArrangedOnJob } from "@/features/consultations/trial";
+import { todayLocalIso } from "@/lib/format/event-date";
 import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
 import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
 import { oneOffFormValuesFrom, type OneOffPackageInput } from "@/features/packages/one-off-form";
@@ -183,6 +185,15 @@ export function BookingAmendmentPanel({
   );
   const newDate = date ?? str(project.eventDate);
   const shiftDays = daysFrom(str(project.eventDate), newDate);
+  // A package's suggested extras, less a trial with no day left to hold it
+  // before the (new) date (features/consultations/trial.ts).
+  const suggest = (record: Rec | undefined): Rec[] =>
+    extrasToSuggest(suggestionsOf(record), {
+      trade: workspace.tenantTrade,
+      today: todayLocalIso(),
+      eventDate: newDate,
+      trialArranged: trialArrangedOnJob(project),
+    });
   const upcomingCalls = ((consultationRecords as Rec[] | null) ?? [])
     .filter(
       (call) => call.projectId === projectId && call.status === "scheduled" && Date.parse(str(call.startsAt)) > openedAt,
@@ -579,7 +590,7 @@ export function BookingAmendmentPanel({
                       }}
                       saveLabel="Use these extras"
                       snapshot={{ ...snapshot, addOns: lines }}
-                      suggested={suggestionsOf(behind)}
+                      suggested={suggest(behind)}
                     />
                   </ExtrasRow>
                 ) : null}
@@ -619,7 +630,7 @@ export function BookingAmendmentPanel({
                       }}
                       saveLabel="Use these extras"
                       snapshot={{ id: item.id, packageName: str(item.name), addOns: lines }}
-                      suggested={suggestionsOf(item)}
+                      suggested={suggest(item)}
                     />
                   </ExtrasRow>
                 ) : null}

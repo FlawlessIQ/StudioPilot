@@ -4,6 +4,7 @@ import type { ProjectState } from "@/features/projects/schema";
 import type { FileRef } from "@/features/documents/file-ref";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { awaitingEventReconciliation } from "@/features/projects/job-moment";
+import { trialDayLeft } from "@/features/consultations/trial";
 
 /**
  * The Journey — Gabriel's easy flow as a deterministic engine.
@@ -1006,6 +1007,14 @@ export function projectJourney(input: JourneyInput): {
   if (trialWord) {
     const trial = input.trial ?? { state: "not_booked", startsAt: null };
     const trialWhen = trial.when || (trial.startsAt ? formatCallTime(trial.startsAt) : null);
+    // Not booked, with no day left before the event to hold it on (tomorrow
+    // to the day before, features/consultations/trial.ts): its moment has
+    // gone, as a missed step's does after the day. A hair job dated today
+    // listed "Hair trial" as a step still to come (Priya Shah Sangeet, Jess
+    // Styles Bridal, 2026-10-12). A booked or held trial reads as before, and
+    // so does one after the event.
+    const noTrialDay =
+      trial.state === "not_booked" && !eventBehindThem && !trialDayLeft({ today: input.today, eventDate: input.eventDate });
     push({
       key: "trial",
       title: trialWord,
@@ -1014,7 +1023,9 @@ export function projectJourney(input: JourneyInput): {
           ? `Done${trialWhen ? ` ${trialWhen}` : ""} — the look goes on their day sheet`
           : trial.state === "booked"
             ? `Booked${trialWhen ? ` for ${trialWhen}` : ""}`
-            : `Optional — invite them from the ${trialWord} card on this job${tradeWords.trialHint ? `, ${tradeWords.trialHint}` : " whenever suits"}`,
+            : noTrialDay
+              ? `Not booked, and no day is left before the ${words.event} to hold it`
+              : `Optional — invite them from the ${trialWord} card on this job${tradeWords.trialHint ? `, ${tradeWords.trialHint}` : " whenever suits"}`,
       // Never "current": an optional step must not take the next-move card.
       // The button lives on the job's own trial card.
       //
@@ -1028,8 +1039,10 @@ export function projectJourney(input: JourneyInput): {
           ? "complete"
           : trial.state === "booked"
             ? prepStatus("waiting_other")
-            : prepStatus("upcoming"),
-      explain: trial.state === "booked",
+            : noTrialDay
+              ? "passed"
+              : prepStatus("upcoming"),
+      explain: trial.state === "booked" || noTrialDay,
       action: null,
     });
   }

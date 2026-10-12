@@ -67,7 +67,8 @@ import {
   type ProposalCommandType,
 } from "@/lib/proposals/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
-import { formatEventDate } from "@/lib/format/event-date";
+import { formatEventDate, todayLocalIso } from "@/lib/format/event-date";
+import { defaultExpiryDay } from "@/features/booking/proposal-expiry";
 import { CapabilityNote } from "@/components/integrations/capability-note";
 import { ProposalPackagesPanel } from "@/components/proposals/proposal-packages-panel";
 import { friendlyError } from "@/lib/ai/friendly-error";
@@ -931,8 +932,11 @@ export function StudioProposalComposer() {
     dataIsLive ? undefined : [mockProject],
   );
   const [projectId, setProjectId] = useState("");
-  const [expiresOn, setExpiresOn] = useState(
-    dateInput(addDays(new Date(), 7).toISOString()),
+  // A week from today, or the event's own date when that is sooner: a quote
+  // for a job today read "Valid through" a week after it (Jess Styles Bridal,
+  // 2026-10-12). Set again when a job is chosen.
+  const [expiresOn, setExpiresOn] = useState(() =>
+    defaultExpiryDay({ today: todayLocalIso(), eventDate: null }),
   );
   const [retainerDueDate, setRetainerDueDate] = useState("");
   /** null means "use whatever the package's rule produced". */
@@ -999,6 +1003,7 @@ export function StudioProposalComposer() {
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
           setTermsSummary(proposalTermsForJob(jobSnapshotsOf(requestedProject), bookingGateNeeds(requestedProject.profile), workspace.tenantTrade));
+          setExpiresOn(defaultExpiryDay({ today: todayLocalIso(), eventDate: requestedProject.eventDate, now: new Date() }));
           const event = new Date(`${requestedProject.eventDate}T12:00:00`);
           if (!Number.isNaN(event.valueOf())) {
             setBalanceDueDate(
@@ -1077,6 +1082,7 @@ export function StudioProposalComposer() {
           // bullets, and pasting one package's here left the other out (GR).
           setNotes("");
     setTermsSummary(proposalTermsForJob(jobSnapshotsOf(nextProject), bookingGateNeeds(nextProject.profile), workspace.tenantTrade));
+    setExpiresOn(defaultExpiryDay({ today: todayLocalIso(), eventDate: nextProject.eventDate, now: new Date() }));
     const event = new Date(`${nextProject.eventDate}T12:00:00`);
     setBalanceDueDate(
       Number.isNaN(event.valueOf())
@@ -1251,6 +1257,7 @@ export function StudioProposalComposer() {
       // bullets, and pasting one package's here left the other out (GR).
       setNotes("");
       setTermsSummary(proposalTermsForJob(jobSnapshotsOf(readyProject), bookingGateNeeds(readyProject.profile), workspace.tenantTrade));
+      setExpiresOn(defaultExpiryDay({ today: todayLocalIso(), eventDate: readyProject.eventDate, now: new Date() }));
       const event = new Date(`${readyProject.eventDate}T12:00:00`);
       if (!Number.isNaN(event.valueOf())) {
         setBalanceDueDate(dateInput(addDays(event, -balanceDaysBefore).toISOString()));

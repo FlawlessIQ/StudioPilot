@@ -21,6 +21,8 @@ import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
 import { JobAddOnsEditor, type JobAddOnLine } from "@/components/proposals/job-add-ons-editor";
 import { discountFromForm, discountLabel, discountRuleOf } from "@/features/proposals/package-discount";
 import { InfoHint } from "@/components/ui/info-hint";
+import { extrasToSuggest, trialArrangedOnJob } from "@/features/consultations/trial";
+import { todayLocalIso } from "@/lib/format/event-date";
 
 /**
  * The packages on this proposal, and the way to change them.
@@ -504,14 +506,23 @@ export function ProposalPackagesPanel({
                 onCancel={() => setExtrasFor(null)}
                 onSave={(lines) => void setExtras(id, lines)}
                 snapshot={snapshot}
-                suggested={
+                // Less a trial with no day left to hold it before the event
+                // (features/consultations/trial.ts): a hair quote for a job
+                // dated today suggested "Bridal hair trial" (2026-10-12).
+                suggested={extrasToSuggest(
                   (Array.isArray(
                     (packages.records ?? []).find((record) => record.id === text(snapshot?.packageId))?.addOns,
                   )
                     ? ((packages.records ?? []).find((record) => record.id === text(snapshot?.packageId))!.addOns as Row[])
                     : []
-                  ).filter((row) => row.active !== false)
-                }
+                  ).filter((row) => row.active !== false),
+                  {
+                    trade: workspace.tenantTrade,
+                    today: todayLocalIso(),
+                    eventDate: project.eventDate,
+                    trialArranged: trialArrangedOnJob(project),
+                  },
+                )}
               />
             ) : null}
             {editingFor === id && oneOffPackage && !agreementOut ? (

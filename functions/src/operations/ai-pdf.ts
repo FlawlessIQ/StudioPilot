@@ -38,7 +38,7 @@ import { briefActionIds, briefRunOf } from "../booking/brief-rerun.js";
 import { detailsForLine, packageDetails } from "../packages/inclusions.js";
 import { isCataloguePackage } from "../packages/one-off.js";
 import { statedCoverageMinutes } from "../packages/job-package-facts.js";
-import { proposalPdfAdjustments, proposalPdfPaymentAmount, proposalPdfSalesTax } from "../proposals/pdf-adjustments.js";
+import { proposalPdfAdjustments, proposalPdfPaymentAmount, proposalPdfPaymentLabel, proposalPdfSalesTax, proposalPdfUndatedSchedule } from "../proposals/pdf-adjustments.js";
 import { TRADE_LABELS, tradeProfile, tradeVocab } from "../trades/trades.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tenantTrade } from "../trades/tenant-trade.js";
@@ -973,6 +973,8 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
           :documentKind==="PHOTOGRAPHY PROPOSAL"?"Photography"
             :"Coverage";
     const normalizedLines=lines.length>0?lines:[{description:packageName,totalCents:pricing.subtotalCents}];
+    const retainerText=money(retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents)),currency);
+    const balanceText=proposalPdfPaymentAmount(pricing,money(Math.max(0,Number(pricing.totalCents)-retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents))),currency),true);
     return{
       endpoint:"proposals",
       entity:proposal,
@@ -1001,7 +1003,11 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
           ...proposalPdfAdjustments(pricing).map(item=>({description:item.description,amount:item.cents<0?`−${money(-item.cents,currency)}`:money(item.cents,currency),details:[]})),
         ],
         // The last payment reads "plus sales tax" when QuickBooks adds it on the final invoice.
-        payment_schedule:paymentSchedule.slice(0,20).map((value,index,shown)=>{const item=record(value);return{label:clipForPdf(string(item.label)||"Payment",120),amount:proposalPdfPaymentAmount(pricing,money(item.amountCents,currency),index===shown.length-1&&shown.length===paymentSchedule.length),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}}),
+        // A vendor's stored "Retainer" line prints as their Deposit (pdf-adjustments.ts),
+        // and with no schedule they are sent the service's two rows in that word.
+        payment_schedule:paymentSchedule.length
+          ?paymentSchedule.slice(0,20).map((value,index,shown)=>{const item=record(value);return{label:clipForPdf(proposalPdfPaymentLabel(string(item.label)||"Payment",pdfTrade.trade),120),amount:proposalPdfPaymentAmount(pricing,money(item.amountCents,currency),index===shown.length-1&&shown.length===paymentSchedule.length),due_date:item.dueDate?String(item.dueDate).slice(0,10):null}})
+          :proposalPdfUndatedSchedule(pdfTrade.trade,retainerText,balanceText),
         total:money(pricing.totalCents,currency),
         // Pre-tax "plus sales tax": the estimate is printed under the Total,
         // not added in (renderers before this ignore both fields).
@@ -1009,8 +1015,8 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         after_total:proposalPdfSalesTax(pricing,currency).afterTotal,
         // The retainer the schedule on the same page asks for: an override
         // showed two different retainers in one PDF (H2, M7).
-        retainer:money(retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents)),currency),
-        balance:proposalPdfPaymentAmount(pricing,money(Math.max(0,Number(pricing.totalCents)-retainerFromSchedule(paymentSchedule,Number(pricing.retainerCents))),currency),true),
+        retainer:retainerText,
+        balance:balanceText,
         expires_on:String(proposal.get("expiresAt")).slice(0,10),
         generated_at:generatedAt,
       },

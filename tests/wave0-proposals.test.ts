@@ -101,7 +101,8 @@ test("resending an expired proposal re-opens it for at least a week; a longer wi
 test("the resend command moves the expiry and audits where it moved from", () => {
   const source = read("functions/src/booking/proposals.ts");
   const resend = source.slice(source.indexOf("A resend re-opens the offer"));
-  assert.match(resend, /expiryOnSend\(priorExpiresAt, new Date\(timestamp\)\)/);
+  // With the job's date, so the window stops at the event (tests/twin-small-items.test.ts).
+  assert.match(resend, /expiryOnSend\(\s*priorExpiresAt,\s*new Date\(timestamp\),/);
   assert.match(resend, /\.\.\.\(expiryExtended \? \{ expiresAt \} : \{\}\)/);
   assert.match(resend, /expiryExtended,/);
   // `before` carries the old date into the audit event beside `after: output`.

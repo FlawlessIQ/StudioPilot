@@ -167,7 +167,10 @@ test("the proposal PDF fits the renderer and shows one retainer (M7)", () => {
   assert.equal(clipped.length, 3000);
   assert.ok(clipped.endsWith("…"));
   const pdf = readFileSync("functions/src/operations/ai-pdf.ts", "utf8");
-  assert.match(pdf, /retainer:money\(retainerFromSchedule\(paymentSchedule/);
+  // Worked out once, so a vendor's undated Deposit row prints the same amount
+  // (tests/twin-small-items.test.ts).
+  assert.match(pdf, /const retainerText=money\(retainerFromSchedule\(paymentSchedule/);
+  assert.match(pdf, /retainer:retainerText,/);
   assert.doesNotMatch(pdf, /retainer:money\(pricing\.retainerCents/);
 });
 

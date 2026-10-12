@@ -1,7 +1,7 @@
 import { detailsForLine } from "../packages/inclusions.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
-import { expiryOnSend } from "../booking/proposal-expiry.js";
+import { expiryOnSend, MINIMUM_DAYS_AFTER_SEND } from "../booking/proposal-expiry.js";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { jobBillingFor } from "../billing/job-billing-reader.js";
@@ -370,8 +370,14 @@ export async function sendCombinedAgreement(
     transaction.update(proposalReference, {
       status: "sent",
       sentAt: proposal.get("sentAt") ?? context.timestamp,
-      // The same validity window a proposal sent on its own gets.
-      expiresAt: expiryOnSend(proposal.get("expiresAt"), new Date(context.timestamp)),
+      // The same validity window a proposal sent on its own gets, ending no
+      // later than the event's day.
+      expiresAt: expiryOnSend(
+        proposal.get("expiresAt"),
+        new Date(context.timestamp),
+        MINIMUM_DAYS_AFTER_SEND,
+        project.get("eventDate"),
+      ),
       combinedContractId: contractId,
       // The proposal's delivery line tracks the agreement's email: it went
       // out inside it (walked 2026-09-29: the page said "Not sent").

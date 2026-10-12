@@ -1,4 +1,5 @@
 import { isSalesConsultation } from "../booking/consultation-purpose.js";
+import { capExpiryAtEvent } from "../booking/proposal-expiry.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
 import { randomUUID } from "node:crypto";
@@ -1807,7 +1808,12 @@ async function buildCommandProposalActions(
         (await db.doc(`tenants/${tenantId}`).get()).get("trade"),
       );
       const packageNames = jobSnapshots.map((snapshot) => String(snapshot.data.packageName ?? "")).filter(Boolean);
-      const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+      // Two weeks, or to the end of the event's day when that is sooner.
+      const expiresAt = capExpiryAtEvent(
+        new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        projectDoc.get("eventDate"),
+        new Date(),
+      ).toISOString();
       command = {
         domain: "proposal",
         op: "create_draft",

@@ -38,6 +38,7 @@ import { outstandingRequired } from "@/features/questionnaires/outstanding";
 import { isJobKind, vocab } from "@/features/job-kinds/job-kinds";
 import { tradeVocab } from "@/features/trades/trades";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
+import { scheduleZoneLabel } from "@/features/schedules/item-clock";
 import { autosaveDelayMs, saveFailureIsFinal } from "@/features/inquiries/autosave";
 
 /**
@@ -797,7 +798,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
               ) : null}
               <SlotPicker onSelect={setSelected} selected={selected} slots={slots} timezone={preview.timezone} />
               {slots.length ? (
-                <p className="kit-caption">Times shown in {preview.timezone}.</p>
+                <p className="kit-caption">Times shown in {scheduleZoneLabel(preview.timezone) ?? "the studio’s time zone"}.</p>
               ) : (
                 <Note>No times are open right now. Reply to the studio’s email and they’ll find one.</Note>
               )}

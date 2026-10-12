@@ -17,6 +17,7 @@ import {
 } from "@/components/kit/kit";
 import { SlotPicker, slotLabel } from "@/components/kit/slot-picker";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
+import { scheduleZoneLabel } from "@/features/schedules/item-clock";
 
 /** What went wrong, in words a couple can act on, not the server's code. */
 const friendly: Record<string, string> = {
@@ -272,7 +273,8 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
     color: preview?.brandAccentColor ?? null,
     logoUrl: preview?.brandLogoUrl ?? null,
   };
-  const zone = timezone || "the studio’s time zone";
+  // "Eastern Time", not "America/New_York" (Jess Styles Bridal, 2026-10-12).
+  const zone = scheduleZoneLabel(timezone) ?? "the studio’s time zone";
   const bookedIn = status === "complete" || status === "booked";
 
   return (

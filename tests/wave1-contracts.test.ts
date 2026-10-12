@@ -348,7 +348,7 @@ test("removing a package or extras, and starting over, say what goes", () => {
 
 test("Cue's Add and revise carries on when its first attempt already re-priced", () => {
   const cue = read("components/ai/actions/booking-actions.tsx");
-  const card = cue.slice(cue.indexOf("export function PackageRequestCard"), cue.indexOf("function in14Days"));
+  const card = cue.slice(cue.indexOf("export function PackageRequestCard"), cue.indexOf("export function DraftProposalCard"));
   assert.match(card, /if \(!packageChangeAlreadyApplied\(caught\)\) throw caught;/);
   assert.match(card, /if \(!proposalAlreadyRevised\(caught\)\) throw caught;/);
 });
