@@ -360,6 +360,32 @@ function hasSalesCall(trade: unknown, consultation: boolean | undefined): boolea
   return tradeProfile(trade).consultation && consultation !== false;
 }
 
+/**
+ * A vendor's plan of the day, already shared for the client to read.
+ *
+ * A DJ's, makeup artist's or hair stylist's plan is published for the client
+ * to read, never to approve (trades.ts `journey.scheduleApproval`;
+ * functions/src/planning/schedule-lifecycle.ts publishes it "published" with
+ * approvalState "none", and one published before that may still say
+ * "client_pending"). Priya Shah's portal kept saying her studio "will share
+ * the getting-ready schedule with you next" the day after Jess Styles Bridal
+ * had published it (prod, 2026-10-12).
+ *
+ * Only a version the client can open counts: a draft or a superseded one is
+ * the studio's, and the portal route reads only those its client can see. A
+ * photographer's couple approves theirs (`scheduleAction`), so this is false
+ * for them whatever the schedule says.
+ */
+export function planSharedToRead(
+  trade: unknown,
+  schedule: { status: string } | null | undefined,
+): boolean {
+  return (
+    !tradeProfile(trade).journey.scheduleApproval &&
+    ["published", "approved"].includes(String(schedule?.status ?? ""))
+  );
+}
+
 export function buildClientMilestones(
   state: string,
   options: {
@@ -370,6 +396,8 @@ export function buildClientMilestones(
     consultation?: boolean;
     /** Their planning form is sent back and none is still open (`planningFormIn` below). */
     planningFormIn?: boolean;
+    /** A vendor's plan of the day is published for them to read (`planSharedToRead`). */
+    planShared?: boolean;
   } = {},
 ): ClientMilestone[] {
   const index = stateIndex(state);
@@ -391,6 +419,25 @@ export function buildClientMilestones(
   // never ticked off as done once the booking has moved past it. Riley Park's
   // portal showed "Vibe call ✓" for a call that never took place (2026-10-10).
   const skippedCall = call && !tradeProfile(options.trade).journey.callRequired && index > 1;
+  /**
+   * The vendor's planning step, as it stands. Once the form is in, it says
+   * so: Priya Shah's portal still asked "Tell us who's getting ready" the
+   * evening she sent her party list (2026-10-11). Once the plan is
+   * published, it is ready, not still to come (`planSharedToRead`; Priya
+   * Shah, 2026-10-12).
+   */
+  const vendorPlanningNote = (): string => {
+    const formIn = options.planningFormIn && words.detailsForm
+      ? `Thank you — your ${words.detailsForm.toLowerCase()} is in.`
+      : null;
+    if (options.planShared && words.planOfDay)
+      return `${formIn ? `${formIn} ` : ""}Your ${lowerFirst(words.planOfDay)} is ready to read.`;
+    const plan = tradeProfile(options.trade).perPersonPricing ? "Your morning's schedule" : "The night's plan";
+    if (formIn) return `${formIn} ${plan} is built from it.`;
+    return tradeProfile(options.trade).perPersonPricing
+      ? `Tell us who's getting ready, and when. ${plan} is built from it.`
+      : `Your songs and the moments that matter. ${plan} is built from it.`;
+  };
   const definitions = [
     {
       id: "inquiry",
@@ -442,17 +489,7 @@ export function buildClientMilestones(
       id: "planning",
       // A vendor's one form; the plan is drawn from it, nothing to approve.
       label: light && words.detailsForm ? words.detailsForm : "Planning",
-      // Once it is in, it says so: Priya Shah's portal still asked "Tell us
-      // who's getting ready" the evening she sent her party list (2026-10-11).
-      description: light
-        ? options.planningFormIn && words.detailsForm
-          ? `Thank you — your ${words.detailsForm.toLowerCase()} is in. ${
-              tradeProfile(options.trade).perPersonPricing ? "Your morning's schedule" : "The night's plan"
-            } is built from it.`
-          : tradeProfile(options.trade).perPersonPricing
-            ? "Tell us who's getting ready, and when. Your morning's schedule is built from it."
-            : "Your songs and the moments that matter. The night's plan is built from it."
-        : "Complete details and approve the event plan.",
+      description: light ? vendorPlanningNote() : "Complete details and approve the event plan.",
       // READY (7) belongs to the event milestone, not to planning: two
       // milestones read "current" at once before this.
       current: () => index >= 5 && index <= 6,
@@ -608,6 +645,28 @@ export function buildClientPortalExperience({
   const questionnaireDone =
     !(formWord && planningForm) && ["submitted", "locked"].includes(String(questionnaireStatus ?? ""));
   /**
+   * A vendor's plan, already published for them to read: where the studio's
+   * "will share it with you next" would send them, the plan itself does
+   * (`planSharedToRead`). Read, not approved, so it is never `scheduleAction`.
+   */
+  const planShared = planSharedToRead(trade, currentSchedule);
+  const planOfDay = tradeVocab(trade).planOfDay;
+  const planReadyAction: ClientNextAction | null =
+    planShared && planOfDay && ["BOOKED", "PLANNING"].includes(state) && !eventHasPassed
+      ? {
+          name: `Your ${lowerFirst(planOfDay)} is ready`,
+          // "The morning" → "morning", "The night" → "night" (client-schedule.tsx).
+          description: `See the plan for your ${tradeVocab(trade)
+            .dayName.replace(/^the /i, "")
+            .toLowerCase()}. There is nothing for you to approve.`,
+          dueDate: null,
+          ownerType: "client",
+          responsibility: "client",
+          href: "/client/schedule",
+          actionLabel: `Open your ${lowerFirst(planOfDay)}`,
+        }
+      : null;
+  /**
    * A schedule waiting on the couple outranks everything but overdue money.
    * It is the one thing here that is unambiguously theirs to do, and the one
    * thing the checkpoint path could not see.
@@ -727,7 +786,7 @@ export function buildClientPortalExperience({
           actionLabel: `Open your ${formWord}`,
         }
       : action;
-  const stateFallback = (() => {
+  const waitingFallback = (() => {
     const fallback = defaultNextAction(state, trade);
     // Past the day, a planning ask is a question about a wedding that has
     // happened. Say what is true instead, and hand it to the studio.
@@ -787,6 +846,12 @@ export function buildClientPortalExperience({
     }
     return askForForm(fallback);
   })();
+  /**
+   * Waiting on the studio for a plan it has already published: the plan
+   * instead. Anything still theirs to do (an open party list) stays first.
+   */
+  const stateFallback: ClientNextAction =
+    planReadyAction && waitingFallback.responsibility === "studio" ? planReadyAction : waitingFallback;
   /**
    * A checkpoint is the studio's own record of work, and its wording shows it:
    * the starter templates read "<name> must be verified before event
@@ -852,7 +917,8 @@ export function buildClientPortalExperience({
     clientCheckpointAction ??
     shotListAction ??
     proposalNextAction ??
-    (stateFallback.responsibility === "studio" && balanceDueAction
+    // A plan to read asks nothing of them either: a bill they can pay still comes first.
+    ((stateFallback.responsibility === "studio" || stateFallback === planReadyAction) && balanceDueAction
       ? balanceDueAction
       : stateFallback);
   // An overdue balance is the one thing that outranks the state-derived action.
@@ -874,7 +940,7 @@ export function buildClientPortalExperience({
           actionLabel: "View payments",
         }
       : null;
-  const milestones = buildClientMilestones(state, { inquiryForm, trade, consultation, planningFormIn });
+  const milestones = buildClientMilestones(state, { inquiryForm, trade, consultation, planningFormIn, planShared });
   const completedMilestones = milestones.filter(
     (milestone) => milestone.status === "complete",
   ).length;

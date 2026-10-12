@@ -26,6 +26,7 @@ import {
   Steps,
 } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeVocab } from "@/features/trades/trades";
 import {
   legacyQuestionnaireSections,
   parseQuestionnaireSections,
@@ -76,6 +77,10 @@ const isSubmitted = (status: unknown) => status === "submitted" || status === "l
  * needed, and a read-only copy of what was sent.
  */
 export function ClientQuestionnaire() {
+  const workspace = useWorkspace();
+  // A vendor's one form by its own name: "Your party list", never "Your
+  // questionnaire" (tradeVocab `detailsForm`). A photographer's is null.
+  const formWord = tradeVocab(workspace.tenantTrade).detailsForm?.toLowerCase() ?? null;
   const responses = useProjectRecords("questionnaireResponses");
   const ordered = useMemo(
     () =>
@@ -98,14 +103,18 @@ export function ClientQuestionnaire() {
       <Main label="Questionnaire">
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Planning</p>
-          <h1 className="kit-title">Your questionnaire</h1>
+          <h1 className="kit-title">{formWord ? `Your ${formWord}` : "Your questionnaire"}</h1>
         </div>
         <EmptyMoment
           area="questionnaire"
           error={responses.error}
           loading={responses.loading}
-          loadingText="Opening your questionnaire…"
-          upcoming="Your studio hasn’t sent a questionnaire yet. You’ll get an email when there’s one to fill out."
+          loadingText={formWord ? `Opening your ${formWord}…` : "Opening your questionnaire…"}
+          upcoming={
+            formWord
+              ? `Your studio hasn’t sent your ${formWord} yet. You’ll get an email when it’s ready to fill out.`
+              : "Your studio hasn’t sent a questionnaire yet. You’ll get an email when there’s one to fill out."
+          }
         />
         <PoweredBy />
       </Main>
@@ -161,7 +170,10 @@ function QuestionnaireForm({
 }) {
   const workspace = useWorkspace();
   const projectId = text(response.projectId, "");
-  const name = text(response.name ?? response.templateName, "Planning questionnaire");
+  const name = text(
+    response.name ?? response.templateName,
+    tradeVocab(workspace.tenantTrade).detailsForm ?? "Planning questionnaire",
+  );
   const studioName =
     workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : "your studio";
 

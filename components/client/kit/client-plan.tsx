@@ -52,6 +52,8 @@ export function ClientPlan() {
     project?.navigation,
     tradeVocab(workspace.tenantTrade).proposal,
     tradeProfile(workspace.tenantTrade).delivery,
+    // "Party list" and "Getting-ready schedule" for a hair client.
+    tradeVocab(workspace.tenantTrade),
   ).map((item) => ({
     ...item,
     Icon: ICONS[item.icon],

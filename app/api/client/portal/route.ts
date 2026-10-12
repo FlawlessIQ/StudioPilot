@@ -937,6 +937,9 @@ async function clientProject(tenantId: string, projectId: string) {
   ) {
     throw new Error("PROJECT_NOT_FOUND");
   }
+  /** A schedule version the client can open: never a draft or a superseded one (as `clientRecords`). */
+  const scheduleClientVisible = (status: unknown) =>
+    ["client_review", "approved", "published", "changes_requested"].includes(String(status));
   const checkpoints = checkpointsSnapshot.docs.map((document) => ({
     id: document.id,
     name: safeString(document.get("name")) ?? "Project step",
@@ -976,9 +979,7 @@ async function clientProject(tenantId: string, projectId: string) {
           );
         }
         if (collectionName === "schedules") {
-          return ["client_review", "approved", "published", "changes_requested"].includes(
-            String(value.status),
-          );
+          return scheduleClientVisible(value.status);
         }
         if (collectionName === "questionnaireResponses") {
           return !value.archivedAt && value.status !== "withdrawn";
@@ -991,13 +992,17 @@ async function clientProject(tenantId: string, projectId: string) {
   /**
    * The run of show as it stands, so a version awaiting the couple is their
    * next action rather than a page reachable only by typing the URL. Same
-   * highest-version rule as the proposal below.
+   * highest-version rule as the proposal below, and of the versions their
+   * schedule page shows: a draft is the studio's, never "ready" on their
+   * home (a vendor's published plan, portal-experience.ts `planSharedToRead`).
    */
   const scheduleIndex = Object.keys(availabilityCollections).indexOf("schedule");
-  const currentScheduleDoc = [...availabilitySnapshots[scheduleIndex].docs].sort(
-    (left, right) =>
-      Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
-  )[0];
+  const currentScheduleDoc = availabilitySnapshots[scheduleIndex].docs
+    .filter((document) => scheduleClientVisible(document.get("status")))
+    .sort(
+      (left, right) =>
+        Number(right.get("version") ?? 0) - Number(left.get("version") ?? 0),
+    )[0];
   const currentSchedule = currentScheduleDoc
     ? {
         status: String(currentScheduleDoc.get("status") ?? ""),

@@ -1,3 +1,4 @@
+import type { TradeVocabulary } from "@/features/trades/trades";
 import type { ClientNavigation } from "@/server/client/portal-experience";
 
 /**
@@ -44,6 +45,14 @@ export function clientAreaItems(
    * photos and film that will never come.
    */
   delivers = true,
+  /**
+   * The trade's own names for the planning form and the plan of the day
+   * (tradeVocab `detailsForm`, `planOfDay`): a hair client's "Party list" and
+   * "Getting-ready schedule", where Priya Shah's Plan tab read "Planning form"
+   * and "Event-day schedule" (prod, 2026-10-12). A photographer's are null,
+   * so theirs read as they always have.
+   */
+  words: Partial<Pick<TradeVocabulary, "detailsForm" | "planOfDay">> | null = null,
 ): ClientAreaItem[] {
   const items: Array<ClientAreaItem | null> = [
     // The event itself — date, venue, who is working it. Always there.
@@ -58,10 +67,10 @@ export function clientAreaItems(
       ? { label: "Your agreement", href: "/client/contract", icon: "FileSignature" }
       : null,
     navigation?.questionnaire
-      ? { label: "Planning form", href: "/client/questionnaire", icon: "ListChecks" }
+      ? { label: words?.detailsForm ?? "Planning form", href: "/client/questionnaire", icon: "ListChecks" }
       : null,
     navigation?.schedule
-      ? { label: "Event-day schedule", href: "/client/schedule", icon: "CalendarDays" }
+      ? { label: words?.planOfDay ?? "Event-day schedule", href: "/client/schedule", icon: "CalendarDays" }
       : null,
     navigation?.shotList
       ? { label: "Your shot list", href: "/client/shot-list", icon: "Camera" }
