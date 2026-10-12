@@ -308,6 +308,8 @@ async function orderResponse(orderToken: string): Promise<Response> {
     closesAt: config.closesAt,
     options: [],
     methods: [],
+    // Its words (families, athletes), as the sign-up page has them.
+    kind: jobKindOf(project.data()),
     order: orderView(participant, config, studio.name, text(project.get("eventDate")) || null),
     signupPath: state === "open" && config.token ? `/e/${config.token}` : null,
   });

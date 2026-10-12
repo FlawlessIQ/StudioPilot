@@ -195,6 +195,8 @@ test("a family can move their own time from their order page, until the day befo
   assert.match(route, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\) < day/);
   const page = read("components/group-events/event-signup-page.tsx");
   assert.match(page, /method: "PATCH",/);
-  assert.match(page, /orderToken && order\.canChangeSlot && view\.slots\?\.length/);
+  assert.match(page, /ownOrderToken && order\.canChangeSlot && view\.slots\?\.length/);
+  // Straight after booking too, not only from the emailed link (prod walk, 2026-10-12).
+  assert.match(page, /setOwnOrderToken\(body\.orderPath\?\.split\("\/e\/order\/"\)\[1\] \?\? null\)/);
   assert.match(page, /SLOT_CHANGE_CLOSED:/);
 });

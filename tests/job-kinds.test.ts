@@ -273,6 +273,14 @@ test("a sports job's journey has no contract, retainer or balance to chase", () 
   );
 });
 
+test("a job with no album asks for a review without promising selections", () => {
+  const review = (kind: string) =>
+    projectJourney({ ...journeyBase, profile: projectProfileFor(kind) }).steps.find((step) => step.key === "album_review");
+  assert.equal(review("sports")?.title, "Review");
+  assert.equal(review("sports")?.detail, "A thank-you, then a Google review ask");
+  assert.equal(review("wedding")?.detail, "Selection reminders, then a Google review ask");
+});
+
 function projectProfileFor(kind: string) {
   return journeyProfile(kind as never);
 }

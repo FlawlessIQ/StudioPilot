@@ -320,6 +320,9 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
     if (result.view.methods.length === 1) setMethod(result.view.methods[0]!.method);
   }, []);
   const load = useCallback(() => fetchView(token, orderToken).then(apply), [apply, orderToken, token]);
+  // The order's own link: from the URL on an order page, or from the
+  // sign-up just made, so a family can move their time straight away.
+  const [ownOrderToken, setOwnOrderToken] = useState<string | null>(orderToken);
 
   useEffect(() => {
     let live = true;
@@ -380,6 +383,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
         return;
       }
       setOrder(body.order);
+      setOwnOrderToken(body.orderPath?.split("/e/order/")[1] ?? null);
       // A reload shows the order, not a blank form.
       if (body.orderPath) window.history.replaceState(null, "", body.orderPath);
       window.scrollTo({ top: 0 });
@@ -397,6 +401,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
       return;
     }
     setOrder(null);
+    setOwnOrderToken(null);
     setAthleteName("");
     setTeam("");
     setSlot(null);
@@ -455,7 +460,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
               {order ? (
                 <OrderCard
                   changeTime={
-                    orderToken && order.canChangeSlot && view.slots?.length ? (
+                    ownOrderToken && order.canChangeSlot && view.slots?.length ? (
                       <ChangeTime
                         onChanged={(changed) => {
                           setOrder(changed);
@@ -463,7 +468,7 @@ export function EventSignupPage({ token, orderToken }: { token: string | null; o
                           void load();
                         }}
                         order={order}
-                        orderToken={orderToken}
+                        orderToken={ownOrderToken}
                         slots={view.slots}
                       />
                     ) : undefined

@@ -469,8 +469,14 @@ function shapeForProfile(steps: JourneyStep[], input: JourneyInput): void {
   if (!profile.coi && !input.coiStatus) drop("coi");
   if (!profile.runOfShow && !input.scheduleStatus) drop("run_of_show");
   if (!profile.crew && !(input.crewRequired ?? 0)) drop("crew");
-  // No album for this kind (sports, corporate): the last step is the review.
-  if (profile.album === false) retitle("album_review", "Review");
+  // No album for this kind (sports, corporate): the last step is the review,
+  // and nothing is selected for one.
+  if (profile.album === false) {
+    retitle("album_review", "Review");
+    const review = steps.find((candidate) => candidate.key === "album_review");
+    if (review?.detail === "Selection reminders, then a Google review ask") review.detail = "A thank-you, then a Google review ask";
+    if (review?.detail === "Selections and review requested") review.detail = "Review requested";
+  }
   switch (profile.payment) {
     case "paid_in_full": {
       retitle("retainer", "Paid in full");

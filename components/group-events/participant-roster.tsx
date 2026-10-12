@@ -47,7 +47,7 @@ import { quickBooksReadyFrom } from "@/features/billing/job-billing-from-records
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { EventSignupPanel } from "@/components/group-events/event-signup-panel";
 import { eventSlots, normaliseEventSignup, slotLabel } from "@/features/group-events/signup";
-import { groupEventWords, type GroupEventWords } from "@/features/group-events/words";
+import { capitalized, groupEventWords, type GroupEventWords } from "@/features/group-events/words";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile } from "@/features/trades/trades";
 import { todayLocalIso } from "@/lib/format/event-date";
@@ -220,8 +220,8 @@ export function ParticipantRoster({
     <section className="panel participant-roster">
       <header>
         <span>
-          <p className="eyebrow">Each parent pays</p>
-          <h2>Participants</h2>
+          <p className="eyebrow">{`Each ${words.payer} pays`}</p>
+          <h2>{capitalized(words.persons)}</h2>
         </span>
         <button className="button button-sm button-dark" onClick={() => setEditing("new")} type="button">
           <UserPlus aria-hidden size={14} /> Add a person
@@ -359,7 +359,11 @@ export function ParticipantRoster({
           })}
         </ul>
       ) : (
-        <p className="form-notice">Nobody on the roster yet. Add each athlete and the parent who pays for them.</p>
+        <p className="form-notice">
+          {words.person === "athlete"
+            ? "Nobody on the roster yet. Add each athlete and the parent who pays for them."
+            : `Nobody on the roster yet. Add each ${words.person} who's booking, or share the sign-up link.`}
+        </p>
       )}
       {error ? (
         <p className="form-error" role="alert">

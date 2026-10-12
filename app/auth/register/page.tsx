@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowLeft, CircleCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { RegisterForm } from "@/features/auth/register-form";
+import { vendorPlanCards } from "@/config/saas-plans";
+import { LIVE_TRADES, TRADE_LABELS, type Trade } from "@/features/trades/trades";
 
 export const metadata: Metadata = {
   title: "Create your account",
@@ -12,9 +14,15 @@ export const metadata: Metadata = {
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; trade?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, trade } = await searchParams;
+  // Arrived from /dj, /makeup or /hair: say whose business this sets up, and
+  // its price, as the landing page did (the trade itself is remembered by
+  // the form and preselected at onboarding).
+  const vendorTrade =
+    trade && trade !== "photographer" && LIVE_TRADES.includes(trade as Trade) ? (trade as Trade) : null;
+  const vendorWord = vendorTrade ? (vendorTrade === "dj" ? "DJ" : TRADE_LABELS[vendorTrade].toLowerCase()) : null;
   const isClientInvite = next?.startsWith("/auth/client-invite?token=") ?? false;
   const backHref = isClientInvite && next ? next : "/";
   const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
@@ -79,7 +87,9 @@ export default async function RegisterPage({
           <p>
             {isClientInvite
               ? "Use the email that received the invitation. After verification, your project will connect automatically."
-              : "Verify your work email, then set up your own private studio."}
+              : vendorWord
+                ? `Verify your work email, then set up your ${vendorWord} business. ${vendorPlanCards[0]!.monthly} a month after the 14-day trial.`
+                : "Verify your work email, then set up your own private studio."}
           </p>
           <RegisterForm
             intent={isClientInvite ? "client" : "studio"}
