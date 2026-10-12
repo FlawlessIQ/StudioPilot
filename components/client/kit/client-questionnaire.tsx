@@ -26,6 +26,7 @@ import {
   Steps,
 } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { clientFormWords } from "@/features/client/form-words";
 import { tradeVocab } from "@/features/trades/trades";
 import {
   legacyQuestionnaireSections,
@@ -79,8 +80,8 @@ const isSubmitted = (status: unknown) => status === "submitted" || status === "l
 export function ClientQuestionnaire() {
   const workspace = useWorkspace();
   // A vendor's one form by its own name: "Your party list", never "Your
-  // questionnaire" (tradeVocab `detailsForm`). A photographer's is null.
-  const formWord = tradeVocab(workspace.tenantTrade).detailsForm?.toLowerCase() ?? null;
+  // questionnaire", and "Your forms" for a list (features/client/form-words.ts).
+  const words = clientFormWords(tradeVocab(workspace.tenantTrade).detailsForm);
   const responses = useProjectRecords("questionnaireResponses");
   const ordered = useMemo(
     () =>
@@ -100,21 +101,17 @@ export function ClientQuestionnaire() {
 
   if (!ordered.length)
     return (
-      <Main label="Questionnaire">
+      <Main label={words.page}>
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Planning</p>
-          <h1 className="kit-title">{formWord ? `Your ${formWord}` : "Your questionnaire"}</h1>
+          <h1 className="kit-title">{words.emptyTitle}</h1>
         </div>
         <EmptyMoment
           area="questionnaire"
           error={responses.error}
           loading={responses.loading}
-          loadingText={formWord ? `Opening your ${formWord}…` : "Opening your questionnaire…"}
-          upcoming={
-            formWord
-              ? `Your studio hasn’t sent your ${formWord} yet. You’ll get an email when it’s ready to fill out.`
-              : "Your studio hasn’t sent a questionnaire yet. You’ll get an email when there’s one to fill out."
-          }
+          loadingText={words.loading}
+          upcoming={words.upcoming}
         />
         <PoweredBy />
       </Main>
@@ -122,13 +119,13 @@ export function ClientQuestionnaire() {
 
   if (!current)
     return (
-      <Main label="Questionnaires">
+      <Main label={words.listPage}>
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Planning</p>
-          <h1 className="kit-title">Your questionnaires</h1>
+          <h1 className="kit-title">{words.listTitle}</h1>
           <p className="kit-body">Your studio uses these to plan the day. Answers save as you go.</p>
         </div>
-        <List label="Questionnaires">
+        <List label={words.listPage}>
           {ordered.map((response, index) => (
             <Row
               icon={isSubmitted(response.status) ? CheckCircle2 : ClipboardList}
@@ -141,7 +138,7 @@ export function ClientQuestionnaire() {
                     ? `Due ${date(response.dueDate)}`
                     : "Ready to fill out"
               }
-              title={text(response.name ?? response.templateName, `Questionnaire ${index + 1}`)}
+              title={text(response.name ?? response.templateName, `${words.listRow} ${index + 1}`)}
             />
           ))}
         </List>
@@ -170,10 +167,10 @@ function QuestionnaireForm({
 }) {
   const workspace = useWorkspace();
   const projectId = text(response.projectId, "");
-  const name = text(
-    response.name ?? response.templateName,
-    tradeVocab(workspace.tenantTrade).detailsForm ?? "Planning questionnaire",
-  );
+  const words = clientFormWords(tradeVocab(workspace.tenantTrade).detailsForm);
+  const name = text(response.name ?? response.templateName, words.formName);
+  // Its landmark and a message's "About:" (a photographer's: "Questionnaire").
+  const landmark = words.formLabel ?? name;
   const studioName =
     workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : "your studio";
 
@@ -186,6 +183,8 @@ function QuestionnaireForm({
   const [provenance, setProvenance] = useState<Record<string, unknown>>({});
   const [status, setStatus] = useState(text(response.status, "in_progress"));
   const [loaded, setLoaded] = useState(!dataIsLive);
+  /** The form could not be read; it stays unopened (`words.couldNotOpen`). */
+  const [openFailed, setOpenFailed] = useState(false);
   const [index, setIndex] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -254,7 +253,8 @@ function QuestionnaireForm({
         setLoaded(true);
       })
       .catch(() => {
-        if (active) setNotice({ tone: "danger", text: "Your questionnaire couldn’t be opened. Refresh to try again." });
+        // Worded where it is shown, in the trade's words (`words.couldNotOpen`).
+        if (active) setOpenFailed(true);
       });
     return () => {
       active = false;
@@ -389,21 +389,21 @@ function QuestionnaireForm({
 
   const backToList = onBack ? (
     <Button icon={ArrowLeft} onClick={onBack} size="compact" variant="soft">
-      All questionnaires
+      {words.backToList}
     </Button>
   ) : null;
 
   if (!loaded)
     return (
-      <Main label="Questionnaire">
+      <Main label={landmark}>
         {backToList}
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Planning</p>
           <h1 className="kit-title">{name}</h1>
         </div>
         <Card>
-          <p className="kit-body" role={notice ? "alert" : "status"}>
-            {notice?.text ?? "Opening your questions…"}
+          <p className="kit-body" role={openFailed || notice ? "alert" : "status"}>
+            {openFailed ? words.couldNotOpen : (notice?.text ?? "Opening your questions…")}
           </p>
         </Card>
         <PoweredBy />
@@ -412,7 +412,7 @@ function QuestionnaireForm({
 
   if (submitted)
     return (
-      <Main label="Questionnaire">
+      <Main label={landmark}>
         {backToList}
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">{name}</p>
@@ -469,7 +469,7 @@ function QuestionnaireForm({
         ))}
         <Link
           className="kit-caption"
-          href="/client/messages?context=Questionnaire"
+          href={`/client/messages?context=${encodeURIComponent(landmark)}`}
           style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
         >
           <MessageCircle aria-hidden size={15} /> {`Message ${studioName}`}
@@ -481,7 +481,7 @@ function QuestionnaireForm({
   if (at === reviewIndex)
     return (
       <>
-        <Main label="Questionnaire">
+        <Main label={landmark}>
           {backToList}
           <div className="kit-stack-tight">
             <Steps step={reviewIndex} total={reviewIndex} />
@@ -552,7 +552,7 @@ function QuestionnaireForm({
   const section = visible[at]!;
   return (
     <>
-      <Main label="Questionnaire">
+      <Main label={landmark}>
         {backToList}
         <div className="kit-stack-tight">
           <Steps step={at} total={reviewIndex} />

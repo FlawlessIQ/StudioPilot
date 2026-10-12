@@ -640,10 +640,13 @@ export function buildClientPortalExperience({
   // For a trade that names its form, an open planning form outranks the
   // status: that is read from whichever form the portal route met first, and
   // a sent-back inquiry-page form must not mark the party list still waiting
-  // on them as done. A photographer's step reads the status alone, as it
-  // always has.
-  const questionnaireDone =
-    !(formWord && planningForm) && ["submitted", "locked"].includes(String(questionnaireStatus ?? ""));
+  // on them as done. The other way round too: a party list sent back, with
+  // none open (`planningFormIn`), is done whatever that first form says, as
+  // the booked step already reads it; an unreturned inquiry-page form read
+  // first must not send them back to a form page the journey has thanked them
+  // for. A photographer's step reads the status alone, as it always has.
+  const statusDone = ["submitted", "locked"].includes(String(questionnaireStatus ?? ""));
+  const questionnaireDone = formWord ? !planningForm && (planningFormIn || statusDone) : statusDone;
   /**
    * A vendor's plan, already published for them to read: where the studio's
    * "will share it with you next" would send them, the plan itself does
@@ -790,7 +793,14 @@ export function buildClientPortalExperience({
     const fallback = defaultNextAction(state, trade);
     // Past the day, a planning ask is a question about a wedding that has
     // happened. Say what is true instead, and hand it to the studio.
-    if (eventHasPassed && ["PLANNING", "READY"].includes(state)) {
+    //
+    // A vendor's job can still read BOOKED then: nothing moves it on by
+    // itself, and its studio is asked "Did this go ahead?" first. Without
+    // this, Priya Shah's portal would go on saying her studio "will share the
+    // getting-ready schedule with you next" of a plan published before a
+    // morning already gone (2026-10-12). A photographer's BOOKED reads as it
+    // always has.
+    if (eventHasPassed && (["PLANNING", "READY"].includes(state) || (state === "BOOKED" && formWord))) {
       return {
         name: "Your day has been and gone",
         description: tradeProfile(trade).delivery
@@ -849,9 +859,18 @@ export function buildClientPortalExperience({
   /**
    * Waiting on the studio for a plan it has already published: the plan
    * instead. Anything still theirs to do (an open party list) stays first.
+   *
+   * The plan also takes the place of a trip to the form page with no party
+   * list open on it: "Continue planning your event" sent a vendor's client to
+   * a page with nothing to fill in while their journey said the plan was
+   * ready to read.
    */
+  const formPageWithNoForm =
+    Boolean(formWord) && !planningForm && waitingFallback.href === "/client/questionnaire";
   const stateFallback: ClientNextAction =
-    planReadyAction && waitingFallback.responsibility === "studio" ? planReadyAction : waitingFallback;
+    planReadyAction && (waitingFallback.responsibility === "studio" || formPageWithNoForm)
+      ? planReadyAction
+      : waitingFallback;
   /**
    * A checkpoint is the studio's own record of work, and its wording shows it:
    * the starter templates read "<name> must be verified before event
