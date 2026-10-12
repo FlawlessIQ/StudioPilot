@@ -221,12 +221,17 @@ Weddings read nothing new.
 **Today and the roster** show "18 of 24 delivered · 3 ready to send · 2 held
 until paid". A past event stays on Today while links wait to be sent.
 
+**The job moves to DELIVERED on its own** (Conor, 2026-10-12): the release
+press that sends the last place not cancelled its link moves the job there,
+paid or not (money is close-out's question). From EVENT_COMPLETE or
+POST_PRODUCTION, or from BOOKED/PLANNING/READY once the event date has passed
+(a studio that never marked the day done). The parents' links are the delivery
+evidence; no wedding release, delivery record or couple review ask is made.
+`rosterDeliveryMove` in `group-events/delivery.ts`; audited as
+`group_event.delivered`.
+
 **Not done:**
 
-- The job's state isn't moved. POST_PRODUCTION → DELIVERED is
-  evidence-controlled through the wedding delivery (backup step, delivery
-  records), so a roster job still reaches DELIVERED the ordinary way before
-  close-out can run.
 - There is no per-parent "don't ask" (the job-level one covers the event).
 - There is no file-name matching.
 - Crew field mode doesn't show deliveries.

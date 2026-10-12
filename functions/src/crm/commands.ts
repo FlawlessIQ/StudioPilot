@@ -20,7 +20,7 @@ import {
   participantInvoiceVoidJob,
 } from "../group-events/participant-invoice-core.js";
 import { tradeAllows, tradeMoves, tradeProfile } from "../trades/trades.js";
-import { DELIVERY_LIMITS, deliveryUrlProblem, groupReviewDueAt, releaseDecision, type ParticipantDelivery } from "../group-events/delivery.js";
+import { DELIVERY_LIMITS, deliveryUrlProblem, groupReviewDueAt, releaseDecision, rosterDeliveryMove, type ParticipantDelivery } from "../group-events/delivery.js";
 import { GROUP_DELIVERED_NOUN, GROUP_DELIVERY_EMAIL, groupDeliveryJobId } from "../group-events/participant-delivery-core.js";
 import { linkHost } from "../post-event/link-host.js";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
@@ -5641,6 +5641,18 @@ export const crmCommand = onRequest(
             decision.email ? db.doc(`emailJobs/${groupDeliveryJobId(participant.id, decision.url)}`) : null,
           );
           const existing = await Promise.all(jobs.map((reference) => (reference ? transaction.get(reference) : Promise.resolve(null))));
+          // The whole roster, to tell whether this press delivers the last
+          // place (read before any write, as a transaction must).
+          const roster = chosen
+            ? (
+                await transaction.get(
+                  db
+                    .collection("eventParticipants")
+                    .where("tenantId", "==", command.tenantId)
+                    .where("projectId", "==", command.input.projectId),
+                )
+              ).docs
+            : places;
           const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
           let emailed = 0;
           due.forEach(({ participant, decision }, index) => {
@@ -5690,6 +5702,50 @@ export const crmCommand = onRequest(
             });
           });
           const heldUnpaid = decided.filter((item) => !item.decision.release && item.decision.reason === "unpaid").length;
+          // Everyone has their link: the job is delivered. A roster job's
+          // photos go to each parent, so the ordinary gallery release that
+          // moves a wedding never happens here.
+          const releasedNow = new Map(due.map(({ participant, decision }) => [participant.id, decision.url]));
+          const projectState = String(project.get("state") ?? "");
+          const becomesDelivered = rosterDeliveryMove(
+            projectState,
+            project.get("groupEvent.enabled") === true,
+            roster.map((participant) => {
+              const delivery = (participant.get("delivery") ?? null) as ParticipantDelivery | null;
+              const url = releasedNow.get(participant.id);
+              return {
+                status: String(participant.get("status") ?? ""),
+                amountCents: Number(participant.get("amountCents") ?? 0),
+                email: typeof participant.get("email") === "string" ? String(participant.get("email")) : null,
+                delivery: url ? { ...(delivery ?? {}), url, releasedUrl: url, releasedAt: timestamp } as ParticipantDelivery : delivery,
+              };
+            }),
+            typeof project.get("eventDate") === "string" ? String(project.get("eventDate")) : null,
+            timestamp.slice(0, 10),
+          );
+          if (becomesDelivered) {
+            transaction.update(project.ref, {
+              state: "DELIVERED",
+              stateVersion: Number(project.get("stateVersion") ?? 0) + 1,
+              nextAction: "Monitor delivery",
+              deliveredAt: timestamp,
+              deliveredBy: "group_event_roster",
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            participantAudit(transaction, db, {
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              actorId: identity.uid,
+              action: "group_event.delivered",
+              entityId: command.input.projectId,
+              before: { state: projectState },
+              after: { state: "DELIVERED" },
+              timestamp,
+              correlationId,
+              userAgent: request.header("user-agent") ?? null,
+            });
+          }
           participantAudit(transaction, db, {
             tenantId: command.tenantId,
             projectId: command.input.projectId,
@@ -5709,6 +5765,7 @@ export const crmCommand = onRequest(
             heldUnpaid,
             // More than one press holds: press again for the rest.
             remaining: ready.length - due.length,
+            projectState: becomesDelivered ? "DELIVERED" : projectState,
           };
           transaction.create(commandReference, {
             tenantId: command.tenantId,

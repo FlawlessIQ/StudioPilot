@@ -314,3 +314,33 @@ export function participantsCloseoutLabel(closeout: ParticipantsCloseout): strin
 export function groupReviewDueAt(releasedAt: string): string {
   return new Date(Date.parse(releasedAt) + GROUP_REVIEW_DAYS_AFTER * 86_400_000).toISOString();
 }
+
+/** The stages a roster job moves to DELIVERED from, once everyone has their link. */
+export const ROSTER_DELIVERY_FROM: readonly string[] = ["EVENT_COMPLETE", "POST_PRODUCTION"];
+
+/**
+ * Before the day: only once the event date has passed. A studio that never
+ * marked the day done still delivered everyone, and photos sent are proof
+ * enough that it happened.
+ */
+export const ROSTER_DELIVERY_FROM_BEFORE_DAY: readonly string[] = ["BOOKED", "PLANNING", "READY"];
+
+/**
+ * Whether a group event's job moves to DELIVERED on its own: its photos go to
+ * each parent, not to the job's client, so the ordinary gallery release never
+ * happens. Once every place not cancelled has been sent a link (paid or not —
+ * money is close-out's question, not delivery's), the job is delivered. A job
+ * already past delivery, cancelled or postponed is left where it is.
+ */
+export function rosterDeliveryMove(
+  state: string,
+  rosterOn: boolean,
+  participants: readonly Deliverable[],
+  eventDate: string | null = null,
+  today: string = new Date().toISOString().slice(0, 10),
+): boolean {
+  const dayPassed = /^\d{4}-\d{2}-\d{2}/.test(eventDate ?? "") && eventDate!.slice(0, 10) <= today;
+  if (!ROSTER_DELIVERY_FROM.includes(state) && !(dayPassed && ROSTER_DELIVERY_FROM_BEFORE_DAY.includes(state))) return false;
+  const roster = participantsCloseout(rosterOn, participants);
+  return roster.applies && roster.delivered === roster.total;
+}

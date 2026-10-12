@@ -13,6 +13,7 @@ import {
   participantsCloseout,
   participantsCloseoutLabel,
   releaseDecision,
+  rosterDeliveryMove,
 } from "../features/group-events/delivery.ts";
 import { groupEventDay, groupEventShown, deliveryLine } from "../features/group-events/today-summary.ts";
 import {
@@ -215,6 +216,33 @@ test("a group event closes when everyone not cancelled is paid and delivered", (
   const done = participantsCloseout(true, [place({ delivery: sent }), place({ status: "cancelled" }), place({ status: "unpaid", amountCents: 0, delivery: sent })]);
   assert.equal(done.complete, true);
   assert.equal(participantsCloseoutLabel(done), "Everyone on the roster paid and delivered");
+});
+
+test("a roster job moves to DELIVERED on its own once everyone not cancelled has their link", () => {
+  const sent = { url: LINK, releasedUrl: LINK, releasedAt: "2026-10-10T12:00:00Z" };
+  const everyone = [place({ delivery: sent }), place({ status: "unpaid", delivery: sent }), place({ status: "cancelled" })];
+  assert.equal(rosterDeliveryMove("POST_PRODUCTION", true, everyone), true, "unpaid but sent still counts as delivered");
+  assert.equal(rosterDeliveryMove("EVENT_COMPLETE", true, everyone), true);
+  assert.equal(rosterDeliveryMove("POST_PRODUCTION", true, [...everyone, place()]), false, "someone still waiting");
+  assert.equal(rosterDeliveryMove("POST_PRODUCTION", false, everyone), false, "no roster: the wedding release decides");
+  assert.equal(rosterDeliveryMove("POST_PRODUCTION", true, [place({ status: "cancelled" })]), false, "nobody on it");
+  for (const state of ["DELIVERED", "REVIEW_REQUESTED", "CLOSED", "CANCELLED", "POSTPONED"]) {
+    assert.equal(rosterDeliveryMove(state, true, everyone, "2026-10-01", "2026-10-12"), false, state);
+  }
+  // A studio that never marked the day done: only once the day has passed.
+  assert.equal(rosterDeliveryMove("BOOKED", true, everyone, "2026-10-10", "2026-10-12"), true);
+  assert.equal(rosterDeliveryMove("READY", true, everyone, "2026-10-12", "2026-10-12"), true, "on the day");
+  assert.equal(rosterDeliveryMove("READY", true, everyone, "2026-10-20", "2026-10-12"), false, "before the day");
+  assert.equal(rosterDeliveryMove("PLANNING", true, everyone, null, "2026-10-12"), false, "no date");
+});
+
+test("the release command reads the whole roster before writing, and moves the job only by the rule", () => {
+  const source = read("functions/src/crm/commands.ts");
+  const release = source.slice(source.indexOf('command.type === "releaseParticipantDeliveries"'));
+  const firstWrite = release.indexOf("transaction.update(");
+  assert.ok(release.indexOf("const roster = chosen") < firstWrite, "every read before the first write");
+  assert.match(release, /const becomesDelivered = rosterDeliveryMove\(/);
+  assert.match(release, /if \(becomesDelivered\) \{\s*transaction\.update\(project\.ref, \{\s*state: "DELIVERED"/);
 });
 
 test("prepareCloseout adds the roster rule only for a roster job, and nobody may vouch for it", () => {

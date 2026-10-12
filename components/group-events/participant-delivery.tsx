@@ -101,14 +101,15 @@ export function ParticipantDeliveryPanel({
                 onClick={() =>
                   void run(async () => {
                     const { persisted, result } = await releaseParticipantDeliveries(projectId, null);
-                    const { emailed = 0, released = 0, remaining = 0 } = (result ?? {}) as {
+                    const { emailed = 0, released = 0, remaining = 0, projectState } = (result ?? {}) as {
                       emailed?: number;
                       released?: number;
                       remaining?: number;
+                      projectState?: string;
                     };
                     setNotice(
                       persisted
-                        ? `${released} sent${emailed < released ? ` (${released - emailed} with no email: on their order page only)` : ""}.${remaining ? ` ${remaining} more to send: press again.` : ""}`
+                        ? `${released} sent${emailed < released ? ` (${released - emailed} with no email: on their order page only)` : ""}.${remaining ? ` ${remaining} more to send: press again.` : ""}${projectState === "DELIVERED" ? " Everyone has theirs, so the job is marked delivered." : ""}`
                         : "Preview mode: nothing was sent.",
                     );
                   }).then(() => setConfirm(false))
