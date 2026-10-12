@@ -66,3 +66,9 @@ test("wired: the code is a referral code, checkout and webhook carry the partner
   assert.match(handlers, /recordPartnerPayout: consoleHandler\(\{\s*capability: "billing\.write",/);
   assert.match(read("firestore.rules"), /match \/saasPartnerPayouts\/\{payoutId\} \{\s*allow read: if isPlatformAdmin\(\);\s*allow write: if false;/);
 });
+
+test("a discount code can be made for the Pro (vendor) plan", () => {
+  assert.match(read("functions/src/console/handlers/codes.ts"), /plans: z\.array\(z\.enum\(\["studio", "multi_brand", "vendor"\]\)\)\.min\(1\)\.max\(3\),/);
+  assert.match(read("functions/src/console/stripe-admin.ts"), /productIdsForPlans\(plans: ReadonlyArray<"studio" \| "multi_brand" \| "vendor">\)/);
+  assert.match(read("components/console/pages/codes-page.tsx"), /\(\["studio", "multi_brand", "vendor"\] as const\)\.map\(\(plan\) =>/);
+});

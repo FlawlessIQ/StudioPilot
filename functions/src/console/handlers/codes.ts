@@ -26,7 +26,9 @@ export const codeTerms = z
     amountOffCents: z.number().int().min(100).max(1_000_000).nullable().optional(),
     duration: z.enum(["once", "repeating", "forever"]),
     durationMonths: z.number().int().min(1).max(36).nullable().optional(),
-    plans: z.array(z.enum(["studio", "multi_brand"])).min(1).max(2),
+    // "vendor" is the Pro plan DJs, hair and makeup artists sign up on (Conor,
+    // 2026-10-12: tester codes for vendors had to be made outside the Console).
+    plans: z.array(z.enum(["studio", "multi_brand", "vendor"])).min(1).max(3),
     maxRedemptions: z.number().int().min(1).max(100_000).nullable().optional(),
     expiresAt: z.string().datetime().nullable().optional(),
     firstTimeOnly: z.boolean(),

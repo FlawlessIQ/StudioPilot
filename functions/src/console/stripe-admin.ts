@@ -79,7 +79,7 @@ export async function studiocueProductIds(): Promise<string[]> {
 }
 
 /** Product ids for the plans a code applies to. */
-export async function productIdsForPlans(plans: ReadonlyArray<"studio" | "multi_brand">): Promise<string[]> {
+export async function productIdsForPlans(plans: ReadonlyArray<"studio" | "multi_brand" | "vendor">): Promise<string[]> {
   const prices = plans.flatMap((plan) => {
     const key = plan.toUpperCase();
     return [process.env[`STRIPE_PRICE_${key}_MONTHLY`], process.env[`STRIPE_PRICE_${key}_YEARLY`]];

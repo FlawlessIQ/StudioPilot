@@ -183,6 +183,10 @@ Checkout already takes codes (`docs/saas-operations.md`, "Beta and promotion cod
 - arriving on a signup link, `/auth/register?code=FALL20`, which applies it at
   Checkout (`features/subscriptions/promotion-code.ts`).
 
+**Applies to** picks the plans a code works on: Studio, Multi-Brand, and Pro,
+the plan DJs, hair and makeup artists sign up on (added 2026-10-12 for the
+founding tester codes, which until then had to be made in Stripe by hand).
+
 A discount applied to one studio in the Console before they've added a card
 (`pendingCouponId`) takes the place of either at their first Checkout.
 

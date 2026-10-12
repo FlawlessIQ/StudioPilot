@@ -36,7 +36,7 @@ type Code = {
   amountOffCents?: number | null;
   duration?: "once" | "repeating" | "forever";
   durationMonths?: number | null;
-  plans?: Array<"studio" | "multi_brand">;
+  plans?: Array<"studio" | "multi_brand" | "vendor">;
   maxRedemptions?: number | null;
   timesRedeemed?: number;
   expiresAt?: string | null;
@@ -396,7 +396,7 @@ function CreateCodeBody({ mode, onClose }: { mode: "single" | "batch"; onClose: 
   const [value, setValue] = useState(20);
   const [duration, setDuration] = useState<"once" | "repeating" | "forever">("repeating");
   const [months, setMonths] = useState(3);
-  const [plans, setPlans] = useState<Array<"studio" | "multi_brand">>(["studio", "multi_brand"]);
+  const [plans, setPlans] = useState<Array<"studio" | "multi_brand" | "vendor">>(["studio", "multi_brand"]);
   const [max, setMax] = useState<string>("");
   const [expires, setExpires] = useState("");
   const [firstTime, setFirstTime] = useState(true);
@@ -409,7 +409,7 @@ function CreateCodeBody({ mode, onClose }: { mode: "single" | "batch"; onClose: 
     duration,
     durationMonths: duration === "repeating" ? months : null,
   };
-  const [planKey, cadence] = previewPlan.split(":") as ["studio" | "multi_brand", "monthly" | "yearly"];
+  const [planKey, cadence] = previewPlan.split(":") as ["studio" | "multi_brand" | "vendor", "monthly" | "yearly"];
   const preview = previewDiscount(terms, PLAN_LIST_PRICE_CENTS[planKey]![cadence], cadence);
   const cleanCode = code.toUpperCase().replace(/[^A-Z0-9_-]/g, "");
   const valid =
@@ -520,10 +520,10 @@ function CreateCodeBody({ mode, onClose }: { mode: "single" | "batch"; onClose: 
           <div className="cx-field">
             <span className="cx-label">Applies to</span>
             <div className="cx-checks">
-              {(["studio", "multi_brand"] as const).map((plan) => (
+              {(["studio", "multi_brand", "vendor"] as const).map((plan) => (
                 <label className="cx-check" key={plan}>
                   <input checked={plans.includes(plan)} onChange={(event) => setPlans((list) => (event.target.checked ? [...list, plan] : list.filter((item) => item !== plan)))} type="checkbox" />
-                  {PLAN_LABELS[plan]}
+                  {plan === "vendor" ? `${PLAN_LABELS[plan]} (DJs, hair, makeup)` : PLAN_LABELS[plan]}
                 </label>
               ))}
             </div>
