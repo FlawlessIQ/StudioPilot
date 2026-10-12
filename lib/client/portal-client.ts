@@ -1,6 +1,7 @@
 "use client";
 
 import type { ShotListView } from "@/features/planning/shot-list";
+import type { CoupleVendorSubmission, CoupleVendorTeamView } from "@/features/vendors/couple-team";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { withTimeout } from "@/lib/async/with-timeout";
@@ -498,5 +499,19 @@ export function signClientBookingChange(input: {
     type: "sign_amendment",
     ...input,
     consent: true,
+  });
+}
+
+/** The other vendors working their day (server/vendors/couple-team.ts). */
+export function getClientVendorTeam(tenantId: string, projectId: string) {
+  return portalRequest<{ team: CoupleVendorTeamView }>({ type: "vendor_team", tenantId, projectId });
+}
+
+export function submitClientVendorTeam(tenantId: string, projectId: string, submission: CoupleVendorSubmission) {
+  return portalRequest<{ team: CoupleVendorTeamView; added: number; updated: number; removed: number; alreadyListed: string[] }>({
+    type: "submit_vendor_team",
+    tenantId,
+    projectId,
+    submission,
   });
 }

@@ -155,6 +155,23 @@ export const vendorTeamCommands = [
       message: z.string().max(4000).default(""),
     }),
   }),
+  z.object({
+    /** The studio has seen the couple's list of their vendors: off Today (clientVendorTeams). */
+    type: z.literal("markCoupleVendorsSeen"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string().min(1) }),
+  }),
+  z.object({
+    /**
+     * The planner runs this wedding's vendors: the couple isn't asked to
+     * list them (features/vendors/couple-team.ts). False asks them again.
+     */
+    type: z.literal("setVendorTeamByPlanner"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({ projectId: z.string().min(1), byPlanner: z.boolean() }),
+  }),
 ] as const;
 
 export type VendorTeamCommand = z.infer<(typeof vendorTeamCommands)[number]>;
@@ -535,6 +552,8 @@ async function addOrUpdateEntry(
         createdBy: context.actorId,
         updatedBy: context.actorId,
         archivedAt: null,
+        // The couple adds theirs from the portal (server/vendors/couple-team.ts).
+        source: "studio",
       });
     } else {
       transaction.update(reference, { ...values, updatedAt: context.now, updatedBy: context.actorId });
@@ -1069,5 +1088,39 @@ export async function runVendorTeamCommand(
       return sendTimeline(db, parsed, context);
     case "sendVendorCredits":
       return sendCredits(db, parsed, context);
+    case "markCoupleVendorsSeen": {
+      const reference = db.doc(`clientVendorTeams/${parsed.input.projectId}`);
+      const current = await reference.get();
+      if (!current.exists || current.get("tenantId") !== parsed.tenantId) throw new Error("VENDOR_TEAM_ANSWER_NOT_FOUND");
+      await reference.update({ studioSeenAt: context.now, studioSeenBy: context.actorId, updatedAt: context.now });
+      return { projectId: parsed.input.projectId, seen: true };
+    }
+    case "setVendorTeamByPlanner": {
+      const reference = db.doc(`projects/${parsed.input.projectId}`);
+      const project = await reference.get();
+      if (!project.exists || project.get("tenantId") !== parsed.tenantId) throw new Error("PROJECT_NOT_FOUND");
+      const auditId = stableId("audit_vendor_team", parsed.tenantId, parsed.idempotencyKey);
+      const batch = db.batch();
+      batch.update(reference, { vendorTeamByPlanner: parsed.input.byPlanner, updatedAt: context.now, updatedBy: context.actorId });
+      batch.set(
+        db.doc(`auditEvents/${auditId}`),
+        auditEvent({
+          id: auditId,
+          tenantId: parsed.tenantId,
+          projectId: parsed.input.projectId,
+          actorId: context.actorId,
+          action: "vendor_team.planner_handles_set",
+          entityType: "project",
+          entityId: parsed.input.projectId,
+          now: context.now,
+          before: { vendorTeamByPlanner: project.get("vendorTeamByPlanner") ?? false },
+          after: { vendorTeamByPlanner: parsed.input.byPlanner },
+          userAgent: context.userAgent,
+          correlationId: parsed.idempotencyKey,
+        }),
+      );
+      await batch.commit();
+      return { projectId: parsed.input.projectId, vendorTeamByPlanner: parsed.input.byPlanner };
+    }
   }
 }

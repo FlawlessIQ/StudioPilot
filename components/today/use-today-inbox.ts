@@ -176,6 +176,7 @@ export function useTodayInbox(): {
   const billingAddressRequests = useTenantDocuments("billingAddressRequests");
   const detailChangeRequests = useTenantDocuments("detailChangeRequests");
   const clientShotLists = useTenantDocuments("clientShotLists");
+  const clientVendorTeams = useTenantDocuments("clientVendorTeams");
   const detailSignoffs = useTenantDocuments("detailSignoffs");
   // The studio's planning timeline: when Today starts offering "Send the form".
   const tenants = useTenantDocuments("tenants");
@@ -455,6 +456,7 @@ export function useTodayInbox(): {
     packageSnapshots: jobSnapshots,
     detailChangeRequests: detailChangeRequests.records,
     clientShotLists: clientShotLists.records,
+    clientVendorTeams: clientVendorTeams.records,
     detailSignoffs: detailSignoffs.records,
     // A makeup or hair client's party list, which their final headcount waits on.
     questionnaireResponses: questionnaires.records,

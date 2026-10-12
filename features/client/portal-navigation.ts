@@ -31,7 +31,8 @@ export type ClientAreaItem = {
     | "CalendarDays"
     | "Images"
     | "Star"
-    | "Camera";
+    | "Camera"
+    | "Users";
 };
 
 export function clientAreaItems(
@@ -75,6 +76,9 @@ export function clientAreaItems(
     navigation?.shotList
       ? { label: "Your shot list", href: "/client/shot-list", icon: "Camera" }
       : null,
+    navigation?.vendorTeam
+      ? { label: "Your vendor team", href: "/client/vendors", icon: "Users" }
+      : null,
     navigation?.delivery && delivers
       // Not "photographs": a video-led studio's couple is waiting on a film.
       ? { label: "Your photos and film", href: "/client/delivery", icon: "Images" }
@@ -104,4 +108,5 @@ export const CLIENT_AREA_ROUTES: Record<
   delivery: "/client/delivery",
   reviews: "/client/reviews",
   shotList: "/client/shot-list",
+  vendorTeam: "/client/vendors",
 };

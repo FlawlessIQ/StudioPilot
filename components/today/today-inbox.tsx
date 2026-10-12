@@ -1199,6 +1199,8 @@ function TodayCard({
           <StudioInvoiceCardActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "shot_list" ? (
           <ShotListActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
+        ) : item.action.kind === "couple_vendors" ? (
+          <CoupleVendorsActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "detail_change" ? (
           <DetailChangeActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "billing_address" ? (
@@ -1743,6 +1745,48 @@ function ShotListActions({
   return (
     <>
       <Link className="today-card-primary" href={`${jobHref ?? `/studio/projects/${action.projectId}`}#shot-list`}>
+        {action.label} <ArrowRight size={14} />
+      </Link>
+      <button className="today-card-secondary" disabled={busy} onClick={() => void seen()} type="button">
+        {busy ? "Saving…" : "Got it"}
+      </button>
+      {notice ? <span className="today-card-notice">{notice}</span> : null}
+    </>
+  );
+}
+
+type CoupleVendorsAction = Extract<TodayItem["action"], { kind: "couple_vendors" }>;
+
+/**
+ * A couple listed their other vendors: "See the team" goes to the job's
+ * vendor team; "Got it" takes it off Today.
+ */
+function CoupleVendorsActions({
+  action,
+  jobHref,
+  onCleared,
+}: {
+  action: CoupleVendorsAction;
+  jobHref: string | null;
+  onCleared?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function seen() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await sendPlanningCommand("markCoupleVendorsSeen", { projectId: action.projectId });
+      refreshTenantRecords("clientVendorTeams");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That couldn't be saved. Open the job to check."));
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Link className="today-card-primary" href={`${jobHref ?? `/studio/projects/${action.projectId}`}#vendor-team`}>
         {action.label} <ArrowRight size={14} />
       </Link>
       <button className="today-card-secondary" disabled={busy} onClick={() => void seen()} type="button">

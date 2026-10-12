@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Award, Clock3, LoaderCircle, Plus, Printer, Send, Wallet } from "lucide-react";
+import { Award, Clock3, LoaderCircle, Plus, Printer, Send, Users, Wallet } from "lucide-react";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
@@ -25,6 +25,7 @@ import {
   type VendorTeamStatus,
   type VendorTimelineState,
 } from "@/features/vendors/team";
+import { coupleVendorAnswer, coupleVendorsNeedStudio, type CoupleVendorTeamRecord } from "@/features/vendors/couple-team";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 
@@ -120,6 +121,17 @@ export function VendorTeamPanel({
     [entries],
   );
   const canWork = ["studio_owner", "studio_admin", "studio_coordinator"].includes(String(workspace.role ?? ""));
+  // What the client said about their other vendors (features/vendors/couple-team.ts).
+  const { records: answers } = useTenantDocuments("clientVendorTeams");
+  const answerRecord = ((answers ?? []) as CoupleVendorTeamRecord[]).find((row) => row.projectId === projectId || row.id === projectId) ?? null;
+  const fresh = coupleVendorsNeedStudio(answerRecord);
+  // Opening the team is seeing the list: it comes off Today.
+  useEffect(() => {
+    if (!fresh || !canWork) return;
+    void sendPlanningCommand("markCoupleVendorsSeen", { projectId })
+      .then(() => refreshTenantRecords("clientVendorTeams"))
+      .catch(() => undefined);
+  }, [fresh, canWork, projectId]);
   if (!canWork || team.loading) return null;
   const visibility = alwaysShow
     ? "panel"
@@ -146,13 +158,45 @@ export function VendorTeamPanel({
       />
     ) : null;
 
+  const byPlanner = team.project?.vendorTeamByPlanner === true;
+  const answer = coupleVendorAnswer(answerRecord);
+
+  async function setByPlanner(next: boolean) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const outcome = await sendPlanningCommand("setVendorTeamByPlanner", { projectId, byPlanner: next });
+      setNotice(
+        !outcome.persisted
+          ? "Preview mode — nothing was saved."
+          : next
+            ? "The planner runs the vendors on this one, so the client isn't asked to list them."
+            : "The client is asked to list their other vendors again.",
+      );
+      if (outcome.persisted) {
+        refreshTenantRecords("projects");
+        team.refresh();
+      }
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That couldn't be saved. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (visibility === "quiet") {
     return (
       <div className="vendor-team-quiet">
         <button className="vendor-team-quiet-button" onClick={() => setEditing("new")} type="button">
           <Plus aria-hidden size={14} /> Add a vendor
         </button>
-        <small>Keep the other vendors&rsquo; arrival times, and send them the timeline in one go.</small>
+        <small>
+          {byPlanner
+            ? "The planner runs the vendors on this one."
+            : answer === "none"
+              ? "The client said there are no other vendors."
+              : "The client lists their other vendors in their portal before the final schedule goes out."}
+        </small>
         {notice ? <small role="status">{notice}</small> : null}
         {sheet}
       </div>
@@ -273,6 +317,21 @@ export function VendorTeamPanel({
           </p>
         ) : null}
         <p className="vendor-team-line">
+          <Users aria-hidden size={15} />
+          <span>
+            {byPlanner
+              ? "The planner runs the vendors on this one, so the client isn't asked."
+              : answer === "listed"
+                ? `${capitalized(client)} listed ${answerRecord?.count === 1 ? "1 vendor" : `${answerRecord?.count ?? 0} vendors`} in their portal.`
+                : answer === "none"
+                  ? `${capitalized(client)} said there are no other vendors.`
+                  : `${capitalized(client)} is asked to list their other vendors in their portal, due when the details lock.`}{" "}
+            <button className="vendor-team-link" disabled={busy} onClick={() => void setByPlanner(!byPlanner)} type="button">
+              {byPlanner ? `Ask ${client} after all` : "The planner handles vendors"}
+            </button>
+          </span>
+        </p>
+        <p className="vendor-team-line">
           <Send aria-hidden size={15} />
           <span>
             {team.currentVersion === null
@@ -366,6 +425,7 @@ export function VendorTeamPanel({
                     <small>
                       {vendorCategoryLabel(entry.category)}
                       {text(entry.roleLabel) ? ` · ${text(entry.roleLabel)}` : ""}
+                      {entry.source === "couple" ? ` · Added by ${client}` : ""}
                     </small>
                   </span>
                   <span className="vendor-team-row-facts">

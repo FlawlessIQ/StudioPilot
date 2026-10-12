@@ -13,6 +13,7 @@ import {
   Package,
   Star,
   UserRound,
+  Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { List, Main, PoweredBy, Row } from "@/components/kit/kit";
@@ -34,6 +35,7 @@ const ICONS = {
   CalendarDays,
   Images,
   Star,
+  Users,
 } as const;
 
 const BOOKING = new Set(["/client/package", "/client/proposal", "/client/contract"]);

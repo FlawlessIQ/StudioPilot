@@ -115,6 +115,12 @@ export const projectVendorSchema = auditFieldsSchema.extend({
   email: z.string().nullable(),
   phone: z.string().nullable(),
   archivedAt: z.string().datetime().nullable(),
+  /**
+   * Who put it there: the studio (absent on entries from before the couple
+   * could), or the couple from their portal (couple-team.ts). A couple's
+   * entry is theirs to change; the studio can change any.
+   */
+  source: z.enum(["studio", "couple"]).optional(),
 });
 export type ProjectVendor = z.infer<typeof projectVendorSchema>;
 
@@ -456,4 +462,45 @@ export function vendorArrivalLines<T extends { id: string; startAt: string }>(
     added += 1;
   }
   return { items: sortScheduleItems(kept), added, updated, removed };
+}
+
+// ─── The crew's view ─────────────────────────────────────────────────────────
+
+export type CrewVendorContact = {
+  entryId: string;
+  category: string;
+  roleLabel: string | null;
+  company: string;
+  contactName: string;
+  phone: string;
+  arrivalTime: string | null;
+  loadInTime: string | null;
+};
+
+/**
+ * What the crew may know about the job's vendors (`crewVendorContacts`):
+ * who, how to reach them, when they arrive — never the money. The same rule
+ * as functions/src/planning/vendor-team.ts, for the portal's writes
+ * (server/vendors/couple-team.ts); tests/couple-vendor-team.test.ts keeps
+ * the two equal.
+ */
+export function crewVendorContactsFrom(entries: ReadonlyArray<Record<string, unknown>>): CrewVendorContact[] {
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  return entries
+    .filter((entry) => !entry.archivedAt && entry.status === "booked" && text(entry.company))
+    .map((entry) => ({
+      entryId: text(entry.entryId),
+      category: text(entry.category) || "other",
+      roleLabel: text(entry.roleLabel) || null,
+      company: text(entry.company),
+      contactName: text(entry.contactName),
+      phone: text(entry.phone),
+      arrivalTime: text(entry.arrivalTime) || null,
+      loadInTime: text(entry.loadInTime) || null,
+    }))
+    .sort(
+      (left, right) =>
+        (left.arrivalTime ?? left.loadInTime ?? "99:99").localeCompare(right.arrivalTime ?? right.loadInTime ?? "99:99") ||
+        left.company.localeCompare(right.company),
+    );
 }

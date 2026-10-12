@@ -28,6 +28,8 @@ export type ClientNavigation = {
   reviews: boolean;
   /** Their own must-take photos (server/planning/shot-list.ts), once asked for or sent. */
   shotList?: boolean;
+  /** The other vendors working their day (server/vendors/couple-team.ts), once asked. */
+  vendorTeam?: boolean;
 };
 
 export type ClientMilestone = {
@@ -553,6 +555,7 @@ export function buildClientPortalExperience({
   trade = null,
   consultation,
   shotList = null,
+  vendorTeam = null,
 }: {
   state: string;
   availability: Availability;
@@ -630,6 +633,8 @@ export function buildClientPortalExperience({
   } | null;
   /** Their shot list, when it has been asked for and not yet sent (shot-list-upload.ts). */
   shotList?: { status: "requested" | "received"; dueDate: string | null } | null;
+  /** Their vendor team: asked from the planning form's day until they answer (features/vendors/couple-team.ts). */
+  vendorTeam?: { open: boolean; answered: boolean; dueDate: string | null } | null;
 }) {
   const index = stateIndex(state);
   const offer = tradeVocab(trade).proposal.toLowerCase();
@@ -934,10 +939,26 @@ export function buildClientPortalExperience({
           actionLabel: "Upload your list",
         }
       : null;
+  // Open and not answered: who else is working the day, before the final
+  // schedule. Never ahead of a planning form still waiting on them — that
+  // comes first, and the vendor list is the next thing after it.
+  const vendorTeamAction: ClientNextAction | null =
+    vendorTeam?.open && !vendorTeam.answered && !planningForm
+      ? {
+          name: "Tell us who else is working your day",
+          description: "List your other vendors so everyone gets the same schedule and can reach each other.",
+          dueDate: vendorTeam.dueDate,
+          ownerType: "client",
+          responsibility: "client",
+          href: "/client/vendors",
+          actionLabel: "Add your vendors",
+        }
+      : null;
   const nextClientAction: ClientNextAction =
     scheduleAction ??
     clientCheckpointAction ??
     shotListAction ??
+    vendorTeamAction ??
     proposalNextAction ??
     // A plan to read asks nothing of them either: a bill they can pay still comes first.
     ((stateFallback.responsibility === "studio" || stateFallback === planReadyAction) && balanceDueAction
@@ -989,6 +1010,7 @@ export function buildClientPortalExperience({
       delivery: Boolean(availability.delivery || (index >= 9 && tradeProfile(trade).delivery)),
       reviews: Boolean(availability.reviews || index >= 11),
       shotList: Boolean(availability.shotList || shotList),
+      vendorTeam: Boolean(vendorTeam?.open || vendorTeam?.answered),
     } satisfies ClientNavigation,
   };
 }

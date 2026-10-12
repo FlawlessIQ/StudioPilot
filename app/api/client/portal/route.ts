@@ -15,6 +15,7 @@ import { balanceWithSalesTax, readPricedSalesTax } from "@/features/billing/sale
 import { z } from "zod";
 import { personName } from "@/features/messaging/thread-name";
 import { todayInZone } from "@/lib/format/event-date";
+import { resolvePlanningTimeline } from "@/features/planning/planning-timeline";
 import {
   conversationIdFor,
   foldMessageIntoConversation,
@@ -53,6 +54,13 @@ import {
 import { parseSigningBillingAddress } from "@/features/contacts/billing-address-signing";
 import { confirmFinalDetails, finalDetailsFor } from "@/server/planning/final-details";
 import { shotListFor, submitShotList } from "@/server/planning/shot-list";
+import { coupleVendorTeamFor, submitCoupleVendorTeam } from "@/server/vendors/couple-team";
+import {
+  coupleVendorAnswer,
+  coupleVendorAsk,
+  coupleVendorSubmissionSchema,
+  type CoupleVendorTeamRecord,
+} from "@/features/vendors/couple-team";
 import { shotListStatus, type ShotListRecord } from "@/features/planning/shot-list";
 import { signingRefusalCopy } from "@/features/contracts/signing-policy";
 import { depositByStudio } from "@/features/booking/deposit-by-studio";
@@ -113,6 +121,18 @@ const requestSchema = z.discriminatedUnion("type", [
     type: z.literal("shot_list"),
     tenantId: z.string().min(1).max(160),
     projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    /** The other vendors working their day (server/vendors/couple-team.ts). */
+    type: z.literal("vendor_team"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+  }),
+  z.object({
+    type: z.literal("submit_vendor_team"),
+    tenantId: z.string().min(1).max(160),
+    projectId: z.string().min(1).max(160),
+    submission: coupleVendorSubmissionSchema,
   }),
   z.object({
     type: z.literal("submit_shot_list"),
@@ -1160,6 +1180,20 @@ async function clientProject(tenantId: string, projectId: string) {
         status: shotListStatus(stored.data() as ShotListRecord) === "received" ? ("received" as const) : ("requested" as const),
         dueDate: safeString(stored.get("dueDate")),
       };
+    })(),
+    vendorTeam: await (async () => {
+      // Who else is working the day (features/vendors/couple-team.ts).
+      const stored = await adminFirestore.doc(`clientVendorTeams/${projectId}`).get();
+      const record = stored.exists && stored.get("tenantId") === tenantId ? (stored.data() as CoupleVendorTeamRecord) : null;
+      const ask = coupleVendorAsk({
+        project: projectSnapshot.data() ?? {},
+        timeline: resolvePlanningTimeline(tenantSnapshot.get("planningTimeline")),
+        today: todayIso,
+        planningFormSent: Boolean(planningFormDoc) || planningFormIn,
+      });
+      const answered = coupleVendorAnswer(record) !== "unanswered";
+      if (!ask.available && !answered) return null;
+      return { open: ask.available && ask.open, answered, dueDate: ask.dueDate };
     })(),
   });
   return {
@@ -2421,6 +2455,22 @@ export async function POST(request: Request) {
           now: new Date().toISOString(),
         }),
       });
+    }
+
+    if (parsed.type === "vendor_team") {
+      return Response.json({ team: await coupleVendorTeamFor(adminFirestore, { tenantId: parsed.tenantId, projectId: parsed.projectId }) });
+    }
+
+    if (parsed.type === "submit_vendor_team") {
+      return Response.json(
+        await submitCoupleVendorTeam(adminFirestore, {
+          tenantId: parsed.tenantId,
+          projectId: parsed.projectId,
+          uid: identity.uid,
+          submission: parsed.submission,
+          now: new Date().toISOString(),
+        }),
+      );
     }
 
     if (parsed.type === "final_details") {

@@ -267,6 +267,8 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // The couple's own shot list (planning/shot-list-upload.ts): asked on its
   // day by the sweep, or "Ask now" on the job; seen from Today or the job.
   requestShotList: "the job's shot list card", markShotListSeen: "the shot list card on Today",
+  markCoupleVendorsSeen: "opening the job's vendor team, or the card on Today",
+  setVendorTeamByPlanner: "a switch on the job's vendor team panel",
   // Group events Phase 1 (2026-10-04): the roster is worked on the job page,
   // often on the day at the venue. Not offered through Cue yet.
   setGroupEvent: "group events: the job page roster", addParticipant: "group events: the job page roster",

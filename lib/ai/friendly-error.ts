@@ -600,6 +600,11 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
     "The job could not be deleted. Some of its records may already be gone — run the delete again to finish it, and contact support if it keeps failing.",
   VENDOR_NOT_FOUND: "That vendor record could not be found.",
   // A wedding's vendor team (functions/src/planning/vendor-team.ts).
+  VENDOR_EMAIL_IS_YOURS: "That's your own email address. Add the vendor's email or phone number instead.",
+  VENDOR_TEAM_NOT_ASKED: "Your studio isn't collecting vendors for this event right now. Message them if something has changed.",
+  VENDOR_KIND_NOT_OFFERED: "Choose what that vendor does from the list.",
+  VENDOR_CONTACT_REQUIRED: "Add an email or a phone number for each vendor, so everyone can reach them.",
+  VENDOR_TEAM_ANSWER_NOT_FOUND: "There's no vendor list from the client on this job yet.",
   VENDOR_ALREADY_ON_TEAM: "That vendor is already on this job's team. Open their row to change it.",
   VENDOR_REQUIRED_TO_BOOK: "Choose who is booked, or add them as someone new, before marking it booked.",
   VENDOR_CHOICE_AMBIGUOUS: "Pick a vendor from your list or add someone new — not both.",
