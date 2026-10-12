@@ -21,10 +21,9 @@ import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { mintBookingLink } from "./booking-link.js";
 import { consultationPurpose, isSalesConsultation } from "./consultation-purpose.js";
 import {
-  callBookedBy,
+  linkChangedSinceRead,
   linkIsOpen,
-  schedulingLinkPreview,
-  schedulingLinkState,
+  previewSchedulingLink,
   studioFallback,
 } from "./scheduling-link-view.js";
 import {
@@ -180,34 +179,25 @@ async function activeLink(token: string) {
   return link;
 }
 
+/** A document's fields, or null when there is no such document. */
+const fieldsOf = (snapshot: FirebaseFirestore.DocumentSnapshot) => (snapshot.exists ? (snapshot.data() ?? {}) : null);
+
 /**
  * The page's first read. An open link shows its openings; a link that has
- * booked shows the booking (scheduling-link-view.ts). Anything else is
- * expired, and an unknown token is refused before anything else is read.
+ * booked shows the booking. Anything else is expired, and an unknown token is
+ * refused before anything else is read (scheduling-link-view.ts
+ * `previewSchedulingLink`, which decides; these are only its reads).
  */
 async function previewLink(db: FirebaseFirestore.Firestore, token: string) {
-  const link = await linkByToken(token);
-  if (!link) throw new Error("SCHEDULING_LINK_EXPIRED");
-  const data = link.data();
-  const [tenant, project, call] = await Promise.all([
-    db.doc(`tenants/${String(link.get("tenantId"))}`).get(),
-    db.doc(`projects/${String(link.get("projectId"))}`).get(),
-    data.status === "booked"
-      ? callBookedBy(data, async (id) => {
-          const consultation = await db.doc(`consultations/${id}`).get();
-          return consultation.exists ? (consultation.data() ?? null) : null;
-        })
-      : Promise.resolve(null),
-  ]);
-  if (!tenant.exists || !project.exists) throw new Error("SCHEDULING_LINK_EXPIRED");
-  const state = schedulingLinkState({ link: data, call, project: project.data(), nowMs: Date.now() });
-  if (state === "expired") throw new Error("SCHEDULING_LINK_EXPIRED");
-  return schedulingLinkPreview({
-    link: data,
-    tenant: tenant.data() ?? {},
-    project: project.data() ?? {},
-    booked: state === "booked" ? call : null,
-  });
+  return previewSchedulingLink(
+    {
+      link: async () => (await linkByToken(token))?.data() ?? null,
+      tenant: async (tenantId) => fieldsOf(await db.doc(`tenants/${tenantId}`).get()),
+      project: async (projectId) => fieldsOf(await db.doc(`projects/${projectId}`).get()),
+      consultation: async (consultationId) => fieldsOf(await db.doc(`consultations/${consultationId}`).get()),
+    },
+    Date.now(),
+  );
 }
 
 async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
@@ -515,13 +505,21 @@ export const publicConsultationScheduling = onRequest(
         updatedBy: "public-consultation-scheduler",
         archivedAt: null,
       });
-      batch.update(link.ref, {
-        status: "booked",
-        bookedConsultationId: consultationId,
-        bookedAt: now,
-        updatedAt: now,
-        updatedBy: "public-consultation-scheduler",
-      });
+      // Only as activeLink read it. Two bookings sent at the same moment for
+      // different times both pass that check, and their calls have different
+      // ids, so the create alone let both through: two calls, two
+      // confirmations, a link naming one. Now the second is refused whole.
+      batch.update(
+        link.ref,
+        {
+          status: "booked",
+          bookedConsultationId: consultationId,
+          bookedAt: now,
+          updatedAt: now,
+          updatedBy: "public-consultation-scheduler",
+        },
+        { lastUpdateTime: link.updateTime },
+      );
       // Only the sales call moves a job on: never the final details call or
       // a makeup or hair trial (consultation-purpose.ts).
       const salesCall = isSalesConsultation(link.data());
@@ -570,7 +568,14 @@ export const publicConsultationScheduling = onRequest(
         createdAt: now,
         updatedAt: now,
       });
-      await batch.commit();
+      try {
+        await batch.commit();
+      } catch (caught: unknown) {
+        // The link changed since it was read: booked by the other request, or
+        // replaced by a new one. Refused as a booked link is; nothing written.
+        if (linkChangedSinceRead(caught)) throw new Error("SCHEDULING_LINK_EXPIRED");
+        throw caught;
+      }
       // An event form the couple sent from their inquiry page waited for this.
       if (salesCall) await queueInquiryFormAnalysis(db, {
         tenantId: String(link.get("tenantId")),

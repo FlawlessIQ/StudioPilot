@@ -4,10 +4,13 @@ import test from "node:test";
 import {
   MAX_MOVES_FOLLOWED,
   callBookedBy,
+  linkChangedSinceRead,
   linkIsOpen,
   movedTo,
+  previewSchedulingLink,
   schedulingLinkPreview,
   schedulingLinkState,
+  type SchedulingLinkReads,
 } from "../functions/src/booking/scheduling-link-view";
 import { bookedWhen } from "../components/booking/public-consultation-scheduler";
 
@@ -64,6 +67,43 @@ const stateOf = (overrides: { link?: Record<string, unknown> | null; call?: Reco
   });
 
 const loader = (records: Record<string, Record<string, unknown>>) => async (id: string) => records[id] ?? null;
+
+/**
+ * The page's first answer, read from these records alone, counting every
+ * read: what the server sends, with Firestore swapped for a table.
+ */
+const previewFrom = (records: {
+  link: Record<string, unknown> | null;
+  tenants?: Record<string, Record<string, unknown>>;
+  projects?: Record<string, Record<string, unknown>>;
+  consultations?: Record<string, Record<string, unknown>>;
+}) => {
+  const reads: string[] = [];
+  const read: SchedulingLinkReads = {
+    link: async () => {
+      reads.push("link");
+      return records.link;
+    },
+    tenant: async (id) => {
+      reads.push(`tenants/${id}`);
+      return records.tenants?.[id] ?? null;
+    },
+    project: async (id) => {
+      reads.push(`projects/${id}`);
+      return records.projects?.[id] ?? null;
+    },
+    consultation: async (id) => {
+      reads.push(`consultations/${id}`);
+      return records.consultations?.[id] ?? null;
+    },
+  };
+  return { reads, answer: (nowMs = NOW) => previewSchedulingLink(read, nowMs) };
+};
+const jessRecords = {
+  tenants: { "t-jess": jess },
+  projects: { "job-priya": priya },
+  consultations: { consultation_trial1: trial },
+};
 
 test("a booked link with its call still on shows the booking: the studio, the call by name and the time", async () => {
   const call = await callBookedBy(trialLink, loader({ consultation_trial1: trial }));
@@ -196,16 +236,56 @@ test("a link never booked and past its expiry reads expired, as before", () => {
   assert.equal(stateOf({ link: { ...trialLink, status: "withdrawn" } }), "expired");
 });
 
-test("an unknown token reads expired, and nothing about any studio is read or sent", () => {
+test("the page's first answer, as the server gives it: a booked link answers with its booking", async () => {
+  // Booked, call still on: the booked time and the studio, through the call
+  // the link names. Losing either the call lookup or the booked field sends
+  // the page back to "expired", so both are read here, not just pinned.
+  const booked = previewFrom({ link: trialLink, ...jessRecords });
+  const answer = await booked.answer();
+  assert.equal(answer.status, "booked");
+  assert.equal(answer.studioName, "Jess Styles Bridal");
+  assert.equal(answer.callName, "Hair trial");
+  assert.deepEqual(answer.booked, { startsAt: "2026-10-14T14:00:00.000Z", timezone: "America/New_York" });
+  assert.deepEqual(booked.reads.sort(), ["consultations/consultation_trial1", "link", "projects/job-priya", "tenants/t-jess"]);
+
+  // An open link: its page, and no call is looked for.
+  const open = previewFrom({ link: { ...trialLink, status: "pending", bookedConsultationId: null }, ...jessRecords });
+  const openAnswer = await open.answer();
+  assert.equal(openAnswer.status, "pending");
+  assert.equal(openAnswer.booked, undefined);
+  assert.ok(!open.reads.some((path) => path.startsWith("consultations/")));
+
+  // Cancelled, over, never booked and past its expiry, or a studio or job
+  // that is gone: the same refusal as before.
+  const refusals = [
+    previewFrom({ link: trialLink, ...jessRecords, consultations: { consultation_trial1: { ...trial, status: "cancelled" } } }).answer(),
+    previewFrom({ link: trialLink, ...jessRecords }).answer(Date.parse("2026-10-14T16:00:01.000Z")),
+    previewFrom({ link: { ...trialLink, status: "pending", bookedConsultationId: null, expiresAt: "2026-10-01T00:00:00.000Z" }, ...jessRecords }).answer(),
+    previewFrom({ link: trialLink, ...jessRecords, tenants: {} }).answer(),
+    previewFrom({ link: trialLink, ...jessRecords, projects: {} }).answer(),
+  ];
+  for (const refused of refusals) await assert.rejects(refused, /^Error: SCHEDULING_LINK_EXPIRED$/);
+});
+
+test("an unknown token reads expired, and nothing about any studio is read or sent", async () => {
   assert.equal(stateOf({ link: null }), "expired");
   assert.equal(stateOf({ link: undefined, call: null, project: null }), "expired");
-  const server = read("functions/src/booking/public-scheduling.ts");
-  const preview = server.slice(server.indexOf("async function previewLink("), server.indexOf("export const publicConsultationScheduling"));
   // Refused before the studio, the job or a call is read.
-  assert.match(preview, /^async function previewLink\(db: FirebaseFirestore\.Firestore, token: string\) \{\s*const link = await linkByToken\(token\);\s*if \(!link\) throw new Error\("SCHEDULING_LINK_EXPIRED"\);/);
-  // Anything that isn't open or booked is the same refusal; the page body is
-  // built only after that.
-  assert.match(preview, /if \(state === "expired"\) throw new Error\("SCHEDULING_LINK_EXPIRED"\);\s*return schedulingLinkPreview\(\{/);
+  const unknown = previewFrom({ link: null, ...jessRecords });
+  await assert.rejects(unknown.answer(), /^Error: SCHEDULING_LINK_EXPIRED$/);
+  assert.deepEqual(unknown.reads, ["link"]);
+
+  // The server's preview is that decision over Firestore's reads, by this
+  // token, and nothing else.
+  const server = read("functions/src/booking/public-scheduling.ts");
+  const preview = server.slice(server.indexOf("async function previewLink("), server.indexOf("async function slotsFor("));
+  assert.match(preview, /^async function previewLink\(db: FirebaseFirestore\.Firestore, token: string\) \{\s*return previewSchedulingLink\(/);
+  assert.match(preview, /link: async \(\) => \(await linkByToken\(token\)\)\?\.data\(\) \?\? null,/);
+  assert.match(preview, /tenant: async \(tenantId\) => fieldsOf\(await db\.doc\(`tenants\/\$\{tenantId\}`\)\.get\(\)\),/);
+  assert.match(preview, /project: async \(projectId\) => fieldsOf\(await db\.doc\(`projects\/\$\{projectId\}`\)\.get\(\)\),/);
+  assert.match(preview, /consultation: async \(consultationId\) => fieldsOf\(await db\.doc\(`consultations\/\$\{consultationId\}`\)\.get\(\)\),/);
+  assert.match(preview, /Date\.now\(\),\s*\);\s*\}/);
+  assert.match(server, /const fieldsOf = \(snapshot: FirebaseFirestore\.DocumentSnapshot\) => \(snapshot\.exists \? \(snapshot\.data\(\) \?\? \{\}\) : null\);/);
   // The page's copy for it is unchanged, and the bar shows no stand-in studio.
   const page = read("components/booking/public-consultation-scheduler.tsx");
   assert.match(page, /SCHEDULING_LINK_EXPIRED: "This scheduling link has expired\. Reply to the studio’s email and they’ll send a new one\.",/);
@@ -229,8 +309,40 @@ test("booking through a booked link is still refused on the server", () => {
   // previewLink is the preview's alone; linkByToken has exactly two readers.
   assert.equal(handler.split("previewLink(").length - 1, 1);
   assert.equal(server.split("await linkByToken(").length - 1, 2);
-  // And the booking itself is a create, so even a race can't write it twice.
+  // The call is a create, so the same time can't be written twice. That alone
+  // only covers the same time: its id is the link and the time.
   assert.match(server, /batch\.create\(db\.doc\(`consultations\/\$\{consultationId\}`\), \{/);
+  assert.match(server, /const consultationId = `consultation_\$\{hash\(`\$\{link\.id\}:\$\{selected\.startsAt\}`\)\.slice\(0, 32\)\}`;/);
+});
+
+test("two bookings sent at once for different times: the second is refused whole", () => {
+  // Both pass activeLink, and their calls have different ids, so the create
+  // let both through: two calls, two confirmations, a link naming one. The
+  // link is now written only as activeLink read it.
+  const server = read("functions/src/booking/public-scheduling.ts");
+  const handler = server.slice(server.indexOf("export const publicConsultationScheduling"), server.indexOf("type InquiryCommand"));
+  const book = handler.slice(handler.indexOf("const link = await activeLink(command.input.token);"));
+  assert.match(
+    book,
+    /batch\.update\(\s*link\.ref,\s*\{\s*status: "booked",\s*bookedConsultationId: consultationId,[\s\S]*?\},\s*\{ lastUpdateTime: link\.updateTime \},\s*\);/,
+  );
+  // Every write in the booking is in that one batch, so the refusal leaves
+  // nothing behind: no call, no confirmation, no job moved on.
+  assert.doesNotMatch(book.slice(0, book.indexOf("await batch.commit();")), /await [^;]*\.(set|create|update)\(/);
+  // The lost race answers as a booked link does.
+  assert.match(
+    book,
+    /try \{\s*await batch\.commit\(\);\s*\} catch \(caught: unknown\) \{[\s\S]*?if \(linkChangedSinceRead\(caught\)\) throw new Error\("SCHEDULING_LINK_EXPIRED"\);\s*throw caught;\s*\}/,
+  );
+  // Firestore refuses a write whose lastUpdateTime no longer matches with
+  // FAILED_PRECONDITION (gRPC 9). Nothing else is read as a lost race: an
+  // ALREADY_EXISTS (6) or a timeout is not this link having changed.
+  assert.equal(linkChangedSinceRead(Object.assign(new Error("9 FAILED_PRECONDITION: the stored version does not match"), { code: 9 })), true);
+  assert.equal(linkChangedSinceRead(Object.assign(new Error("6 ALREADY_EXISTS: Document already exists"), { code: 6 })), false);
+  assert.equal(linkChangedSinceRead(Object.assign(new Error("4 DEADLINE_EXCEEDED"), { code: 4 })), false);
+  assert.equal(linkChangedSinceRead(new Error("TIME_NO_LONGER_AVAILABLE")), false);
+  assert.equal(linkChangedSinceRead(null), false);
+  assert.equal(linkChangedSinceRead(undefined), false);
 });
 
 test("the page shows the booking, with no picker, and says how to change it", () => {
@@ -240,6 +352,9 @@ test("the page shows the booking, with no picker, and says how to change it", ()
   assert.match(page, /if \(booked\) \{\s*setPreview\(loaded\);\s*setTimezone\(booked\.timezone\);\s*setStatus\("booked"\);\s*return;\s*\}/);
   assert.match(page, /const bookedIn = status === "complete" \|\| status === "booked";/);
   assert.match(page, /\{bookedIn\s*\? "You’re booked in"/);
+  // The landmark says what the heading says, straight after booking too: a
+  // screen reader heard "Choose a hair trial time" over "You're booked in".
+  assert.match(page, /<Main label=\{bookedIn \? "You’re booked in" : chooseTime\}>/);
   assert.match(page, /Your \{callWord \?\? "appointment"\} is booked for \{bookedWhen\(preview\.booked\.startsAt, timezone\)\}\./);
   assert.match(page, /<p className="kit-caption">Time shown in \{zone\}\.<\/p>/);
   assert.match(page, /Need a different time\? Reply to the studio’s email and they’ll sort it out\./);

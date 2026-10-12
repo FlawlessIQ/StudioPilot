@@ -27,9 +27,11 @@ import { consultationPurpose } from "./consultation-purpose.js";
  *
  * Only a pending link books ("open"). A booked one never passes that check,
  * so booking twice through one link stays refused (public-scheduling.ts
- * `activeLink`). The page shows the time and no picker. This link has never
- * moved a call, so to change it the client replies to the studio's email, as
- * their confirmation tells them.
+ * `activeLink`). Two bookings sent at the same moment both pass it, so the
+ * booking also writes the link only as it was read (`linkChangedSinceRead`):
+ * the second is refused as a booked link is. The page shows the time and no
+ * picker. This link has never moved a call, so to change it the client replies
+ * to the studio's email, as their confirmation tells them.
  *
  * The token is the only credential. A booked link shows what its pending page
  * showed, plus when. An unknown token shows nothing.
@@ -159,4 +161,44 @@ export function schedulingLinkPreview(input: {
         }
       : {}),
   };
+}
+
+/** The reads the page's first answer needs. Each is null when there is no such record. */
+export type SchedulingLinkReads = {
+  /** The link the token names, whatever its state. */
+  link: () => Promise<Row | null>;
+  tenant: (tenantId: string) => Promise<Row | null>;
+  project: (projectId: string) => Promise<Row | null>;
+  consultation: (consultationId: string) => Promise<Row | null>;
+};
+
+/**
+ * The page's first answer: the link's page while it can book, the booking
+ * once it has, and SCHEDULING_LINK_EXPIRED for everything else. An unknown
+ * token is refused before the studio, the job or a call is read.
+ */
+export async function previewSchedulingLink(read: SchedulingLinkReads, nowMs: number): Promise<Record<string, unknown>> {
+  const link = await read.link();
+  if (!link) throw new Error("SCHEDULING_LINK_EXPIRED");
+  const [tenant, project, call] = await Promise.all([
+    read.tenant(String(link.tenantId)),
+    read.project(String(link.projectId)),
+    link.status === "booked" ? callBookedBy(link, read.consultation) : Promise.resolve(null),
+  ]);
+  if (!tenant || !project) throw new Error("SCHEDULING_LINK_EXPIRED");
+  const state = schedulingLinkState({ link, call, project, nowMs });
+  if (state === "expired") throw new Error("SCHEDULING_LINK_EXPIRED");
+  return schedulingLinkPreview({ link, tenant, project, booked: state === "booked" ? call : null });
+}
+
+/** Firestore's answer when a write's `lastUpdateTime` no longer matches the document. */
+const FAILED_PRECONDITION = 9;
+
+/**
+ * The booking's commit was refused because the link changed after it was
+ * read: another booking through it got there first, or the studio sent a new
+ * link in its place. Either way the link no longer books.
+ */
+export function linkChangedSinceRead(caught: unknown): boolean {
+  return (caught as { code?: unknown } | null | undefined)?.code === FAILED_PRECONDITION;
 }

@@ -281,7 +281,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
         {/* No stand-in studio: while it loads, or for a link that names none,
             the bar is empty rather than "Your studio". */}
         <AppBar studio={preview ? brand : undefined} />
-        <Main label={status === "booked" ? "You’re booked in" : chooseTime}>
+        <Main label={bookedIn ? "You’re booked in" : chooseTime}>
           <div className="kit-stack-tight">
             {/* The call's own name from the server (tradeVocab): a photographer's
                 "Consultation", a DJ's "Vibe call", a "Makeup trial". Nothing before it loads. */}
