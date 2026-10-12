@@ -373,3 +373,25 @@ test("the word is decided when an agreement is written, kept on it, and reused w
   // And the combined builder never looks the word up itself.
   assert.doesNotMatch(read("features/contracts/combined.ts"), /scheduleLineLabel|agreementDepositLabel\(|tradeVocab\(trade\)\.deposit/);
 });
+
+test("an imported agreement's added details name the payment as its own refund term does", () => {
+  for (const trade of VENDORS) {
+    // The studio's text ties a refund to "the retainer": the details line
+    // StudioCue adds above it says Retainer, as the schedule will — never a
+    // "Deposit" bullet beside a non-refundable retainer.
+    const tied = convertImportedAgreement("Cancellation: the retainer is non-refundable.", trade).body;
+    assert.equal(tied, `${detailsSectionFor(trade, "Cancellation: the retainer is non-refundable.")}\n\n## Terms\nCancellation: the retainer is non-refundable.`);
+    assert.match(tied, /^- Retainer: \{\{price\.retainer\}\}$/m, trade);
+    assert.doesNotMatch(tied, /Deposit/, trade);
+    assert.equal(newAgreementDepositLabel(trade, tied), "Retainer", "the saved template prints Retainer too");
+    // Otherwise the details say Deposit, and so will the schedule.
+    const untied = convertImportedAgreement("Cancellation: the deposit is non-refundable.", trade).body;
+    assert.match(untied, /^- Deposit: \{\{price\.retainer\}\}$/m, trade);
+    assert.equal(newAgreementDepositLabel(trade, untied), "Deposit");
+    // The studio's sentence is carried over word for word either way.
+    assert.ok(tied.endsWith("Cancellation: the retainer is non-refundable."));
+    assert.ok(untied.endsWith("Cancellation: the deposit is non-refundable."));
+  }
+  // A photographer's import is the one it always was, whatever its text says.
+  assert.equal(detailsSectionFor("photographer", "The retainer is non-refundable."), DETAILS_SECTION);
+});

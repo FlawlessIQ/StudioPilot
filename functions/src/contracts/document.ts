@@ -1044,15 +1044,18 @@ export const DETAILS_SECTION = [
  * The details section in the studio's words: a photographer's agreement is
  * for "coverage", a DJ's, makeup artist's or hair stylist's for "services",
  * as their starting agreements say (sample.ts), and the payment that books
- * the date is their "Deposit" (agreementDepositLabel). Only an agreement
- * imported from now on: a template already saved is the studio's own text.
+ * the date is the word their schedule will print (newAgreementDepositLabel):
+ * "Deposit" — or "Retainer" when the studio's own text, `studioText`, ties a
+ * refund to the retainer, so the line StudioCue adds above it names the same
+ * payment as their refund term. Only an agreement imported from now on: a
+ * template already saved is the studio's own text.
  */
-export function detailsSectionFor(trade?: unknown): string {
+export function detailsSectionFor(trade?: unknown, studioText = ""): string {
   return tradeProfile(trade).family === "photo"
     ? DETAILS_SECTION
     : DETAILS_SECTION.replace("{{event.type}} coverage on", "{{event.type}} services on").replace(
         "- Retainer: {{price.retainer}}",
-        `- ${agreementDepositLabel(trade)}: {{price.retainer}}`,
+        `- ${newAgreementDepositLabel(trade, studioText)}: {{price.retainer}}`,
       );
 }
 
@@ -1127,7 +1130,7 @@ export function convertImportedAgreement(text: string, trade?: unknown): Importe
   const essentials = ["client.names", "event.date", "price.total"];
   const detailsAdded = !mapped.some((entry) => essentials.includes(entry.key));
   const joined = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  const body = (detailsAdded ? `${detailsSectionFor(trade)}\n\n## Terms\n${joined}` : joined).slice(
+  const body = (detailsAdded ? `${detailsSectionFor(trade, joined)}\n\n## Terms\n${joined}` : joined).slice(
     0,
     TEMPLATE_BODY_MAX,
   );
