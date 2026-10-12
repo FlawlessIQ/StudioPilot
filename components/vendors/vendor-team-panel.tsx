@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Clock3, LoaderCircle, Plus, Printer, Send, Wallet } from "lucide-react";
+import { Award, Clock3, LoaderCircle, Plus, Printer, Send, Wallet } from "lucide-react";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
@@ -43,6 +43,8 @@ const TIMELINE_TONE: Record<VendorTimelineState, "success" | "info" | "warning" 
   not_sent: "neutral",
 };
 const PHONE_ROWS = 4;
+/** After the day: when a planner's vendor credits can go to the couple (vendor-team.ts sendVendorCredits). */
+const AFTER_THE_DAY = new Set(["EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"]);
 
 function usePhone() {
   const [phone, setPhone] = useState(false);
@@ -105,6 +107,7 @@ export function VendorTeamPanel({
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [crediting, setCrediting] = useState(false);
 
   const entries = team.entries;
   const progress = useMemo(
@@ -172,6 +175,29 @@ export function VendorTeamPanel({
   const rows = phone && !showAll ? entries.slice(0, PHONE_ROWS) : entries;
   // "the couple", "the family", "the client": the job's own word (job-kinds.ts).
   const client = clientWord(team.project);
+
+  // A planner's vendor credits, after the day (trades.ts `journey.vendorSteps`).
+  const creditsOffered = tradeProfile(workspace.tenantTrade).journey.vendorSteps && AFTER_THE_DAY.has(state) && booked.length > 0;
+  const creditsSentAt = text(team.project?.vendorCreditsSentAt);
+
+  async function sendCredits() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const outcome = await sendPlanningCommand("sendVendorCredits", { projectId });
+      if (!outcome.persisted) setNotice("Preview mode — nothing was sent.");
+      else {
+        const result = outcome.result as { alreadySent?: boolean; count?: number };
+        setNotice(result.alreadySent ? `The vendor credits already went to ${client}.` : `Sent ${client} the credits for ${result.count ?? booked.length + 1} vendors.`);
+      }
+      setCrediting(false);
+      team.refresh();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "The vendor credits couldn't be sent. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function sendTimeline() {
     setBusy(true);
@@ -294,6 +320,31 @@ export function VendorTeamPanel({
               </button>
             </div>
           </div>
+        ) : null}
+        {creditsOffered ? (
+          creditsSentAt ? (
+            <p className="vendor-team-line">
+              <Award aria-hidden size={15} />
+              <span>{`Vendor credits sent to ${client}.`}</span>
+            </p>
+          ) : crediting ? (
+            <div className="vendor-team-send-confirm" role="group" aria-label="Send vendor credits">
+              <p>{`${capitalized(client)} get every booked vendor's name and website, yours first, to tag when they share the day. It goes once.`}</p>
+              <div className="vendor-team-send-actions">
+                <button className="button button-dark" disabled={busy} onClick={() => void sendCredits()} type="button">
+                  {busy ? <LoaderCircle aria-hidden className="spin" size={14} /> : <Award aria-hidden size={14} />}
+                  {busy ? "Sending…" : "Send"}
+                </button>
+                <button className="button button-light" disabled={busy} onClick={() => setCrediting(false)} type="button">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="button button-light vendor-team-send" onClick={() => setCrediting(true)} type="button">
+              <Award aria-hidden size={15} /> Send vendor credits
+            </button>
+          )
         ) : null}
         {notice ? (
           <p className="form-notice" role="status">

@@ -481,6 +481,89 @@ const HAIR_DETAILS: RecommendedSection = {
   ],
 };
 
+/**
+ * A wedding planner's Final details (docs/planner-journey-plan.md, N6): what
+ * a month-of couple hands over when the work starts, and what a full or
+ * partial planner's couple confirms. Getting ready, the ceremony order, the
+ * people to call, the décor they're bringing, the venue's rules, the
+ * rehearsal and the final guest count — and their vendors, one per line,
+ * filled in from the vendor team (planning/vendor-section.ts). Vendors they
+ * add join the team when they send it back.
+ *
+ * Ids line up with what already reads answers: `getting-ready`,
+ * `ceremony-time` and `reception-time` (the run-of-show generator), and
+ * `vendor-team` (the vendor section). Due four weeks out; locks two weeks
+ * out, when the guest count is final (trades.ts `planning`).
+ */
+const PLANNER_FINAL_DETAILS: RecommendedSection[] = [
+  {
+    id: "getting-ready-and-ceremony",
+    title: "Getting ready and the ceremony",
+    fields: [
+      field("getting-ready", "Where you're each getting ready", "long_text", true, {
+        help: "Both of you, with the address and a room number if you have one.",
+      }),
+      field("ceremony-location", "Ceremony location", "address", true),
+      field("ceremony-time", "Ceremony start time", "time", true),
+      field("processional", "The ceremony order: who walks in, in order", "long_text", false, {
+        help: "Officiant, wedding party, ring bearer, flower girl, parents. One per line is easiest.",
+      }),
+      field("reception-location", "Reception location", "address", true, {
+        help: "Leave it the same as the ceremony if it's one place.",
+      }),
+      field("reception-time", "Reception start time", "time", true),
+    ],
+  },
+  {
+    id: "key-people",
+    title: "Key people",
+    fields: [
+      field("key-people", "Key people and their cell numbers, one per line", "long_text", true, {
+        help: "Parents, the wedding party, whoever holds the rings and the license, and who we call on the day if it isn't you.",
+      }),
+    ],
+  },
+  {
+    id: "decor-and-venue",
+    title: "Your décor and the venue",
+    fields: [
+      field("decor-bringing", "Décor and items you're bringing", "long_text", false, {
+        help: "Signs, guest book, card box, favors, photos, anything personal. Who drops them off, and when.",
+      }),
+      field("venue-rules", "The venue's rules", "long_text", false, {
+        help: "Candles, confetti, sparklers, load-in and end times, anything their coordinator told you.",
+      }),
+      field("after-the-day", "Who takes things home at the end of the night", "text", false),
+    ],
+  },
+  {
+    id: "rehearsal",
+    title: "The rehearsal",
+    fields: [
+      field("rehearsal-date-time", "Rehearsal day and time", "text", true, {
+        help: "Usually the day before, at the ceremony location.",
+      }),
+      field("rehearsal-attendees", "Who's coming to the rehearsal", "long_text", false, {
+        help: "Everyone in the ceremony: the wedding party, readers, parents, the officiant.",
+      }),
+    ],
+  },
+  {
+    id: "guests",
+    title: "Guests",
+    fields: [field("guest-count", "Final guest count", "text", true, { help: "Your best number now. We'll confirm it two weeks out." })],
+  },
+  {
+    id: "vendors",
+    title: "Your vendors",
+    fields: [
+      field("vendor-team", "Your vendors, one per line", "repeating_group", false, {
+        help: "What they do — company — contact, phone or email — when they arrive. For example: \"Florist — Petal & Stem — Rosa, 908 555 0117 — arriving 1:30 PM\". The ones we already have are filled in: correct anything that's changed, and add anyone missing.",
+      }),
+    ],
+  },
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -560,6 +643,19 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       reminderDaysBeforeDue: [14, 3],
       sections: [PARTY_LIST[0]!, HAIR_PARTY, HAIR_DETAILS, PARTY_LIST[2]!],
     },
+    {
+      id: "planner-final-details",
+      name: "Final details",
+      summary:
+        "Getting ready, the ceremony order, key people, the décor they're bringing, the venue's rules, the rehearsal, the final guest count, and their vendors, filled in from your vendor team.",
+      useIt: "Your planning form: it goes out three months before (eight weeks for month-of), and locks two weeks before.",
+      eventTypeId: "wedding",
+      trades: ["planner"],
+      // Due four weeks out (docs/planner-journey-plan.md, journey row 6).
+      dueDaysBeforeEvent: 28,
+      reminderDaysBeforeDue: [14, 3],
+      sections: PLANNER_FINAL_DETAILS,
+    },
   ];
 }
 
@@ -582,6 +678,14 @@ const CAMERA_TRADES: readonly string[] = ["photographer"];
  */
 export const ONE_FORM_TRADES: readonly string[] = ["dj", "makeup", "hair"];
 
+/**
+ * Trades whose couple fills in their own planning form and is never sent the
+ * event details form at the inquiry: the one-form trades, and a planner,
+ * whose inquiry asks what she prices on and whose Final details asks the
+ * rest, weeks before.
+ */
+const OWN_FORM_TRADES: readonly string[] = [...ONE_FORM_TRADES, "planner"];
+
 const EVENT_DETAILS_ID = "wedding-event-details";
 
 /**
@@ -599,7 +703,7 @@ export function recommendedLibraryFor(trade: string): RecommendedQuestionnaire[]
         : { ...form, sections: form.sections.filter((section) => !CAMERA_SECTIONS.has(section.id)) },
     )
     .map((form) =>
-      form.id === EVENT_DETAILS_ID && ONE_FORM_TRADES.includes(trade)
+      form.id === EVENT_DETAILS_ID && OWN_FORM_TRADES.includes(trade)
         ? { ...form, useIt: "Optional: your planning form already asks where and when. Copy it if you'd like more from new inquiries." }
         : form,
     );
@@ -613,7 +717,7 @@ export function recommendedLibraryFor(trade: string): RecommendedQuestionnaire[]
  */
 export function recommendedFor(trade: string): RecommendedQuestionnaire[] {
   return recommendedLibraryFor(trade).filter(
-    (form) => !(form.id === EVENT_DETAILS_ID && ONE_FORM_TRADES.includes(trade)),
+    (form) => !(form.id === EVENT_DETAILS_ID && OWN_FORM_TRADES.includes(trade)),
   );
 }
 

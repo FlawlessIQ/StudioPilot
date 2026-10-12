@@ -368,7 +368,8 @@ test("a photographer's forms and AI map are as they were", () => {
         assert.notEqual(factForField(field), "ready_by_time", `${form.name}: ${field.label}`);
         assert.equal(factForField(field, "photographer"), factForField(field), `${form.name}: ${field.label}`);
       }
-  assert.deepEqual(MAPPABLE_FACT_KEYS, FACT_KEYS.filter((key) => key !== "ready_by_time"));
+  // Nor the vendor team, which only a planner's Final details vendor section asks, by its id.
+  assert.deepEqual(MAPPABLE_FACT_KEYS, FACT_KEYS.filter((key) => key !== "ready_by_time" && key !== "vendor_team"));
   assert.deepEqual(acceptedMappings([{ id: "t", label: "Ready by", type: "text" }], { mappings: [{ fieldId: "t", fact: "ready_by_time" }] }), {});
   // "Getting ready" is a place or a start, not the morning's finish — for any trade.
   for (const trade of ["photographer", "hair", "makeup"])

@@ -398,6 +398,13 @@ export const finalDetailsScheduler = onSchedule(
             })),
           );
         const { timeline, trade, zone } = await studios.get(tenantId)!;
+        // A planner settles the final details with the couple at the venue
+        // walkthrough (trades.ts `journey.walkthrough`): no sign-off, no
+        // call. The form still locks (details-lock.ts).
+        if (tradeProfile(trade).journey.walkthrough) {
+          tally.walkthrough_instead = (tally.walkthrough_instead ?? 0) + 1;
+          continue;
+        }
         const lockOn = detailsLockOn(text(data.eventDate), timeline);
         // The job's own day: the same one the booking path and the job page read.
         const today = finalDetailsToday(nowDate, data.timezone, zone);

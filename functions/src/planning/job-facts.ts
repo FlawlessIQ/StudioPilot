@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { TRADE_FAMILY, tradeOf } from "../trades/trades.js";
 import { isTbd, suggestedFromOf, suggestedTime } from "./field-extras.js";
+import { VENDOR_SECTION_FIELD_ID, vendorSectionLines } from "./vendor-section.js";
 
 /**
  * Everything a job already knows that a couple's form might ask — and which
@@ -55,6 +56,7 @@ export const FACT_KEYS = [
   "hair_makeup",
   "budget",
   "referral_source",
+  "vendor_team",
 ] as const;
 
 export type FactKey = (typeof FACT_KEYS)[number];
@@ -65,7 +67,7 @@ export type FactKey = (typeof FACT_KEYS)[number];
  * inquiry asks. Leaving it off keeps the map's instructions, and so every
  * photographer's form it reads, as they were.
  */
-const RULE_ONLY_FACTS: ReadonlySet<FactKey> = new Set(["ready_by_time"]);
+const RULE_ONLY_FACTS: ReadonlySet<FactKey> = new Set(["ready_by_time", "vendor_team"]);
 
 /** The facts the AI map may name. */
 export const MAPPABLE_FACT_KEYS: readonly FactKey[] = FACT_KEYS.filter((key) => !RULE_ONLY_FACTS.has(key));
@@ -109,6 +111,7 @@ export const FACT_DESCRIPTIONS: Record<FactKey, string> = {
   hair_makeup: "the hair and makeup artist",
   budget: "the budget",
   referral_source: "how they heard about the studio",
+  vendor_team: "every vendor booked for the wedding, one per line",
 };
 
 /** Where a fact came from, as the couple reads it: "Filled in from your booking." */
@@ -286,6 +289,8 @@ export function jobFactSheet(input: {
   vendors: Array<{ id: string; data: Row }>;
   schedule: { id: string; data: Row } | null;
   responses: Array<{ id: string; data: Row }>;
+  /** The job's vendor team (projectVendors), for a planner's Final details vendor section. */
+  team?: Array<{ id: string; data: Row }>;
 }): JobFactSheet {
   const facts: Partial<Record<FactKey, JobFact>> = {};
   const project = input.project ?? {};
@@ -353,6 +358,11 @@ export function jobFactSheet(input: {
     put("venue_contact", contact, "booking", "vendors", venueVendor.id, "contactName");
   }
 
+  // The vendor team, one per line, for the Final details vendor section
+  // (vendor-section.ts): the couple corrects what is booked and adds the rest.
+  const team = (input.team ?? []).filter((entry) => !entry.data.archivedAt);
+  if (team.length) put("vendor_team", vendorSectionLines(team.map((entry) => entry.data)), "booking", "projectVendors", team[0]!.id, "team");
+
   // The run of show, when there is one.
   if (input.schedule) put("ceremony_time", ceremonyFromSchedule(input.schedule.data), "run_of_show", "schedules", input.schedule.id, "items");
 
@@ -418,6 +428,9 @@ const TEXT_LIKE: ReadonlySet<string> = new Set(["text", "long_text", ""]);
  * hair stylist's forms are read for the ready-by time (`readsReadyBy`).
  */
 export function factForField(field: { label?: unknown; id?: unknown; type?: unknown }, trade?: unknown): FactKey | null {
+  // A planner's Final details vendor section, by its id alone (vendor-section.ts):
+  // a line-per-vendor box no label rule should read.
+  if (text(field.id) === VENDOR_SECTION_FIELD_ID) return "vendor_team";
   const type = text(field.type);
   if (!FILLABLE.has(type)) return null;
   const n = ` ${normalisedQuestion(field.label ?? field.id)} `;
@@ -749,7 +762,7 @@ export async function loadJobFactSheet(
   const leadId = input.leadId ?? (text(projectRow?.leadId) || null);
   const lead = input.lead ?? (leadId ? (await db.doc(`leads/${leadId}`).get()).data() ?? null : null);
   const contactIds = list(projectRow?.clientContactIds).filter((id): id is string => typeof id === "string" && Boolean(id)).slice(0, 4);
-  const [contactSnapshots, vendors, schedules, responses] = await Promise.all([
+  const [contactSnapshots, vendors, schedules, responses, team] = await Promise.all([
     Promise.all(contactIds.map((id) => db.doc(`contacts/${id}`).get())),
     projectId
       ? db.collection("vendors").where("tenantId", "==", tenantId).where("projectIds", "array-contains", projectId).limit(20).get()
@@ -759,6 +772,9 @@ export async function loadJobFactSheet(
       : null,
     projectId
       ? db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", projectId).limit(20).get()
+      : null,
+    projectId
+      ? db.collection("projectVendors").where("tenantId", "==", tenantId).where("projectId", "==", projectId).limit(60).get()
       : null,
   ]);
   const schedule = schedules?.docs[0];
@@ -775,5 +791,8 @@ export async function loadJobFactSheet(
     responses: (responses?.docs ?? [])
       .filter((snapshot) => snapshot.id !== input.excludeResponseId)
       .map((snapshot) => ({ id: snapshot.id, data: snapshot.data() })),
+    team: (team?.docs ?? [])
+      .map((snapshot) => ({ id: snapshot.id, data: snapshot.data() }))
+      .sort((left, right) => text(left.data.createdAt).localeCompare(text(right.data.createdAt))),
   });
 }

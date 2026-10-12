@@ -42,7 +42,7 @@ import { z } from "zod";
  * byte-identical below their headers.
  */
 
-export const coverageRoleSchema = z.enum(["photographer", "videographer", "dj", "makeup_artist", "hair_stylist"]);
+export const coverageRoleSchema = z.enum(["photographer", "videographer", "dj", "makeup_artist", "hair_stylist", "coordinator"]);
 
 export type CoverageRole = z.infer<typeof coverageRoleSchema>;
 
@@ -55,6 +55,8 @@ export const COVERAGE_ROLES: readonly CoverageRole[] = [
   // A makeup or hair studio's.
   "makeup_artist",
   "hair_stylist",
+  // A planner's assistant coordinators (C1, C2).
+  "coordinator",
 ];
 
 const COVERAGE_ROLE_LABELS: Record<CoverageRole, { one: string; many: string }> = {
@@ -63,6 +65,7 @@ const COVERAGE_ROLE_LABELS: Record<CoverageRole, { one: string; many: string }> 
   dj: { one: "DJ", many: "DJs" },
   makeup_artist: { one: "makeup artist", many: "makeup artists" },
   hair_stylist: { one: "hair stylist", many: "hair stylists" },
+  coordinator: { one: "coordinator", many: "coordinators" },
 };
 
 export function coverageRoleLabel(role: CoverageRole, count: number): string {

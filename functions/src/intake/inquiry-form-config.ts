@@ -137,6 +137,7 @@ export function defaultInquiryFormConfig(): InquiryFormConfig {
 export function defaultInquiryFormFor(trade: string | null | undefined): InquiryFormConfig {
   const base = defaultInquiryFormConfig();
   if (trade === "makeup" || trade === "hair") return beautyInquiryForm(base, trade);
+  if (trade === "planner") return plannerInquiryForm(base);
   if (trade !== "dj") return base;
   return {
     ...base,
@@ -205,6 +206,53 @@ function beautyInquiryForm(base: InquiryFormConfig, trade: "makeup" | "hair"): I
         id: "trial-wanted",
         label: `Would you like a ${trade === "makeup" ? "makeup" : "hair"} trial before the day?`,
         type: "yes_no",
+        options: [],
+        required: false,
+        eventTypeIds: ["wedding", "event"],
+      },
+    ],
+  };
+}
+
+/**
+ * A wedding planner's (docs/planner-journey-plan.md, journey row 1): the
+ * date, venue and guest count, whether the venue is booked, the help they
+ * want, the vendors they already have, and the wedding's budget — what a
+ * planner prices and staffs on. The budget asked is the whole wedding's, so
+ * it starts the job's light budget (planning/vendor-team.ts
+ * `budgetPrefillCents`).
+ */
+function plannerInquiryForm(base: InquiryFormConfig): InquiryFormConfig {
+  return {
+    ...base,
+    eventTypes: [
+      // Her own certificate is set per job when a venue asks, as a vendor's is.
+      { ...defaultType("wedding", "Wedding", "wedding"), coi: false },
+      defaultType("event", "Other event", "other"),
+      defaultType("general", "General question", "general"),
+    ],
+    askBudget: true,
+    questions: [
+      {
+        id: "venue-booked",
+        label: "Have you booked your venue?",
+        type: "yes_no",
+        options: [],
+        required: false,
+        eventTypeIds: ["wedding", "event"],
+      },
+      {
+        id: "planning-tier",
+        label: "What kind of help are you looking for?",
+        type: "choice",
+        options: ["Full planning", "Partial planning", "Month-of coordination", "Not sure yet"],
+        required: false,
+        eventTypeIds: ["wedding", "event"],
+      },
+      {
+        id: "vendors-booked",
+        label: "Which vendors have you already booked?",
+        type: "long_text",
         options: [],
         required: false,
         eventTypeIds: ["wedding", "event"],

@@ -150,11 +150,13 @@ export const finalInvoiceScheduler = onSchedule(
     const db = getFirestore();
     const today = new Date();
     const target = new Date(today);
-    target.setUTCDate(target.getUTCDate() + 28);
+    target.setUTCDate(target.getUTCDate() + 44);
     /**
-     * Every booked job inside the 28-day window, not only the one exactly 28
-     * days out. Twenty-eight is the widest trade's window
-     * (FINAL_BILL_WINDOW_DAYS); each job is then held to its own trade's.
+     * Every booked job inside the 44-day window, not only the one exactly at
+     * its edge. Forty-four is the widest trade's window (FINAL_BILL_WINDOW_DAYS:
+     * a planner's balance is due 30 days out, so her bill goes 44 days out);
+     * each job is then held to its own trade's — 28 days for a photographer
+     * or a DJ, as always.
      *
      * An exact match meant a job booked or moved inside the window, or a day
      * this run failed, was never billed. The window catches up; the fixed

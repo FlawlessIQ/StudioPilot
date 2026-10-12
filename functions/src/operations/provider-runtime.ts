@@ -69,6 +69,7 @@ async function callTitle(db: Pick<FirebaseFirestore.Firestore, "doc">, tenantId:
   const purpose = consultationPurpose(consultation);
   if (purpose === "final_details") return words.finalCall;
   if (purpose === "trial") return words.trial ?? "Trial";
+  if (purpose === "walkthrough") return "Venue walkthrough";
   return tradeProfile(trade).family === "photo" ? "Photography consultation" : words.consultation;
 }
 

@@ -7,6 +7,7 @@ import {
 import { coverageCount, coverageRoleLabel, resolveCoverage, type CoverageRole } from "@/features/packages/coverage";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { isPlanningScope, PLANNING_SCOPE_HINTS, PLANNING_SCOPE_LABELS, PLANNING_SCOPES, type PlanningScope } from "@/features/planning/planning-scope";
 import { billedCrewCount } from "@/features/packages/create-snapshot";
 import { perCrewRetainerProblem } from "@/features/packages/retainer-check";
 import { useState } from "react";
@@ -76,6 +77,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     description?: string;
     terms?: string;
     paymentShape?: PaymentShape;
+    planningScope?: PlanningScope | "";
   }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +110,9 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
       ? record.paymentShape
       : journeyProfile(jobKindOf({ eventTypeId: record?.eventTypeId, eventType: record?.eventTypeLabel })).payment);
   const hasDeposit = paymentShape === "deposit_and_balance";
+  // A planner's tier (planning-scope.ts): shown only for a trade that has one.
+  const scoped = tradeShape.planningScope;
+  const planningScope: PlanningScope | "" = edits.planningScope ?? (isPlanningScope(record?.planningScope) ? record.planningScope : "");
   const name = edits.name ?? String(record?.name ?? "");
   const description = edits.description ?? String(record?.description ?? "");
   const terms = edits.terms ?? String(record?.terms ?? "");
@@ -227,6 +232,7 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         name: name.trim(),
         basePriceCents: priceCents,
         paymentShape,
+        ...(scoped && edits.planningScope !== undefined ? { planningScope: planningScope || null } : {}),
         retainerRule:
           paymentShape === "paid_in_full"
             ? { type: "percentage", basisPoints: 10000 }
@@ -344,6 +350,23 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
                     : "A deposit to book, the balance before the day."}
           </small>
         </label>
+        {scoped ? (
+          <label>
+            Planning tier
+            <select
+              onChange={(event) => set("planningScope", event.target.value as PlanningScope | "")}
+              value={planningScope}
+            >
+              <option value="">Not set</option>
+              {PLANNING_SCOPES.map((scope) => (
+                <option key={scope} value={scope}>
+                  {PLANNING_SCOPE_LABELS[scope]}
+                </option>
+              ))}
+            </select>
+            <small>{planningScope ? PLANNING_SCOPE_HINTS[planningScope] : "When the job's work starts. Full and partial start at booking."}</small>
+          </label>
+        ) : null}
         {hasDeposit ? (
         <>
         <label>

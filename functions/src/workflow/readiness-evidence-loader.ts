@@ -27,6 +27,7 @@ import {
   readinessEvidenceFromFacts,
   type ReadinessEvidence,
 } from "./checkpoint-evidence.js";
+import { publishedVersionOf, teamReadiness } from "../planning/team-readiness.js";
 import {
   crewDemand,
   jobCoverage,
@@ -67,7 +68,7 @@ export async function loadReadinessEvidence(
       .where("projectId", "==", projectId)
       .get();
 
-  const [contracts, invoices, questionnaires, schedules, crew, insurance, project] =
+  const [contracts, invoices, questionnaires, schedules, crew, insurance, team, shares, project] =
     await Promise.all([
       forProject("contracts"),
       forProject("invoiceReferences"),
@@ -75,6 +76,9 @@ export async function loadReadinessEvidence(
       forProject("schedules"),
       forProject("crewAssignments"),
       forProject("insuranceRequests"),
+      // A planner's vendor team and its timeline links (team-readiness.ts).
+      forProject("projectVendors"),
+      forProject("scheduleShares"),
       // The job itself, for whether the venue asks for a certificate at all.
       db.doc(`projects/${projectId}`).get(),
     ]);
@@ -130,7 +134,13 @@ export async function loadReadinessEvidence(
     ((typeof project.get("bookingCompletedAt") === "string" &&
       Boolean(project.get("bookingCompletedAt"))) ||
       BOOKED_STATES.has(text(project.get("state"))));
-  return readinessEvidenceFromFacts({
+  const vendorTeam = teamReadiness(
+    team.docs.map((document) => document.data()),
+    shares.docs.map((document) => document.data()),
+    publishedVersionOf(schedules.docs.map((document) => document.data())),
+  );
+  return {
+    ...readinessEvidenceFromFacts({
     bookingConfirmed,
     contractStatus: text(newestContract?.get("status")) || null,
     // A paid bill the studio deleted leaves a settled note (own invoicing).
@@ -167,5 +177,7 @@ export async function loadReadinessEvidence(
     insuranceRequired: ownProject
       ? text(project.get("insuranceRequired")) || null
       : null,
-  });
+    }),
+    ...vendorTeam,
+  };
 }

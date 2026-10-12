@@ -138,7 +138,7 @@ test("the functions copy of the essentials and the certificate check agree", () 
 
 test("onboarding seeds a vendor's four, dated by how the trade is paid, and a photographer's twelve", () => {
   const onboarding = read("functions/src/saas/onboarding.ts");
-  assert.match(onboarding, /starterTemplates\("essentials", \{\s*balanceDueDaysBefore: trade\.balanceDueDaysBefore,\s*balanceOnTheDay: trade\.journey\.balanceOnTheDay,/);
+  assert.match(onboarding, /starterTemplates\(trade\.journey\.readiness, \{\s*balanceDueDaysBefore: trade\.balanceDueDaysBefore,\s*balanceOnTheDay: trade\.journey\.balanceOnTheDay,/);
   assert.match(onboarding, /: starterTemplates\(\);/);
 });
 

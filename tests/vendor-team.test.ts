@@ -122,10 +122,13 @@ test("a team is complete when nothing is still needed, and confirmed when every 
 });
 
 test("photographers, DJs, makeup and hair keep a quiet team: nothing new on an inquiry or a closed job", () => {
-  for (const trade of TRADES) {
+  for (const trade of TRADES.filter((candidate) => candidate !== "planner")) {
     assert.equal(tradeProfile(trade).vendorTeam, "quiet", trade);
     assert.equal(serverTradeProfile(trade).vendorTeam, "quiet", trade);
   }
+  // The planner's team is the work (Phase 2): always on the job.
+  assert.equal(tradeProfile("planner").vendorTeam, "default");
+  assert.equal(serverTradeProfile("planner").vendorTeam, "default");
   assert.equal(vendorTeamVisibility({ mode: "quiet", entryCount: 0, state: "LEAD" }), "hidden");
   assert.equal(vendorTeamVisibility({ mode: "quiet", entryCount: 0, state: "PROPOSAL" }), "hidden");
   assert.equal(vendorTeamVisibility({ mode: "quiet", entryCount: 0, state: "CLOSED" }), "hidden");
@@ -155,9 +158,12 @@ test("a budget reads only when it says one amount", () => {
   assert.equal(parseBudgetCents(null), null);
 });
 
-test("no trade today prefills the wedding's budget from its own budget question", () => {
+test("only the planner prefills the wedding's budget, from its own budget question", () => {
   // "Photographer budget: $5,000–$8,000" is the photos', not the wedding's.
-  for (const trade of TRADES) assert.equal(budgetPrefillCents(trade, "$35,000"), null, trade);
+  for (const trade of TRADES.filter((candidate) => candidate !== "planner")) assert.equal(budgetPrefillCents(trade, "$35,000"), null, trade);
+  // A planner's inquiry asks the whole wedding's ("About $35,000", lead-intake-form.tsx).
+  assert.equal(budgetPrefillCents("planner", "About $35,000"), 3_500_000);
+  assert.equal(budgetPrefillCents("planner", "$100,000+"), null);
 });
 
 // ─── Who gets the timeline ───────────────────────────────────────────────────

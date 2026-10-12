@@ -101,6 +101,7 @@ export const NOT_EDITABLE: Readonly<Record<string, string>> = {
   client_message_received: "Sent to your studio, not to the client",
   contract_sent: "Not sent today (StudioCue agreements use Agreement to sign)",
   final_payment_reminder: "Not sent today",
+  vendor_credits: "A list of your vendors, written from the vendor team when you press Send vendor credits",
 };
 
 export const EMAIL_GROUPS: readonly EmailGroup[] = [

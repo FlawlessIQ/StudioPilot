@@ -56,9 +56,17 @@ export const SETUP_ORDER: ReadonlyArray<SetupGapKey> = [
  */
 const LIGHT_SETUP_ORDER: ReadonlyArray<SetupGapKey> = ["packages", "availability", "inquiries", "agreement"];
 
+/**
+ * A planner's setup: five questions (docs/planner-journey-plan.md, the
+ * burden check). A vendor's four, and insurance last and skippable — venues
+ * ask a planner for her own certificate far more often than a DJ's.
+ */
+const PLANNER_SETUP_ORDER: ReadonlyArray<SetupGapKey> = ["packages", "availability", "inquiries", "agreement", "insurance"];
+
 /** Setup's questions for this studio's trade, in the order they're asked. */
 export function setupOrderFor(trade: unknown): ReadonlyArray<SetupGapKey> {
-  return tradeProfile(trade).journey.readiness === "essentials" ? LIGHT_SETUP_ORDER : SETUP_ORDER;
+  const readiness = tradeProfile(trade).journey.readiness;
+  return readiness === "essentials" ? LIGHT_SETUP_ORDER : readiness === "planner" ? PLANNER_SETUP_ORDER : SETUP_ORDER;
 }
 
 /**

@@ -196,7 +196,7 @@ export const tenantOnboardingCommand = onRequest(
             // a DJ's music planner; otherwise the event details form until
             // the trade's own arrives with its journey.
             formTemplateId:
-              preloaded["wedding-final-schedule"] ?? preloaded["dj-music-planner"] ?? preloaded["makeup-party-list"] ?? preloaded["hair-party-list"] ?? preloaded["wedding-event-details"] ?? null,
+              preloaded["wedding-final-schedule"] ?? preloaded["dj-music-planner"] ?? preloaded["makeup-party-list"] ?? preloaded["hair-party-list"] ?? preloaded["planner-final-details"] ?? preloaded["wedding-event-details"] ?? null,
             shotListTemplateId: preloaded["wedding-shot-list"] ?? null,
             // A DJ sends the planner at booking and locks ten days out, so
             // the final planning call falls about a week before (trades.ts).
@@ -330,9 +330,11 @@ export const tenantOnboardingCommand = onRequest(
         // vendor journeys; workflow/starter-templates.ts), dated by how the
         // trade is paid: a makeup artist's balance on the morning itself.
         // A photographer's are the twelve they have always been.
+        // A planner's five: the essentials with the vendor team's two checks
+        // in place of the day's plan (starter-templates.ts).
         const starters =
-          trade.journey.readiness === "essentials"
-            ? starterTemplates("essentials", {
+          trade.journey.readiness !== "full"
+            ? starterTemplates(trade.journey.readiness, {
                 balanceDueDaysBefore: trade.balanceDueDaysBefore,
                 balanceOnTheDay: trade.journey.balanceOnTheDay,
               })

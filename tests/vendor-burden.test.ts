@@ -114,8 +114,73 @@ test("what each vendor's client is asked, by name", () => {
   assert.deepEqual(clientAsks("wedding", "dj").map((ask) => ask.key), ["accept_sign", "deposit", "form", "final_call", "balance"]);
 });
 
+/**
+ * A wedding planner sells planning, so she sits between the two
+ * (docs/planner-journey-plan.md, the burden check): at most 12 steps, the six
+ * asks a planner's couple really has, five checks and five setup questions.
+ * The rehearsal folds into the day, the master timeline into "Vendors
+ * confirmed", the first reply into the inquiry.
+ */
+const PLANNER_BUDGET = { steps: 12, asks: 6, checks: 5, setup: 5 };
+
+function plannerStepCounts(): number[] {
+  const base: JourneyInput = {
+    projectId: "p1",
+    state: "LEAD",
+    eventDate: "2027-06-12",
+    today: "2026-10-09",
+    lead: { id: "l1", status: "new" },
+    hasConsultation: false,
+    proposalStatus: null,
+    contractStatus: null,
+    retainerInvoiceStatus: null,
+    finalInvoiceStatus: null,
+    questionnaireStatus: null,
+    questionnaireHasAnswers: false,
+    scheduleStatus: null,
+    scheduleHasUsableItems: false,
+    crewAccepted: 0,
+    crewRequired: 0,
+    crewCascadeActive: false,
+    coiStatus: null,
+    insuranceRequired: "unknown",
+    dayBeforeDraftStatus: null,
+    hasDelivery: false,
+    albumOrReviewDone: false,
+    profile: journeyProfile("wedding"),
+    trade: "planner",
+    // The planner's timeline has the final call off (trades.ts `planning`).
+    finalCall: null,
+    walkthrough: { state: "not_booked", startsAt: null },
+  };
+  const at = (overrides: Partial<JourneyInput>) => projectJourney({ ...base, ...overrides }).steps.length;
+  return [
+    at({}),
+    at({ state: "PROPOSAL", proposalStatus: "sent", hasConsultation: true }),
+    at({ state: "BOOKED", proposalStatus: "accepted", contractStatus: "completed", retainerInvoiceStatus: "paid" }),
+    at({ state: "PLANNING", proposalStatus: "accepted", contractStatus: "completed", retainerInvoiceStatus: "paid", questionnaireStatus: "submitted", questionnaireHasAnswers: true, today: "2027-06-10" }),
+  ];
+}
+
+test("a planner's wedding is held to the planner budget", () => {
+  assert.deepEqual(plannerStepCounts(), [11, 11, 11, 11]);
+  assert.ok(Math.max(...plannerStepCounts()) <= PLANNER_BUDGET.steps);
+  assert.deepEqual(
+    clientAsks("wedding", "planner").map((ask) => ask.key),
+    ["call", "accept_sign", "deposit", "form", "walkthrough", "balance"],
+  );
+  assert.equal(clientAsks("wedding", "planner").length, PLANNER_BUDGET.asks);
+  assert.equal(checks("planner"), PLANNER_BUDGET.checks);
+  assert.equal(setupOrderFor("planner").length, PLANNER_BUDGET.setup);
+  // Lighter than a photographer's on every measure.
+  assert.ok(Math.max(...plannerStepCounts()) < Math.max(...stepCounts("photographer")));
+  assert.ok(clientAsks("wedding", "planner").length < clientAsks("wedding", "photographer").length);
+  assert.ok(checks("planner") < checks("photographer"));
+  assert.ok(setupOrderFor("planner").length < setupOrderFor("photographer").length);
+});
+
 test("one profile, the same on both sides of the wire", () => {
-  for (const trade of ["photographer", ...VENDORS]) {
+  for (const trade of ["photographer", ...VENDORS, "planner"]) {
     for (const kind of ["wedding", "portraits", "corporate", "sports", "other"] as const) {
       assert.deepEqual(
         journeyFor(journeyProfile(kind), tradeProfile(trade)),

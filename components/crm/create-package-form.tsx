@@ -10,6 +10,7 @@ import { examplePackagesFor, type ExamplePackage } from "@/features/job-kinds/ex
 import { COVERAGE_ROLES, coverageRoleLabel, type CoverageRole } from "@/features/packages/coverage";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { PLANNING_SCOPE_HINTS, PLANNING_SCOPE_LABELS, PLANNING_SCOPES } from "@/features/planning/planning-scope";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,6 +52,8 @@ const schema = z
     // A kind of job (job-kinds.ts): packages are offered to jobs of their kind.
     eventType: z.enum(JOB_KINDS),
     paymentShape: z.enum(PAYMENT_SHAPES),
+    /** A planner's tier (planning-scope.ts); "" for a trade without one. */
+    planningScope: z.enum(["", ...PLANNING_SCOPES]),
     basePrice: z.coerce
       .number()
       .positive("Set a price above zero."),
@@ -142,6 +145,7 @@ const VENDOR_DEFAULTS: Partial<Record<string, { hours: number; included: string 
   dj: { hours: 5, included: "Reception sound, Dance floor lighting, MC" },
   makeup: { hours: 2, included: "Bridal makeup, Lashes, Touch-up kit" },
   hair: { hours: 2, included: "Bridal hair, Veil placement" },
+  planner: { hours: 10, included: "Planning meetings, Venue walkthrough, Rehearsal, Master timeline" },
 };
 
 export function CreatePackageForm({
@@ -163,7 +167,7 @@ export function CreatePackageForm({
   const [addOnIds, setAddOnIds] = useState<string[]>([]);
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: roles[0] === "dj" ? 5 : 8, photographers: roles[0] === "dj" ? 1 : 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: roles[0] === "dj" ? "Reception sound, Dance floor lighting, MC" : "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
+    defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", planningScope: "", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: roles[0] === "dj" ? 5 : 8, photographers: roles[0] === "dj" ? 1 : 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: roles[0] === "dj" ? "Reception sound, Dance floor lighting, MC" : "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
   // The workspace (and so the trade) loads after the form's defaults are
   // taken: a DJ's start as one DJ, five hours and what a DJ includes, a makeup
@@ -185,6 +189,11 @@ export function CreatePackageForm({
   }, [ownDefaults, setValue, watch]);
   const retainerMode = watch("retainerMode");
   const kind = watch("eventType");
+  // A planner's packages say which tier they are (planning-scope.ts).
+  const scoped = tradeProfile(trade).planningScope;
+  const planningScope = watch("planningScope");
+  // What planners commonly charge for the example picked, beside the empty price.
+  const [typicalPrice, setTypicalPrice] = useState<string | null>(null);
   /** An example's shape, never its price: the studio sets that (example-packages.ts). */
   function startFrom(example: ExamplePackage) {
     setValue("name", example.name);
@@ -194,6 +203,8 @@ export function CreatePackageForm({
     setValue("videographers", example.videographers);
     setValue("deliverables", example.deliverables);
     setValue("terms", journeyProfile(kind).agreement ? "Subject to the completed studio agreement." : "Subject to the studio's terms.");
+    if (example.planningScope) setValue("planningScope", example.planningScope);
+    setTypicalPrice(example.typicalPrice ?? null);
   }
   const paymentShape = watch("paymentShape");
   // Only a deposit has a retainer to set: paid in full takes the whole price
@@ -208,6 +219,7 @@ export function CreatePackageForm({
         eventTypeId: values.eventType,
         eventTypeLabel: JOB_KIND_LABELS[values.eventType],
         paymentShape: values.paymentShape,
+        ...(scoped ? { planningScope: values.planningScope || null } : {}),
         basePriceCents: Math.round(values.basePrice * 100),
         currency: "USD",
         retainerRule:
@@ -322,10 +334,24 @@ export function CreatePackageForm({
           ))}
           <small>Fills in the shape. The price is always yours to set.</small>
         </div>
+        {scoped ? (
+          <label>
+            Planning tier
+            <select {...register("planningScope")}>
+              <option value="">Not set</option>
+              {PLANNING_SCOPES.map((scope) => (
+                <option key={scope} value={scope}>
+                  {PLANNING_SCOPE_LABELS[scope]}
+                </option>
+              ))}
+            </select>
+            <small>{planningScope ? PLANNING_SCOPE_HINTS[planningScope] : "When the job's work starts. Full and partial start at booking."}</small>
+          </label>
+        ) : null}
         <label>
           Base price (USD) <span className="required-mark">Required</span>
           <input {...register("basePrice")} min="0.01" step="0.01" type="number" />
-          <small>{errors.basePrice?.message}</small>
+          <small>{errors.basePrice?.message ?? (typicalPrice ? `Planners often charge ${typicalPrice} for this.` : null)}</small>
         </label>
         {hasDeposit ? (
         <>

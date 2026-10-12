@@ -9,6 +9,7 @@ import { detailsLocked, planningFormOpensOn, resolvePlanningTimeline, type Plann
 import { sendNewQuestionnaire } from "./send-questionnaire.js";
 import { requestShotListIfDue } from "./shot-list-upload.js";
 import { detailsFormOpensOn, jobKindOf } from "../job-kinds/job-kinds.js";
+import { scopedFormOpensOn } from "./planning-scope.js";
 
 /**
  * The planning form, sent when the studio's timeline says.
@@ -34,8 +35,9 @@ export function planningFormDue(project: Row, timeline: PlanningTimeline, today:
   if (!BOOKED.includes(text(project.state))) return false;
   const eventDate = text(project.eventDate).slice(0, 10);
   // A wedding's form follows the studio's timeline; a session's goes two
-  // weeks out (job-kinds.ts).
-  const opensOn = detailsFormOpensOn(project, eventDate, planningFormOpensOn(eventDate, timeline));
+  // weeks out (job-kinds.ts); a planner's month-of couple's, eight weeks out
+  // (planning-scope.ts), when their vendors and details come in together.
+  const opensOn = detailsFormOpensOn(project, eventDate, scopedFormOpensOn(project, eventDate, planningFormOpensOn(eventDate, timeline)));
   if (!opensOn || today < opensOn || today >= eventDate) return false;
   return clientOutreachStop(project) === null;
 }

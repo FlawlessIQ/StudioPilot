@@ -15,6 +15,9 @@ import {
   readinessEvidenceFromFacts,
   type ReadinessEvidence,
 } from "@/features/readiness/checkpoint-evidence";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
+import { publishedTimelineVersion, vendorTeamProgress } from "@/features/vendors/team";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -39,6 +42,10 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
   const crewAssignments = useTenantDocuments("crewAssignments");
   const projects = useTenantDocuments("projects");
   const packageSnapshots = useTenantDocuments("packageSnapshots");
+  // A planner's two vendor-team checks (starter-templates.ts), from the team.
+  const vendorSteps = tradeProfile(useWorkspace().tenantTrade).journey.vendorSteps;
+  const teamEntries = useTenantDocuments("projectVendors", { enabled: vendorSteps });
+  const teamShares = useTenantDocuments("scheduleShares", { enabled: vendorSteps });
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -76,7 +83,10 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
     scheduleVersion: Number(latestSchedule?.version ?? 0),
   });
 
-  return readinessEvidenceFromFacts({
+  const team = vendorSteps
+    ? vendorTeamProgress(forProject(teamEntries.records), forProject(teamShares.records), publishedTimelineVersion(forProject(schedules.records)))
+    : null;
+  const evidence = readinessEvidenceFromFacts({
     bookingConfirmed: bookingIsConfirmed(projectRecord ?? {}),
     contractStatus: text(latestContract?.status) || null,
     // A paid bill the studio deleted leaves a settled note (own invoicing).
@@ -110,4 +120,5 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
           ?.insuranceRequired,
       ) || null,
   });
+  return team ? { ...evidence, vendorTeamComplete: team.teamComplete, vendorsConfirmed: team.allConfirmed } : evidence;
 }

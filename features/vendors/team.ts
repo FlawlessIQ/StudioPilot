@@ -260,6 +260,16 @@ export function vendorTeamProgress(
   };
 }
 
+/**
+ * The version vendors' links are read against: the job's newest schedule,
+ * when it is published; null before one is (use-vendor-team.ts reads it the
+ * same way).
+ */
+export function publishedTimelineVersion(schedules: readonly { [key: string]: unknown; version?: unknown; status?: unknown }[]): number | null {
+  const latest = [...schedules].sort((left, right) => Number(right.version ?? 0) - Number(left.version ?? 0))[0];
+  return latest && latest.status === "published" ? Number(latest.version) || null : null;
+}
+
 const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const money = (amount: number) => dollars.format(Math.round(amount) / 100);
 

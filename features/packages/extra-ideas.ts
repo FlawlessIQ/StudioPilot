@@ -53,7 +53,21 @@ const HAIR: readonly ExtraIdea[] = [
   { name: "Early start", description: "For a start before 7:00 AM.", perUnit: null },
 ];
 
-const BY_TRADE = { photographer: PHOTOGRAPHER, dj: DJ, makeup: MAKEUP, hair: HAIR } as const;
+/**
+ * A planner's (docs/planner-journey-plan.md, research): assistants priced per
+ * person (guest count, not tier, decides how many), overtime per hour, and
+ * the weekend's other events.
+ */
+const PLANNER: readonly ExtraIdea[] = [
+  { name: "Additional assistant", description: "Another assistant coordinator on the day, for a larger guest count.", perUnit: "person" },
+  { name: "Extra hour", description: "Another hour on the day, booked ahead.", perUnit: "hour" },
+  { name: "Rehearsal dinner", description: "Coordinating the rehearsal dinner.", perUnit: null },
+  { name: "Welcome party", description: "Coordinating the welcome party.", perUnit: null },
+  { name: "Farewell brunch", description: "Coordinating the brunch the morning after.", perUnit: null },
+  { name: "Travel", description: "Travel beyond our usual area.", perUnit: null },
+];
+
+const BY_TRADE = { photographer: PHOTOGRAPHER, dj: DJ, makeup: MAKEUP, hair: HAIR, planner: PLANNER } as const;
 
 export function extraIdeasFor(trade: unknown): readonly ExtraIdea[] {
   return BY_TRADE[tradeOf(trade)];
@@ -70,6 +84,7 @@ const EXAMPLES = {
   dj: "uplighting, an extra hour",
   makeup: "lashes, a touch-up stay",
   hair: "bridesmaid hair, an early start",
+  planner: "an extra assistant, a rehearsal dinner",
 } as const;
 
 export function extraExamples(trade: unknown): string {

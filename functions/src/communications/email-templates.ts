@@ -156,6 +156,9 @@ export const emailTemplateKeys = [
   // A vendor on the wedding gets the timeline through their own link
   // (planning/vendor-team.ts): the first time, and again for a new version.
   "vendor_timeline",
+  // After the day, the couple's vendor credits: who did what, the studio first
+  // (planning/vendor-credits.ts). The studio presses it; nothing sends it alone.
+  "vendor_credits",
   "event_reminder",
   "thank_you",
   "delivery",
@@ -750,6 +753,7 @@ function callNameFor(values: Record<string, unknown>): string {
   const words = tradeVocab(values.trade);
   if (purpose === "final_details") return words.finalCall;
   if (purpose === "trial") return words.trial ?? "Trial";
+  if (purpose === "walkthrough") return "Venue walkthrough";
   // A makeup artist or hair stylist has no sales consultation (trades.ts): a
   // call they book anyway is just a call, never "your consultation".
   return tradeProfile(values.trade).consultation ? words.consultation : "Call";
@@ -1151,6 +1155,21 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             ...(tradeVocab(values.trade).trialHint
               ? ["If you haven't chosen your veil yet, book once you have — we'll build the style around it."]
               : []),
+          ],
+          action: actionUrl ? { label: "Pick a time", url: actionUrl } : undefined,
+          note: "Times remain available until someone else books them.",
+        };
+      // A planner's venue walkthrough with the couple (planner journey, N5).
+      if (stringValue(values, "purpose") === "walkthrough")
+        return {
+          subject: `Book your venue walkthrough with ${brand.studioName}`,
+          preheader: "Walk the venue with us and the venue coordinator before the day.",
+          eyebrow: "Venue walkthrough",
+          heading: "Let’s walk the venue together",
+          paragraphs: [
+            greeting,
+            `Pick a time to walk the venue with us${project}. We'll go through each space with the venue coordinator, settle where everything goes, and check the timeline on the spot.`,
+            "Bring anyone who'll help set up, and any décor questions you have.",
           ],
           action: actionUrl ? { label: "Pick a time", url: actionUrl } : undefined,
           note: "Times remain available until someone else books them.",
@@ -1721,6 +1740,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             const kit = tradeVocab(values.trade).kitChecklist;
             return kit ? [`${kit.title} — before you leave, check ${kit.items.join("; ")}.`] : [];
           })(),
+          // A planner's envelopes for the vendors, from the vendor team
+          // (planning/hand-out.ts): the balances due on the day and the tips.
+          ...(Array.isArray(values.handOut) && values.handOut.length
+            ? [`Payments and tips to hand out — ${(values.handOut as unknown[]).map(String).join("; ")}.`]
+            : []),
         ],
         action: destination
           ? { label: "Open your day sheet", url: destination }
@@ -2023,6 +2047,28 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         note: primary
           ? undefined
           : `Sign in to your ${brand.studioName} client portal to see the details.`,
+      };
+    }
+    case "vendor_credits": {
+      /**
+       * Every vendor who made the wedding, for the couple to share with their
+       * photos (planning/vendor-team.ts sendVendorCredits): one line each,
+       * "Florals: Petal & Stem (petalandstem.com)", the studio first.
+       */
+      const credits = Array.isArray(values.credits)
+        ? (values.credits as unknown[]).filter((line): line is string => typeof line === "string" && line.trim() !== "")
+        : [];
+      return {
+        subject: `Your vendor credits from ${brand.studioName}`,
+        preheader: "Everyone who made your day, ready to tag when you share it.",
+        eyebrow: "Vendor credits",
+        heading: "The team behind your day",
+        paragraphs: [
+          greeting,
+          `When you share your day${project}, here is everyone who made it happen. Copy the list into a post or a caption, or pass it to anyone featuring your celebration.`,
+          ...credits,
+          "Thank you for letting us be part of it.",
+        ],
       };
     }
     case "thank_you":
@@ -3330,7 +3376,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
   "contract_superseded", "amendment_withdrawn", "retainer_invoice", "final_invoice", "final_payment_reminder",
   "booking_confirmation", "questionnaire_request", "questionnaire_reminder", "project_cancelled",
   "billing_address_request", "final_details_request", "schedule_review", "final_schedule_published",
-  "event_reminder", "thank_you", "delivery", "delivery_correction", "album_selection_reminder",
+  "event_reminder", "thank_you", "vendor_credits", "delivery", "delivery_correction", "album_selection_reminder",
   "delivery_expiry_reminder", "review_request", "manual_message", "client_message_received", "autopay_charged",
   "autopay_charge_failed", "participant_receipt", "group_event_invite", "group_signup_confirmation",
   "group_participant_invoice", "group_event_reminder", "group_event_balance", "group_delivery", "group_review_request",

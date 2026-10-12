@@ -130,6 +130,7 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const finalCall = preview?.purpose === "final_details";
   const trial = preview?.purpose === "trial";
+  const walkthrough = preview?.purpose === "walkthrough";
   // Unknown until the preview loads: a makeup trial's page must not open on
   // "consultation" (a makeup artist or hair stylist has no sales call).
   const callWord = preview ? (preview.callName ?? (finalCall ? "final details call" : "consultation")).toLowerCase() : null;
@@ -303,6 +304,8 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
                   ? "A short call to go over your final details and timeline together. Pick one of the studio’s openings — nothing is booked until you confirm."
                   : trial
                     ? "Your look, tried before the day. Pick an opening this week, or browse ahead to any week before the day. Nothing is booked until you confirm."
+                    : walkthrough
+                      ? "We'll walk the venue together with the venue coordinator. Pick an opening this week, or browse ahead to any week before the day. Nothing is booked until you confirm."
                     : "Pick one of the studio’s openings. Nothing is booked until you confirm."}
               </p>
             )}

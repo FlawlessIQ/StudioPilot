@@ -201,6 +201,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
     // The call a month out reads as itself (features/consultations/purpose.ts).
     const finalCall = consultation.purpose === "final_details";
     const trial = consultation.purpose === "trial";
+    const walkthrough = consultation.purpose === "walkthrough";
     push(
       booked
         ? {
@@ -208,7 +209,13 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             at: booked,
             actor: "studio",
             kind: "artifact",
-            title: finalCall ? `${tradeWords.finalCall} booked` : trial ? "Trial booked" : `${tradeWords.consultation} booked`,
+            title: finalCall
+              ? `${tradeWords.finalCall} booked`
+              : trial
+                ? "Trial booked"
+                : walkthrough
+                  ? "Venue walkthrough booked"
+                  : `${tradeWords.consultation} booked`,
             detail: text(consultation.startsAt)
               ? `${readable(consultation.mode)} · ${formatDueDate(text(consultation.startsAt))}`
               : readable(consultation.mode),

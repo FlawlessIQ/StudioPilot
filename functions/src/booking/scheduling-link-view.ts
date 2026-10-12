@@ -150,7 +150,14 @@ export function schedulingLinkPreview(input: {
     // The page says "final details call" for one (consultation-purpose.ts),
     // and a makeup or hair studio's trial by its own name (trades.ts).
     purpose,
-    callName: purpose === "trial" ? words.trial ?? "Trial" : purpose === "final_details" ? words.finalCall : words.consultation,
+    callName:
+      purpose === "trial"
+        ? words.trial ?? "Trial"
+        : purpose === "walkthrough"
+          ? "Venue walkthrough"
+          : purpose === "final_details"
+            ? words.finalCall
+            : words.consultation,
     status: booked ? "booked" : "pending",
     ...(booked
       ? {

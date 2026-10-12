@@ -37,7 +37,7 @@ test("a studio from before trades is a photographer", () => {
 });
 
 test("hair and makeup are separate trades on one beauty core", () => {
-  assert.deepEqual([...TRADES], ["photographer", "dj", "makeup", "hair"]);
+  assert.deepEqual([...TRADES], ["photographer", "dj", "makeup", "hair", "planner"]);
   assert.equal(tradeProfile("makeup").family, "beauty");
   assert.equal(tradeProfile("hair").family, "beauty");
   assert.notEqual(tradeVocab("makeup").crewStep, tradeVocab("hair").crewStep);
@@ -150,8 +150,12 @@ test("a new studio starts with its trade's plan and nothing photographic", () =>
   assert.match(onboarding, /final_invoice_notice: \{ enabled: !trade\.journey\.balanceOnTheDay,/);
   assert.match(onboarding, /for \(const starter of photographer \? starterQuestionnaires\(\) : \[\]\)/);
   // Signup offers live trades only, and a `?trade=` link can preselect one.
-  // Every trade is live now, so "What do you do?" always shows all four.
-  assert.deepEqual(TRADE_OPTIONS.filter((option) => LIVE_TRADES.includes(option.value)).map((option) => option.value), [...TRADES]);
+  // Every trade but the planner is live, so "What do you do?" shows four; a
+  // `?trade=planner` link opens the planner for walks (docs/planner-journey-plan.md).
+  assert.deepEqual(
+    TRADE_OPTIONS.filter((option) => LIVE_TRADES.includes(option.value)).map((option) => option.value),
+    TRADES.filter((trade) => trade !== "planner"),
+  );
   const form = read("features/auth/onboarding-form.tsx");
   assert.match(form, /LIVE_TRADES\.includes\(option\.value\) \|\| option\.value === arrivedWith/);
   assert.match(read("features/auth/register-form.tsx"), /rememberChosenTrade\(search\.get\("trade"\)\)/);

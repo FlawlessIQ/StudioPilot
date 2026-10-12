@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Brush, CalendarDays, Camera, MapPin, MessageCircle, Music, Scissors, Sparkles } from "lucide-react";
+import { BadgeCheck, Brush, CalendarDays, Camera, ClipboardList, MapPin, MessageCircle, Music, Scissors, Sparkles } from "lucide-react";
 import { Button, Card, List, Main, Note, PoweredBy, Row } from "@/components/kit/kit";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile, tradeVocab, type Trade } from "@/features/trades/trades";
@@ -10,7 +10,7 @@ import { todayLocalIso } from "@/lib/format/event-date";
 import { date, sentenceCase, text, useClientVocab, useProject } from "@/components/client/live-client-views";
 
 /** Who leads on the day, drawn as their trade: a camera only for a photographer. */
-const LEAD_ICON: Record<Trade, typeof Camera> = { photographer: Camera, dj: Music, makeup: Brush, hair: Scissors };
+const LEAD_ICON: Record<Trade, typeof Camera> = { photographer: Camera, dj: Music, makeup: Brush, hair: Scissors, planner: ClipboardList };
 
 /**
  * "Your event": the confirmed details of the day (M5 of

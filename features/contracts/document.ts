@@ -168,6 +168,7 @@ const VENDOR_FIELD_EXAMPLES: Record<string, { coverage: string; included: string
   dj: { coverage: "1 DJ, 6 hours", included: "Reception sound; MC", studio: "Spin Theory DJs" },
   makeup: { coverage: "2 makeup artists", included: "Makeup trial; Bridal makeup with lashes", studio: "Glow by Ana" },
   hair: { coverage: "2 hair stylists", included: "Hair trial; Bridal hair with veil placement", studio: "Crown & Pin Hair" },
+  planner: { coverage: "2 coordinators, 10 hours", included: "Venue walkthrough; Rehearsal; Master timeline", studio: "Wren & Co. Events" },
 };
 
 /**

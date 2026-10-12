@@ -138,11 +138,11 @@ test("a trial link stays open to the day before the event; a call's link is unch
   assert.equal(trialLinkDays({ today: "2026-10-10", eventDate: "2026-10-15" }), 14);
   assert.equal(trialLinkDays({ today: "2026-10-10", eventDate: null }), 365);
   const server = read("functions/src/booking/public-scheduling.ts");
-  assert.match(server, /command\.input\.purpose === "trial"\s*\? trialLinkDays\(/);
+  assert.match(server, /isAppointment\(\{ purpose: command\.input\.purpose \}\)\s*\? trialLinkDays\(/);
   assert.match(server, /: BOOKING_LINK_DAYS,/);
   // The browse is the trial's alone, and booking re-checks the pick against
   // the same week on the server.
-  assert.match(server, /consultationPurpose\(link\.data\(\)\) === "trial"\s*\? await trialSlotsFor\(/);
+  assert.match(server, /isAppointment\(link\.data\(\)\)\s*\? await trialSlotsFor\(/);
   assert.match(server, /\{ at: command\.input\.startsAt \}/);
   assert.match(server, /if \(!selected\) throw new Error\("TIME_NO_LONGER_AVAILABLE"\);/);
   const page = read("components/booking/public-consultation-scheduler.tsx");
@@ -322,7 +322,7 @@ test("a trial's starts keep the studio's cadence and end inside its hours", () =
   // Without a step, starts follow one another back to back, as a call's always have.
   assert.equal(generateConsultationSlots({ ...input, stepMinutes: undefined }).length, 3);
   const server = read("functions/src/booking/public-scheduling.ts");
-  assert.match(server, /const trialMinutes = tradeProfile\(tenant\.get\("trade"\)\)\.trialMinutes;/);
+  assert.match(server, /const trialMinutes = consultationPurpose\(link\.data\(\)\) === "walkthrough" \? shape\.walkthroughMinutes : shape\.trialMinutes;/);
   assert.match(server, /stepMinutes: plan\.stepMinutes,/);
 });
 

@@ -71,6 +71,7 @@ import { planningFormOpensOn, resolvePlanningTimeline } from "@/features/plannin
 import { finalHeadcountState, returnedPartyList } from "@/features/schedules/final-headcount";
 import { finalDetailsToday } from "@/features/planning/final-details-due";
 import { parsePartyList } from "@/features/schedules/party-list";
+import { scopedFormOpensOn } from "@/features/planning/planning-scope";
 
 /** A couple emailed for their billing address: Today offers "Ask again" after this many days. */
 const BILLING_ADDRESS_ASK_AGAIN_DAYS = 5;
@@ -2522,7 +2523,12 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // The planning form goes out when the studio's timeline says (six months
     // before, by default): a wedding a year away isn't asked yet.
     if (position.stepKey === "schedule_form") {
-      const opensOn = planningFormOpensOn(eventFor(position.projectId), planningTimeline);
+      // A planner's month-of couple gets theirs eight weeks out (planning-scope.ts).
+      const opensOn = scopedFormOpensOn(
+        projectById.get(text(position.projectId)),
+        eventFor(position.projectId),
+        planningFormOpensOn(eventFor(position.projectId), planningTimeline),
+      );
       if (opensOn && input.now.slice(0, 10) < opensOn) continue;
     }
     act.push({

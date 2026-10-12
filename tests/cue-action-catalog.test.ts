@@ -141,6 +141,8 @@ const REACHED: Record<string, string> = {
   addVendorTeamEntry: "VendorTeamPanel", updateVendorTeamEntry: "VendorTeamPanel",
   removeVendorTeamEntry: "VendorTeamPanel", setProjectBudget: "VendorTeamPanel",
   sendTimelineToVendorTeam: "VendorTeamPanel",
+  // A planner's vendor credits, after the day (planner journey, Phase 2).
+  sendVendorCredits: "VendorTeamPanel",
   createCoiRequest: "CoiWorkflowPanel", decideCoi: "CoiWorkflowPanel", sendCoiToVenue: "CoiWorkflowPanel",
   approvePreparedCoi: "CoiWorkflowPanel", completeCoiDetails: "CoiWorkflowPanel", attachCoiUpload: "CoiWorkflowPanel",
   approveAndSendCoi: "CoiWorkflowPanel", saveCoiSettings: "CoiSettings",

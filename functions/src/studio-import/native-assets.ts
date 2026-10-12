@@ -63,6 +63,7 @@ const ROLE_WORDS: Record<CoverageRole, string> = {
   dj: String.raw`djs?|disc\s+jockeys?`,
   makeup_artist: String.raw`(?:make-?up\s+)?artists?`,
   hair_stylist: String.raw`(?:hair\s*)?stylists?`,
+  coordinator: String.raw`(?:assistant\s+)?(?:coordinators?|assistants?)`,
 };
 
 function tradeRoles(trade: unknown): CoverageRole[] {

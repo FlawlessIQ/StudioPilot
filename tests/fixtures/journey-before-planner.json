@@ -1,0 +1,7738 @@
+{
+ "generatedFrom": "95ae3e82 (before the planner trade)",
+ "cases": [
+  {
+   "trade": "photographer",
+   "name": "lead",
+   "input": {
+    "projectId": "p1",
+    "state": "LEAD",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "new"
+    },
+    "hasConsultation": false,
+    "proposalStatus": null,
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "photographer",
+   "name": "proposal sent",
+   "input": {
+    "projectId": "p1",
+    "state": "PROPOSAL",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "sent",
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "photographer",
+   "name": "booked a year out",
+   "input": {
+    "projectId": "p1",
+    "state": "BOOKED",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "photographer",
+   "name": "planning, form in",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-01",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "photographer",
+   "name": "a month out, timeline published",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "sent",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "photographer",
+   "name": "the day before",
+   "input": {
+    "projectId": "p1",
+    "state": "READY",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-11",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "photographer",
+   "name": "after the day",
+   "input": {
+    "projectId": "p1",
+    "state": "EVENT_COMPLETE",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "photographer",
+   "name": "review requested",
+   "input": {
+    "projectId": "p1",
+    "state": "REVIEW_REQUESTED",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-20",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": true,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "photographer",
+    "trial": null
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "lead",
+   "input": {
+    "projectId": "p1",
+    "state": "LEAD",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "new"
+    },
+    "hasConsultation": false,
+    "proposalStatus": null,
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "proposal sent",
+   "input": {
+    "projectId": "p1",
+    "state": "PROPOSAL",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "sent",
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "booked a year out",
+   "input": {
+    "projectId": "p1",
+    "state": "BOOKED",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "planning, form in",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-01",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "a month out, timeline published",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "sent",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "the day before",
+   "input": {
+    "projectId": "p1",
+    "state": "READY",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-11",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "after the day",
+   "input": {
+    "projectId": "p1",
+    "state": "EVENT_COMPLETE",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "dj",
+   "name": "review requested",
+   "input": {
+    "projectId": "p1",
+    "state": "REVIEW_REQUESTED",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-20",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": true,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "dj",
+    "trial": null,
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "lead",
+   "input": {
+    "projectId": "p1",
+    "state": "LEAD",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "new"
+    },
+    "hasConsultation": false,
+    "proposalStatus": null,
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "proposal sent",
+   "input": {
+    "projectId": "p1",
+    "state": "PROPOSAL",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "sent",
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "booked a year out",
+   "input": {
+    "projectId": "p1",
+    "state": "BOOKED",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "planning, form in",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-01",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "a month out, timeline published",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "sent",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "the day before",
+   "input": {
+    "projectId": "p1",
+    "state": "READY",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-11",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "after the day",
+   "input": {
+    "projectId": "p1",
+    "state": "EVENT_COMPLETE",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "makeup",
+   "name": "review requested",
+   "input": {
+    "projectId": "p1",
+    "state": "REVIEW_REQUESTED",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-20",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": true,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "makeup",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "lead",
+   "input": {
+    "projectId": "p1",
+    "state": "LEAD",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "new"
+    },
+    "hasConsultation": false,
+    "proposalStatus": null,
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "proposal sent",
+   "input": {
+    "projectId": "p1",
+    "state": "PROPOSAL",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "sent",
+    "contractStatus": null,
+    "retainerInvoiceStatus": null,
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "booked a year out",
+   "input": {
+    "projectId": "p1",
+    "state": "BOOKED",
+    "eventDate": "2027-06-12",
+    "today": "2026-10-09",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": null,
+    "questionnaireHasAnswers": false,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "planning, form in",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-01",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": null,
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": null,
+    "scheduleHasUsableItems": false,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "a month out, timeline published",
+   "input": {
+    "projectId": "p1",
+    "state": "PLANNING",
+    "eventDate": "2027-06-12",
+    "today": "2027-05-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "sent",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "the day before",
+   "input": {
+    "projectId": "p1",
+    "state": "READY",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-11",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "after the day",
+   "input": {
+    "projectId": "p1",
+    "state": "EVENT_COMPLETE",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-14",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": false,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  },
+  {
+   "trade": "hair",
+   "name": "review requested",
+   "input": {
+    "projectId": "p1",
+    "state": "REVIEW_REQUESTED",
+    "eventDate": "2027-06-12",
+    "today": "2027-06-20",
+    "lead": {
+     "id": "l1",
+     "status": "converted",
+     "replied": true
+    },
+    "hasConsultation": true,
+    "proposalStatus": "accepted",
+    "contractStatus": "completed",
+    "retainerInvoiceStatus": "paid",
+    "finalInvoiceStatus": "paid",
+    "questionnaireStatus": "submitted",
+    "questionnaireHasAnswers": true,
+    "scheduleStatus": "published",
+    "scheduleHasUsableItems": true,
+    "crewAccepted": 0,
+    "crewRequired": 0,
+    "crewCascadeActive": false,
+    "coiStatus": null,
+    "insuranceRequired": "unknown",
+    "dayBeforeDraftStatus": null,
+    "hasDelivery": false,
+    "albumOrReviewDone": true,
+    "profile": {
+     "kind": "wedding",
+     "consultation": true,
+     "agreement": true,
+     "payment": "deposit_and_balance",
+     "detailsFormDaysBefore": 180,
+     "finalDetailsLock": true,
+     "runOfShow": true,
+     "crew": true,
+     "coi": true,
+     "billingAddressRequest": true,
+     "album": true,
+     "exclusiveDay": true
+    },
+    "trade": "hair",
+    "trial": {
+     "state": "not_booked",
+     "startsAt": null
+    },
+    "finalCall": {
+     "state": "not_yet",
+     "lockOn": "2027-05-13",
+     "startsAt": null
+    }
+   }
+  }
+ ],
+ "outputs": [
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "A personalized reply is one approval away",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Find a time that works",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Starts once the consultation is done",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Starts once the client accepts the proposal",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Starts once the agreement is signed",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Prep locations, times, and family names",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Starts once the couple return their details form",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks four weeks before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Total − retainer, computed exactly · one month out",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks two days before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "2027-06-12",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event is covered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Record the gallery — the couple is emailed when you release it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the gallery is delivered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selection reminders, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Review reply",
+     "href": "/studio/projects/p1#prepared"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "first_reply",
+    "title": "First reply",
+    "detail": "A personalized reply is one approval away",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Review reply",
+     "href": "/studio/projects/p1#prepared"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": "client",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "With the client to decide",
+     "status": "waiting_client",
+     "action": {
+      "kind": "link",
+      "label": "View proposal",
+      "href": "/studio/proposals?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Starts once the client accepts the proposal",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Starts once the agreement is signed",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Prep locations, times, and family names",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Starts once the couple return their details form",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks four weeks before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Total − retainer, computed exactly · one month out",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks two days before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "2027-06-12",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event is covered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Record the gallery — the couple is emailed when you release it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the gallery is delivered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selection reminders, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Wedding details form",
+    "detail": "Prep locations, times, and family names",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Fully signed",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Prep locations, times, and family names",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Starts once the couple return their details form",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks four weeks before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Total − retainer, computed exactly · one month out",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks two days before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "2027-06-12",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event is covered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Record the gallery — the couple is emailed when you release it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the gallery is delivered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selection reminders, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Wedding details form",
+    "detail": "Prep locations, times, and family names",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Fully signed",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Ready to lay out from the couple's form",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Draft the schedule",
+      "href": "/studio/schedules/new?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks four weeks before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Total − retainer, computed exactly · one month out",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks two days before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "2027-06-12",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event is covered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Record the gallery — the couple is emailed when you release it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the gallery is delivered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selection reminders, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open schedule",
+     "href": "/studio/schedules?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "run_of_show",
+    "title": "Run of show",
+    "detail": "Ready to lay out from the couple's form",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Draft the schedule",
+     "href": "/studio/schedules/new?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Fully signed",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Shared with your crew and the couple",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Request COI",
+      "href": "/studio/insurance?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": "client",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Invoice with the client",
+     "status": "waiting_client",
+     "action": {
+      "kind": "link",
+      "label": "Check payment status",
+      "href": "/studio/invoices?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks two days before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "2027-06-12",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event is covered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Record the gallery — the couple is emailed when you release it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the gallery is delivered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selection reminders, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open insurance",
+     "href": "/studio/insurance?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "coi",
+    "title": "Insurance to venue",
+    "detail": "Request the certificate for the venue",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Request COI",
+     "href": "/studio/insurance?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Fully signed",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Shared with your crew and the couple",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Request COI",
+      "href": "/studio/insurance?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Paid in full",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks two days before the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "2027-06-12",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event is covered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Record the gallery — the couple is emailed when you release it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the gallery is delivered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selection reminders, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open insurance",
+     "href": "/studio/insurance?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "coi",
+    "title": "Insurance to venue",
+    "detail": "Request the certificate for the venue",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Request COI",
+     "href": "/studio/insurance?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Fully signed",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Shared with your crew and the couple",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Paid in full",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "Covered",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Confirm editing has started, then record the gallery",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Record delivery",
+      "href": "/studio/delivery?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the gallery is delivered.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selection reminders, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open delivery",
+     "href": "/studio/delivery?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "delivery",
+    "title": "Gallery delivered",
+    "detail": "Confirm editing has started, then record the gallery",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Record delivery",
+     "href": "/studio/delivery?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry received",
+     "detail": "From your inquiry form",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "first_reply",
+     "title": "First reply",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Contract signed",
+     "detail": "Fully signed",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open retainer",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "retainer",
+     "title": "Retainer paid",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Wedding details form",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open schedule",
+      "href": "/studio/schedules?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "run_of_show",
+     "title": "Run of show",
+     "detail": "Shared with your crew and the couple",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open crew",
+      "href": "/studio/crew?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": true,
+     "files": [],
+     "key": "crew",
+     "title": "Crew confirmed",
+     "detail": "Shooting this one solo",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open insurance",
+      "href": "/studio/insurance?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "coi",
+     "title": "Insurance to venue",
+     "detail": "Request the certificate for the venue",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open invoices",
+      "href": "/studio/invoices?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_balance",
+     "title": "Final balance",
+     "detail": "Paid in full",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open the job",
+      "href": "/studio/projects/p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "day_before",
+     "title": "Day-before checklist",
+     "detail": "Dress, shoes, flowers, rings, invitations ready",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "Event day",
+     "detail": "Covered",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open delivery",
+      "href": "/studio/delivery?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "delivery",
+     "title": "Gallery delivered",
+     "detail": "Delivered with follow-ups running",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Album & review",
+     "detail": "Selections and review requested",
+     "status": "complete",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "A personalized reply is one approval away",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call (optional)",
+     "detail": "Offer one if they'd like to talk first — the proposal doesn't wait for it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Packages and pricing, ready to send",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Starts once the client accepts the proposal",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Their songs, the moments and the night's timeline",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Last song changes, venue contact, load-in",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open the thread",
+     "href": "/studio/projects/p1#prepared"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "inquiry",
+    "title": "Inquiry",
+    "detail": "A personalized reply is one approval away",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Review reply",
+     "href": "/studio/projects/p1#prepared"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": "client",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "With the client to decide",
+     "status": "waiting_client",
+     "action": {
+      "kind": "link",
+      "label": "View proposal",
+      "href": "/studio/proposals?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Starts once the client accepts the proposal",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Their songs, the moments and the night's timeline",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Last song changes, venue contact, load-in",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Music & moments planner",
+    "detail": "Their songs, the moments and the night's timeline",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Their songs, the moments and the night's timeline",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Last song changes, venue contact, load-in",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Music & moments planner",
+    "detail": "Their songs, the moments and the night's timeline",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Drafted from their music & moments planner — check it and publish",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Check and publish",
+      "href": "/studio/schedules/new?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Last song changes, venue contact, load-in",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Music & moments planner",
+    "detail": "Drafted from their music & moments planner — check it and publish",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Check and publish",
+     "href": "/studio/schedules/new?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Last song changes, venue contact, load-in",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Last song changes, venue contact, load-in",
+     "status": "current",
+     "action": {
+      "kind": "draft",
+      "label": "Draft the checklist",
+      "trigger": "day_before_checklist"
+     }
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open event day",
+     "href": "/studio/event-day?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "event_day",
+    "title": "The night",
+    "detail": "Last song changes, venue contact, load-in",
+    "status": "current",
+    "action": {
+     "kind": "draft",
+     "label": "Draft the checklist",
+     "trigger": "day_before_checklist"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Played",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "current",
+     "action": {
+      "kind": "draft",
+      "label": "Draft the review request",
+      "trigger": "review_request"
+     }
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open reviews",
+     "href": "/studio/reviews?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "album_review",
+    "title": "Review",
+    "detail": "A thank-you, then a Google review ask",
+    "status": "current",
+    "action": {
+     "kind": "draft",
+     "label": "Draft the review request",
+     "trigger": "review_request"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Vibe call",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open proposal",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Proposal",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Music & moments planner",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final planning call",
+     "detail": "The couple are invited to book it when the details lock",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The night",
+     "detail": "Played",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "Selections and review requested",
+     "status": "complete",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "A personalized reply is one approval away",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     }
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Packages and pricing, ready to send",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Starts once the client accepts the quote",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Who's getting ready, and by when",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open the thread",
+     "href": "/studio/projects/p1#prepared"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "inquiry",
+    "title": "Inquiry",
+    "detail": "A personalized reply is one approval away",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Review reply",
+     "href": "/studio/projects/p1#prepared"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": "client",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "With the client to decide",
+     "status": "waiting_client",
+     "action": {
+      "kind": "link",
+      "label": "View quote",
+      "href": "/studio/proposals?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Starts once the client accepts the quote",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Who's getting ready, and by when",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Party list",
+    "detail": "Who's getting ready, and by when",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Who's getting ready, and by when",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Party list",
+    "detail": "Who's getting ready, and by when",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Drafted from their party list — check it and publish",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Check and publish",
+      "href": "/studio/schedules/new?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Party list",
+    "detail": "Drafted from their party list — check it and publish",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Check and publish",
+     "href": "/studio/schedules/new?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "Pack brushes and sponges cleaned, lashes and adhesive for everyone who wanted them, the bride's foundation shade and products from the trial — and check the address, room number and parking",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "All done",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "current",
+     "action": {
+      "kind": "draft",
+      "label": "Draft the review request",
+      "trigger": "review_request"
+     }
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open reviews",
+     "href": "/studio/reviews?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "album_review",
+    "title": "Review",
+    "detail": "A thank-you, then a Google review ask",
+    "status": "current",
+    "action": {
+     "kind": "draft",
+     "label": "Draft the review request",
+     "trigger": "review_request"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Makeup trial",
+     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "All done",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "Selections and review requested",
+     "status": "complete",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "A personalized reply is one approval away",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Review reply",
+      "href": "/studio/projects/p1#prepared"
+     }
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Packages and pricing, ready to send",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Starts once the client accepts the quote",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Who's getting ready, and by when",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open the thread",
+     "href": "/studio/projects/p1#prepared"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "inquiry",
+    "title": "Inquiry",
+    "detail": "A personalized reply is one approval away",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Review reply",
+     "href": "/studio/projects/p1#prepared"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": "client",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "With the client to decide",
+     "status": "waiting_client",
+     "action": {
+      "kind": "link",
+      "label": "View quote",
+      "href": "/studio/proposals?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Starts once the client accepts the quote",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Who's getting ready, and by when",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Party list",
+    "detail": "Who's getting ready, and by when",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Who's getting ready, and by when",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Send the form",
+      "href": "/studio/questionnaires?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Party list",
+    "detail": "Who's getting ready, and by when",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Send the form",
+     "href": "/studio/questionnaires?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Drafted from their party list — check it and publish",
+     "status": "current",
+     "action": {
+      "kind": "link",
+      "label": "Check and publish",
+      "href": "/studio/schedules/new?project=p1"
+     }
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open form",
+     "href": "/studio/questionnaires?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "schedule_form",
+    "title": "Party list",
+    "detail": "Drafted from their party list — check it and publish",
+    "status": "current",
+    "action": {
+     "kind": "link",
+     "label": "Check and publish",
+     "href": "/studio/schedules/new?project=p1"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "2027-06-12 · collect the balance on the day",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks when the steps above are done.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": "The invitation goes out on Thu, May 13, when the details lock.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": "The live plan opens on 2027-06-12.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "Pack irons, dryer and brushes, pins, elastics and hairspray, extensions, matched to the color from the trial — and check the address, room number and parking",
+     "status": "upcoming",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": "Unlocks after the event.",
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "upcoming",
+     "action": null
+    }
+   ],
+   "current": null
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "All done",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": "studio",
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "A thank-you, then a Google review ask",
+     "status": "current",
+     "action": {
+      "kind": "draft",
+      "label": "Draft the review request",
+      "trigger": "review_request"
+     }
+    }
+   ],
+   "current": {
+    "record": {
+     "label": "Open reviews",
+     "href": "/studio/reviews?project=p1"
+    },
+    "owner": "studio",
+    "unlock": null,
+    "advance": null,
+    "explain": false,
+    "files": [],
+    "key": "album_review",
+    "title": "Review",
+    "detail": "A thank-you, then a Google review ask",
+    "status": "current",
+    "action": {
+     "kind": "draft",
+     "label": "Draft the review request",
+     "trigger": "review_request"
+    }
+   }
+  },
+  {
+   "steps": [
+    {
+     "record": {
+      "label": "Open the thread",
+      "href": "/studio/projects/p1#prepared"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "inquiry",
+     "title": "Inquiry",
+     "detail": "The client heard back from you",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "consultation",
+     "title": "Consultation",
+     "detail": "Meeting booked",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open quote",
+      "href": "/studio/proposals?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "proposal",
+     "title": "Quote",
+     "detail": "Accepted",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open contract",
+      "href": "/studio/booking?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "contract",
+     "title": "Booked",
+     "detail": "Booking locked in",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "trial",
+     "title": "Hair trial",
+     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open form",
+      "href": "/studio/questionnaires?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "schedule_form",
+     "title": "Party list",
+     "detail": "Client completed it",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open calendar",
+      "href": "/studio/calendar?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "final_call",
+     "title": "Final headcount",
+     "detail": "They confirm who's getting ready when the details lock",
+     "status": "passed",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open event day",
+      "href": "/studio/event-day?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "event_day",
+     "title": "The morning",
+     "detail": "All done",
+     "status": "complete",
+     "action": null
+    },
+    {
+     "record": {
+      "label": "Open reviews",
+      "href": "/studio/reviews?project=p1"
+     },
+     "owner": null,
+     "unlock": null,
+     "advance": null,
+     "explain": false,
+     "files": [],
+     "key": "album_review",
+     "title": "Review",
+     "detail": "Selections and review requested",
+     "status": "complete",
+     "action": null
+    }
+   ],
+   "current": null
+  }
+ ],
+ "asks": {
+  "photographer": [
+   {
+    "key": "call",
+    "label": "Book a consultation"
+   },
+   {
+    "key": "accept",
+    "label": "Accept the proposal"
+   },
+   {
+    "key": "sign",
+    "label": "Sign the agreement"
+   },
+   {
+    "key": "deposit",
+    "label": "Pay the deposit"
+   },
+   {
+    "key": "form",
+    "label": "Fill in the details form"
+   },
+   {
+    "key": "schedule",
+    "label": "Approve the day's schedule"
+   },
+   {
+    "key": "final_details",
+    "label": "Confirm the final details"
+   },
+   {
+    "key": "balance",
+    "label": "Pay the balance"
+   },
+   {
+    "key": "billing_address",
+    "label": "Give a billing address"
+   }
+  ],
+  "dj": [
+   {
+    "key": "accept_sign",
+    "label": "Accept and sign the proposal"
+   },
+   {
+    "key": "deposit",
+    "label": "Pay the deposit"
+   },
+   {
+    "key": "form",
+    "label": "Fill in the music & moments planner"
+   },
+   {
+    "key": "final_call",
+    "label": "Book the final planning call"
+   },
+   {
+    "key": "balance",
+    "label": "Pay the balance"
+   }
+  ],
+  "makeup": [
+   {
+    "key": "accept_sign",
+    "label": "Accept and sign the quote"
+   },
+   {
+    "key": "deposit",
+    "label": "Pay the deposit"
+   },
+   {
+    "key": "trial",
+    "label": "Book the makeup trial"
+   },
+   {
+    "key": "form",
+    "label": "Fill in the party list"
+   },
+   {
+    "key": "headcount",
+    "label": "Confirm the final headcount"
+   }
+  ],
+  "hair": [
+   {
+    "key": "accept_sign",
+    "label": "Accept and sign the quote"
+   },
+   {
+    "key": "deposit",
+    "label": "Pay the deposit"
+   },
+   {
+    "key": "trial",
+    "label": "Book the hair trial"
+   },
+   {
+    "key": "form",
+    "label": "Fill in the party list"
+   },
+   {
+    "key": "headcount",
+    "label": "Confirm the final headcount"
+   }
+  ]
+ }
+}

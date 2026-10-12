@@ -229,10 +229,50 @@ export type EssentialsOptions = {
   balanceOnTheDay?: boolean;
 };
 
+/**
+ * A planner's five checks (docs/planner-journey-plan.md, the burden check):
+ * booked, the vendor team complete, the final details in, every vendor
+ * confirmed on the current timeline, the balance paid. The day's plan is not
+ * one of them: the master timeline is what the vendors confirm. Both team
+ * checks are read from the records (checkpoint-evidence.ts), never ticked.
+ */
+const PLANNER_CHECKS: ReadonlyArray<{ key: string; name: string; description: string; offsetDays: number; dependencies: string[] }> = [
+  {
+    key: "vendor-team-complete",
+    name: "Vendor team complete",
+    description: "Every vendor the wedding needs is booked.",
+    offsetDays: -42,
+    dependencies: [],
+  },
+  {
+    key: "vendors-confirmed",
+    name: "Vendors confirmed",
+    description: "Every booked vendor has confirmed the current master timeline.",
+    offsetDays: -7,
+    dependencies: [],
+  },
+];
+
 export function starterTemplates(
-  readiness: "full" | "essentials" = "full",
+  readiness: "full" | "essentials" | "planner" = "full",
   options: EssentialsOptions = {},
 ): StarterTemplate[] {
+  if (readiness === "planner") {
+    return starterTemplates("essentials", options).map((template) => {
+      const kept = template.checkpointTemplates.filter((checkpoint) => checkpoint.key !== "schedule-approved");
+      const team = PLANNER_CHECKS.map((check) => ({
+        ...checkpointFrom([check.key, check.name, "Vendors", "studio", check.offsetDays, "system_rule"], check.dependencies),
+        description: check.description,
+      }));
+      const checkpointTemplates = [...kept, ...team].sort((left, right) => left.dueDateRule.offsetDays - right.dueDateRule.offsetDays);
+      const checks = checkpointTemplates.map((checkpoint) => checkpoint.name.charAt(0).toLowerCase() + checkpoint.name.slice(1));
+      return {
+        ...template,
+        description: `Before the day: ${checks.slice(0, -1).join(", ")} and ${checks.at(-1)}.`,
+        checkpointTemplates,
+      };
+    });
+  }
   if (readiness === "essentials") {
     const balanceDays = Math.max(0, options.balanceDueDaysBefore ?? 14);
     return starterTemplates("full").map((template) => {

@@ -1,4 +1,5 @@
 import type { JobKind } from "@/features/job-kinds/job-kinds";
+import type { PlanningScope } from "@/features/planning/planning-scope";
 
 /**
  * Example packages per kind of work — a starting shape, never a price
@@ -16,6 +17,14 @@ export type ExamplePackage = {
   photographers: number;
   videographers: number;
   deliverables: string;
+  /** A planner's tier (planning-scope.ts): when the job's work starts. */
+  planningScope?: PlanningScope;
+  /**
+   * What planners commonly charge for this, as a hint beside the empty
+   * price — from the research (docs/planner-journey-plan.md: Zola, Joy,
+   * The Wedding Planner LA). Never filled into the price.
+   */
+  typicalPrice?: string;
 };
 
 export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
@@ -235,8 +244,62 @@ const HAIR_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
   ],
 };
 
+/**
+ * A wedding planner's examples (docs/planner-journey-plan.md, N6): one per
+ * tier, each with its `planningScope`. Guest count decides the assistants, so
+ * a second coordinator is included and more are an extra per person
+ * (extra-ideas.ts). `photographers` is coordinators; "deliverables" is what's
+ * included.
+ */
+const PLANNER_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
+  wedding: [
+    {
+      name: "Full planning",
+      description: "From booking to the last dance: every vendor found and booked, the budget, the design, and the day itself.",
+      coverageHours: 10,
+      photographers: 2,
+      videographers: 0,
+      deliverables: "Planning meetings twice a month, Vendor sourcing and booking, Budget, Design, Venue walkthrough, Rehearsal, Master timeline, 10 hours on the day with an assistant",
+      planningScope: "full",
+      typicalPrice: "$5,000–$10,000",
+    },
+    {
+      name: "Partial planning",
+      description: "For couples with the venue booked: the vendors still to find, then the final months and the day.",
+      coverageHours: 10,
+      photographers: 2,
+      videographers: 0,
+      deliverables: "Monthly planning meetings, The vendors still to book, Venue walkthrough, Rehearsal, Master timeline, 10 hours on the day with an assistant",
+      planningScope: "partial",
+      typicalPrice: "$2,500–$5,000",
+    },
+    {
+      name: "Month-of coordination",
+      description: "We take over eight weeks out: your vendors confirmed, the master timeline, the rehearsal and the day.",
+      coverageHours: 8,
+      photographers: 2,
+      videographers: 0,
+      deliverables: "Two planning meetings, Venue walkthrough, Vendor confirmations, Master timeline, Rehearsal, 8 hours on the day with an assistant",
+      planningScope: "coordination",
+      typicalPrice: "$1,500–$3,000",
+    },
+  ],
+  other: [
+    {
+      name: "Event coordination",
+      description: "The final weeks and the day of your event, every vendor confirmed and on time.",
+      coverageHours: 6,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Planning meeting, Vendor confirmations, Event timeline, 6 hours on the day",
+      planningScope: "coordination",
+    },
+  ],
+};
+
 /** The examples for a studio of this trade and a job of this kind. */
 export function examplePackagesFor(trade: string, kind: JobKind): readonly ExamplePackage[] {
+  if (trade === "planner") return PLANNER_EXAMPLES[kind] ?? PLANNER_EXAMPLES.other ?? [];
   if (trade === "dj") return DJ_EXAMPLES[kind] ?? DJ_EXAMPLES.other ?? [];
   if (trade === "makeup") return MAKEUP_EXAMPLES[kind] ?? MAKEUP_EXAMPLES.other ?? [];
   if (trade === "hair") return HAIR_EXAMPLES[kind] ?? HAIR_EXAMPLES.other ?? [];

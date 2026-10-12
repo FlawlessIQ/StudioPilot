@@ -3,6 +3,9 @@ import { FieldValue, type DocumentData, type Firestore } from "firebase-admin/fi
 import { z } from "zod";
 import { tradeProfile } from "../trades/trades.js";
 import { mintRunOfShowShare, shareIdFor } from "./share-mint.js";
+import { clientOutreachStop } from "../post-event/client-outreach.js";
+import { companyKey, parseVendorSection, vendorsToImport } from "./vendor-section.js";
+import { creditLineText, vendorCredits } from "./vendor-credits.js";
 
 /**
  * A wedding's vendor team, written (docs/planner-journey-plan.md, N1 + N2).
@@ -123,6 +126,19 @@ export const vendorTeamCommands = [
     input: z.object({
       projectId: z.string().min(1),
       budgetCents: z.number().int().nonnegative().max(10_000_000_00).nullable(),
+    }),
+  }),
+  z.object({
+    /**
+     * After the day, the couple's vendor credits: every booked vendor's
+     * category, name and website, the studio first (vendor-credits.ts).
+     * Once per job; the studio presses it, nothing sends it on its own.
+     */
+    type: z.literal("sendVendorCredits"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      projectId: z.string().min(1),
     }),
   }),
   z.object({
@@ -833,6 +849,208 @@ async function sendTimeline(
   });
 }
 
+/** Job states after the day: the credits are for a wedding that happened. */
+const AFTER_THE_DAY = new Set(["EVENT_COMPLETE", "POST_PRODUCTION", "DELIVERED", "REVIEW_REQUESTED", "CLOSED"]);
+
+export const vendorCreditsJobId = (tenantId: string, projectId: string) => `vendor_credits_${tenantId}_${projectId}`;
+
+async function sendCredits(
+  db: Firestore,
+  parsed: Extract<VendorTeamCommand, { type: "sendVendorCredits" }>,
+  context: VendorTeamContext,
+): Promise<Record<string, unknown>> {
+  const { tenantId, idempotencyKey } = parsed;
+  const projectId = parsed.input.projectId;
+  const jobId = vendorCreditsJobId(tenantId, projectId);
+  return db.runTransaction(async (transaction) => {
+    const [project, tenant, team, existing] = await Promise.all([
+      transaction.get(db.doc(`projects/${projectId}`)),
+      transaction.get(db.doc(`tenants/${tenantId}`)),
+      transaction.get(db.collection("projectVendors").where("tenantId", "==", tenantId).where("projectId", "==", projectId)),
+      transaction.get(db.doc(`emailJobs/${jobId}`)),
+    ]);
+    if (!project.exists || project.get("tenantId") !== tenantId) throw new Error("PROJECT_NOT_FOUND");
+    // Sent once: a second press says so rather than mailing the couple again.
+    if (existing.exists) return { emailJobId: jobId, alreadySent: true, count: Number(existing.get("creditCount") ?? 0) };
+    if (!AFTER_THE_DAY.has(str(project.get("state")))) throw new Error("VENDOR_CREDITS_AFTER_THE_DAY");
+    // Quiet by default: an imported, paused, put-away or canceled job's
+    // couple is never written to (client-outreach.ts, ADR 0005).
+    if (project.get("importedAt") || clientOutreachStop(project.data()) !== null) throw new Error("CLIENT_OUTREACH_PAUSED");
+    const entries = team.docs.map((entry) => entry.data());
+    const vendorIds = [...new Set(entries.filter((entry) => entry.status === "booked").map((entry) => str(entry.vendorId)).filter(Boolean))];
+    const vendorDocs = vendorIds.length ? await transaction.getAll(...vendorIds.map((id) => db.doc(`vendors/${id}`))) : [];
+    const vendors = new Map(
+      vendorDocs
+        .filter((vendor) => vendor.exists && vendor.get("tenantId") === tenantId)
+        .map((vendor) => [vendor.id, { website: vendor.get("website"), company: vendor.get("company") }]),
+    );
+    const credits = vendorCredits({
+      entries,
+      vendors,
+      studio: {
+        name: str(tenant.get("brandName")) || str(tenant.get("businessName")),
+        website: record(tenant.get("emailBranding")).websiteUrl,
+        category: "Planning",
+      },
+    });
+    // The studio alone is no list: someone has to be booked.
+    if (credits.length < 2) throw new Error("VENDOR_CREDITS_EMPTY");
+    const projectName = str(project.get("name"));
+    transaction.create(db.doc(`emailJobs/${jobId}`), {
+      id: jobId,
+      tenantId,
+      projectId,
+      type: "vendor_credits",
+      projectName,
+      coupleName: coupleNameOf(projectName),
+      credits: credits.map(creditLineText),
+      creditCount: credits.length,
+      clientOutreachGuard: true,
+      status: "queued",
+      attempts: 0,
+      createdAt: context.now,
+      updatedAt: context.now,
+    });
+    transaction.update(project.ref, { vendorCreditsSentAt: context.now });
+    const auditId = stableId("audit_vendor_credits", tenantId, idempotencyKey);
+    transaction.set(
+      db.doc(`auditEvents/${auditId}`),
+      auditEvent({
+        id: auditId,
+        tenantId,
+        projectId,
+        actorId: context.actorId,
+        action: "vendor_team.credits_sent",
+        entityType: "project",
+        entityId: projectId,
+        now: context.now,
+        before: null,
+        after: { credits: credits.length },
+        userAgent: context.userAgent,
+        correlationId: idempotencyKey,
+      }),
+    );
+    return { emailJobId: jobId, alreadySent: false, count: credits.length };
+  });
+}
+
+const record = (value: unknown): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+/**
+ * The vendors a couple listed in their Final details vendor section
+ * (vendor-section.ts), onto the job's team: each one not already on it joins
+ * the studio's directory and the team, booked — the couple booked them. Run
+ * when the couple sends the form back, and again when they change the
+ * section after; ids come from the job and the company, so a vendor is
+ * added once however often it runs. Returns who was added.
+ */
+export async function importVendorsFromForm(
+  db: Firestore,
+  input: { tenantId: string; projectId: string; text: unknown; actorId: string; now: string },
+): Promise<{ added: string[] }> {
+  const { tenantId, projectId } = input;
+  const section = parseVendorSection(input.text);
+  if (!section.length) return { added: [] };
+  const added = await db.runTransaction(async (transaction) => {
+    const [project, team] = await Promise.all([
+      transaction.get(db.doc(`projects/${projectId}`)),
+      transaction.get(db.collection("projectVendors").where("tenantId", "==", tenantId).where("projectId", "==", projectId)),
+    ]);
+    if (!project.exists || project.get("tenantId") !== tenantId) return [];
+    const fresh = vendorsToImport(section, team.docs.map((entry) => entry.data())).slice(0, 30);
+    if (!fresh.length) return [];
+    const ids = fresh.map((vendor) => {
+      const key = `form:${projectId}:${companyKey(vendor.company)}`;
+      return { entryId: stableId("pv", tenantId, key), vendorId: stableId("vendor", tenantId, key) };
+    });
+    const [entryDocs, vendorDocs] = await Promise.all([
+      transaction.getAll(...ids.map((id) => db.doc(`projectVendors/${projectId}_${id.entryId}`))),
+      transaction.getAll(...ids.map((id) => db.doc(`vendors/${id.vendorId}`))),
+    ]);
+    const names: string[] = [];
+    fresh.forEach((vendor, index) => {
+      const { entryId, vendorId } = ids[index]!;
+      // Removed from the team by the studio after an earlier send: the
+      // studio's call stands, the couple's line does not bring them back.
+      if (entryDocs[index]?.exists || vendorDocs[index]?.exists) return;
+      transaction.create(db.doc(`vendors/${vendorId}`), {
+        id: vendorId,
+        tenantId,
+        projectId,
+        projectIds: [projectId],
+        company: vendor.company,
+        contactName: vendor.contactName,
+        email: vendor.email,
+        phone: vendor.phone,
+        type: vendor.category,
+        website: null,
+        address: null,
+        notes: "Listed by the couple on their final details.",
+        createdAt: input.now,
+        updatedAt: input.now,
+        createdBy: input.actorId,
+        updatedBy: input.actorId,
+        archivedAt: null,
+      });
+      transaction.create(db.doc(`projectVendors/${projectId}_${entryId}`), {
+        id: `${projectId}_${entryId}`,
+        entryId,
+        tenantId,
+        projectId,
+        vendorId,
+        category: vendor.category,
+        roleLabel: null,
+        status: "booked",
+        arrivalTime: vendor.arrivalTime,
+        loadInTime: null,
+        strikeTime: null,
+        contractReceived: false,
+        coiReceived: false,
+        costCents: null,
+        balanceDueCents: null,
+        balanceDueDate: null,
+        tipCents: null,
+        notes: "From the couple's final details.",
+        company: vendor.company,
+        contactName: vendor.contactName || null,
+        email: vendor.email,
+        phone: vendor.phone,
+        source: "client_form",
+        createdAt: input.now,
+        updatedAt: input.now,
+        createdBy: input.actorId,
+        updatedBy: input.actorId,
+        archivedAt: null,
+      });
+      names.push(vendor.company);
+    });
+    if (!names.length) return [];
+    transaction.update(project.ref, { vendorTeamUpdatedAt: input.now });
+    const auditId = stableId("audit_vendor_team_form", tenantId, `${projectId}:${input.now}`);
+    transaction.set(
+      db.doc(`auditEvents/${auditId}`),
+      auditEvent({
+        id: auditId,
+        tenantId,
+        projectId,
+        actorId: input.actorId,
+        action: "vendor_team.imported_from_form",
+        entityType: "project",
+        entityId: projectId,
+        now: input.now,
+        before: null,
+        after: { added: names },
+        userAgent: null,
+        correlationId: auditId,
+      }),
+    );
+    return names;
+  });
+  if (added.length) await rebuildCrewVendorContacts(db, tenantId, projectId, input.now);
+  return { added };
+}
+
 /** Run one vendor-team command. The caller has checked the member, their role and the job. */
 export async function runVendorTeamCommand(
   db: Firestore,
@@ -849,5 +1067,7 @@ export async function runVendorTeamCommand(
       return setBudget(db, parsed, context);
     case "sendTimelineToVendorTeam":
       return sendTimeline(db, parsed, context);
+    case "sendVendorCredits":
+      return sendCredits(db, parsed, context);
   }
 }

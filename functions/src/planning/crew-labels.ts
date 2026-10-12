@@ -13,7 +13,7 @@
  * Mirrored at functions/src/planning/crew-labels.ts; the test fails on drift.
  */
 
-export type CrewTrade = "photographer" | "videographer" | "dj" | "makeup_artist" | "hair_stylist";
+export type CrewTrade = "photographer" | "videographer" | "dj" | "makeup_artist" | "hair_stylist" | "coordinator";
 
 export type LabelledCrew = {
   id: string;
@@ -29,19 +29,22 @@ export type CrewLabel = { id: string; label: string; trade: CrewTrade; number: n
 export function crewTrade(role: string): CrewTrade {
   // A DJ studio's crew: D1, D2 (trades.ts).
   if (/\bdj\b|disc jockey|\bmc\b/i.test(role)) return "dj";
+  // A planner's assistant coordinators: C1, C2. Before the others, so
+  // "Assistant coordinator" is never read as a photographer's assistant.
+  if (/coordinat|planner/i.test(role)) return "coordinator";
   // A makeup or hair studio's: M1, M2 and H1, H2.
   if (/make.?up|\bmua\b|\bartist\b/i.test(role)) return "makeup_artist";
   if (/\bhair\b|stylist/i.test(role)) return "hair_stylist";
   return /video/i.test(role) ? "videographer" : "photographer";
 }
 
-const TRADE_LETTER: Record<CrewTrade, string> = { photographer: "P", videographer: "V", dj: "D", makeup_artist: "M", hair_stylist: "H" };
+const TRADE_LETTER: Record<CrewTrade, string> = { photographer: "P", videographer: "V", dj: "D", makeup_artist: "M", hair_stylist: "H", coordinator: "C" };
 
 const rank = (role: string) => (/lead|main|primary|first|\b1\b/i.test(role) ? 0 : /second|assist|associate|\b2\b/i.test(role) ? 2 : 1);
 
 export function crewLabels(members: readonly LabelledCrew[]): Map<string, CrewLabel> {
   const labels = new Map<string, CrewLabel>();
-  for (const trade of ["photographer", "videographer", "dj", "makeup_artist", "hair_stylist"] as const) {
+  for (const trade of ["photographer", "videographer", "dj", "makeup_artist", "hair_stylist", "coordinator"] as const) {
     const ofTrade = members
       .map((member, index) => ({ member, index }))
       .filter(({ member }) => crewTrade(member.role) === trade)
@@ -66,6 +69,6 @@ export function sortLabels(labels: readonly string[]): string[] {
 
 /** "Photo 1", "Video 2" for a label. */
 export function labelName(label: string): string {
-  const names: Record<string, string> = { V: "Video", D: "DJ", M: "Makeup", H: "Hair" };
+  const names: Record<string, string> = { V: "Video", D: "DJ", M: "Makeup", H: "Hair", C: "Coordinator" };
   return `${names[label[0] ?? ""] ?? "Photo"} ${label.slice(1)}`;
 }

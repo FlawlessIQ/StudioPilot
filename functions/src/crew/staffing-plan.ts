@@ -181,6 +181,8 @@ function offerLabel(
 export function coverageRoleForLabel(label: string): CoverageRole {
   // A DJ studio's crew (trades.ts): "DJ", "Second DJ", "MC".
   if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return "dj";
+  // A planner's assistants: "Assistant coordinator", "Day-of coordinator".
+  if (/coordinat|planner/i.test(label)) return "coordinator";
   // A makeup or hair studio's crew (trades.ts).
   if (/make.?up|\bmua\b|\bartist\b/i.test(label)) return "makeup_artist";
   if (/\bhair\b|stylist/i.test(label)) return "hair_stylist";
@@ -207,6 +209,9 @@ export function coverageRoleForLabel(label: string): CoverageRole {
  */
 export function coverageTradeNamed(label: string): CoverageRole | null {
   if (/\bdj\b|disc jockey|\bmc\b/i.test(label)) return "dj";
+  // A planner's assistant coordinators. "Planner" alone is a vendor on the
+  // wedding, never crew a studio staffs.
+  if (/coordinat/i.test(label)) return "coordinator";
   if (/make.?up|\bmua\b/i.test(label)) return "makeup_artist";
   if (/\bhair\b|stylist/i.test(label)) return "hair_stylist";
   if (/video|cinema|film|drone|aerial/i.test(label)) {

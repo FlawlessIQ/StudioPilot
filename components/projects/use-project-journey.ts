@@ -4,6 +4,10 @@ import { paidInFullSettledByDeletion, settledInvoiceStatus } from "@/features/bi
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { finalCallState } from "@/features/consultations/final-call";
 import { trialArrangedOnJob, trialDayLeft, trialState, trialWhen, type TrialState } from "@/features/consultations/trial";
+import { walkthroughState, walkthroughWhen, type WalkthroughState } from "@/features/consultations/walkthrough";
+import { publishedTimelineVersion, vendorTeamProgress } from "@/features/vendors/team";
+import { handOutSummary, paymentsToHandOut } from "@/features/vendors/hand-out";
+import { vendorTeamStarts } from "@/features/planning/planning-scope";
 import { extensionsState } from "@/features/trades/extensions";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
@@ -82,6 +86,8 @@ export function useProjectJourney({
    * trial itself (trialArrangedOnJob), read once for the card and the step.
    */
   trial: TrialState & { when: string | null; dayLeft: boolean; arranged: boolean };
+  /** A planner's venue walkthrough, for the job's walkthrough card as well as its step. */
+  walkthrough: WalkthroughState & { when: string | null };
 } {
   const tenantTrade = useWorkspace().tenantTrade;
   const leads = useTenantDocuments("leads");
@@ -112,6 +118,10 @@ export function useProjectJourney({
   // The same, read for this job alone: whether its final details have gone is
   // read from a sign-off being missing, and the tenant-wide reads stop at 100.
   const ownFinalDetails = useFinalDetailsRecords([projectId])[projectId] ?? null;
+  // A planner's vendor team and its timeline links (trades.ts `journey.vendorSteps`).
+  const vendorSteps = tradeProfile(tenantTrade).journey.vendorSteps;
+  const teamEntries = useTenantDocuments("projectVendors", { enabled: vendorSteps });
+  const teamShares = useTenantDocuments("scheduleShares", { enabled: vendorSteps });
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -219,9 +229,30 @@ export function useProjectJourney({
   const finalDetailsDay = finalDetailsToday(new Date(), journeyProject?.timezone, jobStudio?.timezone);
   const finalSignoff = ownFinalDetails ? ownFinalDetails.signoff : (forProject(detailSignoffs.records)[0] ?? null);
   const finalResponses = ownFinalDetails ? ownFinalDetails.responses : forProject(questionnaires.records);
+  // A planner's venue walkthrough, on the job's clock.
+  const walkthrough = {
+    ...walkthroughState({ consultations: forProject(consultations.records), project: journeyProject ?? null, now: new Date().toISOString() }),
+    when: walkthroughWhen({ consultations: forProject(consultations.records), timeZone: text(journeyProject?.timezone) || null }),
+  };
+  const team = vendorSteps
+    ? vendorTeamProgress(
+        forProject(teamEntries.records),
+        forProject(teamShares.records),
+        publishedTimelineVersion(forProject(schedules.records)),
+      )
+    : null;
 
   const journey = projectJourney({
     projectId,
+    // The vendor team's steps and the walkthrough, for a planner (trades.ts).
+    ...(vendorSteps
+      ? {
+          vendorTeam: team,
+          vendorTeamStarts: vendorTeamStarts(journeyProject),
+          walkthrough,
+          handOut: handOutSummary(paymentsToHandOut(forProject(teamEntries.records), eventDate)),
+        }
+      : {}),
     // Which steps this kind of job has (job-kinds.ts).
     profile: journeyProject ? projectProfile(journeyProject) : undefined,
     // What the studio does (trades.ts): a DJ has nothing to deliver.
@@ -364,5 +395,5 @@ export function useProjectJourney({
     evidence,
   });
 
-  return { ...journey, readinessEvidence, trial };
+  return { ...journey, readinessEvidence, trial, walkthrough };
 }

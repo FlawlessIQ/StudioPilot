@@ -60,7 +60,16 @@ type Block =
   | { type: "paragraph"; content: Inline[] }
   | { type: "list"; items: Array<{ content: Inline[] }> };
 
-type Category = "getting_ready" | "ceremony" | "reception" | "photo_locations" | "venue_logistics" | "times" | "guests" | "contacts";
+type Category =
+  | "getting_ready"
+  | "ceremony"
+  | "reception"
+  | "photo_locations"
+  | "venue_logistics"
+  | "rehearsal"
+  | "times"
+  | "guests"
+  | "contacts";
 
 const CATEGORY_LABEL: Record<Category, string> = {
   getting_ready: "Getting ready",
@@ -69,6 +78,8 @@ const CATEGORY_LABEL: Record<Category, string> = {
   photo_locations: "Photo locations",
   // A DJ's: where to load in, power, the venue's sound limit, a vendor meal.
   venue_logistics: "Load-in and power",
+  // A planner's: the rehearsal she runs the day before.
+  rehearsal: "Rehearsal",
   times: "Times",
   guests: "Guests",
   contacts: "Contacts",
@@ -83,7 +94,15 @@ export const REQUIRED_DJ_WEDDING_PARTS: readonly Category[] = ["ceremony", "rece
 /** A makeup artist's or hair stylist's wedding: where they get ready, and when they must be ready. */
 export const REQUIRED_BEAUTY_WEDDING_PARTS: readonly Category[] = ["getting_ready", "times"];
 
+/**
+ * A wedding planner's (docs/planner-journey-plan.md, N6): the ceremony, the
+ * reception and the guest count she staffs on. Venue logistics, contacts and
+ * the rehearsal are printed when the couple gives them.
+ */
+export const REQUIRED_PLANNER_WEDDING_PARTS: readonly Category[] = ["ceremony", "reception", "guests"];
+
 const isBeauty = (trade: string | null | undefined) => trade === "makeup" || trade === "hair";
+const isPlanner = (trade: string | null | undefined) => trade === "planner";
 
 const normalise = (value: string) =>
   ` ${value
@@ -98,6 +117,10 @@ export function eventDetailCategory(question: string, trade?: string | null): Ca
   const has = (...words: string[]) => words.some((word) => n.includes(` ${word}`));
   if (has("date") && !has("time")) return null;
   if (has("restriction", "rule", "note", "anything", "accessib", "allergi", "describe", "how important")) return null;
+  // A planner's rehearsal (its day and time, who comes) is a part of its own,
+  // before "time" claims it; her key people are the day's contacts.
+  if (isPlanner(trade) && has("rehearsal")) return "rehearsal";
+  if (isPlanner(trade) && has("key people")) return "contacts";
   // Before times: "Load-in time" is about load-in.
   if (has("load in", "loading", "unload", "power", "outlet", "sound limit", "decibel", "vendor meal")) return "venue_logistics";
   if (has("time", "times", "start", "end", "finish", "arrive", "arrival", "hours")) return "times";
@@ -157,7 +180,13 @@ export function eventDetailsFrom(input: {
 }): EventDetails {
   const wedding = input.eventKind ? input.eventKind === "wedding" : /wedding/i.test(input.eventType);
   const required =
-    input.trade === "dj" ? REQUIRED_DJ_WEDDING_PARTS : isBeauty(input.trade) ? REQUIRED_BEAUTY_WEDDING_PARTS : REQUIRED_WEDDING_PARTS;
+    input.trade === "dj"
+      ? REQUIRED_DJ_WEDDING_PARTS
+      : isBeauty(input.trade)
+        ? REQUIRED_BEAUTY_WEDDING_PARTS
+        : isPlanner(input.trade)
+          ? REQUIRED_PLANNER_WEDDING_PARTS
+          : REQUIRED_WEDDING_PARTS;
   const sorted = new Map<Category, EventDetailRow[]>();
   for (const row of input.answers) {
     const question = row.question.trim();
@@ -187,9 +216,9 @@ export function eventDetailsFrom(input: {
   // A photographer's "Coverage"; a DJ's, makeup artist's or hair stylist's
   // "Service" (trades.ts `coverage`, written out because this file has no
   // imports). An unknown trade is a photographer, as tradeOf() reads it.
-  const vendor = ["dj", "makeup", "hair"].includes(String(input.trade ?? "").trim().toLowerCase());
+  const vendor = ["dj", "makeup", "hair", "planner"].includes(String(input.trade ?? "").trim().toLowerCase());
   if (input.coverage) rows.push({ label: vendor ? "Service" : "Coverage", value: input.coverage });
-  const order: Category[] = ["getting_ready", "ceremony", "reception", "photo_locations", "venue_logistics", "times", "guests", "contacts"];
+  const order: Category[] = ["getting_ready", "ceremony", "reception", "photo_locations", "venue_logistics", "rehearsal", "times", "guests", "contacts"];
   const missing: string[] = [];
   for (const category of order) {
     const entries = sorted.get(category) ?? [];

@@ -5,6 +5,7 @@ import type { FileRef } from "@/features/documents/file-ref";
 import { projectStateLabel } from "@/features/projects/state-label";
 import { awaitingEventReconciliation } from "@/features/projects/job-moment";
 import { trialDayLeft } from "@/features/consultations/trial";
+import type { VendorTeamProgress } from "@/features/vendors/team";
 
 /**
  * The Journey — Gabriel's easy flow as a deterministic engine.
@@ -25,8 +26,11 @@ export type JourneyStepKey =
   | "contract"
   | "retainer"
   | "trial"
+  | "vendor_team"
   | "schedule_form"
+  | "walkthrough"
   | "run_of_show"
+  | "vendors_confirmed"
   | "final_call"
   | "crew"
   | "extensions"
@@ -100,8 +104,18 @@ export const journeyStepRequires: Record<
   // A makeup or hair trial: booked from the studio's link before or after the
   // agreement, so it waits on nothing.
   trial: [],
+  // A planner's vendor team (trades.ts `journey.vendorSteps`): worked from
+  // the day the job books, or from the couple's intake for month-of. Open
+  // whenever the studio likes; the panel takes a vendor at any point.
+  vendor_team: [],
   schedule_form: [],
+  // The venue walkthrough a planner holds four to six weeks out: booked by
+  // the couple from the job's link, so nothing before it.
+  walkthrough: [],
   run_of_show: [],
+  // The timeline to every booked vendor: the master timeline folds into it
+  // and speaks first while it is unpublished, so it waits on nothing else.
+  vendors_confirmed: [],
   // Booked by the couple from the link the details lock sends: nothing the
   // studio does first, and nothing it offers before then.
   final_call: [],
@@ -313,6 +327,30 @@ export type JourneyInput = {
     when?: string | null;
     arranged?: boolean;
   } | null;
+  /**
+   * The wedding's vendor team, as features/vendors/team.ts
+   * `vendorTeamProgress` reads it — only for a trade whose journey has the
+   * team's steps (trades.ts `journey.vendorSteps`, a planner's). Absent or
+   * null: nobody on the team yet.
+   */
+  vendorTeam?: Pick<VendorTeamProgress, "total" | "booked" | "needed" | "considering" | "teamComplete" | "allConfirmed" | "timeline"> | null;
+  /**
+   * When the vendor team is the work (features/planning/planning-scope.ts
+   * `vendorTeamStarts`): from booking, or as a month-of couple's intake with
+   * their final details. Absent is from booking.
+   */
+  vendorTeamStarts?: "booking" | "intake";
+  /**
+   * The venue walkthrough (features/consultations/walkthrough.ts), for a
+   * trade that holds one. `when` is its time on the job's clock.
+   */
+  walkthrough?: { state: "not_booked" | "invited" | "booked" | "held"; startsAt: string | null; when?: string | null } | null;
+  /**
+   * The envelopes to hand out on the day, in a phrase
+   * (features/vendors/hand-out.ts `handOutSummary`): "3 envelopes to hand
+   * out, $1,550". Shown on the day's step the day before and of.
+   */
+  handOut?: string | null;
   /**
    * Hair extensions to buy or rent, from the trial notes, and whether the
    * order task is done (features/trades/extensions.ts). Null or absent: none
@@ -623,6 +661,19 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
     }
   }
 
+  if (light.vendorSteps) {
+    // A planner's master timeline is drawn for the vendors: it folds into
+    // "Vendors confirmed", which speaks for it until it is published.
+    const vendorsStep = find("vendors_confirmed");
+    const plan = find("run_of_show");
+    const timelineFirst = Boolean(vendorsStep && plan && !settled(plan));
+    fold("vendors_confirmed", "run_of_show");
+    if (timelineFirst && vendorsStep) {
+      const detail = vendorsStep.detail;
+      vendorsStep.detail = `${words.planOfDay ?? "Run of show"} first — ${detail.charAt(0).toLowerCase()}${detail.slice(1)}`;
+    }
+  }
+
   if (light.foldRoutine) {
     // The day-before note belongs to the day itself.
     fold("event_day", "day_before");
@@ -634,7 +685,14 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
   const kit = words.kitChecklist;
   const kitDays = daysUntil(input.eventDate, input.today);
   const morning = find("event_day");
-  if (kit && morning && morning.status === "upcoming" && kitDays !== null && kitDays >= 0 && kitDays <= 1) {
+  if (light.vendorSteps) {
+    // A planner's day (journey row 13): the rehearsal, the emergency kit and
+    // the envelopes for the vendors, from the vendor team (hand-out.ts).
+    if (kit && morning && kitDays !== null && kitDays >= 0 && kitDays <= 1 && !settled(morning)) {
+      const lead = morning.status === "upcoming" ? `Pack the ${kit.title.toLowerCase()}` : morning.detail;
+      morning.detail = input.handOut ? `${lead} · ${input.handOut}` : lead;
+    }
+  } else if (kit && morning && morning.status === "upcoming" && kitDays !== null && kitDays >= 0 && kitDays <= 1) {
     morning.detail = `Pack ${kit.items.slice(2, 5).join(", ")} — and check ${kit.items[0]}`;
   }
 
@@ -680,6 +738,9 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
   const day = find("event_day");
   if (day && day.title === "Event day") day.title = words.dayName;
 }
+
+/** A planner invites the couple to the venue walkthrough from six weeks out. */
+export const WALKTHROUGH_INVITE_DAYS = 42;
 
 export function projectJourney(input: JourneyInput): {
   steps: JourneyStep[];
@@ -1082,6 +1143,46 @@ export function projectJourney(input: JourneyInput): {
     });
   }
 
+  // A planner's vendor team (docs/planner-journey-plan.md, journey row 5):
+  // done when every category the wedding needs is booked. Full and partial
+  // planning work it from booking; a month-of couple's vendors come in with
+  // their final details, eight weeks out (planning-scope.ts).
+  const journeyShape = tradeProfile(input.trade).journey;
+  const teamAnchor = `/studio/projects/${input.projectId}#vendor-team`;
+  const detailsFormName = tradeWords.detailsForm ?? `${words.detailsForm} form`;
+  if (journeyShape.vendorSteps) {
+    const team = input.vendorTeam ?? null;
+    const stillToFind = team ? team.needed + team.considering : 0;
+    const teamBooked = stateRank >= 5;
+    const intake = input.vendorTeamStarts === "intake" && !(team && team.total > 0) && !formDone;
+    push({
+      key: "vendor_team",
+      title: "Vendor team",
+      detail: team?.teamComplete
+        ? `All ${team.booked} ${team.booked === 1 ? "vendor" : "vendors"} booked`
+        : !teamBooked
+          ? "Starts once they book"
+          : intake
+            ? formWaiting
+              ? `${Who} list the vendors they've booked in their ${detailsFormName.toLowerCase()}`
+              : `Their vendors come in with the ${detailsFormName.toLowerCase()}, eight weeks out`
+            : !team || team.total === 0
+              ? "Add the vendors this wedding needs"
+              : `${team.booked} of ${team.total} booked · ${stillToFind} still to find`,
+      status: team?.teamComplete
+        ? "complete"
+        : !teamBooked
+          ? prepStatus("upcoming")
+          : intake
+            ? prepStatus(formWaiting ? "waiting_client" : "upcoming")
+            : prepStatus("current"),
+      action:
+        team?.teamComplete || !teamBooked || intake
+          ? null
+          : prepAction({ kind: "link" as const, label: "Open the vendor team", href: teamAnchor }),
+    });
+  }
+
   push({
     key: "schedule_form",
     title: tradeWords.detailsForm ?? `${words.detailsForm} form`,
@@ -1127,6 +1228,44 @@ export function projectJourney(input: JourneyInput): {
               : project("/studio/questionnaires"),
         }),
   });
+
+  // The venue walkthrough with the couple, four to six weeks out
+  // (docs/planner-journey-plan.md, journey row 7): the job's walkthrough
+  // card sends the link; booked is as done as the studio can make it.
+  if (journeyShape.walkthrough) {
+    const walk = input.walkthrough ?? { state: "not_booked" as const, startsAt: null };
+    const walkWhen = walk.when || (walk.startsAt ? formatCallTime(walk.startsAt) : null);
+    const inviteWindow = days !== null && days <= WALKTHROUGH_INVITE_DAYS && stateRank >= 5;
+    push({
+      key: "walkthrough",
+      title: "Venue walkthrough",
+      detail:
+        walk.state === "held"
+          ? `Done${walkWhen ? ` ${walkWhen}` : ""}`
+          : walk.state === "booked"
+            ? `Booked${walkWhen ? ` for ${walkWhen}` : ""}`
+            : walk.state === "invited"
+              ? `Invited — waiting for ${who} to pick a time`
+              : inviteWindow
+                ? `Walk the venue with ${who} and the venue coordinator`
+                : "With the couple and the venue, four to six weeks out",
+      status:
+        walk.state === "held"
+          ? "complete"
+          : walk.state === "booked"
+            ? prepStatus("waiting_other")
+            : walk.state === "invited"
+              ? prepStatus("waiting_client")
+              : inviteWindow
+                ? prepStatus("current")
+                : prepStatus("upcoming"),
+      explain: walk.state === "booked" || walk.state === "invited",
+      action:
+        walk.state === "not_booked" && inviteWindow
+          ? prepAction({ kind: "link" as const, label: "Invite them to book it", href: `/studio/projects/${input.projectId}#walkthrough` })
+          : null,
+    });
+  }
 
   const scheduleSettled = ["approved", "published"].includes(
     input.scheduleStatus ?? "",
@@ -1202,6 +1341,44 @@ export function projectJourney(input: JourneyInput): {
             : `/studio/schedules/new?project=${input.projectId}`,
         }),
   });
+
+  /**
+   * Every booked vendor has the master timeline and has confirmed it
+   * (docs/planner-journey-plan.md, journey row 9): "7 of 9 confirmed". One
+   * press on the vendor team sends each their own link, and republishing
+   * re-sends to anyone on an older version. The master timeline folds into
+   * this step (shapeForLightJourney) and speaks first until it is published.
+   */
+  if (journeyShape.vendorSteps) {
+    const team = input.vendorTeam ?? null;
+    const booked = team?.booked ?? 0;
+    const confirmed = team?.timeline.confirmed ?? 0;
+    const toSend = (team?.timeline.notSent ?? 0) + (team?.timeline.older ?? 0);
+    const allIn = Boolean(team?.allConfirmed) && scheduleDone;
+    push({
+      key: "vendors_confirmed",
+      title: "Vendors confirmed",
+      detail: allIn
+        ? `All ${booked} confirmed on the current timeline`
+        : !booked
+          ? "Once vendors are booked, each confirms their part of the timeline"
+          : !scheduleDone
+            ? `${confirmed} of ${booked} confirmed`
+            : toSend
+              ? `${confirmed} of ${booked} confirmed · ${toSend} to send`
+              : `${confirmed} of ${booked} confirmed · waiting on ${booked - confirmed}`,
+      status: allIn
+        ? "complete"
+        : !booked || !scheduleDone
+          ? prepStatus("upcoming")
+          : prepStatus(toSend ? "current" : "waiting_other"),
+      explain: Boolean(booked) && scheduleDone && !allIn,
+      action:
+        allIn || !booked || !scheduleDone
+          ? null
+          : prepAction({ kind: "link" as const, label: toSend ? "Send the timeline" : "See who's confirmed", href: teamAnchor }),
+    });
+  }
 
   /**
    * The final details call, a month out (GR, 2026-10-08: "after the schedule
@@ -1479,10 +1656,10 @@ export function projectJourney(input: JourneyInput): {
     title: "Day-before checklist",
     detail: dayBeforeDone
       ? tradeWords.dayBefore
-        ? "Sent — last song changes and load-in"
+        ? tradeWords.dayBefore.sent
         : "Sent — saves 20 minutes on site"
       : tradeWords.dayBefore
-        ? "Last song changes, venue contact, load-in"
+        ? tradeWords.dayBefore.summary
         : // A family session or a team day has no dress or rings (job-kinds.ts).
           input.profile && input.profile.kind !== "wedding"
           ? `${words.dayBeforeChecklist[0]!.charAt(0).toUpperCase()}${words.dayBeforeChecklist[0]!.slice(1)}`
@@ -1652,6 +1829,9 @@ export function projectJourney(input: JourneyInput): {
     contract: { label: "Open contract", href: project("/studio/booking") },
     retainer: { label: `Open ${tradeVocab(input.trade).deposit}`, href: project("/studio/booking") },
     trial: { label: "Open calendar", href: project("/studio/calendar") },
+    vendor_team: { label: "Open the vendor team", href: `/studio/projects/${input.projectId}#vendor-team` },
+    walkthrough: { label: "Open calendar", href: project("/studio/calendar") },
+    vendors_confirmed: { label: "Open the vendor team", href: `/studio/projects/${input.projectId}#vendor-team` },
     schedule_form: {
       label: "Open form",
       href: project("/studio/questionnaires"),
@@ -1663,7 +1843,10 @@ export function projectJourney(input: JourneyInput): {
     coi: { label: "Open insurance", href: project("/studio/insurance") },
     final_balance: { label: "Open invoices", href: project("/studio/invoices") },
     day_before: { label: "Open the job", href: `/studio/projects/${input.projectId}` },
-    event_day: { label: "Open event day", href: project("/studio/event-day") },
+    // A planner's day runs from the printed vendor contact sheet (Phase 1).
+    event_day: tradeProfile(input.trade).journey.vendorSteps
+      ? { label: "Vendor contact sheet", href: `/studio/projects/${input.projectId}/vendors/print` }
+      : { label: "Open event day", href: project("/studio/event-day") },
     delivery: { label: "Open delivery", href: project("/studio/delivery") },
     album_review: { label: "Open reviews", href: project("/studio/reviews") },
   };
@@ -1675,6 +1858,12 @@ export function projectJourney(input: JourneyInput): {
       ? `The invitation goes out on ${formatCallTime(`${input.finalCall.lockOn}T12:00:00Z`, true)}, when the details lock.`
       : "The invitation goes out when the details lock.",
     final_balance: "Unlocks four weeks before the event.",
+    vendor_team:
+      input.vendorTeamStarts === "intake" && stateRank >= 5
+        ? "Their vendors come in with their final details, eight weeks out."
+        : "Starts once they book.",
+    walkthrough: "The invitation opens six weeks before the wedding.",
+    vendors_confirmed: "Once vendors are booked and the master timeline is published.",
     day_before: "Unlocks two days before the event.",
     event_day: input.eventDate
       ? `The live plan opens on ${input.eventDate}.`

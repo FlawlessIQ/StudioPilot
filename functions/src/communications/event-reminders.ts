@@ -15,6 +15,9 @@ import {
   type CrewReminderPlan,
 } from "./event-reminders-core.js";
 import { remindParticipants } from "../group-events/participant-reminders.js";
+import { tradeProfile } from "../trades/trades.js";
+import { tenantTrade } from "../trades/tenant-trade.js";
+import { handOutLineText, paymentsToHandOut } from "../planning/hand-out.js";
 
 /**
  * The week-of note to the couple and the call-time reminder to each accepted
@@ -103,9 +106,21 @@ async function remindCouple(db: Firestore, project: DocumentSnapshot, zone: stri
   return "couple_queued";
 }
 
+/**
+ * A planner's envelopes, for her assistants' reminder (planning/hand-out.ts):
+ * the vendors' balances due on the day and their tips, from the vendor team.
+ * Empty for every other trade, whose reminder reads as it always has.
+ */
+async function handOutFor(db: Firestore, tenantId: string, project: DocumentSnapshot): Promise<string[]> {
+  if (!tradeProfile(await tenantTrade(db, tenantId)).journey.vendorSteps) return [];
+  const team = await db.collection("projectVendors").where("tenantId", "==", tenantId).where("projectId", "==", project.id).limit(60).get();
+  return paymentsToHandOut(team.docs.map((entry) => entry.data()), text(project.get("eventDate"))).lines.map(handOutLineText);
+}
+
 async function remindCrew(db: Firestore, project: DocumentSnapshot, zone: string, now: Date, tally: Record<string, number>) {
   const data = project.data() ?? {};
   const tenantId = text(data.tenantId);
+  let handOut: string[] | null = null;
   const assignments = await db
     .collection("crewAssignments")
     .where("tenantId", "==", tenantId)
@@ -144,6 +159,10 @@ async function remindCrew(db: Firestore, project: DocumentSnapshot, zone: string
         // Always set: left empty, the sender would greet them by the couple's name.
         recipientName: text(profile.get("name")) || text(profile.get("displayName")) || email.split("@")[0],
         ...crewReminderValues(row, data, decision.zone),
+        ...(await (async () => {
+          handOut ??= await handOutFor(db, tenantId, project).catch(() => []);
+          return handOut.length ? { handOut } : {};
+        })()),
         // To this job's day sheet, not whichever job the page picks.
         scheduleUrl: `${appUrl()}/crew/schedule?assignment=${encodeURIComponent(assignment.id)}`,
         status: "queued",

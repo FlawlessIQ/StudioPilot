@@ -26,8 +26,8 @@ const pageHtml = (trade: (typeof VENDORS)[number]) => {
   return html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
 };
 
-test("every trade is live", () => {
-  assert.deepEqual([...LIVE_TRADES], [...TRADES]);
+test("every trade is live but the planner, whose launch is Phase 5", () => {
+  assert.deepEqual([...LIVE_TRADES], TRADES.filter((trade) => trade !== "planner"));
   assert.equal(vendorPlan.monthly, "$75");
   assert.equal(vendorPlan.yearly, "$750");
 });

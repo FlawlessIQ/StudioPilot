@@ -227,8 +227,58 @@ The total fee is {{price.total}}. A deposit of {{price.retainer}} reserves the d
 This agreement was prepared on {{contract.date}}.
 `;
 
+/**
+ * A wedding planner's starting agreement (docs/planner-journey-plan.md, N6):
+ * plain English, from the research (Legal Paige, Angela Proffitt, Weinberg
+ * Legal, Kelsey Gray). The scope comes from the package — the meetings, the
+ * hours on the day and the assistants are its "What's included" — and the
+ * terms every planner contract carries are written out: the couple contracts
+ * with and pays every vendor directly, the planner is not liable for the
+ * vendors, the couple shares vendor contracts promptly, referral fees are
+ * disclosed, staff meals, overtime, travel, and what isn't included. The
+ * bracketed parts are the studio's to fill in. Counsel review is owed before
+ * it is offered as more than a starting point (as for every starter here).
+ * Their client pays a retainer (trades.ts `deposit`).
+ */
+export const PLANNER_STARTER_AGREEMENT = `This agreement is between {{studio.legal_name}} ("the Planner") and {{client.names}} ("the Client") for wedding planning services for the {{event.type}} on {{event.date}} at {{event.venue}}.
+
+## 1. Services
+The Planner will provide {{package.name}}: {{package.coverage}}. Included:
+{{package.deliverables}}
+
+The planning meetings, the hours on the day and the number of assistants are those listed above. More can be added at the rates in this agreement or in writing.
+
+## 2. Fees and payment
+The total fee is {{price.total}}. A retainer of {{price.retainer}} reserves the date, and the balance of {{price.balance}} is due as follows:
+{{payment.schedule}}
+
+## 3. Your vendors
+The Client contracts with and pays every vendor directly. The Planner recommends, books on the Client's behalf when asked, and coordinates vendors, but is not a party to their contracts and does not pay vendors for the Client. The Planner is not responsible for any vendor's performance, products or conduct.
+
+## 4. Vendor contracts
+The Client shares each vendor's contract and contact details with the Planner promptly once booked, and tells the Planner about any change, so the timeline and the day can be planned around them.
+
+## 5. Referral fees and commissions
+The Planner receives no referral fees or commissions from the vendors it recommends. [If you do, say from whom and how much.]
+
+## 6. On the day
+Anyone working more than six hours on the day is given a meal at the same time as the other vendors. Time beyond the hours above is charged at [your overtime rate] per person per hour. Travel beyond [your travel area] is charged at [your travel rate].
+
+## 7. Not included
+Returning rentals and tuxedos, cleaning up after the event, and taking the Client's personal items home are not included unless they are listed above.
+
+## 8. Cancellation and rescheduling
+[Replace with your own cancellation and rescheduling terms.]
+
+## 9. Limitation of liability
+[Replace with your own terms.]
+
+This agreement was prepared on {{contract.date}}.
+`;
+
 /** The starting agreement and its title for a studio of this trade. */
 export function starterAgreementFor(trade: unknown): { title: string; body: string } {
+  if (trade === "planner") return { title: "Wedding Planning Agreement", body: PLANNER_STARTER_AGREEMENT };
   if (trade === "makeup") return { title: "Makeup Services Agreement", body: BEAUTY_STARTER_AGREEMENT };
   if (trade === "hair") return { title: "Hair Services Agreement", body: BEAUTY_STARTER_AGREEMENT };
   // A DJ's agreement is for services, not coverage, has no image rights, and

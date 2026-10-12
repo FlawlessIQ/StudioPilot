@@ -35,7 +35,9 @@ test("the count in words is setup's own, per trade", () => {
     assert.equal(setupOrderFor(trade).length, 4, `${trade} changed size: check the copy below still reads well`);
     assert.equal(setupQuestionCount(trade), "four", trade);
   }
-  assert.deepEqual([...words].sort(), ["four", "seven"]);
+  // A planner's five (docs/planner-journey-plan.md, the burden check).
+  assert.equal(setupQuestionCount("planner"), "five");
+  assert.deepEqual([...words].sort(), ["five", "four", "seven"]);
 });
 
 test("Today counts setup's questions, not a list of its own", () => {

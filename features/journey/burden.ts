@@ -36,7 +36,11 @@ export function clientAsks(kind: JobKind, trade: unknown): ClientAsk[] {
   if (job.detailsFormDaysBefore !== null || job.oneForm)
     asks.push({ key: "form", label: `Fill in the ${(words.detailsForm ?? "details form").toLowerCase()}` });
   if (job.scheduleApproval) asks.push({ key: "schedule", label: "Approve the day's schedule" });
-  if (job.finalDetailsLock || shape.planning) {
+  // A planner's last meeting is the venue walkthrough with the couple
+  // (trades.ts `journey.walkthrough`): it stands in for the final call and
+  // the lock's sign-off, which a planner's studio does not send.
+  if (shape.journey.walkthrough) asks.push({ key: "walkthrough", label: "Book the venue walkthrough" });
+  else if (job.finalDetailsLock || shape.planning) {
     asks.push(
       shape.perPersonPricing
         ? { key: "headcount", label: "Confirm the final headcount" }

@@ -28,6 +28,7 @@ import {
 } from "../functions/src/communications/event-reminders-core.ts";
 import { defaultLifecycleMessagingSettings as functionsLifecycle } from "../functions/src/communications/lifecycle-core.ts";
 import { DEFAULT_PLANNING_TIMELINE as functionsPlanning } from "../functions/src/planning/planning-timeline.ts";
+import { FINAL_BILL_WINDOW_DAYS, finalBillRaiseDaysBefore } from "../functions/src/operations/invoice-scheduler.ts";
 
 /**
  * "A wedding, start to finish" promises a studio and a prospect exact
@@ -61,11 +62,14 @@ test("the page's schedule is the schedulers' schedule (exported constants)", () 
 });
 
 test("the page's schedule is the schedulers' schedule (numbers inside the code)", () => {
+  // The daily run reads the widest trade's window (a planner's, 44 days); a
+  // photographer's bill, which the page describes, is still raised 28 out.
   assert.deepEqual(
     captured("operations/invoice-scheduler.ts", /target\.setUTCDate\(target\.getUTCDate\(\) \+ (\d+)\)/),
-    [SCHEDULE.finalInvoiceRaisedDaysBefore],
+    [FINAL_BILL_WINDOW_DAYS],
     "the final invoice window",
   );
+  assert.equal(finalBillRaiseDaysBefore("photographer"), SCHEDULE.finalInvoiceRaisedDaysBefore, "a photographer's final invoice");
   // The due date is the studio's trade's (trades.ts): a photographer's is the
   // page's; a makeup or hair studio is paid on the day.
   assert.match(

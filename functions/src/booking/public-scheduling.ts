@@ -19,7 +19,7 @@ import {
 } from "../intake/inquiry-link.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { mintBookingLink } from "./booking-link.js";
-import { consultationPurpose, isSalesConsultation } from "./consultation-purpose.js";
+import { CONSULTATION_PURPOSES, consultationPurpose, isAppointment, isSalesConsultation } from "./consultation-purpose.js";
 import { queueStudioCallAlert } from "./studio-call-alert.js";
 import {
   linkChangedSinceRead,
@@ -64,7 +64,7 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       contactId: z.string().min(1),
       mode: z.enum(["zoom", "in_person", "phone", "custom"]).default("zoom"),
-      purpose: z.enum(["consultation", "final_details", "trial"]).default("consultation"),
+      purpose: z.enum(CONSULTATION_PURPOSES).default("consultation"),
     }),
   }),
   z.object({
@@ -246,7 +246,9 @@ async function trialSlotsFor(
   const timezone = String(tenant.get("timezone") ?? "America/New_York");
   const settings = await getConsultationSettings(db, tenantId);
   // The trade's trial length; the studio's call length when it has none.
-  const trialMinutes = tradeProfile(tenant.get("trade")).trialMinutes;
+  // A planner's venue walkthrough has its own length (trades.ts `walkthroughMinutes`).
+  const shape = tradeProfile(tenant.get("trade"));
+  const trialMinutes = consultationPurpose(link.data()) === "walkthrough" ? shape.walkthroughMinutes : shape.trialMinutes;
   const now = new Date();
   const plan = trialSlotPlan({
     now,
@@ -365,9 +367,10 @@ export const publicConsultationScheduling = onRequest(
           actorId: identity.uid,
           now,
           // A trial's link stays open to the day before the event: the
-          // invitation tells a bride to book once her veil is chosen.
+          // invitation tells a bride to book once her veil is chosen. A
+          // planner's walkthrough is held in the same window.
           days:
-            command.input.purpose === "trial"
+            isAppointment({ purpose: command.input.purpose })
               ? trialLinkDays({
                   today: studioDay(new Date(now), String(tenant.get("timezone") ?? "America/New_York")),
                   eventDate: project.get("eventDate"),
@@ -386,6 +389,11 @@ export const publicConsultationScheduling = onRequest(
         // change to the job: its state and version stay as they are.
         if (command.input.purpose === "trial") {
           batch.update(project.ref, { trialInvitedAt: now, trialInviteExpiresAt: expiresAt });
+        }
+        // The same for a planner's venue walkthrough: the job's card and
+        // journey step say "invited" from the job itself.
+        if (command.input.purpose === "walkthrough") {
+          batch.update(project.ref, { walkthroughInvitedAt: now, walkthroughInviteExpiresAt: expiresAt });
         }
         batch.create(db.doc(`emailJobs/${emailJobId}`), {
           id: emailJobId,
@@ -461,7 +469,7 @@ export const publicConsultationScheduling = onRequest(
       // A trial is browsed a week at a time up to the day before the event;
       // a call keeps its next openings (trial-window.ts).
       const availability =
-        consultationPurpose(link.data()) === "trial"
+        isAppointment(link.data())
           ? await trialSlotsFor(
               link,
               tenant,
@@ -549,6 +557,9 @@ export const publicConsultationScheduling = onRequest(
       // trial is canceled later: what happens then is the studio's call.
       if (consultationPurpose(link.data()) === "trial") {
         batch.update(project.ref, { trialBookedAt: now });
+      }
+      if (consultationPurpose(link.data()) === "walkthrough") {
+        batch.update(project.ref, { walkthroughBookedAt: now });
       }
       if (process.env.PROVIDER_MOCK_MODE !== "true") {
         batch.create(db.doc(`providerJobs/consultation_${consultationId}`), {

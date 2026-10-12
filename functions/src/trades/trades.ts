@@ -6,7 +6,7 @@
  */
 // ── mirrored below ──
 
-export const TRADES = ["photographer", "dj", "makeup", "hair"] as const;
+export const TRADES = ["photographer", "dj", "makeup", "hair", "planner"] as const;
 export type Trade = (typeof TRADES)[number];
 
 export const DEFAULT_TRADE: Trade = "photographer";
@@ -17,6 +17,7 @@ export const TRADE_LABELS: Record<Trade, string> = {
   dj: "DJ",
   makeup: "Makeup",
   hair: "Hair",
+  planner: "Planning",
 };
 
 /** The signup question, "What do you do?". */
@@ -25,6 +26,7 @@ export const TRADE_OPTIONS: ReadonlyArray<{ value: Trade; label: string; hint: s
   { value: "dj", label: "DJ", hint: "Weddings and events, with MC" },
   { value: "makeup", label: "Makeup", hint: "Bridal and event makeup" },
   { value: "hair", label: "Hair", hint: "Bridal and event hair" },
+  { value: "planner", label: "Wedding planner", hint: "Planning and day-of coordination" },
 ];
 
 /**
@@ -35,14 +37,17 @@ export const TRADE_OPTIONS: ReadonlyArray<{ value: Trade; label: string; hint: s
  * Phase 6), with their landing pages (/dj, /makeup, /hair).
  */
 export const LIVE_TRADES: readonly Trade[] = ["photographer", "dj", "makeup", "hair"];
+// The wedding planner (docs/planner-journey-plan.md) is built but not live:
+// Phase 5 launches it. `?trade=planner` opens it for walks.
 
 /** Makeup and hair are separate trades on one shared "beauty" core. */
-export type TradeFamily = "photo" | "music" | "beauty";
+export type TradeFamily = "photo" | "music" | "beauty" | "planning";
 export const TRADE_FAMILY: Record<Trade, TradeFamily> = {
   photographer: "photo",
   dj: "music",
   makeup: "beauty",
   hair: "beauty",
+  planner: "planning",
 };
 
 const tradeText = (value: unknown): string => (typeof value === "string" ? value.trim().toLowerCase() : "");
@@ -101,7 +106,14 @@ export type TradeVocabulary = {
    * what to have ready. Null keeps a photographer's (the dress on a hanger,
    * the rings together), which reads by the kind of job.
    */
-  dayBefore: { lead: string; ask: string; items: readonly string[] } | null;
+  dayBefore: {
+    lead: string;
+    ask: string;
+    items: readonly string[];
+    /** The day-before step's line before it goes, and once it has: "Last song changes, venue contact, load-in". */
+    summary: string;
+    sent: string;
+  } | null;
   /** What the client is sent to book: a photographer's "Proposal", a makeup artist's "Quote". */
   proposal: string;
   /**
@@ -210,6 +222,8 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
         "the venue coordinator's name and number for the day",
         "where we load in and park, if the venue has told you",
       ],
+      summary: "Last song changes, venue contact, load-in",
+      sent: "Sent — last song changes and load-in",
     },
     proposal: "Proposal",
     kitChecklist: null,
@@ -326,6 +340,61 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     dayName: "The morning",
     deposit: "deposit",
   },
+  planner: {
+    provider: "planner",
+    business: "planning business",
+    crew: "assistants",
+    crewStep: "Assistants confirmed",
+    didIt: "Yes, we ran it",
+    doneLabel: "Done",
+    dayDone: "Ran the day",
+    planOfDay: "Master timeline",
+    lead: "Lead planner",
+    ownerOn: "You're running this one",
+    ownerOnAction: "I'm running it",
+    afterPhase: "Afterwards",
+    consultation: "Discovery call",
+    // A planner's last meeting is the venue walkthrough (`walkthrough`); a
+    // final call is the studio's to turn on, and is named as a photographer's.
+    finalCall: "Final details call",
+    detailsForm: "Final details",
+    dayBefore: {
+      lead: "For the rehearsal and the big day",
+      ask: "A few things so tomorrow runs to time — before the rehearsal, please have ready:",
+      items: [
+        "everyone in the ceremony at the rehearsal, on time",
+        "the marriage license and the rings, together, for us to hold",
+        "the vendor tips and final payments in labeled envelopes, if we're handing them out",
+        "your décor and personal items boxed and labeled for setup",
+      ],
+      summary: "The rehearsal, the license and rings, the tip envelopes",
+      sent: "Sent — the rehearsal and what to bring",
+    },
+    proposal: "Proposal",
+    kitChecklist: {
+      title: "Emergency kit",
+      items: [
+        "the master timeline and the vendor contact sheet, printed",
+        "the payments and tips to hand out, in labeled envelopes",
+        "a sewing kit, safety pins and fashion tape",
+        "stain remover, a lint roller and tissues",
+        "pain relievers, bandages and blister pads",
+        "scissors, tape, zip ties and a lighter",
+        "phone chargers and a power bank",
+      ],
+    },
+    trial: null,
+    trialHint: null,
+    prepGuide: null,
+    service: "planning",
+    member: "coordinator",
+    coverage: "Service",
+    hoursLabel: "Hours on the day",
+    includedLabel: "What's included",
+    verb: "work",
+    dayName: "The wedding",
+    deposit: "retainer",
+  },
 };
 
 /** The words for a trade. */
@@ -352,10 +421,23 @@ export type TradeJourney = {
   balanceOnTheDay: boolean;
   /** The review is asked after the day itself: nothing is delivered first. */
   reviewAfterDay: boolean;
-  /** Readiness checks: the photographer's twelve, or the four a vendor needs. */
-  readiness: "full" | "essentials";
+  /**
+   * Readiness checks: the photographer's twelve, the four a vendor needs, or
+   * a planner's five (the vendor team complete and confirmed in place of the
+   * day's plan; starter-templates.ts).
+   */
+  readiness: "full" | "essentials" | "planner";
   /** Routine steps (the first reply, the day-before note, the kit) fold into the steps beside them. */
   foldRoutine: boolean;
+  /**
+   * The wedding's vendor team is part of the journey: a "Vendor team" step
+   * (every needed category booked) and a "Vendors confirmed" step (the
+   * timeline sent to every booked vendor and confirmed), which the plan of
+   * the day folds into. A planner's (docs/planner-journey-plan.md, N3).
+   */
+  vendorSteps: boolean;
+  /** A venue walkthrough with the couple, 4–6 weeks out, is a step of its own (a planner's). */
+  walkthrough: boolean;
 };
 
 /** A photographer's journey, as it has always been. */
@@ -370,6 +452,8 @@ const FULL_JOURNEY: TradeJourney = {
   reviewAfterDay: false,
   readiness: "full",
   foldRoutine: false,
+  vendorSteps: false,
+  walkthrough: false,
 };
 
 /** A vendor's: book in one link, one form, nothing to approve, the checks that matter. */
@@ -384,6 +468,8 @@ const LIGHT_JOURNEY: TradeJourney = {
   reviewAfterDay: true,
   readiness: "essentials",
   foldRoutine: true,
+  vendorSteps: false,
+  walkthrough: false,
 };
 
 export type TradeProfile = {
@@ -417,6 +503,12 @@ export type TradeProfile = {
    * 2026-10-10). A trade default for now; null for a trade with no trial.
    */
   trialMinutes: number | null;
+  /**
+   * How long a venue walkthrough takes, in minutes, for a trade that holds
+   * one (a planner's, 4–6 weeks out): the time each opening offered must fit,
+   * as `trialMinutes` does for a trial. Null for a trade with none.
+   */
+  walkthroughMinutes: number | null;
   /** Services are priced per person (Phase 3). */
   perPersonPricing: boolean;
   /**
@@ -435,7 +527,16 @@ export type TradeProfile = {
    * ten days out, so the final planning call falls about a week before.
    * Null keeps the defaults (a photographer's six months and four weeks).
    */
-  planning: { formAtBooking: boolean; lockDaysBefore: number } | null;
+  planning: {
+    formAtBooking: boolean;
+    lockDaysBefore: number;
+    /** When the form goes, in months before; absent keeps the default (six). */
+    formMonthsBefore?: number;
+    /** "auto": StudioCue sends it on its day; absent keeps "remind". */
+    formSend?: "remind" | "auto";
+    /** The final details call at the lock; absent keeps it on. */
+    finalCall?: boolean;
+  } | null;
   /**
    * Days before the event the final balance falls due. Fourteen for a
    * photographer or a DJ; a makeup artist or hair stylist is paid on the day
@@ -454,6 +555,11 @@ export type TradeProfile = {
   journey: TradeJourney;
   /** The roles a package's coverage is staffed with. */
   coverageRoles: readonly string[];
+  /**
+   * A package says how much of the planning it covers: full, partial or
+   * month-of coordination (features/planning/planning-scope.ts). A planner's.
+   */
+  planningScope: boolean;
   /**
    * A wedding's vendor team on the job (features/vendors/team.ts).
    * "default": the panel is always on the job, for the trade whose work it
@@ -475,6 +581,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: true,
     trial: false,
     trialMinutes: null,
+    walkthroughMinutes: null,
     perPersonPricing: false,
     extensions: false,
     chairSchedule: false,
@@ -483,6 +590,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 14,
     journey: FULL_JOURNEY,
     coverageRoles: ["photographer", "videographer"],
+    planningScope: false,
     vendorTeam: "quiet",
     plans: ["studio", "multi_brand"],
   },
@@ -494,6 +602,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: true,
     trial: false,
     trialMinutes: null,
+    walkthroughMinutes: null,
     perPersonPricing: false,
     extensions: false,
     chairSchedule: false,
@@ -502,6 +611,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 14,
     journey: LIGHT_JOURNEY,
     coverageRoles: ["dj"],
+    planningScope: false,
     vendorTeam: "quiet",
     plans: ["vendor"],
   },
@@ -513,6 +623,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: false,
     trial: true,
     trialMinutes: 90,
+    walkthroughMinutes: null,
     perPersonPricing: true,
     extensions: false,
     chairSchedule: true,
@@ -521,6 +632,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 0,
     journey: { ...LIGHT_JOURNEY, balanceOnTheDay: true },
     coverageRoles: ["makeup_artist"],
+    planningScope: false,
     vendorTeam: "quiet",
     plans: ["vendor"],
   },
@@ -532,6 +644,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     consultation: false,
     trial: true,
     trialMinutes: 120,
+    walkthroughMinutes: null,
     perPersonPricing: true,
     extensions: true,
     chairSchedule: true,
@@ -540,7 +653,48 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 0,
     journey: { ...LIGHT_JOURNEY, balanceOnTheDay: true },
     coverageRoles: ["hair_stylist"],
+    planningScope: false,
     vendorTeam: "quiet",
+    plans: ["vendor"],
+  },
+  /**
+   * A wedding planner (docs/planner-journey-plan.md, Phase 2). Nothing is
+   * delivered; the discovery call comes before every proposal; the couple
+   * signs and pays the retainer in one link. The vendor team is the work
+   * itself, so it is always on the job and two of its steps are the
+   * journey's. Final details go out three months before (a month-of
+   * couple's eight weeks before: planning-scope.ts), are due four weeks out
+   * and lock two weeks out, when the final guest count is in. The balance is
+   * due thirty days before (Legal Paige).
+   */
+  planner: {
+    delivery: false,
+    album: false,
+    shotList: false,
+    clientDayBefore: true,
+    consultation: true,
+    trial: false,
+    trialMinutes: null,
+    walkthroughMinutes: 60,
+    perPersonPricing: false,
+    extensions: false,
+    chairSchedule: false,
+    musicPlanner: false,
+    planning: { formAtBooking: false, lockDaysBefore: 14, formMonthsBefore: 3, formSend: "auto", finalCall: false },
+    balanceDueDaysBefore: 30,
+    journey: {
+      ...LIGHT_JOURNEY,
+      callRequired: true,
+      // The final details are their own step; the master timeline is part of
+      // "Vendors confirmed", not drawn from one form.
+      oneForm: false,
+      readiness: "planner",
+      vendorSteps: true,
+      walkthrough: true,
+    },
+    coverageRoles: ["coordinator"],
+    planningScope: true,
+    vendorTeam: "default",
     plans: ["vendor"],
   },
 };
@@ -584,6 +738,7 @@ export const VENDOR_TYPE_TRADES: Readonly<Record<string, readonly Trade[]>> = {
   dj: ["dj"],
   band: [],
   hair_makeup: ["makeup", "hair"],
+  // The planner trade is not live yet (Phase 5 adds it here).
   planner: [],
   florist: [],
   caterer: [],

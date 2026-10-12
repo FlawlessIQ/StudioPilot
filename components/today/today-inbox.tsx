@@ -909,6 +909,7 @@ export function TodayInbox() {
 function callPurposeWord(purpose: TodayCall["purpose"], trade: unknown): string {
   if (purpose === "final_details") return "final details";
   if (purpose === "trial") return "trial";
+  if (purpose === "walkthrough") return "venue walkthrough";
   return tradeVocab(trade).consultation.toLowerCase();
 }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { auditFieldsSchema } from "@/features/tenants/schema";
+import { PLANNING_SCOPES } from "@/features/planning/planning-scope";
 import {
   coverageRoleSchema,
   includedCoverageSchema,
@@ -49,6 +50,11 @@ export const retainerRuleSchema = z.discriminatedUnion("type", [
 
 export const packageSchema = auditFieldsSchema.extend({
   id: z.string().min(1),
+  /**
+   * A planner's tier: full, partial or month-of coordination
+   * (features/planning/planning-scope.ts). Absent on every other package.
+   */
+  planningScope: z.enum(PLANNING_SCOPES).nullable().optional(),
   tenantId: z.string().min(1),
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().min(10).max(3000),
@@ -158,6 +164,8 @@ export const pricedSalesTaxSchema = z.object({
 });
 
 export const packageSnapshotSchema = z.object({
+  /** The package's planning tier as chosen, when it had one (planning-scope.ts). */
+  planningScope: z.enum(PLANNING_SCOPES).nullable().optional(),
   id: z.string().min(1),
   tenantId: z.string().min(1),
   projectId: z.string().min(1),

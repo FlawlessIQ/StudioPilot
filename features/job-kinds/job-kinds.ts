@@ -428,7 +428,7 @@ export type TradeJourneyShape = {
     oneForm: boolean;
     balanceOnTheDay: boolean;
     reviewAfterDay: boolean;
-    readiness: "full" | "essentials";
+    readiness: "full" | "essentials" | "planner";
     foldRoutine: boolean;
   };
 };
@@ -448,7 +448,7 @@ export type JourneyExtras = {
   /** Review asks follow the day, not a delivery. */
   reviewAfterDay: boolean;
   /** Which readiness checks the job carries. */
-  readiness: "full" | "essentials";
+  readiness: "full" | "essentials" | "planner";
   /** The first reply, the day-before note and the kit fold into the steps beside them. */
   foldRoutine: boolean;
 };

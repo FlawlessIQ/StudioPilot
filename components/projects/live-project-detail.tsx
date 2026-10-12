@@ -834,8 +834,8 @@ function ConsultationInviteAction({
 }: {
   projectId: string;
   contactId: string;
-  /** "trial": a makeup or hair trial (features/consultations/purpose.ts). */
-  purpose?: "trial";
+  /** "trial": a makeup or hair trial; "walkthrough": a planner's venue walkthrough (features/consultations/purpose.ts). */
+  purpose?: "trial" | "walkthrough";
   label?: string;
   /** A second send, not the card's main move: "Send the link again" once a trial is booked. */
   quiet?: boolean;
@@ -852,7 +852,8 @@ function ConsultationInviteAction({
       await runPublicScheduling({
         type: "create_link",
         idempotencyKey: crypto.randomUUID(),
-        // A trial is in person, at the studio or the bride's: never a video call.
+        // A trial is in person, at the studio or the bride's, and a walkthrough
+        // at the venue: never a video call.
         input: purpose
           ? { projectId, contactId, mode: "in_person", purpose }
           : { projectId, contactId, mode: defaultConsultationMode(zoomConnected) },
@@ -1600,6 +1601,48 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         />
       </aside>
     ) : null;
+  // A planner's venue walkthrough with the couple, four to six weeks out
+  // (trades.ts `journey.walkthrough`): the same card as a trial's, once the
+  // job is booked.
+  const walkthrough = journey.walkthrough;
+  const walkthroughInviteEl =
+    tradeProfile(workspace.tenantTrade).journey.walkthrough &&
+    ["BOOKED", "PLANNING", "READY"].includes(state) &&
+    Array.isArray(project.clientContactIds) &&
+    typeof project.clientContactIds[0] === "string" ? (
+      <aside className="job-rail-card" id="walkthrough">
+        <p className="eyebrow">Venue walkthrough</p>
+        {walkthrough.state === "held" ? (
+          <p className="trial-booked">{`Done${walkthrough.when ? ` — ${walkthrough.when}` : ""}.`}</p>
+        ) : walkthrough.state === "booked" ? (
+          <>
+            <p className="trial-booked">{walkthrough.when ? `Booked for ${walkthrough.when}` : "Booked"}</p>
+            <ConsultationInviteAction
+              contactId={project.clientContactIds[0]}
+              label="Send the link again"
+              projectId={projectId}
+              purpose="walkthrough"
+              quiet
+            />
+          </>
+        ) : (
+          <>
+            <p className="trial-hint">
+              {walkthrough.state === "invited"
+                ? "Invited. They pick a time from your openings."
+                : "Usually four to six weeks out, with the venue coordinator."}
+            </p>
+            <ConsultationInviteAction
+              contactId={project.clientContactIds[0]}
+              label={walkthrough.state === "invited" ? "Send the link again" : "Invite them to book the walkthrough"}
+              projectId={projectId}
+              purpose="walkthrough"
+              quiet={walkthrough.state === "invited"}
+            />
+          </>
+        )}
+      </aside>
+    ) : null;
   // A kind with no consultation (job-kinds.ts) goes from the inquiry to its
   // proposal: "Confirm we've spoken" at Lead is a step it doesn't have.
   const hideLeadStageControl = state === "LEAD" && !offersConsultation;
@@ -1883,6 +1926,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />
           {leadInviteEl}
           {trialInviteEl}
+          {walkthroughInviteEl}
           {shotListEl}
           {insuranceSwitchEl}
           {hideLeadStageControl ? null : stageControlEl}
@@ -1934,6 +1978,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             <ThreadMinimap steps={journey.steps} />
             {leadInviteEl}
             {trialInviteEl}
+          {walkthroughInviteEl}
             {shotListEl}
             {insuranceSwitchEl}
             {hideLeadStageControl ? null : stageControlEl}

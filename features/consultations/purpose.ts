@@ -20,13 +20,28 @@ export const FINAL_DETAILS_PURPOSE = "final_details";
  */
 export const TRIAL_PURPOSE = "trial";
 
-export type ConsultationPurpose = "consultation" | typeof FINAL_DETAILS_PURPOSE | typeof TRIAL_PURPOSE;
+/**
+ * A planner's venue walkthrough with the couple, four to six weeks out
+ * (docs/planner-journey-plan.md, N5): booked the same way, in person at the
+ * venue, never a sales call, the final call or a trial.
+ */
+export const WALKTHROUGH_PURPOSE = "walkthrough";
+
+export type ConsultationPurpose =
+  | "consultation"
+  | typeof FINAL_DETAILS_PURPOSE
+  | typeof TRIAL_PURPOSE
+  | typeof WALKTHROUGH_PURPOSE;
+
+/** Every purpose a booking link or a call can carry. */
+export const CONSULTATION_PURPOSES = ["consultation", FINAL_DETAILS_PURPOSE, TRIAL_PURPOSE, WALKTHROUGH_PURPOSE] as const;
 
 type Row = Record<string, unknown>;
 
 export function consultationPurpose(record: Row | null | undefined): ConsultationPurpose {
   if (record?.purpose === FINAL_DETAILS_PURPOSE) return FINAL_DETAILS_PURPOSE;
   if (record?.purpose === TRIAL_PURPOSE) return TRIAL_PURPOSE;
+  if (record?.purpose === WALKTHROUGH_PURPOSE) return WALKTHROUGH_PURPOSE;
   return "consultation";
 }
 
@@ -41,4 +56,18 @@ export function isFinalDetailsCall(record: Row | null | undefined): boolean {
 
 export function isTrial(record: Row | null | undefined): boolean {
   return consultationPurpose(record) === TRIAL_PURPOSE;
+}
+
+export function isWalkthrough(record: Row | null | undefined): boolean {
+  return consultationPurpose(record) === WALKTHROUGH_PURPOSE;
+}
+
+/**
+ * An appointment held in person on a window of its own (a trial, a
+ * walkthrough), offered a week at a time up to the day before the event and
+ * as long as the trade says (trades.ts `trialMinutes`, `walkthroughMinutes`).
+ */
+export function isAppointment(record: Row | null | undefined): boolean {
+  const purpose = consultationPurpose(record);
+  return purpose === TRIAL_PURPOSE || purpose === WALKTHROUGH_PURPOSE;
 }

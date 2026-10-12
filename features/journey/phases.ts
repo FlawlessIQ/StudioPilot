@@ -39,8 +39,12 @@ const phaseByStep: Record<JourneyStepKey, JourneyPhase> = {
   retainer: "book",
   trial: "book",
 
+  // A planner's vendor team, walkthrough and confirmations (planner journey).
+  vendor_team: "prepare",
   schedule_form: "prepare",
+  walkthrough: "prepare",
   run_of_show: "prepare",
+  vendors_confirmed: "prepare",
   final_call: "prepare",
   crew: "prepare",
   extensions: "prepare",

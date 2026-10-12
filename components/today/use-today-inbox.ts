@@ -9,6 +9,9 @@ import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deli
 import { jobExpectedDeliverables } from "@/features/post-event/job-deliverables";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
 import { isLiveConsultation } from "@/features/consultations/live";
+import { walkthroughState } from "@/features/consultations/walkthrough";
+import { publishedTimelineVersion, vendorTeamProgress } from "@/features/vendors/team";
+import { vendorTeamStarts } from "@/features/planning/planning-scope";
 import { callWhen, upcomingCalls } from "@/features/consultations/upcoming";
 import { consultationPurpose } from "@/features/consultations/purpose";
 import {
@@ -235,6 +238,11 @@ export function useTodayInbox(): {
   });
   const deliveries = useTenantDocuments("deliveryRecords");
   const questionnaireTemplates = useTenantDocuments("questionnaireTemplates");
+  // A planner's vendor team and its timeline links, so Today names the same
+  // step the job does (trades.ts `journey.vendorSteps`).
+  const vendorSteps = tradeProfile(workspace.tenantTrade).journey.vendorSteps;
+  const teamEntries = useTenantDocuments("projectVendors", { enabled: vendorSteps });
+  const teamShares = useTenantDocuments("scheduleShares", { enabled: vendorSteps });
 
   // Local, not UTC — a countdown must not move at 8pm. See todayLocalIso.
   const today = todayLocalIso();
@@ -280,6 +288,21 @@ export function useTodayInbox(): {
       });
       const { current } = projectJourney({
         projectId,
+        ...(vendorSteps
+          ? {
+              vendorTeam: vendorTeamProgress(
+                forProject(teamEntries.records, projectId),
+                forProject(teamShares.records, projectId),
+                publishedTimelineVersion(forProject(schedules.records, projectId)),
+              ),
+              vendorTeamStarts: vendorTeamStarts(project),
+              walkthrough: walkthroughState({
+                consultations: forProject(consultations.records, projectId),
+                project,
+                now: new Date().toISOString(),
+              }),
+            }
+          : {}),
         profile: projectProfile(project),
         trade: workspace.tenantTrade,
         state: text(project.state),

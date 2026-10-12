@@ -400,6 +400,56 @@ const WORDS: readonly HelpTermSource[] = [
     trades: ["hair"],
     hint: "Note the plan and color match on the trial card. Buying or renting adds a task due eight weeks out, and a rental gets one to collect them after.",
   },
+  // ── A wedding planner's words (docs/planner-journey-plan.md) ──────────
+  {
+    id: "discovery-call",
+    term: "Discovery call",
+    audience: "studio",
+    trades: ["planner"],
+    hint: "The call before you send a proposal: their date, venue, guest count, budget and the help they want.",
+  },
+  {
+    id: "planning-tier",
+    term: "Planning tier",
+    audience: "studio",
+    trades: ["planner"],
+    hint: "Each package says full planning, partial planning or month-of coordination. Full and partial start the vendor team at booking; month-of sends the final details eight weeks out.",
+  },
+  {
+    id: "vendor-team",
+    term: "Vendor team",
+    audience: "studio",
+    trades: ["planner"],
+    hint: "Every vendor on the job, with their status, arrival time, balance and tip. The step is done when every vendor the day needs is booked.",
+  },
+  {
+    id: "final-details",
+    term: "Final details",
+    audience: "studio",
+    trades: ["planner"],
+    hint: "Your client's planning form: getting ready, key people, décor, the venue's rules, the rehearsal, the guest count and their vendors. Vendors they add join your vendor team.",
+  },
+  {
+    id: "venue-walkthrough",
+    term: "Venue walkthrough",
+    audience: "studio",
+    trades: ["planner"],
+    hint: "The walk of the venue with your clients and the venue coordinator, four to six weeks out. Invite them from the card on the job.",
+  },
+  {
+    id: "vendors-confirmed",
+    term: "Vendors confirmed",
+    audience: "studio",
+    trades: ["planner"],
+    hint: "One press sends every booked vendor their part of the master timeline; each confirms from their link. Publishing a new version sends it again to anyone on an older one.",
+  },
+  {
+    id: "vendor-credits",
+    term: "Vendor credits",
+    audience: "studio",
+    trades: ["planner"],
+    hint: "After the day, one press emails your clients every vendor's name and website, you first, to tag when they share the day.",
+  },
 ];
 
 /** A word in a trade's words, as every screen reads it. */

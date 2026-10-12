@@ -70,6 +70,14 @@ export type ReadinessEvidence = {
    * agreeing rather than a new rule.
    */
   coiSentToVenue: boolean;
+  /**
+   * A planner's vendor team has every category booked
+   * (features/vendors/team.ts `vendorTeamProgress().teamComplete`). Optional:
+   * a reader that does not load the team leaves it false.
+   */
+  vendorTeamComplete?: boolean;
+  /** Every booked vendor has confirmed the current published timeline (`allConfirmed`). */
+  vendorsConfirmed?: boolean;
 };
 
 /** Nothing proven yet — the safe default for every field. */
@@ -125,6 +133,8 @@ export function checkpointSatisfiedByEvidence(
       if (key === "crew-acknowledged") return evidence.crewAcknowledgedSchedule;
       return false;
     case "system_rule":
+      if (key === "vendor-team-complete") return evidence.vendorTeamComplete === true;
+      if (key === "vendors-confirmed") return evidence.vendorsConfirmed === true;
       return key === "coi-approved" && evidence.coiSentToVenue;
     default:
       // "manual", and anything a future template invents.

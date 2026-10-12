@@ -21,6 +21,7 @@ export type StudioCallChange = "booked" | "moved" | "cancelled";
 export function studioCallLabel(purpose: unknown, trade: unknown): string {
   const kind = consultationPurpose({ purpose });
   if (kind === "trial") return "trial";
+  if (kind === "walkthrough") return "venue walkthrough";
   const words = tradeVocab(trade);
   if (kind === "final_details") return words.finalCall.toLowerCase();
   return tradeProfile(trade).consultation ? words.consultation.toLowerCase() : "call";

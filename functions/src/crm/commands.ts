@@ -154,6 +154,7 @@ import {
   type CoverageRole,
 } from "../packages/coverage.js";
 import { isPaymentShape, JOB_KINDS, jobKindOf, PAYMENT_SHAPES } from "../job-kinds/job-kinds.js";
+import { isPlanningScope, PLANNING_SCOPES } from "../planning/planning-scope.js";
 import { templateKeyForKind } from "../job-kinds/template-key.js";
 import {
   JOB_SOURCE_MESSAGES,
@@ -717,6 +718,8 @@ const commandSchema = z.discriminatedUnion("type", [
       terms: z.string().trim().max(6000).optional(),
       basePriceCents: z.number().int().nonnegative().safe().optional(),
       paymentShape: z.enum(PAYMENT_SHAPES).optional(),
+      /** A planner's tier (planning/planning-scope.ts); null clears it. */
+      planningScope: z.enum(PLANNING_SCOPES).nullable().optional(),
       retainerRule: z
         .discriminatedUnion("type", [
           z.object({
@@ -781,6 +784,8 @@ const commandSchema = z.discriminatedUnion("type", [
        * both ways, so it is the package's choice, not the kind's.
        */
       paymentShape: z.enum(PAYMENT_SHAPES).optional(),
+      /** A planner's tier: full, partial or month-of coordination (planning/planning-scope.ts). */
+      planningScope: z.enum(PLANNING_SCOPES).nullable().optional(),
       basePriceCents: z.number().int().nonnegative().safe(),
       currency: z.string().length(3),
       retainerRule: z.discriminatedUnion("type", [
@@ -3263,6 +3268,10 @@ export const crmCommand = onRequest(
               : {}),
             includedTravelArea: studioPackage.includedTravelArea,
             terms: studioPackage.terms,
+            // A planner's tier, kept as chosen (planning/planning-scope.ts).
+            ...(isPlanningScope(packageDocument.get("planningScope"))
+              ? { planningScope: packageDocument.get("planningScope") }
+              : {}),
             selectionDate: timestamp,
             selectedBy: identity.uid,
             immutable: true,
@@ -3307,6 +3316,11 @@ export const crmCommand = onRequest(
                   // says (job-kinds.ts). Absent, the kind's default applies.
                   paymentShape: isPaymentShape(packageDocument.get("paymentShape"))
                     ? packageDocument.get("paymentShape")
+                    : null,
+                  // A planner's tier decides when the job's work starts
+                  // (planning/planning-scope.ts): copied with the package.
+                  planningScope: isPlanningScope(packageDocument.get("planningScope"))
+                    ? packageDocument.get("planningScope")
                     : null,
                   updatedAt: timestamp,
                   updatedBy: identity.uid,

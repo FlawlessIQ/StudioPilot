@@ -468,6 +468,14 @@ export const readinessOnCrewAssignmentWritten =
  */
 export const readinessOnInsuranceRequestWritten =
   readinessTriggerFor("insuranceRequests");
+/**
+ * A planner's two vendor-team checks (starter-templates.ts "vendor-team-complete",
+ * "vendors-confirmed") read the team and each vendor's timeline link: a vendor
+ * booked, or a vendor confirming from their link, is an occasion to recompute.
+ * Discovered by the invoker script like every event trigger.
+ */
+export const readinessOnProjectVendorWritten = readinessTriggerFor("projectVendors");
+export const readinessOnScheduleShareWritten = readinessTriggerFor("scheduleShares");
 
 /**
  * The occasion that was missing: the project entering preparation.

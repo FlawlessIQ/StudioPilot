@@ -698,7 +698,7 @@ export function StudioCalendar() {
                       <span className="ds-cal-row-name">
                         {project ? String(project.name) : "Booked"}
                         {/* Which call it is (features/consultations/purpose.ts). */}
-                        {booking.purpose === "final_details" ? <em> · Final details call</em> : booking.purpose === "trial" ? <em> · Trial</em> : null}
+                        {booking.purpose === "final_details" ? <em> · Final details call</em> : booking.purpose === "trial" ? <em> · Trial</em> : booking.purpose === "walkthrough" ? <em> · Venue walkthrough</em> : null}
                       </span>
                       {/* A video call the provider worker could not give a
                           Zoom link (not connected): the studio sends one. */}

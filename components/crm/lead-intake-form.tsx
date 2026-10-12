@@ -142,6 +142,21 @@ const BUDGETS = [
   { value: "none", label: "Rather not say" },
 ] as const;
 
+/**
+ * The whole wedding's budget, for a trade that runs the vendor team (a
+ * planner's; trades.ts `vendorTeam: "default"`). One amount each, so the
+ * job's light budget can start from it (planning/vendor-team.ts
+ * `parseBudgetCents` reads "About $35,000"; an open end is left to the studio).
+ */
+const WEDDING_BUDGETS = [
+  { value: "About $20,000", label: "About $20k" },
+  { value: "About $35,000", label: "About $35k" },
+  { value: "About $50,000", label: "About $50k" },
+  { value: "About $75,000", label: "About $75k" },
+  { value: "$100,000+", label: "$100k+" },
+  { value: "none", label: "Rather not say" },
+] as const;
+
 const REFERRALS = ["Instagram", "Google", "A friend", "Our planner", "Other"] as const;
 
 const DEFAULT_FORM = defaultInquiryFormConfig();
@@ -749,14 +764,25 @@ export function LeadIntakeForm({
                 {config.askBudget ? (
                   <>
                     <input type="hidden" {...register("budgetRange", { setValueAs: (value) => value || null })} />
-                    <Choices
-                      legend={`${TRADE_LABELS[tradeOf(trade)]} budget`}
-                      onChange={(next) =>
-                        setValue("budgetRange", next === "none" ? null : (next as string), { shouldDirty: true })
-                      }
-                      options={BUDGETS}
-                      value={(budget ?? "none") as (typeof BUDGETS)[number]["value"]}
-                    />
+                    {tradeProfile(trade).vendorTeam === "default" ? (
+                      <Choices
+                        legend="Overall budget"
+                        onChange={(next) =>
+                          setValue("budgetRange", next === "none" ? null : (next as string), { shouldDirty: true })
+                        }
+                        options={WEDDING_BUDGETS}
+                        value={(budget ?? "none") as (typeof WEDDING_BUDGETS)[number]["value"]}
+                      />
+                    ) : (
+                      <Choices
+                        legend={`${TRADE_LABELS[tradeOf(trade)]} budget`}
+                        onChange={(next) =>
+                          setValue("budgetRange", next === "none" ? null : (next as string), { shouldDirty: true })
+                        }
+                        options={BUDGETS}
+                        value={(budget ?? "none") as (typeof BUDGETS)[number]["value"]}
+                      />
+                    )}
                   </>
                 ) : null}
                 {config.askReferral ? (

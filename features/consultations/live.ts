@@ -32,5 +32,10 @@ export function currentConsultation<T extends ConsultationLike>(consultations: r
  */
 export function currentSalesConsultation<T extends ConsultationLike>(consultations: readonly T[]): T | null {
   // Never the final details call or a makeup or hair trial (purpose.ts).
-  return currentConsultation(consultations.filter((consultation) => consultation.purpose !== "final_details" && consultation.purpose !== "trial"));
+  return currentConsultation(
+    consultations.filter(
+      // Nor a planner's venue walkthrough.
+      (consultation) => consultation.purpose !== "final_details" && consultation.purpose !== "trial" && consultation.purpose !== "walkthrough",
+    ),
+  );
 }

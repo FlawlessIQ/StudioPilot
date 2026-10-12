@@ -66,6 +66,9 @@ CHIP_COLORS = {
     ("M", 2): ("#F8E8DC", "#8F4F24"),
     ("H", 1): ("#EFE4F3", "#6A3F7E"),
     ("H", 2): ("#EBEED9", "#5B6524"),
+    # A planner's assistant coordinators (C1, C2).
+    ("C", 1): ("#E3EEF1", "#2E6170"),
+    ("C", 2): ("#F2E9DF", "#7A5530"),
 }
 
 

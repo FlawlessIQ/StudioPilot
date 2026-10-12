@@ -15,10 +15,11 @@ import { hoursText } from "@/features/packages/unit-label";
 import { oneOffCoverageMinutes } from "@/features/packages/one-off";
 
 /** What a one-off might include, in each trade's own work: the textarea's example. */
-const INCLUDED_EXAMPLE: Record<"photo" | "music" | "beauty", string> = {
+const INCLUDED_EXAMPLE: Record<"photo" | "music" | "beauty" | "planning", string> = {
   photo: "4 hours of coverage\nOnline gallery\n150 edited photos",
   music: "4 hours of music\nDance floor lighting\nMC",
   beauty: "Bridal look with lashes\nTwo more in the party\nTouch-up kit",
+  planning: "Three planning meetings\nThe venue walkthrough and rehearsal\n10 hours on the day with one assistant",
 };
 
 /**

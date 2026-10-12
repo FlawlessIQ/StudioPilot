@@ -21,7 +21,8 @@ import { SITE_URL } from "@/lib/site";
  * "What do you do?" on the visitor's trade (features/trades/chosen-trade.ts).
  */
 
-export type VendorTrade = Exclude<Trade, "photographer">;
+// The planner's page comes with its launch (docs/planner-journey-plan.md, Phase 5).
+export type VendorTrade = Exclude<Trade, "photographer" | "planner">;
 export const VENDOR_TRADE_PAGES: Readonly<Record<VendorTrade, string>> = { dj: "/dj", makeup: "/makeup", hair: "/hair" };
 const PAGE_NAMES: Readonly<Record<VendorTrade, string>> = { dj: "DJs", makeup: "Makeup artists", hair: "Hair stylists" };
 

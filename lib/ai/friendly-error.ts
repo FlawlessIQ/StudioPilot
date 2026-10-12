@@ -594,6 +594,9 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   VENDOR_CHOICE_AMBIGUOUS: "Pick a vendor from your list or add someone new — not both.",
   VENDOR_TEAM_ENTRY_EXISTS: "That vendor was already added. Refresh to see the team.",
   VENDOR_TEAM_ENTRY_NOT_FOUND: "That vendor is no longer on this job's team. Refresh to see the team.",
+  VENDOR_CREDITS_AFTER_THE_DAY: "Vendor credits go after the wedding. Mark the day done first.",
+  VENDOR_CREDITS_EMPTY: "Book at least one vendor on the team before sending the credits.",
+  CLIENT_OUTREACH_PAUSED: "This job is paused, put away or canceled, so nothing is sent to the client.",
   CREW_PROFILE_NOT_FOUND: "That collaborator could not be found.",
   // Billing. The server names the cause precisely and the client used to drop
   // it, so every one of these arrived as "Billing could not be opened."

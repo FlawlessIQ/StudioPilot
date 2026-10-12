@@ -136,6 +136,9 @@ const projectScopedCollections = new Set([
   "deliveryDrafts",
   "deliveryRecords",
   "reviewRequests",
+  // A wedding's vendor team and its timeline links (planner journey).
+  "projectVendors",
+  "scheduleShares",
 ]);
 
 /**

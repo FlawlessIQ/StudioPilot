@@ -3,6 +3,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { plausiblePersonName } from "./form-email.js";
 import { moveLeadThreadsToProject } from "./lead-thread.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { budgetPrefillCents } from "../planning/vendor-team.js";
 
 /**
  * An inquiry becomes a job the moment it is one.
@@ -128,6 +129,10 @@ export async function convertInquiryToJob(
     const projectId = projectIdForLead(input.tenantId, input.leadId);
     const projectReference = db.doc(`projects/${projectId}`);
     const existingProject = await transaction.get(projectReference);
+    // The wedding's budget, for a trade whose inquiry asks the whole of it
+    // (a planner's; vendor-team.ts `budgetPrefillCents`): the light budget
+    // starts with the job, not with the first vendor added.
+    const budgetCents = budgetPrefillCents(tenant.get("trade"), lead.get("budgetRange"));
 
     if (!contactExists) {
       const firstName = namedAs(text(lead.get("firstName"))) || displayName.split(/\s+/)[0] || "Client";
@@ -201,6 +206,7 @@ export async function convertInquiryToJob(
         // Where this job came from: an inquiry that became one on arrival,
         // not a booking someone entered. Inquiries, not Jobs, until booked.
         origin: "inquiry",
+        ...(budgetCents !== null ? { budgetCents, budgetSource: "inquiry", budgetSetAt: input.now } : {}),
         state: "LEAD",
         stateVersion: 0,
         packageSnapshotId: null,

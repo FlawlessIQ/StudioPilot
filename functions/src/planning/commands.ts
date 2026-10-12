@@ -74,7 +74,8 @@ import { decideDetailChange, requestDetailChange } from "./detail-changes.js";
 import { lockingFieldIds } from "./details-lock.js";
 import { templateLinkProblems } from "./template-rules.js";
 import { eventZone } from "./day-clock.js";
-import { isVendorTeamCommand, refreshVendorOnTeams, runVendorTeamCommand, vendorTeamCommands } from "./vendor-team.js";
+import { importVendorsFromForm, isVendorTeamCommand, refreshVendorOnTeams, runVendorTeamCommand, vendorTeamCommands } from "./vendor-team.js";
+import { VENDOR_SECTION_FIELD_ID } from "./vendor-section.js";
 
 const item = z.object({
   id: z.string(),
@@ -976,10 +977,31 @@ export const planningCommand = onRequest(
           );
         }
         await batch.commit();
+        // A planner's Final details vendor section (vendor-section.ts): the
+        // vendors the couple listed join the job's vendor team, booked, when
+        // they send it back or change it after. Never fails the save.
+        let vendorsAdded: string[] = [];
+        const sectionChanged = changes.some((change) => change.fieldId === VENDOR_SECTION_FIELD_ID);
+        if (isReturned(nextStatus) && (sectionChanged || (parsed.input.submit && !amendingReturned)) && nextAnswers[VENDOR_SECTION_FIELD_ID] !== undefined) {
+          try {
+            vendorsAdded = (
+              await importVendorsFromForm(db, {
+                tenantId: parsed.tenantId,
+                projectId: parsed.input.projectId,
+                text: nextAnswers[VENDOR_SECTION_FIELD_ID],
+                actorId: identity.uid,
+                now,
+              })
+            ).added;
+          } catch (caught) {
+            console.error(JSON.stringify({ severity: "ERROR", event: "vendor_team.form_import_failed", projectId: parsed.input.projectId, reason: caught instanceof Error ? caught.message : String(caught) }));
+          }
+        }
         result = {
           responseId: parsed.input.responseId,
           status: nextStatus,
           changedFieldCount: changes.length,
+          ...(vendorsAdded.length ? { vendorsAdded } : {}),
         };
       } else if (
         parsed.type === "reopenQuestionnaire" ||

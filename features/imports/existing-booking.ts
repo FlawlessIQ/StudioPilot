@@ -327,7 +327,7 @@ export function importedCoverage(
   return coverage.length ? coverage : [{ role: primaryRole, count: 1 }];
 }
 
-export type ImportedCoverageRole = "photographer" | "videographer" | "dj" | "makeup_artist" | "hair_stylist";
+export type ImportedCoverageRole = "photographer" | "videographer" | "dj" | "makeup_artist" | "hair_stylist" | "coordinator";
 
 /**
  * The documents an import writes, and — as importantly — how they are shaped
