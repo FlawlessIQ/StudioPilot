@@ -369,11 +369,12 @@ export async function resolveDraft(
     today: input.today,
   });
   // Written now: the trade decides, unless the studio's own terms tie a refund
-  // to "the retainer" (document.ts newAgreementDepositLabel). Written again:
-  // the word it was written with.
+  // to "the retainer" (document.ts newAgreementDepositLabel) — in the template
+  // or in what it typed into a field for this agreement, such as an imported
+  // agreement's [CANCELLATION POLICY]. Written again: the word it was written with.
   const depositLabel =
     input.depositLabel === undefined
-      ? newAgreementDepositLabel(loaded.trade, template.template.body)
+      ? newAgreementDepositLabel(loaded.trade, template.template.body, input.overrides)
       : storedDepositLabel(input.depositLabel);
   const resolved = resolveContractDocument({
     template: template.template,

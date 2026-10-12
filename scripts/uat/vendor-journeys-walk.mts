@@ -247,13 +247,18 @@ async function inquire(studio: Studio, input: { first: string; last: string; eve
 }
 const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat"];
 
-/** The studio's beauty agreement with every placeholder replaced by real wording. */
+/**
+ * The studio's beauty agreement with every placeholder replaced by real wording.
+ * Its cancellation term names the deposit, as the starter's fees clause does: a
+ * term about "the retainer" would keep the schedule "Retainer" (document.ts
+ * newAgreementDepositLabel) and the agreement would name one payment two ways.
+ */
 const beautyAgreement = String(BEAUTY_STARTER_AGREEMENT)
   .replace(/\[Replace with your booking minimum[^\]]*\]/, "A minimum of four people applies. After the final headcount, people can be added but not taken off.")
   .replace(/\[Replace with what you need on the day[^\]]*\]/, "Please provide a table and chair near a window and two outlets. Starts before 7:00 AM add $75.")
   .replace(/\[Replace with your trial terms[^\]]*\]/, "The trial is $150 and comes off the balance.")
   .replace(/\[Replace with your terms on allergies[^\]]*\]/, "The Client tells the Studio about any allergies before the day.")
-  .replace(/\[Replace with your cancellation terms[^\]]*\]/, "The retainer is non-refundable. Anyone booked who does not sit is charged in full.")
+  .replace(/\[Replace with your cancellation terms[^\]]*\]/, "The deposit is non-refundable. Anyone booked who does not sit is charged in full.")
   .replace(/\[Replace with your own terms\.\]/, "The Studio's liability is limited to the fees paid.");
 
 /** Quote → accepted → agreement signed → retainer paid → booked, through the real commands. */
@@ -286,6 +291,14 @@ async function bookToBooked(studio: Studio, input: { projectId: string; clientEm
     projectId, documentHash: prepared?.documentHash, studioSignerName: `${studio.name} owner`, consent: true,
   }, studio.owner);
   const contract = (await query("contracts", studio.tenantId, { projectId }))[0];
+  // A vendor's client signs for a "Deposit": the schedule's stored "Retainer"
+  // line, worded when the agreement was written and kept on it (depositLabel).
+  const scheduleRow = (contract?.document?.blocks ?? []).find((block: { type?: string }) => block?.type === "payment_schedule")?.rows?.[0];
+  record(
+    "the agreement's payment schedule says Deposit",
+    scheduleRow?.label === "Deposit" && contract?.depositLabel === "Deposit",
+    `row ${scheduleRow?.label ?? "none"}, stored ${contract?.depositLabel ?? "none"}`,
+  );
   await portal("sign_contract", {
     tenantId: studio.tenantId, projectId, contractId: contract.id, documentHash: contract.documentHash, typedName: input.client,
     consent: true, consentVersion: "esign-consent-v2", billingAddress: { line1: "14 Mill Lane", line2: null, city: "Montclair", region: "NJ", postalCode: "07042", country: "US" },
@@ -605,7 +618,7 @@ journey = "J2 DJ";
 {
   const studio = studios.dj;
   const djAgreement = starterAgreementFor("dj").body
-    .replace(/\[Replace with your own cancellation[^\]]*\]/, "The retainer is non-refundable. A new date within a year can be arranged once.")
+    .replace(/\[Replace with your own cancellation[^\]]*\]/, "The deposit is non-refundable. A new date within a year can be arranged once.")
     .replace(/\[Replace with your own terms on power[^\]]*\]/, "The venue provides two 20-amp outlets within 25 feet of the setup.")
     .replace(/\[Replace with your own terms\.\]/, "The Studio's liability is limited to the fees paid.");
   await attempt("studio ready", () => studioReady(studio, djAgreement));

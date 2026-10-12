@@ -10,6 +10,7 @@ import {
   contractMergeFieldsFor,
   convertImportedAgreement,
   DETAILS_SECTION,
+  depositWordingClash,
   detailsSectionFor,
   newAgreementDepositLabel,
   resolveContractDocument,
@@ -19,7 +20,7 @@ import {
   type ContractDocument,
   type ContractSources,
 } from "@/features/contracts/document";
-import { STARTER_AGREEMENT, sampleContractSources, starterAgreementFor } from "@/features/contracts/sample";
+import { BEAUTY_STARTER_AGREEMENT, STARTER_AGREEMENT, sampleContractSources, starterAgreementFor } from "@/features/contracts/sample";
 import { contractDocumentHash } from "@/server/contracts/document-hash";
 import { newAgreementDepositLabel as functionsNewAgreementDepositLabel } from "../functions/src/contracts/document";
 import { buildCombinedAgreement as functionsBuildCombinedAgreement } from "../functions/src/contracts/combined";
@@ -283,6 +284,18 @@ test("refund terms keep naming the payment the schedule asks for", () => {
     "Retainers are nonrefundable once the date is held.",
     "## Payment\nThe retainer is forfeited if the Client cancels.",
     "**Booking Fee:** The retainer is non-returnable.",
+    // Common US forfeiture wording that never says "refund" (review, 2026-10-12).
+    "## Cancellation\nIf the Client cancels, the Studio keeps the retainer.",
+    "## Cancellation\nThe retainer will not be returned if the Client cancels.",
+    "## Fees\nThe retainer is earned upon receipt and secures the date.",
+    "## Cancellation\nThe retainer is not returnable.",
+    "## Cancellation\nThe retainer is retained by the Studio on cancellation.",
+    "## Cancellation\nThe retainer will not be given back.",
+    "## Payment\nThe retainer is not reimbursable.",
+    "## Payment\nThe retainer secures the date and will not be repaid.",
+    "## Changes\nIf the date is postponed, the retainer moves to the new date.",
+    "## Cancellation\nThe retainer is kept as liquidated damages.",
+    "## 7. Cancellation\nIf the Client ends this agreement, the retainer stays with the Studio.",
   ];
   for (const body of tied) {
     assert.ok(termsTieRefundToRetainer(body), body);
@@ -295,6 +308,10 @@ test("refund terms keep naming the payment the schedule asks for", () => {
     "## Fees\nA retainer of {{price.retainer}} reserves the date.\n\n## Cancellation\nPayments are non-refundable.",
     "{{payment.schedule}} is non-refundable.",
     "The deposit is non-refundable.",
+    // The verb "retain" is not the noun, and a retainer that only books the date ties nothing.
+    "The Studio retains the deposit if the Client cancels.",
+    "## Fees\nThe retainer secures the date.",
+    "## Fees\nA retainer of {{price.retainer}} reserves the date, and the balance is due as follows:\n{{payment.schedule}}",
     "",
   ];
   for (const body of free) {
@@ -346,7 +363,8 @@ test("a vendor's starting agreement, imported details and editor fields say depo
 test("the word is decided when an agreement is written, kept on it, and reused when it is written again", () => {
   const commands = read("functions/src/contracts/commands.ts");
   // New: the trade and the studio's own refund terms decide.
-  assert.match(commands, /input\.depositLabel === undefined\s*\? newAgreementDepositLabel\(loaded\.trade, template\.template\.body\)\s*: storedDepositLabel\(input\.depositLabel\)/);
+  // The studio's typed field values count too (an imported [CANCELLATION POLICY]).
+  assert.match(commands, /input\.depositLabel === undefined\s*\? newAgreementDepositLabel\(loaded\.trade, template\.template\.body, input\.overrides\)\s*: storedDepositLabel\(input\.depositLabel\)/);
   // Kept on both drafts (the studio's prepare and the acceptance trigger) and on the sent contract.
   assert.equal((commands.match(/depositLabel: draft\.depositLabel,/g) ?? []).length, 2);
   assert.match(commands, /depositLabel: recheck\.depositLabel,/);
@@ -394,4 +412,127 @@ test("an imported agreement's added details name the payment as its own refund t
   }
   // A photographer's import is the one it always was, whatever its text says.
   assert.equal(detailsSectionFor("photographer", "The retainer is non-refundable."), DETAILS_SECTION);
+});
+
+test("what the studio typed into a field for this agreement counts as its own terms", () => {
+  // An imported agreement's [CANCELLATION POLICY] is a field the studio fills
+  // in on each contract; resolveDraft passes those values (review, 2026-10-12).
+  const imported = convertImportedAgreement("Cancellation: [CANCELLATION POLICY]", "hair");
+  const field = imported.customFields[0]?.key;
+  assert.ok(field && imported.body.includes(`{{${field}}}`), imported.body);
+  for (const trade of VENDORS) {
+    assert.equal(newAgreementDepositLabel(trade, imported.body), "Deposit", trade);
+    assert.equal(
+      newAgreementDepositLabel(trade, imported.body, { [field]: "The retainer is non-refundable." }),
+      "Retainer",
+      trade,
+    );
+    assert.equal(newAgreementDepositLabel(trade, imported.body, { [field]: "The deposit is non-refundable." }), "Deposit");
+    // The section's own words and the typed value are read together.
+    const body = "## Fees\nThe retainer secures the date. {{custom.cancellation}}";
+    assert.equal(newAgreementDepositLabel(trade, body), "Deposit");
+    assert.equal(newAgreementDepositLabel(trade, body, { "custom.cancellation": "It is not refundable." }), "Retainer");
+    // A spelling the studio typed in the token still finds its value.
+    assert.equal(
+      newAgreementDepositLabel(trade, "{{ Cancellation Policy }}", { "custom.cancellation_policy": "No refunds of the retainer." }),
+      "Retainer",
+    );
+  }
+  // Record-only fields are StudioCue's: a typed value for one is never shown, so never read.
+  assert.equal(
+    termsTieRefundToRetainer("{{price.retainer}} {{payment.schedule}}", {
+      "price.retainer": "non-refundable retainer",
+      "payment.schedule": "retainer kept",
+    }),
+    false,
+  );
+  // Only the field's value is read, and only where its token is.
+  assert.equal(
+    termsTieRefundToRetainer("## Fees\nThe retainer books the date.\n\n## Cancellation\n{{custom.cancellation}}", {
+      "custom.cancellation": "No refunds.",
+    }),
+    false,
+  );
+  assert.equal(
+    termsTieRefundToRetainer("## Fees\nThe retainer books the date.", { "custom.unused": "The retainer is non-refundable." }),
+    false,
+  );
+  // A photographer's is "Retainer" whatever was typed.
+  assert.equal(newAgreementDepositLabel("photographer", imported.body, { [field]: "The deposit is refundable." }), "Retainer");
+});
+
+test("the editor says when a vendor's own words name the payment both ways", () => {
+  // The new starter, with a cancellation term about "the retainer" — as the
+  // vendor walk used to fill it in: the schedule stays Retainer, the fees clause says deposit.
+  const beautyTied = BEAUTY_STARTER_AGREEMENT.replace(
+    /\[Replace with your cancellation terms[^\]]*\]/,
+    "The retainer is non-refundable. Anyone booked who does not sit is charged in full.",
+  );
+  const djTied = starterAgreementFor("dj").body.replace(
+    /\[Replace with your own cancellation[^\]]*\]/,
+    "The retainer is non-refundable. A new date within a year can be arranged once.",
+  );
+  for (const [trade, body] of [["makeup", beautyTied], ["hair", beautyTied], ["dj", djTied]] as const) {
+    assert.notEqual(body, starterAgreementFor(trade).body, "the placeholder is still in the starter");
+    assert.equal(newAgreementDepositLabel(trade, body), "Retainer", trade);
+    const clash = depositWordingClash(trade, body);
+    assert.ok(clash, trade);
+    assert.equal(clash.printed, "Retainer");
+    assert.equal(clash.other, "deposit");
+    assert.deepEqual(
+      clash.lines.map((entry) => entry.text),
+      [
+        "The total fee is {{price.total}}. A deposit of {{price.retainer}} reserves the date, and the balance of {{price.balance}} is due as follows:",
+      ],
+      trade,
+    );
+    assert.equal(body.split("\n")[clash.lines[0]!.line - 1]!.trim(), clash.lines[0]!.text);
+    // Worded one way, nothing to say: the starter as given, or with a deposit term.
+    assert.equal(depositWordingClash(trade, starterAgreementFor(trade).body), null, trade);
+    assert.equal(
+      depositWordingClash(trade, body.replace("The retainer is non-refundable.", "The deposit is non-refundable.")),
+      null,
+      trade,
+    );
+  }
+  // Saved from the old starter: the schedule says Deposit, the studio's fees sentence says retainer.
+  const old = depositWordingClash("hair", SAVED_FROM_OLD_STARTER);
+  assert.ok(old);
+  assert.equal(old.printed, "Deposit");
+  assert.equal(old.other, "retainer");
+  assert.deepEqual(old.lines.map((entry) => entry.line), [8]);
+  assert.match(old.lines[0]!.text, /^The total fee is \{\{price\.total\}\}\. A retainer of \{\{price\.retainer\}\} reserves the date/);
+  // Never for a photographer, whose schedule prints Retainer as it always has.
+  for (const trade of [undefined, "photographer"]) {
+    assert.equal(depositWordingClash(trade, beautyTied), null);
+    assert.equal(depositWordingClash(trade, SAVED_FROM_OLD_STARTER), null);
+  }
+  // The editor shows it; it never changes the studio's text.
+  const editor = read("components/contracts/agreement-editor.tsx");
+  assert.match(editor, /const wordingClash = depositWordingClash\(workspace\.tenantTrade, body\);/);
+  assert.match(editor, /\{wordingClash \? \(\s*<section className="agreement-price-clauses" role="note">/);
+  assert.doesNotMatch(editor, /setBody\([^)]*wordingClash/);
+});
+
+test("the vendor walk writes its refund terms about the deposit, and checks the schedule says Deposit", () => {
+  const walk = read("scripts/uat/vendor-journeys-walk.mts");
+  assert.doesNotMatch(walk, /The retainer is non-refundable/);
+  assert.equal((walk.match(/"The deposit is non-refundable\. /g) ?? []).length, 2);
+  assert.match(
+    walk,
+    /record\(\s*"the agreement's payment schedule says Deposit",\s*scheduleRow\?\.label === "Deposit" && contract\?\.depositLabel === "Deposit",/,
+  );
+  // So the agreements it walks are worded one way and print Deposit.
+  const beauty = BEAUTY_STARTER_AGREEMENT.replace(
+    /\[Replace with your cancellation terms[^\]]*\]/,
+    "The deposit is non-refundable. Anyone booked who does not sit is charged in full.",
+  );
+  const dj = starterAgreementFor("dj").body.replace(
+    /\[Replace with your own cancellation[^\]]*\]/,
+    "The deposit is non-refundable. A new date within a year can be arranged once.",
+  );
+  for (const [trade, body] of [["makeup", beauty], ["hair", beauty], ["dj", dj]] as const) {
+    assert.equal(newAgreementDepositLabel(trade, body), "Deposit", trade);
+    assert.equal(depositWordingClash(trade, body), null, trade);
+  }
 });

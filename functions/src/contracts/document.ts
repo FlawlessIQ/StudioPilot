@@ -823,21 +823,72 @@ export function agreementDepositLabel(trade?: unknown): string {
 }
 
 const RETAINER_WORD = /\bretainers?\b/i;
-const REFUND_WORDS = /refund|forfeit|non-?returnable/i;
+/**
+ * Words that say what becomes of a payment when a booking ends or moves:
+ * refunded, forfeited, returned, given back, kept, retained, earned,
+ * cancellation, termination, rescheduling. Broad on purpose: a false match
+ * only keeps the word every agreement printed before ("Retainer"), while a
+ * miss prints "Deposit" beside the studio's own term for "the retainer".
+ * "The Studio keeps the retainer", "The retainer is earned upon receipt" and
+ * "The retainer will not be returned" all count (review, 2026-10-12).
+ * `\bretain…\b` is the verb; it never matches "retainer".
+ */
+const REFUND_WORDS = new RegExp(
+  [
+    "refund",
+    "reimburs",
+    "repa(?:y|id)",
+    "forfeit",
+    "non-?returnable",
+    "\\breturn(?:s|ed|able|ing)?\\b",
+    "\\b(?:give|given|gave|pay|paid|get|got)\\s+back\\b",
+    "\\bkeep(?:s|ing)?\\b",
+    "\\bkept\\b",
+    "\\bretain(?:s|ed|ing)?\\b",
+    "\\bearn(?:s|ed)?\\b",
+    "cancel",
+    "terminat",
+    "reschedul",
+    "postpon",
+    "liquidated",
+  ].join("|"),
+  "i",
+);
+
+/**
+ * What the studio typed into a field for this one agreement — a custom
+ * field's cancellation term, say — read as its own words. Record-only fields
+ * (money, dates, the schedule) are StudioCue's and never count.
+ */
+function typedTerms(token: string, overrides: Readonly<Record<string, string>>): string {
+  const trimmed = token.trim();
+  if (!trimmed || trimmed.length > 80) return "";
+  const key = normaliseTokenKey(trimmed);
+  if (recordOnlyFields.has(key)) return "";
+  const typed = overrides[key];
+  return typeof typed === "string" ? normaliseText(typed).trim().slice(0, 500).replace(/\s+/g, " ") : "";
+}
 
 /**
  * Whether the studio's own agreement ties a refund term to "the retainer":
  * a section (from one heading to the next) of its template that names a
- * retainer and says anything about refunds or forfeiting it. Merge fields are
- * left out — only the studio's words count, and StudioCue's starting text says
- * nothing about refunds.
+ * retainer and says anything about what becomes of it — refunds, forfeiting,
+ * keeping it, cancellation (REFUND_WORDS). Merge fields count only as the
+ * studio filled them in for this agreement (`overrides`, its custom fields):
+ * StudioCue's own values and starting text say nothing about refunds.
  *
  * Read per section, not per sentence, so "A retainer of $500 reserves the
  * date. It is non-refundable." counts: the second sentence's "it" is the
  * retainer.
  */
-export function termsTieRefundToRetainer(templateBody: string): boolean {
-  const words = normaliseText(templateBody).replace(/\{\{[^{}]*\}\}/g, " ");
+export function termsTieRefundToRetainer(
+  templateBody: string,
+  overrides: Readonly<Record<string, string>> = {},
+): boolean {
+  const words = normaliseText(templateBody).replace(
+    /\{\{([^{}]*)\}\}/g,
+    (_, token: string) => ` ${typedTerms(token, overrides)} `,
+  );
   return words
     .split(/\n(?=#{1,2}\s)/)
     .some((section) => RETAINER_WORD.test(section) && REFUND_WORDS.test(section));
@@ -847,16 +898,58 @@ export function termsTieRefundToRetainer(templateBody: string): boolean {
  * The word a newly written agreement prints for the "Retainer" line.
  *
  * A vendor's "Deposit" — unless the studio's own terms tie a refund to "the
- * retainer" ("The retainer is non-refundable"). Then the line stays
- * "Retainer", so the payment the schedule asks for is the one the refund term
- * names: in some states a deposit can be read as refundable where a retainer
- * is not, and renaming one side would change what the studio's clause covers.
+ * retainer" ("The retainer is non-refundable", "The Studio keeps the
+ * retainer if the Client cancels"), in its template or in what it typed into
+ * a field for this agreement (`overrides`). Then the line stays "Retainer",
+ * so the payment the schedule asks for is the one the refund term names: in
+ * some states a deposit can be read as refundable where a retainer is not,
+ * and renaming one side would change what the studio's clause covers.
  * A photographer's is "Retainer" either way.
  */
-export function newAgreementDepositLabel(trade: unknown, templateBody: string): string {
+export function newAgreementDepositLabel(
+  trade: unknown,
+  templateBody: string,
+  overrides: Readonly<Record<string, string>> = {},
+): string {
   const word = agreementDepositLabel(trade);
   if (word === RETAINER_LINE) return word;
-  return termsTieRefundToRetainer(templateBody) ? RETAINER_LINE : word;
+  return termsTieRefundToRetainer(templateBody, overrides) ? RETAINER_LINE : word;
+}
+
+/** A vendor's agreement that names the payment that books the date two ways. */
+export type DepositWordingClash = {
+  /** What the payment schedule prints: "Deposit" or "Retainer". */
+  printed: string;
+  /** The other word, as the studio's own lines use it. */
+  other: string;
+  /** The lines that use it; `line` is 1-based in the agreement text. */
+  lines: Array<{ line: number; text: string }>;
+};
+
+/**
+ * Lines of a DJ's, makeup artist's or hair stylist's own agreement that name
+ * the payment that books the date by the other word than the one its payment
+ * schedule will print: "A deposit of {{price.retainer}}" from the starter
+ * beside a cancellation term the studio wrote about "the retainer" (which
+ * keeps the schedule "Retainer"), or a "retainer" sentence saved from the old
+ * starter beside a "Deposit" schedule. The editor says so; the wording is the
+ * studio's, so StudioCue never changes it. Null for a photographer — their
+ * schedule prints "Retainer", as it always has — and when the words agree.
+ */
+export function depositWordingClash(trade: unknown, templateBody: string): DepositWordingClash | null {
+  const own = agreementDepositLabel(trade);
+  if (own === RETAINER_LINE) return null;
+  const printed = newAgreementDepositLabel(trade, templateBody);
+  const other = (printed === RETAINER_LINE ? own : RETAINER_LINE).toLowerCase();
+  const word = new RegExp(`\\b${other.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}s?\\b`, "i");
+  const lines = normaliseText(templateBody)
+    .split("\n")
+    .flatMap((raw, index) => {
+      const text = raw.trim();
+      if (!word.test(text.replace(/\{\{[^{}]*\}\}/g, " "))) return [];
+      return [{ line: index + 1, text: text.length > 180 ? `${text.slice(0, 179)}…` : text }];
+    });
+  return lines.length ? { printed, other, lines } : null;
 }
 
 /**

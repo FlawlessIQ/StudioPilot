@@ -10,6 +10,7 @@ import {
   contractMergeFieldsFor,
   convertImportedAgreement,
   customFieldKey,
+  depositWordingClash,
   importedAgreementText,
   newAgreementDepositLabel,
   resolveContractDocument,
@@ -363,6 +364,9 @@ export function AgreementEditor() {
   const autoSendEnabled = autoSendOn ?? native.autoSend.enabled;
   const tokensUsed = new Set(templateFieldKeys(body));
   const priceLines = pricingClauses(body);
+  // A vendor's text that calls the booking payment both a deposit and a
+  // retainer (document.ts depositWordingClash). Said, never changed for them.
+  const wordingClash = depositWordingClash(workspace.tenantTrade, body);
 
   return (
     <div className="agreement-editor">
@@ -432,6 +436,28 @@ export function AgreementEditor() {
               {priceLines.slice(0, 8).map((clause) => (
                 <li key={clause.line}>
                   <small>Line {clause.line}</small> {clause.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+      {wordingClash ? (
+        <section className="agreement-price-clauses" role="note">
+          <AlertTriangle aria-hidden="true" size={16} />
+          <div>
+            <strong>{`This agreement calls one payment both a ${wordingClash.other} and a ${wordingClash.printed.toLowerCase()}`}</strong>
+            <p>
+              {`The payment schedule prints “${wordingClash.printed}”, ${
+                wordingClash.printed === "Retainer"
+                  ? "because your own terms say what becomes of the retainer"
+                  : "the word your clients see everywhere else in StudioCue"
+              }. ${wordingClash.lines.length === 1 ? "This line says" : "These lines say"} “${wordingClash.other}”. Use one word for the payment that books the date, so your client reads one payment. StudioCue never changes your wording.`}
+            </p>
+            <ul>
+              {wordingClash.lines.slice(0, 8).map((entry) => (
+                <li key={entry.line}>
+                  <small>Line {entry.line}</small> {entry.text}
                 </li>
               ))}
             </ul>

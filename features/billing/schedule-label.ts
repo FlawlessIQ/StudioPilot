@@ -16,8 +16,10 @@ import { tradeVocab } from "@/features/trades/trades";
  * of its document hash, so the word is decided once, when the agreement is
  * written, and kept on its record (contracts/document.ts `depositLabel`,
  * agreementScheduleLabel). One written from 2026-10-12 for a vendor reads
- * "Deposit", the same as here; one written before keeps the "Retainer" it was
- * signed with, and a change to it is restated in that word.
+ * "Deposit", the same as here — unless the studio's own terms say what
+ * becomes of "the retainer" on a refund, cancellation or the like, which keeps
+ * it "Retainer" (newAgreementDepositLabel); one written before keeps the
+ * "Retainer" it was signed with, and a change to it is restated in that word.
  */
 export function scheduleLineLabel(label: string, trade?: unknown): string {
   const word = tradeVocab(trade).deposit;
