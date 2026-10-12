@@ -305,6 +305,12 @@ export function jobFactSheet(input: {
   fromProject("venue_name", text(project.venueName) || text(venue.name), project.venueName ? "venueName" : "venue.name");
   fromProject("venue_address", formattedAddress(venue), "venue");
   fromProject("venue_city", text(project.city) || text(venue.city), project.city ? "city" : "venue.city");
+  // A job made on New job has no inquiry to answer the party list's ready-by
+  // question, so the time the studio confirmed there does, read the same way
+  // as an inquiry's answer below. "Hair done by 5:30 PM" for Priya Shah's
+  // Sangeet was lost with the message it came in (Jess Styles Bridal,
+  // 2026-10-12). Only a makeup artist's or hair stylist's form sends it.
+  fromProject("ready_by_time", spokenClock(project.readyByTime), "readyByTime");
 
   const contacts = input.contacts.filter((contact) => !contact.data.archivedAt);
   const [first, second] = contacts;

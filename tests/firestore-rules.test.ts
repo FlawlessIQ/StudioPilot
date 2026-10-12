@@ -556,6 +556,80 @@ test(
 );
 
 test(
+  "The message a job was made from is the studio's: never crew's, never the client's, never written by a browser",
+  { skip: !emulatorHost },
+  async () => {
+    const [host, portValue] = (emulatorHost ?? "127.0.0.1:8080").split(":");
+    const rules = await readFile(new URL("../firestore.rules", import.meta.url), "utf8");
+    const environment = await initializeTestEnvironment({
+      projectId: `studiohub-source-message-rules-${Date.now()}`,
+      firestore: { host, port: Number(portValue), rules },
+    });
+    try {
+      await environment.withSecurityRulesDisabled(async (context) => {
+        const adminDb = context.firestore();
+        for (const [userId, role, projectIds] of [
+          ["owner-a", "studio_owner", []],
+          ["admin-a", "studio_admin", []],
+          ["coordinator-a", "studio_coordinator", ["job-a"]],
+          ["coordinator-other", "studio_coordinator", ["job-other"]],
+          ["crew-a", "subcontractor", ["job-a"]],
+          ["photographer-a", "staff_photographer", ["job-a"]],
+          ["client-a", "client", ["job-a"]],
+        ] as const) {
+          await setDoc(doc(adminDb, `memberships/tenant-a_${userId}`), {
+            tenantId: "tenant-a",
+            userId,
+            status: "active",
+            role,
+            projectIds: [...projectIds],
+          });
+        }
+        await setDoc(doc(adminDb, "memberships/tenant-b_owner-b"), {
+          tenantId: "tenant-b",
+          userId: "owner-b",
+          status: "active",
+          role: "studio_owner",
+          projectIds: [],
+        });
+        await setDoc(doc(adminDb, "projects/job-a"), { tenantId: "tenant-a", projectId: "job-a" });
+        await setDoc(doc(adminDb, "projects/job-plain"), { tenantId: "tenant-a", projectId: "job-plain" });
+        await setDoc(doc(adminDb, "jobSourceMessages/job-a"), {
+          id: "job-a",
+          tenantId: "tenant-a",
+          projectId: "job-a",
+          message: "Could you do hair for her Sangeet tonight? Hair done by 5:30 PM.",
+          occasion: "Sangeet",
+          archivedAt: null,
+        });
+      });
+
+      const as = (userId: string) => environment.authenticatedContext(userId).firestore();
+      for (const userId of ["owner-a", "admin-a", "coordinator-a"])
+        await assertSucceeds(getDoc(doc(as(userId), "jobSourceMessages/job-a")));
+      // A job made without one: the studio's read answers "not there", not a refusal.
+      await assertSucceeds(getDoc(doc(as("owner-a"), "jobSourceMessages/job-plain")));
+      // Crew read the project, the client reads the portal: neither reads this.
+      for (const userId of ["coordinator-other", "crew-a", "photographer-a", "client-a", "owner-b"])
+        await assertFails(getDoc(doc(as(userId), "jobSourceMessages/job-a")));
+      await assertFails(getDoc(doc(as("crew-a"), "jobSourceMessages/job-plain")));
+      await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(), "jobSourceMessages/job-a")));
+      // Only createProject writes it.
+      await assertFails(
+        setDoc(doc(as("owner-a"), "jobSourceMessages/job-plain"), {
+          tenantId: "tenant-a",
+          projectId: "job-plain",
+          message: "forged",
+        }),
+      );
+      await assertFails(updateDoc(doc(as("owner-a"), "jobSourceMessages/job-a"), { message: "edited" }));
+    } finally {
+      await environment.cleanup();
+    }
+  },
+);
+
+test(
   "Feedback is readable by the person who sent it and the team, and written only by the server",
   { skip: !emulatorHost },
   async () => {

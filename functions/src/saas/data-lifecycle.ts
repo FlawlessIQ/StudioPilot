@@ -31,6 +31,9 @@ const command = z.discriminatedUnion("type", [
 const collections = [
   "contacts",
   "leads",
+  // What a job made on New job was read from: the client's own words, like a
+  // lead's message (crm/job-source-message.ts).
+  "jobSourceMessages",
   "projects",
   // Retired 2026-10-02 (nothing read it; a job's kind replaced it — see
   // features/job-kinds/job-kinds.ts). Kept here so a studio's old documents

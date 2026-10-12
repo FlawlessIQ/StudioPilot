@@ -107,6 +107,7 @@ export type PurgeLine = { collection: string; label: string; count: number };
 const LABELS: Record<string, { one: string; many: string }> = {
   projects: { one: "the job itself", many: "the job itself" },
   leads: { one: "enquiry", many: "enquiries" },
+  jobSourceMessages: { one: "message the job was made from", many: "messages the job was made from" },
   consultations: { one: "consultation", many: "consultations" },
   proposals: { one: "proposal", many: "proposals" },
   packageSnapshots: { one: "package snapshot", many: "package snapshots" },

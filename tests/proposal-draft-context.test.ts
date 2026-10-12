@@ -22,8 +22,13 @@ const draftHandler = copilot.slice(
 test("the drafting request reads the inquiry the couple wrote", () => {
   assert.match(draftHandler, /\.collection\("leads"\)/);
   assert.match(draftHandler, /\.where\("projectId", "==", draftRequest\.projectId\)/);
-  assert.match(draftHandler, /inquiry: \{\s*\n\s*message: lead\?\.message \?\? null,/);
-  assert.match(draftHandler, /summary: lead\?\.aiSummary \?\? null,/);
+  // The inquiry's own words first. A job made from a pasted message has no
+  // lead, and reads the message it was made from instead (2026-10-12).
+  assert.match(
+    draftHandler,
+    /inquiry: \{\s*\n\s*message: lead\?\.message \?\? source\?\.message \?\? null,/,
+  );
+  assert.match(draftHandler, /summary: lead\?\.aiSummary \?\? source\?\.summary \?\? null,/);
 });
 
 test("the model is told to name something they actually said", () => {

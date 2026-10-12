@@ -18,7 +18,9 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { productEvent } from "../operations/product-events.js";
-import { deterministicIntakeExtraction } from "./intake-prefill.js";
+import { cleanOccasion, deterministicIntakeExtraction } from "./intake-prefill.js";
+import { spokenClock } from "../planning/job-facts.js";
+import { jobSourceMessageOf } from "../crm/job-source-message.js";
 import { cloudAccessToken } from "./vertex-token.js";
 import {
   fenceToolResult,
@@ -177,7 +179,38 @@ const intakeExtractionSchema = z.object({
   city: z.string().max(120).nullable(),
   guestCount: z.number().int().min(1).max(100000).nullable(),
   summary: z.string().max(400).nullable(),
+  /**
+   * The particular occasion ("Sangeet", "rehearsal dinner") when the message
+   * is about more than the kind of job, and when everyone must be ready by.
+   * A hair studio's job made from "hair for her Sangeet tonight … done by
+   * 5:30 PM" was named "Priya Shah wedding" and lost the time (Jess Styles
+   * Bridal, 2026-10-12). Loose here and cleaned after the read
+   * (`readIntakeExtras`), so a model writing "5:30 PM" for a time costs that
+   * one field rather than the whole read; absent from an older reply, null.
+   */
+  occasion: z.string().max(120).nullable().default(null),
+  readyByTime: z.string().max(40).nullable().default(null),
 });
+
+/** What the intake read is told about the occasion and the ready-by time. */
+export const INTAKE_OCCASION_AND_TIME =
+  "occasion is the particular occasion the message is about when it is more specific than the kind of job — a Sangeet, a Mehndi, a rehearsal dinner, an engagement party, a bridal shower — in the client's own words without an article; null when it is simply the wedding, session or event itself, or none is named. readyByTime is the time everyone must be ready by (\"hair done by 5:30 PM\", \"ready by noon\") as HH:MM on a 24-hour clock, only when the message states it; never an arrival, start or ceremony time.";
+
+/**
+ * The read's occasion and ready-by time, in the shapes the form takes: an
+ * occasion a job's name can carry (intake-prefill.ts cleanOccasion), and the
+ * time as HH:MM, read the way an inquiry's ready-by answer is (job-facts.ts
+ * spokenClock). Anything else is null.
+ */
+export function readIntakeExtras<T extends { occasion?: string | null; readyByTime?: string | null }>(
+  extraction: T,
+): T & { occasion: string | null; readyByTime: string | null } {
+  return {
+    ...extraction,
+    occasion: cleanOccasion(extraction.occasion),
+    readyByTime: spokenClock(extraction.readyByTime) || null,
+  };
+}
 
 /**
  * Exported so tests/cue-offline.test.ts can parse every scripted reply through
@@ -2024,11 +2057,13 @@ async function generateIntake(
   const fallback = () => {
     const value = deterministicIntakeExtraction(message);
     return {
-      extraction: intakeExtractionSchema.parse({
-        ...value,
-        guestCount: null,
-        summary: null,
-      }),
+      extraction: readIntakeExtras(
+        intakeExtractionSchema.parse({
+          ...value,
+          guestCount: null,
+          summary: null,
+        }),
+      ),
       mode: "deterministic" as const,
     };
   };
@@ -2050,7 +2085,9 @@ async function generateIntake(
           systemInstruction: {
             parts: [
               {
-                text: "Extract booking-intake fields from a prospective photography client's message. Use null for anything not explicitly stated — never guess or invent names, dates, places, or contact details. eventDate must be YYYY-MM-DD. eventType is Wedding, Family (family, newborn, maternity, senior or portrait sessions), Corporate (company events, conferences, headshots), Sports, or Other (any other dated event) only when the message clearly implies it. summary is one neutral sentence describing what the client asked for, written from the studio's point of view. Return JSON only.",
+                text: "Extract booking-intake fields from a prospective photography client's message. Use null for anything not explicitly stated — never guess or invent names, dates, places, or contact details. eventDate must be YYYY-MM-DD. eventType is Wedding, Family (family, newborn, maternity, senior or portrait sessions), Corporate (company events, conferences, headshots), Sports, or Other (any other dated event) only when the message clearly implies it. summary is one neutral sentence describing what the client asked for, written from the studio's point of view. " +
+                  INTAKE_OCCASION_AND_TIME +
+                  " Return JSON only.",
               },
             ],
           },
@@ -2076,6 +2113,8 @@ async function generateIntake(
                 city: { type: "STRING", nullable: true },
                 guestCount: { type: "NUMBER", nullable: true },
                 summary: { type: "STRING", nullable: true },
+                occasion: { type: "STRING", nullable: true },
+                readyByTime: { type: "STRING", nullable: true },
               },
             },
           },
@@ -2092,7 +2131,7 @@ async function generateIntake(
     if (typeof output !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
     const parsed = intakeExtractionSchema.safeParse(JSON.parse(output));
     if (!parsed.success) return fallback();
-    return { extraction: parsed.data, mode: "ai" };
+    return { extraction: readIntakeExtras(parsed.data), mode: "ai" };
   } catch {
     // A model outage must never block creating a project by hand.
     return fallback();
@@ -2120,6 +2159,37 @@ export function proposalDraftInstruction(trade: unknown): string {
     " and `combinedCoverage` is everyone they send between them: when the introduction mentions what is on offer, name every package, never just the first, and describe each only from its own facts. termsSummary: restate each package's approved terms in plain client-friendly language, under that package's name when there is more than one; never add, soften, or remove a term, never apply one package's terms to another, and never write legal language of your own. If no package has terms, restate nothing. The studio edits and approves this before anything is sent. Return JSON only." +
     tradeInstruction(trade)
   );
+}
+
+/**
+ * The occasion the client named, said once, for the job made from their
+ * message.
+ *
+ * "Draft from what they told you" introduced a hair studio's quote for an
+ * evening Sangeet as "regarding your wedding … styled on the morning" (Priya
+ * Shah, Jess Styles Bridal, 2026-10-12): the job's kind is a wedding, the
+ * prompt calls the event by its kind, and the draft had nothing else. The
+ * message itself now reaches the draft as `inquiry.message`; this names the
+ * occasion so the kind's word does not win over it, and keeps the trade's
+ * "morning" out of a job whose own time says otherwise. Empty when the job has
+ * neither an occasion nor a ready-by time, so every other prompt reads as it
+ * did.
+ */
+export function occasionInstructionParts(project: Json): Array<{ text: string }> {
+  const occasion = cleanOccasion(project.occasion);
+  const readyBy = spokenClock(project.readyByTime);
+  if (!occasion && !readyBy) return [];
+  const timeOfDay =
+    "Say a time of day (morning, afternoon, evening) only as `inquiry.message`" +
+    (readyBy ? " or `project.readyByTime` (when everyone must be ready, 24-hour clock)" : "") +
+    " gives it; never assume the morning.";
+  return [
+    {
+      text: occasion
+        ? `This job is for the client's ${occasion} (\`project.occasion\`): call it their ${occasion}, never their wedding or wedding day. ${timeOfDay}`
+        : timeOfDay,
+    },
+  ];
 }
 
 /**
@@ -2228,6 +2298,9 @@ export async function generateProposalDraft(facts: {
               {
                 text: proposalDraftInstruction(facts.trade),
               },
+              // Only for a job made from a message that named its occasion, or
+              // one with a ready-by time: every other prompt is as it was.
+              ...occasionInstructionParts(facts.project),
               US_ENGLISH_PART,
             ],
           },
@@ -2456,7 +2529,7 @@ export const aiCopilotCommand = onRequest(
           throw new Error("PROJECT_NOT_FOUND");
         const snapshotId = String(projectDocument.get("packageSnapshotId") ?? "");
         if (!snapshotId) throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
-        const [jobSnapshots, consultations, tenantDocument, leads] =
+        const [jobSnapshots, consultations, tenantDocument, leads, sourceDocument] =
           await Promise.all([
             // Every package on the job, primary first, tenant-checked.
             loadJobPackageSnapshots(db, draftRequest.tenantId, projectDocument.data() ?? {}),
@@ -2474,6 +2547,9 @@ export const aiCopilotCommand = onRequest(
               .where("projectId", "==", draftRequest.projectId)
               .limit(1)
               .get(),
+            // A job made from a pasted message has no lead: what they wrote
+            // was kept with the job instead (crm/job-source-message.ts).
+            db.doc(`jobSourceMessages/${draftRequest.projectId}`).get(),
           ]);
         if (!jobSnapshots.some((snapshot) => snapshot.id === snapshotId))
           throw new Error("PACKAGE_SNAPSHOT_REQUIRED");
@@ -2486,6 +2562,11 @@ export const aiCopilotCommand = onRequest(
           )[0];
         const review = asRecord(consultation?.aiReview);
         const lead = asRecord(leads.docs[0]?.data());
+        const source = jobSourceMessageOf(
+          sourceDocument.data(),
+          draftRequest.tenantId,
+          draftRequest.projectId,
+        );
         const now = new Date().toISOString();
         await db.runTransaction((transaction) =>
           consumeAiQuota(transaction, db, draftRequest.tenantId, now),
@@ -2500,14 +2581,21 @@ export const aiCopilotCommand = onRequest(
             eventDate: projectDocument.get("eventDate"),
             venueName: projectDocument.get("venueName"),
             city: projectDocument.get("city"),
+            ...(source?.occasion ? { occasion: source.occasion } : {}),
+            // When everyone must be ready, as the studio confirmed it on New
+            // job (a makeup artist's or hair stylist's only): the draft knows
+            // an evening job is one. Absent on every other job.
+            ...(spokenClock(projectDocument.get("readyByTime"))
+              ? { readyByTime: spokenClock(projectDocument.get("readyByTime")) }
+              : {}),
           },
           consultation: {
             summary: review.summary ?? null,
             priorities: review.priorities ?? [],
           },
           inquiry: {
-            message: lead?.message ?? null,
-            summary: lead?.aiSummary ?? null,
+            message: lead?.message ?? source?.message ?? null,
+            summary: lead?.aiSummary ?? source?.summary ?? null,
           },
           packages: jobSnapshots.map(({ data }) => ({
             packageName: data.packageName,

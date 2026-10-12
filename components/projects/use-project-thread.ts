@@ -1,14 +1,54 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { projectThread, type ThreadEntry } from "@/features/journey/thread";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { getFirebaseClient } from "@/lib/firebase/client";
+import { dataIsLive } from "@/lib/runtime-mode";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
 type Row = Record<string, unknown> & { id: string };
+
+/**
+ * The message this job was made from on New job, when it was
+ * (`jobSourceMessages/{projectId}`, functions/src/crm/job-source-message.ts).
+ *
+ * Read by its id, not with the tenant-wide collections above: those reads are
+ * capped and unordered, so a busy studio's older job would silently lose its
+ * first entry. Studio-only by rule; anyone the rules refuse, and every job
+ * without one, simply has none.
+ */
+function useJobSourceMessage(projectId: string): Row | null {
+  const workspace = useWorkspace();
+  const [found, setFound] = useState<{ projectId: string; row: Row | null } | null>(null);
+  useEffect(() => {
+    if (!dataIsLive || workspace.loading || !workspace.tenantId || !projectId) return;
+    let active = true;
+    const tenantId = workspace.tenantId;
+    const { firestore } = getFirebaseClient();
+    void getDoc(doc(firestore, "jobSourceMessages", projectId))
+      .then((snapshot) => {
+        const data = snapshot.exists() ? snapshot.data() : null;
+        if (active)
+          setFound({
+            projectId,
+            row: data && data.tenantId === tenantId ? ({ id: snapshot.id, ...data } as Row) : null,
+          });
+      })
+      .catch(() => {
+        if (active) setFound({ projectId, row: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectId, workspace.loading, workspace.tenantId]);
+  return found?.projectId === projectId ? found.row : null;
+}
 
 /**
  * The job's thread, assembled from the same tenant-wide cached collections
@@ -37,6 +77,7 @@ export function useProjectThread(input: {
   const deliveries = useTenantDocuments("deliveryRecords");
   const messages = useTenantDocuments("messages");
   const actionReceipts = useTenantDocuments("actionReceipts");
+  const sourceMessage = useJobSourceMessage(input.projectId);
 
   const mine = (rows: Row[] | null) =>
     (rows ?? []).filter((item) => item.projectId === input.projectId);
@@ -72,6 +113,7 @@ export function useProjectThread(input: {
         (item) =>
           item.id === input.leadId || item.projectId === input.projectId,
       ) ?? null,
+    sourceMessage,
     consultations: projectConsultations,
     proposals: mine(proposals.records),
     contracts: mine(contracts.records),

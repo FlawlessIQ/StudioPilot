@@ -231,6 +231,39 @@
   justify-self: start;
 }
 
+/* The message's email is already a client's (or several clients'): said
+   under the tabs. Wraps rather than squeezes in a narrow column. */
+.intake-client-match {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 9px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #cfe0d2;
+  border-radius: 11px;
+  background: #edf5ef;
+  color: #315d3c;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.intake-client-match > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.intake-client-match > span {
+  flex: 1 1 18ch;
+  min-width: 0;
+}
+
+.intake-client-match.is-warning {
+  border-color: #ecd9b0;
+  background: #fbf5e6;
+  color: #6b4e14;
+}
+
 .intake-submit {
   display: flex;
   flex-wrap: wrap;

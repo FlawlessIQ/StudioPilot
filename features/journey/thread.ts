@@ -72,6 +72,12 @@ export type ThreadInput = {
   projectCreatedAt: string | null;
   clientName: string | null;
   lead?: ThreadRecord | null;
+  /**
+   * The message a job made by hand was read from on New job
+   * (`jobSourceMessages/{projectId}`, studio-only). A job made that way has no
+   * lead, and the message used to be thrown away.
+   */
+  sourceMessage?: ThreadRecord | null;
   consultations?: ThreadRecord[] | null;
   proposals?: ThreadRecord[] | null;
   contracts?: ThreadRecord[] | null;
@@ -143,6 +149,25 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
             detail: text(lead.message) || null,
             artifact: null,
             ...(leadAnswers(lead).length ? { answers: leadAnswers(lead) } : {}),
+          }
+        : null,
+    );
+  }
+  if (input.sourceMessage && !input.sourceMessage.archivedAt) {
+    const source = input.sourceMessage;
+    const at = firstAt(source, "createdAt");
+    const message = text(source.message).trim();
+    push(
+      at && message
+        ? {
+            id: `source-${source.id}`,
+            at,
+            // The studio pasted it in; the words are usually the client's.
+            actor: "studio",
+            kind: "message",
+            title: "You made this job from a message",
+            detail: message,
+            artifact: null,
           }
         : null,
     );
@@ -540,8 +565,10 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
   // A job with no inquiry opens with "you started this" — but only when
   // that is genuinely the first thing that happened. Imported jobs carry
   // records older than their own createdAt, and a synthetic opener landing
-  // mid-thread reads like a bug.
-  if (!input.lead && input.projectCreatedAt) {
+  // mid-thread reads like a bug. A job made from a message opens with that
+  // message instead, which already says the studio started it.
+  const openedFromMessage = entries.some((entry) => entry.id.startsWith("source-"));
+  if (!input.lead && input.projectCreatedAt && !openedFromMessage) {
     const earliest = entries
       .map((entry) => entry.at)
       .sort()[0];

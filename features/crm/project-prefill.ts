@@ -18,6 +18,10 @@ export type ProjectPrefill = {
   firstName: string | null;
   lastName: string | null;
   partnerName: string | null;
+  /** The particular occasion, when it is more than the kind of job: "Sangeet". */
+  occasion: string | null;
+  /** When everyone must be ready, as HH:MM: "hair done by 5:30 PM" → "17:30". */
+  readyByTime: string | null;
 };
 
 const MONTHS: Record<string, number> = {
@@ -118,6 +122,118 @@ function extractCity(text: string): string | null {
   return inMatch?.[2] ? `${place}, ${inMatch[2]}` : place;
 }
 
+/**
+ * The occasion a message is about, when it is more particular than the kind
+ * of job. "Hair for her Sangeet tonight" is a Sangeet: the job's kind is still
+ * a wedding, but its name should say Sangeet, not "wedding" (Priya Shah, Jess
+ * Styles Bridal, 2026-10-12). A message about the wedding itself is not about
+ * an occasion it mentions — "we're also having a rehearsal dinner" in a
+ * wedding inquiry is not what the job is for — unless the occasion is what
+ * they ask for and the wedding is not ("you did my wedding hair … could you do
+ * my Sangeet?"). Two occasions are several events, which the studio names. A
+ * null name keeps the message's words.
+ */
+const OCCASIONS: ReadonlyArray<readonly [RegExp, string | null]> = [
+  [/\bsangeet\b/i, "Sangeet"],
+  [/\bmehe?ndi\b/i, "Mehndi"],
+  [/\bhaldi\b/i, "Haldi"],
+  [/\bgarba\b/i, "Garba"],
+  [/\bnikk?ah\b/i, "Nikah"],
+  [/\bwalima\b/i, "Walima"],
+  [/\brehearsal dinner\b/i, null],
+  [/\bwelcome (?:party|dinner)\b/i, null],
+  [/\bengagement (?:party|shoot|session|photos)\b/i, null],
+  [/\b(?:bridal|baby) shower\b/i, null],
+  [/\bbachelorette party\b/i, null],
+  [/\bquincea(?:n|ñ)era\b/i, "quinceañera"],
+  [/\bba[rt] mitzvah\b/i, null],
+  [/\bvow renewal\b/i, null],
+];
+
+/** Words that are the kind of job, or no occasion at all: never a name's occasion. */
+const NOT_AN_OCCASION =
+  /^(?:wedding|wedding day|ceremony|reception|event|session|party|day|celebration|shoot|job|booking)$/i;
+
+/**
+ * An occasion as a job's name can carry it: one short line, without the
+ * article a sentence gives it ("her Sangeet"), and never just the kind of job.
+ * Shared by the deterministic read and the AI's (functions/src/ai/copilot.ts).
+ */
+export function cleanOccasion(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const occasion = value
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(?:the|her|his|their|my|our|your|a|an)\s+/i, "")
+    .replace(/[.,;:!?]+$/, "")
+    .trim();
+  if (!occasion || occasion.length > 60 || NOT_AN_OCCASION.test(occasion)) return null;
+  return occasion;
+}
+
+/** "for her …", "do my …", "book our …": what the message asks the studio for. */
+const ASKED_FOR = String.raw`\b(?:for|do|book|style|cover)\s+(?:(?:her|his|their|my|our|the|a|an)\s+)?`;
+
+/** The wedding itself, however it is said: "wedding", "getting married". */
+const WEDDING = /\b(?:wedding|married|marry|marriage)\b/i;
+
+function extractOccasion(text: string): string | null {
+  const found: Array<{ name: string; asked: boolean }> = [];
+  for (const [pattern, name] of OCCASIONS) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+    const asked = new RegExp(ASKED_FOR + pattern.source, "i").test(text);
+    found.push({ name: name ?? match[0].toLowerCase().replace(/\s+/g, " "), asked });
+  }
+  if (found.length !== 1) return null;
+  const [occasion] = found;
+  if (!WEDDING.test(text)) return occasion!.name;
+  const weddingAsked = new RegExp(ASKED_FOR + String.raw`wedding\b(?!\s+(?:hair|makeup))`, "i").test(text);
+  return occasion!.asked && !weddingAsked ? occasion!.name : null;
+}
+
+/**
+ * A time as an inquiry's ready-by answer is read (functions/src/planning/
+ * job-facts.ts spokenClock): "5:30 PM", "noon", "17:30" → HH:MM. With no AM or
+ * PM only a morning or midday hour is taken — "5:30" could be either end of
+ * the day — and a bare hour ("by 5") is not a time.
+ */
+export function readyByClock(value: unknown): string | null {
+  const raw = (typeof value === "string" ? value : "")
+    .toLowerCase()
+    .replace(/([ap])\.\s*m\b\.?/g, "$1m")
+    .trim()
+    .replace(/^(?:by|at|around|about)\s+/, "")
+    .replace(/[.!]+$/, "")
+    .replace(/\s+/g, "");
+  if (/^(?:12)?noon$/.test(raw)) return "12:00";
+  const match = /^(\d{1,2})(?::(\d{2}))?(am|pm)?$/.exec(raw);
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const minute = Number(match[2] ?? 0);
+  const half = match[3] ?? null;
+  if (!half && !match[2]) return null;
+  if (half === "pm" && hour < 12) hour += 12;
+  if (half === "am" && hour === 12) hour = 0;
+  if (hour > 23 || minute > 59) return null;
+  if (!half && hour < 8) return null;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/**
+ * When everyone has to be ready, in the message's own words: "hair done by
+ * 5:30 PM", "everyone ready by noon". Never a start or arrival time ("guests
+ * arrive at 6:00 PM"): the ready-by is earlier, and guessing it would put the
+ * wrong time on the party list.
+ */
+function extractReadyBy(text: string): string | null {
+  const match =
+    /\b(?:ready|done|finished|styled|complete(?:d)?)\s+(?:by|before|for|at|no later than)\s+(noon|\d{1,2}(?::\d{2})?(?:\s*[ap]\.?\s?m\b\.?)?)/i.exec(
+      text,
+    );
+  return match?.[1] ? readyByClock(match[1]) : null;
+}
+
 // Words that end an email and are never a signature name.
 const CLOSINGS = new Set([
   "thanks", "thank", "best", "regards", "cheers", "sincerely", "warmly",
@@ -207,6 +323,8 @@ export function prefillFromText(raw: string): ProjectPrefill {
       firstName: null,
       lastName: null,
       partnerName: null,
+      occasion: null,
+      readyByTime: null,
     };
   }
   const email =
@@ -223,5 +341,7 @@ export function prefillFromText(raw: string): ProjectPrefill {
     venueName: extractVenue(text),
     city: extractCity(text),
     ...extractNames(text, raw),
+    occasion: extractOccasion(text),
+    readyByTime: extractReadyBy(text),
   };
 }

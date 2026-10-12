@@ -237,6 +237,35 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // The message a job was made from on New job, keyed by the job
+    // (functions/src/crm/job-source-message.ts). Studio-only, like the lead
+    // an inquiry keeps its message on: never crew, never the client. Read by
+    // id from the job page, so a job without one answers "not there" rather
+    // than a refusal. Written only by createProject.
+    match /jobSourceMessages/{projectId} {
+      allow read: if (
+          resource != null
+          && (
+            hasRole(resource.data.tenantId, ["studio_owner", "studio_admin"])
+            || (
+              isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+              && hasRole(resource.data.tenantId, ["studio_coordinator"])
+            )
+          )
+        )
+        || (
+          resource == null
+          && (
+            hasRole(projectTenant(projectId), ["studio_owner", "studio_admin"])
+            || (
+              isAssignedToProject(projectTenant(projectId), projectId)
+              && hasRole(projectTenant(projectId), ["studio_coordinator"])
+            )
+          )
+        );
+      allow write: if false;
+    }
+
     match /packages/{packageId} {
       allow read: if canManageProjects(resource.data.tenantId);
       allow create: if false;

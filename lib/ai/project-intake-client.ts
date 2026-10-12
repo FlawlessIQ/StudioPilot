@@ -1,6 +1,10 @@
 "use client";
 
-import { prefillFromText } from "@/features/crm/project-prefill";
+import {
+  cleanOccasion,
+  prefillFromText,
+  readyByClock,
+} from "@/features/crm/project-prefill";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
 
@@ -16,6 +20,10 @@ export type ProjectIntake = {
   city: string | null;
   guestCount: number | null;
   summary: string | null;
+  /** "Sangeet": the occasion, when the message names one more particular than the kind of job. */
+  occasion: string | null;
+  /** When everyone must be ready, as HH:MM ("hair done by 5:30 PM" → "17:30"). */
+  readyByTime: string | null;
 };
 
 export type ProjectIntakeResult = {
@@ -69,7 +77,13 @@ export async function readProjectIntake(
     } | null;
     if (!body?.extraction) return quickRead(message);
     return {
-      extraction: body.extraction,
+      // A reply from a function deployed before the occasion and the ready-by
+      // time were read carries neither: cleaned here either way.
+      extraction: {
+        ...body.extraction,
+        occasion: cleanOccasion(body.extraction.occasion),
+        readyByTime: readyByClock(body.extraction.readyByTime),
+      },
       mode: body.mode === "ai" ? "ai" : "quick",
     };
   } catch {

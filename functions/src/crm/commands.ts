@@ -154,6 +154,11 @@ import {
 } from "../packages/coverage.js";
 import { isPaymentShape, JOB_KINDS, jobKindOf, PAYMENT_SHAPES } from "../job-kinds/job-kinds.js";
 import { templateKeyForKind } from "../job-kinds/template-key.js";
+import {
+  JOB_SOURCE_MESSAGES,
+  jobSourceMessageInputSchema,
+  jobSourceMessageRecord,
+} from "./job-source-message.js";
 
 /**
  * Coverage as sent by the browser, from either shape.
@@ -277,6 +282,19 @@ const commandSchema = z.discriminatedUnion("type", [
         })
         .nullable()
         .default(null),
+      // When everyone must be ready (HH:MM), from a makeup artist's or hair
+      // stylist's New job form: the party list reads it as it reads an
+      // inquiry's ready-by answer (planning/job-facts.ts). Left out by every
+      // other caller, so their jobs carry no such field.
+      readyByTime: z
+        .string()
+        .trim()
+        .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+        .nullable()
+        .optional(),
+      // The message the New job form read, kept with the job for the studio
+      // (job-source-message.ts) — never spread onto the project itself.
+      sourceMessage: jobSourceMessageInputSchema.nullable().default(null),
     }),
   }),
   z.object({
@@ -1660,11 +1678,14 @@ export const crmCommand = onRequest(
             eventTypeId: command.input.eventTypeId,
             eventType: command.input.eventType,
           });
+          // The pasted message is the studio's, not the job's: crew read the
+          // project, so it is kept beside it (job-source-message.ts).
+          const { sourceMessage, ...projectInput } = command.input;
           const project = {
             id: projectId,
             projectId,
             tenantId: command.tenantId,
-            ...command.input,
+            ...projectInput,
             eventKind,
             eventTypeKey: command.input.eventTypeKey ?? null,
             eventTypeId: templateKeyForKind(eventKind, command.input.eventTypeId),
@@ -1680,6 +1701,18 @@ export const crmCommand = onRequest(
             archivedAt: null,
           };
           transaction.create(db.doc(`projects/${projectId}`), project);
+          if (sourceMessage) {
+            transaction.create(
+              db.doc(`${JOB_SOURCE_MESSAGES}/${projectId}`),
+              jobSourceMessageRecord({
+                tenantId: command.tenantId,
+                projectId,
+                source: sourceMessage,
+                actorId: identity.uid,
+                timestamp,
+              }),
+            );
+          }
           if (leadReference) {
             transaction.update(leadReference, {
               projectId,
@@ -1728,7 +1761,12 @@ export const crmCommand = onRequest(
             entityId: projectId,
             timestamp,
             before: null,
-            after: { state: "LEAD", eventDate: command.input.eventDate },
+            after: {
+              state: "LEAD",
+              eventDate: command.input.eventDate,
+              // That a message was kept, never what it said.
+              ...(sourceMessage ? { sourceMessageKept: true } : {}),
+            },
             ipAddress: null,
             userAgent: request.header("user-agent") ?? null,
             correlationId,

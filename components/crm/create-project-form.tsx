@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -20,11 +20,20 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   readProjectIntake,
+  type ProjectIntake,
   type ProjectIntakeResult,
 } from "@/lib/ai/project-intake-client";
 import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
 import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
 import { jobKindFromLabel, vocab } from "@/features/job-kinds/job-kinds";
+import {
+  clientMatchNote,
+  jobNameFromRead,
+  matchClientByEmail,
+  occasionKept,
+  teamEmailsOf,
+} from "@/features/crm/new-job-from-message";
+import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { AddressField } from "@/components/forms/address-field";
 import {
   placeCity,
@@ -39,6 +48,11 @@ const schema = z
     // The studio's job type, by key (use-studio-job-types.ts).
     eventType: z.string().trim().min(1, "Choose the kind of job."),
     eventDate: z.string().date(),
+    // When everyone must be ready: a makeup artist's or hair stylist's only.
+    readyByTime: z
+      .string()
+      .trim()
+      .regex(/^(?:(?:[01]\d|2[0-3]):[0-5]\d)?$/, "Enter a time, or leave it blank."),
     timezone: z.string().min(1),
     clientMode: z.enum(["existing", "new"]),
     primaryContactId: z.string().trim(),
@@ -87,6 +101,7 @@ type FillableField =
   | "name"
   | "eventType"
   | "eventDate"
+  | "readyByTime"
   | "newClientFirstName"
   | "newClientLastName"
   | "newClientEmail"
@@ -98,6 +113,7 @@ const FIELD_LABELS: Record<FillableField, string> = {
   name: "project name",
   eventType: "event type",
   eventDate: "event date",
+  readyByTime: "ready-by time",
   newClientFirstName: "first name",
   newClientLastName: "last name",
   newClientEmail: "email",
@@ -170,6 +186,21 @@ export function CreateProjectForm({
     {},
   );
   const [venue, setVenue] = useState<CapturedPlace | null>(null);
+  /**
+   * The read whose client is still to be matched against the studio's own.
+   *
+   * A message can be read before the client list has loaded (one shared from
+   * another app is read on arrival), so the match waits for the list rather
+   * than deciding "New client" against an empty one. Taken once per read, so
+   * a later choice of tab is the studio's. The kind's word goes with it, for
+   * naming the job after the client it matched.
+   */
+  const pendingClientRead = useRef<{ found: ProjectIntake; eventWord: string } | null>(null);
+  // The studio's trade: a makeup artist or hair stylist prices per person and
+  // asks when everyone must be ready (trades.ts).
+  const trade = workspace.tenantTrade;
+  const perPerson = tradeProfile(trade).perPersonPricing;
+  const planningForm = tradeVocab(trade).detailsForm;
   // The studio's own types — "Cheer", "Mini sessions" — each one kind of
   // work; the hard-coded Wedding / Corporate / Sports list left family
   // sessions with nowhere to go (job-types plan, B6).
@@ -177,6 +208,7 @@ export function CreateProjectForm({
   const {
     register,
     handleSubmit,
+    getValues,
     setValue,
     watch,
     formState: { errors, isSubmitting },
@@ -186,6 +218,7 @@ export function CreateProjectForm({
       name: "",
       eventType: "",
       eventDate: "",
+      readyByTime: "",
       timezone: browserTimezone(),
       clientMode: "existing",
       primaryContactId: "",
@@ -206,6 +239,58 @@ export function CreateProjectForm({
     }
   }, [contacts, contactsLoading, setValue]);
   const timezone = watch("timezone");
+  const primaryContactId = watch("primaryContactId");
+  const newClientEmail = watch("newClientEmail");
+  // The studio's own people, whose addresses are never a client to match.
+  const { records: crewProfiles, loading: crewLoading } =
+    useTenantDocuments("crewProfiles");
+  const teamEmails = useMemo(
+    () => teamEmailsOf({ crewProfiles, userEmail: workspace.userEmail }),
+    [crewProfiles, workspace.userEmail],
+  );
+
+  /**
+   * Who the message is from, among the studio's own clients.
+   *
+   * Cue filled "New client" with Priya Shah's details from her email though
+   * that email was already a client's (Jess Styles Bridal, 2026-10-12):
+   * creating it would have made her a second contact, with her Sangeet on
+   * that one instead of the record her wedding is on. Now the address she
+   * wrote from picks her out — exactly that address, case and spacing aside —
+   * and the job goes on her record. "New client" stays one tap away; several
+   * clients on one address pick nobody, and the form says so.
+   */
+  useEffect(() => {
+    const pending = pendingClientRead.current;
+    if (!intake || !pending || contactsLoading || crewLoading) return;
+    pendingClientRead.current = null;
+    clientModeDefaulted.current = true;
+    const { found, eventWord } = pending;
+    const match = matchClientByEmail(contacts, found.email, teamEmails);
+    if (match.kind === "one") {
+      setValue("clientMode", "existing");
+      setValue("primaryContactId", match.contactId, { shouldValidate: true });
+      // A message signed "Priya" is still named for the client it matched.
+      const name = getValues("name").trim()
+        ? null
+        : jobNameFromRead({
+            firstName: match.firstName,
+            lastName: match.lastName,
+            partnerName: found.partnerName,
+            occasion: found.occasion,
+            eventWord,
+          });
+      if (name) {
+        setValue("name", name, { shouldValidate: true });
+        setFilled((current) => ({ ...current, name: true }));
+      }
+    } else if (match.kind === "several") {
+      setValue("clientMode", "existing");
+      setValue("primaryContactId", "");
+    } else if (found.firstName || found.email || found.phone) {
+      setValue("clientMode", "new");
+    }
+  }, [intake, contacts, contactsLoading, crewLoading, teamEmails, getValues, setValue]);
 
   const clearTag = (field: FillableField) =>
     setFilled((current) =>
@@ -248,20 +333,29 @@ export function CreateProjectForm({
       // the address box — unverified, because a name pulled from prose is
       // not a confirmed address. Choosing a suggestion upgrades it.
       if (found.venueName) setVenue(unverifiedPlace(found.venueName));
-      if (found.firstName || found.email || found.phone)
-        setValue("clientMode", "new");
+      const eventWord = foundKind ? vocab(foundKind).event : "job";
+      // Existing or new client is decided once the studio's clients are in
+      // hand (the effect above): the email may already be one of theirs.
+      pendingClientRead.current = { found, eventWord };
       set("newClientFirstName", found.firstName);
       set("newClientLastName", found.lastName);
       set("newClientEmail", found.email);
       set("newClientPhone", found.phone);
-      if (found.firstName) {
-        const projectName = `${found.firstName}${
-          found.partnerName ? ` & ${found.partnerName}` : ""
-        }${found.lastName ? ` ${found.lastName}` : ""} ${
-          foundKind ? vocab(foundKind).event : "job"
-        }`;
-        set("name", projectName);
-      }
+      // "Hair done by 5:30 PM": the time the party list asks for, only where
+      // the trade has one (a makeup artist's or hair stylist's).
+      if (perPerson) set("readyByTime", found.readyByTime ?? null);
+      // Named for the occasion when the message names one ("Priya Shah
+      // Sangeet"); otherwise for the kind of job, as before.
+      set(
+        "name",
+        jobNameFromRead({
+          firstName: found.firstName,
+          lastName: found.lastName,
+          partnerName: found.partnerName,
+          occasion: found.occasion,
+          eventWord,
+        }),
+      );
       setFilled(nextFilled);
       setIntake(result);
     } finally {
@@ -300,6 +394,10 @@ export function CreateProjectForm({
 
   const submit = handleSubmit(async (values) => {
     setError(null);
+    // The message the job is made from, kept with it for the studio: Job
+    // history shows it and "Draft from what they told you" reads it
+    // (functions/src/crm/job-source-message.ts). Never the client's to see.
+    const sourceText = message.trim().slice(0, 8000);
     try {
       let contactId = values.primaryContactId;
       let warning: string | null = null;
@@ -333,6 +431,15 @@ export function CreateProjectForm({
         venueName: values.venueName || null,
         city: values.city || null,
         venue,
+        ...(perPerson && values.readyByTime ? { readyByTime: values.readyByTime } : {}),
+        sourceMessage: sourceText
+          ? {
+              text: sourceText,
+              summary: intake?.extraction.summary?.slice(0, 400) ?? null,
+              // Only an occasion the job's name still carries.
+              occasion: occasionKept(intake?.extraction.occasion, values.name),
+            }
+          : null,
       });
       setOutcome({
         persisted: command.persisted,
@@ -380,6 +487,15 @@ export function CreateProjectForm({
         !filled.newClientFirstName && clientMode === "new" ? "client name" : null,
       ].filter((value): value is string => value !== null)
     : [];
+  const clientNote = clientMatchNote({
+    mode: clientMode,
+    read: intake && contacts ? matchClientByEmail(contacts, intake.extraction.email, teamEmails) : null,
+    selectedId: primaryContactId,
+    typed:
+      clientMode === "new"
+        ? matchClientByEmail(contacts, newClientEmail, teamEmails)
+        : { kind: "none" },
+  });
 
   return (
     <div className="intake-workspace">
@@ -478,6 +594,19 @@ export function CreateProjectForm({
               <input {...fieldProps("eventDate")} required type="date" />
               <small>{errors.eventDate?.message}</small>
             </label>
+            {perPerson ? (
+              <label className={filled.readyByTime ? "is-filled" : ""}>
+                Everyone ready by
+                {" "}{filled.readyByTime ? <FilledTag /> : null}
+                <input {...fieldProps("readyByTime")} type="time" />
+                <small>
+                  {errors.readyByTime?.message ??
+                    (planningForm
+                      ? `Filled in on their ${planningForm.toLowerCase()} when you send it.`
+                      : null)}
+                </small>
+              </label>
+            ) : null}
           </div>
         </fieldset>
 
@@ -501,6 +630,15 @@ export function CreateProjectForm({
               <UserPlus size={14} /> New client
             </button>
           </div>
+          {clientNote ? (
+            <p
+              className={`intake-client-match${clientNote.warn ? " is-warning" : ""}`}
+              role="status"
+            >
+              <UserRound aria-hidden="true" size={14} />
+              <span>{clientNote.text}</span>
+            </p>
+          ) : null}
           {clientMode === "existing" ? (
             <div className="form-grid">
               <label className="form-span">
