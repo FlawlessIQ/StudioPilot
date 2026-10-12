@@ -43,6 +43,14 @@ export type EventDetails = {
    * on a schedule built before trades had one.
    */
   headcountLock?: boolean;
+  /**
+   * Written after the lock day had passed: the details are confirmed as soon
+   * as they are in, so Schedule A doesn't promise "30 days before the date"
+   * for a date already inside it (an event booked the day it happened, Jess
+   * Styles Bridal, 2026-10-12). Absent otherwise, so every agreement written
+   * with the lock still ahead reads, and hashes, exactly as before.
+   */
+  lockPassed?: true;
 };
 
 /** Plain content shapes, matching the document module's own. */
@@ -140,6 +148,12 @@ export function eventDetailsFrom(input: {
   lockDaysBefore?: number | null;
   /** The studio's trade (trades.ts): a DJ's wedding doesn't need getting ready. */
   trade?: string | null;
+  /**
+   * The lock day had passed when the agreement was written
+   * (contracts/sources.ts, from the day it is prepared). Only read when
+   * there is a lock.
+   */
+  lockPassed?: boolean;
 }): EventDetails {
   const wedding = input.eventKind ? input.eventKind === "wedding" : /wedding/i.test(input.eventType);
   const required =
@@ -195,7 +209,15 @@ export function eventDetailsFrom(input: {
   }
   const title = wedding ? "Wedding details" : input.eventKind === "portraits" ? "Session details" : "Event details";
   const lockDaysBefore = input.lockDaysBefore === undefined ? (wedding ? 28 : null) : input.lockDaysBefore;
-  return { title, rows: rows.slice(0, 40), missing, lockDaysBefore, ...(isBeauty(input.trade) ? { headcountLock: true } : {}) };
+  const locks = typeof lockDaysBefore === "number" && Number.isFinite(lockDaysBefore) && lockDaysBefore > 0;
+  return {
+    title,
+    rows: rows.slice(0, 40),
+    missing,
+    lockDaysBefore,
+    ...(isBeauty(input.trade) ? { headcountLock: true } : {}),
+    ...(locks && input.lockPassed === true ? { lockPassed: true as const } : {}),
+  };
 }
 
 /**
@@ -231,7 +253,7 @@ export function venueFromAnswers(answers: ReadonlyArray<{ question: string; answ
 }
 
 /** What Schedule A says about changes: the lock, when this job has one. */
-function lockSentence(lockDaysBefore: number | null | undefined, headcountLock = false): string {
+function lockSentence(lockDaysBefore: number | null | undefined, headcountLock = false, lockPassed = false): string {
   // Undefined: a schedule built before the lock was per kind — the wedding's four weeks.
   if (lockDaysBefore === undefined) lockDaysBefore = 28;
   if (lockDaysBefore === null || !Number.isFinite(lockDaysBefore) || lockDaysBefore <= 0) {
@@ -241,6 +263,13 @@ function lockSentence(lockDaysBefore: number | null | undefined, headcountLock =
     lockDaysBefore % 7 === 0
       ? `${["", "one", "two", "three", "four", "five", "six", "seven", "eight"][lockDaysBefore / 7] || lockDaysBefore / 7} week${lockDaysBefore === 7 ? "" : "s"}`
       : `${lockDaysBefore} days`;
+  // Written on or after the lock day: no promise of a day that has gone. The
+  // headcount is counted from the party list (trades.ts `detailsForm`, the
+  // same words for makeup and hair).
+  if (lockPassed && headcountLock)
+    return `These details form part of this agreement. The date is within ${when}, so the final headcount is confirmed as soon as the party list is in, and anything marked "To be confirmed" is added then. After that, people can be added but not taken off, and changes to times or the location are agreed with us in writing.`;
+  if (lockPassed)
+    return `These details form part of this agreement. The date is within ${when}, so the final details are confirmed as soon as the booking is made, and anything marked "To be confirmed" is added once it is decided. After that, changes to locations or times are agreed with us in writing.`;
   if (headcountLock)
     return `These details form part of this agreement. Anything marked "To be confirmed" is added when the final headcount is confirmed, ${when} before the date. After that, people can be added but not taken off, and changes to times or the location are agreed with us in writing.`;
   return `These details form part of this agreement. Anything marked "To be confirmed" is added when the final details are confirmed, ${when} before the date. After that, changes to locations or times are agreed with us in writing.`;
@@ -256,7 +285,7 @@ export function eventDetailsBlocks(details: EventDetails): Block[] {
       type: "paragraph",
       content: [
         {
-          text: lockSentence(details.lockDaysBefore, details.headcountLock === true),
+          text: lockSentence(details.lockDaysBefore, details.headcountLock === true, details.lockPassed === true),
           field,
         },
       ],

@@ -341,6 +341,13 @@ export async function resolveDraft(
      * written: null is "Retainer", every draft and agreement before 2026-10-12.
      */
     depositLabel?: string | null;
+    /**
+     * Whether Schedule A may say the details had already locked (sources.ts).
+     * Omitted for an agreement being written now: from `today`. False when
+     * restating a signed one that promised a day ahead (amendments.ts
+     * `amendedLockPassed`), which keeps that promise.
+     */
+    lockPassed?: boolean;
   },
 ) {
   let template;
@@ -367,6 +374,7 @@ export async function resolveDraft(
     projectId: input.projectId,
     proposalId: input.proposalId,
     today: input.today,
+    ...(input.lockPassed === undefined ? {} : { lockPassed: input.lockPassed }),
   });
   // Written now: the trade decides, unless the studio's own terms tie a refund
   // to "the retainer" (document.ts newAgreementDepositLabel) — in the template
@@ -395,6 +403,12 @@ export async function resolveDraft(
      * sending, and it doesn't stop the send (./event-details.ts).
      */
     detailsMissing: loaded.sources.eventDetails?.missing ?? [],
+    /**
+     * Written after the details had locked: Schedule A says they are
+     * confirmed as soon as they are in (./event-details.ts). Kept on the
+     * contract, so a later change restates it in the same words.
+     */
+    lockPassed: loaded.sources.eventDetails?.lockPassed === true,
   };
 }
 
@@ -623,6 +637,9 @@ export async function sendContract(
       document,
       documentHash: input.documentHash,
       depositLabel: recheck.depositLabel,
+      // Schedule A written after the details locked: an amendment restates it
+      // in the same words (amendments.ts). Absent on every other agreement.
+      ...(recheck.lockPassed ? { detailsLockPassed: true } : {}),
       unresolvedFields: [],
       mergeOverrides: overrides,
       signers: [

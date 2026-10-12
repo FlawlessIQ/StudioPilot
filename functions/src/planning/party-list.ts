@@ -88,6 +88,18 @@ export function headcountNames(text: unknown, own: BeautyService): string[] {
     .map((person) => person.name);
 }
 
+/**
+ * The names on a client's party list as it came back: of `lists`, the answers
+ * to "party-list" from their returned forms, oldest first, the newest one with
+ * anything in it wins. Empty when no list has come back — and then there is no
+ * headcount to ask about (planning/final-details.ts never opens one).
+ */
+export function newestPartyNames(lists: ReadonlyArray<unknown>, own: BeautyService): string[] {
+  let list = "";
+  for (const value of lists) if (typeof value === "string" && value.trim()) list = value;
+  return headcountNames(list, own);
+}
+
 /** How many of each, for the quote: "1 bride, 5 in the party, 2 mothers, 1 child". */
 export function partyHeadcount(people: readonly PartyMember[], service?: BeautyService): Record<PartyRole, number> {
   const counts: Record<PartyRole, number> = { bride: 0, party: 0, mother: 0, child: 0 };

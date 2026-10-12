@@ -19,6 +19,7 @@ import {
 } from "@/features/crew/staffing-plan";
 import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
+import { useFinalDetailsRecords } from "@/components/planning/use-final-details-records";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import { useWorkspace } from "@/features/auth/workspace-context";
@@ -33,6 +34,7 @@ import { homeMetrics, type HomeMetrics } from "@/features/dashboard/home-metrics
 import {
   bookedValueCents,
   handledThisWeek,
+  partyListCandidates,
   todayInbox,
   type TodayInbox,
   type TodayJourneyPosition,
@@ -165,6 +167,8 @@ export function useTodayInbox(): {
   // The studio's planning timeline: when Today starts offering "Send the form".
   const tenants = useTenantDocuments("tenants");
   const planningTimeline = tenants.records?.find((tenant) => tenant.id === workspace.tenantId)?.planningTimeline;
+  // The studio's zone: which day it is for a job's final details, as the server reads it.
+  const studioTimezone = text(tenants.records?.find((tenant) => tenant.id === workspace.tenantId)?.timezone) || null;
   const aiActions = useTenantDocuments("aiActions");
   const actionReceipts = useTenantDocuments("actionReceipts");
   const automationApprovals = useTenantDocuments("automationApprovals", {
@@ -193,6 +197,21 @@ export function useTodayInbox(): {
   const consultations = useTenantDocuments("consultations");
   const contracts = useTenantDocuments("contracts");
   const questionnaires = useTenantDocuments("questionnaireResponses");
+  // A makeup or hair job whose headcount looks to wait on its party list:
+  // its own sign-off and forms, read for it alone, before Today says so. The
+  // two reads above stop at 100 records, so what's missing from them proves
+  // nothing (features/today/inbox.ts `partyListCandidates`).
+  const finalDetailsRecords = useFinalDetailsRecords(
+    partyListCandidates({
+      now: new Date().toISOString(),
+      tenantTrade: workspace.tenantTrade,
+      projects: projects.records,
+      detailSignoffs: detailSignoffs.records,
+      questionnaireResponses: questionnaires.records,
+      planningTimeline,
+      studioTimezone,
+    }),
+  );
   const schedules = useTenantDocuments("schedules");
   const crewAssignments = useTenantDocuments("crewAssignments");
   // What crew sent from their jobs (features/crew/crew-threads.ts).
@@ -401,6 +420,10 @@ export function useTodayInbox(): {
     detailChangeRequests: detailChangeRequests.records,
     clientShotLists: clientShotLists.records,
     detailSignoffs: detailSignoffs.records,
+    // A makeup or hair client's party list, which their final headcount waits on.
+    questionnaireResponses: questionnaires.records,
+    finalDetailsRecords,
+    studioTimezone,
     planningTimeline,
     schedules: schedules.records,
     tasks: tasks.records,

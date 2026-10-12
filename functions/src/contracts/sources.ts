@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
-import { resolvePlanningTimeline } from "../planning/planning-timeline.js";
+import { detailsLockOn, resolvePlanningTimeline, type PlanningTimeline } from "../planning/planning-timeline.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
 import { packageInclusionItems } from "../packages/inclusions.js";
@@ -44,6 +44,34 @@ function hoursPhrase(minutes: number): string | null {
   return `${hours} ${hours === 1 ? "hour" : "hours"}`;
 }
 
+/**
+ * Whether the details had already locked on `today`, the day an agreement is
+ * written (Schedule A, ./event-details.ts `lockPassed`). Pure.
+ */
+export function lockPassedOn(eventDate: string, timeline: PlanningTimeline, today: string): boolean {
+  const lockOn = detailsLockOn(eventDate, timeline);
+  return Boolean(lockOn && /^\d{4}-\d{2}-\d{2}$/.test(today) && today >= lockOn);
+}
+
+/**
+ * Whether Schedule A says the details have already locked. Only on a job with
+ * a lock, only when it has passed on `today` for the date being written — and,
+ * restating a signed agreement (`restated`, amendments.ts
+ * `amendedLockPassed`), never when that one promised a day ahead (false).
+ * True or undefined there asks the date: an agreement signed the day of the
+ * event and postponed three months says "30 days before the date" again,
+ * because it is. Pure.
+ */
+export function scheduleSaysLockPassed(input: {
+  locks: boolean;
+  eventDate: string;
+  timeline: PlanningTimeline;
+  today: string;
+  restated?: boolean;
+}): boolean {
+  return input.locks && input.restated !== false && lockPassedOn(input.eventDate, input.timeline, input.today);
+}
+
 /** "Emma Hart & James Cole", from the project's client contacts when both exist. */
 export function coupleNames(contacts: Data[], fallback: string): string {
   const names = contacts
@@ -61,7 +89,21 @@ export function coupleNames(contacts: Data[], fallback: string): string {
 
 export async function loadContractSources(
   db: Firestore,
-  input: { tenantId: string; projectId: string; proposalId: string; today: string },
+  input: {
+    tenantId: string;
+    projectId: string;
+    proposalId: string;
+    today: string;
+    /**
+     * What restating an agreement already signed (./amendments.ts) allows
+     * Schedule A to say about the lock (./event-details.ts `lockPassed`).
+     * False: the signed one promised a day ahead, and the restatement keeps
+     * that promise, whatever today is. True or omitted: the date and `today`
+     * decide — it says the details have locked only when they have, so a
+     * date moved out of the window is promised its lock day again.
+     */
+    lockPassed?: boolean;
+  },
 ): Promise<{ sources: ContractSources; clientEmail: string; clientName: string; trade: string | null }> {
   const [proposal, project, tenant] = await Promise.all([
     // A booking change's proposal is held apart until it is signed, so no
@@ -230,6 +272,8 @@ export async function loadContractSources(
   // Schedule A: the couple's own answers sorted into the parts of the day,
   // with the date, venue and coverage from the records (./event-details.ts).
   const eventDate = text(event.eventDate) || text(project.get("eventDate")).slice(0, 10);
+  const timeline = resolvePlanningTimeline(tenant.get("planningTimeline"));
+  const locks = finalDetailsLockApplies(project.data());
   const eventDetails = eventDetailsFrom({
     eventType: text(event.eventType) || text(project.get("eventType")),
     eventKind: jobKindOf(project.data()),
@@ -239,9 +283,17 @@ export async function loadContractSources(
     answers: formAnswers,
     // The lock is promised only where it runs (job-kinds.ts), at the
     // studio's own lock day.
-    lockDaysBefore: finalDetailsLockApplies(project.data())
-      ? resolvePlanningTimeline(tenant.get("planningTimeline")).lockDaysBefore
-      : null,
+    lockDaysBefore: locks ? timeline.lockDaysBefore : null,
+    // Written on or after the lock day — an event booked the week of, or the
+    // day of — it says the details are confirmed as soon as they're in, not
+    // "30 days before the date". From the day the agreement is prepared
+    // (`today`), which is also the day its send-time recheck resolves with,
+    // so the studio sends the text it read. Lock still ahead: unchanged. An
+    // amendment can only keep the signed agreement's "four weeks before the
+    // date" (one signed months ahead, changed inside the window), never claim
+    // a lock that hasn't come: postponed out of the window, the restated
+    // agreement promises the new date's lock day.
+    lockPassed: scheduleSaysLockPassed({ locks, eventDate, timeline, today: input.today, restated: input.lockPassed }),
     // A DJ's agreement asks for load-in, not getting ready (trades.ts).
     trade: text(tenant.get("trade")) || null,
   });

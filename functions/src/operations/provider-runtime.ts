@@ -6,6 +6,7 @@ import { getFirestore,type DocumentSnapshot } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { prepareCrewStaffing } from "../crew/prepare-staffing.js";
 import { sendPlanningFormAtBooking } from "../planning/planning-form-scheduler.js";
+import { openFinalDetailsIfDue } from "../planning/final-details.js";
 import { crewCalendarEventName } from "../crew/calendar-ics.js";
 import { buildIntegrationDiagnostics } from "../integrations/diagnostics.js";
 import {
@@ -2119,7 +2120,25 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
     planningForm = `failed:${caught instanceof Error ? caught.message : "PLANNING_FORM_FAILED"}`;
     console.error(JSON.stringify({ severity: "ERROR", event: "planning_form.at_booking_failed", projectId, reason: planningForm }));
   }
-  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow,crewPlan,planningForm};
+  /**
+   * The final details, when the job booked inside its lock window: they go
+   * now, not at the next daily sweep — for an event tomorrow that was the day
+   * itself (Jess Styles Bridal, 2026-10-12). After "You're booked" is queued
+   * on the first pass, and on a retry's early return too; idempotent and
+   * under the sweep's own rule (planning/final-details.ts
+   * openFinalDetailsIfDue), and it never fails the booking. A makeup or hair
+   * client is asked once their party list is back.
+   */
+  const openFinalDetails = async (): Promise<string> => {
+    try {
+      return await openFinalDetailsIfDue(db, { tenantId, projectId }, new Date().toISOString());
+    } catch (caught: unknown) {
+      const reason = `failed:${caught instanceof Error ? caught.message : "FINAL_DETAILS_FAILED"}`;
+      console.error(JSON.stringify({ severity: "ERROR", event: "final_details.at_booking_failed", projectId, reason }));
+      return reason;
+    }
+  };
+  if(project.get("bookingProviderState")==="completed")return{projectId,folderIds:project.get("dropboxFolderIds"),eventId:project.get("calendarEventId"),workflow,crewPlan,planningForm,finalDetails:await openFinalDetails()};
   const date=String(project.get("eventDate"));const name=String(project.get("name"));const eventType=String(project.get("eventType"));const safe=`${date}_${name}_${eventType}`.replace(/[^a-zA-Z0-9_-]+/g,"_");let folderIds:string[]=[];let projectRootPath:string|null=null;const sideEffectSkips:Record<string,string>={};try{const dropbox=await connection(tenantId,"dropbox");const configuredRoot=String(dropbox.document.get("selectedResourceId")??"/StudioCue");const root=configuredRoot.startsWith("/")?configuredRoot:`/${configuredRoot}`;const projectRoot=`${root.replace(/\/$/,"")}/${date.slice(0,4)}/${safe}`;projectRootPath=projectRoot;const paths=[projectRoot,...["01_Contracts","02_Invoices","03_Client_Details","04_Schedule","05_COI","06_Crew","07_Delivery"].map(folder=>`${projectRoot}/${folder}`)];for(const path of paths){if(dropbox.mock){folderIds.push(mockId("dropbox",path));continue}const value=await dropboxFolder(String(dropbox.credential?.accessToken),path);folderIds.push(text(value.id))}}catch(caught:unknown){folderIds=[];projectRootPath=null;sideEffectSkips.dropbox=caught instanceof Error?caught.message:"DROPBOX_UNAVAILABLE"}
   let eventId=String(project.get("calendarEventId")??"");try{const calendar=await connection(tenantId,"google_calendar");if(!eventId)eventId=await putStudioBookingEvent(calendar,project)}catch(caught:unknown){sideEffectSkips.calendar=caught instanceof Error?caught.message:"GOOGLE_CALENDAR_UNAVAILABLE"}
   const now=new Date().toISOString();
@@ -2153,7 +2172,7 @@ export async function completeBookingResources(job:DocumentSnapshot){const db=ge
   // An imported booking was booked long before StudioCue, so it never gets
   // "You're booked" — whether this runs while it is quiet or after the studio
   // brings the couple in and asks for the calendar and folders.
-  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow,crewPlan,planningForm}}
+  if(!project.get("importedAt"))batch.set(db.doc(`emailJobs/booking_confirmation_${projectId}`),{id:`booking_confirmation_${projectId}`,tenantId,projectId,type:"booking_confirmation",status:"queued",attempts:0,createdAt:now,updatedAt:now},{merge:false});await batch.commit();return{projectId,folderIds,eventId,workflow,crewPlan,planningForm,finalDetails:await openFinalDetails()}}
 
 export async function uploadDropboxDocument(job:DocumentSnapshot){
   const db=getFirestore();const tenantId=String(job.get("tenantId"));const projectId=String(job.get("projectId"));const documentId=String(job.get("documentId"));

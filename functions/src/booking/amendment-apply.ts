@@ -163,6 +163,8 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
       // The word the amended agreement printed for the "Retainer" line, so a
       // later change restates it the same way (contracts/amendments.ts).
       depositLabel: amendment.get("depositLabel") ?? null,
+      // And whether its Schedule A was written after the details locked.
+      ...(amendment.get("detailsLockPassed") === true ? { detailsLockPassed: true } : {}),
       signers: [
         ...(studioSignature.typedName
           ? [{ name: studioSignature.typedName, email: studioSignature.email ?? null, role: "studio", order: 1, status: "completed", signedAt: studioSignature.signedAt }]

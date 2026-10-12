@@ -95,6 +95,12 @@ export const contractSchema = auditFieldsSchema.extend({
    * null on one written before 2026-10-12: it reads "Retainer".
    */
   depositLabel: z.string().nullable().optional(),
+  /**
+   * Written after the details had locked: its Schedule A says they are
+   * confirmed as soon as they're in, and an amendment restates it so.
+   * Absent on every other agreement, all of them before 2026-10-12.
+   */
+  detailsLockPassed: z.literal(true).optional(),
   unresolvedFields: z.array(z.string()).optional(),
   /** Schedule A parts nobody has given yet; printed "To be confirmed". */
   detailsMissing: z.array(z.string()).optional(),

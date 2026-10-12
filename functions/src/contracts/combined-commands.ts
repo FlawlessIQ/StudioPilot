@@ -325,6 +325,9 @@ export async function sendCombinedAgreement(
       // How both parts word the schedule's "Retainer" line, fixed with the
       // document: an amendment restates it in the same word (amendments.ts).
       depositLabel: resolved.depositLabel,
+      // Schedule A written after the details locked: an amendment restates it
+      // in the same words (amendments.ts). Absent on every other agreement.
+      ...(resolved.draft.lockPassed ? { detailsLockPassed: true } : {}),
       unresolvedFields: [],
       mergeOverrides: input.overrides,
       signers: [

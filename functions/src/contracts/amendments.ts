@@ -444,6 +444,29 @@ export function amendedDepositLabel(
   return { depositLabel: storedDepositLabel(signedContract.get("depositLabel")) };
 }
 
+/**
+ * What the restated Schedule A may say about the lock (sources.ts).
+ *
+ * The date unchanged: what the signed one said. Every agreement before
+ * 2026-10-12, and every one written with the lock ahead, said "four weeks
+ * before the date", and an amendment made inside the window must not reword
+ * it (false). One written after the details had locked
+ * (contracts/commands.ts `detailsLockPassed`) says they are confirmed as soon
+ * as they're in — while that is still so (true; sources.ts checks the day).
+ *
+ * The date moved: undefined, decided from the new date. Postponed out of the
+ * window, an agreement signed the day of the event must not tell the client,
+ * who signs it, that the headcount is fixed from the party list; brought
+ * into it, the lock has gone.
+ */
+export function amendedLockPassed(
+  signedContract: { get(field: string): unknown } | undefined,
+  dateChanged = false,
+): boolean | undefined {
+  if (dateChanged) return undefined;
+  return signedContract?.get("detailsLockPassed") === true;
+}
+
 /** The change, written at the top of the agreement it restates. */
 function amendedDocument(input: {
   base: ContractDocument;
@@ -842,6 +865,8 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
   let document: ContractDocument | null = null;
   let documentHash: string | null = null;
   let depositLabel: string | null = null;
+  // What the restated Schedule A says about the lock, as resolved.
+  let lockPassed = false;
   let unresolved: string[] = [];
   let clientName = "";
   let clientEmail: string | null = null;
@@ -855,6 +880,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
         overrides: (obj(signedContract?.get("mergeOverrides")) as Record<string, string>) ?? {},
         today: context.timestamp.slice(0, 10),
         ...amendedDepositLabel(signedContract),
+        lockPassed: amendedLockPassed(signedContract, dateChanged),
       });
       document = contractDocumentSchema.parse(
         amendedDocument({
@@ -866,6 +892,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
       );
       documentHash = contractDocumentHash(document);
       depositLabel = draft.depositLabel;
+      lockPassed = draft.lockPassed;
       unresolved = draft.resolved.unresolved;
       clientName = draft.clientName;
       clientEmail = draft.clientEmail;
@@ -923,6 +950,9 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     // Filed with the amended agreement when it is signed (amendment-apply.ts),
     // so a later change restates it in the same word.
     depositLabel,
+    // And Schedule A's word on the lock, as this restatement prints it
+    // (amendedLockPassed): a later change starts from what was signed last.
+    ...(document && lockPassed ? { detailsLockPassed: true } : {}),
     unresolvedFields: unresolved,
     clientName,
     clientEmail,

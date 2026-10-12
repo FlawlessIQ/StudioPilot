@@ -55,7 +55,7 @@ import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
 import type { OutsideStepReminder } from "@/features/outside-steps/registry";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
-import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
 import { trialInvite, trialState, trialWanted } from "@/features/consultations/trial";
@@ -66,6 +66,9 @@ import { BOOKING_BRIEF_CAPABILITIES, blockingIssues } from "@/features/ai/blocki
 import { emailProblemOf } from "@/features/today/email-problems";
 import { dispatchesOnApproval } from "@/features/ai/approval-consequence";
 import { planningFormOpensOn, resolvePlanningTimeline } from "@/features/planning/planning-timeline";
+import { finalHeadcountState, returnedPartyList } from "@/features/schedules/final-headcount";
+import { finalDetailsToday } from "@/features/planning/final-details-due";
+import { parsePartyList } from "@/features/schedules/party-list";
 
 /** A couple emailed for their billing address: Today offers "Ask again" after this many days. */
 const BILLING_ADDRESS_ASK_AGAIN_DAYS = 5;
@@ -379,6 +382,21 @@ export type TodayInput = {
   clientShotLists?: TodayRecord[] | null;
   /** Final-details sign-offs (functions/src/planning/final-details.ts). */
   detailSignoffs?: TodayRecord[] | null;
+  /**
+   * The jobs' forms, for a makeup or hair client whose final headcount waits
+   * on a party list that hasn't come back.
+   */
+  questionnaireResponses?: TodayRecord[] | null;
+  /**
+   * A job's own final-details sign-off and forms, read for that job alone
+   * (components/planning/use-final-details-records.ts), for the jobs
+   * `partyListCandidates` names. The two reads above stop at 100 records, so
+   * nothing missing from them proves a party list hasn't come back: the card
+   * needs the job's own. A job not in here hasn't been read, and gets no card.
+   */
+  finalDetailsRecords?: Record<string, { signoff: TodayRecord | null; responses: TodayRecord[] }> | null;
+  /** The studio's zone (tenants/{id}.timezone): with the job's own, which day it is for its final details. */
+  studioTimezone?: string | null;
   /** The studio's planning timeline (tenants/{id}.planningTimeline): when the form goes out. */
   planningTimeline?: unknown;
   /** Billing addresses StudioCue asked couples for (functions/src/billing/billing-address-request.ts). */
@@ -462,6 +480,64 @@ const changedAt = (record: TodayRecord) =>
       record.completedAt ??
       record.createdAt,
   ) || null;
+
+/**
+ * When Today nudges about final details nobody has confirmed: five days after
+ * they were asked. That is the lock day for a sign-off the daily sweep opened,
+ * and the day it opened for one opened later — a job booked inside its lock
+ * window, a party list back after it (functions/src/planning/final-details.ts).
+ * Counted from the lock day, those nudged the moment they opened. No later
+ * than the day before the event, and never on the day they were asked.
+ */
+export function finalDetailsNudge(input: {
+  /** YYYY-MM-DD, the sign-off's `lockOn`. */
+  lockOn: string;
+  /** ISO, the sign-off's `createdAt`. */
+  openedAt: string | null;
+  /** YYYY-MM-DD */
+  eventDate: string | null;
+}): { on: string; askedOn: string; askedLate: boolean } {
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  const plus = (date: string, days: number) =>
+    new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+  const opened = (input.openedAt ?? "").slice(0, 10);
+  const askedOn = iso.test(opened) && opened > input.lockOn ? opened : input.lockOn;
+  let on = plus(askedOn, 5);
+  const event = (input.eventDate ?? "").slice(0, 10);
+  if (iso.test(event) && plus(event, -1) < on) on = plus(event, -1) > askedOn ? plus(event, -1) : plus(askedOn, 1);
+  return { on, askedOn, askedLate: askedOn > input.lockOn };
+}
+
+/**
+ * The makeup or hair jobs whose final headcount looks to wait on a party list:
+ * booked, past the lock, and nothing in the tenant-wide reads to say a
+ * sign-off is open or a list with someone on it is back. Something present
+ * there is proof; something missing is not (those reads stop at 100), so
+ * these are the jobs whose own records Today reads before it says so.
+ */
+export function partyListCandidates(
+  input: Pick<TodayInput, "now" | "tenantTrade" | "projects" | "detailSignoffs" | "questionnaireResponses" | "planningTimeline" | "studioTimezone">,
+): string[] {
+  if (!tradeProfile(input.tenantTrade).perPersonPricing) return [];
+  const opened = new Set(rows(input.detailSignoffs).map((signoff) => text(signoff.projectId)));
+  const forms = new Map<string, TodayRecord[]>();
+  for (const response of rows(input.questionnaireResponses))
+    forms.set(text(response.projectId), [...(forms.get(text(response.projectId)) ?? []), response]);
+  return rows(input.projects)
+    .filter((job) => !opened.has(job.id))
+    .filter(
+      (job) =>
+        finalHeadcountState({
+          project: job,
+          planningTimeline: input.planningTimeline,
+          signoff: null,
+          responses: forms.get(job.id) ?? [],
+          trade: input.tenantTrade,
+          today: finalDetailsToday(input.now, job.timezone, input.studioTimezone),
+        })?.state === "needs_party_list",
+    )
+    .map((job) => job.id);
+}
 
 /** Lane base weights, mirroring the old kind weights' intent. */
 const laneWeight: Record<TodayLane, number> = {
@@ -1268,18 +1344,22 @@ export function todayInbox(input: TodayInput): TodayInbox {
     });
   }
 
-  // ── Act · final details still not confirmed, five days after the lock ──
+  // ── Act · final details still not confirmed, five days after the ask ──
   for (const signoff of rows(input.detailSignoffs)) {
     if (text(signoff.status) !== "awaiting_couple") continue;
     const lockOn = text(signoff.lockOn);
     if (!lockOn) continue;
-    const nudgeOn = new Date(Date.parse(`${lockOn}T00:00:00Z`) + 5 * 86_400_000).toISOString().slice(0, 10);
-    if (input.now.slice(0, 10) < nudgeOn) continue;
     const projectId = text(signoff.projectId);
     const job = inquiryJobById.get(projectId);
     if (!job || job.archivedAt) continue;
     const eventDate = text(job.eventDate) || null;
     if (eventDate && eventDate < input.now.slice(0, 10)) continue;
+    // Five days after they were asked: the lock day, or later for a job
+    // booked (or a party list returned) inside the window — which nudged
+    // the moment it opened, saying "asked when the details locked" of an
+    // ask made that morning. Never later than the day before the event.
+    const nudge = finalDetailsNudge({ lockOn, openedAt: text(signoff.createdAt) || null, eventDate });
+    if (input.now.slice(0, 10) < nudge.on) continue;
     const couple = clientOf(job, null, true);
     act.push({
       id: `final-details-${signoff.id}`,
@@ -1287,7 +1367,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: "schedule",
       // Makeup and hair confirm a headcount in one tap, not the full details.
       title: `${couple} haven't confirmed their ${text(signoff.kind) === "headcount" ? "final headcount" : "final details"}`,
-      detail: "They were asked when the details locked. A quick message usually does it.",
+      detail: nudge.askedLate
+        ? `They were asked on ${formatDueDate(nudge.askedOn)}. A quick message usually does it.`
+        : "They were asked when the details locked. A quick message usually does it.",
       evidence: "Final details sign-off",
       projectId,
       projectName: text(job.name) || null,
@@ -1296,8 +1378,82 @@ export function todayInbox(input: TodayInput): TodayInbox {
       facts: [eventDate ? formatDueDate(eventDate) : null].filter((fact): fact is string => Boolean(fact)),
       band: "soon",
       eventDate,
-      score: score({ lane: "act", severity: "step", eventDate, updatedAt: lockOn, now }),
+      score: score({ lane: "act", severity: "step", eventDate, updatedAt: nudge.askedOn, now }),
     });
+  }
+
+  // ── Act · a final headcount with no party list to count ────────────
+  // A makeup or hair client is asked "still this many?" once the details
+  // lock, counted from their party list. With no list back there is nothing
+  // to ask, so nothing goes (functions/src/planning/final-details.ts), and
+  // the sweep asked "Still 0 getting ready?" before that (Jess Styles Bridal,
+  // 2026-10-12). Past the lock that is the thing missing, close to the day.
+  if (tradeProfile(input.tenantTrade).perPersonPricing) {
+    const vocab = tradeVocab(input.tenantTrade);
+    const partyList = (vocab.detailsForm ?? "Party list").toLowerCase();
+    const own = tradeOf(input.tenantTrade) === "hair" ? "hair" : "makeup";
+    const formCardFor = new Set(
+      (input.journeys ?? [])
+        .filter((position) => position.stepKey === "schedule_form" && position.owner === "studio")
+        .map((position) => position.projectId),
+    );
+    const candidates = new Set(partyListCandidates(input));
+    for (const job of rows(input.projects)) {
+      if (!candidates.has(job.id)) continue;
+      // Absence proven on the job's own records, or nothing is said.
+      const jobRecords = input.finalDetailsRecords?.[job.id];
+      if (!jobRecords || jobRecords.signoff) continue;
+      const responses = jobRecords.responses.filter((response) => text(response.projectId) === job.id);
+      const headcount = finalHeadcountState({
+        project: job,
+        planningTimeline: input.planningTimeline,
+        signoff: null,
+        responses,
+        trade: input.tenantTrade,
+        today: finalDetailsToday(input.now, job.timezone, input.studioTimezone),
+      });
+      if (headcount?.state !== "needs_party_list") continue;
+      const live = responses.filter((response) => !response.archivedAt && text(response.status) !== "withdrawn");
+      // A list back with something written in it, and who is on it at all:
+      // returned with nobody on it, or with nobody down for the studio's own
+      // service (a makeup artist's client who listed only hair).
+      const list = returnedPartyList(responses);
+      const listed = list ? parsePartyList(list, own).length : 0;
+      // Never sent: the job's own card says "Send the form" when it's the next move.
+      if (!live.length && formCardFor.has(job.id)) continue;
+      const eventDate = text(job.eventDate) || null;
+      const couple = clientOf(job, null, true);
+      act.push({
+        id: `party-list-${job.id}`,
+        lane: "act",
+        kind: "schedule",
+        title: listed
+          ? `${couple}'s ${partyList} has nobody down for ${vocab.service}`
+          : list
+            ? `${couple}'s ${partyList} came back with nobody on it`
+            : live.length
+              ? `${couple} haven't sent their ${partyList}`
+              : `${couple} haven't been sent their ${partyList}`,
+        detail: listed
+          ? `Nobody on it is having ${vocab.service} done, so there's no headcount to confirm. Add who's getting ready, or ask them.`
+          : list
+            ? "There's no headcount to confirm until someone is on it. Add who's getting ready, or ask them."
+            : "Their details have locked, so they're asked to confirm the headcount as soon as it's in.",
+        evidence: null,
+        projectId: job.id,
+        projectName: text(job.name) || null,
+        action: list
+          ? { kind: "link", label: "Check the form", href: `/studio/questionnaires?project=${job.id}` }
+          : live.length
+            ? { kind: "link", label: "Message them", href: `/studio/messages?project=${job.id}` }
+            : { kind: "link", label: "Send the form", href: `/studio/questionnaires?project=${job.id}` },
+        jobHref: `/studio/projects/${job.id}`,
+        facts: [eventFact(eventDate, now)].filter((fact): fact is string => Boolean(fact)),
+        band: "soon",
+        eventDate,
+        score: score({ lane: "act", severity: "step", eventDate, updatedAt: headcount.lockOn, now }),
+      });
+    }
   }
 
   // ── Act · a billing address QuickBooks needs to tax the final ───────

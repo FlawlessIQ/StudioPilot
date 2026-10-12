@@ -12,7 +12,8 @@ import { FINAL_DETAILS_PURPOSE } from "../booking/consultation-purpose.js";
 import { getConsultationSettings } from "../booking/availability.js";
 import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
 import { tradeOf, tradeProfile } from "../trades/trades.js";
-import { headcountNames, type BeautyService } from "./party-list.js";
+import { newestPartyNames, type BeautyService } from "./party-list.js";
+import { FINAL_DETAILS_STATES, finalDetailsDue, finalDetailsToday } from "./final-details-due.js";
 
 /**
  * The couple's final details, confirmed when they lock.
@@ -34,7 +35,16 @@ import { headcountNames, type BeautyService } from "./party-list.js";
  * asked one thing instead: still this many getting ready? The sign-off is
  * `kind: "headcount"`, carries the names on their party list, and is
  * confirmed in one tap (server/planning/final-details.ts). No call is booked:
- * Phase 2 of simpler vendor journeys (Conor, 2026-10-09).
+ * Phase 2 of simpler vendor journeys (Conor, 2026-10-09). It is never opened
+ * before their party list is back: with no list there is no headcount, and
+ * the sweep asked "Still 0 getting ready?" (Jess Styles Bridal, 2026-10-12).
+ *
+ * When: the daily sweep opens it on the lock day. A job that books inside its
+ * lock window, or whose party list comes back after the lock, does not wait
+ * for the next sweep — up to a day, which for an event tomorrow is the day
+ * itself — `openFinalDetailsIfDue` opens it then, under the same rule
+ * (final-details-due.ts). Asked at booking before their form came back, what
+ * they confirm follows the form when it does (`refreshAwaitingSignoff`).
  */
 
 type Row = Record<string, unknown>;
@@ -71,9 +81,7 @@ export const ownService = (trade: unknown): BeautyService => (tradeOf(trade) ===
  * only those having the studio's service.
  */
 export function partyPeople(answers: ReadonlyArray<unknown>, trade: unknown): string[] {
-  let list = "";
-  for (const value of answers) if (typeof value === "string" && value.trim()) list = value;
-  return headcountNames(list, ownService(trade));
+  return newestPartyNames(answers, ownService(trade));
 }
 
 function clock(iso: string, timezone: string): string {
@@ -184,7 +192,19 @@ async function finalCallLink(
   return null;
 }
 
-async function openSignoff(
+/** Firestore's ALREADY_EXISTS: another opener got there first. */
+const alreadyExists = (caught: unknown) => {
+  const code = (caught as { code?: unknown } | null)?.code;
+  return code === 6 || code === "already-exists" || code === "ALREADY_EXISTS";
+};
+
+/**
+ * Opens the sign-off and queues its email, once. "opened"; "exists" when one
+ * is open already; "no_party_list" for a client priced per person whose
+ * party list has not come back, or names nobody having the studio's service —
+ * nothing is written, and it opens when the list is in.
+ */
+export async function openSignoff(
   db: Firestore,
   project: DocumentSnapshot,
   lockOn: string,
@@ -199,6 +219,8 @@ async function openSignoff(
   const emailId = `final_details_request_${tenantId}_${project.id}`;
   // Priced per person: the headcount in one tap, and no call to book.
   const headcount = tradeProfile(trade).perPersonPricing ? (snapshot.people ?? []).length : null;
+  // No list, no headcount: "Still 0 getting ready?" asked nothing anyone could answer.
+  if (headcount === 0) return "no_party_list";
   const call =
     headcount !== null
       ? null
@@ -215,7 +237,9 @@ async function openSignoff(
     projectId: project.id,
     status: "awaiting_couple",
     lockOn,
-    ...(headcount !== null ? { kind: "headcount", headcount } : {}),
+    // Whether the final details call's link went with it, for the journey:
+    // "invited" only when it did (features/consultations/final-call.ts).
+    ...(headcount !== null ? { kind: "headcount", headcount } : { finalCallLinkId: call?.linkId ?? null }),
     snapshot,
     snapshotHash: finalDetailsHash(snapshot),
     changes: [],
@@ -241,8 +265,102 @@ async function openSignoff(
     createdAt: now,
     updatedAt: now,
   });
-  await batch.commit();
+  try {
+    await batch.commit();
+  } catch (caught) {
+    // The sweep and a booking (or a returned party list) opening it at once.
+    if (alreadyExists(caught)) return "exists";
+    throw caught;
+  }
   return "opened";
+}
+
+/**
+ * Opens the final details now, when they are due and nothing has opened them
+ * yet — for the moments that cannot wait for the daily sweep:
+ *
+ * - the job books inside its lock window (operations/provider-runtime.ts
+ *   `completeBookingResources`, which every booking path queues);
+ * - a client's form comes back after the lock (crew-brief-trigger.ts): for a
+ *   makeup or hair client that is the party list the headcount is counted from.
+ *
+ * Priya Shah's sangeet was booked the day of the event, and its final
+ * headcount would have waited for the 16:00 UTC sweep (Jess Styles Bridal,
+ * 2026-10-12). Under the sweep's own rule (final-details-due.ts): booked, not
+ * quiet, a job with a lock, past its lock and not past its day. Idempotent:
+ * an open sign-off is left as it is. Returns what happened, for the caller's log.
+ */
+export async function openFinalDetailsIfDue(
+  db: Firestore,
+  input: { tenantId: string; projectId: string },
+  now: string,
+): Promise<string> {
+  const project = await db.doc(`projects/${input.projectId}`).get();
+  const data = project.data();
+  if (!project.exists || !data || text(data.tenantId) !== input.tenantId) return "no_project";
+  // The cheap reasons first, before the studio's timeline is read.
+  if (!FINAL_DETAILS_STATES.includes(text(data.state))) return "not_booked";
+  if (clientOutreachStop(data)) return "quiet";
+  if (!finalDetailsLockApplies(data)) return "no_lock";
+  const tenant = await db.doc(`tenants/${input.tenantId}`).get();
+  const timeline = resolvePlanningTimeline(tenant.get("planningTimeline"));
+  const lockOn = detailsLockOn(text(data.eventDate), timeline);
+  // The job's own calendar day, not UTC's: a same-day job booked in a US
+  // evening is still today (final-details-due.ts `finalDetailsToday`).
+  const today = finalDetailsToday(now, data.timezone, tenant.get("timezone"));
+  const due = finalDetailsDue({ state: data.state, quiet: false, eventDate: data.eventDate, lockOn, today });
+  if (due !== "due" || !lockOn) return due;
+  return openSignoff(db, project, lockOn, timeline, now, tenant.get("trade") ?? null);
+}
+
+/**
+ * Their form back while the sign-off still waits on them: what they confirm
+ * is the details as they now stand, as when the studio accepts a change
+ * (detail-changes.ts). A job booked inside its lock window is asked at
+ * booking, before its planning form has come back, and would otherwise be
+ * asked to confirm details without their own answers in them.
+ *
+ * Inside a transaction, so a confirmation that lands first is left exactly as
+ * it was signed.
+ *
+ * Not a headcount. Its `headcount` is the number when the details locked: the
+ * floor the agreement holds them to ("people can be added but not taken
+ * off"), and what confirming never goes below (server/planning/final-details.ts
+ * `confirmHeadcount`). A list that shrinks afterwards must not lower it, and
+ * one that grows is counted when they confirm, from the list as it stands
+ * (`livePeople`). It only opens once a list names someone (`openSignoff`), so
+ * there is nothing to catch up — except one the sweep opened at 0 before
+ * 2026-10-12 ("Still 0 getting ready?"), which takes the list's number the
+ * first time it names someone, and never again.
+ */
+/** A headcount sign-off's number at the lock, when it has one above 0. */
+const lockedHeadcount = (value: unknown) => typeof value === "number" && Number.isInteger(value) && value > 0;
+
+export async function refreshAwaitingSignoff(
+  db: Firestore,
+  input: { tenantId: string; projectId: string },
+  now: string,
+): Promise<"refreshed" | "unchanged" | "not_awaiting"> {
+  const reference = db.doc(`detailSignoffs/${detailSignoffId(input.tenantId, input.projectId)}`);
+  const before = await reference.get();
+  if (!before.exists || text(before.get("tenantId")) !== input.tenantId || before.get("status") !== "awaiting_couple") return "not_awaiting";
+  if (before.get("kind") === "headcount" && lockedHeadcount(before.get("headcount"))) return "unchanged";
+  const snapshot = await finalDetailsSnapshot(db, input.tenantId, input.projectId);
+  const snapshotHash = finalDetailsHash(snapshot);
+  return db.runTransaction(async (transaction) => {
+    const signoff = await transaction.get(reference);
+    if (!signoff.exists || signoff.get("status") !== "awaiting_couple") return "not_awaiting";
+    if (signoff.get("snapshotHash") === snapshotHash) return "unchanged";
+    if (signoff.get("kind") === "headcount") {
+      const people = (snapshot.people ?? []).length;
+      // Only the old "Still 0", once the list names someone.
+      if (lockedHeadcount(signoff.get("headcount")) || !people) return "unchanged";
+      transaction.update(reference, { snapshot, snapshotHash, headcount: people, updatedAt: now });
+      return "refreshed";
+    }
+    transaction.update(reference, { snapshot, snapshotHash, updatedAt: now });
+    return "refreshed";
+  });
 }
 
 export const finalDetailsScheduler = onSchedule(
@@ -250,18 +368,20 @@ export const finalDetailsScheduler = onSchedule(
   async () => {
     const db = getFirestore();
     const nowDate = new Date();
-    const today = nowDate.toISOString().slice(0, 10);
     const now = nowDate.toISOString();
-    // The longest lock a studio can choose is 90 days.
-    const horizon = new Date(nowDate.valueOf() + 91 * 86_400_000).toISOString().slice(0, 10);
-    // Each studio's timeline and trade, read once per sweep.
-    const studios = new Map<string, Promise<{ timeline: ReturnType<typeof resolvePlanningTimeline>; trade: unknown }>>();
+    // A day either side of UTC's: each job is then judged on its own
+    // calendar (final-details-due.ts `finalDetailsToday`), which may be a day
+    // behind or ahead of it. The longest lock a studio can choose is 90 days.
+    const from = new Date(nowDate.valueOf() - 86_400_000).toISOString().slice(0, 10);
+    const horizon = new Date(nowDate.valueOf() + 92 * 86_400_000).toISOString().slice(0, 10);
+    // Each studio's timeline, trade and zone, read once per sweep.
+    const studios = new Map<string, Promise<{ timeline: ReturnType<typeof resolvePlanningTimeline>; trade: unknown; zone: unknown }>>();
     const tally: Record<string, number> = {};
-    const page = await db.collection("projects").where("eventDate", ">=", today).where("eventDate", "<=", horizon).orderBy("eventDate").limit(1000).get();
+    const page = await db.collection("projects").where("eventDate", ">=", from).where("eventDate", "<=", horizon).orderBy("eventDate").limit(1000).get();
     for (const project of page.docs) {
       const data = project.data();
       const tenantId = text(data.tenantId);
-      if (!tenantId || !["BOOKED", "PLANNING", "READY"].includes(text(data.state))) continue;
+      if (!tenantId || !FINAL_DETAILS_STATES.includes(text(data.state))) continue;
       // Archived, paused (imported), cancelled, on hold: nobody is asked.
       if (clientOutreachStop(data)) continue;
       // A wedding's final-details lock and sign-off; a one-hour family
@@ -274,11 +394,16 @@ export const finalDetailsScheduler = onSchedule(
             db.doc(`tenants/${tenantId}`).get().then((tenant) => ({
               timeline: resolvePlanningTimeline(tenant.get("planningTimeline")),
               trade: tenant.get("trade") ?? null,
+              zone: tenant.get("timezone") ?? null,
             })),
           );
-        const { timeline, trade } = await studios.get(tenantId)!;
+        const { timeline, trade, zone } = await studios.get(tenantId)!;
         const lockOn = detailsLockOn(text(data.eventDate), timeline);
-        if (!lockOn || today < lockOn) continue;
+        // The job's own day: the same one the booking path and the job page read.
+        const today = finalDetailsToday(nowDate, data.timezone, zone);
+        if (!lockOn || finalDetailsDue({ state: data.state, quiet: false, eventDate: data.eventDate, lockOn, today }) !== "due") continue;
+        // "no_party_list": a makeup or hair client whose list isn't back.
+        // Counted, and opened when it comes back (crew-brief-trigger.ts).
         const outcome = await openSignoff(db, project, lockOn, timeline, now, trade);
         tally[outcome] = (tally[outcome] ?? 0) + 1;
       } catch (caught) {

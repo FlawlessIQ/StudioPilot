@@ -33,11 +33,23 @@ test("one call or the other, and every record from before is the sales consultat
   );
 });
 
-test("on by default; invited at the lock; booked; held", () => {
+test("on by default; invited once the lock has sent it; booked; held", () => {
   assert.equal(resolvePlanningTimeline({}).finalCall, true);
+  // Invited once the sign-off it goes out with is open, not by the date alone
+  // (tests/final-details-lock-window.test.ts has every state between).
+  const signoff = { status: "awaiting_couple", finalCallLinkId: "link-1" };
   const state = (consultations: Record<string, unknown>[], today: string, timeline: unknown = {}) =>
-    finalCallState({ project: wedding, planningTimeline: timeline, consultations, today, now: `${today}T15:00:00Z` });
-  assert.deepEqual(state([], "2027-04-01"), { state: "not_yet", lockOn: "2027-05-15", startsAt: null });
+    finalCallState({ project: wedding, planningTimeline: timeline, consultations, signoff, today, now: `${today}T15:00:00Z` });
+  assert.deepEqual(state([], "2027-04-01"), { state: "invited", lockOn: "2027-05-15", startsAt: null });
+  assert.deepEqual(
+    finalCallState({ project: wedding, planningTimeline: {}, consultations: [], today: "2027-04-01", now: "2027-04-01T15:00:00Z" }),
+    { state: "not_yet", lockOn: "2027-05-15", startsAt: null },
+  );
+  assert.equal(
+    finalCallState({ project: wedding, planningTimeline: {}, consultations: [], today: "2027-05-15", now: "2027-05-15T15:00:00Z" })?.state,
+    "due",
+    "the lock day with nothing sent yet: it goes within the day",
+  );
   assert.equal(state([], "2027-05-15")?.state, "invited");
   const call = { purpose: "final_details", status: "scheduled", startsAt: "2027-05-20T19:00:00Z" };
   assert.equal(state([call], "2027-05-16")?.state, "booked");

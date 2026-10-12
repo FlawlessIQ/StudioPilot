@@ -42,6 +42,53 @@ timeline's couple-visible items, and emails them to confirm. They confirm on the
 portal home by typed name; the confirmation must match the snapshot they were shown
 (`FINAL_DETAILS_CHANGED` otherwise). Five days without it, Today nudges the studio.
 
+### Booked inside the window (2026-10-12)
+
+Walking prod with Jess Styles Bridal (hair, 30-day lock), a sangeet booked the day
+of the event showed four things wrong. One rule now decides when the details go,
+for every reader: `features/planning/final-details-due.ts` (mirrored in functions)
+— booked (BOOKED, PLANNING, READY), not quiet, a job with a lock, on or after the
+lock day and not after the event. "Today" is the job's own calendar day
+(`finalDetailsToday`: the event's zone, else the studio's, else UTC) for the
+sweep, the booking and form-return path, the job page and Today alike; the server
+read UTC and the page the viewer's clock, so a US evening booking of a same-day
+job was "asked within the day" on the page and "event passed" on the server.
+
+- **Waiting on the client only once asked.** The journey's step read the date
+  alone, so a *lead* dated inside the window said "Meanwhile, waiting on the
+  client: Final headcount". Now `invited` needs an open sign-off (and, for a final
+  details call, the link it carries: `finalCallLinkId`; null means nobody to send
+  it to, so the studio invites them). Past the lock with nothing open, the step
+  says when it goes: as soon as they book (a headcount: once they've booked *and*
+  the party list is in), within the day, or once the party list is in. Whether a
+  sign-off or a list is missing is read from the job's own records
+  (`components/planning/use-final-details-records.ts`), never from the tenant-wide
+  reads, which stop at 100.
+- **Opened the moment it can be.** `openFinalDetailsIfDue` (functions
+  `planning/final-details.ts`) runs from `completeBookingResources`, which every
+  booking path queues, and from `crewBriefOnQuestionnaireWrite` when a form comes
+  back; the daily sweep stays as the backstop. Idempotent (`exists`). A form
+  coming back while the sign-off still waits refreshes what they confirm
+  (`refreshAwaitingSignoff`), as an accepted change does — except a headcount,
+  whose number at the lock is the floor the agreement holds them to: a list cut
+  afterwards never lowers it, and someone added is counted when they confirm.
+  Only an old "Still 0" sign-off takes the list's number, once.
+- **No headcount without a party list.** A makeup or hair sign-off is never
+  opened before the list is back (`no_party_list`, counted in the sweep's tally):
+  the sweep would have asked "Still 0 getting ready?". Today says which is
+  missing ("haven't sent their party list"; back with nobody on it; nobody down
+  for the studio's own service).
+- **Schedule A written after the lock** says the details (or headcount) are
+  confirmed as soon as the booking is made (or the party list is in), not "30
+  days before the date". Only agreements written on or after the lock day; the
+  rest are byte-identical (golden hashes in
+  `tests/final-details-lock-window.test.ts`). The contract keeps
+  `detailsLockPassed`. An amendment that keeps the date keeps the signed
+  agreement's words (one signed months ahead still says "four weeks before the
+  date"); one that moves the date is decided from the new date, so a booking
+  signed the day of the event and postponed three months promises the new lock
+  day again.
+
 ## 4. Changes after the lock
 
 On the sent form, a location or time says "Request a change"

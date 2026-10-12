@@ -265,7 +265,7 @@ test("the lock opens a one-tap headcount for makeup and hair, with no call; a DJ
   const source = read("functions/src/planning/final-details.ts");
   assert.match(source, /const headcount = tradeProfile\(trade\)\.perPersonPricing \? \(snapshot\.people \?\? \[\]\)\.length : null;/);
   assert.match(source, /headcount !== null\s*\? null\s*: await finalCallLink\(/);
-  assert.match(source, /\.\.\.\(headcount !== null \? \{ kind: "headcount", headcount \} : \{\}\),/);
+  assert.match(source, /\.\.\.\(headcount !== null \? \{ kind: "headcount", headcount \} : \{ finalCallLinkId: call\?\.linkId \?\? null \}\),/);
   assert.match(source, /finalCallUrl: call\?\.bookingUrl \?\? null,/);
   for (const trade of TRADES) assert.equal(tradeProfile(trade).perPersonPricing, trade === "makeup" || trade === "hair", trade);
 });
@@ -308,7 +308,9 @@ test("a confirmed headcount is the journey's Final headcount, Confirmed", () => 
   const project = { eventKind: "wedding", eventDate: "2026-10-20" };
   const timeline = { lockDaysBefore: 30 };
   assert.deepEqual(finalHeadcountState({ project, planningTimeline: timeline, signoff: null, today: "2026-09-01" }), { state: "not_yet", lockOn: "2026-09-20", startsAt: null });
-  assert.equal(finalHeadcountState({ project, planningTimeline: timeline, signoff: null, today: "2026-09-20" })?.state, "invited");
+  // Waiting on the client only once the sign-off is open, not by the date
+  // alone (tests/final-details-lock-window.test.ts has every state between).
+  assert.equal(finalHeadcountState({ project, planningTimeline: timeline, signoff: null, today: "2026-09-20" })?.state, "at_booking");
   assert.equal(finalHeadcountState({ project, planningTimeline: timeline, signoff: { status: "awaiting_couple" }, today: "2026-09-21" })?.state, "invited");
   assert.equal(finalHeadcountState({ project, planningTimeline: timeline, signoff: { status: "confirmed" }, today: "2026-09-22" })?.state, "held");
   // Not gated on the studio's final call setting: there is no call.
@@ -352,7 +354,9 @@ test("a confirmed headcount is the journey's Final headcount, Confirmed", () => 
   // The studio's journey reads the sign-off for makeup and hair, the call for everyone else.
   const hook = read("components/projects/use-project-journey.ts");
   assert.match(hook, /finalCall: tradeProfile\(tenantTrade\)\.perPersonPricing\s*\? finalHeadcountState\(/);
-  assert.match(hook, /signoff: forProject\(detailSignoffs\.records\)\[0\] \?\? null,/);
+  // The job's own sign-off, read for it alone; the tenant-wide read until that is back.
+  assert.match(hook, /const finalSignoff = ownFinalDetails \? ownFinalDetails\.signoff : \(forProject\(detailSignoffs\.records\)\[0\] \?\? null\);/);
+  assert.match(hook, /signoff: finalSignoff,/);
 });
 
 test("the client confirms in one tap, with no typed name, and the server records who and which names", () => {

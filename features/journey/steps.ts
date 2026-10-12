@@ -282,11 +282,20 @@ export type JourneyInput = {
   questionnaireSource?: string | null;
   scheduleStatus: string | null;
   /**
-   * The final details call a month out (features/consultations/final-call.ts).
-   * Absent or null: the job has none, and no step is shown.
+   * The final details call a month out (features/consultations/final-call.ts),
+   * or a makeup or hair client's final headcount
+   * (features/schedules/final-headcount.ts). Absent or null: the job has
+   * none, and no step is shown.
+   *
+   * Only "invited" waits on the client: it has gone. Past the lock with
+   * nothing sent, "at_booking" (not booked yet), "due" (goes within the day),
+   * "needs_party_list" (a headcount with no list back to count) and "paused"
+   * (the studio stopped client emails) say when it goes, never that the
+   * client owes it; "not_sent" went without its call link, so it is the
+   * studio's to offer by hand.
    */
   finalCall?: {
-    state: "not_yet" | "invited" | "booked" | "held";
+    state: "not_yet" | "at_booking" | "due" | "needs_party_list" | "paused" | "not_sent" | "invited" | "booked" | "held";
     lockOn: string | null;
     startsAt: string | null;
   } | null;
@@ -648,12 +657,24 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
   if (finalCall && tradeProfile(input.trade).perPersonPricing) {
     finalCall.title = "Final headcount";
     const state = input.finalCall?.state;
+    // The headcount is counted from the party list (trades.ts `detailsForm`).
+    const partyList = (words.detailsForm ?? "party list").toLowerCase();
     finalCall.detail =
       state === "held" || state === "booked"
         ? "Confirmed"
         : state === "invited"
           ? "Waiting for them to confirm who's getting ready"
-          : "They confirm who's getting ready when the details lock";
+          : state === "needs_party_list"
+            ? `Asked as soon as their ${partyList} is in. The details have locked.`
+            : state === "due"
+              ? "Asked within the day. The details have locked."
+              : state === "at_booking"
+                ? // Booking alone doesn't ask it: with no list back there is
+                  // no headcount, and it waits for the list (final-details.ts).
+                  `Asked once they've booked and their ${partyList} is in. The details have already locked.`
+                : state === "paused"
+                  ? "Not asked while emails to them are paused"
+                  : "They confirm who's getting ready when the details lock";
   }
 
   const day = find("event_day");
@@ -1194,6 +1215,9 @@ export function projectJourney(input: JourneyInput): {
     push({
       key: "final_call",
       title: tradeWords.finalCall,
+      // Waiting on them only once the invitation has gone. Past the lock with
+      // nothing sent, when it goes: a lead inside the lock window read
+      // "waiting on the client" before anything had been sent (2026-10-12).
       detail:
         call.state === "held"
           ? `Held${when ? ` ${when}` : ""}`
@@ -1201,13 +1225,23 @@ export function projectJourney(input: JourneyInput): {
             ? `Booked${when ? ` for ${when}` : ""}`
             : call.state === "invited"
               ? `Invited — waiting for ${who} to pick a time`
-              : `${Who} are invited to book it when the details lock`,
+              : call.state === "not_sent"
+                ? "The invitation didn't go out. Invite them to book it yourself."
+                : call.state === "due"
+                  ? "The invitation goes out within the day. The details have locked."
+                  : call.state === "at_booking"
+                    ? "The invitation goes out as soon as they book. The details have already locked."
+                    : call.state === "paused"
+                      ? "Not sent while emails to them are paused"
+                      : `${Who} are invited to book it when the details lock`,
       status:
         call.state === "held" || call.state === "booked"
           ? "complete"
           : call.state === "invited"
             ? prepStatus("waiting_client")
-            : prepStatus("upcoming"),
+            : call.state === "not_sent"
+              ? prepStatus("current")
+              : prepStatus("upcoming"),
       action: null,
       record: null,
       owner: null,
@@ -1633,6 +1667,9 @@ export function projectJourney(input: JourneyInput): {
     delivery: { label: "Open delivery", href: project("/studio/delivery") },
     album_review: { label: "Open reviews", href: project("/studio/reviews") },
   };
+  // Past the lock with nothing sent, the step's own line says when it goes
+  // (as soon as they book, within the day, once the party list is in).
+  const finalCallUnlockIsDetail = Boolean(input.finalCall && input.finalCall.state !== "not_yet");
   const unlockCopy: Partial<Record<JourneyStepKey, string>> = {
     final_call: input.finalCall?.lockOn
       ? `The invitation goes out on ${formatCallTime(`${input.finalCall.lockOn}T12:00:00Z`, true)}, when the details lock.`
@@ -1661,7 +1698,9 @@ export function projectJourney(input: JourneyInput): {
     else step.owner = null;
     step.unlock =
       step.status === "upcoming"
-        ? (unlockCopy[step.key] ?? "Unlocks when the steps above are done.")
+        ? step.key === "final_call" && finalCallUnlockIsDetail
+          ? step.detail
+          : (unlockCopy[step.key] ?? "Unlocks when the steps above are done.")
         : null;
     if (step.status !== "current") step.advance = null;
   }

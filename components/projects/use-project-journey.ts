@@ -33,6 +33,8 @@ import { useReadinessEvidence } from "@/components/projects/use-readiness-eviden
 import type { ReadinessEvidence } from "@/features/readiness/checkpoint-evidence";
 import { displayableScheduleItems } from "@/features/schedules/item-clock";
 import { finalHeadcountState } from "@/features/schedules/final-headcount";
+import { finalDetailsToday } from "@/features/planning/final-details-due";
+import { useFinalDetailsRecords } from "@/components/planning/use-final-details-records";
 import { todayLocalIso } from "@/lib/format/event-date";
 import { callLabel, nextSalesCall } from "@/features/consultations/upcoming";
 import { depositByStudio } from "@/features/booking/deposit-by-studio";
@@ -107,6 +109,9 @@ export function useProjectJourney({
   const tasks = useTenantDocuments("tasks");
   // A makeup or hair client's one-tap final headcount (features/schedules/final-headcount.ts).
   const detailSignoffs = useTenantDocuments("detailSignoffs");
+  // The same, read for this job alone: whether its final details have gone is
+  // read from a sign-off being missing, and the tenant-wide reads stop at 100.
+  const ownFinalDetails = useFinalDetailsRecords([projectId])[projectId] ?? null;
 
   const forProject = (
     records: Array<Record<string, unknown> & { id: string }> | null,
@@ -207,6 +212,14 @@ export function useProjectJourney({
     arranged: trialArrangedOnJob(journeyProject),
   };
 
+  // The final details, read as the server reads them: the job's own sign-off
+  // (once its own read is back) and the job's own calendar day — the event's
+  // zone, else the studio's — not the viewer's (final-details-due.ts).
+  const jobStudio = (tenants.records ?? []).find((tenant) => tenant.id === text(journeyProject?.tenantId));
+  const finalDetailsDay = finalDetailsToday(new Date(), journeyProject?.timezone, jobStudio?.timezone);
+  const finalSignoff = ownFinalDetails ? ownFinalDetails.signoff : (forProject(detailSignoffs.records)[0] ?? null);
+  const finalResponses = ownFinalDetails ? ownFinalDetails.responses : forProject(questionnaires.records);
+
   const journey = projectJourney({
     projectId,
     // Which steps this kind of job has (job-kinds.ts).
@@ -231,19 +244,25 @@ export function useProjectJourney({
     // A cancelled or replaced consultation is not a booked meeting.
     // The final details call a month out (features/consultations/final-call.ts);
     // a makeup or hair client's final headcount instead, confirmed in one tap
-    // with no call (features/schedules/final-headcount.ts).
+    // with no call (features/schedules/final-headcount.ts). Waiting on the
+    // client only once the sign-off is open: the date alone said so for a
+    // lead inside the lock window, with nothing sent.
     finalCall: tradeProfile(tenantTrade).perPersonPricing
       ? finalHeadcountState({
           project: journeyProject ?? null,
-          planningTimeline: (tenants.records ?? []).find((tenant) => tenant.id === text(journeyProject?.tenantId))?.planningTimeline,
-          signoff: forProject(detailSignoffs.records)[0] ?? null,
-          today: todayLocalIso(),
+          planningTimeline: jobStudio?.planningTimeline,
+          signoff: finalSignoff,
+          // No party list back, no headcount to ask about.
+          responses: finalResponses,
+          trade: tenantTrade,
+          today: finalDetailsDay,
         })
       : finalCallState({
           project: journeyProject ?? null,
-          planningTimeline: (tenants.records ?? []).find((tenant) => tenant.id === text(journeyProject?.tenantId))?.planningTimeline,
+          planningTimeline: jobStudio?.planningTimeline,
           consultations: forProject(consultations.records),
-          today: todayLocalIso(),
+          signoff: finalSignoff,
+          today: finalDetailsDay,
           now: new Date().toISOString(),
         }),
     trial,
