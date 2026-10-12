@@ -1,4 +1,5 @@
 import { clockMinutes, clockOf, minutesClock, spokenClock, wallClockToIso } from "./day-clock";
+import { isVendorArrivalLine } from "@/features/vendors/team";
 
 /**
  * The wedding day, laid out from what the couple told the studio.
@@ -702,7 +703,16 @@ function flowingEnds(items: ReadonlyArray<Tracked>, coverageEndIso: string | nul
   const ends = new Map<string, string>();
   sorted.forEach((item, index) => {
     const start = Date.parse(item.startAt);
-    const next = sorted.slice(index + 1).find((later) => Date.parse(later.startAt) > start && sameTrack(item, later));
+    // A vendor arriving marks a moment in the day (features/vendors/team.ts):
+    // it keeps its own half hour and ends nobody's block. "Florist arrives"
+    // at 2:00 must not cut the getting-ready that runs to 3:00.
+    if (isVendorArrivalLine(item)) {
+      if (Number.isFinite(start)) ends.set(item.id, new Date(start + 30 * 60_000).toISOString());
+      return;
+    }
+    const next = sorted
+      .slice(index + 1)
+      .find((later) => Date.parse(later.startAt) > start && !isVendorArrivalLine(later) && sameTrack(item, later));
     const candidate = next ? Date.parse(next.startAt) : coverageEndIso ? Date.parse(coverageEndIso) : Number.NaN;
     const end = Number.isFinite(candidate) && candidate > start ? candidate : start + 30 * 60_000;
     if (Number.isFinite(start)) ends.set(item.id, new Date(end).toISOString());

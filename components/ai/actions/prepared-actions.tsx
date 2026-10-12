@@ -67,6 +67,7 @@ import {
   TimelineTimesCard,
   TimelineOwnerCard,
   VendorChangeCard,
+  VendorTeamCard,
 } from "./planning-actions";
 import {
   AddCrewMemberCard,
@@ -203,6 +204,7 @@ export const ACTION_CARDS: Record<string, ComponentType<ActionCardProps>> = {
   add_vendor: AddVendorCard,
   edit_vendor: VendorChangeCard,
   remove_vendor: VendorChangeCard,
+  vendor_team: VendorTeamCard,
   // Messages
   reply_to_couple: ReplyCard,
   approve_message: MessageApprovalCard,

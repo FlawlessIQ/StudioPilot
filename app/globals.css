@@ -12,6 +12,7 @@
 @import "./integration-diagnostics.css";
 @import "./studiocue-reimagined.css";
 @import "./confirm-step.css";
+@import "./vendor-team.css";
 @source "../app";
 @source "../components";
 @source "../features";

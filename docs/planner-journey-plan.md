@@ -6,7 +6,9 @@ be required … then fit it into a studiocue flow that uses the features we have
 already, similar to what we did with the other journeys. plan this out before
 execution."
 
-**Status: planned; decisions taken 2026-10-12 (below). Nothing is built yet.**
+**Status: decisions taken 2026-10-12 (below). Phase 1 (the vendor team) is
+built on a branch and walked in the emulator — see "Phase 1 status" under
+Phases. Phases 2–5 are not started.**
 The DJ, makeup and hair plan this follows is `docs/vendor-journeys-plan.md`.
 Sources are at the end.
 
@@ -233,6 +235,108 @@ tenant at desktop and phone width.
    invoice through the same billing paths (QuickBooks, Stripe, own
    invoicing), chased by the same reminders.
 5. **Launch** (N10) — ≈ 2–3 days, then the pilot.
+
+### Phase 1 status (2026-10-12)
+
+Built (N1 + N2) and walked in the emulator; not deployed. Every trade is
+`vendorTeam: "quiet"`, so photographers, DJs, makeup and hair look as before
+until a studio presses "Add a vendor" (the burden tests did not move).
+
+**The record**
+- `projectVendors/{projectId}_{entryId}` — tenant-scoped, server-write-only.
+  Category (the vendor `type` list, which gained `photographer`, `officiant`,
+  `bakery` and `rentals`), role label, status needed / considering / booked /
+  declined, arrival / load-in / strike (`HH:MM`), contract and COI received,
+  `costCents`, `balanceDueCents` + `balanceDueDate`, `tipCents`, notes, and a
+  snapshot of the vendor's company / contact / email / phone (so a
+  coordinator, who can't list the whole directory, still sees who it is).
+  One entry per (job, vendor), enforced in the command's transaction, which
+  also writes `projects.vendorTeamUpdatedAt` so two adds take turns.
+- Someone new joins the directory (`vendors`), with the job in `projectIds`;
+  declining or removing takes the job out of `projectIds`, and removing
+  revokes their timeline link for that job.
+- `projects.budgetCents` (+ `budgetSource`, `budgetSetAt`): the light budget.
+  Prefilled once from the lead's `budgetRange` only for a trade whose
+  inquiry asks the whole wedding's budget (`vendorTeam: "default"`, the
+  planner) — every trade today asks for its own ("Photographer budget"), so
+  nothing is prefilled yet. The parse takes one amount; ranges and open ends
+  are left for the studio.
+- `crewVendorContacts/{projectId}`: the crew's projection (company, contact,
+  phone, arrival / load-in) — never the money. Rebuilt on every team write
+  and when a vendor's directory details change (`updateVendor`).
+- Rules: `projectVendors` read by owner / admin, or a coordinator on the job;
+  `crewVendorContacts` also by staff and crew on the job; both write-false.
+  No composite index (both queries are two equalities).
+
+**Commands** (`planningCommand`, owner / admin / coordinator on the job):
+`addVendorTeamEntry`, `updateVendorTeamEntry`, `removeVendorTeamEntry`,
+`setProjectBudget`, `sendTimelineToVendorTeam` —
+`functions/src/planning/vendor-team.ts`, spliced into the command union in
+`functions/src/planning/commands.ts`. Idempotency keys, audit events.
+
+**Send the timeline** needs a published run of show. For each booked vendor
+with an email: a first link (scope `vendor`; `full` for a planner or
+videographer), the update to anyone on an older version, nothing to anyone
+already current. One `vendor_timeline` email per (vendor, version), id
+`vendor_timeline_{shareId}_v{version}`, `audience: "vendor"`,
+`soleRecipient: true`, held while billing is lapsed (not on the delivered
+list). Template in `functions/src/communications/email-templates.ts`
+(`VENDOR_EMAIL_TYPES`): "{Studio} sent you the timeline for {couple}'s
+wedding on {date}" / "Updated timeline: …", button "View and confirm".
+
+**Screens**
+- Job page: `components/vendors/vendor-team-panel.tsx` under the crew panel
+  (both layouts) — budget line, "Sent to N · N confirmed · N has an older
+  version", the send button with a confirm that names who gets what, compact
+  rows (four then "Show more" on phones), the add / edit sheet
+  (`vendor-team-sheet.tsx`) and the budget sheet.
+- Run-of-show editor (`components/planning/ai-schedule-generator.tsx`): a
+  vendor chip row on each line (writes `vendorContactIds`), and "Add vendor
+  arrivals" — one `crew`-visibility line per booked vendor with a time,
+  tagged to them, ids `vendor_arrival_{entryId}` so re-running updates;
+  `flowEnds` treats them as moments that end nobody's block.
+- `/studio/projects/[id]/vendors/print`: the printable contact sheet, with
+  the balances and tips to hand out.
+- Crew day sheet: a "Vendors" section with Call buttons
+  (`components/crew/crew-vendor-contacts.tsx`), kept offline like the rest.
+- Cue: `vendor_team` mounts the panel (`VendorTeamCard`).
+
+**Deterministic core**: `features/vendors/team.ts` — `vendorTeamProgress`
+(booked / needed counts, confirmed-on-current-version, budget totals,
+`teamComplete`, `allConfirmed`) for Phase 2's "Vendor team" and "Vendors
+confirmed" steps; `timelineStateFor`, `budgetLine`, `timelineSummary`,
+`vendorTeamVisibility`, `vendorArrivalLines`. Tests:
+`tests/vendor-team.test.ts`, `tests/firestore-rules-vendor-team.test.ts`.
+
+**Walked in the emulator (2026-10-12)** on the seeded Maya & Theo Johnson
+wedding (a photographer studio): the quiet "Add a vendor" before any
+vendor; The Foundry from the directory (considering), Petal & Stem as
+someone new (booked, $4,200, $1,200 still owed, $100 tip) and a cake still
+needed; budget $35,000 → "$4,200 of $35,000 booked"; "Add vendor arrivals"
+pressed twice made one line; published v5; one press sent Petal & Stem
+their link (mock email "Alder & Muse sent you the timeline for Maya & Theo
+Johnson's wedding on August 15, 2026"); no second send offered; the share
+page showed their arrival and they confirmed; The Foundry booked;
+republished v6 → "Sent to 1 · 0 confirmed · 1 has an older version"; one
+press sent the update to Petal & Stem and a first link to The Foundry,
+three emails in all; the crew member's day sheet listed both vendors with
+Call. Layout audit clean at 1024, 1280 and 390 on the job, the print page
+and the editor. **Not yet walked on prod** (the plan's "done when").
+
+**Deploy notes**: rules first (`firestore.rules` gains two collections; the
+app's reads are refused until they are live, and a quiet trade's job then
+looks as before). Functions changed: `planningCommand` (commands +
+`vendor-team.ts`) and the email renderer `operationsTaskWorker` (new
+`vendor_timeline` template) — check it with the freshness script. No new
+function export.
+
+**Deferred**
+- Journey steps and readiness checks (Phase 2 reads `vendorTeamProgress`).
+- Budget prefill at inquiry → job conversion (Phase 2, with the planner's
+  inquiry form asking the wedding's budget).
+- Inviting a photographer listed on a DJ's or planner's team to StudioCue
+  (`photographer` is not in `VENDOR_TYPE_TRADES`).
+- "Payments and tips to hand out" on the day-before kit list (N7).
 
 ## Decisions
 

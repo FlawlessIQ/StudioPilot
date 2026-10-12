@@ -153,6 +153,9 @@ export const emailTemplateKeys = [
   "final_details_request",
   "schedule_review",
   "final_schedule_published",
+  // A vendor on the wedding gets the timeline through their own link
+  // (planning/vendor-team.ts): the first time, and again for a new version.
+  "vendor_timeline",
   "event_reminder",
   "thank_you",
   "delivery",
@@ -1923,6 +1926,50 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : undefined,
       };
     }
+    case "vendor_timeline": {
+      /**
+       * The timeline, to a vendor on the wedding (planning/vendor-team.ts
+       * sendTimelineToVendorTeam): the florist, the DJ, the planner. They
+       * have no account; the link is theirs alone, and confirming from it is
+       * the whole ask. Sent with `audience: "vendor"` and `soleRecipient`, so
+       * it is never the couple's mail and never copied to anyone.
+       */
+      const shareUrl = safeUrl(stringValue(values, "shareUrl"));
+      const update = values.timelineUpdate === true;
+      const kind = jobKindOf({ eventKind: stringValue(values, "eventKind") || undefined });
+      const couple = stringValue(values, "coupleName");
+      const occasion =
+        kind === "wedding" && couple
+          ? `${couple}'s ${vocab(kind).event}`
+          : input.projectName?.trim() || `the ${vocab(kind).event}`;
+      const eventDate = stringValue(values, "eventDate");
+      const on = eventDate ? ` on ${humanDate(eventDate)}` : "";
+      const venue = stringValue(values, "venueName");
+      const note = stringValue(values, "studioNote");
+      const whole = stringValue(values, "shareScope") === "full";
+      return {
+        subject: update
+          ? `Updated timeline: ${occasion}${on}`
+          : `${brand.studioName} sent you the timeline for ${occasion}${on}`,
+        preheader: update
+          ? "The timeline has changed. Your new link shows the current version."
+          : "Open it and confirm it works for you. There's nothing to sign in to.",
+        eyebrow: update ? "Updated timeline" : "Timeline",
+        heading: update ? "The timeline has changed" : "Here's the timeline",
+        paragraphs: [
+          greeting,
+          update
+            ? `${brand.studioName} has updated the timeline for ${occasion}${on}.`
+            : `${brand.studioName} has shared the timeline for ${occasion}${on}${venue ? ` at ${venue}` : ""}. ${whole ? "It shows the whole day." : "It shows the parts of the day that involve you."}`,
+          ...(note ? [note] : []),
+          update
+            ? "Your earlier link no longer opens. Please use this one, and confirm the new version works for you."
+            : "Please open it and confirm it works for you. There's nothing to sign in to.",
+        ],
+        action: shareUrl ? { label: "View and confirm", url: shareUrl } : undefined,
+        note: "This link is yours alone. If the plan changes, you'll get the new version.",
+      };
+    }
     case "event_reminder": {
       /**
        * The week-of note (communications/event-reminders.ts); a studio's own
@@ -3293,6 +3340,13 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
 export const CREW_EMAIL_TYPES: ReadonlySet<string> = new Set([
   "crew_invitation", "crew_assigned", "crew_directory_invitation", "crew_reminder", "crew_monthly_roundup", "crew_assignment_cancelled",
 ]);
+
+/**
+ * Mail a vendor on the wedding reads: the florist, the DJ, the planner. They
+ * have no StudioCue account, so their link is the one in the email (their
+ * timeline), never a portal or the crew app.
+ */
+export const VENDOR_EMAIL_TYPES: ReadonlySet<string> = new Set(["vendor_timeline"]);
 
 /**
  * Every client and crew email can open StudioCue.

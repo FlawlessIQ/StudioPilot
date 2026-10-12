@@ -588,6 +588,12 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PROJECT_PURGE_FAILED:
     "The job could not be deleted. Some of its records may already be gone — run the delete again to finish it, and contact support if it keeps failing.",
   VENDOR_NOT_FOUND: "That vendor record could not be found.",
+  // A wedding's vendor team (functions/src/planning/vendor-team.ts).
+  VENDOR_ALREADY_ON_TEAM: "That vendor is already on this job's team. Open their row to change it.",
+  VENDOR_REQUIRED_TO_BOOK: "Choose who is booked, or add them as someone new, before marking it booked.",
+  VENDOR_CHOICE_AMBIGUOUS: "Pick a vendor from your list or add someone new — not both.",
+  VENDOR_TEAM_ENTRY_EXISTS: "That vendor was already added. Refresh to see the team.",
+  VENDOR_TEAM_ENTRY_NOT_FOUND: "That vendor is no longer on this job's team. Refresh to see the team.",
   CREW_PROFILE_NOT_FOUND: "That collaborator could not be found.",
   // Billing. The server names the cause precisely and the client used to drop
   // it, so every one of these arrived as "Billing could not be opened."

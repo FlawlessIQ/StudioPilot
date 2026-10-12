@@ -137,6 +137,10 @@ const REACHED: Record<string, string> = {
   archiveVendor: "\"archiveVendor\"", publishSchedule: "AiScheduleGenerator", setTimelineAuthority: "TimelineAuthorityPanel",
   setInsuranceRequirement: "\"setInsuranceRequirement\"", shareRunOfShow: "\"shareRunOfShow\"",
   revokeRunOfShowShare: "\"revokeRunOfShowShare\"",
+  // A wedding's vendor team: the job's own panel, mounted whole by the vendor_team card.
+  addVendorTeamEntry: "VendorTeamPanel", updateVendorTeamEntry: "VendorTeamPanel",
+  removeVendorTeamEntry: "VendorTeamPanel", setProjectBudget: "VendorTeamPanel",
+  sendTimelineToVendorTeam: "VendorTeamPanel",
   createCoiRequest: "CoiWorkflowPanel", decideCoi: "CoiWorkflowPanel", sendCoiToVenue: "CoiWorkflowPanel",
   approvePreparedCoi: "CoiWorkflowPanel", completeCoiDetails: "CoiWorkflowPanel", attachCoiUpload: "CoiWorkflowPanel",
   approveAndSendCoi: "CoiWorkflowPanel", saveCoiSettings: "CoiSettings",

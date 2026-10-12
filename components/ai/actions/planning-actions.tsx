@@ -16,6 +16,7 @@ import { isoToWallClock } from "@/features/schedules/day-clock";
 import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
 import { TimelineAuthorityPanel } from "@/components/planning/timeline-authority-panel";
 import { VendorRecordActions } from "@/components/planning/vendor-record-actions";
+import { VendorTeamPanel } from "@/components/vendors/vendor-team-panel";
 import { MessageApprovals } from "@/components/communications/message-approvals";
 import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
 import {
@@ -553,6 +554,26 @@ export function AddVendorCard({ action }: ActionCardProps) {
         }
       />
       <Notice text={runner.notice} />
+    </ActionShell>
+  );
+}
+
+/**
+ * The job's vendor team: who is booked, their arrival times, what the couple
+ * still owes each, the budget, and "send the timeline to every booked
+ * vendor". The job page's own panel, mounted whole (VendorTeamPanel), so Cue
+ * offers exactly what the job does.
+ */
+export function VendorTeamCard({ action }: ActionCardProps) {
+  const { job, loading } = useJob(action.projectId);
+  const title = `Vendor team · ${jobName(job)}`;
+  if (loading) return <ActionShell title={title}><Loading /></ActionShell>;
+  if (!job) return notFound(title);
+  return (
+    <ActionShell detail="Nothing is sent until you press send; adding a vendor tells nobody." icon={<Store size={15} />} title={title}>
+      <Embedded>
+        <VendorTeamPanel alwaysShow projectId={job.id} state={str(job.state)} />
+      </Embedded>
     </ActionShell>
   );
 }

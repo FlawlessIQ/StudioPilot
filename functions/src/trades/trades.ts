@@ -454,6 +454,14 @@ export type TradeProfile = {
   journey: TradeJourney;
   /** The roles a package's coverage is staffed with. */
   coverageRoles: readonly string[];
+  /**
+   * A wedding's vendor team on the job (features/vendors/team.ts).
+   * "default": the panel is always on the job, for the trade whose work it
+   * is (the planner, Phase 2 of docs/planner-journey-plan.md). "quiet":
+   * every trade today. The job shows only a small "Add a vendor" until a
+   * vendor is on it (Conor's decision 3, 2026-10-12).
+   */
+  vendorTeam: "default" | "quiet";
   /** The subscription plans this trade can buy (config/saas-plans.ts). */
   plans: readonly string[];
 };
@@ -475,6 +483,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 14,
     journey: FULL_JOURNEY,
     coverageRoles: ["photographer", "videographer"],
+    vendorTeam: "quiet",
     plans: ["studio", "multi_brand"],
   },
   dj: {
@@ -493,6 +502,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 14,
     journey: LIGHT_JOURNEY,
     coverageRoles: ["dj"],
+    vendorTeam: "quiet",
     plans: ["vendor"],
   },
   makeup: {
@@ -511,6 +521,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 0,
     journey: { ...LIGHT_JOURNEY, balanceOnTheDay: true },
     coverageRoles: ["makeup_artist"],
+    vendorTeam: "quiet",
     plans: ["vendor"],
   },
   hair: {
@@ -529,6 +540,7 @@ const PROFILES: Record<Trade, Omit<TradeProfile, "trade" | "family">> = {
     balanceDueDaysBefore: 0,
     journey: { ...LIGHT_JOURNEY, balanceOnTheDay: true },
     coverageRoles: ["hair_stylist"],
+    vendorTeam: "quiet",
     plans: ["vendor"],
   },
 };

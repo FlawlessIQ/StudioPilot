@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CLIENT_EMAIL_TYPES,
   CREW_EMAIL_TYPES,
+  VENDOR_EMAIL_TYPES,
   renderEmailTemplate,
 } from "../functions/src/communications/email-templates";
 
@@ -58,8 +59,24 @@ test("a new email type has to say who reads it", () => {
   // and opens StudioCue its own way; everything else is a client's or crew's.
   const keys = [...read("functions/src/communications/email-templates.ts").matchAll(/case "([a-z_]+)":/g)].map((match) => match[1]!);
   const ownMail = /^(studio_|platform_|feedback_|billing_|trial_|staff_invitation|email_verification|password_reset|sign_in_link|daily_digest|coi_)/;
-  const unclassified = keys.filter((key) => !ownMail.test(key) && !CLIENT_EMAIL_TYPES.has(key) && !CREW_EMAIL_TYPES.has(key));
-  assert.deepEqual(unclassified, [], "add the new type to CLIENT_EMAIL_TYPES or CREW_EMAIL_TYPES");
+  const unclassified = keys.filter(
+    (key) => !ownMail.test(key) && !CLIENT_EMAIL_TYPES.has(key) && !CREW_EMAIL_TYPES.has(key) && !VENDOR_EMAIL_TYPES.has(key),
+  );
+  assert.deepEqual(unclassified, [], "add the new type to CLIENT_EMAIL_TYPES, CREW_EMAIL_TYPES or VENDOR_EMAIL_TYPES");
+});
+
+test("every vendor email opens the vendor's own link, never a portal", () => {
+  for (const key of VENDOR_EMAIL_TYPES) {
+    const email = renderEmailTemplate({
+      key,
+      brand,
+      recipientName: "Petal & Stem",
+      projectName: "Maya Brooks Wedding",
+      values: { ...worker("https://studio-cue.com/client"), shareUrl: "https://studio-cue.com/share/token" },
+    });
+    assert.ok(links(email.text).includes("https://studio-cue.com/share/token"), `${key} has no share link`);
+    assert.ok(!links(email.text).some((url) => url.includes("/client")), `${key} sends a vendor to the client portal`);
+  }
 });
 
 test("a couple without an account is sent their inquiry page, not a sign-in they can't pass", () => {

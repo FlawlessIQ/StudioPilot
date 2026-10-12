@@ -74,6 +74,7 @@ import { decideDetailChange, requestDetailChange } from "./detail-changes.js";
 import { lockingFieldIds } from "./details-lock.js";
 import { templateLinkProblems } from "./template-rules.js";
 import { eventZone } from "./day-clock.js";
+import { isVendorTeamCommand, refreshVendorOnTeams, runVendorTeamCommand, vendorTeamCommands } from "./vendor-team.js";
 
 const item = z.object({
   id: z.string(),
@@ -630,6 +631,8 @@ const command = z.discriminatedUnion("type", [
       vendorContactId: z.string().min(1),
     }),
   }),
+  // A wedding's vendor team and its timeline sends (vendor-team.ts).
+  ...vendorTeamCommands,
 ]);
 const internalRoles = new Set([
   "studio_owner",
@@ -1488,6 +1491,8 @@ export const planningCommand = onRequest(
           updatedAt: now,
           updatedBy: identity.uid,
         });
+        // The jobs this vendor is on carry their details for the team and the crew (vendor-team.ts).
+        await refreshVendorOnTeams(db, parsed.tenantId, parsed.input.vendorId, now);
         result = { vendorId: parsed.input.vendorId, updated: true };
       } else if (parsed.type === "archiveVendor") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
@@ -2215,6 +2220,16 @@ export const planningCommand = onRequest(
           insuranceRequired: parsed.input.insuranceRequired,
           cancelledRequests: cancelled.length,
         };
+      } else if (isVendorTeamCommand(parsed)) {
+        // A wedding's vendor team, its budget, and the timeline to every
+        // booked vendor (vendor-team.ts). The studio's, never crew or client.
+        if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
+        result = await runVendorTeamCommand(db, parsed, {
+          actorId: identity.uid,
+          now,
+          userAgent: request.header("user-agent") ?? null,
+          appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com",
+        });
       } else if (parsed.type === "publishSchedule") {
         if (!internalRoles.has(role)) throw new Error("FORBIDDEN");
         /**

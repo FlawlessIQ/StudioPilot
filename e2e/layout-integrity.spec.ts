@@ -39,6 +39,8 @@ const recordRoutes = [
   // A group event on the day, and its printed sign (sign-up, 2026-10-10).
   "/studio/projects/demo-project/field",
   "/studio/projects/demo-project/sign",
+  // The job's vendors on one printable page (vendor team, 2026-10-12).
+  "/studio/projects/demo-project/vendors/print",
   "/crew/schedule?assignment=demo-upcoming",
   "/crew/requirements?assignment=demo-upcoming",
 ];

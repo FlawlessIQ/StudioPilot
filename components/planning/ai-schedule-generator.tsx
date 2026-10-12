@@ -58,6 +58,8 @@ import {
 } from "@/features/schedules/standard-moments";
 import { scheduleCrewOptions } from "@/features/schedules/crew-options";
 import { crewLabels, sortLabels } from "@/features/schedules/crew-labels";
+import { useVendorTeam } from "@/components/vendors/use-vendor-team";
+import { vendorArrivalLines, vendorCategoryLabel } from "@/features/vendors/team";
 import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
 import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
@@ -133,7 +135,7 @@ const SOURCE_WORDS: Record<string, string> = {
 };
 // A makeup or hair morning names whose chair each line is (chair-plan.ts).
 const sourceWords = (source: { type: string; label: string }) =>
-  /^(From their|Their form|Their second|Your timing|Suggested|Coverage starts|Chair \d)/.test(source.label)
+  /^(From their|From the vendor team|Their form|Their second|Your timing|Suggested|Coverage starts|Chair \d)/.test(source.label)
     ? source.label
     : (SOURCE_WORDS[source.type] ?? "Suggested — check it");
 
@@ -240,6 +242,8 @@ export function AiScheduleGenerator({
   const [failed, setFailed] = useState(false);
   // Vendors whose links still show the version just replaced (publishSchedule).
   const [staleVendors, setStaleVendors] = useState(0);
+  // What "Add vendor arrivals" did, beside its button.
+  const [arrivalsNotice, setArrivalsNotice] = useState<string | null>(null);
   /**
    * The questions, on their way to the couple.
    *
@@ -341,6 +345,37 @@ export function AiScheduleGenerator({
       teams: { first: byNumber(1), second: byNumber(2) },
     };
   }, [crewOptions]);
+  /**
+   * The job's vendor team (components/vendors): who can be tagged on a line,
+   * so their own link shows it, and whose arrival can become a line. Empty —
+   * and nothing on this screen changes — until the studio adds a vendor.
+   */
+  const vendorTeam = useVendorTeam(projectId);
+  const teamVendors = useMemo(
+    () =>
+      vendorTeam.entries
+        .filter(
+          (entry) =>
+            typeof entry.vendorId === "string" &&
+            entry.vendorId &&
+            !entry.archivedAt &&
+            ["booked", "considering"].includes(String(entry.status)),
+        )
+        .map((entry) => ({
+          id: String(entry.vendorId),
+          label: String(entry.company ?? "").trim() || vendorCategoryLabel(entry.category),
+          category: vendorCategoryLabel(entry.category),
+        })),
+    [vendorTeam.entries],
+  );
+  const arrivalsReady = vendorTeam.entries.filter(
+    (entry) =>
+      entry.status === "booked" &&
+      typeof entry.vendorId === "string" &&
+      entry.vendorId &&
+      !entry.archivedAt &&
+      (clockOf(entry.arrivalTime) || clockOf(entry.loadInTime)),
+  ).length;
   /** Who the questions would go to, and whether there is anyone to send to. */
   const clientContactId = useMemo(() => {
     const ids = selectedProject?.clientContactIds;
@@ -1153,6 +1188,38 @@ export function AiScheduleGenerator({
     changeItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
   }
 
+  /** Tag a vendor on a line, or take the tag off: their link shows the lines they're on. */
+  function toggleVendor(index: number, vendorId: string) {
+    const item = draft?.items[index];
+    if (!item) return;
+    const current = item.vendorContactIds ?? [];
+    updateItem(index, {
+      vendorContactIds: current.includes(vendorId) ? current.filter((id) => id !== vendorId) : [...current, vendorId],
+    });
+  }
+
+  /**
+   * A line for each booked vendor's arrival or load-in, from the vendor team.
+   * Running it again moves the lines it made rather than adding more
+   * (features/vendors/team.ts vendorArrivalLines).
+   */
+  function addVendorArrivals() {
+    if (!draft || !eventDay) return;
+    const outcome = vendorArrivalLines(draft.items, vendorTeam.entries, { eventDate: eventDay, timeZone: zone });
+    changeItems(() => outcome.items as ScheduleItem[]);
+    const said = [
+      outcome.added ? `${outcome.added} added` : "",
+      outcome.updated ? `${outcome.updated} moved` : "",
+      outcome.removed ? `${outcome.removed} taken off` : "",
+    ].filter(Boolean);
+    // Said beside the button, where it was pressed.
+    setArrivalsNotice(
+      said.length
+        ? `Vendor arrivals: ${said.join(", ")}. Each is tagged to its vendor, so their link shows it.`
+        : "Vendor arrivals are already on the day.",
+    );
+  }
+
   /** Put someone on a segment, or take them off it. */
   function toggleCrew(index: number, crewId: string) {
     const item = draft?.items[index];
@@ -1633,6 +1700,26 @@ export function AiScheduleGenerator({
                         {crewCount ? null : <small>Everyone</small>}
                       </span>
                     ) : null}
+                    {/*
+                      * Which vendors this line is for, from the job's vendor
+                      * team: a tagged line shows on that vendor's own link.
+                      */}
+                    {teamVendors.length ? (
+                      <span className="schedule-line-vendors" role="group" aria-label={`Vendors on ${item.title || `line ${index + 1}`}`}>
+                        {teamVendors.map((vendor) => (
+                          <button
+                            aria-pressed={(item.vendorContactIds ?? []).includes(vendor.id)}
+                            className="schedule-line-chip is-vendor"
+                            key={vendor.id}
+                            onClick={() => toggleVendor(index, vendor.id)}
+                            title={`${vendor.label} · ${vendor.category}`}
+                            type="button"
+                          >
+                            {vendor.label}
+                          </button>
+                        ))}
+                      </span>
+                    ) : null}
                     <button
                       aria-label={`Remove ${item.title || `line ${index + 1}`}`}
                       className="schedule-line-link schedule-line-remove"
@@ -1711,6 +1798,14 @@ export function AiScheduleGenerator({
             >
               <ListPlus size={15} /> Add an item
             </button>
+            {arrivalsReady ? (
+              <p className="schedule-vendor-arrivals">
+                <button className="button button-light" onClick={addVendorArrivals} type="button">
+                  <Plus aria-hidden size={15} /> {`Add vendor arrivals (${arrivalsReady})`}
+                </button>
+                {arrivalsNotice ? <small role="status">{arrivalsNotice}</small> : null}
+              </p>
+            ) : null}
           </section>
           {/*
             * Everything the model has to say about itself, folded away.

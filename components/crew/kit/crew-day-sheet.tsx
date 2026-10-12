@@ -6,6 +6,7 @@ import { AlertTriangle, CalendarPlus, CheckCircle2, MapPin, Navigation, Phone, W
 import { doc, getDoc } from "firebase/firestore";
 import { Actions, Button, Card, Main, Note, PoweredBy } from "@/components/kit/kit";
 import { CrewClientBrief } from "@/components/crew/client-brief";
+import { CrewVendorContacts } from "@/components/crew/crew-vendor-contacts";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { normalizePhone } from "@/features/contacts/schema";
 import { mockCrewSchedule } from "@/features/crew/mock-crew";
@@ -397,6 +398,9 @@ function LiveDaySheet({
           )}
         </section>
 
+        {/* The wedding's other vendors and their numbers, when the studio keeps a team. */}
+        <CrewVendorContacts projectId={text(assignment.projectId)} />
+
         <CrewClientBrief projectId={text(assignment.projectId)} />
 
         {responsibilities.length ? (
@@ -567,6 +571,7 @@ function OfflineCrewBrief({ brief, now }: { brief: CachedCrewBrief; now: number 
           <MapPin aria-hidden size={14} /> {[location.name, location.address].filter(Boolean).join(", ")}
         </p>
       ))}
+      {brief.projectId ? <CrewVendorContacts offline projectId={brief.projectId} /> : null}
       {brief.projectId ? <CrewClientBrief projectId={brief.projectId} offline/> : null}
       <Timeline identities={brief.crewIdentities ?? []} items={brief.items} now={now} zone={zone} />
       <PoweredBy />

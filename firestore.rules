@@ -717,6 +717,27 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+    // A wedding's vendor team (functions/src/planning/vendor-team.ts): who is
+    // booked, their times, and what the couple still owes each of them. The
+    // studio side that runs it reads it; nobody writes it but the server.
+    match /projectVendors/{entryId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator"])
+        );
+      allow write: if false;
+    }
+    // The team's names, numbers and arrival times for everyone working the
+    // job, crew included — never the money. Projected from the team.
+    match /crewVendorContacts/{projectId} {
+      allow read: if hasRole(resource.data.tenantId, ["studio_owner","studio_admin"])
+        || (
+          isAssignedToProject(resource.data.tenantId, resource.data.projectId)
+          && hasRole(resource.data.tenantId, ["studio_coordinator","staff_photographer", "staff_videographer","subcontractor"])
+        );
+      allow write: if false;
+    }
     match /crewScheduleViews/{viewId} {
       allow read: if (
         hasRole(resource.data.tenantId, ["subcontractor"])

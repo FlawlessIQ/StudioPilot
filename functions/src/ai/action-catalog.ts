@@ -146,6 +146,7 @@ export const STUDIO_ACTIONS: readonly ServerActionSpec[] = [
   { id: "add_vendor", scope: "project", when: "add a vendor (planner, florist, DJ, venue coordinator) to a job — name in `subject`" },
   { id: "edit_vendor", scope: "project", when: "change a vendor's details on a job — name in `subject`" },
   { id: "remove_vendor", scope: "project", when: "remove a vendor from a job — name in `subject`" },
+  { id: "vendor_team", scope: "project", when: "the wedding's vendor team on a job: who is booked or still needed, their arrival and load-in times, what the couple still owes each and the tips, the couple's budget — or send the timeline to every booked vendor in one go" },
   // Messages
   { id: "reply_to_couple", scope: "project", when: "reply in the job's email thread with the couple — what to say in `text`" },
   { id: "approve_message", scope: "studio", ownerAdminOnly: true, when: "approve or decline a message a team member wrote that is waiting for the owner's approval" },

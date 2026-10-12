@@ -1,0 +1,422 @@
+/* A wedding's vendor team (components/vendors): the job's panel, its sheet,
+   the printed contact sheet, and the run-of-show editor's vendor chips.
+   Sized by its container, never the viewport: rows wrap, never squeeze. */
+
+/* ── The job's panel ─────────────────────────────────────────────────── */
+.vendor-team-panel {
+  display: grid;
+  gap: 12px;
+}
+.vendor-team-head {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  justify-content: space-between;
+}
+.vendor-team-heading {
+  display: grid;
+  flex: 1 1 12rem;
+  gap: 2px;
+  min-width: 0;
+}
+.vendor-team-heading .eyebrow {
+  margin: 0;
+}
+.vendor-team-heading h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.vendor-team-head > .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.vendor-team-summary {
+  display: grid;
+  gap: 8px;
+}
+/* An icon, then words that take the rest of the panel's width and wrap
+   inside it; a line's link runs on after its words. */
+.vendor-team-line {
+  align-items: flex-start;
+  color: var(--ink-soft, #56605a);
+  display: flex;
+  font-size: 13.5px;
+  gap: 8px;
+  line-height: 1.45;
+  margin: 0;
+}
+.vendor-team-line > svg {
+  color: var(--muted);
+  flex: none;
+  margin-top: 2px;
+}
+.vendor-team-line > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.vendor-team-line .vendor-team-link {
+  white-space: nowrap;
+}
+.vendor-team-quiet-note > span {
+  color: var(--muted);
+}
+.vendor-team-link {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--accent, #2f6b4a);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 5px;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.vendor-team-send {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  justify-self: start;
+  max-width: 100%;
+  white-space: normal;
+}
+.vendor-team-send-confirm {
+  background: var(--soft, #f4f6f3);
+  border: 1px solid var(--line, #e2e7e2);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+}
+.vendor-team-send-confirm p {
+  font-size: 13.5px;
+  line-height: 1.45;
+  margin: 0;
+}
+.vendor-team-send-confirm label {
+  display: grid;
+  font-size: 12.5px;
+  font-weight: 600;
+  gap: 6px;
+}
+.vendor-team-send-confirm textarea {
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #d7ddd7);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  padding: 9px 11px;
+  width: 100%;
+}
+.vendor-team-send-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.vendor-team-send-actions .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.vendor-team-rows {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vendor-team-row {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e7e2);
+  border-radius: 11px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  font: inherit;
+  gap: 6px 12px;
+  justify-content: space-between;
+  padding: 10px 13px;
+  text-align: left;
+  width: 100%;
+}
+.vendor-team-row:hover {
+  border-color: var(--line-strong, #c9d1ca);
+}
+.vendor-team-row-name {
+  display: grid;
+  flex: 1 1 11rem;
+  gap: 2px;
+  min-width: 0;
+}
+.vendor-team-row-name strong {
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+}
+.vendor-team-row-name small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.vendor-team-row-facts {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vendor-team-row-time {
+  align-items: center;
+  color: var(--ink-soft, #56605a);
+  display: inline-flex;
+  font-size: 12.5px;
+  gap: 4px;
+  white-space: nowrap;
+}
+.vendor-team-empty {
+  margin: 0;
+}
+.vendor-team-more {
+  justify-self: start;
+}
+.vendor-team-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Before any vendor is on the job: one small line, nothing more. */
+.vendor-team-quiet {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 0 4px;
+}
+.vendor-team-quiet small {
+  color: var(--muted);
+  flex: 1 1 14rem;
+  font-size: 12.5px;
+  min-width: 0;
+}
+.vendor-team-quiet-button {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--accent, #2f6b4a);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+/* ── The sheet (outside the design system's scope, like every sheet) ── */
+.record-sheet.vendor-team-sheet {
+  gap: 16px;
+}
+.vendor-team-sheet-group {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+.vendor-team-sheet-group > legend {
+  color: var(--ink, #1d211e);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding: 0;
+}
+.vendor-team-sheet-group > label {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+.record-sheet-fields label.vendor-team-sheet-check {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+.record-sheet-fields label.vendor-team-sheet-check input {
+  min-height: 0;
+  width: auto;
+}
+.record-sheet > footer .vendor-team-sheet-remove {
+  margin-right: auto;
+}
+
+/* ── The printed contact sheet ───────────────────────────────────────── */
+.vendor-sheet-page {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  padding: 16px;
+}
+.vendor-sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+.vendor-sheet-actions .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.vendor-sheet {
+  background: #fff;
+  border: 1px solid var(--line, #e2e7e2);
+  border-radius: 16px;
+  color: #111;
+  display: grid;
+  gap: 18px;
+  padding: clamp(18px, 4vw, 28px) clamp(14px, 4vw, 24px);
+  width: min(100%, 860px);
+}
+.vendor-sheet > header {
+  display: grid;
+  gap: 4px;
+}
+.vendor-sheet > header h1 {
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.1;
+  margin: 0;
+}
+.vendor-sheet > header p {
+  color: #555;
+  margin: 0;
+}
+.vendor-sheet-studio {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.vendor-sheet-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vendor-sheet-list > li {
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  break-inside: avoid;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+.vendor-sheet-list h2 {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 17px;
+  gap: 2px 10px;
+  margin: 0;
+}
+.vendor-sheet-list h2 small {
+  color: #555;
+  font-size: 13px;
+  font-weight: 500;
+}
+/* Facts side by side, two to a row even on a phone: a card that stacks
+   every field on its own line is not a contact sheet. */
+.vendor-sheet-list dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+}
+.vendor-sheet-list dl > div {
+  display: grid;
+  flex: 0 1 auto;
+  gap: 1px;
+  min-width: 6rem;
+}
+.vendor-sheet-list dt {
+  color: #666;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.vendor-sheet-list dd {
+  font-size: 14.5px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.vendor-sheet-total {
+  border-top: 1px solid #ddd;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  padding-top: 12px;
+}
+@media print {
+  /* Only on the sheet's own page: every other page prints as it always has. */
+  body:has(.vendor-sheet) * {
+    visibility: hidden;
+  }
+  .vendor-sheet,
+  .vendor-sheet * {
+    visibility: visible;
+  }
+  .vendor-sheet {
+    border: 0;
+    inset: 0 auto auto 0;
+    max-width: none;
+    position: absolute;
+    width: 100%;
+  }
+  .vendor-sheet-actions {
+    display: none;
+  }
+}
+
+/* ── The run-of-show editor: which vendors a line is for ─────────────── */
+.schedule-line-vendors {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.schedule-line-chip.is-vendor {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schedule-line-chip.is-vendor[aria-pressed="true"] {
+  background: #f1ede4;
+  border-color: #ddd2bb;
+  color: #6b5730;
+}
+.schedule-vendor-arrivals {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 8px 0 0;
+}
+.schedule-vendor-arrivals .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.schedule-vendor-arrivals small {
+  color: var(--muted);
+  flex: 1 1 16rem;
+  font-size: 12.5px;
+  min-width: 0;
+}
