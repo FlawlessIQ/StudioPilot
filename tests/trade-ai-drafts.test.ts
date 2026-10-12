@@ -383,8 +383,8 @@ test("a vendor's drafts record the prompt version that carries the trade; a phot
   const worker = read("functions/src/operations/ai-pdf.ts");
   for (const pinned of [
     'instructionVersion:draftInstructionVersion("consultation-booking-v1","consultation-booking-v2",trade),',
-    'instructionVersion:draftInstructionVersion("questionnaire-review-v2","questionnaire-review-v3",trade),',
-    'instructionVersion:draftInstructionVersion("planning-followup-v1","planning-followup-v2",trade),',
+    'instructionVersion:draftInstructionVersion("questionnaire-review-v4","questionnaire-review-v5",trade),',
+    'instructionVersion:draftInstructionVersion("planning-followup-v3","planning-followup-v4",trade),',
     'instructionVersion: draftInstructionVersion("inbound_reply_v1", "inbound_reply_v2", trade),',
   ]) {
     assert.ok(worker.includes(pinned), pinned);

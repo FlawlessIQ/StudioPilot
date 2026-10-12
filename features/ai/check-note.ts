@@ -12,7 +12,13 @@
  * keeps the AI's own case after its first letter, so a name or an initialism
  * ("Priya", "DJ") is never lowered. The items follow a colon, so none has to
  * start lowercase to read on from "Check". Pure.
+ *
+ * A 24-hour time the AI copied from a form ("earliest setup time of 07:30
+ * and ready-by time of 12:30") reads in 12-hour form, 7:30 AM and 12:30 PM
+ * (clock-words.ts; Jess Styles Bridal, prod walk 2026-10-12).
  */
+
+import { twelveHourTimes } from "@/features/ai/clock-words";
 
 /** One item in sentence case, without its closing punctuation. */
 export function uncertainItem(value: unknown): string {
@@ -23,6 +29,7 @@ export function uncertainItem(value: unknown): string {
   if (!/\s/.test(item) && (item.includes("_") || /^[a-z][a-z0-9]*([A-Z][a-z0-9]*)+$/.test(item))) {
     item = item.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replaceAll("_", " ").toLowerCase();
   }
+  item = twelveHourTimes(item);
   return `${item.charAt(0).toUpperCase()}${item.slice(1)}`;
 }
 

@@ -642,6 +642,41 @@ function consultationMeetingDetails(values: Record<string, unknown>): {
   return { joinUrl: "", line: "We'll share any final meeting details before the appointment." };
 }
 
+/** What to bring to a trial, after "Bring" (trades.ts `trialBring`); "" for a trade with no trial. */
+export function trialBringList(trade: unknown): string {
+  const items = tradeVocab(trade).trialBring ?? [];
+  return items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
+}
+
+/**
+ * Where a makeup or hair trial is and what to bring, for its confirmation,
+ * reminder and new time.
+ *
+ * A trial is in person, so a call's "We'll share any final meeting details
+ * before the appointment" said nothing true about it: Priya Shah's hair trial
+ * was confirmed that way (Jess Styles Bridal, prod walk 2026-10-12). It says
+ * where, when the trial has a place (the studio's in-person location, or one
+ * the studio gave when booking it), and what the trade asks the client to
+ * have with them. A trial booked any other way (a video or phone call, or
+ * the studio's own details) keeps that way's line, which is true of it.
+ */
+function trialDetails(values: Record<string, unknown>): string[] {
+  const details = consultationMeetingDetails(values);
+  // "12 Main St." would end the sentence twice.
+  const location = stringValue(values, "location").replace(/[\s.]+$/, "");
+  const mode = stringValue(values, "meetingMode");
+  const inPerson = !details.joinUrl && values.meetingDetailsPending !== true && (!mode || mode === "in_person");
+  // Read as an email and as the message on their portal, so "reply", never
+  // "reply to this email".
+  const where = !inPerson
+    ? details.line
+    : location
+      ? `It's in person, at ${location}.`
+      : "It's in person. If you're not sure where to come, just reply and we'll let you know.";
+  const bring = trialBringList(values.trade);
+  return [where, ...(bring ? [`Please bring ${bring}.`] : [])];
+}
+
 const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 
 /** What Cue did during a trial, as saas/trial-series.ts counts it. */
@@ -1004,6 +1039,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // Their own inquiry page (/i/…): the same page shows, moves or cancels it.
       const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
       const details = consultationMeetingDetails(values);
+      // A trial is in person: where it is and what to bring (trialDetails).
+      const trial = stringValue(values, "purpose") === "trial" && Boolean(tradeVocab(values.trade).trial);
       // The join link is the one thing they need on the day, so it is the
       // button whenever there is one; moving the call comes second.
       const primary = details.joinUrl
@@ -1038,7 +1075,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           isMove
             ? `We've moved your ${call}${startsAt ? ` to ${startsAt}` : ""}. Everything else stays the same.`
             : `We${isReminder ? "'re looking forward to" : " confirmed"} your ${call}${startsAt ? ` on ${startsAt}` : ""}.`,
-          details.line,
+          ...(trial ? trialDetails(values) : [details.line]),
         ],
         action: primary ?? manage,
         secondaryAction: primary ? manage : undefined,
@@ -1080,7 +1117,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           heading: "Let’s try your look",
           paragraphs: [
             greeting,
-            `Pick a time for your ${callNameFor(values).toLowerCase()}${project}. Bring pictures of looks you love${tradeVocab(values.trade).trial === "Hair trial" ? ", your veil and any accessories" : ""}, and we'll get your look just right before the day.`,
+            `Pick a time for your ${callNameFor(values).toLowerCase()}${project}. Bring ${trialBringList(values.trade) || "pictures of looks you love"}, and we'll get your look just right before the day.`,
             // A hair trial waits for the veil (trades.ts `trialHint`).
             ...(tradeVocab(values.trade).trialHint
               ? ["If you haven't chosen your veil yet, book once you have — we'll build the style around it."]

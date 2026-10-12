@@ -1,5 +1,6 @@
-import { consultationPurpose } from "./consultation-purpose.js";
+import { consultationPurpose, TRIAL_PURPOSE } from "./consultation-purpose.js";
 import type { Firestore } from "firebase-admin/firestore";
+import { getConsultationSettings } from "./availability.js";
 import { inquiryLinkFor, studioTakesBookings } from "../intake/inquiry-link.js";
 
 /**
@@ -56,6 +57,11 @@ export function consultationEmailPlan(input: {
   /** This attempt, counting from 1, and how many the runner allows. */
   attempt: number;
   maxAttempts: number;
+  /**
+   * The studio's "Where you meet in person", for an in-person trial with no
+   * place of its own (`trialNeedsPlace`).
+   */
+  inPersonPlace?: string | null;
 }): ConsultationEmailPlan {
   const { type, job, consultation } = input;
   if (!consultation) return { kind: "send", values: {} };
@@ -95,7 +101,12 @@ export function consultationEmailPlan(input: {
     startsAt: text(consultation.startsAt) || text(job.startsAt),
     meetingMode: mode || null,
     joinUrl: joinUrl || null,
-    location: joinUrl || text(consultation.location) || text(job.location) || null,
+    location:
+      joinUrl ||
+      text(consultation.location) ||
+      text(job.location) ||
+      (trialNeedsPlace(consultation) ? text(input.inPersonPlace) : "") ||
+      null,
     // A video call with no link yet: Zoom isn't connected, or making the
     // meeting failed. The email says the studio will send it, rather than
     // implying there is nothing to join.
@@ -106,6 +117,19 @@ export function consultationEmailPlan(input: {
   const selfServe = text(consultation.selfServeUrl);
   if (selfServe && !text(job.rescheduleUrl)) values.rescheduleUrl = selfServe;
   return { kind: "send", values };
+}
+
+/**
+ * An in-person makeup or hair trial with no place on it: one booked from its
+ * link before booking took the studio's in-person place (public-scheduling.ts).
+ * Its emails name the place from the studio's settings as they are when the
+ * email goes, so a reminder can say where the confirmation could not (Priya
+ * Shah's hair trial, Jess Styles Bridal, prod walk 2026-10-12).
+ */
+export function trialNeedsPlace(consultation: Record<string, unknown> | null): boolean {
+  if (!consultation || consultationPurpose(consultation) !== TRIAL_PURPOSE) return false;
+  const mode = text(consultation.mode);
+  return (!mode || mode === "in_person") && !text(consultation.location) && !text(consultation.joinUrl);
 }
 
 /** The consultation a consultation email is about, from its field or its id. */
@@ -129,13 +153,22 @@ export async function consultationEmailPlanFor(
     db.doc(`providerJobs/consultation_${consultationId}`).get(),
   ]);
   const owned = consultation.exists && consultation.get("tenantId") === input.job.tenantId;
+  const data = owned ? (consultation.data() ?? null) : null;
+  // Read only for a trial that needs it; a failed read leaves the email as it was.
+  const inPersonPlace =
+    trialNeedsPlace(data) && !text(input.job.location)
+      ? await getConsultationSettings(db, text(input.job.tenantId))
+          .then((settings) => settings.inPersonLocation ?? null)
+          .catch(() => null)
+      : null;
   return consultationEmailPlan({
     type: text(input.job.type),
     job: input.job,
-    consultation: owned ? (consultation.data() ?? null) : null,
+    consultation: data,
     resourcesJobStatus: resourcesJob.exists ? text(resourcesJob.get("status")) : null,
     attempt: input.attempt,
     maxAttempts: input.maxAttempts,
+    inPersonPlace,
   });
 }
 

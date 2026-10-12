@@ -478,6 +478,16 @@ export const publicConsultationScheduling = onRequest(
       );
       if (!selected) throw new Error("TIME_NO_LONGER_AVAILABLE");
       const consultationId = `consultation_${hash(`${link.id}:${selected.startsAt}`).slice(0, 32)}`;
+      // A makeup or hair trial is met in person, at the studio's in-person
+      // place, so its confirmation can say where (email-templates.ts
+      // trialDetails). Only a trial: a call booked from its link reads as it
+      // always has. A studio that never set one leaves it blank, as before.
+      const location =
+        link.get("mode") === "in_person" && consultationPurpose(link.data()) === "trial"
+          ? await getConsultationSettings(db, String(link.get("tenantId")))
+              .then((settings) => settings.inPersonLocation ?? null)
+              .catch(() => null)
+          : null;
       const batch = db.batch();
       batch.create(db.doc(`consultations/${consultationId}`), {
         id: consultationId,
@@ -490,7 +500,7 @@ export const publicConsultationScheduling = onRequest(
         startsAt: selected.startsAt,
         endsAt: selected.endsAt,
         timezone: availability.timezone,
-        location: null,
+        location,
         calendarEventId: null,
         calendarHtmlLink: null,
         meetingId: null,

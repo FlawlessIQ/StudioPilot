@@ -14,3 +14,17 @@ export const US_ENGLISH_INSTRUCTION =
 
 /** The instruction as a Gemini `systemInstruction` part. */
 export const US_ENGLISH_PART = { text: US_ENGLISH_INSTRUCTION };
+
+/**
+ * Clock times the American way, for a prompt whose prose names them.
+ *
+ * Not part of US_ENGLISH_PART: some of the prompts that carry that line
+ * return machine times ("HH:MM" fields a schedule is built from), and must
+ * keep them. This one goes only where a time is written for a person to
+ * read — Cue's planning flags said "earliest setup time of 07:30" (Jess
+ * Styles Bridal, prod walk 2026-10-12).
+ */
+export const TWELVE_HOUR_INSTRUCTION =
+  "Write every clock time in 12-hour form with AM or PM, as Americans do (7:30 AM, 12:30 PM, 4:00 PM), never 24-hour (07:30, 16:00).";
+
+export const TWELVE_HOUR_PART = { text: TWELVE_HOUR_INSTRUCTION };

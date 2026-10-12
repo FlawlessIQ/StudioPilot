@@ -3,7 +3,10 @@ import { normalizeUnitLabel, quantityText } from "../packages/unit-label.js";
 import { mcScriptLine, type McScript } from "../planning/mc-script.js";
 import { contractPdfInput, storeSealedContract } from "../contracts/seal.js";
 import { INVOICE_PDF_JOB_TYPE, storeStudioInvoicePdf, studioInvoicePdfInput } from "../billing/studio-invoice-pdf.js";
-import { US_ENGLISH_PART } from "../ai/language.js";
+import { TWELVE_HOUR_PART, US_ENGLISH_PART } from "../ai/language.js";
+import { twelveHourTimes } from "../ai/clock-words.js";
+import { loadJobFactSheet } from "../planning/job-facts.js";
+import { SETTLED_FACTS_INSTRUCTION, answerForPeople, settledAtTrial, settledJobFacts } from "../planning/questionnaire-review-facts.js";
 import { enrichCapturedLead } from "../intake/enrich.js";
 import { convertInquiryToJob } from "../intake/convert.js";
 import { withInquiryLink } from "../intake/inquiry-link.js";
@@ -480,6 +483,12 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
   const words=tradeVocab(trade);
   const dayPlan=words.planOfDay?`${words.planOfDay.charAt(0).toLowerCase()}${words.planOfDay.slice(1)}`:`${words.service} timeline`;
   if(!template.exists)throw new Error("QUESTIONNAIRE_TEMPLATE_NOT_FOUND");
+  // What the job already settles, so the flags never ask for it again
+  // (questionnaire-review-facts.ts). A failed read leaves the review as it
+  // was rather than failing it.
+  const factSheet=project.exists&&project.get("tenantId")===job.get("tenantId")
+    ?await loadJobFactSheet(db,{tenantId:string(job.get("tenantId")),projectId:project.id,project:project.data()??null,excludeResponseId:responseId}).catch(()=>null)
+    :null;
   const sections=Array.isArray(template.get("sections"))?template.get("sections") as unknown[]:[];
   const fields=sections.flatMap(section=>{
     const value=record(section);
@@ -505,10 +514,15 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
       /location|address|travel|parking|access|transport/.test(normalized)?"logistics":"preferences";
     return[{fieldId,label,category,value:answer,source:{entityType:"questionnaire_response",entityId:responseId,locator:`answers.${fieldId}`}}];
   });
+  // Every time as a person reads it: a form's "07:30" reached the model and
+  // came back as a flag about "07:30" (Jess Styles Bridal, 2026-10-12).
+  const typeOf=new Map(fields.map(field=>[string(field.id),string(field.type)]));
   const facts={
     project:{name:project.get("name"),eventType:project.get("eventType"),eventDate:project.get("eventDate"),venueName:project.get("venueName"),city:project.get("city")},
-    questionnaire:fields.map(field=>({id:string(field.id),label:string(field.label),required:Boolean(field.required),answer:answers[string(field.id)]??null})),
-    categorizedPlanningFacts:categorizedFacts,
+    settledJobFacts:settledJobFacts(factSheet),
+    settledAtTrial:settledAtTrial(project.get("trialNotes")),
+    questionnaire:fields.map(field=>({id:string(field.id),label:string(field.label),required:Boolean(field.required),answer:answerForPeople(string(field.type),answers[string(field.id)]??null)})),
+    categorizedPlanningFacts:categorizedFacts.map(item=>({...item,value:answerForPeople(typeOf.get(item.fieldId)??"",item.value)})),
     deterministicallyMissingRequired:deterministicMissing,
   };
   let analysis:Json;
@@ -520,7 +534,7 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     if(!projectId||!model)throw new Error("VERTEX_AI_NOT_CONFIGURED");
     const token=await cloudAccessToken();
     const vertex=await fetch(vertexEndpoint(projectId, model),{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({
-      systemInstruction:{parts:[{text:`Review a ${words.service} planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Also draft a concise, warm follow-up email that asks only the necessary supplied follow-up questions; its body must not include a greeting or sign-off. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review.`+tradeInstruction(trade)},US_ENGLISH_PART]},
+      systemInstruction:{parts:[{text:`Review a ${words.service} planning questionnaire using only supplied facts. Identify missing information, possible contradictions, operational planning risks, and suggested follow-up questions. Also draft a concise, warm follow-up email that asks only the necessary supplied follow-up questions; its body must not include a greeting or sign-off. Do not invent dates, contacts, prices, legal conclusions, approvals, or completion states. Every result is advisory and requires studio review.`+tradeInstruction(trade)+SETTLED_FACTS_INSTRUCTION},US_ENGLISH_PART,TWELVE_HOUR_PART]},
       contents:[{role:"user",parts:[{text:JSON.stringify(facts)}]}],
       generationConfig:{temperature:0,responseMimeType:"application/json",responseSchema:{type:"OBJECT",properties:{summary:{type:"STRING"},missingInformation:{type:"ARRAY",items:{type:"STRING"}},contradictions:{type:"ARRAY",items:{type:"STRING"}},planningRisks:{type:"ARRAY",items:{type:"STRING"}},suggestedQuestions:{type:"ARRAY",items:{type:"STRING"}},followupSubject:{type:"STRING"},followupBody:{type:"STRING"}},required:["summary","missingInformation","contradictions","planningRisks","suggestedQuestions","followupSubject","followupBody"]}},
     })});
@@ -532,12 +546,14 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     if(!output)throw new Error("VERTEX_AI_EMPTY_OUTPUT");
     analysis=record(JSON.parse(output));
   }
-  const list=(value:unknown,limit:number)=>Array.isArray(value)?value.map(String).map(item=>item.trim()).filter(Boolean).slice(0,limit):[];
+  // A 24-hour time the model wrote anyway reads in 12-hour form on the
+  // flags, the check note and the client's follow-up (clock-words.ts).
+  const list=(value:unknown,limit:number)=>Array.isArray(value)?value.map(String).map(item=>twelveHourTimes(item.trim())).filter(Boolean).slice(0,limit):[];
   const missingInformation=Array.from(new Set([...deterministicMissing,...list(analysis.missingInformation,20)])).slice(0,20);
   const now=new Date().toISOString();
   const aiReview={
     status:"ready",
-    summary:string(analysis.summary)||"Questionnaire submitted for review.",
+    summary:twelveHourTimes(string(analysis.summary))||"Questionnaire submitted for review.",
     missingInformation,
     contradictions:list(analysis.contradictions,12),
     planningRisks:list(analysis.planningRisks,12),
@@ -551,8 +567,8 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
   const clientContactIds=Array.isArray(project.get("clientContactIds"))?project.get("clientContactIds") as unknown[]:[];
   const clientContactId=string(clientContactIds[0]);
   const clientContact=clientContactId?await db.doc(`contacts/${clientContactId}`).get():null;
-  const followupSubject=string(analysis.followupSubject)||`A few planning details for ${string(project.get("name"))||"your event"}`;
-  const followupBody=string(analysis.followupBody)||missingInformation.map(value=>`Could you confirm ${value}?`).join("\n");
+  const followupSubject=twelveHourTimes(string(analysis.followupSubject))||`A few planning details for ${string(project.get("name"))||"your event"}`;
+  const followupBody=twelveHourTimes(string(analysis.followupBody))||missingInformation.map(value=>`Could you confirm ${value}?`).join("\n");
   const planningPackage={
     status:"ready_for_review",
     sourceResponseId:responseId,
@@ -587,7 +603,7 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     status:"review_required",
     modelProvider:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex_ai",
     modelVersion:process.env.VERTEX_AI_EXTRACTION_MODEL??"mock-questionnaire-v1",
-    instructionVersion:draftInstructionVersion("questionnaire-review-v2","questionnaire-review-v3",trade),
+    instructionVersion:draftInstructionVersion("questionnaire-review-v4","questionnaire-review-v5",trade),
     outputSchemaVersion:"questionnaire-review-v2",
     sourceReferences:[
       {entityType:"questionnaire_response",entityId:responseId,versionId:String(response.get("templateVersion")??1),label:String(response.get("templateName")??"Questionnaire"),locator:"submitted answers"},
@@ -619,7 +635,7 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
       status:"review_required",
       modelProvider:process.env.PROVIDER_MOCK_MODE==="true"?"mock":"vertex_ai",
       modelVersion:process.env.VERTEX_AI_EXTRACTION_MODEL??"mock-questionnaire-v1",
-      instructionVersion:draftInstructionVersion("planning-followup-v1","planning-followup-v2",trade),
+      instructionVersion:draftInstructionVersion("planning-followup-v3","planning-followup-v4",trade),
       outputSchemaVersion:"communication-draft-v1",
       sourceReferences:[{entityType:"questionnaire_response",entityId:responseId,versionId:String(response.get("templateVersion")??1),label:String(response.get("templateName")??"Questionnaire"),locator:"planning gaps"}],
       structuredOutput:{subject:followupSubject,body:followupBody,recipientEmail:clientContact.get("email"),recipientName:clientContact.get("displayName")??null,contactId:clientContact.id,projectName:project.get("name")??null},

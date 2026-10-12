@@ -9,6 +9,7 @@ import { FileLinks } from "@/components/documents/file-link";
 import { QuestionnaireResponseActions } from "@/components/planning/questionnaire-response-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { twelveHourTimes } from "@/features/ai/clock-words";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { fileAnswerRefs } from "@/features/documents/file-ref";
 import { statusLabel } from "@/features/format/status-label";
@@ -25,6 +26,12 @@ const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.map((item) => text(item)).filter(Boolean) : [];
+/**
+ * What Cue noticed, with any 24-hour time it copied from the form in 12-hour
+ * form: a review written before it was told to read "07:30" (Jess Styles
+ * Bridal, prod walk 2026-10-12; features/ai/clock-words.ts).
+ */
+const noticed = (value: unknown): string[] => strings(value).map(twelveHourTimes);
 
 function when(value: unknown): string | null {
   const raw = text(value);
@@ -222,13 +229,13 @@ export function QuestionnaireResponseView({ id }: { id: string }) {
         <section className="panel questionnaire-response-section">
           <p className="eyebrow">Advisory AI review</p>
           <h2>What StudioCue noticed</h2>
-          {text(review.summary) ? <p>{text(review.summary)}</p> : null}
+          {text(review.summary) ? <p>{twelveHourTimes(text(review.summary))}</p> : null}
           {(
             [
-              ["Missing", strings(review.missingInformation)],
-              ["Doesn’t add up", strings(review.contradictions)],
-              ["Planning risks", strings(review.planningRisks)],
-              ["Worth asking", strings(review.suggestedQuestions)],
+              ["Missing", noticed(review.missingInformation)],
+              ["Doesn’t add up", noticed(review.contradictions)],
+              ["Planning risks", noticed(review.planningRisks)],
+              ["Worth asking", noticed(review.suggestedQuestions)],
             ] as const
           ).map(([label, items]) =>
             items.length ? (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CircleAlert, LoaderCircle, MessageCircleQuestion, Sparkles } from "lucide-react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { useWorkspace } from "@/features/auth/workspace-context";
+import { twelveHourTimes } from "@/features/ai/clock-words";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 
@@ -22,9 +23,14 @@ type Review = {
   }>;
 };
 
+/**
+ * Cue's flags, with any 24-hour time it copied from the form in 12-hour form:
+ * a review written before it was told to read "07:30" (Jess Styles Bridal,
+ * prod walk 2026-10-12; features/ai/clock-words.ts).
+ */
 const strings = (value: unknown) =>
   Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
+    ? value.filter((item): item is string => typeof item === "string").map(twelveHourTimes)
     : [];
 
 export function QuestionnaireReviewInsights({ projectId }: { projectId: string }) {
@@ -85,7 +91,7 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
             id: document.id,
             name: String(document.get("templateName") ?? "Questionnaire"),
             review: {
-              summary: String(review.summary ?? ""),
+              summary: twelveHourTimes(String(review.summary ?? "")),
               missingInformation: strings(review.missingInformation),
               contradictions: strings(review.contradictions),
               planningRisks: strings(review.planningRisks),

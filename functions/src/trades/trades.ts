@@ -115,6 +115,14 @@ export type TradeVocabulary = {
   /** When the trial is best booked, when the trade says: a hair trial waits for the veil. */
   trialHint: string | null;
   /**
+   * What the client brings to the trial, as a list that reads after "Bring":
+   * on the invitation, the confirmation and the reminder. A trial is in
+   * person, so its confirmation says what to have with you rather than a
+   * call's "final meeting details" (Priya Shah, Jess Styles Bridal, prod walk
+   * 2026-10-12). Null for a trade with no trial.
+   */
+  trialBring: readonly string[] | null;
+  /**
    * The prep guide in the week-before email, when the trade has one: how to
    * arrive for the chair (a clean face, dry hair, a button-up top).
    */
@@ -167,6 +175,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     kitChecklist: null,
     trial: null,
     trialHint: null,
+    trialBring: null,
     prepGuide: null,
     service: "photography",
     member: "photographer",
@@ -206,6 +215,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     kitChecklist: null,
     trial: null,
     trialHint: null,
+    trialBring: null,
     prepGuide: null,
     service: "music",
     member: "DJ",
@@ -248,6 +258,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     },
     trial: "Makeup trial",
     trialHint: null,
+    trialBring: ["pictures of looks you love"],
     prepGuide: {
       lead: "So your makeup goes on beautifully and lasts all day",
       items: [
@@ -297,6 +308,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     },
     trial: "Hair trial",
     trialHint: "best once the veil is chosen, so the style is built around it",
+    trialBring: ["pictures of looks you love", "your veil or hairpiece", "any hair accessories you'll wear"],
     prepGuide: {
       lead: "So your hair holds all day",
       items: [
