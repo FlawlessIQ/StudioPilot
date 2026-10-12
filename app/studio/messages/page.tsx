@@ -8,9 +8,9 @@ export const metadata: Metadata = { title: "Messages" };
 export default async function MessagesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string; view?: string; assignment?: string }>;
+  searchParams: Promise<{ project?: string; view?: string; assignment?: string; thread?: string }>;
 }) {
-  const { project, view, assignment } = await searchParams;
+  const { project, view, assignment, thread } = await searchParams;
   // Crew write to the studio from their jobs; those threads were readable
   // only on each assignment page (GR, 2026-10-09).
   const crew = view === "crew" || Boolean(assignment);
@@ -39,7 +39,7 @@ export default async function MessagesPage({
             Crew
           </Link>
         </div>
-        {crew ? <CrewMessageInbox initialAssignmentId={assignment} /> : <MessageInbox initialProjectId={project} />}
+        {crew ? <CrewMessageInbox initialAssignmentId={assignment} /> : <MessageInbox initialProjectId={project} initialThreadId={thread} />}
       </div>
     </AppShell>
   );

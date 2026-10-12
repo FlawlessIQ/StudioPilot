@@ -44,6 +44,8 @@ import {
   groupConversations,
   type ThreadGroup,
 } from "@/features/messaging/thread-groups";
+import { threadNamer, threadsNeedContactNames } from "@/features/messaging/thread-name";
+import { useTenantDocuments } from "@/components/live/tenant-records";
 
 /**
  * The mailbox. Replaces a screen that put a compose form, an automation
@@ -175,7 +177,17 @@ function readableFailure(caught: unknown): string {
   return raw || "That reply could not be sent. Try again.";
 }
 
-export function MessageInbox({ initialProjectId }: { initialProjectId?: string }) {
+export function MessageInbox({
+  initialProjectId,
+  initialThreadId,
+}: {
+  initialProjectId?: string;
+  /**
+   * A conversation to open — Today's "Reply" on a client's message. Any id
+   * folded into a row opens that row.
+   */
+  initialThreadId?: string;
+}) {
   const workspace = useWorkspace();
   // The subject a new message falls back to, in the studio's trade: "A note
   // about your music", not your photography, for a DJ's client.
@@ -210,6 +222,8 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
   const visibleThreadsRef = useRef<ThreadGroup[]>([]);
   const defaultIdRef = useRef<string | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
+  // The ?thread= this page was opened with, once it has been opened.
+  const appliedThreadRef = useRef<string | null>(null);
   // Only the drafted case needs state — it arrives from a subscription. The
   // prepared-from-facts case is already on the message, so it is derived.
   const [drafted, setDrafted] = useState<
@@ -279,12 +293,23 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         );
         setThreads(grouped);
         setDefaultId((current) => current ?? defaultThread(grouped)?.id ?? null);
+        // The thread Today linked to, opened once as if picked — so a phone
+        // shows it rather than the list, and a later live update does not
+        // pull the studio back to it from another thread.
+        const asked =
+          initialThreadId && appliedThreadRef.current !== initialThreadId
+            ? grouped.find((thread) => thread.memberIds.includes(initialThreadId))
+            : undefined;
+        if (asked) {
+          appliedThreadRef.current = initialThreadId ?? null;
+          selectThread(asked.id);
+        }
         setThreadsLoading(false);
       },
       () => setThreadsLoading(false),
     );
     return unsubscribe;
-  }, [tenantId]);
+  }, [tenantId, initialThreadId, selectThread]);
 
   // Only loaded when the composer opens: a studio replying in a thread never
   // needs the project and contact lists, and the previous screen paid for them
@@ -336,6 +361,22 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     );
   }, [projects, contacts, draftProjectId]);
 
+  // A thread is named for the person: a portal message from an account with
+  // no name wrote its email as the name, and Priya Shah's wedding thread read
+  // "conor+priya@flawlessiq.com" beside her inquiry thread (prod walk,
+  // 2026-10-12). Contacts are read only when a thread needs one.
+  const knownContacts = useTenantDocuments("contacts", {
+    enabled: threadsNeedContactNames(threads),
+  });
+  const nameOf = useMemo(
+    () => threadNamer({ threads, contacts: knownContacts.records }),
+    [threads, knownContacts.records],
+  );
+  const whoIs = useCallback(
+    (thread: ThreadGroup) => nameOf(thread.participant) ?? thread.participant.email ?? "Client",
+    [nameOf],
+  );
+
   const visibleThreads = useMemo(() => {
     const term = search.trim().toLowerCase();
     const scoped = initialProjectId
@@ -344,7 +385,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
     if (!term) return scoped;
     return scoped.filter((thread) =>
       [
-        thread.participant.name,
+        whoIs(thread),
         thread.participant.email,
         thread.subject,
         thread.lastMessagePreview,
@@ -352,7 +393,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(term)),
     );
-  }, [threads, search, initialProjectId]);
+  }, [threads, search, initialProjectId, whoIs]);
 
   // Derived, not stored: a thread is open until one is chosen, so the screen
   // never starts empty with work waiting — the first unread one, pinned when
@@ -876,11 +917,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                     aria-current={thread.id === openThreadId}
                   >
                     <span className="msg-thread-top">
-                      <span className="msg-thread-who">
-                        {thread.participant.name ??
-                          thread.participant.email ??
-                          "Client"}
-                      </span>
+                      <span className="msg-thread-who">{whoIs(thread)}</span>
                       {/* The count sits after the time in the row, not
                           absolutely over it — it covered "ago" (UI audit,
                           2026-10-02). */}
@@ -928,11 +965,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                 <ChevronLeft size={18} aria-hidden />
               </button>
               <div>
-                <h2>
-                  {activeThread.participant.name ??
-                    activeThread.participant.email ??
-                    "Client"}
-                </h2>
+                <h2>{whoIs(activeThread)}</h2>
                 {/* This showed the last message's subject, which is written
                     for the client — so the studio's own mailbox read "FlawlessIQ
                     sent you an update" about their own outgoing message. The
@@ -998,7 +1031,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                       ) : null}
                       {showWho ? (
                         <strong className="msg-bubble-who">
-                          {activeThread.participant.name ?? "Client"}
+                          {nameOf(activeThread.participant) ?? "Client"}
                         </strong>
                       ) : null}
                       <article className={`msg-bubble is-${message.direction}`}>
@@ -1083,7 +1116,7 @@ export function MessageInbox({ initialProjectId }: { initialProjectId?: string }
                   if (!event.target.value.trim() && draftNotes.length)
                     setDraftNotes([]);
                 }}
-                placeholder={`Reply to ${activeThread.participant.name ?? "your client"}…`}
+                placeholder={`Reply to ${nameOf(activeThread.participant) ?? "your client"}…`}
                 rows={3}
               />
               <div className="msg-reply-actions">

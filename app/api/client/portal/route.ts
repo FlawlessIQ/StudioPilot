@@ -13,6 +13,7 @@ import { pricePackage } from "@/features/pricing/package-price";
 import { readSalesTaxTreatment } from "@/server/billing/sales-tax-treatment";
 import { balanceWithSalesTax, readPricedSalesTax } from "@/features/billing/sales-tax-pricing";
 import { z } from "zod";
+import { personName } from "@/features/messaging/thread-name";
 import { todayInZone } from "@/lib/format/event-date";
 import {
   conversationIdFor,
@@ -375,6 +376,29 @@ async function requireClientMembership(
 
 function safeString(value: unknown) {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+/** The studio's live contact with this email, by name — or null. */
+async function clientContactName(tenantId: string, email: string | null): Promise<string | null> {
+  if (!email) return null;
+  try {
+    const found = await adminFirestore
+      .collection("contacts")
+      .where("tenantId", "==", tenantId)
+      .where("normalizedEmail", "==", email.trim().toLowerCase())
+      .where("archivedAt", "==", null)
+      .limit(1)
+      .get();
+    const contact = found.docs[0];
+    if (!contact) return null;
+    return (
+      personName(contact.get("displayName")) ??
+      personName(`${safeString(contact.get("firstName")) ?? ""} ${safeString(contact.get("lastName")) ?? ""}`)
+    );
+  } catch {
+    // A name is a nicety; the message must still land.
+    return null;
+  }
 }
 
 function pick(
@@ -2641,6 +2665,14 @@ export async function POST(request: Request) {
       .get();
     const projectName =
       safeString(projectSnapshot.get("name")) ?? "Client project";
+    // Who wrote, by name. An account with no name gave its email, and the
+    // thread then listed the client by address — Priya Shah's wedding thread
+    // read "conor+priya@flawlessiq.com" (prod walk, 2026-10-12). The studio's
+    // contact with that email knows her name; failing both, no name, so the
+    // thread keeps whatever name it already had.
+    const senderName =
+      personName(identity.name) ??
+      (await clientContactName(parsed.tenantId, safeString(identity.email)));
     const attachmentPrefix = `tenants/${parsed.tenantId}/projects/${parsed.projectId}/clients/${identity.uid}/messages/${parsed.idempotencyKey}/`;
     if (
       parsed.attachments.some(
@@ -2791,8 +2823,7 @@ export async function POST(request: Request) {
         recipient: studioNotificationEmail,
         // The signed-in portal user is the sender. Contacts are not keyed by
         // uid, so a contacts/{uid} lookup would always miss.
-        senderName:
-          safeString(identity.name) ?? safeString(identity.email) ?? "A client",
+        senderName: senderName ?? safeString(identity.email) ?? "A client",
         messageSubject: parsed.subject,
         messagePreview: parsed.body.slice(0, 240),
         projectName,
@@ -2822,7 +2853,7 @@ export async function POST(request: Request) {
             contactId: null,
             email: safeString(identity.email),
             phone: null,
-            name: safeString(identity.name) ?? safeString(identity.email),
+            name: senderName,
           },
           channel: "portal",
           direction: "inbound",

@@ -1980,12 +1980,39 @@
   overflow: hidden;
 }
 
+/* Icon, title, then the "Check: …" note — wrapping, never squeezing.
+   This was a grid of `auto minmax(0, 1fr) auto`, and the note is the AI's
+   own words: a long one took its max-content in the auto track and left the
+   title 28px, one word per line ("Review planning flags: Party list", Jess
+   Styles Bridal, prod walk 2026-10-12). Now the title keeps at least 12rem
+   and the note goes under it when both don't fit, wrapping its own text. */
 .ai-queue-card > header {
   align-items: center;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 11px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
   padding: 17px 19px;
+}
+
+.ai-queue-card > header > .ai-queue-capability-icon {
+  flex: none;
+}
+
+.ai-queue-card > header > .ai-confidence {
+  /* A pill's 999px radius bites into the corners of a note on two lines. */
+  border-radius: 12px;
+  flex: 0 1 auto;
+  line-height: 1.4;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* Inside .ds-root the metadata rule (legacy-bridge.css) makes every
+     .ai-confidence one ellipsed line, which cut the note off on the job page.
+     The note is the question being asked: all of it shows. (0,2,1) here
+     outranks that rule's (0,2,0). */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .ai-queue-capability-icon {
@@ -2006,6 +2033,7 @@
 
 .ai-queue-card > header > span:nth-child(2) {
   display: grid;
+  flex: 1 1 12rem;
   gap: 2px;
   min-width: 0;
 }
@@ -2779,10 +2807,6 @@
 
   .ai-queue-impact > span:first-child {
     border-top: 0;
-  }
-
-  .ai-queue-card > header {
-    grid-template-columns: auto 1fr;
   }
 
   .ai-confidence {

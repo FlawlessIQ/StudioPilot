@@ -21,6 +21,8 @@ import { useState } from "react";
 import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useFinalDetailsRecords } from "@/components/planning/use-final-details-records";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
+import { clientThreadsAwaitingStudio } from "@/features/messaging/awaiting-studio";
+import { threadsNeedContactNames } from "@/features/messaging/thread-name";
 import { useOutsideSteps } from "@/components/outside-steps/use-outside-steps";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { invoiceIsOverdue, projectJourney } from "@/features/journey/steps";
@@ -159,6 +161,13 @@ export function useTodayInbox(): {
   });
   const tasks = useTenantDocuments("tasks");
   const conversations = useTenantDocuments("conversations");
+  // A client card on Today names the client; a thread carrying only an email
+  // is named from the studio's contacts. Read only when one needs it.
+  const contacts = useTenantDocuments("contacts", {
+    enabled: threadsNeedContactNames(
+      clientThreadsAwaitingStudio(conversations.records),
+    ),
+  });
   const packageRequests = useTenantDocuments("packageRequests");
   const billingAddressRequests = useTenantDocuments("billingAddressRequests");
   const detailChangeRequests = useTenantDocuments("detailChangeRequests");
@@ -411,6 +420,7 @@ export function useTodayInbox(): {
     projects: projects.records,
     leads: leads.records,
     conversations: conversations.records,
+    contacts: contacts.records,
     packageRequests: packageRequests.records,
     billingAddressRequests: billingAddressRequests.records,
     // A makeup or hair client who bought a trial and hasn't booked it: every

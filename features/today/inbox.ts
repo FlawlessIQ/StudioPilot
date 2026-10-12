@@ -49,6 +49,8 @@ import { isAmendable } from "@/features/booking/amendable";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
 import { heldInvoiceView } from "@/features/billing/held-invoice-review";
 import { crewThreads } from "@/features/crew/crew-threads";
+import { asConversation, clientThreadsAwaitingStudio } from "@/features/messaging/awaiting-studio";
+import { threadNamer } from "@/features/messaging/thread-name";
 import { jobValueCents } from "@/features/packages/job-packages";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { providerName as readable } from "@/lib/format/provider-name";
@@ -374,6 +376,12 @@ export type TodayInput = {
    * (features/inquiries/next-move.ts) instead of assuming nobody replied.
    */
   conversations?: TodayRecord[] | null;
+  /**
+   * The studio's contacts, to name a client whose thread carries only an
+   * email (features/messaging/thread-name.ts). Optional: without them the
+   * card falls back to the email.
+   */
+  contacts?: TodayRecord[] | null;
   /** Couples asking to add a package (portal "Add to your booking"). */
   packageRequests?: TodayRecord[] | null;
   /** A couple's change to a locked location or time (functions/src/planning/detail-changes.ts). */
@@ -2807,6 +2815,92 @@ export function todayInbox(input: TodayInput): TodayInbox {
         lane: "approve",
         eventDate: eventFor(action.projectId),
         updatedAt: changedAt(action),
+        now,
+      }),
+    });
+  }
+
+  // ── Act · client messages ──────────────────────────────────────────
+  // One card per client thread the studio owes an answer on, like crew
+  // messages above. A booked client's portal message reached only Messages
+  // and a generic bell task; Today said there was nothing to do (prod walk,
+  // 2026-10-12). Leaves the card when the studio replies.
+  //
+  // Not for an inquiry: its card above already answers the couple, with the
+  // reply drafted — and a job still at the inquiry stage that came from one
+  // is answered (or deliberately not shown) there, never here. Not when Cue
+  // has drafted the reply either — that card shows their message above the
+  // answer, and two cards would be one job.
+  const inquiryCardKeys = new Set<string>();
+  for (const item of act) {
+    if (!item.id.startsWith("lead-") && !item.id.startsWith("quote-owed-")) continue;
+    if (item.projectId) inquiryCardKeys.add(`project:${item.projectId}`);
+    if (item.id.startsWith("lead-")) inquiryCardKeys.add(`lead:${item.id.slice("lead-".length)}`);
+  }
+  const jobsFromInquiries = new Set(
+    rows(input.leads)
+      .map((lead) => text(lead.projectId))
+      .filter(Boolean),
+  );
+  const shownActionIds = new Set([...act, ...approve].map((item) => item.id));
+  const draftedThreads = new Set(
+    rows(input.aiActions)
+      .filter((action) => shownActionIds.has(`ai-${action.id}`) || mergedReplies.has(action.id))
+      .map((action) => text(action.conversationId))
+      .filter(Boolean),
+  );
+  const clientThreads = clientThreadsAwaitingStudio(rows(input.conversations));
+  const clientName = threadNamer({
+    threads: rows(input.conversations).map(asConversation),
+    contacts: rows(input.contacts),
+  });
+  for (const thread of clientThreads) {
+    const projectId = thread.projectId;
+    // A lead's thread is the inquiry's card.
+    if (!projectId) continue;
+    if (inquiryCardKeys.has(`project:${projectId}`)) continue;
+    if (thread.leadId && inquiryCardKeys.has(`lead:${thread.leadId}`)) continue;
+    if (thread.memberIds.some((id) => draftedThreads.has(id))) continue;
+    // A job that is gone, filed away, or an inquiry that ended: nothing to
+    // answer from here. A closed or cancelled client still gets an answer.
+    const job = projectById.get(projectId);
+    if (!job || job.archivedAt || ["LOST", "ARCHIVED"].includes(text(job.state))) continue;
+    if (text(job.state) === "LEAD" && jobsFromInquiries.has(projectId)) continue;
+    const who =
+      clientName(thread.participant) ?? thread.participant.email ?? clientOf(job, null, true);
+    const snippet = thread.preview ?? "";
+    act.push({
+      id: `client-message-${thread.threadId}`,
+      lane: "act",
+      kind: "message",
+      title: `${who} sent you a message`,
+      detail: snippet
+        ? snippet.length > 140
+          ? `${snippet.slice(0, 139).trimEnd()}…`
+          : snippet
+        : "Waiting on your reply",
+      evidence:
+        thread.channel === "portal" ? "Sent from their portal" : thread.channel === "email" ? "By email" : null,
+      projectId,
+      projectName: nameFor(projectId),
+      action: {
+        kind: "link",
+        label: "Reply",
+        href: `/studio/messages?thread=${encodeURIComponent(thread.threadId)}`,
+      },
+      jobHref: `/studio/projects/${projectId}`,
+      facts: [waitingFact(thread.waitingSince, now), eventFact(eventFor(projectId), now)].filter(
+        (fact): fact is string => Boolean(fact),
+      ),
+      // Urgent because it is unanswered, as an inquiry is — not because the
+      // event is close: a client a year out still waits on a reply.
+      band: leadBand(thread.waitingSince, now),
+      eventDate: eventFor(projectId),
+      score: score({
+        lane: "act",
+        severity: "inquiry",
+        eventDate: eventFor(projectId),
+        updatedAt: thread.waitingSince,
         now,
       }),
     });

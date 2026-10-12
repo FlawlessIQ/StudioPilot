@@ -11639,8 +11639,19 @@ textarea:focus-visible {
 .schedule-derived-field{display:flex;align-items:center;min-height:42px;font-size:14px;color:var(--ink-soft,#3c443f)}
 .ai-message-editor{display:grid;gap:10px}
 .ai-message-editor label{display:grid;gap:6px;font-size:12px;font-weight:650}
-.ai-message-editor input,.ai-message-editor textarea{border:1px solid var(--border,#e3e6e2);border-radius:10px;padding:10px;font:inherit}
-.ai-message-editor textarea{min-height:180px;line-height:1.5}
+/* The message and its subject are one form: same paper, same ink. The editor
+   also carries .ai-queue-editor, whose dark code-editor textarea is for
+   structured data, so "Edit first" in a sheet on Today showed a white Subject
+   over a dark Message (prod walk, 2026-10-12). Both classes, so this outranks
+   that rule whatever order the stylesheets land in. Sheets render outside
+   .ds-root, so nothing here may depend on it; inside it, .ds-root's own field
+   rule (legacy-bridge.css) still dresses both fields alike. */
+.ai-message-editor input,.ai-queue-editor.ai-message-editor textarea{background:var(--surface,#fff);border:1px solid var(--border,#e3e6e2);border-radius:10px;color:var(--ink,#171a18);padding:10px;font:inherit}
+.ai-queue-editor.ai-message-editor textarea{max-height:none;min-height:180px;line-height:1.5}
+/* The phone rule that keeps fields at 16px so iOS doesn't zoom on focus
+   (max-width: 860px, below) reached the Subject but not the Message, which
+   `font: inherit` above out-ranks. Same size as its subject, there too. */
+@media (max-width:860px){.ai-queue-editor.ai-message-editor textarea{font-size:16px}}
 .lead-action-notice{align-self:center;color:var(--muted,#6b7570)}
 
 /* Lifecycle pack summary in Communications. */
@@ -13627,6 +13638,24 @@ form:has(> .address-field) > .address-field,
 /* Room for the sheet's own close button above the card's header. */
 .sheet-dialog > .ai-queue-card {
   padding: 30px 20px 20px;
+}
+
+/* The review card's small text is sized for .ds-root: legacy-bridge.css lifts
+   its 7–8px base to 11.5px there, and a sheet renders outside it. In Today's
+   Review sheet the "Check:" note, the kicker, the byline and the buttons were
+   7–8px (prod walk, 2026-10-12). The same size here, without .ds-root's
+   one-line ellipsis: wrap, never clip. */
+.sheet-dialog .ai-queue-card > header small,
+.sheet-dialog .ai-queue-card > header em,
+.sheet-dialog .ai-queue-card > header > .ai-confidence,
+.sheet-dialog .ai-queue-card > footer button,
+.sheet-dialog .ai-queue-editor > span,
+.sheet-dialog .ai-queue-explanation summary,
+.sheet-dialog .ai-queue-explanation p,
+.sheet-dialog .ai-queue-explanation > div > span small,
+.sheet-dialog .ai-queue-impact small,
+.sheet-dialog .ai-queue-issues p {
+  font-size: 11.5px;
 }
 
 .sheet-close {
