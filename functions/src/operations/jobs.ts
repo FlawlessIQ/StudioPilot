@@ -77,6 +77,7 @@ import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { billingHoldFor, holdJobForBilling } from "../saas/billing-hold.js";
 import { isReservedTestAddress } from "../communications/test-address.js";
+import { studioWroteIt } from "../communications/studio-reply.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
 import { ensureReturningClientAccess } from "../client/returning-client-access.js";
 import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
@@ -1622,6 +1623,8 @@ async function saveMessage(
       // The automatic acknowledgement is not the studio's reply: the inquiry
       // still needs one, and Today must keep offering it.
       countsAsReply: document.get("type") !== "inquiry_acknowledgement",
+      // A person at the studio answering, not a reminder on a timer.
+      studioReply: studioWroteIt(document),
     });
   }
 }

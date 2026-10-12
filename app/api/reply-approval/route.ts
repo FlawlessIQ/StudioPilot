@@ -59,6 +59,9 @@ export async function POST(request: Request): Promise<Response> {
     contactId: approval.contactId ?? null,
     subject: approval.subject,
     customBody: approval.replyBody,
+    // The studio approved this reply from its own inbox: it answers the
+    // client's message (functions/src/operations/jobs.ts studioWroteIt).
+    studioReply: true,
     status: "queued",
     attempts: 0,
     createdAt: now,

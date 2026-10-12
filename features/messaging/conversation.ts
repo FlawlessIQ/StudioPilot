@@ -68,6 +68,17 @@ export const conversationSchema = z.object({
   lastInboundAt: z.string().nullable().optional(),
   lastOutboundAt: z.string().nullable().optional(),
   firstOutboundAt: z.string().nullable().optional(),
+  /**
+   * When a person at the studio last wrote to the client here: a reply, a
+   * composed message, or a draft they approved (`studioReply`). Not every
+   * outbound: a questionnaire, payment or event reminder moves
+   * lastOutboundAt and answers nothing the client asked. Absent on threads
+   * older than the field, which are read by lastOutboundAt
+   * (features/messaging/awaiting-studio.ts).
+   */
+  lastStudioReplyAt: z.string().nullable().optional(),
+  /** The studio's "No reply needed" on Today: the client's last word was answered without one. */
+  noReplyNeededAt: z.string().nullable().optional(),
   status: conversationStatusSchema,
   archivedAt: z.string().nullable(),
 });
@@ -150,6 +161,15 @@ export type ConversationDelta = {
    * Today. Omitted: true.
    */
   countsAsReply?: boolean;
+  /**
+   * True when a person at the studio wrote or approved this message — a
+   * reply in Messages, a composed message, a draft approved on Today or in
+   * Cue. A reminder or confirmation sent on a timer is not: the client who
+   * asked a question an hour before a "your questionnaire is due" email is
+   * still waiting (prod walk, 2026-10-12). Moves `lastStudioReplyAt`, which
+   * Today's client-message card reads. Omitted: false.
+   */
+  studioReply?: boolean;
 };
 
 function uniqueChannels(
@@ -179,6 +199,20 @@ function latest(current: string | null | undefined, next: string): string {
   return current && current > next ? current : next;
 }
 
+/**
+ * The studio's last word to the client on a thread, as far as the thread
+ * knows: `lastStudioReplyAt`, or for a thread older than that field, its
+ * lastOutboundAt — which then also counted reminders, as every reader did.
+ */
+export function studioReplyAtOf(thread: {
+  lastStudioReplyAt?: string | null;
+  lastOutboundAt?: string | null;
+}): string | null {
+  return thread.lastStudioReplyAt !== undefined
+    ? (thread.lastStudioReplyAt ?? null)
+    : (thread.lastOutboundAt ?? null);
+}
+
 export function foldMessageIntoConversation(
   current: Conversation | null,
   delta: ConversationDelta,
@@ -191,6 +225,10 @@ export function foldMessageIntoConversation(
   });
   const isNewer = !current || delta.occurredAt >= current.lastMessageAt;
   const inbound = delta.direction === "inbound";
+  // Read before this message moves lastOutboundAt, so a thread older than the
+  // field starts from the reply it already had.
+  const priorStudioReply = current ? studioReplyAtOf(current) : null;
+  const studioSpoke = !inbound && delta.studioReply === true && delta.countsAsReply !== false;
 
   return {
     id,
@@ -226,6 +264,9 @@ export function foldMessageIntoConversation(
     // The studio's first word on this thread, for "how fast do we reply".
     firstOutboundAt:
       current?.firstOutboundAt ?? (inbound || delta.countsAsReply === false ? null : delta.occurredAt),
+    lastStudioReplyAt: studioSpoke
+      ? latest(priorStudioReply, delta.occurredAt)
+      : priorStudioReply,
     // A thread the studio archived reopens when the client writes again;
     // a studio reply on an archived thread does not resurrect it.
     status: inbound ? "open" : (current?.status ?? "open"),

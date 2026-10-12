@@ -92,6 +92,21 @@ const commandSchema = z.discriminatedUnion("type", [
     input: z.object({ conversationId: z.string().min(1).max(160) }),
   }),
   z.object({
+    /**
+     * "No reply needed" on Today's client-message card: the client's last
+     * word needs no answer ("Thank you for the photos!"), or was answered
+     * somewhere StudioCue can't see. Takes the card away without writing to
+     * them; their next message brings it back. Every conversation folded
+     * into the row (features/messaging/thread-groups.ts).
+     */
+    type: z.literal("markNoReplyNeeded"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      conversationIds: z.array(z.string().min(1).max(160)).min(1).max(10),
+    }),
+  }),
+  z.object({
     type: z.literal("approveMessage"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -799,6 +814,54 @@ export const communicationsCommand = onRequest(
           conversationId: command.input.conversationId,
           studioUnreadCount: 0,
         };
+      } else if (command.type === "markNoReplyNeeded") {
+        // Server-only for the same reason as reading: a field that hides a
+        // client's message from Today is not one a browser may write. Each
+        // thread's tenant is checked against the stored document.
+        const ids = [...new Set(command.input.conversationIds)];
+        const references = ids.map((id) => db.doc(`conversations/${id}`));
+        const snapshots = await db.getAll(...references);
+        for (const snapshot of snapshots) {
+          if (!snapshot.exists) throw new Error("CONVERSATION_NOT_FOUND");
+          if (snapshot.get("tenantId") !== command.tenantId) {
+            throw new Error("FORBIDDEN");
+          }
+        }
+        const batch = db.batch();
+        for (const reference of references) {
+          batch.set(
+            reference,
+            {
+              noReplyNeededAt: now,
+              noReplyNeededBy: identity.uid,
+              studioUnreadCount: 0,
+              updatedAt: now,
+              updatedBy: identity.uid,
+            },
+            { merge: true },
+          );
+        }
+        const auditId = stableId("audit_no_reply", command.tenantId, command.idempotencyKey);
+        batch.set(db.doc(`auditEvents/${auditId}`), {
+          id: auditId,
+          tenantId: command.tenantId,
+          projectId: (snapshots[0]?.get("projectId") as string | null) ?? null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "message.no_reply_needed",
+          entityType: "conversation",
+          entityId: ids[0],
+          timestamp: now,
+          before: null,
+          after: { conversationIds: ids, noReplyNeededAt: now },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: command.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { conversationIds: ids, noReplyNeededAt: now };
       } else if (command.type === "approveMessage") {
         if (!canApprove(role)) throw new Error("APPROVAL_PERMISSION_REQUIRED");
         const draftReference = db.doc(

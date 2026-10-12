@@ -2006,10 +2006,8 @@
   max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
-  /* Inside .ds-root the metadata rule (legacy-bridge.css) makes every
-     .ai-confidence one ellipsed line, which cut the note off on the job page.
-     The note is the question being asked: all of it shows. (0,2,1) here
-     outranks that rule's (0,2,0). */
+  /* The note is the question being asked: all of it shows, on as many lines
+     as it takes, wherever the card renders. */
   overflow: visible;
   text-overflow: clip;
   white-space: normal;

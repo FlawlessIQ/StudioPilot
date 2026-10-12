@@ -246,6 +246,13 @@ export type TodayAction =
       canRetry: boolean;
       fixHref: string | null;
     }
+  /**
+   * A client wrote and the studio owes the next word: Reply opens the thread
+   * on Messages; "No reply needed" takes the card away without writing to
+   * them (communicationsCommand markNoReplyNeeded), for every conversation
+   * folded into the row.
+   */
+  | { kind: "client_message"; label: string; href: string; conversationIds: string[] }
   /** Nothing to do — the engines handled it. */
   | { kind: "none"; label: string };
 
@@ -886,6 +893,12 @@ function graceAfterEvent(state: string): number {
   if (["DELIVERED", "REVIEW_REQUESTED"].includes(state)) return 90;
   return 0;
 }
+
+/**
+ * How long a client's unanswered message stays on Today once the studio has
+ * opened it. Unopened, it stays while the job is still going.
+ */
+const CLIENT_MESSAGE_RECENT_DAYS = 14;
 
 /**
  * How late a reply to an inquiry is. Couples shop several studios in the
@@ -2824,7 +2837,9 @@ export function todayInbox(input: TodayInput): TodayInbox {
   // One card per client thread the studio owes an answer on, like crew
   // messages above. A booked client's portal message reached only Messages
   // and a generic bell task; Today said there was nothing to do (prod walk,
-  // 2026-10-12). Leaves the card when the studio replies.
+  // 2026-10-12). The card leaves when the studio writes to them, or says
+  // "No reply needed" — never because a reminder went out on a timer
+  // (features/messaging/awaiting-studio.ts).
   //
   // Not for an inquiry: its card above already answers the couple, with the
   // reply drafted — and a job still at the inquiry stage that came from one
@@ -2843,13 +2858,22 @@ export function todayInbox(input: TodayInput): TodayInbox {
       .filter(Boolean),
   );
   const shownActionIds = new Set([...act, ...approve].map((item) => item.id));
+  // A drafted reply the studio snoozed puts the whole conversation off until
+  // then, not just the draft: the client's card must not stand in for it.
   const draftedThreads = new Set(
     rows(input.aiActions)
-      .filter((action) => shownActionIds.has(`ai-${action.id}`) || mergedReplies.has(action.id))
+      .filter(
+        (action) =>
+          shownActionIds.has(`ai-${action.id}`) ||
+          mergedReplies.has(action.id) ||
+          (text(action.status) === "review_required" && text(action.snoozedUntil) > input.now),
+      )
       .map((action) => text(action.conversationId))
       .filter(Boolean),
   );
-  const clientThreads = clientThreadsAwaitingStudio(rows(input.conversations));
+  const clientThreads = clientThreadsAwaitingStudio(rows(input.conversations), {
+    leads: rows(input.leads),
+  });
   const clientName = threadNamer({
     threads: rows(input.conversations).map(asConversation),
     contacts: rows(input.contacts),
@@ -2861,11 +2885,18 @@ export function todayInbox(input: TodayInput): TodayInbox {
     if (inquiryCardKeys.has(`project:${projectId}`)) continue;
     if (thread.leadId && inquiryCardKeys.has(`lead:${thread.leadId}`)) continue;
     if (thread.memberIds.some((id) => draftedThreads.has(id))) continue;
-    // A job that is gone, filed away, or an inquiry that ended: nothing to
-    // answer from here. A closed or cancelled client still gets an answer.
     const job = projectById.get(projectId);
+    // A job that is gone, filed away, or an inquiry that ended: nothing to
+    // answer from here.
     if (!job || job.archivedAt || ["LOST", "ARCHIVED"].includes(text(job.state))) continue;
     if (text(job.state) === "LEAD" && jobsFromInquiries.has(projectId)) continue;
+    // A message is news for two weeks. After that it stays only while the
+    // studio hasn't opened it, on a job still going: a "Thank you so much!"
+    // read in June on a wedding since closed is not today's work, and must
+    // not arrive overdue on every thread the client happened to end.
+    const waited = Math.abs(Math.min(0, elapsedDayDiff(thread.waitingSince, now) ?? 0));
+    const recent = waited <= CLIENT_MESSAGE_RECENT_DAYS;
+    if (!recent && (thread.studioUnread === 0 || !jobStillOpen(projectId))) continue;
     const who =
       clientName(thread.participant) ?? thread.participant.email ?? clientOf(job, null, true);
     const snippet = thread.preview ?? "";
@@ -2884,9 +2915,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
       projectId,
       projectName: nameFor(projectId),
       action: {
-        kind: "link",
+        kind: "client_message",
         label: "Reply",
         href: `/studio/messages?thread=${encodeURIComponent(thread.threadId)}`,
+        conversationIds: thread.memberIds,
       },
       jobHref: `/studio/projects/${projectId}`,
       facts: [waitingFact(thread.waitingSince, now), eventFact(eventFor(projectId), now)].filter(

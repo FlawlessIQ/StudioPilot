@@ -240,6 +240,9 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   instantiateWorkflow: "runs at booking", recalculateReadiness: "readiness triggers",
   decideAutomationApproval: "automation approvals on Today", cancelReceipt: "action receipts on Today", retryReceipt: "action receipts on Today",
   retryEmailJob: "failed-email cards on Today", dismissEmailProblem: "failed-email cards on Today",
+  // "No reply needed" on a client's message: Cue answers a client by drafting
+  // the reply; leaving one unanswered is the studio's call, on Today's card.
+  markNoReplyNeeded: "the client-message card on Today",
   refreshQuestionnairePrefill: "runs as a couple opens their form",
   requestDetailChange: "couple", decideDetailChange: "the change-request card on Today",
   setPlanningTimeline: "Settings → Planning timeline",

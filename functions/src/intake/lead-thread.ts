@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import {
   conversationIdFor,
+  studioReplyAtOf,
   type Conversation,
 } from "../communications/conversation.js";
 
@@ -73,6 +74,10 @@ export async function moveLeadThreadsToProject(
           lastInboundAt: laterOf(other?.lastInboundAt, current.lastInboundAt),
           lastOutboundAt: laterOf(other?.lastOutboundAt, current.lastOutboundAt),
           firstOutboundAt: earlierOf(other?.firstOutboundAt, current.firstOutboundAt),
+          // The studio's own last word and its "No reply needed", from either:
+          // Today's client-message card reads them (awaiting-studio.ts).
+          lastStudioReplyAt: laterOf(other ? studioReplyAtOf(other) : null, studioReplyAtOf(current)),
+          noReplyNeededAt: laterOf(other?.noReplyNeededAt, current.noReplyNeededAt),
           status: "open",
           archivedAt: null,
           updatedAt: input.now,

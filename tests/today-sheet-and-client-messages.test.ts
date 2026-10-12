@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { clientThreadsAwaitingStudio } from "../features/messaging/awaiting-studio";
+import { foldMessageIntoConversation, studioReplyAtOf } from "../features/messaging/conversation";
 import {
   looksLikeEmail,
   personName,
@@ -71,7 +72,7 @@ type Card = {
   evidence: string | null;
   band: string;
   projectId: string | null;
-  action: { kind: string; href?: string; label?: string };
+  action: { kind: string; href?: string; label?: string; conversationIds?: string[] };
 };
 const inboxOf = (input: Record<string, unknown>) =>
   todayInbox({ now: NOW, ...input } as never) as unknown as { act: Card[]; approve: Card[] };
@@ -203,7 +204,12 @@ test("Today asks the studio to answer a booked client's message, by name, linked
   assert.equal(card.detail, "Can we move the trial to the Saturday before?");
   assert.equal(card.evidence, "Sent from their portal");
   assert.equal(card.projectId, "p1");
-  assert.deepEqual(card.action, { kind: "link", label: "Reply", href: "/studio/messages?thread=conv_wedding" });
+  assert.deepEqual(card.action, {
+    kind: "client_message",
+    label: "Reply",
+    href: "/studio/messages?thread=conv_wedding",
+    conversationIds: ["conv_wedding"],
+  });
   // Urgent because it is unanswered, not because the wedding is close.
   assert.equal(card.band, "soon");
   const days = inboxOf({
@@ -285,6 +291,270 @@ test("a reply Cue drafted for the thread is the one card about it", () => {
   const inbox = inboxOf({ projects: [bookedJob], conversations: [thread()], aiActions: [draft] });
   assert.ok(inbox.approve.some((item) => item.id === "ai-ai1"), "the drafted reply is on Today");
   assert.equal(clientCards(inbox).length, 0);
+  // Snoozing the draft puts the conversation off until then — the client's
+  // card does not stand in for the draft the studio just put away.
+  const snoozed = inboxOf({
+    projects: [bookedJob],
+    conversations: [thread()],
+    aiActions: [{ ...draft, snoozedUntil: "2026-10-13T15:00:00.000Z" }],
+  });
+  assert.equal(snoozed.approve.some((item) => item.id === "ai-ai1"), false, "the draft is snoozed");
+  assert.equal(clientCards(snoozed).length, 0, "and so is the conversation");
+  // Once the snooze has passed, the draft is back, and still the one card.
+  const woke = inboxOf({
+    now: "2026-10-13T16:00:00.000Z",
+    projects: [bookedJob],
+    conversations: [thread()],
+    aiActions: [{ ...draft, snoozedUntil: "2026-10-13T15:00:00.000Z" }],
+  });
+  assert.ok(woke.approve.some((item) => item.id === "ai-ai1"));
+  assert.equal(clientCards(woke).length, 0);
+  // A draft that was put away (declined) no longer covers for the thread.
+  const declined = inboxOf({
+    projects: [bookedJob],
+    conversations: [thread()],
+    aiActions: [{ ...draft, status: "rejected" }],
+  });
+  assert.equal(clientCards(declined).length, 1);
+});
+
+// ── Review round 2: which threads raise a card, and how it leaves ─────
+
+const closedJob = { id: "p1", name: "Priya Shah wedding", state: "CLOSED", eventDate: "2026-05-02" };
+// The probe from the review: she thanked the studio in June, the studio read
+// it, and the wedding has since closed.
+const thanked = thread({
+  lastMessageAt: "2026-06-20T10:00:00.000Z",
+  lastInboundAt: "2026-06-20T10:00:00.000Z",
+  lastOutboundAt: "2026-06-18T10:00:00.000Z",
+  lastMessagePreview: "Thank you so much for the beautiful photos!",
+  studioUnreadCount: 0,
+});
+
+test("an old thank-you on a closed or cancelled job is not today's work", () => {
+  assert.equal(clientCards(inboxOf({ projects: [closedJob], conversations: [thanked] })).length, 0);
+  assert.equal(
+    clientCards(inboxOf({ projects: [{ ...closedJob, state: "CANCELLED" }], conversations: [thanked] })).length,
+    0,
+  );
+  // Never opened, but the job is over: still not.
+  assert.equal(
+    clientCards(inboxOf({ projects: [closedJob], conversations: [{ ...thanked, studioUnreadCount: 1 }] })).length,
+    0,
+  );
+});
+
+test("an old message the studio has read, on a job still going, is not today's work either", () => {
+  assert.equal(clientCards(inboxOf({ projects: [bookedJob], conversations: [thanked] })).length, 0);
+  // Never opened is different: nobody at the studio has seen it.
+  const [unseen] = clientCards(
+    inboxOf({ projects: [bookedJob], conversations: [{ ...thanked, studioUnreadCount: 1 }] }),
+  );
+  assert.ok(unseen, "an unopened message on a live job stays until it is answered");
+  assert.equal(unseen.band, "overdue");
+});
+
+test("a recent message gets its card whatever the job's state, for two weeks", () => {
+  const recent = thread({ studioUnreadCount: 0 });
+  assert.equal(clientCards(inboxOf({ projects: [closedJob], conversations: [recent] })).length, 1);
+  assert.equal(
+    clientCards(inboxOf({ projects: [{ ...closedJob, state: "CANCELLED" }], conversations: [recent] })).length,
+    1,
+  );
+  // Read, fourteen days on: still news. Fifteen: not.
+  assert.equal(
+    clientCards(inboxOf({ now: "2026-10-26T13:00:00.000Z", projects: [bookedJob], conversations: [recent] })).length,
+    1,
+  );
+  assert.equal(
+    clientCards(inboxOf({ now: "2026-10-27T15:00:00.000Z", projects: [bookedJob], conversations: [recent] })).length,
+    0,
+  );
+});
+
+test("No reply needed answers the thread, until the client writes again", () => {
+  const handled = thread({ noReplyNeededAt: "2026-10-12T14:30:00.000Z" });
+  assert.equal(clientThreadsAwaitingStudio([handled]).length, 0);
+  assert.equal(clientCards(inboxOf({ projects: [bookedJob], conversations: [handled] })).length, 0);
+  const again = {
+    ...handled,
+    lastMessageAt: "2026-10-12T14:45:00.000Z",
+    lastInboundAt: "2026-10-12T14:45:00.000Z",
+    lastMessagePreview: "One more thing!",
+  };
+  assert.equal(clientThreadsAwaitingStudio([again]).length, 1);
+  // A thread split in two: the mark on either member answers the row.
+  const rows = clientThreadsAwaitingStudio([
+    thread(),
+    thread({
+      id: "conv_split",
+      lastMessageAt: "2026-10-01T10:00:00.000Z",
+      lastInboundAt: "2026-10-01T10:00:00.000Z",
+      noReplyNeededAt: "2026-10-12T14:30:00.000Z",
+    }),
+  ]);
+  assert.equal(rows.length, 0);
+});
+
+test("Replied by email on the inquiry answers its thread on the job", () => {
+  const consultationJob = { ...bookedJob, state: "CONSULTATION" };
+  const inquiryThread = thread({ leadId: "l1", lastOutboundAt: null });
+  const lead = {
+    id: "l1",
+    status: "converted",
+    projectId: "p1",
+    displayName: "Priya Shah",
+    email: PRIYA,
+    createdAt: "2026-10-12T14:00:00.000Z",
+  };
+  assert.equal(
+    clientCards(inboxOf({ projects: [consultationJob], leads: [lead], conversations: [inquiryThread] })).length,
+    1,
+    "nothing says the studio answered",
+  );
+  const replied = { ...lead, repliedOutsideAt: "2026-10-12T14:20:00.000Z" };
+  assert.equal(
+    clientCards(inboxOf({ projects: [consultationJob], leads: [replied], conversations: [inquiryThread] })).length,
+    0,
+  );
+  // On the job's own thread too, as next-move reads it.
+  assert.equal(
+    clientThreadsAwaitingStudio([thread({ lastOutboundAt: null })], { leads: [replied] }).length,
+    0,
+  );
+  // A later message from them is still theirs to be answered.
+  assert.equal(
+    clientThreadsAwaitingStudio([thread({ lastOutboundAt: null })], {
+      leads: [{ ...replied, repliedOutsideAt: "2026-10-12T13:00:00.000Z" }],
+    }).length,
+    1,
+  );
+});
+
+test("a reminder on a timer does not answer a client's question; the studio writing does", async () => {
+  const server = await import("../functions/src/communications/conversation.ts");
+  for (const fold of [foldMessageIntoConversation, server.foldMessageIntoConversation]) {
+    const base = {
+      tenantId: "t1",
+      projectId: "p1",
+      leadId: null,
+      participant: { contactId: "c1", email: PRIYA, phone: null, name: "Priya Shah" },
+      channel: "email" as const,
+      subject: "Trial",
+    };
+    const replied = fold(null, {
+      ...base,
+      direction: "outbound" as const,
+      preview: "Here are the trial times",
+      occurredAt: "2026-10-12T09:00:00.000Z",
+      studioReply: true,
+    });
+    assert.equal(replied.lastStudioReplyAt, "2026-10-12T09:00:00.000Z");
+    const asked = fold(replied as never, {
+      ...base,
+      channel: "portal" as const,
+      direction: "inbound" as const,
+      preview: "Can we move the trial?",
+      occurredAt: "2026-10-12T14:00:00.000Z",
+    });
+    const reminded = fold(asked as never, {
+      ...base,
+      direction: "outbound" as const,
+      preview: "Your questionnaire is due in 3 days",
+      occurredAt: "2026-10-12T14:30:00.000Z",
+    });
+    assert.equal(reminded.lastOutboundAt, "2026-10-12T14:30:00.000Z", "it is still an outbound message");
+    assert.equal(reminded.lastStudioReplyAt, "2026-10-12T09:00:00.000Z", "but not the studio answering");
+    const [waiting] = clientThreadsAwaitingStudio([reminded as never]);
+    assert.equal(waiting?.waitingSince, "2026-10-12T14:00:00.000Z");
+    const answered = fold(reminded as never, {
+      ...base,
+      direction: "outbound" as const,
+      preview: "Saturday works!",
+      occurredAt: "2026-10-12T15:00:00.000Z",
+      studioReply: true,
+    });
+    assert.equal(clientThreadsAwaitingStudio([answered as never]).length, 0);
+    // The acknowledgement is never the studio speaking, whatever it says.
+    const acked = fold(asked as never, {
+      ...base,
+      direction: "outbound" as const,
+      preview: "Thanks, we got it",
+      occurredAt: "2026-10-12T14:00:05.000Z",
+      countsAsReply: false,
+      studioReply: true,
+    });
+    assert.equal(acked.lastStudioReplyAt, "2026-10-12T09:00:00.000Z");
+  }
+});
+
+test("a thread from before lastStudioReplyAt keeps the answer it had", async () => {
+  const server = await import("../functions/src/communications/conversation.ts");
+  // Read as before: every outbound counted.
+  const legacy = thread({ lastOutboundAt: "2026-10-12T14:30:00.000Z" });
+  assert.equal("lastStudioReplyAt" in legacy, false);
+  assert.equal(clientThreadsAwaitingStudio([legacy]).length, 0);
+  for (const fold of [foldMessageIntoConversation, server.foldMessageIntoConversation]) {
+    // The first send after the field exists starts it from the thread's
+    // lastOutboundAt as it was, not from nothing.
+    const next = fold(thread() as never, {
+      tenantId: "t1",
+      projectId: "p1",
+      leadId: null,
+      participant: { contactId: null, email: PRIYA, phone: null, name: null },
+      channel: "email",
+      direction: "outbound",
+      subject: null,
+      preview: "Your questionnaire is due",
+      occurredAt: "2026-10-12T14:30:00.000Z",
+    });
+    assert.equal(next.lastStudioReplyAt, "2026-10-10T09:00:00.000Z");
+    assert.equal(clientThreadsAwaitingStudio([next as never]).length, 1, "and the reminder does not answer her");
+  }
+  assert.equal(studioReplyAtOf({ lastOutboundAt: "a" }), "a");
+  assert.equal(studioReplyAtOf({ lastStudioReplyAt: null, lastOutboundAt: "a" }), null);
+});
+
+test("the email worker counts only a person at the studio as answering", async () => {
+  const { studioWroteIt } = await import("../functions/src/communications/studio-reply.ts");
+  const job = (fields: Record<string, unknown>) => ({ get: (field: string) => fields[field] });
+  // The studio's own words.
+  assert.equal(studioWroteIt(job({ type: "manual_message", requestedBy: "uid_owner" })), true, "a reply in Messages");
+  assert.equal(studioWroteIt(job({ type: "manual_message", communicationDraftId: "ai_reply_a1" })), true, "a Cue draft approved");
+  assert.equal(studioWroteIt(job({ type: "manual_message", communicationDraftId: "draft_1" })), true, "a draft the owner approved");
+  assert.equal(studioWroteIt(job({ type: "manual_message", studioReply: true })), true, "approved from the notification email");
+  // Sent on a timer, or by the system.
+  assert.equal(studioWroteIt(job({ type: "manual_message", aiActionId: "lifecycle_1" })), false, "a lifecycle auto-send");
+  assert.equal(studioWroteIt(job({ type: "manual_message", requestedBy: "automation-engine" })), false, "a workflow step");
+  assert.equal(studioWroteIt(job({ type: "manual_message", requestedBy: "" })), false);
+  for (const type of ["questionnaire_reminder", "final_payment_reminder", "event_reminder", "consultation_reminder", "review_request", "inquiry_acknowledgement"]) {
+    assert.equal(studioWroteIt(job({ type, requestedBy: "uid_owner" })), false, type);
+  }
+  const worker = read("functions/src/operations/jobs.ts");
+  assert.match(worker, /countsAsReply: document\.get\("type"\) !== "inquiry_acknowledgement",\s+\/\/ [^\n]+\n\s+studioReply: studioWroteIt\(document\),/);
+  assert.match(read("app/api/reply-approval/route.ts"), /studioReply: true,/);
+  // A lead's thread moving onto the job keeps both the studio's last word and its "No reply needed".
+  const move = read("functions/src/intake/lead-thread.ts");
+  assert.match(move, /lastStudioReplyAt: laterOf\(other \? studioReplyAtOf\(other\) : null, studioReplyAtOf\(current\)\)/);
+  assert.match(move, /noReplyNeededAt: laterOf\(other\?\.noReplyNeededAt, current\.noReplyNeededAt\)/);
+});
+
+test("No reply needed is a server command and a button on the card", () => {
+  const commands = read("functions/src/communications/commands.ts");
+  assert.match(commands, /type: z\.literal\("markNoReplyNeeded"\)/);
+  const handler = commands.slice(commands.indexOf('command.type === "markNoReplyNeeded"'));
+  assert.match(handler, /if \(snapshot\.get\("tenantId"\) !== command\.tenantId\) \{\s+throw new Error\("FORBIDDEN"\);/);
+  assert.match(handler, /noReplyNeededAt: now,/);
+  const ui = read("components/today/today-inbox.tsx");
+  assert.match(ui, /type: "markNoReplyNeeded",[\s\S]{0,200}input: \{ conversationIds: action\.conversationIds \}/);
+  assert.match(ui, /"No reply needed"/);
+  // On the card and on the headline, which is lifted out of the list.
+  assert.match(ui, /item\.action\.kind === "client_message" \? \(\s+<ClientMessageActions/);
+  assert.match(ui, /lead\?\.action\.kind === "client_message" \? \(/);
+  // Two controls: from 720px the card's actions are an auto column beside the
+  // title, and a third squeezed it to a word per line in a 480px lane.
+  const actions = ui.slice(ui.indexOf("function ClientMessageActions"), ui.indexOf("type PackageRequestAction"));
+  assert.doesNotMatch(actions, /Open the job/);
 });
 
 test("Messages opens the thread Today linked to", () => {
@@ -317,11 +587,27 @@ test("the review card's header wraps the Check note under the title, never squee
   const note = ruleBody(css, ".ai-queue-card > header > .ai-confidence");
   assert.match(note, /max-width: 100%;/);
   assert.match(note, /min-width: 0;/);
-  // Wraps its own text, inside .ds-root too, where every .ai-confidence is
-  // otherwise one ellipsed line.
+  // Wraps its own text, all of it.
   assert.match(note, /white-space: normal;/);
   assert.match(note, /overflow: visible;/);
-  assert.match(read("app/legacy-bridge.css"), /\.ds-root \.ai-confidence,[\s\S]*?white-space: nowrap;/);
+  // And no stylesheet turns a chip's note back into one clipped line: the
+  // first version of this test "found" such a rule in legacy-bridge.css by
+  // matching 440 lines past it (review, 2026-10-12). Rule by rule instead.
+  const chipRules: string[] = [];
+  for (const file of ["app/legacy-bridge.css", "app/studiocue-reimagined.css", "app/globals.css", "app/design-system.css"]) {
+    const source = read(file).replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const [, selectors, body] of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const chip = selectors.split(",").some((selector) => /\.ai-confidence\b/.test(selector) && !/prepared-compact/.test(selector));
+      if (!chip) continue;
+      chipRules.push(`${file}: ${selectors.trim().split(",")[0]}`);
+      assert.doesNotMatch(body, /white-space:\s*nowrap|text-overflow:\s*ellipsis/, `${file}: ${selectors.trim()}`);
+    }
+  }
+  // It read the rules it means to: the base chip, the header note, the
+  // sheet's, and .ds-root's.
+  assert.ok(chipRules.some((rule) => rule.startsWith("app/legacy-bridge.css: .ds-root .ai-confidence")), chipRules.join("\n"));
+  assert.ok(chipRules.some((rule) => rule.startsWith("app/studiocue-reimagined.css: .ai-queue-card > header > .ai-confidence")));
+  assert.ok(chipRules.length >= 4, chipRules.join("\n"));
 });
 
 test("Edit first's message is on the same paper as its subject", () => {

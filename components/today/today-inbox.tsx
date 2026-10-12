@@ -180,13 +180,15 @@ export function TodayInbox() {
   // todayHeadline. Studio plumbing keeps its rank in the queue below.
   const lead = todayHeadline(act, approve);
   const leadHref =
-    lead?.action.kind === "link" || lead?.action.kind === "inquiry"
+    lead?.action.kind === "link" ||
+    lead?.action.kind === "inquiry" ||
+    lead?.action.kind === "client_message"
       ? lead.action.href
       : (lead?.jobHref ?? "/studio/projects");
   // The hero links; sending happens on the card itself, so an inquiry hero
   // says where the link goes rather than "Send reply".
   const leadLabel =
-    lead?.action.kind === "link"
+    lead?.action.kind === "link" || lead?.action.kind === "client_message"
       ? lead.action.label
       : lead?.action.kind === "inquiry"
         ? "Review & reply"
@@ -449,6 +451,12 @@ export function TodayInbox() {
               ) : !loading && lead?.action.kind === "email_problem" ? (
                 <span className="today-inquiry-buttons">
                   <EmailProblemActions action={lead.action} onCleared={() => clear(lead.id)} />
+                </span>
+              ) : !loading && lead?.action.kind === "client_message" ? (
+                // Lifted out of the list below, so "No reply needed" lives
+                // here too or the card has no way off Today but a reply.
+                <span className="today-inquiry-buttons">
+                  <ClientMessageActions action={lead.action} onCleared={() => clear(lead.id)} />
                 </span>
               ) : !loading && lead ? (
                 <Link className="today-hero-go" href={leadHref}>
@@ -1185,6 +1193,8 @@ function TodayCard({
           <CloseInquiryActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "email_problem" ? (
           <EmailProblemActions action={item.action} onCleared={onCleared} />
+        ) : item.action.kind === "client_message" ? (
+          <ClientMessageActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "automation" ? (
           <button
             className="today-card-primary"
@@ -1546,6 +1556,66 @@ function EmailProblemActions({ action, onCleared }: { action: EmailProblemAction
       ) : null}
       <button className="today-card-secondary" disabled={busy !== null} onClick={() => void run("dismissEmailProblem")} type="button">
         {busy === "dismiss" ? "Clearing…" : "Leave it"}
+      </button>
+      {notice ? (
+        <span className="today-card-notice" role="status">
+          {notice}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+type ClientMessageAction = Extract<TodayItem["action"], { kind: "client_message" }>;
+
+/**
+ * A client wrote and the studio owes the next word: Reply opens the thread on
+ * Messages. "No reply needed" takes the card away without writing to them —
+ * a "Thank you so much!", or an answer given by phone — and their next
+ * message brings it back (communicationsCommand markNoReplyNeeded). Without
+ * it the only way off Today was to email the client.
+ *
+ * Two controls, not three: the card's actions sit in an `auto` column beside
+ * the title from 720px (today.css), and a third ("Open the job") squeezed the
+ * title to a word per line in a 480px lane. The thread names the job.
+ */
+function ClientMessageActions({
+  action,
+  onCleared,
+}: {
+  action: ClientMessageAction;
+  onCleared?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  async function noReplyNeeded() {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await sendCommunicationsCommand({
+        type: "markNoReplyNeeded",
+        idempotencyKey: `no_reply_${action.conversationIds[0]}_${Date.now()}`,
+        input: { conversationIds: action.conversationIds },
+      });
+      if (result.mode === "preview") {
+        setNotice("Preview mode — nothing was saved.");
+        setBusy(false);
+        return;
+      }
+      refreshTenantRecords("conversations");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That didn't go through. Try again."));
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Link className="today-card-primary" href={action.href}>
+        {action.label} <ArrowRight size={14} />
+      </Link>
+      <button className="today-card-secondary" disabled={busy} onClick={() => void noReplyNeeded()} type="button">
+        {busy ? "Saving…" : "No reply needed"}
       </button>
       {notice ? (
         <span className="today-card-notice" role="status">

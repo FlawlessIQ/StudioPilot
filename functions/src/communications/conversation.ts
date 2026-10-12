@@ -41,6 +41,10 @@ export type Conversation = {
   lastInboundAt?: string | null;
   lastOutboundAt?: string | null;
   firstOutboundAt?: string | null;
+  /** A person at the studio last wrote here (features/messaging/conversation.ts). */
+  lastStudioReplyAt?: string | null;
+  /** The studio's "No reply needed" on Today. */
+  noReplyNeededAt?: string | null;
   status: "open" | "archived";
   archivedAt: string | null;
 };
@@ -64,6 +68,12 @@ export type ConversationDelta = {
    * Today. Omitted: true.
    */
   countsAsReply?: boolean;
+  /**
+   * A person at the studio wrote or approved this message (operations/jobs.ts
+   * studioWroteIt). A reminder on a timer is not, and must not answer the
+   * client's question on Today. Moves lastStudioReplyAt. Omitted: false.
+   */
+  studioReply?: boolean;
 };
 
 export function participantKey(participant: {
@@ -115,6 +125,19 @@ function latest(current: string | null | undefined, next: string): string {
   return current && current > next ? current : next;
 }
 
+/**
+ * The studio's last word to the client on a thread: lastStudioReplyAt, or for
+ * a thread older than that field, its lastOutboundAt.
+ */
+export function studioReplyAtOf(thread: {
+  lastStudioReplyAt?: string | null;
+  lastOutboundAt?: string | null;
+}): string | null {
+  return thread.lastStudioReplyAt !== undefined
+    ? (thread.lastStudioReplyAt ?? null)
+    : (thread.lastOutboundAt ?? null);
+}
+
 export function foldMessageIntoConversation(
   current: Conversation | null,
   delta: ConversationDelta,
@@ -127,6 +150,10 @@ export function foldMessageIntoConversation(
   });
   const isNewer = !current || delta.occurredAt >= current.lastMessageAt;
   const inbound = delta.direction === "inbound";
+  // Read before this message moves lastOutboundAt, so a thread older than the
+  // field starts from the reply it already had.
+  const priorStudioReply = current ? studioReplyAtOf(current) : null;
+  const studioSpoke = !inbound && delta.studioReply === true && delta.countsAsReply !== false;
   const channels = new Set<MessageChannel>(current?.channels ?? []);
   channels.add(delta.channel);
 
@@ -166,6 +193,9 @@ export function foldMessageIntoConversation(
     // The studio's first word on this thread, for "how fast do we reply".
     firstOutboundAt:
       current?.firstOutboundAt ?? (inbound || delta.countsAsReply === false ? null : delta.occurredAt),
+    lastStudioReplyAt: studioSpoke
+      ? latest(priorStudioReply, delta.occurredAt)
+      : priorStudioReply,
     status: inbound ? "open" : (current?.status ?? "open"),
     archivedAt: inbound ? null : (current?.archivedAt ?? null),
   };
