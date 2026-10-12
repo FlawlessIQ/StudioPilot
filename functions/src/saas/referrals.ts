@@ -62,13 +62,27 @@ export async function ensureReferralCode(db: Firestore, tenantId: string, now = 
   throw new Error("REFERRAL_CODE_UNAVAILABLE");
 }
 
-export type ReferralMatch = { code: string; referrerTenantId: string; referrerName: string };
+/**
+ * Whose code it is: a studio's (`referrerTenantId`), or a referral partner's
+ * (`partnerId`, made in the Console: console/handlers/partners.ts). A partner
+ * is a planner, DJ, hair or makeup artist who isn't a StudioCue customer; their
+ * code gives a photographer the same offer, and what they earn is tallied in
+ * the Console and paid by hand (features/console/partner-payouts.ts).
+ */
+export type ReferralMatch = { code: string; referrerTenantId: string; referrerName: string; partnerId?: string | null };
 
-/** The studio a code belongs to, or null when it isn't a studio's code. */
+/** The studio or partner a code belongs to, or null when it isn't a referral code. */
 export async function lookupReferral(db: Firestore, rawCode: unknown): Promise<ReferralMatch | null> {
   const code = normalizeReferralCode(rawCode);
   if (!code) return null;
   const record = await db.doc(`saasReferralCodes/${code}`).get();
+  const partnerId = record.get("partnerId");
+  if (typeof partnerId === "string" && partnerId) {
+    const partner = await db.doc(`saasPartners/${partnerId}`).get();
+    if (!partner.exists || partner.get("active") === false) return null;
+    const name = String(partner.get("business") || partner.get("name") || "").trim();
+    return { code, referrerTenantId: "", referrerName: name || "A StudioCue partner", partnerId };
+  }
   const referrerTenantId = record.get("tenantId");
   if (typeof referrerTenantId !== "string" || !referrerTenantId) return null;
   const tenant = await db.doc(`tenants/${referrerTenantId}`).get();
@@ -127,25 +141,41 @@ export async function referralCoupon(db: Firestore, cadence: "monthly" | "yearly
  */
 export async function recordReferral(
   db: Firestore,
-  input: { tenantId: string; referrerTenantId: string; code: string; via: string | null; status: string; now: string },
+  input: {
+    tenantId: string;
+    referrerTenantId: string;
+    /** A referral partner's code (the Console), instead of a studio's. */
+    partnerId?: string | null;
+    code: string;
+    via: string | null;
+    status: string;
+    now: string;
+  },
 ): Promise<void> {
-  if (!input.referrerTenantId || input.referrerTenantId === input.tenantId) return;
+  const partnerId = input.partnerId || null;
+  if (partnerId ? false : !input.referrerTenantId || input.referrerTenantId === input.tenantId) return;
   const reference = db.doc(`saasReferrals/${input.tenantId}`);
   const [referrer, referred] = await Promise.all([
-    db.doc(`tenants/${input.referrerTenantId}`).get(),
+    partnerId ? db.doc(`saasPartners/${partnerId}`).get() : db.doc(`tenants/${input.referrerTenantId}`).get(),
     db.doc(`tenants/${input.tenantId}`).get(),
   ]);
+  const referrerName = partnerId
+    ? String(referrer.get("business") || referrer.get("name") || "").trim()
+    : studioNameOf(referrer);
   await db.runTransaction(async (transaction) => {
     const existing = await transaction.get(reference);
-    if (existing.exists && existing.get("referrerTenantId") !== input.referrerTenantId) return;
+    // The first referrer keeps it, studio or partner.
+    if (existing.exists && (existing.get("partnerId") ?? null) !== partnerId) return;
+    if (existing.exists && !partnerId && existing.get("referrerTenantId") !== input.referrerTenantId) return;
     transaction.set(
       reference,
       {
         id: input.tenantId,
         tenantId: input.tenantId,
         studioName: studioNameOf(referred) || null,
-        referrerTenantId: input.referrerTenantId,
-        referrerName: studioNameOf(referrer) || null,
+        referrerTenantId: partnerId ? "" : input.referrerTenantId,
+        partnerId,
+        referrerName: referrerName || null,
         code: input.code,
         via: existing.get("via") ?? input.via ?? "code",
         status: input.status,
@@ -153,6 +183,7 @@ export async function recordReferral(
         paidAt: existing.get("paidAt") ?? null,
         amountPaidCents: existing.get("amountPaidCents") ?? null,
         creditedAt: existing.get("creditedAt") ?? null,
+        qualifiedAt: existing.get("qualifiedAt") ?? null,
         forfeitedAt: existing.get("forfeitedAt") ?? null,
         updatedAt: input.now,
       },
@@ -230,6 +261,14 @@ export async function settleReferralCredits(db: Firestore, nowIso: string): Prom
       }
       if (decision !== "credit") {
         if (decision === "hold") held += 1;
+        continue;
+      }
+      // A partner's referral: it now counts toward what they're owed, which
+      // the Console tallies and the team pays by hand. No Stripe credit: a
+      // partner has no StudioCue bill. `creditedAt` marks it settled.
+      if (referral.get("partnerId")) {
+        await referral.ref.update({ qualifiedAt: nowIso, creditedAt: nowIso, creditKind: "partner", updatedAt: nowIso });
+        credited += 1;
         continue;
       }
       const creditReference = db.doc(`saasReferralCredits/${referral.id}`);

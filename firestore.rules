@@ -1030,6 +1030,17 @@ service cloud.firestore {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }
+    // Referral partners (Console → Referrals → Partners): vendors with their
+    // own referral code, and the payouts the team sent them by hand. Written
+    // only by saasAdminCommand (console/handlers/partners.ts).
+    match /saasPartners/{partnerId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+    match /saasPartnerPayouts/{payoutId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
     match /vendorInvites/{emailHash} {
       allow read: if isPlatformAdmin();
       allow write: if false;

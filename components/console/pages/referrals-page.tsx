@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { collection, limit, query } from "firebase/firestore";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -12,15 +12,19 @@ import { useNow } from "@/lib/console/use-now";
 import { useConsole } from "../console-context";
 import { Topbar } from "../console-frame";
 import { DataTable } from "../data-table";
-import { Empty, Notice, PageHead, Panel, Pill, Stat, StatStrip } from "../ui";
+import { Empty, Notice, PageHead, Panel, Pill, Stat, StatStrip, Tabs } from "../ui";
+import { NewPartnerButton, PartnersTab } from "./partners-tab";
 
 /**
  * Referrals (docs/console.md, "Referrals"): every studio's code, who signed up
  * with one, and the one-off $100 credits, each paid once the new studio has
  * been paying for three months (saas/referrals.ts). It
- * replaces Partners (2026-10-07), so there is nothing to run here: codes are
- * made for every studio, credits go on by themselves, and vendor invites send
- * themselves. This page is where to check they did.
+ * replaced Partners (2026-10-07): codes are made for every studio, credits go
+ * on by themselves, and vendor invites send themselves.
+ *
+ * Partners came back on 2026-10-12 as their own tab (partners-tab.tsx):
+ * vendors who aren't StudioCue customers, with a code the team makes for
+ * them and payouts the team sends by hand.
  */
 
 type Referral = {
@@ -36,6 +40,7 @@ type Referral = {
   paidAt?: string | null;
   creditedAt?: string | null;
   forfeitedAt?: string | null;
+  partnerId?: string | null;
 };
 type Credit = { id: string; referrerTenantId: string; referredTenantId: string; amountCents: number; createdAt: string };
 type Invite = { id: string; tenantId: string; vendorType?: string; createdAt: string; signedUpTenantId?: string | null };
@@ -46,13 +51,37 @@ const STATE_TONE = { trial: "info", paying: "warn", credited: "ok", forfeited: "
 const stateOf = (row: Referral): State => (row.creditedAt ? "credited" : row.forfeitedAt ? "forfeited" : row.paidAt ? "paying" : "trial");
 
 export function ReferralsPage() {
+  const [tab, setTab] = useState<"partners" | "studios">("partners");
+  const [partner, setPartner] = useState<"new" | string | null>(null);
+  return (
+    <>
+      <Topbar crumbs={[{ label: "Grow" }, { label: "Referrals" }]}>
+        {tab === "partners" ? <NewPartnerButton onClick={() => setPartner("new")} /> : null}
+      </Topbar>
+      <div className="cx-content">
+        <Tabs
+          label="Referrals"
+          onChange={setTab}
+          tabs={[
+            { key: "partners", label: "Partners" },
+            { key: "studios", label: "Studio referrals" },
+          ]}
+          value={tab}
+        />
+        {tab === "partners" ? <PartnersTab open={partner} setOpen={setPartner} /> : <StudioReferrals />}
+      </div>
+    </>
+  );
+}
+
+function StudioReferrals() {
   const { studios } = useConsole();
   const now = useNow();
   const referrals = useLiveQuery<Referral>("console:referrals", (firestore) => query(collection(firestore, "saasReferrals"), limit(10000)));
   const credits = useLiveQuery<Credit>("console:referral-credits", (firestore) => query(collection(firestore, "saasReferralCredits"), limit(5000)));
   const invites = useLiveQuery<Invite>("console:vendor-invites", (firestore) => query(collection(firestore, "vendorInvites"), limit(10000)));
   const names = useMemo(() => new Map((studios.rows ?? []).map((studio) => [studio.tenantId, studio.name])), [studios.rows]);
-  const rows = referrals.rows ?? [];
+  const rows = (referrals.rows ?? []).filter((row) => !row.partnerId);
   const paying = rows.filter((row) => stateOf(row) === "paying").length;
   const creditedCents = (credits.rows ?? []).reduce((sum, credit) => sum + Number(credit.amountCents ?? 0), 0);
   const invited = invites.rows ?? [];
@@ -101,9 +130,7 @@ export function ReferralsPage() {
 
   return (
     <>
-      <Topbar crumbs={[{ label: "Grow" }, { label: "Referrals" }]} />
-      <div className="cx-content">
-        <PageHead title="Referrals">
+        <PageHead title="Studio referrals">
           <StatStrip>
             <Stat label="Referred studios" value={rows.length} />
             <Stat label="Credit still to come" tone={paying ? "warn" : undefined} value={money(paying * REFERRAL_CREDIT_CENTS)} />
@@ -158,9 +185,8 @@ export function ReferralsPage() {
           getRowId={(row) => row.id}
           initialSort={[{ id: "signed", desc: true }]}
           label="Referred studios"
-          rows={referrals.rows}
+          rows={referrals.rows?.filter((row) => !row.partnerId) ?? null}
         />
-      </div>
     </>
   );
 }

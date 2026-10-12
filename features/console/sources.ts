@@ -82,7 +82,15 @@ export type AttributionRecord = {
 };
 
 /** `saasReferrals/{tenantId}`: who referred the studio (saas/referrals.ts). */
-export type ReferralRef = { tenantId: string; referrerTenantId: string; referrerName?: string | null; via?: string | null; paidAt?: string | null };
+export type ReferralRef = {
+  tenantId: string;
+  referrerTenantId: string;
+  /** A referral partner's code (Console → Referrals → Partners), not a studio's. */
+  partnerId?: string | null;
+  referrerName?: string | null;
+  via?: string | null;
+  paidAt?: string | null;
+};
 /** `saasReferralCodes/{code}`: whose code it is. */
 export type ReferralCodeRef = { code: string; tenantId: string };
 
@@ -154,12 +162,14 @@ export function classifyStudio(input: {
   const base = { linkChannel: link?.channel ?? null, linkDetail: link?.detail ?? null, campaign, landing };
   const codes = [attribution?.promotionCode, attribution?.first?.code, attribution?.last?.code].filter((code): code is string => Boolean(code));
   const referrerTenantId =
-    referral?.referrerTenantId ?? codes.map((code) => input.codes?.get(code)).find((id) => id && id !== input.tenantId) ?? null;
+    referral?.referrerTenantId || codes.map((code) => input.codes?.get(code)).find((id) => id && id !== input.tenantId) || null;
   const referrerName = referral?.referrerName ?? (referrerTenantId ? input.studioName?.(referrerTenantId) ?? null : null);
   const referrerFields = { referrerTenantId };
 
   if (attribution?.manual?.channel)
     return { channel: attribution.manual.channel, basis: "manual", detail: attribution.manual.detail ?? null, ...referrerFields, ...base };
+  if (referral?.partnerId)
+    return { channel: "referral", basis: "referral", detail: [referral.referrerName, "partner"].filter(Boolean).join(" · "), ...referrerFields, ...base };
   if (referrerTenantId)
     return {
       channel: "referral",

@@ -221,9 +221,12 @@ async function referredBy(
   rawCode: string | undefined,
   tenantId: string,
   uid: string,
-): Promise<{ code: string; referrerTenantId: string; via: string } | null> {
+): Promise<{ code: string; referrerTenantId: string; via: string; partnerId?: string | null } | null> {
   const referral = await lookupReferral(db, rawCode).catch(() => null);
-  if (!referral || referral.referrerTenantId === tenantId) return null;
+  if (!referral) return null;
+  // A referral partner's code (the Console's Partners): no studio to own.
+  if (referral.partnerId) return { code: referral.code, referrerTenantId: "", partnerId: referral.partnerId, via: "partner" };
+  if (referral.referrerTenantId === tenantId) return null;
   const ownsReferrer = await db.doc(`memberships/${referral.referrerTenantId}_${uid}`).get();
   if (ownsReferrer.exists && ownsReferrer.get("role") === "studio_owner") return null;
   const user = await getAuth().getUser(uid).catch(() => null);
@@ -483,7 +486,8 @@ export const billingCommand = onRequest(
           // Carried on the subscription, so the webhook ties the studio to its
           // referrer only once Checkout has actually completed.
           params.set("subscription_data[metadata][referralCode]", referral.code);
-          params.set("subscription_data[metadata][referrerTenantId]", referral.referrerTenantId);
+          if (referral.partnerId) params.set("subscription_data[metadata][referralPartnerId]", referral.partnerId);
+          else params.set("subscription_data[metadata][referrerTenantId]", referral.referrerTenantId);
           params.set("subscription_data[metadata][referralVia]", referral.via);
         }
         // A discount the team applied in the Console before the card was
@@ -764,10 +768,12 @@ export async function writeSubscriptionFromStripe(
   // Another studio's referral code ties this studio to it (saas/referrals.ts).
   const subscriptionMetadata = (object.metadata ?? {}) as Record<string, unknown>;
   const referrerTenantId = typeof subscriptionMetadata.referrerTenantId === "string" ? subscriptionMetadata.referrerTenantId : "";
-  await (referrerTenantId
+  const referralPartnerId = typeof subscriptionMetadata.referralPartnerId === "string" ? subscriptionMetadata.referralPartnerId : "";
+  await (referrerTenantId || referralPartnerId
     ? recordReferral(subscriptionReference.firestore, {
         tenantId,
         referrerTenantId,
+        partnerId: referralPartnerId || null,
         code: String(subscriptionMetadata.referralCode ?? ""),
         via: typeof subscriptionMetadata.referralVia === "string" ? subscriptionMetadata.referralVia : null,
         status,

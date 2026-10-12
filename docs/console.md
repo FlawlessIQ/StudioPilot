@@ -295,7 +295,7 @@ The usual emulator recipe works. With `BILLING_MOCK_MODE=true` in
 
 ## Referrals
 
-Added 2026-10-08 (Conor). It replaces Partners (2026-10-07), whose codes, payouts, 1099s and statement links are gone: no partner was ever created.
+Added 2026-10-08 (Conor). It replaced Partners (2026-10-07), whose codes, payouts, 1099s and statement links are gone: no partner was ever created. Partners came back on 2026-10-12 in a simpler form: see **Referral partners** below.
 
 - **Every studio has a code.** It's made the first time anything asks for it (`ensureReferralCode`, `saas/referrals.ts`), from the studio's name (GRPRODUCTIONS). It lives in `saasReferralCodes/{CODE}` and `tenants/{id}.referralCode`, and shows with its link on the studio's Subscription page (Refer a studio, owners only).
 - **The offer** is for the Studio plan, on a studio's first checkout, never with its own code:
@@ -313,7 +313,17 @@ Added 2026-10-08 (Conor). It replaces Partners (2026-10-07), whose codes, payout
   - Once per address, ever (`vendorInvites/{sha256(email)}`). Never to an existing StudioCue user, a client of that studio, or anyone unsubscribed.
   - At most 10 per studio and 200 per run.
   - The email is StudioCue's letterhead, `tenantId: "platform"`, naming the studio, with a one-click unsubscribe header and link (`/api/public/unsubscribe` → `emailSuppressions`), which the sender checks again before sending.
-- **Console → Grow → Referrals** is read-only: referred studios and their credit state, credits added, vendors invited and signups from them. Sources files these studios under **Studio referral**.
+- **Console → Grow → Referrals → Studio referrals** is read-only: referred studios and their credit state, credits added, vendors invited and signups from them. Sources files these studios under **Studio referral**.
+
+### Referral partners
+
+Added 2026-10-12 (Conor): planners, DJs, hair and makeup artists who aren't StudioCue customers and send photographers to us with their own code. Gabe makes the codes. Grow → Referrals → **Partners** (the first tab).
+
+- **New partner code** (operators, `codes.write`): name, business, contact, type, how we pay them, and the code (4–20 letters and numbers, e.g. SARAHMUA). `createPartner` (`console/handlers/partners.ts`) writes `saasPartners/{id}` and `saasReferralCodes/{CODE}` → `partnerId`, refusing a code already used as a discount code or a studio's referral code. The code never changes; turning a partner off stops new sign-ups using it.
+- **The code is a referral code.** The signup link (`/auth/register?code=SARAHMUA`) carries it to checkout, where `billingCommand` gives the photographer the same referral offer as a studio's code, on whichever cadence they choose: one code, both prices. The partner rides on the subscription metadata (`referralPartnerId`), and the webhook records `saasReferrals/{tenantId}` with `partnerId`.
+- **A referral counts** on the same rule as a studio's credit: three months after the photographer's first payment, still `active`. `referralCreditScheduler` marks it `qualifiedAt` (no Stripe credit: a partner has no bill). Canceled before then = doesn't count.
+- **Pay** (`features/console/partner-payouts.ts`): $100 per referral that counts; with more than 10, every one is $200, the first 10 included. The team pays by hand (Venmo, Zelle, check) and records it (`recordPartnerPayout`, `billing.write`, `saasPartnerPayouts`); the drawer shows earned, paid and owed. A payout recorded by mistake can be removed.
+- Sources files these studios under **Referral**, detail "{partner} · partner".
 
 ## Sources
 

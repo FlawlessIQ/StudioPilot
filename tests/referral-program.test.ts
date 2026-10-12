@@ -77,11 +77,16 @@ test("the referral price is applied on a first checkout of the Studio plan only,
   assert.doesNotMatch(referrals, /duration: [^\n]*"once"/);
 });
 
-test("Partners is gone: no page, handler, rule or statement link left", () => {
+// Partners left on 2026-10-08 and came back on 2026-10-12 (Conor: vendors
+// with a code Gabe makes in the Console). They're a tab on Referrals now, with
+// a referral code like a studio's, not the old page, statement links or 1099s.
+test("partners are a Referrals tab with a referral code, not the old Partners page", () => {
   const rules = read("firestore.rules");
-  assert.doesNotMatch(rules, /saasPartners|saasPartnerLinks|saasPartnerPayouts/);
+  assert.doesNotMatch(rules, /saasPartnerLinks/);
+  assert.match(rules, /match \/saasPartners\/\{partnerId\} \{\s*allow read: if isPlatformAdmin\(\);\s*allow write: if false;/);
   assert.doesNotMatch(read("components/console/nav.ts"), /\/platform-admin\/partners/);
-  assert.doesNotMatch(read("functions/src/console/handlers/index.ts"), /partner/i);
+  assert.match(read("functions/src/console/handlers/index.ts"), /\.\.\.partnerHandlers/);
+  assert.match(read("components/console/pages/referrals-page.tsx"), /<PartnersTab /);
 });
 
 test("every new scheduler is on the invoker allowlist", () => {
