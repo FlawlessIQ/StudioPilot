@@ -188,8 +188,50 @@ function extractOccasion(text: string): string | null {
   if (found.length !== 1) return null;
   const [occasion] = found;
   if (!WEDDING.test(text)) return occasion!.name;
-  const weddingAsked = new RegExp(ASKED_FOR + String.raw`wedding\b(?!\s+(?:hair|makeup))`, "i").test(text);
-  return occasion!.asked && !weddingAsked ? occasion!.name : null;
+  return occasion!.asked && !weddingAskedFor(text) ? occasion!.name : null;
+}
+
+/** The wedding itself is what they ask for: "for our wedding", never "my wedding hair". */
+function weddingAskedFor(text: string): boolean {
+  return new RegExp(ASKED_FOR + String.raw`wedding\b(?!\s+(?:hair|makeup))`, "i").test(text);
+}
+
+/**
+ * The occasion an AI read named, held to the rule the read above keeps
+ * (extractOccasion), which the model's own judgement does not.
+ *
+ * A photographer's "wedding June 6, and we'd love an engagement session too"
+ * could come back as an engagement session: the job would be named for it and
+ * its draft told never to say wedding (review, 2026-10-12). So the occasion is
+ * kept only when its name can carry it (cleanOccasion), the message names no
+ * second occasion, and — when the message is about a wedding at all — the
+ * occasion is what they ask for and the wedding is not. A message with no
+ * wedding in it ("makeup for my 40th birthday party") keeps the model's words.
+ */
+export function occasionFromRead(message: unknown, occasion: unknown): string | null {
+  const cleaned = cleanOccasion(occasion);
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!cleaned || !text) return null;
+  if (OCCASIONS.filter(([pattern]) => pattern.test(text)).length > 1) return null;
+  if (!WEDDING.test(text)) return cleaned;
+  if (weddingAskedFor(text)) return null;
+  // The occasion's own words in the message: its known spellings ("Mehndi"
+  // is also "mehendi"), or what the model wrote.
+  const known = OCCASIONS.find(([pattern]) => pattern.test(cleaned));
+  const words = known
+    ? known[0].source
+    : cleaned.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, String.raw`\s+`);
+  return new RegExp(ASKED_FOR + words, "i").test(text) ? cleaned : null;
+}
+
+/**
+ * A time already on a 24-hour clock, zero-padded, as the form's time field and
+ * createProject keep it: "07:00" as it is. Read again as free text, an early
+ * time with no AM or PM is dropped ("07:00" could be a guess at "7:00"), so a
+ * time that has been read once is checked, never re-read. Anything else null.
+ */
+export function storedClock(value: unknown): string | null {
+  return typeof value === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : null;
 }
 
 /**

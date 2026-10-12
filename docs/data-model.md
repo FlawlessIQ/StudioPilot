@@ -38,16 +38,19 @@ cannot create prices or confirm availability.
 ### `jobSourceMessages`
 
 The message a job was made from on New job ("Tell me about the booking"), keyed
-by the job's id: the pasted text, the read's one-line summary, and the occasion
-the job's name carries ("Sangeet"). A job made by hand has no lead, so this is
-where the client's own words are kept. Written once by `createProject` in the
+by the job's id: the pasted text (the client's email or text, or the studio's
+own description of the job), the read's one-line summary, and the occasion the
+job's name carries ("Sangeet"). A job made by hand has no lead, so this is where
+what the job was made from is kept. Written once by `createProject` in the
 same transaction as the job, never by a browser; readable by the owner, an admin
 and an assigned coordinator only — never crew, never the client
 (`firestore.rules`). Job history opens with it, and "Draft from what they told
-you" reads it as the inquiry's message (`functions/src/crm/job-source-message.ts`).
+you" reads it as the inquiry's message, marked `pastedByStudio` so the studio's
+own notes are never quoted back to the client as theirs
+(`functions/src/crm/job-source-message.ts`, `functions/src/ai/copilot.ts`).
 The ready-by time the message gave is not kept here: the studio confirms it on
-the form, and it goes on the project as `readyByTime`, where the party list reads
-it.
+the form, and it goes on the project as `readyByTime` (24-hour HH:MM), where the
+party list and the draft read it as that clock.
 
 ### Kinds of job (no collection)
 

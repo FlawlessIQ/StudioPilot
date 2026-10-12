@@ -18,8 +18,8 @@ import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { consumeAiQuota } from "../saas/usage.js";
 import { productEvent } from "../operations/product-events.js";
-import { cleanOccasion, deterministicIntakeExtraction } from "./intake-prefill.js";
-import { spokenClock } from "../planning/job-facts.js";
+import { cleanOccasion, deterministicIntakeExtraction, occasionFromRead, storedClock } from "./intake-prefill.js";
+import { clockTime, spokenClock } from "../planning/job-facts.js";
 import { jobSourceMessageOf } from "../crm/job-source-message.js";
 import { cloudAccessToken } from "./vertex-token.js";
 import {
@@ -192,22 +192,45 @@ const intakeExtractionSchema = z.object({
   readyByTime: z.string().max(40).nullable().default(null),
 });
 
-/** What the intake read is told about the occasion and the ready-by time. */
+/**
+ * What the intake read is told about the occasion and the ready-by time.
+ *
+ * The occasion follows the deterministic read's rule (intake-prefill.ts
+ * extractOccasion), and readIntakeExtras holds the answer to it again: a
+ * wedding inquiry that mentions an engagement session is still the wedding.
+ * The time comes back as the message wrote it, AM or PM and all, and is read
+ * once, the way an inquiry's ready-by answer is: asked for a 24-hour clock,
+ * the model turned "ready by 7:00 AM" into "07:00", which then read as a guess
+ * and was dropped (review, 2026-10-12).
+ */
 export const INTAKE_OCCASION_AND_TIME =
-  "occasion is the particular occasion the message is about when it is more specific than the kind of job — a Sangeet, a Mehndi, a rehearsal dinner, an engagement party, a bridal shower — in the client's own words without an article; null when it is simply the wedding, session or event itself, or none is named. readyByTime is the time everyone must be ready by (\"hair done by 5:30 PM\", \"ready by noon\") as HH:MM on a 24-hour clock, only when the message states it; never an arrival, start or ceremony time.";
+  "occasion is the particular occasion the message asks the studio for when it is more specific than the kind of job — a Sangeet, a Mehndi, a rehearsal dinner, an engagement party, a bridal shower — in the client's own words without an article. occasion is null when the message is simply about the wedding, session or event itself; when it also asks for the wedding (or session or event) itself, as in \"our wedding June 6, and we'd love an engagement session too\"; when it only mentions another event; when it names more than one occasion; or when none is named. readyByTime is the time everyone must be ready by (\"hair done by 5:30 PM\", \"ready by 7:00 AM\", \"ready by noon\") exactly as the message writes it, keeping its AM or PM; never convert it to a 24-hour clock and never add an AM or PM the message does not give. Only when the message states it; never an arrival, start or ceremony time.";
 
 /**
  * The read's occasion and ready-by time, in the shapes the form takes: an
- * occasion a job's name can carry (intake-prefill.ts cleanOccasion), and the
- * time as HH:MM, read the way an inquiry's ready-by answer is (job-facts.ts
- * spokenClock). Anything else is null.
+ * occasion a job's name can carry, and the time as zero-padded HH:MM.
+ *
+ * The model's answers are held to the deterministic read's rules: the
+ * occasion only when it is what the message asks for (intake-prefill.ts
+ * occasionFromRead), and the time read once from the message's own words, as
+ * an inquiry's ready-by answer is (job-facts.ts spokenClock). The
+ * deterministic read has already done both, so its time is checked as the
+ * HH:MM it is (storedClock) — read again, "07:00" would be dropped as a guess.
+ * Anything else is null.
  */
 export function readIntakeExtras<T extends { occasion?: string | null; readyByTime?: string | null }>(
   extraction: T,
+  read: { message: string; by: "ai" | "deterministic" },
 ): T & { occasion: string | null; readyByTime: string | null } {
+  if (read.by === "deterministic")
+    return {
+      ...extraction,
+      occasion: cleanOccasion(extraction.occasion),
+      readyByTime: storedClock(extraction.readyByTime),
+    };
   return {
     ...extraction,
-    occasion: cleanOccasion(extraction.occasion),
+    occasion: occasionFromRead(read.message, extraction.occasion),
     readyByTime: spokenClock(extraction.readyByTime) || null,
   };
 }
@@ -2063,6 +2086,7 @@ async function generateIntake(
           guestCount: null,
           summary: null,
         }),
+        { message, by: "deterministic" },
       ),
       mode: "deterministic" as const,
     };
@@ -2131,7 +2155,7 @@ async function generateIntake(
     if (typeof output !== "string") throw new Error("VERTEX_AI_EMPTY_OUTPUT");
     const parsed = intakeExtractionSchema.safeParse(JSON.parse(output));
     if (!parsed.success) return fallback();
-    return { extraction: readIntakeExtras(parsed.data), mode: "ai" };
+    return { extraction: readIntakeExtras(parsed.data, { message, by: "ai" }), mode: "ai" };
   } catch {
     // A model outage must never block creating a project by hand.
     return fallback();
@@ -2173,11 +2197,13 @@ export function proposalDraftInstruction(trade: unknown): string {
  * occasion so the kind's word does not win over it, and keeps the trade's
  * "morning" out of a job whose own time says otherwise. Empty when the job has
  * neither an occasion nor a ready-by time, so every other prompt reads as it
- * did.
+ * did. The time is the project's own, stored as 24-hour HH:MM, and read as
+ * that clock (job-facts.ts clockTime), never as the couple's words: read as
+ * words, 07:00 was dropped as a guess (review, 2026-10-12).
  */
 export function occasionInstructionParts(project: Json): Array<{ text: string }> {
   const occasion = cleanOccasion(project.occasion);
-  const readyBy = spokenClock(project.readyByTime);
+  const readyBy = clockTime(project.readyByTime);
   if (!occasion && !readyBy) return [];
   const timeOfDay =
     "Say a time of day (morning, afternoon, evening) only as `inquiry.message`" +
@@ -2188,6 +2214,28 @@ export function occasionInstructionParts(project: Json): Array<{ text: string }>
       text: occasion
         ? `This job is for the client's ${occasion} (\`project.occasion\`): call it their ${occasion}, never their wedding or wedding day. ${timeOfDay}`
         : timeOfDay,
+    },
+  ];
+}
+
+/**
+ * Said once when `inquiry.message` is the message a job was made from on New
+ * job, not an inquiry the client sent.
+ *
+ * The drafting prompt reads `inquiry.message` as the client's own words and
+ * reflects them back in the second person. New job asks the studio to paste
+ * the client's email "or just describe the job in your own words", so the kept
+ * message can be the studio's note ("returning client, wants a discount, hold
+ * firm"), which must never be echoed to the client as something they said
+ * (review, 2026-10-12). The studio approves every draft before it is sent; this
+ * keeps its notes out of the draft in the first place. Empty for an inquiry's
+ * message, so every other prompt reads as it did.
+ */
+export function pastedMessageInstructionParts(inquiry: Json): Array<{ text: string }> {
+  if (inquiry.pastedByStudio !== true) return [];
+  return [
+    {
+      text: "`inquiry.message` was pasted or written by the studio when it made this job (`inquiry.pastedByStudio`), not sent by the client: it may be the client's own email or text, or the studio's own description of the job. Take as what THEY said only what is plainly the client's own words, and never repeat to the client anything that reads as the studio's own notes — about pricing or discounts, about the client, or about the studio's plans.",
     },
   ];
 }
@@ -2301,6 +2349,9 @@ export async function generateProposalDraft(facts: {
               // Only for a job made from a message that named its occasion, or
               // one with a ready-by time: every other prompt is as it was.
               ...occasionInstructionParts(facts.project),
+              // Only for a job made from a message pasted on New job: the
+              // studio's paste is not the client's own inquiry.
+              ...pastedMessageInstructionParts(facts.inquiry),
               US_ENGLISH_PART,
             ],
           },
@@ -2584,9 +2635,10 @@ export const aiCopilotCommand = onRequest(
             ...(source?.occasion ? { occasion: source.occasion } : {}),
             // When everyone must be ready, as the studio confirmed it on New
             // job (a makeup artist's or hair stylist's only): the draft knows
-            // an evening job is one. Absent on every other job.
-            ...(spokenClock(projectDocument.get("readyByTime"))
-              ? { readyByTime: spokenClock(projectDocument.get("readyByTime")) }
+            // an evening job is one. Absent on every other job. Stored as
+            // 24-hour HH:MM and read as that clock, so 07:00 stays 07:00.
+            ...(clockTime(projectDocument.get("readyByTime"))
+              ? { readyByTime: clockTime(projectDocument.get("readyByTime")) }
               : {}),
           },
           consultation: {
@@ -2596,6 +2648,10 @@ export const aiCopilotCommand = onRequest(
           inquiry: {
             message: lead?.message ?? source?.message ?? null,
             summary: lead?.aiSummary ?? source?.summary ?? null,
+            // The message a job was made from on New job is the studio's
+            // paste (the client's email, or the studio's own note), never
+            // read as the client's own words: pastedMessageInstructionParts.
+            ...((lead?.message ?? null) === null && source ? { pastedByStudio: true } : {}),
           },
           packages: jobSnapshots.map(({ data }) => ({
             packageName: data.packageName,

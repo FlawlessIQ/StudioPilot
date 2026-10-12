@@ -306,11 +306,15 @@ export function jobFactSheet(input: {
   fromProject("venue_address", formattedAddress(venue), "venue");
   fromProject("venue_city", text(project.city) || text(venue.city), project.city ? "city" : "venue.city");
   // A job made on New job has no inquiry to answer the party list's ready-by
-  // question, so the time the studio confirmed there does, read the same way
-  // as an inquiry's answer below. "Hair done by 5:30 PM" for Priya Shah's
-  // Sangeet was lost with the message it came in (Jess Styles Bridal,
-  // 2026-10-12). Only a makeup artist's or hair stylist's form sends it.
-  fromProject("ready_by_time", spokenClock(project.readyByTime), "readyByTime");
+  // question, so the time the studio confirmed there does, ahead of an
+  // inquiry's answer below. "Hair done by 5:30 PM" for Priya Shah's Sangeet
+  // was lost with the message it came in (Jess Styles Bridal, 2026-10-12).
+  // Only a makeup artist's or hair stylist's form sends it. It is stored from
+  // a time field as 24-hour HH:MM (createProject checks it), so it is read as
+  // that clock, never as the couple's words: spokenClock drops any time
+  // before 8 with no AM or PM, and a studio that confirmed 07:00 got a blank
+  // ready-by (review, 2026-10-12).
+  fromProject("ready_by_time", clockTime(project.readyByTime), "readyByTime");
 
   const contacts = input.contacts.filter((contact) => !contact.data.archivedAt);
   const [first, second] = contacts;

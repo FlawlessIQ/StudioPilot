@@ -9,10 +9,18 @@ import {
   occasionKept,
   teamEmailsOf,
 } from "@/features/crm/new-job-from-message";
-import { cleanOccasion, prefillFromText, readyByClock } from "@/features/crm/project-prefill";
+import { cleanOccasion, occasionFromRead, prefillFromText, readyByClock, storedClock } from "@/features/crm/project-prefill";
 import { projectThread } from "@/features/journey/thread";
-import { occasionInstructionParts, readIntakeExtras } from "../functions/src/ai/copilot.js";
-import { deterministicIntakeExtraction } from "../functions/src/ai/intake-prefill.js";
+import {
+  INTAKE_OCCASION_AND_TIME,
+  occasionInstructionParts,
+  pastedMessageInstructionParts,
+  readIntakeExtras,
+} from "../functions/src/ai/copilot.js";
+import {
+  deterministicIntakeExtraction,
+  occasionFromRead as functionsOccasionFromRead,
+} from "../functions/src/ai/intake-prefill.js";
 import {
   jobSourceMessageInputSchema,
   jobSourceMessageOf,
@@ -241,16 +249,131 @@ test("the AI read is asked for the occasion and the ready-by time, and both are 
   assert.match(copilot, /occasion: \{ type: "STRING", nullable: true \}/);
   assert.match(copilot, /readyByTime: \{ type: "STRING", nullable: true \}/);
   assert.match(copilot, /INTAKE_OCCASION_AND_TIME \+/);
+  const ai = { message: PRIYA_MESSAGE, by: "ai" } as const;
   assert.deepEqual(
-    readIntakeExtras({ email: "a@b.c", occasion: "her Sangeet", readyByTime: "5:30 PM" }),
+    readIntakeExtras({ email: "a@b.c", occasion: "her Sangeet", readyByTime: "5:30 PM" }, ai),
     { email: "a@b.c", occasion: "Sangeet", readyByTime: "17:30" },
   );
   // A model that guessed, or an older reply without either: nothing.
-  assert.deepEqual(readIntakeExtras({ occasion: "wedding", readyByTime: "around 5" }), {
+  assert.deepEqual(readIntakeExtras({ occasion: "wedding", readyByTime: "around 5" }, ai), {
     occasion: null,
     readyByTime: null,
   });
-  assert.deepEqual(readIntakeExtras({}), { occasion: null, readyByTime: null });
+  assert.deepEqual(readIntakeExtras({}, ai), { occasion: null, readyByTime: null });
+  // Both reads call the function with what they are.
+  assert.match(copilot, /\{ message, by: "deterministic" \}/);
+  assert.match(copilot, /readIntakeExtras\(parsed\.data, \{ message, by: "ai" \}\)/);
+});
+
+// ── Review, 2026-10-12: an early ready-by time, and the model's occasion ──
+
+test("an early ready-by time survives every read: 'ready by 7:00 AM' is 07:00 from message to party list", () => {
+  const message =
+    "Hi Jess, it's Ava Chen (ava@example.com). Bridal hair for 4 on June 6, 2027 at Ryland Inn. Everyone needs to be ready by 7:00 AM.";
+  // The deterministic read, in the app and in functions.
+  assert.equal(prefillFromText(message).readyByTime, "07:00");
+  const quick = deterministicIntakeExtraction(message);
+  assert.equal(quick.readyByTime, "07:00");
+  // Already read once: checked as the HH:MM it is, never read again as words.
+  assert.equal(readIntakeExtras(quick, { message, by: "deterministic" }).readyByTime, "07:00");
+  assert.equal(readIntakeExtras({ readyByTime: "07:30" }, { message, by: "deterministic" }).readyByTime, "07:30");
+  // The AI read answers as the message wrote it, and that is read once.
+  assert.equal(readIntakeExtras({ readyByTime: "7:00 AM" }, { message, by: "ai" }).readyByTime, "07:00");
+  assert.equal(readIntakeExtras({ readyByTime: "7:00 a.m." }, { message, by: "ai" }).readyByTime, "07:00");
+  // A bare early hour is still a guess, from the model as from an inquiry.
+  assert.equal(readIntakeExtras({ readyByTime: "7:00" }, { message, by: "ai" }).readyByTime, null);
+  // The model is asked for the message's own words, AM or PM and all.
+  assert.match(INTAKE_OCCASION_AND_TIME, /exactly as the message writes it, keeping its AM or PM/);
+  assert.match(INTAKE_OCCASION_AND_TIME, /never convert it to a 24-hour clock/);
+  assert.doesNotMatch(INTAKE_OCCASION_AND_TIME, /as HH:MM on a 24-hour clock/);
+
+  // The browser takes the function's HH:MM as it comes.
+  assert.equal(storedClock("07:00"), "07:00");
+  assert.equal(storedClock("17:30"), "17:30");
+  for (const value of ["7:00", "7:00 AM", "24:00", "17:60", "", null, 700]) assert.equal(storedClock(value), null, String(value));
+  assert.match(
+    read("", "lib/ai/project-intake-client.ts"),
+    /readyByTime:\s*storedClock\(body\.extraction\.readyByTime\) \?\?\s*readyByClock\(body\.extraction\.readyByTime\)/,
+  );
+
+  // The party list reads the project's 07:00 as the clock it is stored as.
+  const sheet = jobFactSheet({
+    projectId: "early",
+    project: { eventDate: "2027-06-06", eventType: "Wedding", state: "BOOKED", readyByTime: "07:00" },
+    leadId: null,
+    lead: null,
+    contacts: [],
+    vendors: [],
+    schedule: null,
+    responses: [],
+  });
+  assert.equal(sheet.facts.ready_by_time?.value, "07:00");
+  for (const trade of ["hair", "makeup"] as const) {
+    const form = recommendedFor(trade)[0]!;
+    const { answers } = prefillFromFacts({ sheet, sections: form.sections, trade });
+    assert.equal(answers["ready-by-time"], "07:00", trade);
+  }
+  // And so does the draft.
+  const [early] = occasionInstructionParts({ readyByTime: "07:00" });
+  assert.match(early!.text, /project\.readyByTime/);
+  const copilot = read("", "functions/src/ai/copilot.ts");
+  assert.match(copilot, /const readyBy = clockTime\(project\.readyByTime\);/);
+  assert.match(read("", "functions/src/planning/job-facts.ts"), /fromProject\("ready_by_time", clockTime\(project\.readyByTime\), "readyByTime"\);/);
+});
+
+test("the model's occasion is held to the deterministic read's rule", () => {
+  const cases: Array<[string, string, string | null]> = [
+    [PRIYA_MESSAGE, "Sangeet", "Sangeet"],
+    // A photographer's wedding inquiry that mentions an engagement session is the wedding.
+    [
+      "Hi! Our wedding is June 6, 2027 at Ryland Inn and we'd love an engagement session too. Ava & Liam Chen ava@example.com",
+      "engagement session",
+      null,
+    ],
+    ["Can you book us for our wedding on June 6 and our engagement session in May? Ava ava@example.com", "engagement session", null],
+    // A returning bride: the wedding is behind her, the Sangeet is the ask.
+    ["Hi Jess, you did my wedding hair last month! Could you do my Sangeet on October 12? Priya", "Sangeet", "Sangeet"],
+    // The wedding itself is asked for: the Sangeet is only mentioned.
+    ["Hair for my wedding on June 6 2027, and we have a Sangeet the night before. Ava", "Sangeet", null],
+    // Two occasions are the studio's to name.
+    ["Could you do hair for my Sangeet and my Mehndi next week? Ava", "Sangeet", null],
+    // A known occasion's other spellings are its words.
+    ["We loved you at my sister's wedding! Could you do my mehendi on June 4? Ava", "Mehndi", "Mehndi"],
+    // The model's own words, with characters a pattern would read as its own.
+    ["We loved you at our wedding! Could you do hair for my mom's 60th (birthday) on May 3? Ava", "mom's 60th (birthday)", "mom's 60th (birthday)"],
+    // No wedding in the message: the model's occasion stands.
+    ["Makeup for my 40th birthday party on May 3, 2027? Nia nia@example.com", "40th birthday party", "40th birthday party"],
+    // Never the kind of job itself, and never without a message.
+    [PRIYA_MESSAGE, "wedding", null],
+    ["", "Sangeet", null],
+  ];
+  for (const [message, occasion, expected] of cases) {
+    assert.equal(occasionFromRead(message, occasion), expected, message);
+    assert.equal(functionsOccasionFromRead(message, occasion), expected, `functions: ${message}`);
+    assert.equal(readIntakeExtras({ occasion }, { message, by: "ai" }).occasion, expected, `extras: ${message}`);
+    // Whatever the deterministic read finds in a message, the rule keeps.
+    const found = prefillFromText(message).occasion;
+    if (found) assert.equal(occasionFromRead(message, found), found, `agrees: ${message}`);
+  }
+  // The model is told the same rule.
+  assert.match(INTAKE_OCCASION_AND_TIME, /when it also asks for the wedding \(or session or event\) itself/);
+  assert.match(INTAKE_OCCASION_AND_TIME, /"our wedding June 6, and we'd love an engagement session too"/);
+  assert.match(INTAKE_OCCASION_AND_TIME, /when it names more than one occasion/);
+});
+
+test("a message the studio pasted is never read back to the client as theirs", () => {
+  const copilot = read("", "functions/src/ai/copilot.ts");
+  const handler = copilot.slice(copilot.indexOf('kind === "proposal_drafting"'), copilot.indexOf('kind === "list_threads"'));
+  // Only when the draft's message is the kept one: an inquiry's is the client's own.
+  assert.match(handler, /\.\.\.\(\(lead\?\.message \?\? null\) === null && source \? \{ pastedByStudio: true \} : \{\}\)/);
+  assert.match(copilot, /\.\.\.pastedMessageInstructionParts\(facts\.inquiry\),/);
+  const [pasted] = pastedMessageInstructionParts({ message: "returning client, wants a discount, hold firm", pastedByStudio: true });
+  assert.match(pasted!.text, /was pasted or written by the studio/);
+  assert.match(pasted!.text, /only what is plainly the client's own words/);
+  assert.match(pasted!.text, /never repeat to the client anything that reads as the studio's own notes/);
+  // An inquiry's message, and every other draft, reads as it did.
+  assert.deepEqual(pastedMessageInstructionParts({ message: "We're getting married!", summary: null }), []);
+  assert.deepEqual(pastedMessageInstructionParts({ message: null, pastedByStudio: "yes" }), []);
 });
 
 // ── F3: the ready-by time reaches the party list ────────────────────────
@@ -406,7 +529,7 @@ test("'Draft from what they told you' reads the kept message, its occasion and i
   assert.match(handler, /db\.doc\(`jobSourceMessages\/\$\{draftRequest\.projectId\}`\)\.get\(\)/);
   assert.match(handler, /jobSourceMessageOf\(\s*sourceDocument\.data\(\),\s*draftRequest\.tenantId,\s*draftRequest\.projectId,\s*\)/);
   assert.match(handler, /\.\.\.\(source\?\.occasion \? \{ occasion: source\.occasion \} : \{\}\)/);
-  assert.match(handler, /readyByTime: spokenClock\(projectDocument\.get\("readyByTime"\)\)/);
+  assert.match(handler, /readyByTime: clockTime\(projectDocument\.get\("readyByTime"\)\)/);
   assert.match(copilot, /\.\.\.occasionInstructionParts\(facts\.project\),/);
 
   const [sangeet] = occasionInstructionParts({ occasion: "Sangeet", readyByTime: "17:30" });

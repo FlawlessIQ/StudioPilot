@@ -4,6 +4,7 @@ import {
   cleanOccasion,
   prefillFromText,
   readyByClock,
+  storedClock,
 } from "@/features/crm/project-prefill";
 import { getAppCheckToken } from "@/lib/firebase/app-check";
 import { getFirebaseClient } from "@/lib/firebase/client";
@@ -78,11 +79,15 @@ export async function readProjectIntake(
     if (!body?.extraction) return quickRead(message);
     return {
       // A reply from a function deployed before the occasion and the ready-by
-      // time were read carries neither: cleaned here either way.
+      // time were read carries neither: cleaned here either way. The function
+      // has already read the time into HH:MM, so that is taken as it comes —
+      // read again as words, "07:00" would be dropped as a guess.
       extraction: {
         ...body.extraction,
         occasion: cleanOccasion(body.extraction.occasion),
-        readyByTime: readyByClock(body.extraction.readyByTime),
+        readyByTime:
+          storedClock(body.extraction.readyByTime) ??
+          readyByClock(body.extraction.readyByTime),
       },
       mode: body.mode === "ai" ? "ai" : "quick",
     };
