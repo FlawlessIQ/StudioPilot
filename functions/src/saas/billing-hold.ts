@@ -48,6 +48,7 @@ const DELIVERED_WHILE_LAPSED: readonly string[] = [
   "studio_booking_confirmed",
   "studio_capture_silent",
   "studio_new_inquiry",
+  "studio_call_booked",
   "studio_schedule_changes_requested",
   "daily_digest",
   "contract_signed",

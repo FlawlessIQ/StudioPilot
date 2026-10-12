@@ -192,6 +192,10 @@ export const emailTemplateKeys = [
   // Studio-facing: a new inquiry arrived. Speed to the first reply wins
   // couples, and Today only helps a studio that happens to open it.
   "studio_new_inquiry",
+  // Studio-facing: a client booked, moved or canceled a call themselves
+  // (booking/studio-call-alert.ts). Today shows it too; this is for a studio
+  // that isn't looking at Today (Gabe, 2026-10-12).
+  "studio_call_booked",
   // Studio-facing: the couple asked for changes to the day plan (run of show)
   // in their portal. Queued by approveSchedule (functions/src/planning).
   "studio_schedule_changes_requested",
@@ -2903,6 +2907,53 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           "The quickest check: fill out your own website form and see whether it appears in StudioCue within a couple of minutes.",
         ],
         action: actionUrl ? { label: "Check inquiry capture", url: actionUrl } : undefined,
+      };
+    }
+    case "studio_call_booked": {
+      const change = stringValue(values, "change");
+      const who = stringValue(values, "who") || "Your client";
+      const call = stringValue(values, "callLabel") || "call";
+      const when = stringValue(values, "whenLabel");
+      const before = stringValue(values, "previousWhenLabel");
+      const format = stringValue(values, "formatLabel");
+      const reason = stringValue(values, "reason");
+      const job = stringValue(values, "jobName");
+      const on = `${when}${format ? `, ${format}` : ""}`;
+      if (change === "cancelled")
+        return {
+          subject: `${who} canceled their ${call}${when ? ` (${when})` : ""}`,
+          preheader: "The time is free again on your calendar.",
+          eyebrow: "Call canceled",
+          heading: `${who} canceled their ${call}`,
+          paragraphs: [
+            `${who} canceled the ${call} they had booked${when ? ` for ${when}` : ""}${job ? ` (${job})` : ""}.`,
+            ...(reason ? [`Their reason: “${clip(reason, 400)}”`] : []),
+            "The time is open again, and they can book a new one from the same link.",
+          ],
+          action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
+        };
+      if (change === "moved")
+        return {
+          subject: `${who} moved their ${call} to ${when}`,
+          preheader: before ? `It was ${before}.` : "They have a confirmation with the new time.",
+          eyebrow: "Call moved",
+          heading: `${who} moved their ${call}`,
+          paragraphs: [
+            `${who} moved their ${call}${job ? ` (${job})` : ""} to ${on}${before ? `. It was ${before}` : ""}.`,
+            "They have a confirmation with the new time. Nothing for you to do.",
+          ],
+          action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
+        };
+      return {
+        subject: `${who} booked a ${call}: ${when}`,
+        preheader: `${on}. They have their confirmation.`,
+        eyebrow: "Call booked",
+        heading: `${who} booked a ${call}`,
+        paragraphs: [
+          `${who} booked a ${call}${job ? ` (${job})` : ""} for ${on}.`,
+          "They have their confirmation, and it's on the job in StudioCue. Nothing for you to do.",
+        ],
+        action: actionUrl ? { label: "Open the job", url: actionUrl } : undefined,
       };
     }
     case "studio_new_inquiry": {

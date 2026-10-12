@@ -20,6 +20,7 @@ import {
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { mintBookingLink } from "./booking-link.js";
 import { consultationPurpose, isSalesConsultation } from "./consultation-purpose.js";
+import { queueStudioCallAlert } from "./studio-call-alert.js";
 import {
   linkChangedSinceRead,
   linkIsOpen,
@@ -582,6 +583,24 @@ export const publicConsultationScheduling = onRequest(
         projectId: String(link.get("projectId")),
         now,
       });
+      // The studio hears about it by email too, not only on Today (Gabe, 2026-10-12).
+      try {
+        const contactId = text(link.get("contactId"));
+        const contact = contactId ? await db.doc(`contacts/${contactId}`).get() : null;
+        await queueStudioCallAlert(db, {
+          tenantId: String(link.get("tenantId")),
+          projectId: String(link.get("projectId")),
+          consultationId,
+          change: "booked",
+          who: text(contact?.get("firstName")) || text(project.get("name")) || "Your client",
+          purpose: link.get("purpose"),
+          whenLabel: whenLabel(selected.startsAt, availability.timezone),
+          formatLabel: formatLabelOf(link.get("mode")),
+          now,
+        });
+      } catch (caught) {
+        console.error("studio call alert failed", { consultationId, error: String(caught) });
+      }
       response.status(201).json({
         consultationId,
         startsAt: selected.startsAt,
@@ -679,6 +698,28 @@ async function recordCoupleAction(
     providerEventId: null,
   });
   await batch.commit();
+}
+
+/** The studio's email about a call the couple booked, moved or canceled; never fails their request. */
+async function studioCallAlert(
+  db: FirebaseFirestore.Firestore,
+  context: InquiryLinkContext,
+  input: Omit<Parameters<typeof queueStudioCallAlert>[1], "tenantId" | "projectId" | "who">,
+) {
+  try {
+    await queueStudioCallAlert(db, {
+      ...input,
+      tenantId: context.tenantId,
+      projectId: context.project?.id ?? null,
+      who: text(context.lead.get("firstName")) || text(context.project?.get("name")) || "The couple",
+    });
+  } catch (caught) {
+    console.error("studio call alert failed", { consultationId: input.consultationId, error: String(caught) });
+  }
+}
+
+function formatLabelOf(mode: unknown): string | null {
+  return mode === "in_person" ? "in person" : mode === "phone" ? "by phone" : mode === "zoom" || mode === "video" ? "on Zoom" : null;
 }
 
 function whenLabel(startsAt: string, timezone: string): string {
@@ -851,6 +892,14 @@ async function handleInquiryCommand(
       after: { consultationId: upcoming.id, reason: command.input.reason ?? null },
       now,
     });
+    await studioCallAlert(db, context, {
+      consultationId: upcoming.id,
+      change: "cancelled",
+      purpose: upcoming.get("purpose"),
+      whenLabel: whenLabel(text(upcoming.get("startsAt")), timezone),
+      reason: command.input.reason ?? null,
+      now,
+    });
     return { status: "cancelled" };
   }
 
@@ -997,6 +1046,15 @@ async function handleInquiryCommand(
       : `${who} booked a consultation for ${whenLabel(selected.startsAt, availability.timezone)}, ${formatLabel}`,
     action: previous ? "consultation.rescheduled_by_couple" : "consultation.booked_by_couple",
     after: { consultationId, startsAt: selected.startsAt, format: command.input.format, previous: previous?.id ?? null },
+    now,
+  });
+  await studioCallAlert(db, context, {
+    consultationId,
+    change: previous ? "moved" : "booked",
+    purpose: "consultation",
+    whenLabel: whenLabel(selected.startsAt, availability.timezone),
+    previousWhenLabel: previous ? whenLabel(text(previous.get("startsAt")), availability.timezone) : null,
+    formatLabel,
     now,
   });
   return {
