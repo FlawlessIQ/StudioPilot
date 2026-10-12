@@ -2964,7 +2964,9 @@ export function handledThisWeek(
   return (
     rows(input.actionReceipts).filter((row) => done(row, ["completed"])).length +
     rows(input.automationRuns).filter((row) => done(row, ["succeeded"])).length +
-    rows(input.emailJobs).filter((row) => done(row, ["sent", "delivered"]))
+    // The email worker records a sent email as `succeeded`; `sent` and
+    // `delivered` are older spellings kept so history still counts.
+    rows(input.emailJobs).filter((row) => done(row, ["succeeded", "sent", "delivered"]))
       .length
   );
 }

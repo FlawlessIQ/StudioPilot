@@ -321,7 +321,11 @@ test("handled-this-week counts only work that genuinely completed, and only rece
         { id: "a1", status: "succeeded", updatedAt: recent },
         { id: "a2", status: "queued", updatedAt: recent },
       ],
-      emailJobs: [{ id: "e1", status: "sent", updatedAt: recent }],
+      // What the email worker actually writes for a sent email.
+      emailJobs: [
+        { id: "e1", status: "succeeded", updatedAt: recent },
+        { id: "e2", status: "queued", updatedAt: recent },
+      ],
     },
     now,
   );
