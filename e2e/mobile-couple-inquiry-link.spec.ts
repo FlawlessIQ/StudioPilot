@@ -167,3 +167,60 @@ test("the consultation invite books a time in the studio's zone", async ({ page 
   await expect(page.getByText(/Tuesday, October 6 at 2:00 PM/)).toBeVisible();
   expect(calls.find((call) => call.type === "book")?.input).toMatchObject({ startsAt: slots[1]!.startsAt });
 });
+
+/**
+ * The same invite opened again after booking. It read "This scheduling link
+ * has expired" under "Your studio" (Priya Shah's hair trial, Jess Styles
+ * Bridal, 2026-10-11). The server now answers the preview with the booking
+ * and still refuses the openings; the page shows the time, and no picker.
+ */
+test("a booked invite opened again shows the booking, not 'expired'", async ({ page }, testInfo) => {
+  test.skip(!["desktop-chromium", "iphone-webkit"].includes(testInfo.project.name));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls: string[] = [];
+  await page.route("**/api/functions/publicConsultationScheduling", async (route) => {
+    const body = route.request().postDataJSON() as { type: string };
+    calls.push(body.type);
+    const json = (status: number, payload: unknown) =>
+      route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
+    if (body.type === "preview")
+      return json(200, {
+        studioName: "Jess Styles Bridal",
+        trade: "hair",
+        brandAccentColor: "#7C2F3B",
+        brandLogoUrl: null,
+        projectName: "Priya Shah",
+        eventDate: "2027-05-22",
+        expiresAt: "2027-05-21T04:00:00.000Z",
+        mode: "in_person",
+        purpose: "trial",
+        callName: "Hair trial",
+        status: "booked",
+        booked: { startsAt: "2026-10-14T14:00:00.000Z", timezone: "America/New_York" },
+      });
+    // What the server says to the openings, or a booking, on a booked link.
+    return json(400, { error: "SCHEDULING_LINK_EXPIRED" });
+  });
+  await page.goto("/schedule/consultation?token=test-token");
+  await expect(page.getByRole("heading", { name: "You’re booked in" })).toBeVisible();
+  await expect(page.locator(".kit-brand-name")).toHaveText("Jess Styles Bridal");
+  await expect(page.getByText(/Your hair trial is booked for Wednesday, October 14 at 10:00\sAM\./)).toBeVisible();
+  await expect(page.getByText("Time shown in America/New_York.")).toBeVisible();
+  await expect(page.getByText(/Reply to the studio’s email and they’ll sort it out/)).toBeVisible();
+  await expect(page.getByText(/expired/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Book|Choose a time/ })).toHaveCount(0);
+  await fitsThePhone(page);
+  expect(calls).not.toContain("book");
+});
+
+test("an expired invite says so, under no stand-in studio", async ({ page }, testInfo) => {
+  test.skip(!["desktop-chromium", "iphone-webkit"].includes(testInfo.project.name));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/functions/publicConsultationScheduling", (route) =>
+    route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "SCHEDULING_LINK_EXPIRED" }) }),
+  );
+  await page.goto("/schedule/consultation?token=test-token");
+  await expect(page.getByText("This scheduling link has expired. Reply to the studio’s email and they’ll send a new one.")).toBeVisible();
+  await expect(page.locator(".kit-brand-name")).toHaveCount(0);
+  await fitsThePhone(page);
+});

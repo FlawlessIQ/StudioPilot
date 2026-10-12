@@ -1,4 +1,4 @@
-import { tradeOf, tradeProfile, tradeVocab } from "../trades/trades.js";
+import { tradeOf, tradeProfile } from "../trades/trades.js";
 import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { isJobKind, journeyProfile, projectProfile } from "../job-kinds/job-kinds.js";
@@ -20,6 +20,13 @@ import {
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
 import { mintBookingLink } from "./booking-link.js";
 import { consultationPurpose, isSalesConsultation } from "./consultation-purpose.js";
+import {
+  callBookedBy,
+  linkIsOpen,
+  schedulingLinkPreview,
+  schedulingLinkState,
+  studioFallback,
+} from "./scheduling-link-view.js";
 import {
   dayFieldsFor,
   normaliseInquiryFormConfig,
@@ -45,11 +52,6 @@ import {
 import { jobPrefill } from "../planning/job-prefill.js";
 import { coupleSourceLabel, jobIsBooked } from "../planning/job-facts.js";
 import { isReturned, statusAfterSave, submittedAtAfterSave } from "../planning/questionnaire-lifecycle.js";
-
-/** A studio with no name yet, named by what it does. */
-function studioFallback(trade: unknown): string {
-  return tradeProfile(trade).family === "photo" ? "Your photography studio" : "Your studio";
-}
 
 const inquiryToken = z.string().min(32).max(200);
 
@@ -156,22 +158,56 @@ const commandSchema = z.discriminatedUnion("type", [
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 
-async function activeLink(token: string) {
-  const tokenHash = hash(token);
+/** The link a token names, whatever its state, or null. */
+async function linkByToken(token: string) {
   const snapshot = await getFirestore()
     .collection("consultationBookingLinks")
-    .where("tokenHash", "==", tokenHash)
+    .where("tokenHash", "==", hash(token))
     .limit(1)
     .get();
-  const link = snapshot.docs[0];
-  if (
-    !link ||
-    link.get("status") !== "pending" ||
-    Date.parse(String(link.get("expiresAt"))) <= Date.now()
-  ) {
+  return snapshot.docs[0] ?? null;
+}
+
+/**
+ * A link that can still book: pending and not past its expiry. Openings and
+ * booking need one, so a link that has booked can never book again.
+ */
+async function activeLink(token: string) {
+  const link = await linkByToken(token);
+  if (!link || !linkIsOpen(link.data(), Date.now())) {
     throw new Error("SCHEDULING_LINK_EXPIRED");
   }
   return link;
+}
+
+/**
+ * The page's first read. An open link shows its openings; a link that has
+ * booked shows the booking (scheduling-link-view.ts). Anything else is
+ * expired, and an unknown token is refused before anything else is read.
+ */
+async function previewLink(db: FirebaseFirestore.Firestore, token: string) {
+  const link = await linkByToken(token);
+  if (!link) throw new Error("SCHEDULING_LINK_EXPIRED");
+  const data = link.data();
+  const [tenant, project, call] = await Promise.all([
+    db.doc(`tenants/${String(link.get("tenantId"))}`).get(),
+    db.doc(`projects/${String(link.get("projectId"))}`).get(),
+    data.status === "booked"
+      ? callBookedBy(data, async (id) => {
+          const consultation = await db.doc(`consultations/${id}`).get();
+          return consultation.exists ? (consultation.data() ?? null) : null;
+        })
+      : Promise.resolve(null),
+  ]);
+  if (!tenant.exists || !project.exists) throw new Error("SCHEDULING_LINK_EXPIRED");
+  const state = schedulingLinkState({ link: data, call, project: project.data(), nowMs: Date.now() });
+  if (state === "expired") throw new Error("SCHEDULING_LINK_EXPIRED");
+  return schedulingLinkPreview({
+    link: data,
+    tenant: tenant.data() ?? {},
+    project: project.data() ?? {},
+    booked: state === "booked" ? call : null,
+  });
 }
 
 async function slotsFor(link: FirebaseFirestore.QueryDocumentSnapshot) {
@@ -418,37 +454,19 @@ export const publicConsultationScheduling = onRequest(
         return;
       }
 
+      // A client who booked and opens the link again is booked in, not
+      // "expired" (Priya Shah's hair trial, Jess Styles Bridal, 2026-10-11).
+      if (command.type === "preview") {
+        response.status(200).json(await previewLink(db, command.input.token));
+        return;
+      }
+      // Openings and booking: an open link only.
       const link = await activeLink(command.input.token);
       const [tenant, project] = await Promise.all([
         db.doc(`tenants/${String(link.get("tenantId"))}`).get(),
         db.doc(`projects/${String(link.get("projectId"))}`).get(),
       ]);
       if (!tenant.exists || !project.exists) throw new Error("SCHEDULING_LINK_EXPIRED");
-      if (command.type === "preview") {
-        const brand = resolveTenantBrand(tenant.data(), studioFallback(tenant.get("trade")));
-        response.status(200).json({
-          studioName: brand.brandName,
-          // The page names the call and the offer in the studio's words.
-          trade: tradeOf(tenant.get("trade")),
-          // The couple sees the studio's brand (mobile-first plan, M2).
-          brandAccentColor: brand.primaryColor,
-          brandLogoUrl: brand.logoUrl,
-          projectName: String(project.get("name") ?? "Your project"),
-          eventDate: project.get("eventDate") ?? null,
-          expiresAt: link.get("expiresAt"),
-          mode: link.get("mode"),
-          // The page says "final details call" for one (consultation-purpose.ts),
-          // and a makeup or hair studio's trial by its own name (trades.ts).
-          purpose: consultationPurpose(link.data()),
-          callName:
-            consultationPurpose(link.data()) === "trial"
-              ? tradeVocab(tenant.get("trade")).trial ?? "Trial"
-              : consultationPurpose(link.data()) === "final_details"
-                ? tradeVocab(tenant.get("trade")).finalCall
-                : tradeVocab(tenant.get("trade")).consultation,
-        });
-        return;
-      }
       // A trial is browsed a week at a time up to the day before the event;
       // a call keeps its next openings (trial-window.ts).
       const availability =

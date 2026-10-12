@@ -41,6 +41,11 @@ type Preview = {
   purpose?: string;
   /** The call in the studio's trade's words: "Vibe call", "Makeup trial" (trades.ts). */
   callName?: string;
+  /**
+   * Set when this link has already booked a call that is still on: when it
+   * is, and the studio's zone (functions/src/booking/scheduling-link-view.ts).
+   */
+  booked?: { startsAt: string; timezone: string } | null;
 };
 type Slot = { startsAt: string; endsAt: string };
 /**
@@ -76,6 +81,36 @@ const readRange = (value: unknown): TrialRange | null => {
   return { start, end, earliest, latest, previous: day("previous"), next: day("next") };
 };
 
+const readBooked = (value: unknown): Preview["booked"] => {
+  if (typeof value !== "object" || value === null) return null;
+  const booked = value as Record<string, unknown>;
+  const startsAt = typeof booked.startsAt === "string" ? booked.startsAt : "";
+  if (!startsAt || Number.isNaN(Date.parse(startsAt))) return null;
+  return { startsAt, timezone: typeof booked.timezone === "string" ? booked.timezone : "" };
+};
+
+/**
+ * "Wednesday, October 14 at 10:00 AM", on the studio's clock: the zone the
+ * appointment is in. Not toLocaleString(), which printed "9/18/2026,
+ * 10:00:00 AM" (seconds and a slash-date) to a couple, in whatever zone
+ * their laptop was set to. Said the same right after booking and on a return.
+ */
+export function bookedWhen(startsAt: string, timezone: string): string {
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  };
+  try {
+    return new Intl.DateTimeFormat("en-US", { ...options, timeZone: timezone || undefined }).format(new Date(startsAt));
+  } catch {
+    // A zone name this browser doesn't know: the time, rather than a blank page.
+    return new Intl.DateTimeFormat("en-US", options).format(new Date(startsAt));
+  }
+}
+
 /** "Mar 9" for a studio-local YYYY-MM-DD. */
 const shortDay = (day: string) =>
   new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${day}T12:00:00Z`));
@@ -110,8 +145,10 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
   const [jumpTo, setJumpTo] = useState("");
   const [timezone, setTimezone] = useState("");
   const [selected, setSelected] = useState("");
+  // "complete": booked just now, on this page. "booked": booked before, and
+  // opened again.
   const [status, setStatus] = useState<
-    "loading" | "ready" | "booking" | "complete" | "error"
+    "loading" | "ready" | "booking" | "complete" | "booked" | "error"
   >("loading");
   const [message, setMessage] = useState("");
 
@@ -124,7 +161,9 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
       return;
     }
     let active = true;
-    void Promise.all([
+    // Both at once, as before. A link that has booked answers the preview with
+    // its booking and refuses the openings, so the preview decides first.
+    void Promise.allSettled([
       runPublicScheduling({
         type: "preview",
         idempotencyKey: crypto.randomUUID(),
@@ -136,9 +175,12 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
         input: { token },
       }),
     ])
-      .then(([previewResult, availability]) => {
+      .then(([previewSettled, availabilitySettled]) => {
         if (!active) return;
-        setPreview({
+        if (previewSettled.status === "rejected") throw previewSettled.reason;
+        const previewResult = previewSettled.value;
+        const booked = readBooked(previewResult.booked);
+        const loaded: Preview = {
           studioName: String(previewResult.studioName),
           projectName: String(previewResult.projectName),
           eventDate:
@@ -155,7 +197,19 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
           // so every trial page read "Photography consultation" (UAT on prod, 2026-10-09).
           purpose: typeof previewResult.purpose === "string" ? previewResult.purpose : undefined,
           callName: typeof previewResult.callName === "string" ? previewResult.callName : undefined,
-        });
+          booked,
+        };
+        // Booked through this link already: the time it's booked for, and no
+        // picker (Priya Shah's hair trial read "expired", 2026-10-11).
+        if (booked) {
+          setPreview(loaded);
+          setTimezone(booked.timezone);
+          setStatus("booked");
+          return;
+        }
+        if (availabilitySettled.status === "rejected") throw availabilitySettled.reason;
+        const availability = availabilitySettled.value;
+        setPreview(loaded);
         setSlots(readSlots(availability.slots));
         setRange(readRange(availability.window));
         setTimezone(String(availability.timezone ?? ""));
@@ -205,19 +259,8 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
         input: { token, startsAt: selected },
       });
       setStatus("complete");
-      // Not toLocaleString(): it printed "9/18/2026, 10:00:00 AM" — seconds and
-      // a slash-date — to a couple, in whatever zone their laptop is set to.
-      // The studio's zone is the one the appointment is in.
-      setMessage(
-        `Your ${callWord ?? "appointment"} is confirmed for ${new Intl.DateTimeFormat("en-US", {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-          timeZone: timezone || undefined,
-        }).format(new Date(String(result.startsAt)))}.`,
-      );
+      // On the studio's clock (bookedWhen), the zone the appointment is in.
+      setMessage(`Your ${callWord ?? "appointment"} is confirmed for ${bookedWhen(String(result.startsAt), timezone)}.`);
     } catch (caught: unknown) {
       setStatus("ready");
       setMessage(words(caught, "That time could not be booked. Please choose another."));
@@ -230,12 +273,15 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
     logoUrl: preview?.brandLogoUrl ?? null,
   };
   const zone = timezone || "the studio’s time zone";
+  const bookedIn = status === "complete" || status === "booked";
 
   return (
     <KitRoot studio={brand}>
       <Screen>
-        <AppBar studio={brand} />
-        <Main label={chooseTime}>
+        {/* No stand-in studio: while it loads, or for a link that names none,
+            the bar is empty rather than "Your studio". */}
+        <AppBar studio={preview ? brand : undefined} />
+        <Main label={status === "booked" ? "You’re booked in" : chooseTime}>
           <div className="kit-stack-tight">
             {/* The call's own name from the server (tradeVocab): a photographer's
                 "Consultation", a DJ's "Vibe call", a "Makeup trial". Nothing before it loads. */}
@@ -243,13 +289,13 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
               <p className="kit-eyebrow">{preview.callName ?? (finalCall ? "Final details call" : "Consultation")}</p>
             ) : null}
             <h1 className="kit-title">
-              {status === "complete"
+              {bookedIn
                 ? "You’re booked in"
                 : preview
                   ? `Choose a time with ${preview.studioName}`
                   : chooseTime}
             </h1>
-            {status === "complete" ? null : (
+            {bookedIn ? null : (
               <p className="kit-body">
                 {finalCall
                   ? "A short call to go over your final details and timeline together. Pick one of the studio’s openings — nothing is booked until you confirm."
@@ -274,6 +320,19 @@ export function PublicConsultationScheduler({ token }: { token: string }) {
                 <CheckCircle2 aria-hidden="true" size={14} /> Confirmed
               </p>
               <p className="kit-body">{message} We’ve emailed you the details.</p>
+            </Card>
+          ) : status === "booked" && preview?.booked ? (
+            // Opened again after booking. This link only ever books, so a
+            // change goes through the studio, as the confirmation email says.
+            <Card tone="accent">
+              <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+                <CheckCircle2 aria-hidden="true" size={14} /> Confirmed
+              </p>
+              <p className="kit-body">
+                Your {callWord ?? "appointment"} is booked for {bookedWhen(preview.booked.startsAt, timezone)}.
+              </p>
+              <p className="kit-caption">Time shown in {zone}.</p>
+              <p className="kit-body">Need a different time? Reply to the studio’s email and they’ll sort it out.</p>
             </Card>
           ) : (
             <div className="kit-stack">
