@@ -1,4 +1,4 @@
-import { twelveHourClock, twelveHourTimes } from "../ai/clock-words.js";
+import { twelveHourClock } from "../ai/clock-words.js";
 import { EXTENSION_PLAN_LABELS, extensionPlanOf } from "../trades/extensions.js";
 import { FACT_DESCRIPTIONS, type FactKey, type JobFactSheet } from "./job-facts.js";
 
@@ -21,8 +21,12 @@ import { FACT_DESCRIPTIONS, type FactKey, type JobFactSheet } from "./job-facts.
  *     setTrialNotes): the look, the products, the extensions and their
  *     color match.
  *
- * Every clock time reaches the model in 12-hour form (clock-words.ts), so the
- * flags it writes from them read "7:30 AM", not "07:30".
+ * A time field's value, and a booked time ("ceremony_time"), reaches the
+ * model in 12-hour form (clock-words.ts), so the flags it writes from them
+ * read "7:30 AM", not "07:30". Everything else goes as it was written: a
+ * reading's "John 15:12" is not 3:12 PM, and the model, told to write 12-hour
+ * times (ai/language.ts TWELVE_HOUR_PART), reads a typed "Ends 23:00" in
+ * context where a pattern cannot.
  *
  * Pure.
  */
@@ -57,15 +61,10 @@ const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
 
 /**
  * A form answer as a person reads it, for the model: a time question's
- * "07:30" is "7:30 AM", and a 24-hour time typed into any other answer is
- * put in 12-hour form too. The shape is kept: a list stays a list.
+ * "07:30" is "7:30 AM". Any other answer goes as the client wrote it.
  */
 export function answerForPeople(type: string, value: unknown): unknown {
-  if (typeof value === "string") return type === "time" ? twelveHourClock(value) : twelveHourTimes(value);
-  if (Array.isArray(value)) return value.map((item) => answerForPeople(type, item));
-  if (value && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, answerForPeople(type, item)]));
-  return value;
+  return type === "time" && typeof value === "string" ? twelveHourClock(value) : value;
 }
 
 export type SettledFact = { fact: string; value: string };
@@ -76,7 +75,7 @@ export function settledJobFacts(sheet: JobFactSheet | null): SettledFact[] {
   return SETTLED_FACT_KEYS.flatMap((key) => {
     const value = text(sheet.facts[key]?.value);
     if (!value) return [];
-    return [{ fact: FACT_DESCRIPTIONS[key], value: CLOCK_FACTS.has(key) ? twelveHourClock(value) : twelveHourTimes(value) }];
+    return [{ fact: FACT_DESCRIPTIONS[key], value: CLOCK_FACTS.has(key) ? twelveHourClock(value) : value }];
   });
 }
 
@@ -85,7 +84,7 @@ export function settledAtTrial(trialNotes: unknown): Record<string, string> | nu
   const notes = trialNotes && typeof trialNotes === "object" ? (trialNotes as Record<string, unknown>) : {};
   const plan = extensionPlanOf(notes.extensions);
   const settled: Record<string, string> = {};
-  if (text(notes.look)) settled.look = twelveHourTimes(text(notes.look));
+  if (text(notes.look)) settled.look = text(notes.look);
   if (text(notes.products)) settled.productsUsed = text(notes.products);
   if (plan) settled.extensions = EXTENSION_PLAN_LABELS[plan];
   // A color match belongs to extensions being worn: "No extensions" leaves none.

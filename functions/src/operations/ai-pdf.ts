@@ -514,8 +514,9 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
       /location|address|travel|parking|access|transport/.test(normalized)?"logistics":"preferences";
     return[{fieldId,label,category,value:answer,source:{entityType:"questionnaire_response",entityId:responseId,locator:`answers.${fieldId}`}}];
   });
-  // Every time as a person reads it: a form's "07:30" reached the model and
-  // came back as a flag about "07:30" (Jess Styles Bridal, 2026-10-12).
+  // A time field as a person reads it: a form's "07:30" reached the model and
+  // came back as a flag about "07:30" (Jess Styles Bridal, 2026-10-12). Free
+  // text goes as written (questionnaire-review-facts.ts answerForPeople).
   const typeOf=new Map(fields.map(field=>[string(field.id),string(field.type)]));
   const facts={
     project:{name:project.get("name"),eventType:project.get("eventType"),eventDate:project.get("eventDate"),venueName:project.get("venueName"),city:project.get("city")},

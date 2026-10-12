@@ -648,6 +648,24 @@ export function trialBringList(trade: unknown): string {
   return items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
 }
 
+/** A makeup or hair trial, rather than a call (trades.ts `trial`). */
+function isTrial(values: Record<string, unknown>): boolean {
+  return stringValue(values, "purpose") === "trial" && Boolean(tradeVocab(values.trade).trial);
+}
+
+/**
+ * Whether the meeting is in person: no video link, none on its way, and not
+ * a phone call or the studio's own details.
+ */
+function meetsInPerson(values: Record<string, unknown>): boolean {
+  const mode = stringValue(values, "meetingMode");
+  return (
+    !safeUrl(stringValue(values, "joinUrl")) &&
+    values.meetingDetailsPending !== true &&
+    (!mode || mode === "in_person")
+  );
+}
+
 /**
  * Where a makeup or hair trial is and what to bring, for its confirmation,
  * reminder and new time.
@@ -664,11 +682,9 @@ function trialDetails(values: Record<string, unknown>): string[] {
   const details = consultationMeetingDetails(values);
   // "12 Main St." would end the sentence twice.
   const location = stringValue(values, "location").replace(/[\s.]+$/, "");
-  const mode = stringValue(values, "meetingMode");
-  const inPerson = !details.joinUrl && values.meetingDetailsPending !== true && (!mode || mode === "in_person");
   // Read as an email and as the message on their portal, so "reply", never
   // "reply to this email".
-  const where = !inPerson
+  const where = !meetsInPerson(values)
     ? details.line
     : location
       ? `It's in person, at ${location}.`
@@ -1040,7 +1056,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
       const details = consultationMeetingDetails(values);
       // A trial is in person: where it is and what to bring (trialDetails).
-      const trial = stringValue(values, "purpose") === "trial" && Boolean(tradeVocab(values.trade).trial);
+      const trial = isTrial(values);
       // The join link is the one thing they need on the day, so it is the
       // button whenever there is one; moving the call comes second.
       const primary = details.joinUrl
@@ -1090,6 +1106,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const Call = call.charAt(0).toUpperCase() + call.slice(1);
       const startsAt = humanDate(stringValue(values, "startsAt"), zone);
       const rescheduleUrl = safeUrl(stringValue(values, "rescheduleUrl"));
+      // A makeup or hair trial is not a talk, and in person there is nothing
+      // to join: a canceled hair trial read "so there's no need to join. If
+      // you'd still like to talk…" once its confirmation had said it was in
+      // person (review of the 2026-10-12 trial fix). Read as an email and as
+      // the portal message, so "reply" (trialDetails).
+      const trial = isTrial(values);
       return {
         subject: `Your ${call} with ${brand.studioName} is canceled`,
         preheader: `Your ${call}${startsAt ? ` on ${startsAt}` : ""} is no longer happening.`,
@@ -1097,10 +1119,14 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         heading: `Your ${call} is canceled`,
         paragraphs: [
           greeting,
-          `We've canceled your ${call}${startsAt ? ` on ${startsAt}` : ""}, so there's no need to join.`,
-          rescheduleUrl
-            ? "If you'd still like to talk, pick another time that suits you."
-            : "If you'd still like to talk, reply to this email and we'll find another time.",
+          `We've canceled your ${call}${startsAt ? ` on ${startsAt}` : ""}, so there's no need to ${trial && meetsInPerson(values) ? "come in" : "join"}.`,
+          trial
+            ? rescheduleUrl
+              ? "If you'd still like a trial, pick another time that suits you."
+              : "If you'd still like a trial, reply and we'll find another time."
+            : rescheduleUrl
+              ? "If you'd still like to talk, pick another time that suits you."
+              : "If you'd still like to talk, reply to this email and we'll find another time.",
         ],
         action: rescheduleUrl
           ? { label: "Pick another time", url: rescheduleUrl }

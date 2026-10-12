@@ -77,8 +77,23 @@ test("a 24-hour time in text reads in 12-hour form; anything that could be 12-ho
     "The film runs 1:07:30",
     "Sent 2026-10-14T07:30:00Z",
     "Color match: #4 dark brown, 20 inches",
+    // A reading's book and chapter, a ratio or a score: a couple's readings
+    // are as likely in a planning form as a time is.
+    "John 15:12",
+    "1 Corinthians 13:13",
+    "Romans 12:10",
+    "Rom. 12:10",
+    "Readings: John 15:12 and 1 Corinthians 13:13",
+    "Ratio 16:10",
+    "an aspect ratio of 16:10",
+    "the final score was 21:14",
   ])
     assert.equal(twelveHourTimes(unchanged), unchanged, unchanged);
+  // A reference never has a leading zero, so a name before one is no reason to leave it.
+  assert.equal(twelveHourTimes("Priya 07:30, Meera 08:15"), "Priya 7:30 AM, Meera 8:15 AM");
+  // Nor is a time after a lowercase word or a label's colon.
+  assert.equal(twelveHourTimes("Reading by John at 15:30"), "Reading by John at 3:30 PM");
+  assert.equal(twelveHourTimes("Ceremony: 16:00"), "Ceremony: 4:00 PM");
 });
 
 test("the check note reads a 24-hour time in 12-hour form (F19)", () => {
@@ -87,6 +102,8 @@ test("the check note reads a 24-hour time in 12-hour form (F19)", () => {
     "Check: The earliest setup time of 7:30 AM and ready-by time of 12:30 PM leave five hours for six people",
   );
   assert.equal(uncertainItem("ready-by time 12:30."), "Ready-by time 12:30 PM");
+  // Every card's check note goes through it, so a reading stays a reading.
+  assert.equal(checkNote(["Confirm reading John 15:12"]), "Check: Confirm reading John 15:12");
   // What it did before is unchanged.
   assert.equal(uncertainItem("event_date"), "Event date");
   assert.equal(uncertainItem("McKenzie"), "McKenzie");
@@ -96,10 +113,16 @@ test("the planning form reaches the model with its times for people", () => {
   assert.equal(answerForPeople("time", "07:30"), "7:30 AM");
   assert.equal(answerForPeople("time", "10:00"), "10:00 AM");
   assert.equal(answerForPeople("time", "TBD"), "TBD");
-  assert.equal(answerForPeople("long_text", "Bride in the chair at 08:00, ready by 12:30"), "Bride in the chair at 8:00 AM, ready by 12:30 PM");
+  // Free text goes as the client wrote it: a pattern cannot tell a reading
+  // from a time, and the model, told to write 12-hour times, can.
+  for (const written of [
+    "Bride in the chair at 08:00, ready by 12:30",
+    "Ceremony reading: John 15:12 and 1 Corinthians 13:13. Ends 23:00",
+  ])
+    assert.equal(answerForPeople("long_text", written), written);
   assert.deepEqual(answerForPeople("repeating_group", ["Priya Shah — bride — veil, clip-in extensions", "Meera — 09:00"]), [
     "Priya Shah — bride — veil, clip-in extensions",
-    "Meera — 9:00 AM",
+    "Meera — 09:00",
   ]);
   assert.deepEqual(answerForPeople("address", { line1: "12 Main St", city: "Hoboken" }), { line1: "12 Main St", city: "Hoboken" });
   assert.equal(answerForPeople("number", 6), 6);
@@ -278,6 +301,37 @@ test("a photographer's consultation and a vendor's call read as before", () => {
   const custom = render("consultation_confirmation", { ...trialValues, meetingMode: "custom", location: "Suite 4, 12 Main St" });
   assert.match(custom.text, /Location or meeting details: Suite 4, 12 Main St/);
   for (const other of [video, pending, phone, custom]) assert.doesNotMatch(other.text, /It's in person/);
+});
+
+test("a canceled trial says there's no need to come in and offers another trial, not a talk", () => {
+  const canceled = render("consultation_cancelled", trialValues);
+  assert.match(canceled.text, /We've canceled your hair trial on .+, so there's no need to come in\./);
+  // Read as an email and as the portal message: "reply", not "reply to this email".
+  assert.match(canceled.text, /If you'd still like a trial, reply and we'll find another time\./);
+  assert.doesNotMatch(canceled.text, /no need to join|still like to talk/);
+  assert.doesNotMatch(`${canceled.subject}\n${canceled.text}`, PHOTO_WORDS);
+  const selfServe = render("consultation_cancelled", { ...trialValues, trade: "makeup", rescheduleUrl: "https://studio-cue.com/i/x" });
+  assert.match(selfServe.text, /We've canceled your makeup trial on /);
+  assert.match(selfServe.text, /If you'd still like a trial, pick another time that suits you\./);
+  // A trial booked as a video call still had something to join.
+  const video = render("consultation_cancelled", { ...trialValues, meetingMode: "zoom", joinUrl: "https://zoom.us/j/1" });
+  assert.match(video.text, /so there's no need to join\./);
+  assert.match(video.text, /If you'd still like a trial, reply/);
+});
+
+test("a photographer's canceled consultation and a vendor's canceled call read as before", () => {
+  const startsAt = "2026-10-14T14:00:00.000Z";
+  const photo = render("consultation_cancelled", { meetingMode: "in_person", startsAt, timezone: "America/New_York" });
+  assert.match(photo.text, /We've canceled your consultation on .+, so there's no need to join\./);
+  assert.match(photo.text, /If you'd still like to talk, reply to this email and we'll find another time\./);
+  const moved = render("consultation_cancelled", { startsAt, rescheduleUrl: "https://studio-cue.com/i/x" });
+  assert.match(moved.text, /If you'd still like to talk, pick another time that suits you\./);
+  // A hair stylist's ordinary call, and a DJ's: not a trial.
+  for (const values of [{ ...trialValues, purpose: "consultation" }, { ...trialValues, trade: "dj" }]) {
+    const call = render("consultation_cancelled", values);
+    assert.match(call.text, /so there's no need to join\./, JSON.stringify(values));
+    assert.match(call.text, /If you'd still like to talk, reply to this email/, JSON.stringify(values));
+  }
 });
 
 test("a trial booked from its link takes the studio's in-person place", () => {
