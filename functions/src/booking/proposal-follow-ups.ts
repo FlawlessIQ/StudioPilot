@@ -1,5 +1,7 @@
 import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { mayContactClient } from "../post-event/client-outreach.js";
+import { eventZone } from "../planning/day-clock.js";
+import { offerLastDay } from "./proposal-expiry.js";
 
 /**
  * Following up a proposal the client hasn't answered: Cue drafts a short
@@ -88,10 +90,17 @@ export function proposalFollowUpCopy(input: {
   sentAt: string;
   expiresAt: string;
   studioName: string;
+  /**
+   * The event's clock (the job's zone, else the studio's). A send's floor can
+   * end at midnight there, which is the next day in UTC, so the day "open
+   * until" names is read on it (proposal-expiry.ts `offerLastDay`). Absent,
+   * the stored date is read as written.
+   */
+  timeZone?: string | null;
 }): { subject: string; body: string; title: string } {
   const hello = input.firstName ? `Hi ${input.firstName},` : "Hi there,";
   const sign = `Warmly,\n${input.studioName}`;
-  const until = longDate(input.expiresAt);
+  const until = longDate((input.timeZone ? offerLastDay(input.expiresAt, input.timeZone) : null) ?? input.expiresAt);
   const who = input.firstName ?? "the client";
   if (input.days >= 7)
     return {
@@ -235,6 +244,7 @@ async function advanceProposal(db: Firestore, proposal: DocumentSnapshot, now: s
     sentAt: text(proposal.get("sentAt")),
     expiresAt: text(proposal.get("expiresAt")),
     studioName,
+    timeZone: eventZone(project.get("timezone"), tenant.get("timezone")),
   });
   const actionId = proposalFollowUpActionId(proposal.id, days);
   await db.doc(`aiActions/${actionId}`).create({

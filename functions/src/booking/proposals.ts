@@ -1,6 +1,7 @@
 import { normalizeUnitLabel } from "../packages/unit-label.js";
 import { packageDetails } from "../packages/inclusions.js";
 import { expiryOnSend, MINIMUM_DAYS_AFTER_SEND } from "./proposal-expiry.js";
+import { eventZone } from "../planning/day-clock.js";
 import { createHash } from "node:crypto";
 import { getFirestore, type Transaction } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
@@ -1550,6 +1551,13 @@ export const proposalCommand = onRequest(
             const clientContact = clientContactId
               ? await transaction.get(db.doc(`contacts/${clientContactId}`))
               : null;
+            // The clock the event's day ends on, for the offer's floor
+            // (proposal-expiry.ts): the job's zone, else the studio's. Read
+            // here, with the other reads, before anything is written.
+            const offerZone = eventZone(
+              projectForSend.get("timezone"),
+              (await transaction.get(db.doc(`tenants/${command.tenantId}`))).get("timezone"),
+            );
             /**
              * Who to email is who the client is now, not who they were when
              * the proposal was drafted.
@@ -1710,11 +1718,13 @@ export const proposalCommand = onRequest(
                 // starts here. A longer window the studio chose is preserved.
                 // It stops at the end of the event's day when that is sooner:
                 // a quote for a job today read "Valid through" a week later.
+                // That day ends at midnight on the event's clock, not UTC's.
                 expiresAt: expiryOnSend(
                   proposal.get("expiresAt"),
                   new Date(timestamp),
                   MINIMUM_DAYS_AFTER_SEND,
                   project.get("eventDate"),
+                  offerZone,
                 ),
                 emailJobId,
                 emailDeliveryStatus: "queued",
@@ -1776,6 +1786,7 @@ export const proposalCommand = onRequest(
                 new Date(timestamp),
                 MINIMUM_DAYS_AFTER_SEND,
                 projectForSend.get("eventDate"),
+                offerZone,
               );
               const expiryExtended =
                 Date.parse(expiresAt) !== Date.parse(String(priorExpiresAt ?? ""));

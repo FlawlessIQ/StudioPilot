@@ -3,7 +3,7 @@
 import { paidInFullSettledByDeletion, settledInvoiceStatus } from "@/features/billing/invoice-purge-policy";
 import { isSalesConsultation } from "@/features/consultations/purpose";
 import { finalCallState } from "@/features/consultations/final-call";
-import { trialDayLeft, trialState, trialWhen, type TrialState } from "@/features/consultations/trial";
+import { trialArrangedOnJob, trialDayLeft, trialState, trialWhen, type TrialState } from "@/features/consultations/trial";
 import { extensionsState } from "@/features/trades/extensions";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
@@ -76,9 +76,10 @@ export function useProjectJourney({
    * the card kept inviting a client who had already booked (Priya Shah, Jess
    * Styles Bridal, 2026-10-10). `when` is on the job's clock. `dayLeft`:
    * a day is left before the event to hold it on (trialDayLeft); with none,
-   * the card does not invite (2026-10-12).
+   * the card does not invite (2026-10-12). `arranged`: the job records the
+   * trial itself (trialArrangedOnJob), read once for the card and the step.
    */
-  trial: TrialState & { when: string | null; dayLeft: boolean };
+  trial: TrialState & { when: string | null; dayLeft: boolean; arranged: boolean };
 } {
   const tenantTrade = useWorkspace().tenantTrade;
   const leads = useTenantDocuments("leads");
@@ -201,6 +202,9 @@ export function useProjectJourney({
     when: trialWhen({ consultations: forProject(consultations.records), timeZone: text(journeyProject?.timezone) || null }),
     // The same today and date the journey's trial step reads.
     dayLeft: trialDayLeft({ today: todayLocalIso(), eventDate }),
+    // Held off the books, its look noted or booked through its link: with
+    // no day left, the card says nothing more and the step reads it as done.
+    arranged: trialArrangedOnJob(journeyProject),
   };
 
   const journey = projectJourney({

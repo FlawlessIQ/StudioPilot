@@ -14,18 +14,32 @@
  * Pure, no I/O.
  */
 
+import { isoToWallClock, validZone, wallClockToIso } from "@/features/schedules/day-clock";
+
 /** The shortest window a client should get once a proposal is sent. */
 export const MINIMUM_DAYS_AFTER_SEND = 7;
 
 /**
- * When an event's day ends, as an offer's expiry is written: the composer
- * stores a chosen date as `${day}T23:59:59.000Z`. Null for no usable date.
+ * When an event's day ends. Null for no usable date.
+ *
+ * Without a zone, in UTC, as the composer stores a chosen date
+ * (`${day}T23:59:59.000Z`): a draft's default, shown in a date field, reads
+ * as the event's own date.
+ *
+ * With one (the job's zone, else the studio's), on that clock. A send's
+ * floor ends there: ended in UTC, a quote reading "Valid through Oct 12"
+ * closed at 7:59 PM in New York, and a client saying yes that evening, still
+ * Oct 12 where they were, was refused as expired (review of the same-day
+ * walk, 2026-10-12).
  */
-function eventDayEnd(eventDate: unknown): Date | null {
+function eventDayEnd(eventDate: unknown, timeZone?: unknown): Date | null {
   const day = typeof eventDate === "string" ? eventDate.slice(0, 10) : "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
   const end = new Date(`${day}T23:59:59.000Z`);
-  return Number.isNaN(end.valueOf()) ? null : end;
+  if (Number.isNaN(end.valueOf())) return null;
+  const zone = validZone(timeZone);
+  const lastMinute = zone ? wallClockToIso(day, "23:59", zone) : null;
+  return lastMinute ? new Date(Date.parse(lastMinute) + 59_000) : end;
 }
 
 /**
@@ -35,9 +49,11 @@ function eventDayEnd(eventDate: unknown): Date | null {
  * quote drafted on Oct 12 for a job on Oct 12 defaulted to "Valid through Oct
  * 19, 2026" (Priya Shah Sangeet, Jess Styles Bridal, 2026-10-12). An event
  * already behind `now`, or a job with no date, leaves the default as it is.
+ * `timeZone` ends the day on that clock (eventDayEnd); a draft's default
+ * leaves it out.
  */
-export function capExpiryAtEvent(expiresAt: Date, eventDate: unknown, now: Date): Date {
-  const end = eventDayEnd(eventDate);
+export function capExpiryAtEvent(expiresAt: Date, eventDate: unknown, now: Date, timeZone?: unknown): Date {
+  const end = eventDayEnd(eventDate, timeZone);
   if (!end || end.valueOf() <= now.valueOf() || end.valueOf() >= expiresAt.valueOf()) return expiresAt;
   return end;
 }
@@ -69,7 +85,8 @@ export function defaultExpiryDay(input: { today: string; eventDate: unknown; day
  * Returns the later of the studio's chosen expiry and
  * `MINIMUM_DAYS_AFTER_SEND` days from the send time — so an intentionally long
  * window survives, and a stale draft's window restarts. That floor stops at
- * the end of the event's day when the event comes sooner (capExpiryAtEvent).
+ * the end of the event's day when the event comes sooner (capExpiryAtEvent),
+ * on the event's clock: the job's zone, else the studio's.
  */
 export function expiryOnSend(
   chosenExpiresAt: unknown,
@@ -77,8 +94,10 @@ export function expiryOnSend(
   minimumDays: number = MINIMUM_DAYS_AFTER_SEND,
   /** The job's date: the floor never runs past the end of the event's day. */
   eventDate: unknown = null,
+  /** The clock that day ends on: day-clock.ts `eventZone(job's zone, studio's)`. */
+  timeZone: unknown = null,
 ): string {
-  const floor = capExpiryAtEvent(new Date(sentAt.valueOf() + minimumDays * 86_400_000), eventDate, sentAt);
+  const floor = capExpiryAtEvent(new Date(sentAt.valueOf() + minimumDays * 86_400_000), eventDate, sentAt, timeZone);
   const chosen =
     typeof chosenExpiresAt === "string" && chosenExpiresAt.trim()
       ? new Date(chosenExpiresAt)
@@ -95,9 +114,29 @@ export function expiryNeedsReanchoring(
   sentAt: Date,
   minimumDays: number = MINIMUM_DAYS_AFTER_SEND,
   eventDate: unknown = null,
+  timeZone: unknown = null,
 ): boolean {
   return (
-    expiryOnSend(chosenExpiresAt, sentAt, minimumDays, eventDate) !==
+    expiryOnSend(chosenExpiresAt, sentAt, minimumDays, eventDate, timeZone) !==
     (typeof chosenExpiresAt === "string" ? new Date(chosenExpiresAt).toISOString() : "")
   );
+}
+
+/**
+ * The last day an offer stands, YYYY-MM-DD: the day "open until" names.
+ *
+ * A date the studio chose is stored as its end in UTC and is that day. Any
+ * other instant, such as a send's floor that runs to the event's own
+ * midnight, is read on `timeZone`'s clock (the job's zone, else the
+ * studio's; the reader's own without one). Sliced, it named the day after
+ * the offer closed: one ending at midnight in New York on Oct 16 is
+ * 2026-10-17T03:59:59.000Z. Null for no usable expiry.
+ */
+export function offerLastDay(expiresAt: unknown, timeZone?: unknown): string | null {
+  const instant = typeof expiresAt === "string" && expiresAt.trim() ? new Date(expiresAt) : null;
+  if (!instant || Number.isNaN(instant.valueOf())) return null;
+  const iso = instant.toISOString();
+  if (iso.endsWith("T23:59:59.000Z")) return iso.slice(0, 10);
+  const zone = validZone(timeZone) ?? validZone(Intl.DateTimeFormat().resolvedOptions().timeZone) ?? "UTC";
+  return isoToWallClock(iso, zone)?.date ?? iso.slice(0, 10);
 }

@@ -3,12 +3,22 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { extrasToSuggest, trialArrangedOnJob, trialDayLeft } from "../features/consultations/trial";
 import { projectJourney, type JourneyInput } from "../features/journey/steps";
-import { capExpiryAtEvent, defaultExpiryDay, expiryOnSend } from "../features/booking/proposal-expiry";
+import {
+  capExpiryAtEvent,
+  defaultExpiryDay,
+  expiryNeedsReanchoring,
+  expiryOnSend,
+  offerLastDay,
+} from "../features/booking/proposal-expiry";
 import {
   capExpiryAtEvent as serverCapExpiryAtEvent,
   expiryOnSend as serverExpiryOnSend,
   MINIMUM_DAYS_AFTER_SEND,
+  offerLastDay as serverOfferLastDay,
 } from "../functions/src/booking/proposal-expiry";
+import { planClientProposalDecision } from "../server/client/proposal-decision";
+import { proposalFollowUpCopy } from "../functions/src/booking/proposal-follow-ups";
+import { projectThread } from "../features/journey/thread";
 import { proposalNoticeStillHolds, proposalPdfNotice } from "../features/proposals/pdf-notice";
 import { scheduleZoneLabel } from "../features/schedules/item-clock";
 import { scheduleLineLabel } from "../features/billing/schedule-label";
@@ -120,10 +130,36 @@ test("the job's trial card stops inviting when no day is left", () => {
   assert.ok(card.indexOf('trial.state === "booked"') < noDay, "a booked trial's card is unchanged");
   assert.match(card, /No day is left before the \$\{vocab\(jobKindOf\(project\)\)\.event\} to hold a/);
   // A trial held off the books, its notes on the card, gets no such line.
-  assert.match(card, /trialArrangedOnJob\(project\) \? null :/);
-  // One answer for the card and the step: the same helper, today and date.
+  assert.match(card, /trial\.arranged \? null :/);
+  // One answer for the card and the step: the same helper, today and date,
+  // and the same reading of a trial the job records itself.
   const hook = read("components/projects/use-project-journey.ts");
   assert.match(hook, /dayLeft: trialDayLeft\(\{ today: todayLocalIso\(\), eventDate \}\)/);
+  assert.match(hook, /arranged: trialArrangedOnJob\(journeyProject\)/);
+  assert.doesNotMatch(detail, /trialArrangedOnJob\(/);
+});
+
+test("a trial held off the books reads as done on the step, as the card treats it, once no day is left", () => {
+  // Its look noted, no trial consultation: the card says nothing more.
+  const arranged = { state: "not_booked" as const, startsAt: null, arranged: true };
+  const step = trialStep({ ...sangeet, trial: arranged });
+  assert.equal(step?.status, "complete", "not 'passed', which the minimap counts as missed");
+  assert.equal(step?.detail, "Done — the look goes on their day sheet");
+  assert.equal(step?.explain, false);
+  assert.doesNotMatch(step?.detail ?? "", /no day is left/);
+  assert.equal(projectJourney({ ...sangeet, trial: arranged }).steps.filter((entry) => entry.status === "passed").length, 0);
+  // Tomorrow's event, and after the event: the same.
+  assert.equal(trialStep({ ...sangeet, eventDate: "2026-10-13", trial: arranged })?.status, "complete");
+  assert.equal(trialStep({ ...sangeet, state: "EVENT_COMPLETE", eventDate: "2026-10-01", trial: arranged })?.status, "complete");
+  // With a day left the card still invites, and the step still offers it.
+  const ahead = trialStep({ ...sangeet, eventDate: "2027-05-22", trial: arranged });
+  assert.equal(ahead?.status, "upcoming");
+  assert.match(ahead?.detail ?? "", /^Optional — invite them/);
+  // Not arranged: no day is left, as before.
+  assert.equal(trialStep({ ...sangeet, trial: { ...arranged, arranged: false } })?.status, "passed");
+  // Booked through StudioCue: unchanged by the flag.
+  const booked = { state: "booked" as const, startsAt: "2026-10-13T14:00:00.000Z", when: "Tue, Oct 13 at 10:00 AM", arranged: true };
+  assert.equal(trialStep({ ...sangeet, eventDate: "2026-10-14", trial: booked })?.status, "waiting_other");
 });
 
 test("a trial extra is not suggested once no day is left, unless one was booked or held", () => {
@@ -218,12 +254,21 @@ test("sending never stretches a quote's window past the end of its event's day",
     assert.equal(serverCapExpiryAtEvent(later, eventDate, now).toISOString(), capExpiryAtEvent(later, eventDate, now).toISOString());
   }
 
-  // Every send and draft default passes the job's date.
+  // Every send and draft default passes the job's date, and every send the
+  // clock its day ends on: the job's zone, else the studio's.
   const proposals = read("functions/src/booking/proposals.ts");
   assert.equal((proposals.match(/expiryOnSend\(/g) ?? []).length, 2);
-  assert.match(proposals, /MINIMUM_DAYS_AFTER_SEND,\s*project\.get\("eventDate"\),/);
-  assert.match(proposals, /MINIMUM_DAYS_AFTER_SEND,\s*projectForSend\.get\("eventDate"\),/);
-  assert.match(read("functions/src/contracts/combined-commands.ts"), /MINIMUM_DAYS_AFTER_SEND,\s*project\.get\("eventDate"\),/);
+  assert.match(proposals, /MINIMUM_DAYS_AFTER_SEND,\s*project\.get\("eventDate"\),\s*offerZone,\s*\)/);
+  assert.match(proposals, /MINIMUM_DAYS_AFTER_SEND,\s*projectForSend\.get\("eventDate"\),\s*offerZone,\s*\)/);
+  assert.match(
+    proposals,
+    /const offerZone = eventZone\(\s*projectForSend\.get\("timezone"\),\s*\(await transaction\.get\(db\.doc\(`tenants\/\$\{command\.tenantId\}`\)\)\)\.get\("timezone"\),\s*\);/,
+  );
+  // Read with the other reads, before the send writes anything.
+  assert.ok(proposals.indexOf("const offerZone = eventZone(") < proposals.indexOf("const writeInvitation = () =>"));
+  const combined = read("functions/src/contracts/combined-commands.ts");
+  assert.match(combined, /MINIMUM_DAYS_AFTER_SEND,\s*project\.get\("eventDate"\),\s*eventZone\(project\.get\("timezone"\), studioZone\),/);
+  assert.match(combined, /const studioZone = \(await db\.doc\(`tenants\/\$\{context\.tenantId\}`\)\.get\(\)\)\.get\("timezone"\);/);
   assert.match(read("functions/src/ai/copilot.ts"), /capExpiryAtEvent\(\s*new Date\(Date\.now\(\) \+ 14 \* 24 \* 60 \* 60 \* 1000\),\s*projectDoc\.get\("eventDate"\),/);
   assert.match(read("components/booking/booking-autopilot-workspace.tsx"), /capExpiryAtEvent\(futureDate\(14\), project\?\.eventDate, new Date\(\)\)/);
   // Cue's "Draft a quote" card: two weeks, or the event's date.
@@ -231,6 +276,144 @@ test("sending never stretches a quote's window past the end of its event's day",
   const draftCard = cue.slice(cue.indexOf("export function DraftProposalCard"), cue.indexOf("export function EditProposalCard"));
   assert.match(draftCard, /chosenExpiry \?\? defaultExpiryDay\(\{ today: todayLocalIso\(\), eventDate: job\.eventDate, days: 14, now: new Date\(\) \}\)/);
   assert.doesNotMatch(cue, /in14Days/);
+});
+
+test("a same-day quote stays open until midnight on the event's clock, not UTC's", () => {
+  const NY = "America/New_York";
+  // Sent at 2:30 PM in New York on the event's day; the client says yes at
+  // 9:00 PM there, which is already Oct 13 in UTC.
+  const sentAt = new Date("2026-10-12T18:30:00.000Z");
+  const yesAt = "2026-10-13T01:00:00.000Z";
+  for (const chosen of [null, "2026-10-12T23:59:59.000Z"]) {
+    const expiresAt = expiryOnSend(chosen, sentAt, MINIMUM_DAYS_AFTER_SEND, "2026-10-12", NY);
+    assert.equal(expiresAt, "2026-10-13T03:59:59.000Z", `11:59:59 PM in New York (${chosen})`);
+    const plan = planClientProposalDecision({
+      decision: "accepted",
+      now: yesAt,
+      project: { state: "PROPOSAL", packageSnapshotId: null },
+      proposal: { status: "viewed", expiresAt, packageSnapshotId: "snapshot-1" },
+    });
+    assert.equal(plan.proposalStatus, "accepted", "still Oct 12 where they are");
+    // And it does close at their midnight.
+    assert.throws(
+      () =>
+        planClientProposalDecision({
+          decision: "accepted",
+          now: "2026-10-13T04:00:00.000Z",
+          project: { state: "PROPOSAL", packageSnapshotId: null },
+          proposal: { status: "viewed", expiresAt, packageSnapshotId: "snapshot-1" },
+        }),
+      /PROPOSAL_EXPIRED/,
+    );
+  }
+  // What the review found without the clock: closed at 7:59 PM in New York.
+  assert.equal(expiryOnSend(null, sentAt, MINIMUM_DAYS_AFTER_SEND, "2026-10-12"), "2026-10-12T23:59:59.000Z");
+  // Each zone's own midnight, through both daylight-saving changes.
+  assert.equal(expiryOnSend(null, sentAt, 7, "2026-10-12", "America/Los_Angeles"), "2026-10-13T06:59:59.000Z");
+  assert.equal(expiryOnSend(null, sentAt, 7, "2026-10-14", "America/Chicago"), "2026-10-15T04:59:59.000Z");
+  assert.equal(
+    expiryOnSend(null, new Date("2026-10-30T15:00:00.000Z"), 7, "2026-11-01", NY),
+    "2026-11-02T04:59:59.000Z",
+    "Nov 1 ends on Eastern Standard Time",
+  );
+  assert.equal(
+    expiryOnSend(null, new Date("2027-03-10T15:00:00.000Z"), 7, "2027-03-14", NY),
+    "2027-03-15T03:59:59.000Z",
+    "Mar 14 ends on Eastern Daylight Time",
+  );
+  // A zone that is no zone is the UTC day, as before; a later date the
+  // studio chose and a far event are untouched by the clock.
+  assert.equal(expiryOnSend(null, sentAt, 7, "2026-10-12", "Not/AZone"), "2026-10-12T23:59:59.000Z");
+  assert.equal(expiryOnSend("2026-10-30T23:59:59.000Z", sentAt, 7, "2026-10-12", NY), "2026-10-30T23:59:59.000Z");
+  assert.equal(expiryOnSend(null, sentAt, 7, "2027-05-22", NY), "2026-10-19T18:30:00.000Z");
+  // Sent after midnight in UTC but still the event's evening in New York:
+  // the floor is the rest of that evening, not a week.
+  assert.equal(
+    expiryOnSend(null, new Date("2026-10-13T00:30:00.000Z"), 7, "2026-10-12", NY),
+    "2026-10-13T03:59:59.000Z",
+  );
+  assert.equal(expiryNeedsReanchoring("2026-10-12T23:59:59.000Z", sentAt, 7, "2026-10-12", NY), true);
+
+  // The server's copy gives the same answers on every clock.
+  for (const zone of [null, NY, "America/Los_Angeles", "Pacific/Honolulu", "Europe/London", "bad"]) {
+    for (const eventDate of ["2026-10-12", "2026-10-13", "2026-10-19", "2026-11-01", null]) {
+      for (const chosen of [null, "2026-10-12T23:59:59.000Z", "2026-10-25T23:59:59.000Z"]) {
+        assert.equal(
+          serverExpiryOnSend(chosen, sentAt, 7, eventDate, zone),
+          expiryOnSend(chosen, sentAt, 7, eventDate, zone),
+          `${zone} ${eventDate} ${chosen}`,
+        );
+      }
+      const later = new Date("2026-10-26T15:00:00.000Z");
+      assert.equal(
+        serverCapExpiryAtEvent(later, eventDate, sentAt, zone).toISOString(),
+        capExpiryAtEvent(later, eventDate, sentAt, zone).toISOString(),
+      );
+    }
+  }
+});
+
+test("the day an offer stands to is read on the event's clock wherever it is written out", () => {
+  const NY = "America/New_York";
+  // A chosen date is that day, on any clock.
+  assert.equal(offerLastDay("2026-10-12T23:59:59.000Z", NY), "2026-10-12");
+  assert.equal(offerLastDay("2026-10-12T23:59:59.000Z", "Europe/Paris"), "2026-10-12");
+  // A floor ending at the event's midnight is that day, not the next.
+  assert.equal(offerLastDay("2026-10-17T03:59:59.000Z", NY), "2026-10-16");
+  assert.equal(offerLastDay("2026-10-13T06:59:59.000Z", "America/Los_Angeles"), "2026-10-12");
+  assert.equal(offerLastDay("", NY), null);
+  assert.equal(offerLastDay("soon", NY), null);
+  assert.equal(offerLastDay(null, NY), null);
+  for (const [expiresAt, zone] of [
+    ["2026-10-17T03:59:59.000Z", NY],
+    ["2026-10-12T23:59:59.000Z", "Europe/Paris"],
+    ["2026-10-26T18:30:00.000Z", "America/Chicago"],
+  ] as const) {
+    assert.equal(serverOfferLastDay(expiresAt, zone), offerLastDay(expiresAt, zone), expiresAt);
+  }
+
+  // The client's follow-up: "open until October 16", not the 17th.
+  const copy = proposalFollowUpCopy({
+    days: 3,
+    viewed: true,
+    firstName: "Priya",
+    projectName: "Priya Shah Sangeet",
+    sentAt: "2026-10-12T18:30:00.000Z",
+    expiresAt: "2026-10-17T03:59:59.000Z",
+    studioName: "Jess Styles Bridal",
+    timeZone: NY,
+  });
+  assert.match(copy.body, /open until October 16/);
+  const followUps = read("functions/src/booking/proposal-follow-ups.ts");
+  assert.match(followUps, /timeZone: eventZone\(project\.get\("timezone"\), tenant\.get\("timezone"\)\),/);
+  // The PDF, made again after a send, on the studio's clock.
+  assert.match(
+    read("functions/src/operations/ai-pdf.ts"),
+    /expires_on:offerLastDay\(proposal\.get\("expiresAt"\),eventZone\(tenant\.get\("timezone"\)\)\)\?\?/,
+  );
+
+  // The job's thread, on the studio's own clock as "Valid through" is.
+  const facts = (timeZone: string | null) =>
+    projectThread({
+      projectId: "1740d0bd",
+      projectName: "Priya Shah Sangeet",
+      projectCreatedAt: "2026-10-12T15:00:00.000Z",
+      clientName: "Priya",
+      proposals: [
+        {
+          id: "proposal-1",
+          status: "sent",
+          version: 1,
+          createdAt: "2026-10-12T16:00:00.000Z",
+          expiresAt: "2026-10-13T03:59:59.000Z",
+          pricingSnapshot: { totalCents: 32700, currency: "USD", packageName: "Sangeet hair" },
+        },
+      ],
+      trade: "hair",
+      timeZone,
+    }).find((entry) => entry.id === "proposal-proposal-1")?.artifact?.facts ?? [];
+  assert.ok(facts(NY).includes("expires Oct 12, 2026"), facts(NY).join(" | "));
+  assert.match(read("components/projects/use-project-thread.ts"), /timeZone: Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone \|\| null,/);
 });
 
 // ---------- F9: the approve notice goes once the PDF is ready ----------

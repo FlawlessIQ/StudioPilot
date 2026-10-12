@@ -84,6 +84,9 @@ export function useProjectThread(input: {
     messages: mine(messages.records),
     actionReceipts: mine(actionReceipts.records),
     trade,
+    // An offer's last day on the studio's own clock, as the quote's
+    // "Valid through" reads it.
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
   });
 
   return { entries, openConsultationId: openConsultation?.id ?? null };

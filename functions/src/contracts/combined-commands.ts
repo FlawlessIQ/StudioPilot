@@ -2,6 +2,7 @@ import { detailsForLine } from "../packages/inclusions.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { expiryOnSend, MINIMUM_DAYS_AFTER_SEND } from "../booking/proposal-expiry.js";
+import { eventZone } from "../planning/day-clock.js";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
 import { jobBillingFor } from "../billing/job-billing-reader.js";
@@ -212,6 +213,9 @@ export async function sendCombinedAgreement(
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
   const contractPath = "/client/contract";
   const proposalStatusAtRead = String(resolved.proposal.get("status"));
+  // The studio's clock, where the job has none of its own, for the offer's
+  // floor (proposal-expiry.ts).
+  const studioZone = (await db.doc(`tenants/${context.tenantId}`).get()).get("timezone");
 
   return db.runTransaction(async (transaction) => {
     const projectReference = db.doc(`projects/${input.projectId}`);
@@ -371,12 +375,13 @@ export async function sendCombinedAgreement(
       status: "sent",
       sentAt: proposal.get("sentAt") ?? context.timestamp,
       // The same validity window a proposal sent on its own gets, ending no
-      // later than the event's day.
+      // later than midnight of the event's day on its clock.
       expiresAt: expiryOnSend(
         proposal.get("expiresAt"),
         new Date(context.timestamp),
         MINIMUM_DAYS_AFTER_SEND,
         project.get("eventDate"),
+        eventZone(project.get("timezone"), studioZone),
       ),
       combinedContractId: contractId,
       // The proposal's delivery line tracks the agreement's email: it went

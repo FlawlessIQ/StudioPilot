@@ -29,6 +29,7 @@ import { inquiryReplySystemInstruction } from "../ai/studio-voice.js";
 import { activeReplyTemplate, applyReplyTemplate } from "../communications/inquiry-reply-template.js";
 import { dayFieldsFor, normaliseInquiryFormConfig, resolveInquiryEventType } from "../intake/inquiry-form-config.js";
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
+import { offerLastDay } from "../booking/proposal-expiry.js";
 import { runOfShowDocument } from "../planning/run-of-show-doc.js";
 import { crewLabels } from "../planning/crew-labels.js";
 import { eventZone } from "../planning/day-clock.js";
@@ -1017,7 +1018,9 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
         // showed two different retainers in one PDF (H2, M7).
         retainer:retainerText,
         balance:balanceText,
-        expires_on:String(proposal.get("expiresAt")).slice(0,10),
+        // The day it stands to: a send's floor can end at midnight on the
+        // studio's clock, the next day in UTC (proposal-expiry.ts).
+        expires_on:offerLastDay(proposal.get("expiresAt"),eventZone(tenant.get("timezone")))??String(proposal.get("expiresAt")).slice(0,10),
         generated_at:generatedAt,
       },
       packageDetails:details,

@@ -16,6 +16,7 @@
  */
 
 import { formatDueDate } from "@/lib/format/event-date";
+import { offerLastDay } from "@/features/booking/proposal-expiry";
 import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 import { leadAnswers, type LeadAnswer } from "@/features/leads/lead-answers";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
@@ -87,6 +88,13 @@ export type ThreadInput = {
    * makeup artist's quote. Absent is a photographer, the thread as it was.
    */
   trade?: unknown;
+  /**
+   * The reader's clock, for the day an offer stands to (proposal-expiry.ts
+   * `offerLastDay`): a send's floor can end at midnight on the event's
+   * clock, the next day in UTC, and the thread said "expires" a day late.
+   * Absent, the stored date is read as written.
+   */
+  timeZone?: string | null;
 };
 
 const text = (value: unknown): string =>
@@ -242,7 +250,7 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
                 total,
                 readable(status),
                 text(proposal.expiresAt)
-                  ? `expires ${formatDueDate(text(proposal.expiresAt))}`
+                  ? `expires ${formatDueDate((input.timeZone ? offerLastDay(proposal.expiresAt, input.timeZone) : null) ?? text(proposal.expiresAt))}`
                   : "",
               ].filter(Boolean),
               href: `/studio/proposals/${proposal.id}`,

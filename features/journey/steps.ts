@@ -294,8 +294,16 @@ export type JourneyInput = {
    * A makeup or hair trial (features/consultations/trial.ts); only read for a
    * trade with one. `when` is its time on the job's clock (`trialWhen`), as
    * the job's trial card says it; without it the step formats `startsAt`.
+   * `arranged`: the job records the trial itself, its look noted or booked
+   * through its link (trialArrangedOnJob), so one held off the books with
+   * no day left reads as done, as the job's trial card treats it.
    */
-  trial?: { state: "not_booked" | "booked" | "held"; startsAt: string | null; when?: string | null } | null;
+  trial?: {
+    state: "not_booked" | "booked" | "held";
+    startsAt: string | null;
+    when?: string | null;
+    arranged?: boolean;
+  } | null;
   /**
    * Hair extensions to buy or rent, from the trial notes, and whether the
    * order task is done (features/trades/extensions.ts). Null or absent: none
@@ -1007,21 +1015,27 @@ export function projectJourney(input: JourneyInput): {
   if (trialWord) {
     const trial = input.trial ?? { state: "not_booked", startsAt: null };
     const trialWhen = trial.when || (trial.startsAt ? formatCallTime(trial.startsAt) : null);
+    const noDayLeft =
+      trial.state === "not_booked" && !trialDayLeft({ today: input.today, eventDate: input.eventDate });
+    // Held off the books, as the job itself records it (its look noted, or
+    // booked through its link; trialArrangedOnJob): once no day is left it
+    // is done. The job's trial card reads the same fact and says nothing
+    // more; the rail called it "no day is left" and the minimap "missed".
+    const trialStatus = noDayLeft && trial.arranged ? "held" : trial.state;
     // Not booked, with no day left before the event to hold it on (tomorrow
     // to the day before, features/consultations/trial.ts): its moment has
     // gone, as a missed step's does after the day. A hair job dated today
     // listed "Hair trial" as a step still to come (Priya Shah Sangeet, Jess
     // Styles Bridal, 2026-10-12). A booked or held trial reads as before, and
     // so does one after the event.
-    const noTrialDay =
-      trial.state === "not_booked" && !eventBehindThem && !trialDayLeft({ today: input.today, eventDate: input.eventDate });
+    const noTrialDay = noDayLeft && trialStatus === "not_booked" && !eventBehindThem;
     push({
       key: "trial",
       title: trialWord,
       detail:
-        trial.state === "held"
+        trialStatus === "held"
           ? `Done${trialWhen ? ` ${trialWhen}` : ""} — the look goes on their day sheet`
-          : trial.state === "booked"
+          : trialStatus === "booked"
             ? `Booked${trialWhen ? ` for ${trialWhen}` : ""}`
             : noTrialDay
               ? `Not booked, and no day is left before the ${words.event} to hold it`
@@ -1035,14 +1049,14 @@ export function projectJourney(input: JourneyInput): {
       // Shah, Jess Styles Bridal, 2026-10-10). `waiting_other` is never the
       // next move, and `explain` puts "Booked for …" on the rail.
       status:
-        trial.state === "held"
+        trialStatus === "held"
           ? "complete"
-          : trial.state === "booked"
+          : trialStatus === "booked"
             ? prepStatus("waiting_other")
             : noTrialDay
               ? "passed"
               : prepStatus("upcoming"),
-      explain: trial.state === "booked" || noTrialDay,
+      explain: trialStatus === "booked" || noTrialDay,
       action: null,
     });
   }
