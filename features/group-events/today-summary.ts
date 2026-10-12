@@ -19,6 +19,7 @@ import {
   type SignupState,
 } from "@/features/group-events/signup";
 import { rosterEnabled, rosterSummary, type Participant } from "@/features/group-events/participants";
+import { groupDeliveryProgress, type DeliveryProgress } from "@/features/group-events/delivery";
 
 /** How far either side of today an event is looked at. */
 export const GROUP_EVENT_WINDOW_DAYS = 14;
@@ -84,6 +85,8 @@ export type GroupEventDay = {
   places: { booked: number; total: number; perTime: number } | null;
   /** On the day, the next booked time from now and who it is. */
   next: { time: string; name: string } | null;
+  /** After the day: each place's own link (features/group-events/delivery.ts). */
+  delivery: DeliveryProgress;
 };
 
 /** One event's roster as Today shows it. */
@@ -116,6 +119,7 @@ export function groupEventDay(
         ? { booked: booked.length, total: times.length * config.slots.perSlot, perTime: config.slots.perSlot }
         : null,
     next: upcoming?.slot ? { time: slotLabel(upcoming.slot), name: upcoming.athleteName } : null,
+    delivery: groupDeliveryProgress(participants),
     signedUp: summary.total,
     paid: summary.paid,
     owing: summary.unpaid + summary.payOnDay,
@@ -130,7 +134,24 @@ export function groupEventDay(
 /** Upcoming and today's events always show; a past one only while something is left to do. */
 export function groupEventShown(candidate: GroupEventCandidate, day: GroupEventDay): boolean {
   if (candidate.dayOffset >= 0) return true;
-  return day.outstandingCents > 0 || day.failedInvoices > 0;
+  // Links attached and waiting to be sent are the studio's to do, as money owed is.
+  return day.outstandingCents > 0 || day.failedInvoices > 0 || day.delivery.ready > 0;
+}
+
+/**
+ * "18 of 24 delivered · 3 ready to send", once any link is on the roster;
+ * nothing before (a roster with no links yet has nothing to report).
+ */
+export function deliveryLine(day: GroupEventDay): string | null {
+  const progress = day.delivery;
+  if (!progress.total || progress.delivered + progress.ready + progress.heldUnpaid === 0) return null;
+  return [
+    `${progress.delivered} of ${progress.total} delivered`,
+    progress.ready ? `${progress.ready} ready to send` : null,
+    progress.heldUnpaid ? `${progress.heldUnpaid} held until paid` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** "Today", "Tomorrow", "Sat, Oct 18", or "Sat, Oct 4 · 6 days ago". */

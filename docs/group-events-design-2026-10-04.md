@@ -1,8 +1,10 @@
 # Group events — design (job types Phase 5)
 
-**Status: design for Conor's approval. Nothing built.** Before building,
-walk one real cheer day with Gabe against this document (see "Questions for
-Gabe" at the end).
+**Status (2026-10-12): all four phases built.** The roster (Phase 1) and
+sign-up (Phase 2) are live; mini-session days (Phase 4) and delivery and
+reviews (Phase 3, "Built: delivery and reviews" below) are on main. What
+shipped differs from this design in places; docs/group-event-signup-plan-2026-10-10.md
+records what was built. Still owed: one real cheer day walked with Gabe.
 
 ## The problem
 
@@ -127,6 +129,107 @@ Policy apply in full:
    name, review asks, close-out rule.
 4. **Mini-session days** reuse 1–3 with time slots (the "Later" item in the
    job-types plan).
+
+## Built: delivery and reviews (2026-10-12)
+
+Phase 3 as built. It differs from the sketch above in three ways: there is
+no `deliveryRecords` per parent, the link is matched by pasted names (not
+file names), and the job's state is not moved.
+
+**Where it lives.** The link is on the parent's own record,
+`eventParticipants/{id}.delivery`: `{ url, host, attachedAt, releasedUrl,
+releasedAt, releasedUnpaid }`. It is never in `deliveryRecords`, for the same
+reason invoices stay out of `invoiceReferences`: the job's readers would treat
+a parent's photos as the organiser's.
+
+- The pure rules are in `features/group-events/delivery.ts`, copied to
+  `functions/src/group-events/delivery.ts` with a drift test.
+- The send-time rules are in `functions/src/group-events/participant-delivery-core.ts`.
+
+**Attaching links.** crmCommand `attachParticipantDeliveries` takes up to 200
+`{ participantId, url | null }`. Only https links are accepted (`deliveryUrlProblem`),
+and the host is named with post-event's `linkHost`. There are three ways in, from
+the roster's "Add links" sheet or a person's entry:
+
+- **One at a time**, from a person's entry.
+- **Match by name.** Paste lines like "Ava Smith — https://…" (a comma, a
+  tab or the link first also work). They are matched by athlete name,
+  ignoring case, spacing, accents and curly quotes. Before anything is saved,
+  the sheet shows:
+  - names that match nobody;
+  - names two places share;
+  - a place named twice;
+  - lines with no link or no name.
+
+  The studio picks a person for each of those or skips the line. Cancelled
+  places are never matched.
+- **One link for everyone**, for a team gallery.
+
+Saving never sends anything.
+
+**Releasing.** crmCommand `releaseParticipantDeliveries` takes `participantIds`,
+which is either null (everyone ready, up to 150 per press) or one place.
+
+- **Unpaid places are held** until they've paid ("held — not paid" on the
+  roster). The studio can send one anyway from that person's entry
+  (`allowUnpaid`, one place at a time only).
+- **Cancelled places** never get anything.
+- **One email per place per link.** The email's id is
+  `group_delivery_{participant}_{sha(link)}`, so a second press sends nothing.
+  A replaced link shows "New link, not sent yet" and sends once more.
+- **No email on file:** the place is still released (and counts as delivered),
+  and the link shows on their order page.
+- **The email** is `group_delivery`, with `audience: "parent"` and
+  `soleRecipient`. Its button opens their link, and their order page is the
+  second link. It is held while the studio's billing has lapsed.
+- **Read again as it goes:** a cancelled place, a job put away, called off or
+  on hold, or a link replaced since holds it. A quiet (imported) job still
+  sends, because the studio pressed release itself.
+- **The order page** (`/e/order/{orderToken}`) shows "Your photos" with the
+  link they were sent. A link attached but not yet released doesn't show.
+
+**Review asks.** One `group_review_request` per parent, ever, with id
+`group_review_{participant}`.
+
+- **Scheduled** at their first release, 3 days later (the wedding's first
+  ask), only for a place with an email. It is stored as `reviewAsk` plus a
+  top-level `reviewAskDueAt`.
+- **Queued** by the hourly `reviewRequestScheduler`
+  (`sweepParticipantReviewAsks`). There is no new function, no invoker change
+  and no new index, because it uses a single-field range read.
+- **Held** (and never retried) when:
+  - the studio has no review link saved (it points at the studio's saved
+    link, `studioReviewDestination`);
+  - the job has "Don't ask" (`reviewRequestsSkippedAt`);
+  - the job is put away, called off, on hold or quiet;
+  - the place was cancelled or has no delivery.
+- **Rechecked as it sends** (operations/jobs.ts).
+- **Treated as a client automation** (`clientAutomationEmailTypes`, both
+  copies).
+
+**Close-out.** `prepareCloseout` reads the roster. On a job with its roster on
+and someone on it, it adds a `participants` requirement: everyone not
+cancelled is paid (or owes nothing) and delivered. That requirement is
+evidence only and can't be vouched for; a no-show is cancelled from the roster
+instead. On such a job:
+
+- the "Gallery delivered" row is met when every place is delivered;
+- the "Review request sent" row is met when any parent's ask was queued.
+
+Weddings read nothing new.
+
+**Today and the roster** show "18 of 24 delivered · 3 ready to send · 2 held
+until paid". A past event stays on Today while links wait to be sent.
+
+**Not done:**
+
+- The job's state isn't moved. POST_PRODUCTION → DELIVERED is
+  evidence-controlled through the wedding delivery (backup step, delivery
+  records), so a roster job still reaches DELIVERED the ordinary way before
+  close-out can run.
+- There is no per-parent "don't ask" (the job-level one covers the event).
+- There is no file-name matching.
+- Crew field mode doesn't show deliveries.
 
 ## Questions for Gabe
 

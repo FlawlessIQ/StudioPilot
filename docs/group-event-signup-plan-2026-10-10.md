@@ -93,7 +93,8 @@ studio's own pay link.
 Still to do:
 - A real pay link and a real payment on a company with QuickBooks Payments.
   Sandboxes have no Payments, so this needs a prod walk.
-- Phase 5: delivery and review per parent.
+- ~~Phase 5: delivery and review per parent.~~ Built 2026-10-12; see "Each
+  parent's photos and review ask" below.
 - A walk on production with a FlawlessIQ test event. It sends real email, so it
   needs Conor's OK.
 
@@ -190,6 +191,39 @@ QuickBooks invoices (N)" button, with a confirm step.
 - **Limit:** at most 150 per press.
 - **What it writes:** the same as the single send (`queueParticipantInvoice`),
   plus one audit entry, `participant.invoices_requested`.
+
+## Each parent's photos and review ask (built 2026-10-12)
+
+This is Phase 5. The full write-up is in docs/group-events-design-2026-10-04.md,
+under "Built: delivery and reviews".
+
+- **Shown when:** the studio's trade delivers (a photographer's), and the
+  event day has come or a link is already on someone.
+- **The roster's Photos section:**
+  - progress: "18 of 24 delivered · 3 ready to send · 2 held until they pay";
+  - **Add links**, with two ways in: match pasted "name — link" lines by
+    athlete name (the studio resolves unmatched or shared names before
+    saving), or one link for everyone;
+  - **Send to everyone with photos attached (N)**, with a confirm step.
+- **Each row:** a line for its delivery and a "Send link" button. Each
+  person's entry has their own link, plus "Send anyway, though they owe".
+- **Commands:** crmCommand `attachParticipantDeliveries` and
+  `releaseParticipantDeliveries`, for the owner, admin or assigned
+  coordinator. Field crew can't use them.
+- **Unpaid places are held** until they pay. The studio can send to one
+  place at a time anyway.
+- **Emails:**
+  - `group_delivery`: one per place per link. A replaced link sends again.
+    Held while billing has lapsed.
+  - `group_review_request`: one per parent, ever, 3 days after their
+    delivery. Queued by the hourly `reviewRequestScheduler`, so no new
+    function. Held with no review link, "Don't ask", a job put away or quiet,
+    or a cancelled place.
+- **Order page:** "Your photos" with the link they were sent.
+- **Close-out:** a `participants` requirement on roster jobs: everyone not
+  cancelled is paid and delivered. It is evidence only.
+- **Not moved:** the job's state. A roster job still reaches DELIVERED
+  through the ordinary delivery.
 
 ## What exists (Phase 1, live since 2026-10-04)
 

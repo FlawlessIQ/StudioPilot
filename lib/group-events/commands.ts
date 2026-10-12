@@ -72,3 +72,16 @@ export function sendParticipantInvoices(projectId: string) {
 export function sendParticipantInvoice(projectId: string, participantId: string) {
   return runCrmCommand("sendParticipantInvoice", { projectId, participantId }, once());
 }
+
+/** Each place's own link after the day; a null link takes one off (group-events/delivery.ts). */
+export function attachParticipantDeliveries(projectId: string, links: { participantId: string; url: string | null }[]) {
+  return runCrmCommand("attachParticipantDeliveries", { projectId, links }, once());
+}
+
+/**
+ * Send each place their link: everyone ready (`participantIds` null), or one
+ * place — and only one place may be sent theirs while they still owe.
+ */
+export function releaseParticipantDeliveries(projectId: string, participantIds: string[] | null, allowUnpaid = false) {
+  return runCrmCommand("releaseParticipantDeliveries", { projectId, participantIds, allowUnpaid }, once());
+}

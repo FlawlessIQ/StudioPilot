@@ -230,6 +230,16 @@ function orderView(
     amount: eventPrice(amountCents),
     paid: participant.get("status") === "paid",
     cancelled: participant.get("status") === "cancelled",
+    // Their own link after the day, once the studio has released it to them —
+    // the one they were sent, never one attached and not yet released
+    // (features/group-events/delivery.ts).
+    delivered: (() => {
+      const delivery = (participant.get("delivery") ?? null) as { releasedUrl?: unknown; releasedAt?: unknown } | null;
+      const url = text(delivery?.releasedUrl);
+      return participant.get("status") !== "cancelled" && url.startsWith("https://") && text(delivery?.releasedAt)
+        ? { url }
+        : null;
+    })(),
     // The way they chose, as long as the studio still offers it — or, for a
     // QuickBooks invoice, as long as theirs exists.
     payment:

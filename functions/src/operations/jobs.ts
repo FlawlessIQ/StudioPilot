@@ -92,6 +92,7 @@ import {
   voidQuickBooksParticipantInvoice,
 } from "../group-events/participant-invoices.js";
 import { participantBalancePlanFor, participantReminderPlanFor } from "../group-events/participant-reminders.js";
+import { participantDeliveryPlanFor, participantReviewPlanFor } from "../group-events/participant-delivery.js";
 import {
   CREATE_PARTICIPANT_INVOICE_JOB,
   RECONCILE_PARTICIPANT_INVOICE_JOB,
@@ -1019,6 +1020,20 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   }
   if (type === "group_event_balance" && document.get("participantId")) {
     const plan = await participantBalancePlanFor(getFirestore(), document);
+    if ("hold" in plan) return { held: plan.hold, type };
+    reminderValues = plan.values;
+  }
+  // A parent's photos at a group event, and their one review ask
+  // (group-events/participant-delivery-core.ts): held if their place was
+  // cancelled, the job put away, the link replaced since, or (for the ask)
+  // the studio said not to ask.
+  if (type === "group_delivery" && document.get("participantId")) {
+    const plan = await participantDeliveryPlanFor(getFirestore(), document);
+    if ("hold" in plan) return { held: plan.hold, type };
+    reminderValues = plan.values;
+  }
+  if (type === "group_review_request" && document.get("participantId")) {
+    const plan = await participantReviewPlanFor(getFirestore(), document);
     if ("hold" in plan) return { held: plan.hold, type };
     reminderValues = plan.values;
   }

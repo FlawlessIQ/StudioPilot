@@ -78,6 +78,8 @@ export const EDITABLE_EMAILS: readonly EditableEmail[] = [
   { key: "album_selection_reminder", group: "After the event", label: "Album picks reminder", when: "When album choices are still waiting" },
   { key: "delivery_expiry_reminder", group: "After the event", label: "Gallery expiring", when: "Before a delivery link expires" },
   { key: "review_request", group: "After the event", label: "Review request", when: "After delivery, asking for a review" },
+  { key: "group_delivery", group: "After the event", label: "Group event delivery", when: "When you send a parent their own link after a group event" },
+  { key: "group_review_request", group: "After the event", label: "Group event review request", when: "A few days after a parent's delivery, asking for a review" },
 
   { key: "crew_invitation", group: "Crew", label: "Job offer", when: "When you offer someone a job" },
   { key: "crew_assigned", group: "Crew", label: "You're booked", when: "When you book someone yourself, with no offer to answer" },
@@ -121,7 +123,14 @@ export const EMAIL_GROUPS: readonly EmailGroup[] = [
  * after the day has no delivery emails to edit; the rest keep their keys and
  * say when they go in the studio's words. A photographer's list is unchanged.
  */
-const DELIVERY_EMAILS = new Set(["delivery", "delivery_correction", "album_selection_reminder", "delivery_expiry_reminder"]);
+const DELIVERY_EMAILS = new Set([
+  "delivery",
+  "delivery_correction",
+  "album_selection_reminder",
+  "delivery_expiry_reminder",
+  "group_delivery",
+  "group_review_request",
+]);
 
 export function editableEmailsFor(trade: unknown): readonly EditableEmail[] {
   const profile = tradeProfile(trade);

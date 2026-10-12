@@ -20,6 +20,9 @@ import {
   participantInvoiceVoidJob,
 } from "../group-events/participant-invoice-core.js";
 import { tradeAllows, tradeMoves, tradeProfile } from "../trades/trades.js";
+import { DELIVERY_LIMITS, deliveryUrlProblem, groupReviewDueAt, releaseDecision, type ParticipantDelivery } from "../group-events/delivery.js";
+import { GROUP_DELIVERED_NOUN, GROUP_DELIVERY_EMAIL, groupDeliveryJobId } from "../group-events/participant-delivery-core.js";
+import { linkHost } from "../post-event/link-host.js";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
@@ -1068,6 +1071,37 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: z.object({ projectId: z.string().min(1) }),
+  }),
+  // After the day: each parent's own link, and releasing it to them
+  // (group-events/delivery.ts, Phase 5).
+  z.object({
+    type: z.literal("attachParticipantDeliveries"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      /** A link per place; null takes a link off (and off their order page). */
+      links: z
+        .array(
+          z.object({
+            participantId: z.string().min(1),
+            url: z.string().trim().max(DELIVERY_LIMITS.url).nullable(),
+          }),
+        )
+        .min(1)
+        .max(DELIVERY_LIMITS.attachBatch),
+    }),
+  }),
+  z.object({
+    type: z.literal("releaseParticipantDeliveries"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      /** Null: everyone with a link that's ready. One place: may send though they owe (`allowUnpaid`). */
+      participantIds: z.array(z.string().min(1)).min(1).max(DELIVERY_LIMITS.releaseBatch).nullable().default(null),
+      allowUnpaid: z.boolean().default(false),
+    }),
   }),
   z.object({
     type: z.literal("inviteGroupEventParents"),
@@ -5477,6 +5511,205 @@ export const crmCommand = onRequest(
             userAgent: request.header("user-agent") ?? null,
           });
           const output = { projectId: command.input.projectId, queued: due.length };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "attachParticipantDeliveries") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          // One link per place: a place named twice keeps the last.
+          const links = new Map(command.input.links.map((link) => [link.participantId, link.url ? link.url.trim() : null]));
+          for (const url of links.values()) {
+            const problem = url === null ? null : deliveryUrlProblem(url);
+            if (problem === "not_https") throw new Error("DELIVERY_URL_MUST_USE_HTTPS");
+            if (problem) throw new Error("DELIVERY_URL_INVALID");
+          }
+          const places = await Promise.all(
+            [...links.keys()].map((participantId) =>
+              groupEventParticipant(transaction, db, command.tenantId, command.input.projectId, participantId),
+            ),
+          );
+          let attached = 0;
+          let removed = 0;
+          for (const participant of places) {
+            const url = links.get(participant.id) ?? null;
+            const current = (participant.get("delivery") ?? null) as ParticipantDelivery | null;
+            if ((current?.url ?? null) === url) continue;
+            if (url !== null && participant.get("status") === "cancelled") throw new Error("PARTICIPANT_CANCELLED");
+            if (url === null) {
+              // Off the roster and off their order page; a review ask still
+              // waiting is held by the sweep (nothing delivered).
+              removed += 1;
+              transaction.update(participant.ref, { delivery: null, updatedAt: timestamp, updatedBy: identity.uid });
+              continue;
+            }
+            attached += 1;
+            transaction.update(participant.ref, {
+              // What they were sent stays as it was: a replaced link is sent
+              // again only when the studio releases it.
+              delivery: {
+                url,
+                host: linkHost(url).host,
+                attachedAt: timestamp,
+                attachedBy: identity.uid,
+                releasedUrl: current?.releasedUrl ?? null,
+                releasedAt: current?.releasedAt ?? null,
+                releasedBy: current?.releasedBy ?? null,
+                releasedUnpaid: current?.releasedUnpaid === true,
+              },
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: "participant.deliveries_attached",
+            entityId: command.input.projectId,
+            before: null,
+            after: { attached, removed, unchanged: places.length - attached - removed },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = { projectId: command.input.projectId, attached, removed, unchanged: places.length - attached - removed };
+          transaction.create(commandReference, {
+            tenantId: command.tenantId,
+            idempotencyKey: command.idempotencyKey,
+            result: output,
+            createdAt: timestamp,
+          });
+          return output;
+        }
+
+        if (command.type === "releaseParticipantDeliveries") {
+          if (!hasProjectAccess(membershipData, command.input.projectId)) throw new Error("FORBIDDEN");
+          const project = await groupEventProject(transaction, db, command.tenantId, command.input.projectId, true);
+          const chosen = command.input.participantIds ? [...new Set(command.input.participantIds)] : null;
+          // Sending to someone who still owes is a decision about one person,
+          // never a bulk default.
+          if (command.input.allowUnpaid && chosen?.length !== 1) throw new Error("DELIVERY_UNPAID_ONE_AT_A_TIME");
+          const places = chosen
+            ? await Promise.all(
+                chosen.map((participantId) =>
+                  groupEventParticipant(transaction, db, command.tenantId, command.input.projectId, participantId),
+                ),
+              )
+            : (
+                await transaction.get(
+                  db
+                    .collection("eventParticipants")
+                    .where("tenantId", "==", command.tenantId)
+                    .where("projectId", "==", command.input.projectId),
+                )
+              ).docs;
+          const decided = places.map((participant) => ({
+            participant,
+            decision: releaseDecision(
+              {
+                status: String(participant.get("status") ?? ""),
+                amountCents: Number(participant.get("amountCents") ?? 0),
+                email: typeof participant.get("email") === "string" ? String(participant.get("email")) : null,
+                delivery: (participant.get("delivery") ?? null) as ParticipantDelivery | null,
+              },
+              { allowUnpaid: command.input.allowUnpaid },
+            ),
+          }));
+          const ready = decided.filter(
+            (item): item is { participant: FirebaseFirestore.DocumentSnapshot; decision: Extract<ReturnType<typeof releaseDecision>, { release: true }> } =>
+              item.decision.release,
+          );
+          const due = ready.slice(0, DELIVERY_LIMITS.releaseBatch);
+          if (!due.length) {
+            const reason = decided.length === 1 && !decided[0]!.decision.release ? decided[0]!.decision.reason : null;
+            if (reason === "cancelled") throw new Error("PARTICIPANT_CANCELLED");
+            if (reason === "no_link") throw new Error("DELIVERY_LINK_REQUIRED");
+            if (reason === "already_sent") throw new Error("DELIVERY_ALREADY_SENT");
+            if (reason === "unpaid") throw new Error("DELIVERY_HELD_UNPAID");
+            throw new Error("DELIVERIES_NONE_READY");
+          }
+          // One email per place per link (its id is made from the link):
+          // read first, so a replay or a second press writes nothing twice.
+          const jobs = due.map(({ participant, decision }) =>
+            decision.email ? db.doc(`emailJobs/${groupDeliveryJobId(participant.id, decision.url)}`) : null,
+          );
+          const existing = await Promise.all(jobs.map((reference) => (reference ? transaction.get(reference) : Promise.resolve(null))));
+          const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
+          let emailed = 0;
+          due.forEach(({ participant, decision }, index) => {
+            const orderToken =
+              typeof participant.get("orderToken") === "string" && participant.get("orderToken")
+                ? String(participant.get("orderToken"))
+                : newEventOrderToken();
+            // One review ask per parent, ever: scheduled from their first
+            // delivery, and only for someone with an email to ask.
+            const askFirst = decision.email && !participant.get("reviewAsk");
+            const dueAt = groupReviewDueAt(timestamp);
+            transaction.update(participant.ref, {
+              "delivery.releasedUrl": decision.url,
+              "delivery.releasedAt": timestamp,
+              "delivery.releasedBy": identity.uid,
+              "delivery.releasedUnpaid": decision.unpaid,
+              orderToken,
+              ...(askFirst ? { reviewAsk: { state: "scheduled", dueAt, reason: null, queuedAt: null }, reviewAskDueAt: dueAt } : {}),
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+            const reference = jobs[index];
+            if (!reference || existing[index]?.exists) return;
+            emailed += 1;
+            transaction.create(reference, {
+              id: reference.id,
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              participantId: participant.id,
+              type: GROUP_DELIVERY_EMAIL,
+              recipient: String(participant.get("email")),
+              recipientName: participant.get("parentName") ?? null,
+              // The parent alone: the job's client is the organiser.
+              soleRecipient: true,
+              audience: "parent",
+              galleryUrl: decision.url,
+              athleteName: participant.get("athleteName") ?? null,
+              deliveredNoun: GROUP_DELIVERED_NOUN,
+              eventDate: project.get("eventDate") ?? null,
+              actionUrl: `${appUrl}/e/order/${orderToken}`,
+              status: "queued",
+              attempts: 0,
+              maxAttempts: 5,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              createdBy: identity.uid,
+            });
+          });
+          const heldUnpaid = decided.filter((item) => !item.decision.release && item.decision.reason === "unpaid").length;
+          participantAudit(transaction, db, {
+            tenantId: command.tenantId,
+            projectId: command.input.projectId,
+            actorId: identity.uid,
+            action: "participant.deliveries_released",
+            entityId: chosen?.length === 1 ? chosen[0]! : command.input.projectId,
+            before: null,
+            after: { released: due.length, emailed, heldUnpaid, allowUnpaid: command.input.allowUnpaid },
+            timestamp,
+            correlationId,
+            userAgent: request.header("user-agent") ?? null,
+          });
+          const output = {
+            projectId: command.input.projectId,
+            released: due.length,
+            emailed,
+            heldUnpaid,
+            // More than one press holds: press again for the rest.
+            remaining: ready.length - due.length,
+          };
           transaction.create(commandReference, {
             tenantId: command.tenantId,
             idempotencyKey: command.idempotencyKey,

@@ -384,6 +384,13 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PARTICIPANT_INVOICE_OPEN: "Their QuickBooks invoice is already out. It's on its way or waiting to be paid.",
   PARTICIPANT_INVOICES_NONE_DUE: "Nobody needs an invoice: everyone owing has one already, is paying on the day, or has no email.",
   PARTICIPANT_AMOUNT_REQUIRED: "Add what they owe first, then send the invoice.",
+  // Group events after the day: each parent's own link (features/group-events/delivery.ts).
+  DELIVERY_URL_INVALID: "That link doesn't look right. Paste the full web address, starting with https://.",
+  DELIVERY_LINK_REQUIRED: "Add their link first, then send it.",
+  DELIVERY_ALREADY_SENT: "They already have this link. Attach a new one to send again.",
+  DELIVERY_HELD_UNPAID: "They haven't paid yet, so their link is held. Send it anyway from their entry, or record their payment first.",
+  DELIVERY_UNPAID_ONE_AT_A_TIME: "Links go to someone who still owes one person at a time, from their entry.",
+  DELIVERIES_NONE_READY: "Nothing is ready to send: everyone with a link has it already, or still owes.",
   // A parent's sign-up page (app/api/public/event-signup); the page words these the same.
   EVENT_LINK_NOT_FOUND: "This link isn't working. Ask the studio for a new one.",
   EVENT_LINK_RETIRED: "This link has been replaced. Ask the studio for the new one.",

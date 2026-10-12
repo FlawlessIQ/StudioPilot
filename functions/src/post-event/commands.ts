@@ -23,6 +23,7 @@ import {
   type CloseoutRequirement,
 } from "./closeout-attestation.js";
 import { postProductionUndoRefusal, previousAlbumStatus } from "./undo.js";
+import { participantsCloseout, participantsCloseoutLabel, type ParticipantDelivery } from "../group-events/delivery.js";
 
 const step = z.enum([
   "backup_complete",
@@ -799,6 +800,7 @@ export const postEventCommand = onRequest(
           reviews,
           crewAssignments,
           insuranceRequests,
+          participants,
         ] = await Promise.all([
           db.doc(`projects/${parsed.input.projectId}`).get(),
           db
@@ -838,6 +840,12 @@ export const postEventCommand = onRequest(
             .get(),
           db
             .collection("insuranceRequests")
+            .where("tenantId", "==", parsed.tenantId)
+            .where("projectId", "==", parsed.input.projectId)
+            .get(),
+          // A group event's roster: each parent's place (group-events/delivery.ts).
+          db
+            .collection("eventParticipants")
             .where("tenantId", "==", parsed.tenantId)
             .where("projectId", "==", parsed.input.projectId)
             .get(),
@@ -906,7 +914,27 @@ export const postEventCommand = onRequest(
               String(item.get("status")),
             ),
         );
-        const requirements = [
+        /**
+         * A group event closes when every place not cancelled is paid and
+         * delivered (group events Phase 5). Only a job with its roster on and
+         * someone on it: a wedding reads nothing new here. Its own gallery and
+         * review rows are met by the parents' deliveries and asks, since a
+         * roster job's photos go to each parent, not to the job's client.
+         */
+        const roster = participantsCloseout(
+          project.get("groupEvent.enabled") === true,
+          participants.docs.map((item) => ({
+            status: String(item.get("status") ?? ""),
+            amountCents: Number(item.get("amountCents") ?? 0),
+            email: typeof item.get("email") === "string" ? String(item.get("email")) : null,
+            delivery: (item.get("delivery") ?? null) as ParticipantDelivery | null,
+          })),
+        );
+        const parentAsked = roster.applies
+          ? participants.docs.find((item) => String(item.get("reviewAsk.state") ?? "") === "queued")
+          : undefined;
+        const rosterDelivered = roster.applies && roster.delivered === roster.total;
+        const requirements: CloseoutRequirement[] = [
           {
             key: "contract",
             label: "Signed contract recorded",
@@ -940,8 +968,8 @@ export const postEventCommand = onRequest(
           {
             key: "delivery",
             label: "Gallery delivered and accessed",
-            complete: Boolean(delivery),
-            evidenceId: delivery?.id ?? null,
+            complete: Boolean(delivery) || rosterDelivered,
+            evidenceId: delivery?.id ?? (rosterDelivered ? "participant_deliveries" : null),
           },
           {
             key: "album",
@@ -958,9 +986,11 @@ export const postEventCommand = onRequest(
             // a decision, recorded on the job, not a gap to vouch around.
             complete:
               Boolean(reviewAsk) ||
+              Boolean(parentAsked) ||
               typeof project.get("reviewRequestsSkippedAt") === "string",
             evidenceId:
               reviewAsk?.id ??
+              (parentAsked ? `participant_review_${parentAsked.id}` : null) ??
               (typeof project.get("reviewRequestsSkippedAt") === "string"
                 ? "review_requests_skipped"
                 : null),
@@ -983,6 +1013,13 @@ export const postEventCommand = onRequest(
               )?.id ?? null,
           },
         ];
+        if (roster.applies)
+          requirements.push({
+            key: "participants",
+            label: participantsCloseoutLabel(roster),
+            complete: roster.complete,
+            evidenceId: roster.complete ? "participants_settled_and_delivered" : null,
+          });
         const closeoutId = `closeout_${parsed.input.projectId}`;
         const reference = db.doc(`projectCloseouts/${closeoutId}`);
         const current = await reference.get();

@@ -16,6 +16,7 @@
 
 import { jobKindOf } from "@/features/job-kinds/job-kinds";
 import type { ParticipantInvoiceState } from "@/features/group-events/signup";
+import type { ParticipantDelivery, ParticipantReviewAsk } from "@/features/group-events/delivery";
 
 export type ParticipantStatus = "unpaid" | "pay_on_day" | "paid" | "cancelled";
 
@@ -76,6 +77,10 @@ export type Participant = {
     balanceCents?: number | null;
     error?: { code: string; message: string } | null;
   } | null;
+  /** Their own link after the day, and what was released to them (features/group-events/delivery.ts). */
+  delivery?: ParticipantDelivery | null;
+  /** Their one review ask, some days after their delivery. */
+  reviewAsk?: ParticipantReviewAsk | null;
 };
 
 export type RosterSummary = {

@@ -182,6 +182,9 @@ export const emailTemplateKeys = [
   "group_event_reminder",
   // After it: a nudge to anyone who still owes.
   "group_event_balance",
+  // Each parent's own delivery, and their one review ask after it.
+  "group_delivery",
+  "group_review_request",
   // Studio-facing: inbox capture has gone quiet — the forwarding filter may
   // have broken, and inquiries may be sitting unanswered in the inbox.
   "studio_capture_silent",
@@ -2751,6 +2754,54 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         secondaryAction: payUrl ? order : undefined,
       };
     }
+    case "group_delivery": {
+      // A parent's own link at a group event, released by the studio
+      // (crmCommand releaseParticipantDeliveries). What it is comes with the
+      // email (group-events/participant-delivery-core.ts): delivery is a
+      // photographer's only. The link leads; their order page follows.
+      const event = input.projectName?.trim() || "the event";
+      const athlete = stringValue(values, "athleteName");
+      const noun = stringValue(values, "deliveredNoun") || "files";
+      const galleryUrl = safeUrl(stringValue(values, "galleryUrl"));
+      const order = actionUrl ? { label: "See your order", url: actionUrl } : undefined;
+      const whose = athlete ? `${athlete}'s` : "your";
+      return {
+        subject: `${athlete ? `${athlete}'s` : "Your"} ${noun} from ${event} are ready`,
+        preheader: `${brand.studioName} has ${whose} ${noun} ready for you.`,
+        eyebrow: "Ready",
+        heading: `Your ${noun} are ready`,
+        paragraphs: [
+          greeting,
+          `Thank you for coming to ${event}. ${brand.studioName} has ${whose} ${noun} ready for you.`,
+          "This link is just for you. If anything looks wrong, reply and the studio will put it right.",
+        ],
+        action: galleryUrl ? { label: `Open your ${noun}`, url: galleryUrl } : order,
+        secondaryAction: galleryUrl ? order : undefined,
+      };
+    }
+    case "group_review_request": {
+      // One ask per parent, some days after their own delivery
+      // (group-events/participant-delivery.ts, in the hourly review sweep).
+      const event = input.projectName?.trim() || "the event";
+      const athlete = stringValue(values, "athleteName");
+      const noun = stringValue(values, "deliveredNoun") || "order";
+      const kind = stringValue(values, "eventKind");
+      const others = kind === "portraits" ? "families" : kind === "sports" ? "parents" : "people";
+      const order = actionUrl ? { label: "See your order", url: actionUrl } : undefined;
+      return {
+        subject: `Would you share your experience with ${brand.studioName}?`,
+        preheader: `A short review helps other ${others} find ${brand.studioName}.`,
+        eyebrow: "Your feedback",
+        heading: "Thank you for choosing us",
+        paragraphs: [
+          greeting,
+          `We hope you're enjoying ${athlete ? `${athlete}'s` : "your"} ${noun} from ${event}. A short, honest review helps other ${others} find us.`,
+          "It takes a minute, and it means a lot to a small studio.",
+        ],
+        action: destinationUrl ? { label: "Share your experience", url: destinationUrl } : order,
+        secondaryAction: destinationUrl ? order : undefined,
+      };
+    }
     case "group_participant_invoice": {
       // A parent's own QuickBooks invoice at a group event
       // (group-events/participant-invoices.ts): its pay link leads, their
@@ -3071,7 +3122,7 @@ export const CLIENT_EMAIL_TYPES: ReadonlySet<string> = new Set([
   "event_reminder", "thank_you", "delivery", "delivery_correction", "album_selection_reminder",
   "delivery_expiry_reminder", "review_request", "manual_message", "client_message_received", "autopay_charged",
   "autopay_charge_failed", "participant_receipt", "group_event_invite", "group_signup_confirmation",
-  "group_participant_invoice", "group_event_reminder", "group_event_balance",
+  "group_participant_invoice", "group_event_reminder", "group_event_balance", "group_delivery", "group_review_request",
 ]);
 
 /** Mail a crew member reads. */

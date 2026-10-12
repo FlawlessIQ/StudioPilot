@@ -268,6 +268,9 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // Phase 4b: a parent's own QuickBooks invoice, sent from their roster entry.
   sendParticipantInvoice: "group events: a parent's roster entry",
   sendParticipantInvoices: "group events: the roster's bulk invoice button",
+  // Phase 5: each parent's own link after the day, from the roster.
+  attachParticipantDeliveries: "group events: the roster's links sheet and a person's entry",
+  releaseParticipantDeliveries: "group events: the roster's Send buttons",
   // Not offered: StudioCue has no signing provider (features/integrations/schema.ts offeredProviders).
   createEnvelope: "no signing provider is offered",
 };

@@ -8,6 +8,7 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import type { Participant } from "@/features/group-events/participants";
 import {
+  deliveryLine,
   failedInvoiceLine,
   groupEventDay,
   groupEventShown,
@@ -87,6 +88,8 @@ export function TodayGroupEvents() {
         {rows.map(({ candidate, day }) => {
           const onTheDay = candidate.dayOffset === 0;
           const failed = failedInvoiceLine(day);
+          // After the day: how many have their own link (features/group-events/delivery.ts).
+          const delivered = candidate.dayOffset <= 0 ? deliveryLine(day) : null;
           const stats = day.signedUp
             ? [
                 day.places
@@ -109,6 +112,7 @@ export function TodayGroupEvents() {
                   {day.signup === "open" ? " · sign-up open" : day.signup === "full" ? " · sign-up full" : ""}
                 </small>
                 <small>{stats.filter(Boolean).join(" · ")}</small>
+                {delivered ? <small>{delivered}</small> : null}
                 {onTheDay && day.next ? <small className="today-group-next">{`Next: ${day.next.time}, ${day.next.name}`}</small> : null}
                 {failed ? <small className="today-group-failed">{failed} — send it again from the roster</small> : null}
               </span>

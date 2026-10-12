@@ -2,6 +2,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { productEvent } from "../operations/product-events.js";
 import { clientOutreachStop } from "./client-outreach.js";
+import { sweepParticipantReviewAsks } from "../group-events/participant-delivery.js";
 
 export const reviewRequestScheduler = onSchedule(
   { schedule: "every 60 minutes", timeZone: "UTC", retryCount: 3 },
@@ -149,6 +150,18 @@ export const reviewRequestScheduler = onSchedule(
           updatedBy: "review-request-scheduler",
         });
       });
+    }
+
+    /**
+     * Each parent's one review ask at a group event, some days after their
+     * own delivery (group-events/participant-delivery.ts). On this run so
+     * there's no new function; a failure there never touches the asks above.
+     */
+    try {
+      const tally = await sweepParticipantReviewAsks(db, now);
+      if (Object.keys(tally).length) console.info("group review asks", tally);
+    } catch (caught) {
+      console.error("group review asks failed", caught instanceof Error ? caught.message : String(caught));
     }
   },
 );

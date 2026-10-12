@@ -98,3 +98,23 @@ export function groupEventWords(source: unknown): GroupEventWords {
 export function capitalized(word: string): string {
   return word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word;
 }
+
+/**
+ * What a group event delivers afterwards, per person (features/group-events/delivery.ts).
+ * Offered only to a studio whose trade delivers — a photographer's
+ * (features/trades tradeProfile().delivery) — so these are a photographer's
+ * words, kept here with the event's other words rather than in the screens.
+ */
+export const GROUP_DELIVERY_WORDS = {
+  /** Mid-sentence: "18 of 24 have their photos". */
+  noun: "photos",
+  /** The roster section and the order page card. */
+  heading: "Photos",
+  yours: "Your photos",
+  open: "Open your photos",
+  /** The link's field: a gallery or a shared folder. */
+  linkLabel: "Photos link",
+  linkHint: "A gallery or a shared folder link, starting with https://",
+  /** A team set: the same link for everyone. */
+  oneLinkLead: "A team gallery: the same link for everyone on the roster",
+} as const;

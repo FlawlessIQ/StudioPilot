@@ -11721,6 +11721,34 @@ textarea:focus-visible {
 .participant-invoice-send p{margin:0;font-size:13px;line-height:1.5}
 .participant-invoice-send .button{justify-self:start}
 .participant-roster-who small.participant-roster-signup{color:var(--accent);white-space:normal;overflow:visible}
+/* Group events after the day: each parent's own link (components/group-events/participant-delivery.tsx).
+   Wraps, never squeezes: every text run has a flex-basis and min-width:0. */
+.participant-roster-who small.participant-roster-delivery{white-space:normal;overflow:visible}
+.participant-roster-who small.participant-roster-delivery[data-state="sent"]{color:var(--success,#2e6b4b)}
+.participant-roster-who small.participant-roster-delivery[data-state="held_unpaid"]{color:var(--danger,#9a4545)}
+.group-delivery{display:grid;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--surface)}
+.group-delivery-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px}
+.group-delivery-head>span{display:grid;gap:2px;flex:1 1 14rem;min-width:0}
+.group-delivery-head small{color:var(--muted);font-size:13px;line-height:1.45}
+.group-delivery-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.group-delivery-actions>span{flex:1 1 220px;min-width:0;font-size:13px;line-height:1.45}
+.group-delivery-notice{margin:0;font-size:13px;color:var(--muted)}
+.group-delivery-modes{display:flex;flex-wrap:wrap;gap:8px}
+.record-sheet-fields.group-delivery-fields{grid-template-columns:minmax(0,1fr);gap:6px}
+.record-sheet-fields.group-delivery-fields small{color:var(--muted);font-size:12.5px}
+.record-sheet-fields.group-delivery-fields .form-error{margin:0}
+.group-delivery-results{display:grid;gap:6px;margin:0;padding:0;list-style:none;max-height:22rem;overflow:auto}
+.group-delivery-results li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 10px;border:1px solid #d7ddd7;border-radius:9px;font-size:13px;line-height:1.45}
+.group-delivery-results li>span{flex:1 1 14rem;min-width:0;overflow-wrap:anywhere}
+.group-delivery-results li>select{flex:1 1 12rem;min-width:0;min-height:38px;padding:6px 10px;border:1px solid #d7ddd7;border-radius:9px;background:#fbfcfa;font:inherit}
+.group-delivery-results li[data-tone="good"]{border-color:#9cc7ad;background:#f1f8f3}
+.group-delivery-results li[data-tone="warn"]{border-color:#e2c37d;background:#fdf8ec}
+.participant-delivery-edit{display:grid;gap:8px;padding:12px;border:1px solid var(--line,#d7ddd7);border-radius:10px}
+.participant-delivery-edit>label{display:grid;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-soft,#56605a)}
+.participant-delivery-edit>label small{color:var(--muted);font-weight:400}
+.participant-delivery-edit>label input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #d7ddd7;border-radius:11px;background:#fbfcfa;font:inherit;font-size:14px;font-weight:400;color:var(--ink)}
+.participant-delivery-edit>p{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
+.participant-delivery-edit-actions{display:flex;flex-wrap:wrap;gap:8px}
 .event-signup-panel{display:grid;gap:10px;padding:12px 14px;border:1px dashed var(--line);border-radius:11px;background:var(--soft)}
 .event-signup-panel>p{margin:0;font-size:14px;line-height:1.5}
 .event-signup-panel>header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 12px}

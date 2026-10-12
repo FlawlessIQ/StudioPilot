@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { LoaderCircle, UserPlus } from "lucide-react";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
@@ -28,6 +28,7 @@ import {
   addParticipant,
   cancelParticipant,
   recordParticipantPayment,
+  releaseParticipantDeliveries,
   sendParticipantInvoice,
   sendParticipantInvoices,
   setGroupEvent,
@@ -47,6 +48,14 @@ import { useTenantDocuments } from "@/components/live/tenant-records";
 import { EventSignupPanel } from "@/components/group-events/event-signup-panel";
 import { eventSlots, normaliseEventSignup, slotLabel } from "@/features/group-events/signup";
 import { groupEventWords, type GroupEventWords } from "@/features/group-events/words";
+import { useWorkspace } from "@/features/auth/workspace-context";
+import { tradeProfile } from "@/features/trades/trades";
+import { todayLocalIso } from "@/lib/format/event-date";
+import {
+  ParticipantDeliveryEditor,
+  ParticipantDeliveryPanel,
+  participantDeliveryLine,
+} from "@/components/group-events/participant-delivery";
 
 /**
  * The roster for an event where each parent pays (group events, Phase 1 —
@@ -71,8 +80,11 @@ export function ParticipantRoster({
   /** The job record as the job page holds it; only its kind and roster flag are read. */
   project: object | null;
 }) {
-  const job = project as { name?: unknown; eventKind?: unknown; groupEvent?: unknown } | null;
+  const job = project as { name?: unknown; eventKind?: unknown; groupEvent?: unknown; eventDate?: unknown } | null;
   const enabled = rosterEnabled(job);
+  // Each parent's own link after the day (Phase 5): only for a studio whose
+  // trade delivers, once the day has come or a link is on someone already.
+  const delivers = tradeProfile(useWorkspace().tenantTrade).delivery;
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -122,6 +134,15 @@ export function ParticipantRoster({
       participant.amountCents > 0 &&
       participantInvoiceSendable(participant.qbInvoice ?? null),
   ).length;
+
+  const eventDay = typeof job?.eventDate === "string" ? job.eventDate.slice(0, 10) : "";
+  const deliveryShown =
+    delivers &&
+    ((eventDay !== "" && eventDay <= todayLocalIso()) || participants.some((participant) => participant.delivery?.url));
+  // The entry being edited, as the live roster has it now: a link saved from
+  // the sheet shows there without closing it.
+  const editingNow =
+    editing && editing !== "new" ? (participants.find((participant) => participant.id === editing.id) ?? editing) : null;
 
   if (!rosterOffered(job)) return null;
 
@@ -235,6 +256,9 @@ export function ParticipantRoster({
           )}
         </div>
       ) : null}
+      {deliveryShown ? (
+        <ParticipantDeliveryPanel busy={busy} participants={participants} projectId={projectId} run={run} words={words} />
+      ) : null}
       <EventSignupPanel
         project={job}
         projectId={projectId}
@@ -247,6 +271,7 @@ export function ParticipantRoster({
           {ordered.map((participant) => {
             const open = participant.status === "unpaid" || participant.status === "pay_on_day";
             const rowClass = participant.status === "cancelled" ? "is-cancelled" : undefined;
+            const delivery = deliveryShown ? participantDeliveryLine(participant) : null;
             return (
               <li className={rowClass} key={participant.id}>
                 <span className="participant-roster-who">
@@ -262,6 +287,11 @@ export function ParticipantRoster({
                   {participantInvoiceSummary(participant.qbInvoice) ? (
                     <small className="participant-roster-invoice" data-failed={participant.qbInvoice?.state === "failed" ? "" : undefined}>
                       {participantInvoiceSummary(participant.qbInvoice)}
+                    </small>
+                  ) : null}
+                  {delivery ? (
+                    <small className="participant-roster-delivery" data-state={delivery.state}>
+                      {delivery.text}
                     </small>
                   ) : null}
                   {participant.source === "signup_link" ? (
@@ -297,6 +327,16 @@ export function ParticipantRoster({
                       type="button"
                     >
                       Send invoice again
+                    </button>
+                  ) : null}
+                  {delivery && (delivery.state === "ready" || delivery.state === "changed") ? (
+                    <button
+                      className="button button-sm button-light"
+                      disabled={busy}
+                      onClick={() => void run(() => releaseParticipantDeliveries(projectId, [participant.id]))}
+                      type="button"
+                    >
+                      {delivery.state === "changed" ? "Send new link" : "Send link"}
                     </button>
                   ) : null}
                   {participant.status === "cancelled" ? (
@@ -357,8 +397,13 @@ export function ParticipantRoster({
                 void run(() => sendParticipantInvoice(projectId, participant.id)).then((ok) => ok && setEditing(null))
             : undefined
         }
-        participant={editing === "new" ? null : editing}
+        participant={editing === "new" ? null : editingNow}
         open={editing !== null}
+        delivery={
+          deliveryShown && editingNow && editingNow.status !== "cancelled" ? (
+            <ParticipantDeliveryEditor busy={busy} key={editingNow.id} participant={editingNow} projectId={projectId} run={run} />
+          ) : null
+        }
       />
       <PaymentSheet
         busy={busy}
@@ -409,7 +454,10 @@ function ParticipantSheet({
   onSendInvoice,
   words,
   slots,
+  delivery,
 }: {
+  /** Their link after the day, when delivery is offered (participant-delivery.tsx). */
+  delivery?: ReactNode;
   open: boolean;
   participant: Participant | null;
   busy: boolean;
@@ -568,6 +616,7 @@ function ParticipantSheet({
             )}
           </div>
         ) : null}
+        {delivery}
         {problem ? (
           <p className="form-error" role="alert">
             {problem}

@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { CalendarDays, CheckCircle2, Clock, CreditCard, LoaderCircle, MapPin, UserPlus } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock, CreditCard, ExternalLink, LoaderCircle, MapPin, UserPlus } from "lucide-react";
 import { Actions, AppBar, Button, Card, Field, KitRoot, Main, Note, PoweredBy, Screen, type Studio } from "@/components/kit/kit";
 import { getOptionalAppCheckToken } from "@/lib/firebase/app-check";
 import type { EventPaymentMethod, SignupState } from "@/features/group-events/signup";
-import { groupEventWords, type GroupEventWords } from "@/features/group-events/words";
+import { GROUP_DELIVERY_WORDS, groupEventWords, type GroupEventWords } from "@/features/group-events/words";
 
 /**
  * A parent's sign-up for a group event: `/e/{token}`
@@ -31,6 +31,8 @@ type Order = {
   amount: string;
   paid: boolean;
   cancelled: boolean;
+  /** Their own link after the event, once the studio has sent it (features/group-events/delivery.ts). */
+  delivered?: { url: string } | null;
   payment: { method: EventPaymentMethod; label: string; howToPay: string; payUrl: string | null } | null;
 };
 type View = {
@@ -234,6 +236,16 @@ function OrderCard({
           </div>
         </dl>
       </Card>
+      {order.delivered && !order.cancelled ? (
+        <Card tone="accent">
+          <h2 className="event-signup-heading">{GROUP_DELIVERY_WORDS.yours}</h2>
+          <p>{`${studioName} has sent ${order.athleteName ? `${order.athleteName}'s` : "your"} ${GROUP_DELIVERY_WORDS.noun}. This link is just for you.`}</p>
+          <a className="kit-button" href={order.delivered.url} rel="noopener" target="_blank">
+            <ExternalLink aria-hidden size={20} />
+            {GROUP_DELIVERY_WORDS.open}
+          </a>
+        </Card>
+      ) : null}
       {order.payment && !order.paid && !order.cancelled ? (
         <Card>
           <h2 className="event-signup-heading">How to pay</h2>

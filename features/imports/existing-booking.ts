@@ -273,6 +273,10 @@ export const clientAutomationEmailTypes: readonly string[] = [
   "group_event_reminder",
   // And the nudge after it, to anyone who still owes.
   "group_event_balance",
+  // Each parent's one review ask, days after their own delivery
+  // (group-events/participant-delivery.ts). Their delivery itself is the
+  // studio's own act and is not on this list.
+  "group_review_request",
   // Two weeks before a gallery closes; nothing for a quiet couple.
   "delivery_expiry_reminder",
 ];
