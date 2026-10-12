@@ -47,7 +47,7 @@ import {
   STUDIO_SIGNING_STATEMENT,
   type CommandContext,
 } from "./commands.js";
-import { contractDocumentSchema, type ContractBlock, type ContractDocument } from "./document.js";
+import { contractDocumentSchema, storedDepositLabel, type ContractBlock, type ContractDocument } from "./document.js";
 import { contractDocumentHash, sha256Text } from "./document-hash.js";
 import { applyAmendment } from "../booking/amendment-apply.js";
 import { clientOutreachStop, mayContactClient } from "../post-event/client-outreach.js";
@@ -427,6 +427,22 @@ const paidOf = (invoice: DocumentSnapshot) => {
   const balance = typeof invoice.get("balanceCents") === "number" ? num(invoice.get("balanceCents")) : amount;
   return Math.max(0, amount - balance);
 };
+
+/**
+ * How a change words the schedule's "Retainer" line: as the agreement it
+ * restates was signed. The change lists what it changes, and the word for the
+ * payment that booked the date is not on that list — so an agreement signed
+ * before 2026-10-12, which has no `depositLabel` and reads "Retainer", is
+ * restated "Retainer", never "Deposit". Only a booking with no agreement
+ * StudioCue wrote (signed on paper, imported) has nothing to restate, and its
+ * change is worded as any agreement written now (resolveDraft decides).
+ */
+export function amendedDepositLabel(
+  signedContract: { get(field: string): unknown } | undefined,
+): { depositLabel?: string | null } {
+  if (!signedContract?.get("document")) return {};
+  return { depositLabel: storedDepositLabel(signedContract.get("depositLabel")) };
+}
 
 /** The change, written at the top of the agreement it restates. */
 function amendedDocument(input: {
@@ -825,6 +841,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
   const native = await nativeSigningEnabled(db, context.tenantId);
   let document: ContractDocument | null = null;
   let documentHash: string | null = null;
+  let depositLabel: string | null = null;
   let unresolved: string[] = [];
   let clientName = "";
   let clientEmail: string | null = null;
@@ -837,6 +854,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
         templateVersionId: text(signedContract?.get("templateVersionId")) || null,
         overrides: (obj(signedContract?.get("mergeOverrides")) as Record<string, string>) ?? {},
         today: context.timestamp.slice(0, 10),
+        ...amendedDepositLabel(signedContract),
       });
       document = contractDocumentSchema.parse(
         amendedDocument({
@@ -847,6 +865,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
         }),
       );
       documentHash = contractDocumentHash(document);
+      depositLabel = draft.depositLabel;
       unresolved = draft.resolved.unresolved;
       clientName = draft.clientName;
       clientEmail = draft.clientEmail;
@@ -901,6 +920,9 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     proposalId,
     document,
     documentHash,
+    // Filed with the amended agreement when it is signed (amendment-apply.ts),
+    // so a later change restates it in the same word.
+    depositLabel,
     unresolvedFields: unresolved,
     clientName,
     clientEmail,

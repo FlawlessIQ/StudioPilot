@@ -11,6 +11,7 @@ import {
   convertImportedAgreement,
   customFieldKey,
   importedAgreementText,
+  newAgreementDepositLabel,
   resolveContractDocument,
   templateFieldKeys,
   type ContractCustomField,
@@ -150,7 +151,12 @@ export function AgreementEditor() {
     () =>
       resolveContractDocument({
         template: { title: title || "Agreement", body, customFields },
-        sources: sampleContractSources(workspace.tenantName, new Date().toISOString().slice(0, 10), workspace.tenantTrade),
+        sources: {
+          ...sampleContractSources(workspace.tenantName, new Date().toISOString().slice(0, 10), workspace.tenantTrade),
+          // The word a real agreement from this text would print for the
+          // "Retainer" line: it reads the studio's own refund terms.
+          depositLabel: newAgreementDepositLabel(workspace.tenantTrade, body),
+        },
         overrides: Object.fromEntries(customFields.map((field) => [field.key, `(${field.label})`])),
       }),
     [body, customFields, title, workspace.tenantName, workspace.tenantTrade],

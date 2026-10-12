@@ -12,8 +12,12 @@ import { tradeVocab } from "@/features/trades/trades";
  * read "Retainer $327.00 On signing" (Priya Shah, 2026-10-10). A
  * photographer's, and every other line, reads exactly as stored.
  *
- * Display only. A signed agreement's Part 2 table is part of its document
- * hash (contracts/combined.ts) and keeps the label it was signed with.
+ * Display only. An agreement does not use this: its schedule tables are part
+ * of its document hash, so the word is decided once, when the agreement is
+ * written, and kept on its record (contracts/document.ts `depositLabel`,
+ * agreementScheduleLabel). One written from 2026-10-12 for a vendor reads
+ * "Deposit", the same as here; one written before keeps the "Retainer" it was
+ * signed with, and a change to it is restated in that word.
  */
 export function scheduleLineLabel(label: string, trade?: unknown): string {
   const word = tradeVocab(trade).deposit;

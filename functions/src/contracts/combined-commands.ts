@@ -97,6 +97,10 @@ async function resolveCombined(
   )
     throw new Error("PROPOSAL_NOT_FOUND");
   if (!SENDABLE_PROPOSAL_STATUSES.has(String(proposal.get("status")))) throw new Error("PROPOSAL_NOT_SENDABLE");
+  // Written now, so resolveDraft decides how the schedule's "Retainer" line is
+  // printed — a vendor's client signs for a "Deposit", unless the studio's own
+  // terms tie a refund to "the retainer" (document.ts newAgreementDepositLabel).
+  // Part 1's table, if the terms print one, and Part 2's say the same.
   const draft = await resolveDraft(db, {
     tenantId: context.tenantId,
     projectId: input.projectId,
@@ -105,6 +109,7 @@ async function resolveCombined(
     overrides: input.overrides,
     today: context.timestamp.slice(0, 10),
   });
+  const depositLabel = draft.depositLabel;
   const pricing = (proposal.get("pricingSnapshot") ?? {}) as Record<string, unknown>;
   const schedule = Array.isArray(proposal.get("paymentSchedule"))
     ? (proposal.get("paymentSchedule") as Array<Record<string, unknown>>)
@@ -127,6 +132,7 @@ async function resolveCombined(
       amountCents: Number(row.amountCents ?? 0),
       dueDate: typeof row.dueDate === "string" && row.dueDate ? row.dueDate : null,
     })),
+    depositLabel,
     salesTax: readPricedSalesTax(pricing.salesTax),
   }, trade);
   const document: ContractDocument = contractDocumentSchema.parse(combined.document);
@@ -142,6 +148,7 @@ async function resolveCombined(
     document,
     documentHash: contractDocumentHash(document),
     sections,
+    depositLabel,
   };
 }
 
@@ -311,6 +318,9 @@ export async function sendCombinedAgreement(
       templateVersionId: resolved.draft.template.versionId,
       document: resolved.document,
       documentHash: input.documentHash,
+      // How both parts word the schedule's "Retainer" line, fixed with the
+      // document: an amendment restates it in the same word (amendments.ts).
+      depositLabel: resolved.depositLabel,
       unresolvedFields: [],
       mergeOverrides: input.overrides,
       signers: [

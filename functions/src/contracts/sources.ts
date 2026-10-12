@@ -62,7 +62,7 @@ export function coupleNames(contacts: Data[], fallback: string): string {
 export async function loadContractSources(
   db: Firestore,
   input: { tenantId: string; projectId: string; proposalId: string; today: string },
-): Promise<{ sources: ContractSources; clientEmail: string; clientName: string }> {
+): Promise<{ sources: ContractSources; clientEmail: string; clientName: string; trade: string | null }> {
   const [proposal, project, tenant] = await Promise.all([
     // A booking change's proposal is held apart until it is signed, so no
     // reader of `proposals` mistakes it for the current one
@@ -249,6 +249,10 @@ export async function loadContractSources(
   return {
     clientEmail,
     clientName,
+    // The studio's trade (trades.ts), for the caller that decides how a new
+    // agreement words the schedule's "Retainer" line (commands.ts resolveDraft).
+    // Not in `sources`: a record already written keeps the word it was written with.
+    trade: text(tenant.get("trade")) || null,
     sources: {
       client: { names: coupleNames(contacts, clientName), email: clientEmail },
       event: {

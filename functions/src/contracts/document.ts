@@ -185,10 +185,15 @@ export function contractMergeFieldsFor(
   if (tradeProfile(trade).family === "photo") return contractMergeFields;
   const words = tradeVocab(trade);
   const examples = VENDOR_FIELD_EXAMPLES[tradeOf(trade)]!;
+  const deposit = agreementDepositLabel(trade);
   return contractMergeFields.map((field) => {
     if (field.key === "package.coverage") return { ...field, label: words.coverage, example: examples.coverage };
     if (field.key === "package.deliverables")
       return { ...field, label: `${words.includedLabel} (list)`, example: examples.included };
+    // The payment that books the date, as the agreement now prints it.
+    if (field.key === "price.retainer") return { ...field, label: deposit };
+    if (field.key === "price.balance") return { ...field, label: `Balance after ${words.deposit}` };
+    if (field.key === "payment.schedule") return { ...field, example: `${deposit} $1,600.00 …` };
     if (field.key === "studio.name") return { ...field, example: examples.studio };
     if (field.key === "studio.legal_name") return { ...field, example: `${examples.studio} LLC` };
     return field;
@@ -255,6 +260,14 @@ export type ContractSources = {
     /** YYYY-MM-DD or null when the date is set by agreement. */
     dueDate: string | null;
   }>;
+  /**
+   * What the schedule's stored "Retainer" line is printed as — a DJ's,
+   * makeup artist's or hair stylist's "Deposit" (agreementDepositLabel).
+   * Decided when the agreement is written and kept on its record, so writing
+   * it again from the same records reads the same. Absent or null: the stored
+   * label exactly, as every agreement written before 2026-10-12 reads.
+   */
+  depositLabel?: string | null;
   /**
    * The couple's own answers to the details form, in the order asked.
    * Empty when nothing has been submitted — the field then renders as an
@@ -452,7 +465,7 @@ function recordValue(key: string, sources: ContractSources): string | null {
         ? sources.paymentSchedule
             .map(
               (row, index) =>
-                `${row.label} ${scheduleAmount(sources, row.amountCents, index)}`,
+                `${agreementScheduleLabel(row.label, sources.depositLabel)} ${scheduleAmount(sources, row.amountCents, index)}`,
             )
             .join("; ")
         : null;
@@ -684,7 +697,7 @@ export function resolveContractDocument(input: {
           ? {
               type: "payment_schedule",
               rows: sources.paymentSchedule.map((row, index) => ({
-                label: row.label,
+                label: agreementScheduleLabel(row.label, sources.depositLabel),
                 amount: scheduleAmount(sources, row.amountCents, index),
                 due: row.dueDate ? formatContractDate(row.dueDate) : undatedPaymentDue(row.label),
               })),
@@ -787,6 +800,83 @@ export function resolveContractDocument(input: {
  */
 export function undatedPaymentDue(label: string): string {
   return /\b(retainer|deposit|booking fee)\b/i.test(label) ? "On signing" : "As agreed";
+}
+
+/**
+ * The line every proposal stores for the payment that books the date
+ * (job-kinds.ts `SCHEDULE_LABELS.retainer`). Readers match on it
+ * (agreed-retainer.ts), so the stored line is never rewritten; an agreement
+ * prints it as its `depositLabel` says.
+ */
+export const RETAINER_LINE = "Retainer";
+
+/**
+ * What a newly written agreement prints for that line: a photographer's
+ * "Retainer", a DJ's, makeup artist's or hair stylist's "Deposit" (trades.ts
+ * `deposit`) — the word their client reads everywhere else (vendor wording
+ * sweep, 2026-10-10). Decided once, when the agreement is written, and kept on
+ * its record as `depositLabel`; never looked up again for one already written.
+ */
+export function agreementDepositLabel(trade?: unknown): string {
+  const word = tradeVocab(trade).deposit;
+  return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+}
+
+const RETAINER_WORD = /\bretainers?\b/i;
+const REFUND_WORDS = /refund|forfeit|non-?returnable/i;
+
+/**
+ * Whether the studio's own agreement ties a refund term to "the retainer":
+ * a section (from one heading to the next) of its template that names a
+ * retainer and says anything about refunds or forfeiting it. Merge fields are
+ * left out — only the studio's words count, and StudioCue's starting text says
+ * nothing about refunds.
+ *
+ * Read per section, not per sentence, so "A retainer of $500 reserves the
+ * date. It is non-refundable." counts: the second sentence's "it" is the
+ * retainer.
+ */
+export function termsTieRefundToRetainer(templateBody: string): boolean {
+  const words = normaliseText(templateBody).replace(/\{\{[^{}]*\}\}/g, " ");
+  return words
+    .split(/\n(?=#{1,2}\s)/)
+    .some((section) => RETAINER_WORD.test(section) && REFUND_WORDS.test(section));
+}
+
+/**
+ * The word a newly written agreement prints for the "Retainer" line.
+ *
+ * A vendor's "Deposit" — unless the studio's own terms tie a refund to "the
+ * retainer" ("The retainer is non-refundable"). Then the line stays
+ * "Retainer", so the payment the schedule asks for is the one the refund term
+ * names: in some states a deposit can be read as refundable where a retainer
+ * is not, and renaming one side would change what the studio's clause covers.
+ * A photographer's is "Retainer" either way.
+ */
+export function newAgreementDepositLabel(trade: unknown, templateBody: string): string {
+  const word = agreementDepositLabel(trade);
+  if (word === RETAINER_LINE) return word;
+  return termsTieRefundToRetainer(templateBody) ? RETAINER_LINE : word;
+}
+
+/**
+ * A schedule line's label as an agreement prints it. Only the stored
+ * "Retainer" line changes, and only for an agreement written with another
+ * word for it. With none — every agreement written before 2026-10-12 — the
+ * stored label exactly, so writing an old one again reads byte for byte as it
+ * was signed.
+ */
+export function agreementScheduleLabel(label: string, depositLabel?: string | null): string {
+  const word = typeof depositLabel === "string" ? depositLabel.trim() : "";
+  return label === RETAINER_LINE && word ? word : label;
+}
+
+/**
+ * A record's stored `depositLabel`, or null for one written before there was
+ * one — which then reads "Retainer", as it always did.
+ */
+export function storedDepositLabel(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 /** The text of an inline run, as a reader sees it. */
@@ -953,12 +1043,17 @@ export const DETAILS_SECTION = [
 /**
  * The details section in the studio's words: a photographer's agreement is
  * for "coverage", a DJ's, makeup artist's or hair stylist's for "services",
- * as their starting agreements say (sample.ts).
+ * as their starting agreements say (sample.ts), and the payment that books
+ * the date is their "Deposit" (agreementDepositLabel). Only an agreement
+ * imported from now on: a template already saved is the studio's own text.
  */
 export function detailsSectionFor(trade?: unknown): string {
   return tradeProfile(trade).family === "photo"
     ? DETAILS_SECTION
-    : DETAILS_SECTION.replace("{{event.type}} coverage on", "{{event.type}} services on");
+    : DETAILS_SECTION.replace("{{event.type}} coverage on", "{{event.type}} services on").replace(
+        "- Retainer: {{price.retainer}}",
+        `- ${agreementDepositLabel(trade)}: {{price.retainer}}`,
+      );
 }
 
 /**

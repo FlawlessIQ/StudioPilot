@@ -1,4 +1,4 @@
-import type { ContractSources } from "@/features/contracts/document";
+import { agreementDepositLabel, type ContractSources } from "@/features/contracts/document";
 import { eventDetailsFrom } from "@/features/contracts/event-details";
 
 /**
@@ -31,6 +31,8 @@ export function sampleContractSources(studioName: string, today: string, trade?:
         { label: "Retainer", amountCents: 60_000, dueDate: null },
         { label: "Final balance", amountCents: 180_000, dueDate: "2027-05-29" },
       ],
+      // The stored line, printed as a new agreement prints it: "Deposit".
+      depositLabel: agreementDepositLabel(trade),
       formAnswers: [
         { question: "Ceremony start", answer: "4:00 PM" },
         { question: "Load-in time", answer: "2:30 PM" },
@@ -76,6 +78,7 @@ export function sampleContractSources(studioName: string, today: string, trade?:
         { label: "Retainer", amountCents: 26_000, dueDate: null },
         { label: "Final balance", amountCents: 78_000, dueDate: "2027-06-12" },
       ],
+      depositLabel: agreementDepositLabel(trade),
       formAnswers: [
         { question: "When does everyone need to be ready?", answer: "1:00 PM" },
         { question: "Where you're getting ready", answer: "The Lodge, 14 Mill Lane — bridal suite" },
@@ -186,6 +189,12 @@ This agreement was prepared on {{contract.date}}.
  * headcount that only grows after the lock, the room they need, early and
  * late fees, the trial, allergies, and the bride paying for anyone booked who
  * doesn't sit — and the studio writes its own wording.
+ *
+ * Their client pays a deposit, not a retainer (trades.ts `deposit`), so the
+ * fees clause says so — from 2026-10-12. Only a studio that has never saved
+ * an agreement starts from this; a saved one is the studio's own text and is
+ * never rewritten. The clause says nothing about refunds, as before: that is
+ * the studio's to write under "No-shows and cancellation".
  */
 export const BEAUTY_STARTER_AGREEMENT = `This agreement is between {{studio.legal_name}} ("the Studio") and {{client.names}} ("the Client") for {{event.type}} services on {{event.date}} at {{event.venue}}.
 
@@ -194,7 +203,7 @@ The Studio will provide the {{package.name}}: {{package.coverage}}. Included:
 {{package.deliverables}}
 
 ## 2. Fees and payment
-The total fee is {{price.total}}. A retainer of {{price.retainer}} reserves the date, and the balance of {{price.balance}} is due as follows:
+The total fee is {{price.total}}. A deposit of {{price.retainer}} reserves the date, and the balance of {{price.balance}} is due as follows:
 {{payment.schedule}}
 
 ## 3. Minimum and party size
@@ -222,14 +231,17 @@ This agreement was prepared on {{contract.date}}.
 export function starterAgreementFor(trade: unknown): { title: string; body: string } {
   if (trade === "makeup") return { title: "Makeup Services Agreement", body: BEAUTY_STARTER_AGREEMENT };
   if (trade === "hair") return { title: "Hair Services Agreement", body: BEAUTY_STARTER_AGREEMENT };
-  // A DJ's agreement is for services, not coverage, and has no image rights.
+  // A DJ's agreement is for services, not coverage, has no image rights, and
+  // its client pays a deposit (from 2026-10-12, as the beauty one above).
   if (trade === "dj")
     return {
       title: "DJ Services Agreement",
-      body: STARTER_AGREEMENT.replace("{{event.type}} coverage on", "{{event.type}} services on").replace(
-        "## 4. Image use and copyright\n[Replace with your own terms on copyright, usage and portfolio rights.]",
-        "## 4. Equipment and the venue\n[Replace with your own terms on power, load-in, the venue's sound limits and your equipment.]",
-      ),
+      body: STARTER_AGREEMENT.replace("{{event.type}} coverage on", "{{event.type}} services on")
+        .replace("A retainer of {{price.retainer}} reserves the date", "A deposit of {{price.retainer}} reserves the date")
+        .replace(
+          "## 4. Image use and copyright\n[Replace with your own terms on copyright, usage and portfolio rights.]",
+          "## 4. Equipment and the venue\n[Replace with your own terms on power, load-in, the venue's sound limits and your equipment.]",
+        ),
     };
   return { title: "Photography Services Agreement", body: STARTER_AGREEMENT };
 }

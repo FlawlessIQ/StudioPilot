@@ -1,4 +1,11 @@
-import { formatContractDate, formatMoney, undatedPaymentDue, type ContractBlock, type ContractDocument } from "./document";
+import {
+  agreementScheduleLabel,
+  formatContractDate,
+  formatMoney,
+  undatedPaymentDue,
+  type ContractBlock,
+  type ContractDocument,
+} from "./document";
 import { balanceWithSalesTax, readPricedSalesTax, salesTaxEstimateText, SALES_TAX_ESTIMATE_LABEL, totalWithSalesTax } from "../billing/sales-tax-pricing";
 import type { PricedSalesTax } from "../pricing/package-price";
 import { tradeVocab } from "../trades/trades";
@@ -47,6 +54,14 @@ export type CoverageInput = {
   taxCents: number;
   totalCents: number;
   paymentSchedule: ReadonlyArray<{ label: string; amountCents: number; dueDate: string | null }>;
+  /**
+   * What the schedule's stored "Retainer" line is printed as: a DJ's, makeup
+   * artist's or hair stylist's "Deposit" (document.ts agreementDepositLabel),
+   * decided when the agreement is written and kept on the contract record.
+   * Absent for one written before 2026-10-12, whose Part 2 reads exactly as
+   * it was signed.
+   */
+  depositLabel?: string | null;
   /**
    * Pre-tax "plus sales tax": QuickBooks works the tax out on the final
    * invoice (../billing/sales-tax-pricing.ts). Absent for a booking priced the
@@ -121,7 +136,7 @@ function coverageBlocks(coverage: CoverageInput, title: string): ContractBlock[]
     blocks.push({
       type: "payment_schedule",
       rows: coverage.paymentSchedule.map((row, index) => ({
-        label: row.label,
+        label: agreementScheduleLabel(row.label, coverage.depositLabel),
         // The last payment is the one the sales tax is added to.
         amount:
           index === coverage.paymentSchedule.length - 1
@@ -138,7 +153,9 @@ function coverageBlocks(coverage: CoverageInput, title: string): ContractBlock[]
 /**
  * The terms and the coverage as one document, and where each part lies.
  * `trade` is the studio's (trades.ts): it names Part 2; a photographer's, or
- * none, reads exactly as before.
+ * none, reads exactly as before. The schedule's "Retainer" line is worded by
+ * `coverage.depositLabel` alone, never by the trade, so the same inputs always
+ * write the same document.
  */
 export function buildCombinedAgreement(
   terms: ContractDocument,

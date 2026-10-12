@@ -89,6 +89,12 @@ export const contractSchema = auditFieldsSchema.extend({
   templateVersionId: z.string().optional(),
   document: contractDocumentSchema.optional(),
   documentHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  /**
+   * How `document` printed the schedule's "Retainer" line ("Deposit" for a
+   * DJ, makeup artist or hair stylist), fixed when it was written. Absent or
+   * null on one written before 2026-10-12: it reads "Retainer".
+   */
+  depositLabel: z.string().nullable().optional(),
   unresolvedFields: z.array(z.string()).optional(),
   /** Schedule A parts nobody has given yet; printed "To be confirmed". */
   detailsMissing: z.array(z.string()).optional(),

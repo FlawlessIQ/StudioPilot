@@ -11,7 +11,9 @@ import {
   contractDocumentSchema,
   convertImportedAgreement,
   customFieldKey,
+  newAgreementDepositLabel,
   resolveContractDocument,
+  storedDepositLabel,
   templateFieldKeys,
   TEMPLATE_BODY_MAX,
   type ContractCustomField,
@@ -330,6 +332,15 @@ export async function resolveDraft(
     templateVersionId?: string | null;
     overrides: Record<string, string>;
     today: string;
+    /**
+     * How the schedule's "Retainer" line is printed (document.ts
+     * `depositLabel`). Omitted for an agreement being written now: the
+     * studio's trade decides (a vendor's "Deposit"), unless its own terms tie
+     * a refund to "the retainer" (newAgreementDepositLabel). Given — null included —
+     * when writing one again that already exists, so it reads as it was
+     * written: null is "Retainer", every draft and agreement before 2026-10-12.
+     */
+    depositLabel?: string | null;
   },
 ) {
   let template;
@@ -357,9 +368,16 @@ export async function resolveDraft(
     proposalId: input.proposalId,
     today: input.today,
   });
+  // Written now: the trade decides, unless the studio's own terms tie a refund
+  // to "the retainer" (document.ts newAgreementDepositLabel). Written again:
+  // the word it was written with.
+  const depositLabel =
+    input.depositLabel === undefined
+      ? newAgreementDepositLabel(loaded.trade, template.template.body)
+      : storedDepositLabel(input.depositLabel);
   const resolved = resolveContractDocument({
     template: template.template,
-    sources: loaded.sources,
+    sources: { ...loaded.sources, depositLabel },
     overrides: input.overrides,
   });
   return {
@@ -368,6 +386,8 @@ export async function resolveDraft(
     clientName: loaded.clientName,
     resolved,
     documentHash: contractDocumentHash(resolved.document),
+    /** Kept on the draft and the contract, beside the document it worded. */
+    depositLabel,
     /**
      * Parts of Schedule A nobody has given yet — getting ready, ceremony,
      * reception, times. Printed "To be confirmed"; the studio is told before
@@ -415,6 +435,9 @@ export async function prepareContract(
     templateVersion: draft.template.version,
     document: draft.resolved.document,
     documentHash: draft.documentHash,
+    // How this draft words the schedule's "Retainer" line; send's recheck
+    // writes it again the same way.
+    depositLabel: draft.depositLabel,
     status: "draft",
     sentContractId: null,
     fields: draft.resolved.fields,
@@ -484,6 +507,9 @@ export async function sendContract(
     templateVersionId: String(draftSnapshot.get("templateVersionId")),
     overrides,
     today: String(draftSnapshot.get("preparedOn") ?? context.timestamp.slice(0, 10)),
+    // The draft's own word for the "Retainer" line; a draft prepared before
+    // there was one reads "Retainer", as the studio read it.
+    depositLabel: storedDepositLabel(draftSnapshot.get("depositLabel")),
   });
   if (recheck.documentHash !== input.documentHash) throw new Error("CONTRACT_CHANGED");
   if (recheck.resolved.unresolved.length) throw new Error("CONTRACT_FIELDS_MISSING");
@@ -595,6 +621,7 @@ export async function sendContract(
       templateVersionId: recheck.template.versionId,
       document,
       documentHash: input.documentHash,
+      depositLabel: recheck.depositLabel,
       unresolvedFields: [],
       mergeOverrides: overrides,
       signers: [
@@ -1081,6 +1108,7 @@ export async function prepareOnAcceptance(
       templateVersion: draft.template.version,
       document: draft.resolved.document,
       documentHash: draft.documentHash,
+      depositLabel: draft.depositLabel,
       fields: draft.resolved.fields,
       unresolvedFields: draft.resolved.unresolved,
       detailsMissing: draft.detailsMissing,

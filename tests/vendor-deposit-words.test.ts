@@ -212,24 +212,33 @@ test("a stored \"Retainer\" line reads as the trade's word, and only where it is
     read("components/client/kit/client-proposal.tsx"),
     /title=\{scheduleLineLabel\(text\(payment\.label, "Payment"\), workspace\.tenantTrade\)\}/,
   );
-  // A signed agreement's Part 2 is in its document hash, so it keeps the
-  // stored label: the swap is never made where it would change a hash.
-  const { document, sections } = buildCombinedAgreement(
-    { format: 1, title: "Agreement", blocks: [{ type: "paragraph", content: [{ text: "Terms." }] }] },
-    {
-      currency: "USD",
-      lineItems: [{ description: "Bridal hair", quantity: 1, totalCents: 37500, kind: "package" }],
-      discountCents: 0,
-      taxCents: 0,
-      totalCents: 37500,
-      paymentSchedule: [
-        { label: "Retainer", amountCents: 11250, dueDate: null },
-        { label: "Final balance", amountCents: 26250, dueDate: "2027-05-22" },
-      ],
-    },
-    "hair",
-  );
-  assert.match(JSON.stringify(sectionDocument(document, sections[1]!).blocks), /"label":"Retainer"/);
+  // An agreement's schedule is in its document hash, so this display swap is
+  // never used there. The word is decided when the agreement is written and
+  // kept on it (`depositLabel`, tests/vendor-agreement-deposit.test.ts): one
+  // written before 2026-10-12 has none and keeps "Retainer"; a new one says
+  // "Deposit".
+  const hairCoverage = {
+    currency: "USD",
+    lineItems: [{ description: "Bridal hair", quantity: 1, totalCents: 37500, kind: "package" }],
+    discountCents: 0,
+    taxCents: 0,
+    totalCents: 37500,
+    paymentSchedule: [
+      { label: "Retainer", amountCents: 11250, dueDate: null },
+      { label: "Final balance", amountCents: 26250, dueDate: "2027-05-22" },
+    ],
+  };
+  const part2 = (depositLabel?: string) => {
+    const { document, sections } = buildCombinedAgreement(
+      { format: 1, title: "Agreement", blocks: [{ type: "paragraph", content: [{ text: "Terms." }] }] },
+      { ...hairCoverage, depositLabel },
+      "hair",
+    );
+    return JSON.stringify(sectionDocument(document, sections[1]!).blocks);
+  };
+  assert.match(part2(), /"label":"Retainer"/);
+  assert.match(part2("Deposit"), /"label":"Deposit"/);
+  assert.doesNotMatch(part2("Deposit"), RETAINER);
   assert.doesNotMatch(read("features/contracts/combined.ts"), /scheduleLineLabel/);
 });
 
