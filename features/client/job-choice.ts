@@ -16,10 +16,25 @@
  *     own (app/api/client/portal/route.ts, requireClientMembership) — this
  *     only decides what to show;
  *   - a client with two or more jobs sees them all, the open one marked, and
- *     can switch; a client with one sees nothing new.
+ *     can switch; a client with one sees nothing new. A job that is put away
+ *     or not going ahead (clientJobClosed) is left off the list unless it is
+ *     the one open: an inquiry the studio declined does not sit beside the
+ *     client's bookings for good.
  *
  * Pure: no browser, no Firebase.
  */
+
+import { todayLocalIso } from "@/lib/format/event-date";
+
+/**
+ * A job that is over without being a booking the client is working on:
+ * archived, or not going ahead (LOST). Still theirs to open by a link; never
+ * offered in the list beside their live ones, and never opened by default
+ * over one.
+ */
+export function clientJobClosed(project: { state?: unknown; archivedAt?: unknown }): boolean {
+  return Boolean(project.archivedAt) || project.state === "LOST" || project.state === "ARCHIVED";
+}
 
 /** The query parameter a portal link names its job with. */
 export const PROJECT_PARAM = "project";
@@ -73,19 +88,23 @@ export type ClientProjectChoice = {
 
 /**
  * Which job opens: the link's job when it is one of theirs, else the one they
- * last chose, else the first. `projects` is the server's list, which is the
- * membership's — so a link can only ever pick from what they already have.
+ * last chose, else the first — preferring, without a link, a job that is not
+ * closed (clientJobClosed) over one that is. `projects` is the server's list,
+ * which is the membership's — so a link can only ever pick from what they
+ * already have.
  */
 export function chooseClientProject(input: {
-  projects: ReadonlyArray<{ id: string }>;
+  projects: ReadonlyArray<{ id: string; closed?: boolean }>;
   requestedProjectId: string | null;
   storedProjectId: string | null;
 }): ClientProjectChoice {
   const ids = input.projects.map((project) => project.id);
   if (input.requestedProjectId && ids.includes(input.requestedProjectId))
     return { projectId: input.requestedProjectId, requestedUnavailable: false };
+  const open = input.projects.filter((project) => !project.closed).map((project) => project.id);
+  const stored = input.storedProjectId && ids.includes(input.storedProjectId) ? input.storedProjectId : null;
   const fallback =
-    (input.storedProjectId && ids.includes(input.storedProjectId) ? input.storedProjectId : null) ?? ids[0] ?? null;
+    (stored && open.includes(stored) ? stored : null) ?? open[0] ?? stored ?? ids[0] ?? null;
   return { projectId: fallback, requestedUnavailable: Boolean(input.requestedProjectId) };
 }
 
@@ -104,16 +123,35 @@ export type JobSwitcherItem = {
 };
 
 /**
- * The jobs a client switches between, soonest date first and undated last,
- * the open one marked. Null for one job or none: a client with a single job
- * sees nothing new.
+ * Where a job sits in the list: still to come, not yet dated, or past. A
+ * returning client is here for the job ahead of them, not the one they
+ * finished last year; an undated one is still being arranged, so it comes
+ * before what is over.
+ */
+function listBand(eventDate: string, today: string): 0 | 1 | 2 {
+  if (!eventDate) return 1;
+  return eventDate >= today ? 0 : 2;
+}
+
+/**
+ * The jobs a client switches between, the open one marked: the ones still to
+ * come first, soonest first; then any not yet dated; then past ones, most
+ * recent first. A closed job (clientJobClosed) is left off unless it is the
+ * open one. Null for one job or none: a client with a single job sees
+ * nothing new.
+ *
+ * `today` is the client's own date (YYYY-MM-DD), the device's by default.
  */
 export function clientJobSwitcherItems(
-  projects: ReadonlyArray<{ id: string; name: string; eventDate: string | null }>,
+  projects: ReadonlyArray<{ id: string; name: string; eventDate: string | null; closed?: boolean }>,
   activeProjectId: string | null,
+  today: string = todayLocalIso(),
 ): JobSwitcherItem[] | null {
   const unique = projects.filter(
-    (project, index) => project.id && projects.findIndex((other) => other.id === project.id) === index,
+    (project, index) =>
+      project.id &&
+      projects.findIndex((other) => other.id === project.id) === index &&
+      (!project.closed || project.id === activeProjectId),
   );
   if (unique.length < 2) return null;
   return unique
@@ -121,8 +159,10 @@ export function clientJobSwitcherItems(
     .sort((left, right) => {
       const a = left.project.eventDate ?? "";
       const b = right.project.eventDate ?? "";
-      if (a && b && a !== b) return a < b ? -1 : 1;
-      if (Boolean(a) !== Boolean(b)) return a ? -1 : 1;
+      const bandA = listBand(a, today);
+      const bandB = listBand(b, today);
+      if (bandA !== bandB) return bandA - bandB;
+      if (a !== b) return (bandA === 2 ? b < a : a < b) ? -1 : 1;
       return left.index - right.index;
     })
     .map(({ project }) => ({

@@ -20,6 +20,10 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   INVALID_TIME_RANGE: "The end time has to be after the start time.",
   INVITATION_NOT_REVOCABLE: "That invitation can't be withdrawn — it has already been accepted, expired or withdrawn.",
   CLIENT_NOT_ASSOCIATED_WITH_PROJECT: "That client isn't on this job. Add them to the job first.",
+  // A client accepting an invitation after their portal access was turned
+  // off (functions/src/client/invitations.ts): a link never turns it back on.
+  CLIENT_ACCESS_TURNED_OFF:
+    "Your access to this studio's client portal has been turned off, so this invitation can't turn it back on. Contact the studio if you think that's a mistake.",
   CLIENT_OR_PROJECT_NOT_FOUND: "That client or job isn't there any more. Refresh and try again.",
   // Every booking action can hit this (optimistic concurrency on the job).
   // The page is holding the old version, so "try again" alone repeats the

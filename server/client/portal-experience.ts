@@ -90,6 +90,9 @@ const stageLabels: Record<string, string> = {
   CANCELLED: "Canceled",
   POSTPONED: "Postponed",
   ARCHIVED: "Archived",
+  // An inquiry or booking that did not go ahead. It fell through to "In
+  // progress", which a client opening it by a link would take at its word.
+  LOST: "Not going ahead",
 };
 
 /** The stage, in the studio's own trade's words: a makeup artist sends a quote and delivers nothing. */

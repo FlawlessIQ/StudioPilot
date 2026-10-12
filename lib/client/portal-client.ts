@@ -65,7 +65,14 @@ export type ClientPortalProject = {
 export type ClientPortalProjectSummary = Pick<
   ClientPortalProject,
   "id" | "name" | "eventType" | "eventDate" | "venueName" | "city" | "clientStage"
->;
+> & {
+  /**
+   * Archived, or not going ahead (LOST): opened only when a link names it or
+   * it is all they have, never listed beside their live bookings
+   * (features/client/job-choice.ts). Optional: older responses lack it.
+   */
+  closed?: boolean;
+};
 
 export type ClientPortalCollection =
   | "proposals"

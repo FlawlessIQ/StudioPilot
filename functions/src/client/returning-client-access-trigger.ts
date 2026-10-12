@@ -7,16 +7,22 @@ import {
 } from "./returning-client-access.js";
 
 /**
- * A returning client can open a job the moment it is theirs.
+ * A returning client can open a job the moment the studio makes it theirs.
  *
  * Every way a job gets a client — the studio making it (createProject), adding
- * someone to it (addProjectClient), an inquiry arriving (public-lead, intake
- * capture and convert), an import, Cue — ends in this document's
+ * someone to it (addProjectClient), Cue — ends in this document's
  * `clientContactIds`. So the grant is made here, once, instead of in each of
  * them: a client with a portal account and an active membership in this
  * studio has the job added to it (returning-client-access.ts). Anyone else is
  * untouched, and is sent an invitation when the studio first sends them
  * something, as before.
+ *
+ * Not for a job nobody at the studio has chosen to show a client yet
+ * (automaticGrantHold, inside clientsAddedToJob): an inquiry that made itself
+ * a job from the public form or a captured email — anyone who knows a
+ * client's address can send one — or an imported booking still held quiet
+ * (ADR 0005; tests/quiet-imported-bookings.test.ts). Those reach the account
+ * with the studio's first send for them.
  *
  * Only on a create or an assignment: a write that leaves the job's clients as
  * they were returns before reading anything.

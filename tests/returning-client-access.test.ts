@@ -8,6 +8,8 @@ import {
   MAX_CLIENT_CONTACTS,
   accessGrantKey,
   accessOpensJob,
+  automaticGrantHold,
+  clientMembershipTurnedOff,
   clientsAddedToJob,
   ensureReturningClientAccess,
   jobClientContactIds,
@@ -15,6 +17,7 @@ import {
   returningClientAccessPlan,
   writeReturningClientAccess,
 } from "../functions/src/client/returning-client-access.ts";
+import { portalAccountUnlinks } from "../functions/src/crm/email-change.ts";
 import { questionnaireLinkFor } from "../functions/src/planning/questionnaire-link.ts";
 
 /**
@@ -152,6 +155,21 @@ test("the rule: an active client membership in this studio that lacks the job is
   assert.equal(plan({ membership: { ...membership, exists: false } }), "no_membership");
   for (const status of ["revoked", "suspended", "invited", undefined])
     assert.equal(plan({ membership: { ...membership, status } }), "inactive", String(status));
+  // The account was accepted with the address the contact has: as above,
+  // whatever the case or spacing. Records written before either side kept an
+  // address are read as they always were.
+  const accepted = { ...membership, email: "priya@example.com" };
+  assert.equal(plan({ contact: { ...contact, email: " Priya@Example.com " }, membership: accepted }), "grant");
+  assert.equal(plan({ contact: { ...contact, email: null, normalizedEmail: "priya@example.com" }, membership: accepted }), "grant");
+  assert.equal(plan({ contact: { ...contact, email: "priya@example.com" }, membership }), "grant");
+  assert.equal(plan({ contact, membership: accepted }), "grant");
+  // The studio has changed the contact's address since: the account proves
+  // nothing about whoever holds the new one, already-open job or not.
+  const moved = { ...contact, email: "daughter@example.com", normalizedEmail: "daughter@example.com" };
+  assert.equal(plan({ contact: moved, membership: accepted }), "email_changed");
+  assert.equal(plan({ projectId: WEDDING, contact: moved, membership: accepted }), "email_changed");
+  // `email` is what accepting compares; a stale normalized copy doesn't hide a change.
+  assert.equal(plan({ contact: { ...contact, email: "daughter@example.com", normalizedEmail: "priya@example.com" }, membership: accepted }), "email_changed");
   // Someone else's membership, or a studio seat, is never widened.
   assert.equal(plan({ membership: { ...membership, role: "studio_owner" } }), "not_client");
   assert.equal(plan({ membership: { ...membership, userId: "u_someone_else" } }), "not_client");
@@ -164,9 +182,9 @@ test("the rule: an active client membership in this studio that lacks the job is
   assert.equal(plan({ projectId: "" }), "not_this_studio");
 
   assert.deepEqual(
-    (["already", "grant", "no_account", "no_membership", "inactive", "not_client", "not_this_studio"] as const).filter(
-      accessOpensJob,
-    ),
+    (
+      ["already", "grant", "no_account", "no_membership", "inactive", "email_changed", "not_client", "not_this_studio"] as const
+    ).filter(accessOpensJob),
     ["already", "grant"],
   );
 });
@@ -241,6 +259,75 @@ test("on send: a revoked, suspended or missing membership is left exactly as it 
   }
 });
 
+test("on send: an account accepted with an address the studio has since changed is not given the job", async () => {
+  // A mother inquired with her address and accepted the invitation; the
+  // studio later corrected the contact to her daughter's. The daughter's next
+  // session must not land in the mother's account.
+  const store = fakeFirestore({
+    ...priya({ email: "mother@example.com" }),
+    "contacts/c_priya": {
+      tenantId: TENANT,
+      email: "daughter@example.com",
+      normalizedEmail: "daughter@example.com",
+      displayName: "Priya Shah",
+      portalUserId: "u_priya",
+    },
+  });
+  const before = structuredClone(store.documents.get("memberships/tenant_jess_u_priya"));
+  const access = await ensureReturningClientAccess(store.db, {
+    tenantId: TENANT,
+    projectId: SANGEET,
+    clientContactIds: ["c_priya"],
+    ...grant,
+  });
+  assert.deepEqual(access.entries, [{ contactId: "c_priya", uid: "u_priya", plan: "email_changed" }]);
+  // Not opened, so the send invites the address the contact has now.
+  assert.equal(access.opens("c_priya"), false);
+  assert.deepEqual(store.writes, []);
+  assert.deepEqual(store.documents.get("memberships/tenant_jess_u_priya"), before);
+});
+
+test("an email change unlinks the portal account, audited, so the new address can be invited", () => {
+  // Pure: only a real change, and only when there is an account.
+  assert.equal(portalAccountUnlinks({ portalUserId: "u_priya" }, "mother@example.com", "daughter@example.com"), "u_priya");
+  assert.equal(portalAccountUnlinks({ portalUserId: "u_priya" }, "Priya@Example.com", " priya@example.com "), null);
+  assert.equal(portalAccountUnlinks({ portalUserId: "u_priya" }, null, "priya@example.com"), null);
+  assert.equal(portalAccountUnlinks({ portalUserId: "u_priya" }, "priya@example.com", null), null);
+  assert.equal(portalAccountUnlinks({ portalUserId: null }, "mother@example.com", "daughter@example.com"), null);
+  assert.equal(portalAccountUnlinks({}, "mother@example.com", "daughter@example.com"), null);
+
+  // updateContact writes it beside the rest of the email move, and says so.
+  const crm = source("functions/src/crm/commands.ts");
+  const update = crm.slice(crm.indexOf('if (command.type === "updateContact")'), crm.indexOf('if (command.type === "addProjectClient")'));
+  assert.match(update, /const unlinkedPortalUserId = portalAccountUnlinks\(\s*\{ portalUserId: contact\.get\("portalUserId"\) \},\s*before\.email,\s*email,\s*\);/);
+  assert.match(update, /\.\.\.\(unlinkedPortalUserId \? \{ portalUserId: null \} : \{\}\),/);
+  assert.match(update, /action: "client\.portal_unlinked",/);
+  assert.match(update, /before: \{ portalUserId: unlinkedPortalUserId, email: fromEmail \},/);
+  assert.match(update, /portalAccountUnlinked: Boolean\(unlinkedPortalUserId\),/);
+  // Without the unlink, the new address's acceptance is refused as linked to
+  // someone else — the check the unlink exists to clear.
+  assert.match(source("functions/src/client/invitations.ts"), /throw new Error\("CLIENT_ALREADY_LINKED"\)/);
+});
+
+test("a turned-off membership stays off: accepting an invitation refuses it", () => {
+  assert.equal(clientMembershipTurnedOff("revoked"), true);
+  assert.equal(clientMembershipTurnedOff("suspended"), true);
+  for (const status of ["active", "invited", undefined, null, ""])
+    assert.equal(clientMembershipTurnedOff(status), false, String(status));
+
+  // The accept path refuses before it writes `status: "active"` over it.
+  const invitations = source("functions/src/client/invitations.ts");
+  const accept = invitations.slice(invitations.indexOf('if (parsed.type === "accept")'), invitations.indexOf('if (parsed.type === "status"'));
+  const refusal = accept.indexOf('throw new Error("CLIENT_ACCESS_TURNED_OFF")');
+  assert.ok(refusal > 0, "accept refuses a turned-off membership");
+  assert.match(accept, /membership\.exists &&\s*clientMembershipTurnedOff\(membership\.get\("status"\)\)/);
+  const membershipWrite = accept.search(/transaction\.set\(\s*membershipReference,/);
+  assert.ok(membershipWrite > 0 && refusal < membershipWrite, "the refusal comes before the membership is written");
+  // And the client is told what happened, in words.
+  assert.match(source("features/auth/accept-client-invitation.tsx"), /case "CLIENT_ACCESS_TURNED_OFF":/);
+  assert.match(source("lib/ai/friendly-error.ts"), /CLIENT_ACCESS_TURNED_OFF:/);
+});
+
 test("on send: only this studio's contacts, and each account once", async () => {
   // A contact that names another studio is never followed to a membership.
   const other = fakeFirestore({
@@ -308,7 +395,9 @@ test("the questionnaire send: Priya gets the plain portal link, not an invitatio
   assert.match(link.actionUrl, /\/client\/questionnaire$/);
   assert.deepEqual(store.documents.get("memberships/tenant_jess_u_priya")!.projectIds, [WEDDING, SANGEET]);
 
-  // Revoked: no grant, and the invitation she must accept herself.
+  // Revoked: no grant. The email carries the invitation it always did, and
+  // accepting it is refused (CLIENT_ACCESS_TURNED_OFF, below): a link never
+  // turns access back on.
   const revoked = fakeFirestore(priya({ status: "revoked" }));
   const invited = await questionnaireLinkFor(revoked.db, {
     tenantId: TENANT,
@@ -374,6 +463,99 @@ test("on create or assignment: only the clients a write newly put on the job", (
   assert.deepEqual(clientsAddedToJob(null, { clientContactIds: ["c_priya"] }), []);
 });
 
+test("on arrival: a job nobody at the studio has chosen to show a client is not given on its own", async () => {
+  // Anyone can submit the studio's public form with a returning client's
+  // address: public-lead.ts reuses her contact by email and convertInquiryToJob
+  // makes the job from what the stranger typed. It must not appear in her
+  // portal before the studio has seen it.
+  const fromTheForm = {
+    tenantId: TENANT,
+    clientContactIds: ["c_priya"],
+    origin: "inquiry",
+    state: "LEAD",
+    createdBy: "public-lead-intake",
+    name: "Priya Shah Wedding",
+  };
+  assert.equal(automaticGrantHold(fromTheForm), "unconfirmed_inquiry");
+  assert.deepEqual(clientsAddedToJob(null, fromTheForm), []);
+  // The same from a captured email, the couple's own inquiry link, or a
+  // client added to such a job before anyone has acted on it.
+  for (const createdBy of ["inquiry-capture", "couple", "vertex-ai-worker"])
+    assert.deepEqual(clientsAddedToJob(null, { ...fromTheForm, createdBy }), [], createdBy);
+  assert.deepEqual(
+    clientsAddedToJob({ tenantId: TENANT, clientContactIds: [] }, { ...fromTheForm, clientContactIds: ["c_priya"] }),
+    [],
+  );
+  // Through the trigger's own path, against her real account: nothing written.
+  const store = fakeFirestore(priya());
+  const added = clientsAddedToJob(null, fromTheForm);
+  const access = await ensureReturningClientAccess(store.db, {
+    tenantId: TENANT,
+    projectId: "job_from_the_form",
+    clientContactIds: added,
+    actorId: "system:client-access",
+    now: "2026-10-12T14:00:00.000Z",
+    reason: "job_created",
+  });
+  assert.deepEqual(access.entries, []);
+  assert.deepEqual(store.writes, []);
+  assert.deepEqual(store.reads, [], "nothing even read");
+  assert.deepEqual(store.documents.get("memberships/tenant_jess_u_priya")!.projectIds, [WEDDING]);
+
+  // A job the studio made, or an inquiry it has moved on: granted as before.
+  assert.equal(automaticGrantHold({ state: "LEAD" }), null);
+  assert.equal(automaticGrantHold({ origin: "inquiry", state: "CONSULTATION" }), null);
+  assert.equal(automaticGrantHold({ origin: "inquiry", state: "BOOKED" }), null);
+
+  // An imported booking arrives quiet (ADR 0005): its couple is invited when
+  // the studio brings it live and chooses to.
+  const imported = {
+    tenantId: TENANT,
+    clientContactIds: ["c_priya"],
+    state: "BOOKED",
+    importedAt: "2026-10-12T14:00:00.000Z",
+    clientAutomationsPausedAt: "2026-10-12T14:00:00.000Z",
+    clientPortalActive: false,
+  };
+  assert.equal(automaticGrantHold(imported), "quiet_import");
+  assert.deepEqual(clientsAddedToJob(null, imported), []);
+  assert.equal(automaticGrantHold({ ...imported, clientAutomationsPausedAt: null }), "quiet_import");
+  // Brought live: the write changes no clients, so nothing on its own either —
+  // the studio's invitation, or anything it sends, gives it to her.
+  const live = { ...imported, clientAutomationsPausedAt: null, clientPortalActive: true };
+  assert.equal(automaticGrantHold(live), null);
+  assert.deepEqual(clientsAddedToJob(imported, live), []);
+
+  // Over: not going ahead, or archived as a state.
+  assert.equal(automaticGrantHold({ state: "LOST" }), "closed");
+  assert.equal(automaticGrantHold({ state: "ARCHIVED" }), "closed");
+  assert.equal(automaticGrantHold({ archivedAt: "2026-10-12" }), "put_away");
+  assert.equal(automaticGrantHold(null), "put_away");
+});
+
+test("a held job is still given to the account by the studio's first send for it", async () => {
+  // The send paths and the email worker grant on their own read, whatever
+  // the job's arrival did: nothing legitimate waits on the trigger.
+  const store = fakeFirestore(priya());
+  const access = await ensureReturningClientAccess(store.db, {
+    tenantId: TENANT,
+    projectId: "job_from_the_form",
+    clientContactIds: ["c_priya"],
+    actorId: "studio_owner_1",
+    now: "2026-10-12T16:00:00.000Z",
+    reason: "proposal_sent",
+  });
+  assert.equal(access.opens("c_priya"), true);
+  assert.deepEqual(store.documents.get("memberships/tenant_jess_u_priya")!.projectIds, [WEDDING, "job_from_the_form"]);
+  for (const path of [
+    "functions/src/booking/proposals.ts",
+    "functions/src/contracts/commands.ts",
+    "functions/src/operations/jobs.ts",
+    "functions/src/planning/questionnaire-link.ts",
+  ])
+    assert.doesNotMatch(source(path), /automaticGrantHold|clientsAddedToJob/, `${path} must not hold back a send`);
+});
+
 test("on create: the trigger is exported, grants only what a write added, and as the system", async () => {
   const trigger = source("functions/src/client/returning-client-access-trigger.ts");
   assert.match(trigger, /onDocumentWritten\(\s*\{ document: "projects\/\{projectId\}"/);
@@ -407,8 +589,20 @@ test("the backfill is dry by default, one named studio at a time, and uses the s
   assert.match(script, /if \(apply && \(await grant\(/);
   assert.match(script, /There is no --all/);
   assert.match(script, /\.where\("tenantId", "==", tenantId\)/);
-  assert.match(script, /returningClientAccessPlan\(/);
+  // The server's rule, read off the same fields (email change included).
+  assert.match(script, /accessPlanFromSnapshots\(\{ tenantId, projectId, contact, membership \}\)/);
+  assert.doesNotMatch(script, /returningClientAccessPlan\(/, "its own copy of the fields could drift");
   assert.match(script, /FieldValue\.arrayUnion\(projectId\)/);
-  // Never touches a membership's status.
+  // Never touches a membership's status, or a contact.
   assert.doesNotMatch(script, /status:\s*"active"/);
+  assert.doesNotMatch(script, /portalUserId:\s*null/);
+  // The jobs the trigger holds back are held back here too — an inquiry that
+  // made itself a job, a quiet import, a job that is over — both when listed
+  // and again when written.
+  assert.match(script, /automaticGrantHold\(/);
+  const listing = script.slice(script.indexOf("async function backfillTenant("));
+  assert.match(listing, /const hold = holdFor\(project\);\s*if \(hold\) held\.set/);
+  const write = script.slice(script.indexOf("async function grant("), script.indexOf("async function backfillTenant("));
+  assert.match(write, /holdFor\(project\)\) return false;/);
+  assert.match(write, /jobClientContactIds\(project\.get\("clientContactIds"\)\)\.includes\(contactId\)/);
 });

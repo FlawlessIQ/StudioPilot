@@ -10,6 +10,7 @@ import {
   liveInvitationLinks,
   mintClientInvitation,
 } from "./invitation-mint.js";
+import { clientMembershipTurnedOff } from "./returning-client-access.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { studioHubCors } from "../security/cors.js";
 import { resolveTenantBrand } from "../branding/tenant-brand.js";
@@ -294,6 +295,18 @@ export const clientInvitationCommand = onRequest(
             membership.get("role") !== "client"
           ) {
             throw new Error("MEMBERSHIP_ROLE_CONFLICT");
+          }
+          // A client whose access to this studio was turned off stays off.
+          // Accepting writes `status: "active"` over the membership, and a
+          // send now carries an invitation whenever the client's account
+          // can't open the job — including when it can't because it was
+          // revoked (client/returning-client-access.ts). Turning it back on
+          // is someone's decision, never a link's.
+          if (
+            membership.exists &&
+            clientMembershipTurnedOff(membership.get("status"))
+          ) {
+            throw new Error("CLIENT_ACCESS_TURNED_OFF");
           }
           const priorProjects = membership.get("projectIds");
           const projectIds = Array.from(

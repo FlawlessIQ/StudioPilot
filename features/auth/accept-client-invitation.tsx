@@ -82,6 +82,8 @@ function friendlyError(message: string) {
       return "This client profile is already connected to another account. Contact the studio for help.";
     case "MEMBERSHIP_ROLE_CONFLICT":
       return "This address is already on the studio's crew or team, so it can't also be your client login. Ask the studio to invite you at a different address.";
+    case "CLIENT_ACCESS_TURNED_OFF":
+      return "Your access to this studio's client portal has been turned off, so this invitation can't turn it back on. Contact the studio if you think that's a mistake.";
     case "FORBIDDEN":
       return "This invitation cannot be opened with this account. Sign out and use the address the studio invited.";
     case "VERIFIED_EMAIL_REQUIRED":

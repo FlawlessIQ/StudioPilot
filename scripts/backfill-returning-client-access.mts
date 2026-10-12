@@ -19,9 +19,19 @@
  *
  * Nothing else. A revoked, suspended or missing membership is reported and
  * left exactly as it is — never re-activated; the studio's next send carries
- * an invitation for that client. A job put away (archived or deleted) is
- * skipped. Each grant is re-checked inside its own transaction before it is
- * written, by the same rule the server uses (returningClientAccessPlan).
+ * an invitation for that client. So is an account accepted with an address
+ * the studio has since changed on the contact (email_changed): it proves
+ * nothing about whoever holds the new one.
+ *
+ * Skipped, as the server's own job trigger skips them (automaticGrantHold): a
+ * job put away (archived, deleted, lost); an inquiry that made itself a job
+ * and that nobody at the studio has acted on yet — the public form and inbox
+ * capture take anyone's word for an address; and an imported booking still
+ * held quiet (ADR 0005). Each of those reaches the account with the studio's
+ * first send for it.
+ *
+ * Each grant is re-checked inside its own transaction before it is written,
+ * job and all, by the same rule the server uses (accessPlanFromSnapshots).
  *
  * Dry by default; `--apply` writes. Each studio is named explicitly: there is
  * no "all".
@@ -37,9 +47,12 @@ import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import {
   accessGrantKey,
+  accessPlanFromSnapshots,
+  automaticGrantHold,
   jobClientContactIds,
-  returningClientAccessPlan,
+  type AutomaticGrantHold,
   type ClientAccessPlan,
+  type GrantHoldJob,
 } from "../functions/src/client/returning-client-access.ts";
 
 const ACTOR = "backfill:returning-client-access";
@@ -80,26 +93,20 @@ const db = getFirestore();
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
 
 function planFor(tenantId: string, projectId: string, contact: DocumentSnapshot, membership: DocumentSnapshot | null): ClientAccessPlan {
-  return returningClientAccessPlan({
-    tenantId,
-    projectId,
-    contact: { exists: contact.exists, tenantId: contact.get("tenantId"), portalUserId: contact.get("portalUserId") },
-    membership: membership
-      ? {
-          exists: membership.exists,
-          tenantId: membership.get("tenantId"),
-          userId: membership.get("userId"),
-          role: membership.get("role"),
-          status: membership.get("status"),
-          projectIds: membership.get("projectIds"),
-        }
-      : null,
-  });
+  return accessPlanFromSnapshots({ tenantId, projectId, contact, membership });
 }
+
+const holdFor = (project: DocumentSnapshot): AutomaticGrantHold | null =>
+  automaticGrantHold((project.data() ?? null) as GrantHoldJob | null);
 
 /** Grants one job to one account, if the rule still says so when it is written. */
 async function grant(tenantId: string, projectId: string, contactId: string, now: string): Promise<boolean> {
   return db.runTransaction(async (transaction) => {
+    // The job as it is now: still this studio's, still not on hold, and still
+    // this contact's.
+    const project = await transaction.get(db.doc(`projects/${projectId}`));
+    if (!project.exists || project.get("tenantId") !== tenantId || holdFor(project)) return false;
+    if (!jobClientContactIds(project.get("clientContactIds")).includes(contactId)) return false;
     const contact = await transaction.get(db.doc(`contacts/${contactId}`));
     const uid = contact.exists && contact.get("tenantId") === tenantId ? text(contact.get("portalUserId")) : "";
     const membershipReference = uid ? db.doc(`memberships/${tenantId}_${uid}`) : null;
@@ -142,9 +149,19 @@ async function backfillTenant(tenantId: string, now: string): Promise<number> {
   const name = text(tenant.get("businessName")) || text(tenant.get("brandName")) || tenantId;
   console.log(`■ ${name} (${tenantId})`);
 
+  const held = new Map<AutomaticGrantHold, number>();
   const projects = (await db.collection("projects").where("tenantId", "==", tenantId).get()).docs.filter(
-    (project) => project.get("tenantId") === tenantId && !project.get("archivedAt") && !project.get("deletedAt"),
+    (project) => {
+      if (project.get("tenantId") !== tenantId) return false;
+      const hold = holdFor(project);
+      if (hold) held.set(hold, (held.get(hold) ?? 0) + 1);
+      return !hold;
+    },
   );
+  if (held.size)
+    console.log(
+      `    held back, as the server's job trigger holds them (a send still gives them): ${[...held].map(([hold, count]) => `${count} ${hold.replace(/_/g, " ")}`).join(", ")}`,
+    );
   const contacts = new Map<string, DocumentSnapshot>();
   const memberships = new Map<string, DocumentSnapshot>();
   let found = 0;
@@ -164,6 +181,11 @@ async function backfillTenant(tenantId: string, now: string): Promise<number> {
         found += 1;
         console.log(`    + ${who} (${contactId}, uid ${uid}) → ${job}`);
         if (apply && (await grant(tenantId, project.id, contactId, now))) written += 1;
+      } else if (plan === "email_changed") {
+        const membership = memberships.get(membershipPath)!;
+        console.log(
+          `    ! ${who} (${contactId}) on ${job}: email_changed — account ${uid} was accepted as ${text(membership.get("email"))}, the contact is now ${text(contact.get("email"))}. Left as it is; their next email invites the new address, which can accept once the contact's portalUserId is cleared (an email change does that from now on).`,
+        );
       } else if (plan !== "already") {
         console.log(`    · ${who} (${contactId}) on ${job}: ${plan} — left as it is; their next email carries an invitation`);
       }

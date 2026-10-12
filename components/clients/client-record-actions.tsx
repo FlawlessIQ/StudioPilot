@@ -118,13 +118,20 @@ export function ClientRecordActions({
    * once, so the studio knows the next resend and signature use it.
    */
   function emailFollowedNotice(result: unknown): string | null {
-    const followed = (result as { emailFollowed?: { contracts?: unknown[]; amendments?: unknown[] } } | null)
-      ?.emailFollowed;
+    const followed = (
+      result as {
+        emailFollowed?: { contracts?: unknown[]; amendments?: unknown[]; portalAccountUnlinked?: boolean };
+      } | null
+    )?.emailFollowed;
     if (!followed) return null;
     const waiting = (followed.contracts?.length ?? 0) + (followed.amendments?.length ?? 0);
-    return waiting
+    const moved = waiting
       ? `Client updated. Proposals, follow-ups and the ${waiting === 1 ? "agreement waiting on them" : "agreements waiting on them"} now go to the new address.`
       : "Client updated. Proposals and follow-ups now go to the new address.";
+    // Their portal login was the old address's (crm/email-change.ts).
+    return followed.portalAccountUnlinked
+      ? `${moved} Their portal login was for the old address, so the next thing you send them includes an invitation for the new one.`
+      : moved;
   }
 
   /**

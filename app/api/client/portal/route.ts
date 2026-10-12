@@ -33,6 +33,7 @@ import {
 } from "@/server/client/proposal-decision";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { invoiceRaisedAtProvider } from "@/features/client/invoice-pay-route";
+import { clientJobClosed } from "@/features/client/job-choice";
 import { isAmendable } from "@/features/booking/amendable";
 import {
   signContract,
@@ -1184,6 +1185,9 @@ async function clientProjects(tenantId: string, projectIds: string[]) {
     const state = String(snapshot.get("state") ?? "LEAD");
     return [{
       id: projectIds[index],
+      // Put away or not going ahead: still the client's to open by a link,
+      // but not listed beside their live bookings (features/client/job-choice.ts).
+      closed: clientJobClosed({ state, archivedAt: snapshot.get("archivedAt") }),
       name: safeString(snapshot.get("name")) ?? fallbackProjectName(trade),
       eventType:
         safeString(snapshot.get("eventType")) ??

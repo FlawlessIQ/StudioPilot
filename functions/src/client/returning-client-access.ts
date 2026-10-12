@@ -5,6 +5,7 @@ import {
   type DocumentSnapshot,
   type Firestore,
 } from "firebase-admin/firestore";
+import { clientAutomationsPaused } from "../imports/existing-booking.js";
 
 /**
  * A returning client opens their next job with the account they already have.
@@ -28,13 +29,26 @@ import {
  *   - when that membership is an active client's. A revoked, suspended or
  *     missing one is left exactly as it is — never re-activated here — and
  *     the send falls back to the invitation it always carried, which the
- *     client has to accept themselves.
+ *     client has to accept themselves (and which cannot re-activate a revoked
+ *     or suspended one either: client/invitations.ts, accept);
+ *   - when the account was made for the address the contact has now. The
+ *     studio can change a client's email (crm/commands.ts updateContact),
+ *     and an account proved only the address it was accepted with — a job is
+ *     never handed to it on the strength of an address someone else may now
+ *     hold. The send invites the current address instead.
+ *
+ * And not from the job's own arrival when nobody at the studio has looked at
+ * it yet: an inquiry that made itself a job (the public form, a captured
+ * email — anyone who knows a client's address can send one), or an imported
+ * booking still held quiet (ADR 0005). Those are given to the account by the
+ * studio's first send for them, like any other job (automaticGrantHold).
  *
  * `arrayUnion`, so a second grant is a no-op, and each grant is audited once:
  * the membership is read in the same transaction that writes it.
  */
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+const lowerText = (value: unknown) => text(value).toLowerCase();
 
 /** How many of a job's clients are considered — the job's own list, capped. */
 export const MAX_CLIENT_CONTACTS = 8;
@@ -50,6 +64,11 @@ export type ClientAccessPlan =
   | "no_membership"
   /** Revoked, suspended, or anything but active: never re-activated here. */
   | "inactive"
+  /**
+   * The account was accepted with an address the contact no longer has: the
+   * studio changed their email since. Never given a job on the old proof.
+   */
+  | "email_changed"
   /** The membership is someone else's, or not a client's. */
   | "not_client"
   /** The contact is missing or another studio's. */
@@ -63,7 +82,13 @@ export type ClientAccessPlan =
 export function returningClientAccessPlan(input: {
   tenantId: string;
   projectId: string;
-  contact: { exists: boolean; tenantId?: unknown; portalUserId?: unknown } | null;
+  contact: {
+    exists: boolean;
+    tenantId?: unknown;
+    portalUserId?: unknown;
+    email?: unknown;
+    normalizedEmail?: unknown;
+  } | null;
   membership: {
     exists: boolean;
     tenantId?: unknown;
@@ -71,6 +96,8 @@ export function returningClientAccessPlan(input: {
     role?: unknown;
     status?: unknown;
     projectIds?: unknown;
+    /** The address the account accepted its invitation with (invitations.ts). */
+    email?: unknown;
   } | null;
 }): ClientAccessPlan {
   if (!input.tenantId || !input.projectId) return "not_this_studio";
@@ -87,11 +114,63 @@ export function returningClientAccessPlan(input: {
     (membership.tenantId !== undefined && membership.tenantId !== input.tenantId)
   )
     return "not_client";
+  // Accepting proved the address the contact had then (invitations.ts checks
+  // the contact's email against the account's). If the studio has changed it
+  // since, the account proves nothing about whoever holds the new one. The
+  // contact's `email` is what accepting compares, so it is read first.
+  const contactEmail = lowerText(input.contact.email) || lowerText(input.contact.normalizedEmail);
+  const memberEmail = lowerText(membership.email);
+  if (contactEmail && memberEmail && contactEmail !== memberEmail) return "email_changed";
   if (membership.status !== "active") return "inactive";
   return Array.isArray(membership.projectIds) && membership.projectIds.includes(input.projectId)
     ? "already"
     : "grant";
 }
+
+/**
+ * The rule, read off the documents as stored. One place for the fields it
+ * needs, so the server and the backfill (scripts/backfill-returning-client-
+ * access.mts) can never read a different set.
+ */
+export function accessPlanFromSnapshots(input: {
+  tenantId: string;
+  projectId: string;
+  contact: DocumentSnapshot;
+  membership: DocumentSnapshot | null;
+}): ClientAccessPlan {
+  const { contact, membership } = input;
+  return returningClientAccessPlan({
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    contact: {
+      exists: contact.exists,
+      tenantId: contact.get("tenantId"),
+      portalUserId: contact.get("portalUserId"),
+      email: contact.get("email"),
+      normalizedEmail: contact.get("normalizedEmail"),
+    },
+    membership: membership
+      ? {
+          exists: membership.exists,
+          tenantId: membership.get("tenantId"),
+          userId: membership.get("userId"),
+          role: membership.get("role"),
+          status: membership.get("status"),
+          projectIds: membership.get("projectIds"),
+          email: membership.get("email"),
+        }
+      : null,
+  });
+}
+
+/**
+ * Pure: a client membership someone turned off — revoked or suspended. Never
+ * turned back on by anything a client is sent: not a grant here, and not an
+ * invitation's accept (client/invitations.ts), which would otherwise write
+ * `status: "active"` over it with every job it had.
+ */
+export const clientMembershipTurnedOff = (status: unknown): boolean =>
+  status === "revoked" || status === "suspended";
 
 /** Pure: whether a plan leaves the client able to open the job. */
 export const accessOpensJob = (plan: ClientAccessPlan): boolean =>
@@ -159,28 +238,14 @@ export async function readReturningClientAccess(
   );
   const entries = ids.map((contactId, index) => {
     const contact = contacts[index]!;
-    const membership = memberships[index] ?? null;
     return {
       contactId,
       uid: contact.exists ? text(contact.get("portalUserId")) : "",
-      plan: returningClientAccessPlan({
+      plan: accessPlanFromSnapshots({
         tenantId: input.tenantId,
         projectId: input.projectId,
-        contact: {
-          exists: contact.exists,
-          tenantId: contact.get("tenantId"),
-          portalUserId: contact.get("portalUserId"),
-        },
-        membership: membership
-          ? {
-              exists: membership.exists,
-              tenantId: membership.get("tenantId"),
-              userId: membership.get("userId"),
-              role: membership.get("role"),
-              status: membership.get("status"),
-              projectIds: membership.get("projectIds"),
-            }
-          : null,
+        contact,
+        membership: memberships[index] ?? null,
       }),
     };
   });
@@ -267,17 +332,62 @@ export async function ensureReturningClientAccess(
   });
 }
 
+/** The fields of a job the holds read. */
+export type GrantHoldJob = {
+  archivedAt?: unknown;
+  deletedAt?: unknown;
+  state?: unknown;
+  origin?: unknown;
+  clientAutomationsPausedAt?: unknown;
+  clientPortalActive?: unknown;
+};
+
+export type AutomaticGrantHold =
+  /** Archived or deleted. */
+  | "put_away"
+  /** Lost, or archived as a state: not a job the client is working on. */
+  | "closed"
+  /**
+   * An inquiry that made itself a job, before the studio has done anything
+   * with it (intake/convert.ts: origin "inquiry", state LEAD).
+   */
+  | "unconfirmed_inquiry"
+  /** An imported booking still held quiet (ADR 0005). */
+  | "quiet_import";
+
+/**
+ * Pure: why a job is not given to its clients' accounts on its own — by its
+ * arrival (the trigger) or by the backfill — or null when it may be.
+ *
+ * Every hold is a job nobody at the studio has chosen to show a client yet.
+ * The public inquiry form and inbox capture make a job from whatever anyone
+ * typed, reusing the contact an address names: a stranger who knows a
+ * returning client's email could otherwise put a job of their own invention
+ * in that client's portal before the studio saw it. An imported booking
+ * arrives quiet, and inviting the couple is the studio's separate choice
+ * when it brings the booking live (ADR 0005). A held job still reaches the
+ * account the moment the studio sends the client anything for it: every send
+ * path grants, whatever this says.
+ */
+export function automaticGrantHold(project: GrantHoldJob | null): AutomaticGrantHold | null {
+  if (!project || project.archivedAt || project.deletedAt) return "put_away";
+  if (project.state === "LOST" || project.state === "ARCHIVED") return "closed";
+  if (project.origin === "inquiry" && project.state === "LEAD") return "unconfirmed_inquiry";
+  if (clientAutomationsPaused(project) || project.clientPortalActive === false) return "quiet_import";
+  return null;
+}
+
 /**
  * Pure: which clients a write to a job newly put on it — every one on a new
  * job, the added ones on an existing job — so the trigger grants only on a
- * create or an assignment, not on every write a job sees. A job put away or
- * deleted grants nothing.
+ * create or an assignment, not on every write a job sees. A job on hold
+ * (automaticGrantHold) grants nothing: its first send does.
  */
 export function clientsAddedToJob(
   before: { clientContactIds?: unknown; tenantId?: unknown } | null,
-  after: { clientContactIds?: unknown; tenantId?: unknown; archivedAt?: unknown; deletedAt?: unknown } | null,
+  after: ({ clientContactIds?: unknown; tenantId?: unknown } & GrantHoldJob) | null,
 ): string[] {
-  if (!after || after.archivedAt || after.deletedAt || !text(after.tenantId)) return [];
+  if (!after || automaticGrantHold(after) || !text(after.tenantId)) return [];
   const now = jobClientContactIds(after.clientContactIds);
   const earlier = new Set(
     before && before.tenantId === after.tenantId ? jobClientContactIds(before.clientContactIds) : [],

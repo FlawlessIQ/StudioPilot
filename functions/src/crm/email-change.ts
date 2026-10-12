@@ -10,7 +10,14 @@
  *  - an agreement nobody has finished signing: its client signer is who must
  *    sign, and signing refuses any other address (server/contracts/client-signing.ts);
  *  - a booking change waiting for the couple's signature, the same way;
- *  - a portal invitation still pending for the old address, which is retired.
+ *  - a portal invitation still pending for the old address, which is retired;
+ *  - the contact's link to a portal account (`portalUserId`), which is
+ *    unlinked. The account proved the old address when it accepted, nothing
+ *    about whoever holds the new one, and every later job for this contact
+ *    would otherwise be added to it on the old proof
+ *    (client/returning-client-access.ts). Unlinked, the studio's next send
+ *    invites the new address, which accepting links afresh. The account keeps
+ *    the jobs it was already given.
  *
  * Anything signed, applied or closed is left exactly as it was. Only a record
  * that names the old address is touched, so a partner's own address is never
@@ -66,6 +73,19 @@ export function amendmentFollows(
     OPEN_AMENDMENT.has(String(amendment.status ?? "")) &&
     normal(amendment.clientEmail) === normal(from)
   );
+}
+
+/**
+ * The portal account an email change unlinks from the contact, or null when
+ * there is none or the address did not really change.
+ */
+export function portalAccountUnlinks(
+  contact: { portalUserId?: unknown },
+  before: unknown,
+  after: unknown,
+): string | null {
+  const uid = typeof contact.portalUserId === "string" ? contact.portalUserId.trim() : "";
+  return uid && emailChanged(before, after) ? uid : null;
 }
 
 /** A pending invitation to the old address, which no one can accept now. */

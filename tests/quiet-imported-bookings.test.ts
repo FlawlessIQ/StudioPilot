@@ -104,6 +104,14 @@ const guarded: Array<[string, string, RegExp]> = [
     /clientAutomationEmailTypes\.includes\(type\)/,
   ],
   [
+    // The job trigger (client/returning-client-access-trigger.ts) grants
+    // through clientsAddedToJob, which returns nothing for a held job; the
+    // couple reaches their portal when the studio invites them.
+    "a returning couple's portal account is not given a quiet booking on import",
+    "functions/src/client/returning-client-access.ts",
+    /if \(clientAutomationsPaused\(project\) \|\| project\.clientPortalActive === false\) return "quiet_import";/,
+  ],
+  [
     "an imported booking never gets \"You're booked\"",
     "functions/src/operations/provider-runtime.ts",
     /if\(!project\.get\("importedAt"\)\)batch\.set\(db\.doc\(`emailJobs\/booking_confirmation_/,

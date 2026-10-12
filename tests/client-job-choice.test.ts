@@ -9,6 +9,7 @@ import {
 import {
   chooseClientMembership,
   chooseClientProject,
+  clientJobClosed,
   clientJobSwitcherItems,
   requestedProjectFrom,
   searchWithoutProject,
@@ -211,20 +212,88 @@ test("the portal reads the link's job as it chooses, then takes it off the addre
 // ── The switcher ─────────────────────────────────────────────────────────
 
 test("one job: nothing new; two or more: all of them, soonest first, the open one marked", () => {
+  const TODAY = "2026-10-12";
   const wedding = { id: "job_wedding", name: "Priya Shah Wedding", eventDate: "2027-03-20" };
   const sangeet = { id: SANGEET, name: "Priya Shah Sangeet", eventDate: "2026-10-12" };
   const trial = { id: "job_trial", name: "Hair trial", eventDate: null };
-  assert.equal(clientJobSwitcherItems([], null), null);
-  assert.equal(clientJobSwitcherItems([wedding], wedding.id), null);
-  assert.equal(clientJobSwitcherItems([wedding, wedding], wedding.id), null);
-  assert.deepEqual(clientJobSwitcherItems([wedding, trial, sangeet], SANGEET), [
+  assert.equal(clientJobSwitcherItems([], null, TODAY), null);
+  assert.equal(clientJobSwitcherItems([wedding], wedding.id, TODAY), null);
+  assert.equal(clientJobSwitcherItems([wedding, wedding], wedding.id, TODAY), null);
+  assert.deepEqual(clientJobSwitcherItems([wedding, trial, sangeet], SANGEET, TODAY), [
     { ...sangeet, active: true },
     { ...wedding, active: false },
     { ...trial, active: false },
   ]);
   // Exactly one marked, and none when the open job isn't in the list.
-  assert.equal(clientJobSwitcherItems([wedding, sangeet], wedding.id)!.filter((item) => item.active).length, 1);
-  assert.equal(clientJobSwitcherItems([wedding, sangeet], "job_other")!.filter((item) => item.active).length, 0);
+  assert.equal(clientJobSwitcherItems([wedding, sangeet], wedding.id, TODAY)!.filter((item) => item.active).length, 1);
+  assert.equal(clientJobSwitcherItems([wedding, sangeet], "job_other", TODAY)!.filter((item) => item.active).length, 0);
+});
+
+test("a returning client sees the job ahead of them before the one they finished", () => {
+  const TODAY = "2026-10-12";
+  // Last year's wedding, done; this year's Sangeet, the reason she's here.
+  const lastWedding = { id: "job_2025_wedding", name: "Priya Shah Wedding", eventDate: "2025-06-01" };
+  const anniversary = { id: "job_2024_shoot", name: "Engagement shoot", eventDate: "2024-09-14" };
+  const sangeet = { id: SANGEET, name: "Priya Shah Sangeet", eventDate: "2026-11-01" };
+  const reception = { id: "job_reception", name: "Reception", eventDate: "2027-02-01" };
+  const undated = { id: "job_undated", name: "Family portraits", eventDate: null };
+  const order = (items: ReturnType<typeof clientJobSwitcherItems>) => items!.map((item) => item.id);
+  // Still to come, soonest first; then not yet dated; then past, most recent first.
+  assert.deepEqual(order(clientJobSwitcherItems([anniversary, lastWedding, undated, reception, sangeet], lastWedding.id, TODAY)), [
+    SANGEET,
+    "job_reception",
+    "job_undated",
+    "job_2025_wedding",
+    "job_2024_shoot",
+  ]);
+  // Today counts as still to come.
+  assert.deepEqual(order(clientJobSwitcherItems([lastWedding, { ...sangeet, eventDate: TODAY }], null, TODAY)), [SANGEET, "job_2025_wedding"]);
+  // Without a date given, the device's own.
+  assert.deepEqual(order(clientJobSwitcherItems([lastWedding, { ...sangeet, eventDate: "2999-01-01" }], null)), [SANGEET, "job_2025_wedding"]);
+});
+
+test("a job that is over isn't listed beside the live ones, nor opened over them", () => {
+  const TODAY = "2026-10-12";
+  const wedding = { id: "job_wedding", name: "Priya Shah Wedding", eventDate: "2027-03-20" };
+  // A job someone else's form made in her name, declined by the studio.
+  const declined = { id: "job_declined", name: "Priya Shah Birthday", eventDate: "2026-12-01", closed: true };
+  // Two jobs, one closed: one live job, so nothing new.
+  assert.equal(clientJobSwitcherItems([wedding, declined], wedding.id, TODAY), null);
+  const sangeet = { id: SANGEET, name: "Priya Shah Sangeet", eventDate: "2026-11-01" };
+  assert.deepEqual(
+    clientJobSwitcherItems([wedding, declined, sangeet], wedding.id, TODAY)!.map((item) => item.id),
+    [SANGEET, "job_wedding"],
+  );
+  // Open by a link, it is shown, marked, so she can leave it.
+  assert.deepEqual(
+    clientJobSwitcherItems([wedding, declined], declined.id, TODAY)!.map((item) => [item.id, item.active]),
+    [["job_declined", true], ["job_wedding", false]],
+  );
+  // Without a link, a live job opens before a closed one — even one she last chose.
+  const projects = [declined, wedding];
+  assert.deepEqual(chooseClientProject({ projects, requestedProjectId: null, storedProjectId: null }), {
+    projectId: "job_wedding",
+    requestedUnavailable: false,
+  });
+  assert.deepEqual(chooseClientProject({ projects, requestedProjectId: null, storedProjectId: "job_declined" }), {
+    projectId: "job_wedding",
+    requestedUnavailable: false,
+  });
+  // A link still opens it; and when it is all she has, it opens.
+  assert.equal(chooseClientProject({ projects, requestedProjectId: "job_declined", storedProjectId: null }).projectId, "job_declined");
+  assert.equal(chooseClientProject({ projects: [declined], requestedProjectId: null, storedProjectId: null }).projectId, "job_declined");
+
+  // What "over" means, and where the server says it.
+  assert.equal(clientJobClosed({ state: "LOST" }), true);
+  assert.equal(clientJobClosed({ state: "ARCHIVED" }), true);
+  assert.equal(clientJobClosed({ state: "BOOKED", archivedAt: "2026-10-12T00:00:00Z" }), true);
+  for (const state of ["LEAD", "BOOKED", "CLOSED", "CANCELLED", "POSTPONED"])
+    assert.equal(clientJobClosed({ state, archivedAt: null }), false, state);
+  const route = readFileSync("app/api/client/portal/route.ts", "utf8");
+  const list = route.slice(route.indexOf("async function clientProjects("), route.indexOf("async function availablePackages("));
+  assert.match(list, /closed: clientJobClosed\(\{ state, archivedAt: snapshot\.get\("archivedAt"\) \}\),/);
+  // And a job not going ahead says so, rather than "In progress".
+  assert.match(readFileSync("server/client/portal-experience.ts", "utf8"), /LOST: "Not going ahead",/);
 });
 
 test("the switcher sits in the client shell, and remembers the choice", () => {

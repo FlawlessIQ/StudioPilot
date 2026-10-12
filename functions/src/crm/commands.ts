@@ -60,6 +60,7 @@ import {
   emailChanged,
   withPreviousEmail,
   invitationRetires,
+  portalAccountUnlinks,
   retargetContractSigners,
 } from "./email-change.js";
 import { followEmailToInquiries } from "./email-change-follow.js";
@@ -3887,10 +3888,24 @@ export const crmCommand = onRequest(
                 ),
               ])
             : [[], [], null];
+          /**
+           * The portal account the old address accepted is unlinked
+           * (email-change.ts, portalAccountUnlinks): it proves nothing about
+           * whoever holds the new address, and a linked account is given
+           * every later job for this contact on its own
+           * (client/returning-client-access.ts). The studio's next send
+           * invites the new address instead.
+           */
+          const unlinkedPortalUserId = portalAccountUnlinks(
+            { portalUserId: contact.get("portalUserId") },
+            before.email,
+            email,
+          );
           const followed = {
             contracts: [] as string[],
             amendments: [] as string[],
             invitationsRetired: [] as string[],
+            portalAccountUnlinked: Boolean(unlinkedPortalUserId),
           };
           if (moving) {
             for (const contract of projectContracts.flatMap((result) => result.docs)) {
@@ -3927,6 +3942,7 @@ export const crmCommand = onRequest(
             ...(moving
               ? { previousEmails: withPreviousEmail(contact.get("previousEmails"), fromEmail, toEmail) }
               : {}),
+            ...(unlinkedPortalUserId ? { portalUserId: null } : {}),
             phone: command.input.phone,
             normalizedPhone: command.input.phone?.replace(/\D/g, "") ?? null,
             company: command.input.company,
@@ -3978,6 +3994,27 @@ export const crmCommand = onRequest(
             automationRunId: null,
             providerEventId: null,
           });
+          if (unlinkedPortalUserId) {
+            const unlinkAuditId = randomUUID();
+            transaction.create(db.doc(`auditEvents/${unlinkAuditId}`), {
+              id: unlinkAuditId,
+              tenantId: command.tenantId,
+              projectId: null,
+              actorId: identity.uid,
+              actorType: "user",
+              action: "client.portal_unlinked",
+              entityType: "contact",
+              entityId: command.input.contactId,
+              timestamp,
+              before: { portalUserId: unlinkedPortalUserId, email: fromEmail },
+              after: { portalUserId: null, email: toEmail, reason: "email_changed" },
+              ipAddress: null,
+              userAgent: request.header("user-agent") ?? null,
+              correlationId,
+              automationRunId: null,
+              providerEventId: null,
+            });
+          }
           const output = {
             contactId: command.input.contactId,
             updated: true,
