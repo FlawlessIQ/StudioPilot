@@ -16,6 +16,10 @@ const publicRoutes: Array<{
   { path: "/wedding-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/corporate-photographers", changeFrequency: "monthly", priority: 0.8 },
   { path: "/sports-photographers", changeFrequency: "monthly", priority: 0.8 },
+  // The vendors beside photographers (vendor journeys, Phase 6).
+  { path: "/dj", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/makeup", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/hair", changeFrequency: "monthly", priority: 0.8 },
   { path: "/for-crew", changeFrequency: "monthly", priority: 0.7 },
   { path: "/for-clients", changeFrequency: "monthly", priority: 0.7 },
   { path: "/how-to", changeFrequency: "weekly", priority: 0.7 },

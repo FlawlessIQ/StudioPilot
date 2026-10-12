@@ -305,6 +305,17 @@
   color: #2f5a40;
 }
 
+/* --- The vendor plan and the links between the DJ, makeup and hair pages --- */
+.mk-trade-price .marketing-pricing-grid {
+  margin-bottom: 28px;
+}
+.mk-trade-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 28px;
+}
+
 /* --- Integrations band: a link under the names --- */
 .marketing-page .integration-band > .journey-film-page-link {
   margin-top: 26px;

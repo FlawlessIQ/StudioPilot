@@ -35,6 +35,9 @@ const PAGES = [
   "app/integrations/page.tsx",
   "app/office-manager/page.tsx",
   "app/virtual-assistant-for-photographers/page.tsx",
+  "app/dj/page.tsx",
+  "app/makeup/page.tsx",
+  "app/hair/page.tsx",
 ];
 
 /** What plays: a <video> of the page's own, or a component that renders one. */

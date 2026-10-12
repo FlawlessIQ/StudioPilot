@@ -44,8 +44,10 @@ export const TRADE_OPTIONS: ReadonlyArray<{ value: Trade; label: string; hint: s
  * Trades whose journey is live: offered at signup, and whose vendors are
  * invited to try StudioCue (saas/vendor-invites.ts). A trade not yet live can
  * still be opened with `?trade=` for a walk, but is never offered or invited.
+ * DJ, makeup and hair went live together on 2026-10-12 (vendor journeys,
+ * Phase 6), with their landing pages (/dj, /makeup, /hair).
  */
-export const LIVE_TRADES: readonly Trade[] = ["photographer"];
+export const LIVE_TRADES: readonly Trade[] = ["photographer", "dj", "makeup", "hair"];
 
 /** Makeup and hair are separate trades on one shared "beauty" core. */
 export type TradeFamily = "photo" | "music" | "beauty";
@@ -580,5 +582,13 @@ export const VENDOR_TYPE_TRADES: Readonly<Record<string, readonly Trade[]>> = {
 
 /** Whether a vendor of this type has a live trade to be invited to. */
 export function vendorTypeIsLive(type: unknown): boolean {
-  return (VENDOR_TYPE_TRADES[String(type ?? "")] ?? []).some((trade) => LIVE_TRADES.includes(trade));
+  return vendorTypeLiveTrades(type).length > 0;
+}
+
+/**
+ * The live trades a vendor of this type would sign up as, in order: one for a
+ * DJ, two for a "hair_makeup" vendor (who picks at signup), none for a florist.
+ */
+export function vendorTypeLiveTrades(type: unknown): readonly Trade[] {
+  return (VENDOR_TYPE_TRADES[String(type ?? "")] ?? []).filter((trade) => LIVE_TRADES.includes(trade));
 }

@@ -8,6 +8,7 @@ import { projectStateLabel } from "../features/projects/state-label";
 import {
   LIVE_TRADES,
   TRADES,
+  TRADE_OPTIONS,
   tradeMoves,
   tradeOf,
   tradeProfile,
@@ -111,12 +112,14 @@ test("only a trade with nothing to deliver skips editing and delivery", () => {
 });
 
 test("vendor invites go only to trades with a live journey", () => {
-  assert.deepEqual([...LIVE_TRADES], ["photographer"]);
+  // DJ, makeup and hair launched together on 2026-10-12 (Phase 6).
+  assert.deepEqual([...LIVE_TRADES], ["photographer", "dj", "makeup", "hair"]);
   assert.equal(vendorTypeIsLive("videographer"), true);
-  assert.equal(vendorTypeIsLive("dj"), false);
-  assert.equal(vendorTypeIsLive("hair_makeup"), false);
+  assert.equal(vendorTypeIsLive("dj"), true);
+  assert.equal(vendorTypeIsLive("hair_makeup"), true);
   assert.equal(vendorTypeIsLive("florist"), false);
-  assert.match(read("functions/src/saas/vendor-invites.ts"), /if \(!vendorTypeIsLive\(vendorType\)\) continue;/);
+  assert.equal(vendorTypeIsLive("band"), false);
+  assert.match(read("functions/src/saas/vendor-invites.ts"), /if \(!vendorTypeIsLive\(vendorType\)\) return \{ ok: false, reason: "trade_not_live" \};/);
 });
 
 test("DJs, makeup and hair buy the $75 plan; photographers never see it", () => {
@@ -146,7 +149,9 @@ test("a new studio starts with its trade's plan and nothing photographic", () =>
   assert.match(onboarding, /schedule_confirmation: \{ enabled: false,/);
   assert.match(onboarding, /final_invoice_notice: \{ enabled: !trade\.journey\.balanceOnTheDay,/);
   assert.match(onboarding, /for \(const starter of photographer \? starterQuestionnaires\(\) : \[\]\)/);
-  // Signup offers live trades only, and a `?trade=` link can preselect another.
+  // Signup offers live trades only, and a `?trade=` link can preselect one.
+  // Every trade is live now, so "What do you do?" always shows all four.
+  assert.deepEqual(TRADE_OPTIONS.filter((option) => LIVE_TRADES.includes(option.value)).map((option) => option.value), [...TRADES]);
   const form = read("features/auth/onboarding-form.tsx");
   assert.match(form, /LIVE_TRADES\.includes\(option\.value\) \|\| option\.value === arrivedWith/);
   assert.match(read("features/auth/register-form.tsx"), /rememberChosenTrade\(search\.get\("trade"\)\)/);

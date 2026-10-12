@@ -52,8 +52,11 @@ export const planCards = [
  * artists and hair stylists (features/trades/trades.ts). Conor, 2026-10-08:
  * $75 a month full price, because their journey has fewer steps and fewer
  * features than a photographer's; discounts come later. Kept apart from
- * `planCards` so the photographer's pricing page, homepage and structured data
- * never show it; a studio sees only its trade's plans (`plansForTrade`).
+ * `planCards`, so the photographer plans' cards and the homepage's structured
+ * data never include it; since the launch (2026-10-12) the website shows it in
+ * its own section, on /pricing and on /dj, /makeup and /hair
+ * (components/marketing/trade-landing.tsx). A studio sees only its trade's
+ * plans (`plansForTrade`).
  */
 export const vendorPlanCards = [
   {

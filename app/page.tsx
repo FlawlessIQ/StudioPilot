@@ -3,11 +3,14 @@ import Link from "next/link";
 import {
   ArrowRight,
   Briefcase,
+  Brush,
   CalendarCheck2,
   Check,
   CircleCheck,
   Heart,
+  Music,
   Play,
+  Scissors,
   ShieldCheck,
   Trophy,
   Users,
@@ -27,6 +30,7 @@ import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
 import { TourLink } from "@/components/help/journey-film";
 import { StudioProof } from "@/components/marketing/studio-proof";
 import { ThreePeople } from "@/components/marketing/three-people";
+import { VENDOR_TRADE_PAGES, vendorPlan } from "@/components/marketing/trade-landing";
 import { filmLength as shortFilmLength, helpVideo, helpVideoLength } from "@/features/help/videos";
 import { JOURNEY_FILM_ID, JOURNEY_PAGE, journeyStageHref } from "@/features/journey/expected-timeline";
 import { assistantHoursFor } from "@/features/marketing/cue-duties";
@@ -82,6 +86,28 @@ const otherWork = [
     title: "Sports",
     text: "Paid on the day, a game-day plan, and every photographer on one schedule.",
     href: "/sports-photographers",
+  },
+];
+
+/** The vendors beside a photographer (vendor journeys, Phase 6), each to its own page. */
+const vendorTrades = [
+  {
+    icon: Music,
+    title: "DJs",
+    text: "A Music & moments planner your couples fill in, and the night laid out with your MC script.",
+    href: VENDOR_TRADE_PAGES.dj,
+  },
+  {
+    icon: Brush,
+    title: "Makeup artists",
+    text: "Quotes priced per person, trials, and a party list that lays out every chair on the morning.",
+    href: VENDOR_TRADE_PAGES.makeup,
+  },
+  {
+    icon: Scissors,
+    title: "Hair stylists",
+    text: "Trials built around the veil, extensions ordered eight weeks out, and the morning laid out.",
+    href: VENDOR_TRADE_PAGES.hair,
   },
 ];
 
@@ -384,6 +410,34 @@ export default function MarketingHome() {
                       {`More on ${kind.title.toLowerCase()}`} <ArrowRight aria-hidden="true" size={14} />
                     </Link>
                   ) : null}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mk-section" aria-labelledby="vendors-title" id="vendors">
+          <header className="mk-section-head">
+            <span className="section-kicker">Not a photographer?</span>
+            <h2 id="vendors-title">DJs, makeup artists and hair stylists run on StudioCue too.</h2>
+            <p>
+              The same office manager, with a lighter journey in your own words. Pro is{" "}
+              {`${vendorPlan.monthly} a month`}, with the same 14-day trial.
+            </p>
+          </header>
+          <div className="mk-other-grid">
+            {vendorTrades.map((trade) => {
+              const Icon = trade.icon;
+              return (
+                <article key={trade.title}>
+                  <span aria-hidden="true" className="mk-other-icon">
+                    <Icon size={19} />
+                  </span>
+                  <h3>{trade.title}</h3>
+                  <p>{trade.text}</p>
+                  <Link className="journey-film-page-link" href={trade.href}>
+                    {`StudioCue for ${trade.title === "DJs" ? "DJs" : trade.title.toLowerCase()}`} <ArrowRight aria-hidden="true" size={14} />
+                  </Link>
                 </article>
               );
             })}

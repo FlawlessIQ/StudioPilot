@@ -593,6 +593,86 @@ const GUIDES: readonly ExplainerSource[] = [
     ],
     terms: ["run-of-show", "mc-script", "getting-ready-schedule"],
   },
+  // ── A DJ's, a makeup artist's and a hair stylist's own flows ──────────
+  // (docs/vendor-journeys-plan.md, Phase 6). Offered only to the trade that
+  // has the thing, so a photographer's help, and the website's, never shows
+  // them.
+  {
+    id: "music-planner",
+    title: "Plan the night with your client",
+    summary: "The Music & moments planner goes out at booking, and laying out the night turns it into your run of show and MC script.",
+    audience: "studio",
+    stage: "planning",
+    routes: [],
+    alsoOn: ["/studio/projects/*", "/studio/schedules/*"],
+    offered: ({ has }) => has.musicPlanner,
+    purpose:
+      "Your client tells you their songs, their entrances and how to say everyone's names once, in the Music & moments planner. You plan the night from their answers, not from an email thread.",
+    steps: [
+      "The **Music & moments planner** goes to your client as soon as they book. They fill it in from their portal: key songs, entrances, toasts, the last dance and anything not to play.",
+      "Reminders go out before it's due, and it locks ten days before the event, so your final planning call works from their final answers.",
+      "From the job, open the run of show and tap **Lay out the night**. The running order is built from their planner, with their songs and names on each line.",
+      "On each line, check **Song**, **Say on the mic** and **How to say the names**. Every line is yours to change.",
+      "Tap **Publish reviewed schedule**.",
+    ],
+    next: "The MC script prints on the run-of-show PDF and on each DJ's day sheet, so whoever plays the night says the same names the same way.",
+    goodToKnow: [
+      "A song changed after the lock? Edit the line and publish again. Each publish is a new version, and your DJs see the latest.",
+    ],
+    terms: ["music-planner", "mc-script", "final-planning-call"],
+  },
+  {
+    id: "trial",
+    title: ({ words }) => `Run the ${(words.trial ?? "trial").toLowerCase()}`,
+    summary: "Invite the client to book their trial, then note the look so it's on the brief for the day.",
+    audience: "studio",
+    stage: "planning",
+    routes: [],
+    alsoOn: ["/studio/projects/*"],
+    offered: ({ has }) => has.trial,
+    purpose: ({ words }) =>
+      `The ${(words.trial ?? "trial").toLowerCase()} is where you and your client settle the look. StudioCue books it from your hours and keeps what you decide for the morning.`,
+    steps: [
+      ({ words }) =>
+        `Open the job. The ${(words.trial ?? "trial").toLowerCase()} card invites the client to book it, and they pick a time from your trial hours.${words.trialHint ? ` It's usually ${words.trialHint}.` : ""}`,
+      "Once they book, the card shows the time. **Send the link again** if they've lost it.",
+      "After the trial, fill in **The look** and **Products used**, then tap **Save the notes**. They go on your crew's brief for the day.",
+      ({ has }) =>
+        has.extensions
+          ? "Choose the **Extensions** plan, and add the **Color match** if they're buying or renting. Saving adds a task to order them eight weeks before the day, and for a rental, one to collect them after."
+          : null,
+    ],
+    next: ({ has }) =>
+      `On the morning, whoever is on the job reads the look${has.extensions ? ", the products and the extensions" : " and the products"} on their brief, so your client gets the look they chose at the trial.`,
+    goodToKnow: [
+      "A trial is always in person, at the hours you set for trials. Busy times on a connected calendar are never offered.",
+    ],
+    terms: ["beauty-trial", "extensions-ordered"],
+  },
+  {
+    id: "party-list",
+    title: "From the party list to the morning",
+    summary: "The party list your client fills in builds everyone's chair for the morning.",
+    audience: "studio",
+    stage: "planning",
+    routes: [],
+    alsoOn: ["/studio/projects/*", "/studio/schedules/*"],
+    offered: ({ has }) => has.chairSchedule,
+    purpose:
+      "Your client lists everyone getting ready once, in the Party list. StudioCue turns it into the getting-ready schedule, worked back from when they need to be ready.",
+    steps: [
+      "The **Party list** goes to your client as soon as they book: one person per line, with what each person is having done.",
+      "It locks 30 days before the event. After that the headcount can grow, but not shrink.",
+      "From the job, open the getting-ready schedule and tap **Lay out the morning**. Everyone gets a chair, worked back from the ready-by time, with the guest of honor in the middle and never last.",
+      "Check each line, then tap **Publish reviewed schedule**. Your client and crew can read it, with nothing to approve.",
+      "The day before, your crew's reminder carries the **Kit checklist**: the address and parking, the schedule, and what to pack.",
+    ],
+    next: "If the morning needs more hands than one, the schedule's notes say how many. The balance is due the morning of the event.",
+    goodToKnow: [
+      "**Lay out the morning** leaves out anyone the list says isn't having your service, so a hair-only flower girl gets no makeup chair.",
+    ],
+    terms: ["party-list", "headcount-lock", "getting-ready-schedule", "kit-checklist"],
+  },
   {
     id: "crew-offer",
     title: (t) => (photographer(t) ? "Book your second shooter" : `Book another ${t.words.member}`),
@@ -1140,7 +1220,9 @@ function inTrade(source: ExplainerSource, t: HelpTrade): Explainer {
  * Every guide, in a photographer's words: the website's /how-to pages, the
  * sitemap and the video pipeline, none of which has a studio behind it.
  */
-export const EXPLAINERS: readonly Explainer[] = GUIDES.map((source) => inTrade(source, helpTrade()));
+export const EXPLAINERS: readonly Explainer[] = GUIDES.filter((source) => !source.offered || source.offered(helpTrade())).map(
+  (source) => inTrade(source, helpTrade()),
+);
 
 const byTrade = new Map<string, readonly Explainer[]>();
 

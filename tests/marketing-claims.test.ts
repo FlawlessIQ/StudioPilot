@@ -33,8 +33,12 @@ const MARKETING = [
   "app/for-crew/page.tsx",
   "app/office-manager/page.tsx",
   "app/virtual-assistant-for-photographers/page.tsx",
+  "app/dj/page.tsx",
+  "app/makeup/page.tsx",
+  "app/hair/page.tsx",
   "components/marketing/marketing-layout.tsx",
   "components/marketing/studio-proof.tsx",
+  "components/marketing/trade-landing.tsx",
 ];
 
 test("signing online in StudioCue is claimed only while it is on for every studio", () => {

@@ -11,6 +11,7 @@ const photoWord = (values: Record<string, unknown> | undefined, word = "photogra
 import { releaseHeadline } from "../post-event/deliverables.js";
 import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
+import { PLAN_LIST_PRICE_CENTS } from "../console/model.js";
 
 /**
  * Account-security mail sent by the PLATFORM, not a studio: email verification
@@ -698,6 +699,31 @@ function callNameFor(values: Record<string, unknown>): string {
 
 function possessive(name: string): string {
   return /s$/i.test(name.trim()) ? `${name.trim()}’` : `${name.trim()}’s`;
+}
+
+/**
+ * What StudioCue does for a vendor invited from a studio's job, in their own
+ * trade (saas/vendor-invites.ts `inviteTrades`): only what the trade's journey
+ * has shipped (docs/vendor-journeys-plan.md). Null for a videographer, who
+ * signs up as a photographer and reads the referral invite.
+ */
+export function vendorInvitePitch(inviteTrades: unknown): { headline: string; detail: string } | null {
+  const trades = Array.isArray(inviteTrades) ? inviteTrades.map(String) : [];
+  if (!trades.length || trades.some((trade) => tradeProfile(trade).family === "photo")) return null;
+  const beauty = "quotes priced per person, agreements and deposits, trials, the party list, and the morning laid out chair by chair, worked back from when everyone needs to be ready";
+  if (trades.length > 1) return { headline: "StudioCue runs hair and makeup bookings", detail: `${beauty}. You pick hair or makeup when you sign up.` };
+  if (trades[0] === "dj")
+    return {
+      headline: "StudioCue runs your DJ bookings",
+      detail: "inquiries, proposals, agreements and deposits, a Music & moments planner your clients fill in, and the night laid out with your MC script: each song, what to say on the mic and how to say the names.",
+    };
+  if (trades[0] === "hair")
+    return {
+      headline: "StudioCue runs your hair bookings",
+      detail: "quotes priced per person, agreements and deposits, trials, the party list, a reminder to order extensions eight weeks out, and the morning laid out chair by chair.",
+    };
+  if (trades[0] === "makeup") return { headline: "StudioCue runs your makeup bookings", detail: `${beauty}.` };
+  return null;
 }
 
 function copyFor(input: RenderEmailInput): EmailCopy {
@@ -2460,6 +2486,30 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const studio = stringValue(values, "studioName") || "A studio you work with";
       const code = stringValue(values, "code");
       const unsubscribeUrl = stringValue(values, "unsubscribeUrl");
+      // A DJ, or a hair and makeup vendor (saas/vendor-invites.ts): their own
+      // trade's pitch and the vendor plan's price, with no referral offer,
+      // which only the photographer's Studio plan has.
+      const pitch = vendorInvitePitch(values.inviteTrades);
+      if (pitch) {
+        const price = PLAN_LIST_PRICE_CENTS.vendor!;
+        const dollars = (cents: number) => `$${(cents / 100).toLocaleString("en-US")}`;
+        return {
+          subject: `${studio} invited you to try StudioCue`,
+          preheader: `${pitch.headline}. 14 days free.`,
+          eyebrow: "An invitation",
+          heading: `${studio} thinks you'd like StudioCue`,
+          paragraphs: [
+            greeting,
+            `${studio} runs their bookings on StudioCue, and you're on one of their upcoming events. They'd like you to try it too.`,
+            `${pitch.headline}: ${pitch.detail}`,
+            "Cue, its assistant, drafts each next step for you to approve. Nothing goes to a client until you say so.",
+            `Try it free for 14 days, then ${dollars(price.monthly)} a month, or ${dollars(price.yearly)} a year.`,
+          ],
+          action: actionUrl ? { label: "Start your free trial", url: actionUrl } : undefined,
+          note: `You're getting this once because ${studio} added you to a job on StudioCue. We won't email you about it again.`,
+          secondaryAction: unsubscribeUrl ? { label: "Don't email me about StudioCue", url: unsubscribeUrl } : undefined,
+        };
+      }
       return {
         subject: `${studio} invited you to try StudioCue`,
         preheader: "14 days free, then half price for your first year.",

@@ -9,7 +9,7 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
 
 ## Status
 
-- **Phase 0 and Phase 1 shipped 2026-10-08.** Trades live in `features/trades/trades.ts`. `LIVE_TRADES` is still photographer only, so nobody can sign up as a DJ, makeup artist or hair stylist except through a `?trade=` link. Stripe has the Pro product (`prod_VPAbQ7qidGVYdW`, $75/mo, $750/yr).
+- **Phase 0 and Phase 1 shipped 2026-10-08.** Trades live in `features/trades/trades.ts`. `LIVE_TRADES` was photographer only until Phase 6 (2026-10-12), which made all four trades live. Stripe has the Pro product (`prod_VPAbQ7qidGVYdW`, $75/mo, $750/yr).
 - **Walked in the emulator.** A DJ studio signed up through the real onboarding function and started on Pro, with only the event details form and no gallery or day-before email. Its job reads Played → Afterwards → Review. The server allowed the move from the day to the review for DJ and makeup studios and refused it for a photographer.
 - **Phase 2 (DJ) shipped 2026-10-08.**
   - **Forms and timeline:** the Music & moments planner (`dj-music-planner`) is sent at booking and locks 10 days out, so the final planning call lands about a week before.
@@ -56,6 +56,14 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
   - **Help and Cue:** an "Extensions ordered" glossary term; Cue is told extensions are settled at the trial and ordered eight weeks out.
   - Example packages and extras for hair came with Phase 4.
   - **Walked in the emulator** as a hair studio: the trial card showed the veil hint and the extensions choice. Saving a rental with a color match made both tasks and the brief line, and marking the order done completed the journey step.
+- **Phase 6 (launch) built 2026-10-12, on a branch; not deployed.**
+  - **Live:** `LIVE_TRADES` is all four trades (both copies). "What do you do?" now always shows at signup, starting on the `?trade=` the visitor came with. The invited-elsewhere button reads "I run my own business — set up my own studio".
+  - **Landing pages** `/dj`, `/makeup`, `/hair` (`components/marketing/trade-landing.tsx`): only shipped features, no testimonials or counts. Every signup link is `/auth/register?trade=<trade>&plan=vendor`. Price from `vendorPlanCards`. Each has metadata, a canonical, its own social card (`public/og/{dj,makeup,hair}.png`), SoftwareApplication JSON-LD at $75, and a sitemap and llms.txt entry. Linked from the footer, a "Not a photographer?" band on the homepage, and a Pro section on `/pricing`.
+  - **Vendor invites:** `checkVendorInvite` and `queueVendorInvite` (`saas/vendor-invites.ts`) are shared by the daily scheduler and the launch sweep. A DJ's or hair and makeup vendor's email names their trade ("StudioCue runs your DJ bookings") at $75/$750 with no referral offer, since the referral price is Studio-plan only. Its button opens the signup with `?trade=` (none for hair and makeup, who pick) and `plan=vendor`. A videographer's invite is unchanged.
+  - **Launch sweep:** `scripts/sweep-vendor-invites.mts`. The selection is pure (`saas/vendor-invite-sweep.ts`, tests/vendor-invite-sweep.test.ts). It is a dry run by default; `--send` queues; production needs `--prod`. Walked in the emulator: dry run, send, and a second run found everyone `already_invited`. **Not run on prod.**
+  - **Help:** three studio guides offered only to the trade that has the thing: `music-planner` (DJ), `trial` (makeup, hair) and `party-list` (makeup, hair). They sit beside the job page's guide. Cue's `tradeInstruction` carries how-to facts for each trade's flows.
+  - **Console:** Studios is filtered by trade (also `?trade=dj`). The tab counts and stats follow the filter.
+  - **Owed by a person:** deploy all functions (trades.ts and email-templates.ts are shared), then the app. Run the sweep dry, then send. IndexNow for the three new pages. The pilot (one DJ, one makeup artist, one hair stylist). Prod walks of a `?trade=` signup per trade.
 
 ## Principles
 

@@ -43,6 +43,10 @@ const CARDS: Record<OgImage, { at: number; kicker: string; headline: string }> =
   "wedding-journey": { at: 328, kicker: "Watch it run", headline: "A wedding, start to finish." },
   "office-manager": { at: 96, kicker: "Meet Cue", headline: "Your studio's office manager. On every hour." },
   "virtual-assistant": { at: 64, kicker: "For photographers", headline: "The assistant you were going to hire, without the hiring." },
+  // The vendor pages (Phase 6): stills with no photography in them — the job, the payment, the inquiry form.
+  dj: { at: 140, kicker: "For wedding DJs", headline: "The night planned, and every name said right." },
+  makeup: { at: 200, kicker: "For makeup artists", headline: "Every chair on the morning, planned from one list." },
+  hair: { at: 20, kicker: "For hair stylists", headline: "The morning planned, the extensions ordered on time." },
 };
 
 const MARK = `<svg viewBox="0 0 96 96" width="44" height="44"><rect x="8" y="8" width="80" height="80" rx="22" fill="#F4F1E8"/><circle cx="48" cy="48" r="21" fill="none" stroke="#14201B" stroke-width="5.5"/><circle cx="48" cy="48" r="7" fill="#14201B"/><circle cx="71.5" cy="24.5" r="5.5" fill="#C9973D"/></svg>`;
@@ -85,7 +89,8 @@ async function main() {
   for (const name of names) if (!CARDS[name]) throw new Error(`Unknown card: ${name}`);
   mkdirSync(OUT, { recursive: true });
   const tmp = mkdtempSync(path.join(os.tmpdir(), "og-"));
-  const browser = await chromium.launch();
+  // PLAYWRIGHT_CHANNEL=chrome uses the installed Chrome, as playwright.config.ts does.
+  const browser = await chromium.launch(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {});
   const page = await browser.newPage({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
   try {
     for (const name of names) {

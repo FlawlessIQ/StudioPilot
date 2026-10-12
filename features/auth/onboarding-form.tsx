@@ -93,8 +93,10 @@ function OnboardingFlow() {
   );
   const [checkoutNext, setCheckoutNext] = useState(true);
   const [heard, setHeard] = useState<HeardValue | "">("");
-  // "What do you do?" (features/trades/trades.ts). Live trades are offered;
-  // one not yet live shows only when the visitor arrived with it (`?trade=`).
+  // "What do you do?" (features/trades/trades.ts). Live trades are offered —
+  // since 2026-10-12 all four, so the question always shows, starting on the
+  // trade the visitor arrived with (`?trade=` from /dj, /makeup, /hair or a
+  // vendor invite). A trade not yet live shows only for that visitor.
   const arrivedWith = useSyncExternalStore(noSubscribe, chosenTrade, () => null);
   const [trade, setTrade] = useState<Trade | "">("");
   const pickedTrade: Trade = trade || arrivedWith || "photographer";
@@ -332,7 +334,7 @@ function OnboardingFlow() {
         ) : null}
         <p>Can&rsquo;t find the email? Ask {first.studioName} to send the invitation again.</p>
         <button className="button button-light" style={{ marginTop: 12 }} type="button" onClick={() => setPhase("form")}>
-          I&rsquo;m a photographer — set up my own studio
+          I run my own business — set up my own studio
         </button>
       </div>
       </>

@@ -5,7 +5,7 @@ import { Logo } from "@/components/brand/logo";
 import { JOURNEY_PAGE } from "@/features/journey/expected-timeline";
 
 /** The site's top bar, shared by the homepage and every marketing page. */
-export function MarketingNav() {
+export function MarketingNav({ signupHref = "/auth/register" }: { signupHref?: string } = {}) {
   return (
     <header className="marketing-nav">
       <Link href="/" aria-label="StudioCue home"><Logo /></Link>
@@ -22,7 +22,7 @@ export function MarketingNav() {
       <div className="marketing-actions">
         <Link className="text-link marketing-demo-link" href="/demo">Book a demo</Link>
         <Link className="text-link" href="/auth/login">Sign in</Link>
-        <Link className="button button-dark button-sm" href="/auth/register">Start free trial</Link>
+        <Link className="button button-dark button-sm" href={signupHref}>Start free trial</Link>
       </div>
     </header>
   );
@@ -49,6 +49,10 @@ export function MarketingFooter() {
         <Link href="/wedding-photographers">Weddings</Link>
         <Link href="/corporate-photographers">Corporate</Link>
         <Link href="/sports-photographers">Sports</Link>
+        {/* The vendors who work beside photographers (vendor journeys, Phase 6). */}
+        <Link href="/dj">For DJs</Link>
+        <Link href="/makeup">For makeup artists</Link>
+        <Link href="/hair">For hair stylists</Link>
         <Link href="/virtual-assistant-for-photographers">A virtual assistant for photographers</Link>
         <Link href="/how-to">How to use StudioCue</Link>
         <Link href="/about">About</Link>
@@ -70,6 +74,7 @@ export function MarketingLayout({
   children,
   hero = "trial",
   pricingLink = true,
+  signupHref = "/auth/register",
 }: {
   eyebrow: string;
   title: string;
@@ -79,10 +84,12 @@ export function MarketingLayout({
   hero?: "trial" | "plain";
   /** False on /pricing itself, which offered a "View pricing" button to the page it was on. */
   pricingLink?: boolean;
+  /** Where the trial button goes: a trade's page starts the signup on its trade (`?trade=dj`). */
+  signupHref?: string;
 }) {
   return (
     <div className="ds-root marketing-page marketing-subpage" data-ds-theme="emerald">
-      <MarketingNav />
+      <MarketingNav signupHref={signupHref} />
       <main>
         <section className="marketing-subhero">
           <p className="section-kicker">{eyebrow}</p>
@@ -90,7 +97,7 @@ export function MarketingLayout({
           <p>{description}</p>
           {hero === "trial" ? (
             <div>
-              <Link className="button button-dark" href="/auth/register">
+              <Link className="button button-dark" href={signupHref}>
                 Start a 14-day trial <ArrowRight />
               </Link>
               {pricingLink ? <Link className="button button-light" href="/pricing">View pricing</Link> : null}

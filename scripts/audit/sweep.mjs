@@ -228,6 +228,9 @@ const PUBLIC_ROUTES = [
   "/support",
   "/terms",
   "/wedding-photographers",
+  "/dj",
+  "/makeup",
+  "/hair",
 ];
 
 const routes = projectId ? [...ROUTES, ...projectScoped(projectId)] : ROUTES;

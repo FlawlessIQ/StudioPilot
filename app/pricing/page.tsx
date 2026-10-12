@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, CircleCheck } from "lucide-react";
 import { MarketingLayout } from "@/components/marketing/marketing-layout";
 import { HireComparison } from "@/components/marketing/hire-comparison";
+import { VendorPlanCard, VendorTradeLinks, vendorPlan } from "@/components/marketing/trade-landing";
 import { planCards } from "@/config/saas-plans";
 import { assistantHoursFor } from "@/features/marketing/cue-duties";
 import { marketingMetadata } from "@/features/marketing/metadata";
@@ -9,7 +10,7 @@ import { marketingMetadata } from "@/features/marketing/metadata";
 export const metadata = marketingMetadata({
   title: "Pricing",
   description:
-    `StudioCue plans from ${planCards[0].monthly} a month, with unlimited clients and projects, a 14-day trial, and no percentage taken from client payments.`,
+    `StudioCue plans from ${planCards[0].monthly} a month, and ${vendorPlan.monthly} for DJs, makeup artists and hair stylists, with unlimited clients and projects, a 14-day trial, and no percentage taken from client payments.`,
   path: "/pricing",
   og: "pricing",
 });
@@ -41,6 +42,23 @@ export default function PricingPage() {
         ))}
       </section>
       <p className="marketing-pricing-note">Provider subscriptions, assisted migration, and implementation services are separate. StudioCue does not take a percentage of client payments.</p>
+      {/* The vendor plan (config/saas-plans.ts vendorPlanCards), beside the
+          others since DJ, makeup and hair went live (vendor journeys, Phase 6).
+          A studio still only buys its own trade's plans (stripe.ts). */}
+      <section aria-labelledby="pricing-vendors-title" className="mk-section mk-trade-price" id="vendors">
+        <header className="mk-section-head">
+          <span className="section-kicker">For DJs, makeup artists and hair stylists</span>
+          <h2 id="pricing-vendors-title">{`Pro, ${vendorPlan.monthly} a month.`}</h2>
+          <p>
+            For the vendors who work the same days: the same StudioCue, with a lighter journey in your own
+            words and the same 14-day trial.
+          </p>
+        </header>
+        <div className="marketing-pricing-grid">
+          <VendorPlanCard featured={false} />
+        </div>
+        <VendorTradeLinks />
+      </section>
       <section aria-labelledby="pricing-compare-title" className="mk-section">
         <header className="mk-section-head">
           <span className="section-kicker">Hire, software, or Cue</span>

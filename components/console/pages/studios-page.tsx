@@ -64,7 +64,10 @@ export function StudiosPage() {
   const view = (STUDIO_VIEWS.some((item) => item.key === params.get("view")) ? params.get("view") : "all") as View;
   const [search, setSearch] = useState("");
   const [plan, setPlan] = useState<string>("");
-  const [trade, setTrade] = useState<string>("");
+  // A trade's studios, to watch a launch's activation (vendor journeys,
+  // Phase 6): the tabs' counts and the stats follow it too. Linkable as
+  // ?trade=dj.
+  const [trade, setTrade] = useState<string>(() => (TRADES as readonly string[]).includes(params.get("trade") ?? "") ? params.get("trade")! : "");
   const [status, setStatus] = useState<string>("");
   const [lifecycle, setLifecycle] = useState<string>("");
   const [tag, setTag] = useState<string>("");
@@ -73,7 +76,7 @@ export function StudiosPage() {
   const [naming, setNaming] = useState(false);
   const [viewName, setViewName] = useState("");
   const filtersNow = { view, plan, trade, status, lifecycle, tag, search };
-  const filtered = Boolean(plan || status || lifecycle || tag || search);
+  const filtered = Boolean(plan || trade || status || lifecycle || tag || search);
   const applySaved = (filters: Record<string, string>) => {
     setPlan(filters.plan ?? "");
     setTrade(filters.trade ?? "");
@@ -88,7 +91,11 @@ export function StudiosPage() {
   const billing = useBillingDialogs();
   const now = useNow();
 
-  const all = studios.rows;
+  const everyStudio = studios.rows;
+  const all = useMemo(
+    () => (everyStudio && trade ? everyStudio.filter((studio) => tradeOf(studio.trade) === trade) : everyStudio),
+    [everyStudio, trade],
+  );
   const counts = useMemo(
     () => Object.fromEntries(STUDIO_VIEWS.map((item) => [item.key, (all ?? []).filter((studio) => item.test(studio, now)).length])),
     // `now` moves every render; counts only need the rows.
@@ -371,7 +378,7 @@ export function StudiosPage() {
         <DataTable
           columns={columns}
           empty={
-            all && all.length === 0 ? (
+            everyStudio && everyStudio.length === 0 ? (
               <Empty action={<Button onClick={() => void run("refreshAll", {}, { done: "Studio and people rows refreshed." })}>Build the rows now</Button>} title="No studio rows yet">
                 The rows are built every 15 minutes. Build them now to see every studio.
               </Empty>
@@ -379,7 +386,7 @@ export function StudiosPage() {
               <Empty title="No studios match">Try another view, or clear the filters.</Empty>
             )
           }
-          footer={all?.length ? <span>Rows refresh every 15 minutes · last {relative(all.map((studio) => studio.refreshedAt).sort().at(-1))}</span> : null}
+          footer={everyStudio?.length ? <span>Rows refresh every 15 minutes · last {relative(everyStudio.map((studio) => studio.refreshedAt).sort().at(-1))}</span> : null}
           getRowId={(studio) => studio.tenantId}
           initialSort={[{ id: "active", desc: true }]}
           label="Studios"
