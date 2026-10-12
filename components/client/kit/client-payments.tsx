@@ -50,6 +50,17 @@ function invoiceName(kind: unknown, trade?: unknown): string {
  * then the whole schedule. After paying, the couple comes back and the page
  * re-checks on its own, as before.
  */
+/**
+ * The day an invoice was paid. A payment the studio recorded by hand is a
+ * calendar date stored as midnight UTC, so it is read as that date — read as
+ * an instant it fell on the evening before in America. A provider's paid
+ * time is a real instant.
+ */
+export function paidOn(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  return /^\d{4}-\d{2}-\d{2}T00:00:00(\.000)?Z$/.test(value) ? value.slice(0, 10) : value;
+}
+
 export function ClientPayments() {
   const workspace = useWorkspace();
   const invoices = useProjectRecords("invoiceReferences");
@@ -270,7 +281,11 @@ export function ClientPayments() {
                 subtitle={[
                   // The number on the studio's own invoice, so "which one?" has an answer.
                   text(invoice.number),
-                  number(invoice.balanceCents) > 0 ? `Due ${date(invoice.dueDate)}` : `Paid · ${date(invoice.dueDate)}`,
+                  number(invoice.balanceCents) > 0
+                    ? `Due ${date(invoice.dueDate)}`
+                    : paidOn(invoice.paidAt)
+                      ? `Paid ${date(paidOn(invoice.paidAt))}`
+                      : "Paid",
                 ]
                   .filter(Boolean)
                   .join(" · ")}

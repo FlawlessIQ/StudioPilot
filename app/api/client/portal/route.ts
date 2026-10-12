@@ -480,6 +480,10 @@ const clientRecordFields = {
     // An invoice the studio issued through StudioCue: its own number.
     "billedBy",
     "number",
+    // When it was paid, so a paid row says the day it was paid — not its
+    // due date, which read as "Paid · October 24" twelve days early (Priya
+    // Shah, 2026-10-12).
+    "paidAt",
   ],
   questionnaireResponses: [
     "name",
