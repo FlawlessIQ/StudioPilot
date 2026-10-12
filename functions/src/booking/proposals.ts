@@ -9,6 +9,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
+import { readReturningClientAccess, writeReturningClientAccess } from "../client/returning-client-access.js";
 import { requireAppCheck, requireIdentity } from "../crm/security.js";
 import { commandTypeOf, respondToCommandError } from "../security/command-errors.js";
 import { requireActiveSubscription } from "../saas/entitlement-guard.js";
@@ -1579,8 +1580,25 @@ export const proposalCommand = onRequest(
             const clientName =
               stringValue(currentContact?.get("displayName")).trim() ||
               stringValue(recipient.displayName);
+            // Having a portal account is not access to *this* job: a client
+            // who booked with the studio before has their account's
+            // membership given this job (client/returning-client-access.ts,
+            // written beside the email below); one whose account can't
+            // open it that way gets an invitation, as a new client does.
+            const access = await readReturningClientAccess(
+              db,
+              (reference) => transaction.get(reference),
+              {
+                tenantId: command.tenantId,
+                projectId,
+                clientContactIds:
+                  projectForSend.get("tenantId") === command.tenantId
+                    ? projectForSend.get("clientContactIds")
+                    : [],
+              },
+            );
             const hasPortalAccess = Boolean(
-              clientContact?.get("portalUserId"),
+              clientContactId && access.opens(clientContactId),
             );
             // An invitation is only useful if we know who to attach it to.
             const invitation =
@@ -1610,6 +1628,7 @@ export const proposalCommand = onRequest(
                 path: proposalPath,
                 actorId: identity.uid,
                 now: timestamp,
+                access,
               },
             );
 
@@ -1643,6 +1662,11 @@ export const proposalCommand = onRequest(
              * because the client is holding a newer email that works.
              */
             const writeInvitation = () => {
+              writeReturningClientAccess(db, transaction, access, {
+                actorId: identity.uid,
+                now: timestamp,
+                reason: "proposal_sent",
+              });
               queuePartnerSends(db, transaction, emailJob, partnerSends);
               if (!invitation || !clientContactId) return;
               transaction.set(

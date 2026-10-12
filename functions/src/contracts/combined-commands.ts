@@ -5,6 +5,7 @@ import { expiryOnSend, MINIMUM_DAYS_AFTER_SEND } from "../booking/proposal-expir
 import { eventZone } from "../planning/day-clock.js";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
+import { readReturningClientAccess, writeReturningClientAccess } from "../client/returning-client-access.js";
 import { jobBillingFor } from "../billing/job-billing-reader.js";
 import {
   DEAD_CONTRACT_STATUSES,
@@ -251,9 +252,16 @@ export async function sendCombinedAgreement(
     const clientContactId = Array.isArray(project.get("clientContactIds"))
       ? String((project.get("clientContactIds") as unknown[])[0] ?? "")
       : "";
-    const clientContact = clientContactId ? await transaction.get(db.doc(`contacts/${clientContactId}`)) : null;
+    // A client who already has a portal account has this job added to it
+    // (client/returning-client-access.ts); an invitation only when they
+    // can't open it that way.
+    const access = await readReturningClientAccess(db, (reference) => transaction.get(reference), {
+      tenantId: context.tenantId,
+      projectId: input.projectId,
+      clientContactIds: project.get("clientContactIds"),
+    });
     const invitation =
-      !clientContact?.get("portalUserId") && clientContactId
+      clientContactId && !access.opens(clientContactId)
         ? mintClientInvitation({
             tenantId: context.tenantId,
             projectId: input.projectId,
@@ -277,9 +285,15 @@ export async function sendCombinedAgreement(
       path: contractPath,
       actorId: context.actorId,
       now: context.timestamp,
+      access,
     });
 
     // --- writes ---
+    writeReturningClientAccess(db, transaction, access, {
+      actorId: context.actorId,
+      now: context.timestamp,
+      reason: "agreement_sent",
+    });
     const studioSignatures = resolved.sections.map((section) => {
       const id = `${contractId}_studio_${section.key}`;
       transaction.create(db.doc(`contractSignatures/${id}`), {

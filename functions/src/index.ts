@@ -50,6 +50,7 @@ export {
   crewInvitationPreview,
 } from "./crew/invitations.js";
 export { clientInvitationCommand } from "./client/invitations.js";
+export { clientAccessOnProjectWrite } from "./client/returning-client-access-trigger.js";
 export { postEventCommand } from "./post-event/commands.js";
 export { sendgridInboundGallery } from "./post-event/inbound.js";
 export {

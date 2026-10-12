@@ -10,6 +10,7 @@ import {
   mintClientInvitation,
   normalizeInviteEmail,
 } from "./invitation-mint.js";
+import type { ReturningClientAccess } from "./returning-client-access.js";
 
 /**
  * A portal link for every client on the job, not only the first.
@@ -167,6 +168,12 @@ export async function preparePartnerSends(
     path: string;
     actorId: string;
     now: string;
+    /**
+     * The job's clients' portal accounts, as the caller read them and is
+     * granting them (returning-client-access.ts). A partner whose account the
+     * caller adds this job to gets the plain link, not an invitation.
+     */
+    access?: ReturningClientAccess;
   },
 ): Promise<PartnerSend[]> {
   const ids = Array.isArray(input.clientContactIds)
@@ -197,7 +204,7 @@ export async function preparePartnerSends(
     const membership = memberships[index];
     return {
       partner,
-      needsInvite: !partnerHasPortalAccess({
+      needsInvite: !input.access?.opens(partner.contactId) && !partnerHasPortalAccess({
         portalUserId: partner.portalUserId,
         membership: membership
           ? {

@@ -78,6 +78,7 @@ import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { billingHoldFor, holdJobForBilling } from "../saas/billing-hold.js";
 import { isReservedTestAddress } from "../communications/test-address.js";
 import { recordProviderPaymentFailed } from "../booking/invoice-payments.js";
+import { ensureReturningClientAccess } from "../client/returning-client-access.js";
 import { reconcileQuickBooksMoneyEvent } from "../booking/quickbooks-money-events.js";
 import { proposalStillOpen } from "../booking/proposal-follow-ups.js";
 import {
@@ -735,13 +736,66 @@ async function emailContext(
     clientContacts.find(
       (snapshot) => String(snapshot.get("email") ?? "").trim().toLowerCase() === recipient.trim().toLowerCase(),
     ) ?? contact;
+  const templateKey = String(document.get("type") ?? "");
+  // Compared against every client contact on the project, not just the first:
+  // a project with two clients would otherwise misfile mail to the second as
+  // studio-only. Falls closed — an unmatched recipient stays studio-visible.
+  // Crew mail is never the couple's, whatever its address. A tester using
+  // one inbox for the bride and the photographer (GR, 2026-10-08) had crew
+  // offers shown in the couple's portal, threaded as the couple, and copied
+  // to the partner — all because the address matched a client contact.
+  // A job can say who it is for (`audience`) when its type is shared with
+  // the couple's mail — the schedule a crew member is sent, a vendor's
+  // revised run of show.
+  const recipientIsClient =
+    !CREW_EMAIL_TYPES.has(templateKey) &&
+    !["crew", "vendor", "parent"].includes(String(document.get("audience") ?? "")) &&
+    clientContactEmails.has(recipient.trim().toLowerCase());
+  /**
+   * Anything the studio sends a client about a job opens that job.
+   *
+   * A client who already has a portal account from an earlier job has this
+   * one added to it now (client/returning-client-access.ts) — whichever send
+   * queued the email, so a booking confirmation, a schedule or a delivery
+   * reaches a returning client's portal as surely as a proposal does. A
+   * revoked or missing membership is left as it is. Best effort: a failure
+   * here never costs the client their email, and the link falls back to what
+   * it was before.
+   */
+  const access =
+    projectId && recipientIsClient && project?.exists && project.get("tenantId") === tenantId
+      ? await ensureReturningClientAccess(db, {
+          tenantId,
+          projectId,
+          clientContactIds,
+          actorId: "email-worker",
+          now: new Date().toISOString(),
+          reason: `email:${templateKey}`,
+        }).catch(async (caught: unknown) => {
+          await captureOperationalError("client_access_grant_failed", {
+            emailJobId: document.id,
+            projectId,
+            tenantId,
+            message: caught instanceof Error ? caught.message : String(caught),
+          });
+          return null;
+        })
+      : null;
+  // Whether the portal opens this job for them: their account's membership
+  // lists it (or was just given it). An account alone used to count, so a
+  // returning client whose account could not open the job was sent the
+  // portal rather than their inquiry page.
+  const recipientOpensPortal =
+    access && recipientContact
+      ? access.opens(recipientContact.id)
+      : Boolean(recipientContact?.get("portalUserId"));
   // A parent on a group event is not the job's client: the job's home is the
   // organiser's portal or inquiry page, and must never be a parent's link.
   // Parent mail carries its own (their order page).
   const parentMail = document.get("audience") === "parent";
   let clientHome = projectId && !parentMail ? `${appUrl}/client` : "";
   const homeLeadId = parentMail ? null : (leadId ?? firstString(project?.get("leadId")));
-  if (!recipientContact?.get("portalUserId") && homeLeadId) {
+  if (!recipientOpensPortal && homeLeadId) {
     const link = await db.doc(`inquiryLinks/${homeLeadId}`).get();
     const token = link.exists && link.get("tenantId") === tenantId ? firstString(link.get("token")) : null;
     if (token) clientHome = `${appUrl}/i/${token}`;
@@ -778,7 +832,6 @@ async function emailContext(
     document.get("projectName"),
     project?.get("name"),
   );
-  const templateKey = String(document.get("type") ?? "");
   const snapshotTemplate = emailTemplateOverride(
     document.get("templateSnapshot"),
     tenantId,
@@ -832,20 +885,7 @@ async function emailContext(
     projectName,
     recipientName,
     template,
-    // Compared against every client contact on the project, not just the first:
-    // a project with two clients would otherwise misfile mail to the second as
-    // studio-only. Falls closed — an unmatched recipient stays studio-visible.
-    // Crew mail is never the couple's, whatever its address. A tester using
-    // one inbox for the bride and the photographer (GR, 2026-10-08) had crew
-    // offers shown in the couple's portal, threaded as the couple, and copied
-    // to the partner — all because the address matched a client contact.
-    // A job can say who it is for (`audience`) when its type is shared with
-    // the couple's mail — the schedule a crew member is sent, a vendor's
-    // revised run of show.
-    recipientIsClient:
-      !CREW_EMAIL_TYPES.has(templateKey) &&
-      !["crew", "vendor", "parent"].includes(String(document.get("audience") ?? "")) &&
-      clientContactEmails.has(recipient.trim().toLowerCase()),
+    recipientIsClient,
     clientContactEmails,
     values: {
       ...objectValue(document.data()),

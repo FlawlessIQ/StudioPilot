@@ -3325,8 +3325,63 @@ export function withStudioCueLink(copy: EmailCopy, input: RenderEmailInput): Ema
   return copy;
 }
 
+/**
+ * A link into the client portal that names the job it is about.
+ *
+ * The portal opened whichever job it remembered, so a client with two jobs at
+ * one studio — Priya Shah's wedding and her Sangeet, Jess Styles Bridal,
+ * 2026-10-12 — tapped the Sangeet's "Read and sign" and was shown the wedding
+ * agreement she had already signed. Every link to `/client…` on the app's own
+ * address now carries `?project=<id>`, which the portal opens when the
+ * client's membership lists it (features/client/job-choice.ts) and otherwise
+ * ignores with a plain note. Anything else — an invitation, an inquiry page,
+ * another site — is left exactly as it was, and so is a link that already
+ * names a job.
+ */
+export function portalLinkForJob(url: string, appUrl: string, projectId: string): string {
+  if (!url || !appUrl || !projectId) return url;
+  let link: URL;
+  let app: URL;
+  try {
+    link = new URL(url);
+    app = new URL(appUrl);
+  } catch {
+    return url;
+  }
+  if (link.origin !== app.origin) return url;
+  if (link.pathname !== "/client" && !link.pathname.startsWith("/client/")) return url;
+  if (link.searchParams.has("project")) return url;
+  link.searchParams.set("project", projectId);
+  return link.toString();
+}
+
+const BARE_URL = /https?:\/\/[^\s<>"')\]]{1,2000}/g;
+
+/** Every portal link in an email names its job (portalLinkForJob). */
+export function withJobInPortalLinks(copy: EmailCopy, input: RenderEmailInput): EmailCopy {
+  const appUrl = safeUrl(stringValue(input.values, "appUrl"));
+  const projectId = stringValue(input.values, "projectId");
+  if (!appUrl || !projectId) return copy;
+  const link = (url: string) => portalLinkForJob(url, appUrl, projectId);
+  // In a studio's own words too: `{{portalUrl}}`, or an address they pasted.
+  const inText = (value: string) =>
+    value.replace(BARE_URL, (url) => {
+      const trailing = /[.,;:!?]+$/.exec(url)?.[0] ?? "";
+      const bare = trailing ? url.slice(0, -trailing.length) : url;
+      return `${link(bare)}${trailing}`;
+    });
+  return {
+    ...copy,
+    paragraphs: copy.paragraphs.map(inText),
+    ...(copy.action ? { action: { ...copy.action, url: link(copy.action.url) } } : {}),
+    ...(copy.moreActions ? { moreActions: copy.moreActions.map((extra) => ({ ...extra, url: link(extra.url) })) } : {}),
+    ...(copy.secondaryAction ? { secondaryAction: { ...copy.secondaryAction, url: link(copy.secondaryAction.url) } } : {}),
+    ...(copy.note ? { note: inText(copy.note) } : {}),
+  };
+}
+
 export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
-  const copy = withStudioCueLink(customizedCopy(copyFor(input), input), input);
+  const copy = withJobInPortalLinks(withStudioCueLink(customizedCopy(copyFor(input), input), input), input);
   const accent = normalizeColor(input.brand.accentColor);
   const studioName = escapeHtml(input.brand.studioName);
   const productName = escapeHtml(input.brand.productName);

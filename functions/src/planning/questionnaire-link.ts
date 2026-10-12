@@ -12,6 +12,7 @@ import {
   preparePartnerSends,
   type PartnerSend,
 } from "../client/partner-invitations.js";
+import { ensureReturningClientAccess } from "../client/returning-client-access.js";
 
 /**
  * Where "Complete questionnaire" sends the couple.
@@ -117,6 +118,18 @@ export async function questionnaireLinkFor(
     ? text(input.clientContactIds[0])
     : "";
   if (!clientContactId) return { actionUrl: portalUrl, invitationWrite: null, partnerSends: [] };
+  // A client who already has a portal account in this studio has this job
+  // added to it first (client/returning-client-access.ts), so the read below
+  // finds it open and the plain link goes out. A revoked or missing
+  // membership is left alone, and they are invited as before.
+  await ensureReturningClientAccess(db, {
+    tenantId: input.tenantId,
+    projectId: input.projectId,
+    clientContactIds: input.clientContactIds,
+    actorId: input.actorId,
+    now: input.now,
+    reason: path === QUESTIONNAIRE_PATH ? "questionnaire_sent" : "client_link_sent",
+  });
   const contact = await db.doc(`contacts/${clientContactId}`).get();
   if (!contact.exists || contact.get("tenantId") !== input.tenantId)
     return { actionUrl: portalUrl, invitationWrite: null, partnerSends: [] };

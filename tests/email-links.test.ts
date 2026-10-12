@@ -64,7 +64,11 @@ test("a new email type has to say who reads it", () => {
 
 test("a couple without an account is sent their inquiry page, not a sign-in they can't pass", () => {
   const jobs = read("functions/src/operations/jobs.ts");
-  assert.match(jobs, /if \(!recipientContact\?\.get\("portalUserId"\) && homeLeadId\)/);
+  // "Has an account" means an account that opens this job: a returning
+  // client's account from an earlier job does not, until the job is added to
+  // it (client/returning-client-access.ts, F13 2026-10-12).
+  assert.match(jobs, /if \(!recipientOpensPortal && homeLeadId\)/);
+  assert.match(jobs, /access\.opens\(recipientContact\.id\)/);
   assert.match(jobs, /clientHome = `\$\{appUrl\}\/i\/\$\{token\}`/);
   assert.match(jobs, /portalUrl: firstString\(document\.get\("portalUrl"\)\) \?\? clientHome,\s*appUrl,/);
   // The acknowledgement goes before any job exists, so it carries the page itself.

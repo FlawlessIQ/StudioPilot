@@ -2,6 +2,7 @@ import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
+import { readReturningClientAccess, writeReturningClientAccess } from "../client/returning-client-access.js";
 import { clientOutreachStop, mayContactClient } from "../post-event/client-outreach.js";
 import { requireOwnerOrAdmin, stableId, type CommandContext } from "./commands.js";
 import { resendBlockedUntil, signedCopyRetryPlan } from "./resend.js";
@@ -71,7 +72,6 @@ export async function resendContract(context: CommandContext, input: z.infer<typ
   const clientContactId = Array.isArray(project.get("clientContactIds"))
     ? String((project.get("clientContactIds") as unknown[])[0] ?? "")
     : "";
-  const contact = clientContactId ? await db.doc(`contacts/${clientContactId}`).get() : null;
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
   const contractPath = "/client/contract";
 
@@ -84,8 +84,15 @@ export async function resendContract(context: CommandContext, input: z.infer<typ
     );
     if (blockedUntil) throw new Error(`RESEND_TOO_SOON:${blockedUntil}`);
     const count = Number(current.get("resendCount") ?? 0) + 1;
+    // A returning client's account opens this job too
+    // (client/returning-client-access.ts); otherwise an invitation, as before.
+    const access = await readReturningClientAccess(db, (reference) => transaction.get(reference), {
+      tenantId: context.tenantId,
+      projectId: input.projectId,
+      clientContactIds: project.get("clientContactIds"),
+    });
     const invitation =
-      !contact?.get("portalUserId") && clientContactId
+      clientContactId && !access.opens(clientContactId)
         ? mintClientInvitation({
             tenantId: context.tenantId,
             projectId: input.projectId,
@@ -109,6 +116,12 @@ export async function resendContract(context: CommandContext, input: z.infer<typ
       path: contractPath,
       actorId: context.actorId,
       now: context.timestamp,
+      access,
+    });
+    writeReturningClientAccess(db, transaction, access, {
+      actorId: context.actorId,
+      now: context.timestamp,
+      reason: "agreement_resent",
     });
     const readyEmail = {
       id: emailJobId,

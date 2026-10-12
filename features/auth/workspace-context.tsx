@@ -42,6 +42,13 @@ import {
 } from "@/lib/firebase/workspace-bootstrap";
 import { resolveTenantBrand, type TenantBrand } from "@/features/branding/tenant-brand";
 import { tradeOf, type Trade } from "@/features/trades/trades";
+import {
+  chooseClientMembership,
+  chooseClientProject,
+  requestedProjectFrom,
+  searchWithoutProject,
+  unavailableJobNotice,
+} from "@/features/client/job-choice";
 
 type WorkspaceArea = "studio" | "client" | "crew";
 
@@ -108,11 +115,18 @@ type WorkspaceState = {
   projectDate: string;
   clientProject: ClientPortalProject | null;
   clientProjects: ClientPortalProjectSummary[];
+  /**
+   * Client area: a link named a job this account can't open, and the portal
+   * opened another (features/client/job-choice.ts). Optional, so workspaces
+   * built by hand in tests keep compiling.
+   */
+  clientProjectNotice?: string | null;
   memberships: WorkspaceMembership[];
 };
 
 type WorkspaceContextValue = WorkspaceState & {
   selectProject: (projectId: string) => Promise<void>;
+  dismissClientProjectNotice: () => void;
   retry: () => void;
 };
 
@@ -183,8 +197,39 @@ const initialWorkspace: WorkspaceState = authIsLive
 const WorkspaceContext = createContext<WorkspaceContextValue>({
   ...initialWorkspace,
   selectProject: async () => undefined,
+  dismissClientProjectNotice: () => undefined,
   retry: () => undefined,
 });
+
+/** Browser storage that never throws (private mode, blocked site data). */
+function readStored(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeStored(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Private mode or blocked storage: the choice lasts this page only.
+  }
+}
+
+/**
+ * Take the job a link named off the address bar once it has been read, so a
+ * reload or a later switch is not overridden by it.
+ */
+function forgetRequestedProject(): void {
+  try {
+    const { pathname, search, hash } = window.location;
+    const rest = searchWithoutProject(search);
+    if (rest !== search) window.history.replaceState(window.history.state, "", `${pathname}${rest}${hash}`);
+  } catch {
+    // Nothing to tidy.
+  }
+}
 
 const areaRoles: Record<WorkspaceArea, Role[]> = {
   studio: [
@@ -295,16 +340,20 @@ export function WorkspaceProvider({
           const permitted = memberships.filter((membership) =>
             areaRoles[area].includes(membership.role),
           );
-          const membership =
-            permitted.find((item) => item.tenantId === storedTenantId) ??
-            permitted[0];
+          // An email link names its job (`?project=`). It picks the studio
+          // whose membership lists it, and then that job — never one the
+          // membership doesn't list (features/client/job-choice.ts).
+          const requestedProjectId =
+            area === "client" ? requestedProjectFrom(window.location.search) : null;
+          const membership = chooseClientMembership(
+            permitted,
+            storedTenantId,
+            requestedProjectId,
+          );
           if (!membership) {
             throw new Error("No active workspace membership was found.");
           }
-          window.localStorage.setItem(
-            "studiohub.activeTenantId",
-            membership.tenantId,
-          );
+          writeStored("studiohub.activeTenantId", membership.tenantId);
 
           const clientProjects =
             area === "client"
@@ -316,23 +365,31 @@ export function WorkspaceProvider({
                   )
                 ).projects
               : [];
-          const storedClientProjectId = window.localStorage.getItem(
+          const storedClientProjectId = readStored(
             `studiohub.activeClientProjectId.${membership.tenantId}`,
           );
+          const clientChoice = chooseClientProject({
+            projects: clientProjects,
+            requestedProjectId,
+            storedProjectId: storedClientProjectId,
+          });
           const projectId =
             area === "client"
-              ? clientProjects.find(
-                  (project) => project.id === storedClientProjectId,
-                )?.id ??
-                clientProjects[0]?.id ??
-                null
+              ? clientChoice.projectId
               : membership.projectIds[0] ?? null;
           if (area === "client" && projectId) {
-            window.localStorage.setItem(
+            writeStored(
               `studiohub.activeClientProjectId.${membership.tenantId}`,
               projectId,
             );
           }
+          if (requestedProjectId) forgetRequestedProject();
+          const clientProjectNotice =
+            area === "client" && clientChoice.requestedUnavailable
+              ? unavailableJobNotice(
+                  clientProjects.find((project) => project.id === projectId)?.name ?? null,
+                )
+              : null;
           let tenant: Record<string, unknown> = {};
           let profile: Record<string, unknown> = {};
           let project: Record<string, unknown> = {};
@@ -440,6 +497,7 @@ export function WorkspaceProvider({
             projectDate: String(project.eventDate ?? ""),
             clientProject,
             clientProjects,
+            clientProjectNotice,
             memberships,
           });
         } catch (caught: unknown) {
@@ -468,16 +526,14 @@ export function WorkspaceProvider({
         (project) => project.id === projectId,
       );
       if (!summary || projectId === state.projectId) return;
-      window.localStorage.setItem(
-        `studiohub.activeClientProjectId.${state.tenantId}`,
-        projectId,
-      );
+      writeStored(`studiohub.activeClientProjectId.${state.tenantId}`, projectId);
       setState((current) => ({
         ...current,
         projectId,
         projectName: summary.name,
         projectDate: summary.eventDate ?? "",
         clientProject: null,
+        clientProjectNotice: null,
         error: null,
       }));
       try {
@@ -515,6 +571,8 @@ export function WorkspaceProvider({
     () => ({
       ...state,
       selectProject,
+      dismissClientProjectNotice: () =>
+        setState((current) => ({ ...current, clientProjectNotice: null })),
       retry: () => {
         if (state.userId) invalidateMembershipCache(state.userId);
         setState((current) => ({

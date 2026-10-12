@@ -123,6 +123,77 @@
   padding: 0 var(--kit-space-gutter) var(--kit-space-3);
 }
 
+/* A client with more than one booking at the studio: the open one, and the
+   others beneath it (components/client/kit/client-job-switcher.tsx). One
+   compact row that wraps — the name never squeezes beside "Switch". */
+.kit-job-switcher {
+  min-width: 0;
+  padding: 0 var(--kit-space-gutter) var(--kit-space-2);
+}
+.kit-job-switcher-menu > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--kit-space-3);
+  min-height: var(--kit-size-tap);
+  padding: 8px 14px;
+  border: 1px solid var(--kit-line);
+  border-radius: var(--kit-radius-card);
+  background: var(--kit-paper);
+  color: var(--kit-ink);
+  cursor: pointer;
+  list-style: none;
+}
+.kit-job-switcher-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.kit-job-switcher-current {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kit-job-switcher-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.kit-job-switcher-meta {
+  color: var(--kit-caption);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.kit-job-switcher-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  color: var(--kit-accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+.kit-job-switcher-menu[open] .kit-job-switcher-action svg {
+  transform: rotate(180deg);
+}
+.kit-job-switcher-list {
+  margin-top: var(--kit-space-2);
+}
+/* A long name wraps "Open" beneath it rather than squeezing beside it. */
+.kit-job-switcher-list .kit-row {
+  flex-wrap: wrap;
+}
+.kit-job-switcher-list .kit-row-text {
+  flex: 1 1 12rem;
+}
+.kit-job-switcher-list .kit-row-title,
+.kit-job-switcher-list .kit-row-subtitle {
+  overflow-wrap: anywhere;
+}
+.kit-job-switcher-list .kit-row[aria-current="true"] .kit-row-title {
+  font-weight: 600;
+}
+
 /* ---------- Type ---------- */
 
 .kit-title {

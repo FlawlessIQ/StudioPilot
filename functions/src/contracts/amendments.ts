@@ -12,6 +12,7 @@ import { getFirestore, type DocumentSnapshot, type Firestore } from "firebase-ad
 import { z } from "zod";
 import { invitationLinkFields, mintClientInvitation } from "../client/invitation-mint.js";
 import { preparePartnerSends, queuePartnerSends } from "../client/partner-invitations.js";
+import { readReturningClientAccess, writeReturningClientAccess } from "../client/returning-client-access.js";
 import { combineSnapshotPricing } from "../proposals/combined-pricing.js";
 import { pricePackage, type SalesTaxTreatment } from "../pricing/package-price.js";
 import { readPricedSalesTax, treatmentOf } from "../billing/sales-tax-pricing.js";
@@ -1061,16 +1062,27 @@ export async function sendAmendment(context: CommandContext, input: z.infer<type
   const project = await requireStillCurrent(db, amendment);
   const projectId = project.id;
   const clientContactId = strings(project.get("clientContactIds"))[0] ?? "";
-  const contact = clientContactId ? await db.doc(`contacts/${clientContactId}`).get() : null;
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
   const path = "/client/contract";
+  // A returning client's account opens this job too, granted in the batch
+  // below (client/returning-client-access.ts); otherwise an invitation.
+  const access = await readReturningClientAccess(db, (reference) => reference.get(), {
+    tenantId: context.tenantId,
+    projectId,
+    clientContactIds: project.get("clientContactIds"),
+  });
   const invitation =
-    !contact?.get("portalUserId") && clientContactId
+    clientContactId && !access.opens(clientContactId)
       ? mintClientInvitation({ tenantId: context.tenantId, projectId, email: clientEmail, appUrl, next: path })
       : null;
   const signatureId = `${amendment.id}_studio`;
   const changes = strings(amendment.get("changes"));
   const batch = db.batch();
+  writeReturningClientAccess(db, batch, access, {
+    actorId: context.actorId,
+    now: context.timestamp,
+    reason: "booking_change_sent",
+  });
   batch.create(db.doc(`contractSignatures/${signatureId}`), {
     id: signatureId,
     tenantId: context.tenantId,
@@ -1123,6 +1135,7 @@ export async function sendAmendment(context: CommandContext, input: z.infer<type
     path,
     actorId: context.actorId,
     now: context.timestamp,
+    access,
   });
   const readyEmail = {
     ...amendmentReadyEmail({
@@ -1351,7 +1364,6 @@ export async function resendAmendment(context: CommandContext, input: z.infer<ty
   if (!mayContactClient(projectData))
     throw new Error(`CLIENT_OUTREACH_STOPPED:${clientOutreachStop(projectData) ?? "job_missing"}`);
   const clientContactId = strings(project.get("clientContactIds"))[0] ?? "";
-  const contact = clientContactId ? await db.doc(`contacts/${clientContactId}`).get() : null;
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com").replace(/\/$/, "");
   const path = "/client/contract";
   const result = await db.runTransaction(async (transaction) => {
@@ -1363,10 +1375,17 @@ export async function resendAmendment(context: CommandContext, input: z.infer<ty
     );
     if (blockedUntil) throw new Error(`RESEND_TOO_SOON:${blockedUntil}`);
     const count = num(current.get("resendCount")) + 1;
-    // A couple still without a portal account gets a fresh invitation link;
-    // the id is theirs for this job, so it replaces the last one's token.
+    // A couple whose account can't open this job gets a fresh invitation
+    // link; the id is theirs for this job, so it replaces the last one's
+    // token. A returning client's account has the job added instead
+    // (client/returning-client-access.ts).
+    const access = await readReturningClientAccess(db, (reference) => transaction.get(reference), {
+      tenantId: context.tenantId,
+      projectId: project.id,
+      clientContactIds: project.get("clientContactIds"),
+    });
     const invitation =
-      !contact?.get("portalUserId") && clientContactId
+      clientContactId && !access.opens(clientContactId)
         ? mintClientInvitation({ tenantId: context.tenantId, projectId: project.id, email: clientEmail, appUrl, next: path })
         : null;
     const emailJobId = `amendment_ready_${amendment.id}_again_${count}`;
@@ -1382,6 +1401,12 @@ export async function resendAmendment(context: CommandContext, input: z.infer<ty
       path,
       actorId: context.actorId,
       now: context.timestamp,
+      access,
+    });
+    writeReturningClientAccess(db, transaction, access, {
+      actorId: context.actorId,
+      now: context.timestamp,
+      reason: "booking_change_resent",
     });
     const readyEmail = {
       ...amendmentReadyEmail({

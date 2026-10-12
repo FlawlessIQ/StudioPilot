@@ -20,6 +20,7 @@ import {
 } from "@/features/auth/workspace-context";
 import { AppBar, KitRoot, TabBar, type Studio, type Tab } from "@/components/kit/kit";
 import { HowToButton } from "@/components/help/how-to";
+import { ClientJobNotice, ClientJobSwitcher } from "@/components/client/kit/client-job-switcher";
 import { portalAccentStyle } from "@/features/design/studio-theme";
 
 const PortalShellContext = createContext(false);
@@ -129,6 +130,8 @@ function ClientPortalShell({
           }
           studio={studio}
         />
+        <ClientJobSwitcher />
+        <ClientJobNotice />
         {workspace.error ? (
           <div className="kit-banner" role="alert">
             <p className="kit-note" data-tone="danger">

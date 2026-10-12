@@ -4,6 +4,7 @@ import {
   Camera,
   CalendarCheck,
   CalendarDays,
+  Check,
   CircleDollarSign,
   ClipboardList,
   FileSignature,
@@ -18,6 +19,8 @@ import { List, Main, PoweredBy, Row } from "@/components/kit/kit";
 import { SignOutButton } from "@/features/auth/auth-boundary";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { clientAreaItems } from "@/features/client/portal-navigation";
+import { clientJobSwitcherItems } from "@/features/client/job-choice";
+import { formatEventDate } from "@/lib/format/event-date";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { useProject } from "@/components/client/live-client-views";
 
@@ -108,27 +111,34 @@ export function ClientPlan() {
         <h2 className="kit-subsection">Account</h2>
         <List>
           <Row icon={UserRound} subtitle={workspace.userEmail || undefined} title={workspace.userName} trailing={null} />
-          {workspace.clientProjects.length > 1
-            ? workspace.clientProjects
-                .filter((project) => project.id !== workspace.projectId)
-                .map((project) => (
-                  <li key={project.id}>
-                    <button
-                      className="kit-row"
-                      onClick={() =>
-                        void workspace.selectProject(project.id).then(() => router.push("/client"))
-                      }
-                      style={{ width: "100%", border: 0, background: "transparent", textAlign: "left" }}
-                      type="button"
-                    >
-                      <span className="kit-row-text">
-                        <span className="kit-row-title">Switch to {project.name}</span>
-                        {project.eventDate ? <span className="kit-row-subtitle">{project.eventDate}</span> : null}
-                      </span>
-                    </button>
-                  </li>
-                ))
-            : null}
+          {/* Every booking with this studio, the open one marked
+              (features/client/job-choice.ts). Nothing for a single one. */}
+          {(clientJobSwitcherItems(workspace.clientProjects, workspace.projectId) ?? []).map((item) => (
+            <li key={item.id}>
+              <button
+                aria-current={item.active ? "true" : undefined}
+                className="kit-row"
+                onClick={() =>
+                  item.active
+                    ? undefined
+                    : void workspace.selectProject(item.id).then(() => router.push("/client"))
+                }
+                type="button"
+              >
+                <span className="kit-row-text">
+                  <span className="kit-row-title">{item.active ? item.name : `Switch to ${item.name}`}</span>
+                  <span className="kit-row-subtitle">
+                    {item.eventDate ? formatEventDate(item.eventDate) : "Date to confirm"}
+                  </span>
+                </span>
+                {item.active ? (
+                  <span className="kit-row-trailing">
+                    <Check aria-hidden="true" size={18} /> Open
+                  </span>
+                ) : null}
+              </button>
+            </li>
+          ))}
         </List>
         <SignOutButton className="kit-button kit-signout" />
       </section>
