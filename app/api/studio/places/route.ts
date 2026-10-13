@@ -58,15 +58,19 @@ export async function POST(request: Request): Promise<Response> {
 
     // Any active membership is enough. This reads no tenant data and
     // creates nothing; the check is here so the key cannot be spent by
-    // someone who merely holds a Firebase account.
-    const memberships = await adminFirestore
-      .collection("memberships")
-      .where("userId", "==", identity.uid)
-      .where("status", "==", "active")
-      .limit(1)
-      .get();
-    if (memberships.empty) {
-      return Response.json({ error: "WORKSPACE_ACCESS_DENIED" }, { status: 403 });
+    // someone who merely holds a Firebase account. A verified address
+    // creating its studio has no membership yet: it may look up its own
+    // business address at signup (onboarding-form.tsx, 2026-10-13).
+    if (identity.email_verified !== true) {
+      const memberships = await adminFirestore
+        .collection("memberships")
+        .where("userId", "==", identity.uid)
+        .where("status", "==", "active")
+        .limit(1)
+        .get();
+      if (memberships.empty) {
+        return Response.json({ error: "WORKSPACE_ACCESS_DENIED" }, { status: 403 });
+      }
     }
 
     const provider = placesProvider();

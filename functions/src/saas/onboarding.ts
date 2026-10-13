@@ -42,6 +42,12 @@ const inputSchema = z.object({
    * before trades.
    */
   trade: z.enum(TRADES).default("photographer"),
+  /**
+   * The business address, from the address box at signup (Conor,
+   * 2026-10-13). It goes on contracts and at the bottom of the studio's
+   * emails (Email branding). Optional: plenty of studios work from home.
+   */
+  businessAddress: z.string().trim().max(240).nullable().optional(),
 });
 /**
  * What a brand new tenant gets before it has chosen anything.
@@ -217,6 +223,7 @@ export const tenantOnboardingCommand = onRequest(
           slugAliases: [publicSlug],
           timezone: input.timezone,
           currency: input.currency,
+          ...(input.businessAddress ? { emailBranding: { postalAddress: input.businessAddress } } : {}),
           dateFormat: "MMM d, yyyy",
           reviewLinks: {
             google: null,

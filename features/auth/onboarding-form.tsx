@@ -11,6 +11,8 @@ import { HEARD_ASKS_WHO, HEARD_OPTIONS, rememberedAttribution, type HeardValue }
 import { rememberedPromotionCode } from "@/features/subscriptions/promotion-code";
 import { chosenTrade } from "@/features/trades/chosen-trade";
 import { LIVE_TRADES, TRADE_OPTIONS, type Trade } from "@/features/trades/trades";
+import { AddressField } from "@/components/forms/address-field";
+import type { CapturedPlace } from "@/features/places/schema";
 
 /** What each kind of invitation lets the person do, in a sentence. */
 const INVITED_TO: Record<PendingInvitation["kind"], string> = {
@@ -93,6 +95,8 @@ function OnboardingFlow() {
   );
   const [checkoutNext, setCheckoutNext] = useState(true);
   const [heard, setHeard] = useState<HeardValue | "">("");
+  // On contracts and at the bottom of the studio's emails (Email branding).
+  const [address, setAddress] = useState<CapturedPlace | null>(null);
   // "What do you do?" (features/trades/trades.ts). Live trades are offered —
   // since 2026-10-12 DJ, makeup and hair, and since its Phase 5 the planner,
   // so the question always shows, starting on the trade the visitor arrived
@@ -237,6 +241,7 @@ function OnboardingFlow() {
             timezone: String(data.get("timezone")),
             currency: String(data.get("currency")),
             trade: pickedTrade,
+            businessAddress: address?.formatted?.trim().slice(0, 240) || null,
             // Where the studio came from, for the Console's Sources page
             // (features/growth/attribution.ts). Never required.
             attribution: {
@@ -407,6 +412,15 @@ function OnboardingFlow() {
         />
         <small>Your legal business name for agreements can be changed any time in Studio details.</small>
       </label>
+      {/* Conor, 2026-10-13: the address on contracts and at the bottom of
+          the studio's emails, asked once here (Email branding after). */}
+      <AddressField
+        hint="Goes on your contracts and at the bottom of your emails. Leave it blank if you'd rather not, and add it later in Settings."
+        label="Business address"
+        onChange={setAddress}
+        placeholder="Start typing your address"
+        value={address}
+      />
       <label>
         Timezone <span className="required-mark">Required</span>
         <select defaultValue={zone} key={zone} name="timezone">
