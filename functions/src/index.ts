@@ -64,6 +64,7 @@ export { subscriptionAccessChanged } from "./saas/billing-hold.js";
 export { billingNoticeScheduler } from "./saas/billing-notices.js";
 export { referralCreditScheduler } from "./saas/referrals.js";
 export { vendorInviteScheduler } from "./saas/vendor-invites.js";
+export { platformVendorOnTeamWritten } from "./saas/platform-vendors.js";
 export { saasAdminCommand } from "./saas/admin.js";
 export { consoleRollupScheduler } from "./console/scheduler.js";
 export { operationsHealthScheduler } from "./saas/jobs.js";

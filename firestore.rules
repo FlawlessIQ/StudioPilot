@@ -1107,6 +1107,13 @@ service cloud.firestore {
     match /emailSuppressions/{emailHash} {
       allow read, write: if false;
     }
+    // StudioCue's vendor database (functions/src/saas/platform-vendors.ts):
+    // business contacts gathered across studios. No browser reads it, not even
+    // a platform admin's; the Console reads it through its handlers, and an
+    // export is audited (console/handlers/vendors.ts).
+    match /platformVendors/{emailHash} {
+      allow read, write: if false;
+    }
     // Where each studio came from (Console → Sources): the signup link and
     // "How did you hear about StudioCue?", written by tenantOnboardingCommand,
     // and the channel an operator filed it under. Never readable by a studio.

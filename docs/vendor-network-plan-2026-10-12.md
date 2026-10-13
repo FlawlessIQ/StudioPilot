@@ -1,6 +1,28 @@
 # Vendor network: capture every wedding's vendors, offer them StudioCue
 
-**Status: planned 2026-10-12. Nothing built. Decisions D1–D6 are open (below).**
+**Status: Phases 0–4 built 2026-10-13 on Conor's go-ahead with every
+recommendation (D1–D6 as below). Phase 0 landed with the planner (e8cd9a3e).
+Not yet deployed; counsel on controller use is still owed before the offer
+and the database are relied on (see "Legal and privacy").**
+
+What changed from the plan as written:
+
+- **Readiness**: no new checkpoint. The vendor team panel already says where
+  the couple's list stands ("listed 6", "no other vendors", "asked, due when
+  the details lock"), the lock-day sign-off enforces D3, and a checkpoint
+  would break the vendor trades' burden budget (4 checks, tests/vendor-burden).
+- **The couple's save** goes through the portal route (`server/vendors/couple-team.ts`,
+  the shot list's pattern), not `planningCommand`: the route already checks
+  the client and the job before any handler runs.
+- **A planning studio's couple is never asked**: the planner builds the team,
+  and a month-of couple lists theirs on the Final details form.
+- **The offer's code is claimed once**, by one studio, rather than bound to
+  the address it was sent to: a DJ who signs up from another inbox still
+  gets it, and the code doesn't go round.
+- **The sweep's invites carry the offer too**, so a vendor-plan vendor who
+  never gets a timeline still hears it once.
+- **The email offer is once ever** (the first time StudioCue writes to the
+  address); later timelines carry none. The share page shows it each visit.
 
 ## The idea in one paragraph
 

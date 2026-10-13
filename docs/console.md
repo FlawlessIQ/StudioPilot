@@ -20,6 +20,7 @@ something inside it waits.
 | **Grow** · Pipeline | `/pipeline` | Photographers who might become studios: Book a demo requests and anyone added by hand, as a board or table, each with an owner and a next step |
 | Grow · Sources | `/sources` | Where studios come from, by channel, referring studio, link and campaign, and which go on to pay. File a studio under a channel by hand |
 | Grow · Referrals | `/referrals` | Studios referred with another studio's code, the one-off $100 credits, and the vendors invited |
+| Grow · Vendors | `/vendors` | StudioCue's vendor database: every vendor booked on any studio's job, once, by kind and state, with where each stands with the vendor offer. Export as CSV; make a partner code in one click |
 | Grow · Discount codes | `/codes` | Stripe promotion codes, single or in batches, with signup links |
 | **Customers** · Studios | `/studios`, `/studios/[tenantId]` | Every studio as a CRM account. The record has Overview, Timeline, Team, Billing, Usage, Integrations, Feedback, Jobs, Notes, Audit |
 | Customers · Lifecycle | `/lifecycle` | Studios at risk with one play each, trials by days left, and who moved between stages |
@@ -328,6 +329,54 @@ Added 2026-10-12 (Conor): planners, DJs, hair and makeup artists who aren't Stud
 - **A referral counts** on the same rule as a studio's credit: three months after the photographer's first payment, still `active`. `referralCreditScheduler` marks it `qualifiedAt` (no Stripe credit: a partner has no bill). Canceled before then = doesn't count.
 - **Pay** (`features/console/partner-payouts.ts`): $100 per referral that counts; with more than 10, every one is $200, the first 10 included. The team pays by hand (Venmo, Zelle, check) and records it (`recordPartnerPayout`, `billing.write`, `saasPartnerPayouts`); the drawer shows earned, paid and owed. A payout recorded by mistake can be removed.
 - Sources files these studios under **Referral**, detail "{partner} · partner".
+
+### The vendor offer
+
+Added 2026-10-13 (docs/vendor-network-plan-2026-10-12.md, Phase 3; D1, D2). A
+DJ, hair and makeup or planner vendor who worked a studio's job gets the vendor
+plan at $50/month for 12 months or $500 for the first year, with a code of
+their own (`VO` + 8, `saasReferralCodes` → `kind: "vendor_offer"`, their
+`vendorInvites.offerCode`). It reaches them under the timeline in the first
+`vendor_timeline` email StudioCue ever sends them, on their schedule link each
+time they open it, and on the daily sweep's invite. The studio earns the usual
+$100 credit after the vendor has paid three months (`referralVia:
+"vendor_offer"`). Sources files them under **Vendor offer (worked a wedding)**.
+The coupons are made the first time they're needed (`vendorMonthlyCouponId`,
+`vendorYearlyCouponId` in `saasSettings/referralProgram`).
+
+## Vendors
+
+Added 2026-10-13 (docs/vendor-network-plan-2026-10-12.md, Phase 4): every
+vendor booked on any studio's job with an email address, once across all
+studios. Grow → **Vendors**.
+
+- **The database** is `platformVendors/{sha256(email)}`, written by
+  `platformVendorOnTeamWritten` (`saas/platform-vendors.ts`) whenever a vendor
+  team entry is booked or its vendor's details change, so a vendor a studio
+  added, one a couple listed in their portal, and one from a couple's form all
+  count. Business contact only: kind, company, contact, email, phone, website,
+  the state and city of the venue, first and last seen, and how many jobs and
+  studios. **Never the couple, the date or the venue**: jobs and studios are
+  counted by one-way keys.
+- **No browser reads it**, not even a platform admin's (firestore.rules). The
+  page loads it through `listPlatformVendors` (`console/handlers/vendors.ts`,
+  `console.read`), joined with each vendor's `vendorInvites` and
+  `emailSuppressions` records, which share its key.
+- **Offer state**: Not contacted → Invited (the old pitch, no offer) →
+  Offered (a vendor offer code was made for them: their first timeline email,
+  or the daily sweep) → Code used (a studio started checkout with it) →
+  Signed up. Opted out when they unsubscribed from offers.
+- **Prospect**: a DJ, hair and makeup or planner vendor is a vendor-plan
+  prospect; a photographer or videographer, a Studio-plan prospect; florists,
+  caterers and the rest are held until their trade has a journey.
+- **Export CSV** (`exportPlatformVendors`, `crm.write`, audited): every row, or
+  the rows the filters show. Cells that start like a formula are quoted.
+- **Make them a partner** (`codes.write`): a vendor-plan vendor not yet signed
+  up is one click from a partner code (`createPartner`, the Partners tab's
+  command), with the code suggested from their business name.
+- **Backfill** what studios had before the trigger:
+  `npx tsx scripts/backfill-platform-vendors.mts` (dry run; `--write`, and
+  `--prod` for production). Re-running changes nothing.
 
 ## Sources
 

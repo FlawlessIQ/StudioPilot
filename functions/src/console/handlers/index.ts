@@ -11,6 +11,7 @@ import { peopleHandlers } from "./people.js";
 import { settingsHandlers } from "./settings.js";
 import { studioHandlers } from "./studios.js";
 import { supportHandlers } from "./support.js";
+import { vendorHandlers } from "./vendors.js";
 
 /** Every Console command, by its `type`. saasAdminCommand dispatches here. */
 export const consoleHandlers: Record<string, ConsoleHandler> = {
@@ -26,4 +27,5 @@ export const consoleHandlers: Record<string, ConsoleHandler> = {
   ...operationsHandlers,
   ...featureHandlers,
   ...settingsHandlers,
+  ...vendorHandlers,
 };
