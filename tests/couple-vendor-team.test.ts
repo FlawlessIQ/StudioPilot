@@ -199,3 +199,12 @@ test("a couple's save only takes off what they were shown: an entry the studio m
   const source = readFileSync("server/vendors/couple-team.ts", "utf8");
   assert.match(source, /!keptEntryIds\.has\(entryId\) && entry\.get\("status"\) === "booked"/);
 });
+
+test("UAT F5: every vendor refusal reaches the couple in its own words, not 'check your connection'", async () => {
+  const route = readFileSync("app/api/client/portal/route.ts", "utf8");
+  const { friendlyError } = await import("../lib/ai/friendly-error");
+  for (const code of ["VENDOR_EMAIL_IS_YOURS", "VENDOR_EMAIL_IS_CREW", "VENDOR_KIND_NOT_OFFERED", "VENDOR_TEAM_NOT_ASKED", "VENDOR_NOT_FOUND", "FINAL_DETAILS_VENDORS_NEEDED", "FINAL_HEADCOUNT_EMPTY"]) {
+    assert.match(route, new RegExp(`error === "${code}"`), code);
+    assert.notEqual(friendlyError(new Error(code), "FALLBACK"), "FALLBACK", code);
+  }
+});

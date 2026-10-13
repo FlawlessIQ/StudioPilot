@@ -2969,6 +2969,20 @@ export async function POST(request: Request) {
     if (error === "FINAL_DETAILS_CHANGED" || error === "FINAL_DETAILS_NOT_FOUND" || error === "FINAL_DETAILS_NAME_REQUIRED") {
       return Response.json({ error }, { status: 409 });
     }
+    // The vendor team and the sign-off's vendor question (server/vendors/couple-team.ts,
+    // server/planning/final-details.ts): each refusal reaches the couple in its own
+    // words. Unlisted, they all read "check your connection" (UAT 2026-10-13, F5).
+    if (
+      error === "VENDOR_EMAIL_IS_YOURS" ||
+      error === "VENDOR_EMAIL_IS_CREW" ||
+      error === "VENDOR_KIND_NOT_OFFERED" ||
+      error === "VENDOR_TEAM_NOT_ASKED" ||
+      error === "VENDOR_NOT_FOUND" ||
+      error === "FINAL_DETAILS_VENDORS_NEEDED" ||
+      error === "FINAL_HEADCOUNT_EMPTY"
+    ) {
+      return Response.json({ error }, { status: 409 });
+    }
     if (error === "BILLING_ADDRESS_NOT_ASKED" || error === "BILLING_ADDRESS_CONTACT_NOT_FOUND") {
       return Response.json({ error }, { status: 409 });
     }
