@@ -71,3 +71,12 @@ test("a client given a team or crew member's email is told at the save", () => {
     assert.match(readFileSync(form, "utf8"), /teamEmailWarning\(/, form);
   }
 });
+
+test("the new-job form says job, never project (Sangeet walk F4)", () => {
+  const form = readFileSync("components/crm/create-project-form.tsx", "utf8")
+    .replace(/^.*\bfrom "[^"]*";$/gm, "");
+  assert.match(form, /Open job <ArrowRight/);
+  // Quoted copy and JSX text only; identifiers like projectId stay.
+  assert.doesNotMatch(form, /"[^"\n]*\b[Pp]roject\b[^"\n]*"/);
+  assert.doesNotMatch(form, />[^<{\n]*\b[Pp]roject\b[^<{\n]*</);
+});

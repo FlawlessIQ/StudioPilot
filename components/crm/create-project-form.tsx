@@ -68,7 +68,7 @@ const schema = z
       context.addIssue({
         code: "custom",
         path: ["primaryContactId"],
-        message: "Choose the client this project is for.",
+        message: "Choose the client this job is for.",
       });
     }
     if (values.clientMode === "new") {
@@ -110,7 +110,7 @@ type FillableField =
   | "city";
 
 const FIELD_LABELS: Record<FillableField, string> = {
-  name: "project name",
+  name: "job name",
   eventType: "event type",
   eventDate: "event date",
   readyByTime: "ready-by time",
@@ -372,7 +372,7 @@ export function CreateProjectForm({
    * improves every one of those without any of them changing.
    */
   // Shared from another app: read it once the workspace is known, the same as
-  // pressing "Prepare the project".
+  // pressing "Prepare the job".
   useEffect(() => {
     if (!sharedMessage || !workspace.tenantId || sharedRead.current) return;
     sharedRead.current = true;
@@ -447,7 +447,7 @@ export function CreateProjectForm({
         name: values.name,
       });
     } catch (caught: unknown) {
-      setError(friendlyError(caught, "The project could not be created. Try again."));
+      setError(friendlyError(caught, "The job could not be created. Try again."));
     }
   });
 
@@ -456,7 +456,7 @@ export function CreateProjectForm({
       <div className="command-success">
         <CheckCircle2 size={23} />
         <h2>{outcome.name} is ready</h2>
-        <p>The journey starts at inquiry — open the project to take the first step.</p>
+        <p>Open the job to take its first step.</p>
         {outcome.warning ? (
           <p className="form-notice" role="alert">
             {outcome.warning}
@@ -467,7 +467,7 @@ export function CreateProjectForm({
             className="button button-dark"
             href={`/studio/projects/${outcome.projectId}`}
           >
-            Open project <ArrowRight size={15} />
+            Open job <ArrowRight size={15} />
           </Link>
         ) : (
           <small>Preview mode: this record was not persisted.</small>
@@ -525,7 +525,7 @@ export function CreateProjectForm({
           ) : (
             <Sparkles size={15} />
           )}
-          {reading ? "Reading the message…" : "Prepare the project"}
+          {reading ? "Reading the message…" : "Prepare the job"}
         </button>
         {intake ? (
           <div aria-live="polite" className="intake-copilot-result">
@@ -571,7 +571,7 @@ export function CreateProjectForm({
           <legend>The event</legend>
           <div className="form-grid">
             <label className={`form-span${filled.name ? " is-filled" : ""}`}>
-              Project name <span className="required-mark">Required</span>
+              Job name <span className="required-mark">Required</span>
               {filled.name ? <FilledTag /> : null}
               <input {...fieldProps("name")} placeholder="e.g. Johnson wedding" required />
               <small>{errors.name?.message}</small>
@@ -748,10 +748,6 @@ export function CreateProjectForm({
             {isSubmitting ? <LoaderCircle className="spin" size={16} /> : null}
             {clientMode === "new" ? "Create client & job" : "Create job"}
           </button>
-          <small>
-            Creates the {clientMode === "new" ? "client record and the " : ""}
-            project, then opens its journey.
-          </small>
         </div>
       </form>
     </div>
