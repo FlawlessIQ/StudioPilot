@@ -6,7 +6,7 @@
  * moment a team entry is booked or changed, so everything entered before it
  * was deployed is missing. This reads:
  * - every booked vendor team entry (`projectVendors`), and
- * - every directory vendor (`vendors`) with an address and booked jobs in
+ * - every directory vendor (`vendors`) with an address and jobs in
  *   `projectIds` — vendors put on jobs before the vendor team existed —
  * and records each through the same pure rules the trigger uses
  * (`sightingFrom`, `mergeSighting`). Idempotent: a job or studio already
@@ -26,7 +26,6 @@
 import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { FieldPath, getFirestore, type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { mergeSighting, recordSighting, sightingFrom, type VendorSighting } from "../functions/src/saas/platform-vendors.ts";
-import { BOOKED_JOB_STATES } from "../functions/src/saas/referral-program.ts";
 
 const args = process.argv.slice(2);
 const write = args.includes("--write");
@@ -50,7 +49,7 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 const now = new Date().toISOString();
-const BOOKED = new Set<string>(BOOKED_JOB_STATES);
+const GONE = new Set<string>(["LOST", "CANCELLED", "ARCHIVED"]);
 
 async function* pages(collection: string): AsyncGenerator<QueryDocumentSnapshot> {
   let cursor: QueryDocumentSnapshot | undefined;
@@ -78,7 +77,9 @@ async function consider(entry: DocumentData, at: string) {
   const tenantId = String(entry.tenantId ?? "");
   const projectId = String(entry.projectId ?? "");
   const project = projectId ? await read(`projects/${projectId}`) : null;
-  if (!project || project.tenantId !== tenantId || !BOOKED.has(String(project.state ?? ""))) return;
+  // The trigger's rule: a vendor the team has booked counts whatever the job's
+  // own state (platform-vendors.ts recordTeamEntry); only a job gone for good doesn't.
+  if (!project || project.tenantId !== tenantId || GONE.has(String(project.state ?? ""))) return;
   const vendorId = String(entry.vendorId ?? "");
   const vendor = vendorId ? await read(`vendors/${vendorId}`) : null;
   const tenant = await read(`tenants/${tenantId}`);

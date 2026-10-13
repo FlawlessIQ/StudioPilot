@@ -225,6 +225,9 @@ async function referredBy(
 ): Promise<{ code: string; referrerTenantId: string; via: string; partnerId?: string | null } | null> {
   const referral = await lookupReferral(db, rawCode).catch(() => null);
   if (!referral) return null;
+  // A vendor's own offer code is the vendor plan's, claimed once (vendorOfferBy);
+  // on the Studio plan it would be a referral code anyone it was forwarded to could use.
+  if (referral.kind === "vendor_offer") return null;
   // A referral partner's code (the Console's Partners): no studio to own.
   if (referral.partnerId) return { code: referral.code, referrerTenantId: "", partnerId: referral.partnerId, via: "partner" };
   if (referral.referrerTenantId === tenantId) return null;
@@ -259,20 +262,35 @@ async function vendorOfferBy(
   if (ownsReferrer.exists && ownsReferrer.get("role") === "studio_owner") return null;
   const now = new Date().toISOString();
   const inviteReference = db.doc(`vendorInvites/${referral.offerFor}`);
+  // Claimed as Checkout opens; "signed up" waits for the subscription itself
+  // (the webhook, markVendorOfferSignedUp). A claim by a studio that never
+  // started a subscription — a checkout someone opened and abandoned — doesn't
+  // lock the code: the next studio can claim it.
   const claimed = await db.runTransaction(async (transaction) => {
     const invite = await transaction.get(inviteReference);
     if (!invite.exists) return false;
     const by = invite.get("offerClaimedTenantId");
-    if (typeof by === "string" && by && by !== tenantId) return false;
-    transaction.update(inviteReference, {
-      offerClaimedTenantId: tenantId,
-      offerClaimedAt: invite.get("offerClaimedAt") ?? now,
-      signedUpTenantId: tenantId,
-      signedUpAt: invite.get("signedUpAt") ?? now,
-    });
+    if (typeof by === "string" && by && by !== tenantId) {
+      const holder = await transaction.get(db.doc(`subscriptions/${by}`));
+      const holderLive = Boolean(holder.get("stripeSubscriptionId")) && ["trialing", "active", "past_due", "unpaid", "paused"].includes(String(holder.get("status") ?? ""));
+      if (holderLive || invite.get("signedUpTenantId")) return false;
+    }
+    transaction.update(inviteReference, { offerClaimedTenantId: tenantId, offerClaimedAt: now });
     return true;
   });
   return claimed ? { code: referral.code, referrerTenantId: referral.referrerTenantId, via: "vendor_offer" } : null;
+}
+
+/** The vendor's once-ever record, once their subscription exists: the code is theirs for good. */
+async function markVendorOfferSignedUp(db: FirebaseFirestore.Firestore, rawCode: string, tenantId: string, now: string): Promise<void> {
+  const referral = await lookupReferral(db, rawCode);
+  if (!referral || referral.kind !== "vendor_offer" || !referral.offerFor) return;
+  const reference = db.doc(`vendorInvites/${referral.offerFor}`);
+  await db.runTransaction(async (transaction) => {
+    const invite = await transaction.get(reference);
+    if (!invite.exists || invite.get("signedUpTenantId")) return;
+    transaction.update(reference, { signedUpTenantId: tenantId, signedUpAt: now, offerClaimedTenantId: tenantId });
+  });
 }
 
 /** What a studio's Subscription page shows about its referrals. */
@@ -351,7 +369,19 @@ export const billingCommand = onRequest(
         return;
       }
       if (parsed.type === "previewCode") {
-        const referral = await lookupReferral(db, parsed.promotionCode);
+        const found = await lookupReferral(db, parsed.promotionCode);
+        // A vendor's code another studio has already signed up with promises nothing.
+        const takenElsewhere =
+          found?.kind === "vendor_offer" && found.offerFor
+            ? await db
+                .doc(`vendorInvites/${found.offerFor}`)
+                .get()
+                .then((invite) => {
+                  const by = invite.get("signedUpTenantId");
+                  return typeof by === "string" && Boolean(by) && by !== parsed.tenantId;
+                })
+            : false;
+        const referral = takenElsewhere ? null : found;
         response.status(200).json(
           referral
             ? referral.referrerTenantId === parsed.tenantId
@@ -837,6 +867,13 @@ export async function writeSubscriptionFromStripe(
   ).catch((caught: unknown) => {
     console.error(JSON.stringify({ severity: "ERROR", event: "referral.record_failed", tenantId, reason: caught instanceof Error ? caught.message : String(caught) }));
   });
+  // A vendor who completed Checkout with their offer code: signed up, in the
+  // Console's vendor database and on their once-ever record.
+  if (subscriptionMetadata.referralVia === "vendor_offer" && !deleted && ["trialing", "active", "past_due"].includes(status)) {
+    await markVendorOfferSignedUp(subscriptionReference.firestore, String(subscriptionMetadata.referralCode ?? ""), tenantId, now).catch((caught: unknown) => {
+      console.error(JSON.stringify({ severity: "ERROR", event: "vendor_offer.signup_mark_failed", tenantId, reason: caught instanceof Error ? caught.message : String(caught) }));
+    });
+  }
   // A studio the team comped locally (no Stripe subscription) that then pays
   // is no longer comped. One comped with a 100% coupon keeps its flag: that
   // subscription is how the comp is carried.

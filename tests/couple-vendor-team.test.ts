@@ -194,3 +194,8 @@ test("the planning form's emails carry the vendor ask only while the couple owes
   assert.match(render({ vendorTeamAsk: true, actionUrl: "https://studio-cue.com/client" }).text, /other vendors working your day/);
   assert.doesNotMatch(render({ vendorTeamAsk: false, actionUrl: "https://studio-cue.com/client" }).text, /other vendors/);
 });
+
+test("a couple's save only takes off what they were shown: an entry the studio moved off booked stays", () => {
+  const source = readFileSync("server/vendors/couple-team.ts", "utf8");
+  assert.match(source, /!keptEntryIds\.has\(entryId\) && entry\.get\("status"\) === "booked"/);
+});

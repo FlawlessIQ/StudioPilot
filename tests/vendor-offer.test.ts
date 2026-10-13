@@ -254,3 +254,13 @@ test("wired: checkout, the sender, the sweep, the share page and the Subscriptio
   assert.match(read("app/share/[token]/page.tsx"), /shareOfferFor\(adminFirestore/);
   assert.match(read("components/saas/live-subscription.tsx"), /referredBy\.plan === "vendor"/);
 });
+
+test("review fixes: a vendor code is never a Studio referral; an abandoned checkout doesn't lock it; signed up waits for the subscription", () => {
+  const stripe = read("functions/src/saas/stripe.ts");
+  assert.match(stripe, /if \(referral\.kind === "vendor_offer"\) return null;/);
+  assert.match(stripe, /if \(holderLive \|\| invite\.get\("signedUpTenantId"\)\) return false;/);
+  assert.match(stripe, /referralVia === "vendor_offer" && !deleted[\s\S]{0,120}markVendorOfferSignedUp/);
+  assert.match(stripe, /takenElsewhere/);
+  assert.match(read("server/vendors/vendor-offer.ts"), /invite\.get\("signedUpTenantId"\)/);
+  assert.match(read("functions/src/planning/final-details.ts"), /vendorAskOwedFor\(db, tenantId, project\.id\)/);
+});

@@ -14,6 +14,7 @@ import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
 import { tradeOf, tradeProfile } from "../trades/trades.js";
 import { newestPartyNames, type BeautyService } from "./party-list.js";
 import { FINAL_DETAILS_STATES, finalDetailsDue, finalDetailsToday } from "./final-details-due.js";
+import { vendorAskOwedFor } from "./vendor-team.js";
 
 /**
  * The couple's final details, confirmed when they lock.
@@ -229,14 +230,11 @@ export async function openSignoff(
           console.error(JSON.stringify({ severity: "ERROR", event: "final_call.link_failed", projectId: project.id, reason: caught instanceof Error ? caught.message : String(caught) }));
           return null;
         });
-  // A wedding whose couple hasn't listed their other vendors yet: the email
-  // says the sign-off asks for them (features/vendors/couple-team.ts; the
-  // portal won't confirm without an answer).
-  const vendorsNeeded =
-    headcount === null &&
-    jobKindOf(project.data() ?? {}) === "wedding" &&
-    project.get("vendorTeamByPlanner") !== true &&
-    !(await db.doc(`clientVendorTeams/${project.id}`).get()).get("receivedAt");
+  // A wedding whose couple still owes their other vendors: the email says the
+  // sign-off asks for them, under the same rule the portal asks by
+  // (vendor-team.ts vendorAskOwed — never a planner's couple, a quiet job, or
+  // one already answered).
+  const vendorsNeeded = headcount === null && (await vendorAskOwedFor(db, tenantId, project.id));
   const batch = db.batch();
   if (call) batch.set(db.doc(`consultationBookingLinks/${call.linkId}`), call.record);
   batch.create(reference, {

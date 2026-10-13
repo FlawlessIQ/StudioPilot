@@ -262,7 +262,13 @@ export async function submitCoupleVendorTeam(
     }
 
     const keptEntryIds = new Set(planned.map((item) => item.entryId));
-    const removed = [...coupleEntries.entries()].filter(([entryId]) => !keptEntryIds.has(entryId));
+    // Only what the couple was shown (booked, named) can be taken off by them:
+    // an entry the studio moved to "considering" — with its cost, notes and
+    // times — is the studio's now, and a save that didn't include it must not
+    // delete it (coupleVendorTeamFor shows booked entries only).
+    const removed = [...coupleEntries.entries()].filter(
+      ([entryId, entry]) => !keptEntryIds.has(entryId) && entry.get("status") === "booked" && Boolean(text(entry.get("company"))),
+    );
     const removedShares = removed.length
       ? await transaction.getAll(
           ...removed.map(([, entry]) => db.doc(`scheduleShares/${shareIdFor(tenantId, projectId, text(entry.get("vendorId")) || "none")}`)),

@@ -159,6 +159,8 @@ export async function recordTeamEntry(db: Firestore, entry: DocumentData, at: st
     db.doc(`tenants/${tenantId}`).get(),
   ]);
   if (!project.exists || project.get("tenantId") !== tenantId) return false;
+  // A job gone for good doesn't count (scripts/backfill-platform-vendors.mts uses the same rule).
+  if (["LOST", "CANCELLED", "ARCHIVED"].includes(String(project.get("state") ?? ""))) return false;
   const sighting = sightingFrom({
     entry,
     project: project.data() ?? null,

@@ -45,7 +45,9 @@ export async function shareOfferFor(
     db.doc(`subscriptions/${input.tenantId}`).get(),
   ]);
   const code = String(invite.get("offerCode") ?? "");
-  if (!code || suppressed.exists || invite.get("offerClaimedTenantId")) return null;
+  // Gone once they've signed up with it (the webhook marks it); an opened and
+  // abandoned checkout doesn't take the offer away.
+  if (!code || suppressed.exists || invite.get("signedUpTenantId")) return null;
   if (tenant.get("vendorInvitesEnabled") === false || !["trialing", "active"].includes(String(subscription.get("status") ?? ""))) return null;
   if (await subscriberEmail(db, email)) return null;
   return {
