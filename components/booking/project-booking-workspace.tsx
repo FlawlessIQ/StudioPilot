@@ -470,13 +470,17 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
    * A recorded retainer books the job a few seconds later, in a trigger
    * (booking-orchestration), so the refresh right after recording catches it
    * still "Awaiting deposit" and offering "Check and confirm" for a job that
-   * had already booked (prod walk, 2026-10-06). Read once more after it lands.
+   * had already booked (prod walk, 2026-10-06). Read again as it lands — one
+   * read at nine seconds still caught "Awaiting deposit" when the trigger ran
+   * slow (UAT 2026-10-13 F7), so three, the last at twenty.
    */
   const settleAfterRetainer = () => {
-    window.setTimeout(() => {
-      refreshTenantRecords("projects", "contracts", "invoiceReferences", "checkpoints", "readinessAssessments");
-      void load().catch(() => {});
-    }, 9000);
+    for (const delay of [4000, 10000, 20000]) {
+      window.setTimeout(() => {
+        refreshTenantRecords("projects", "contracts", "invoiceReferences", "checkpoints", "readinessAssessments");
+        void load().catch(() => {});
+      }, delay);
+    }
   };
 
   useEffect(() => {

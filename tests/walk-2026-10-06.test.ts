@@ -98,7 +98,7 @@ test("no screen says a wedding's day is drafted from timing rules", () => {
 
 test("recording a retainer re-reads once the booking has had time to land", () => {
   const workspace = read("components/booking/project-booking-workspace.tsx");
-  assert.match(workspace, /const settleAfterRetainer = \(\) => \{\s*window\.setTimeout\(/);
+  assert.match(workspace, /const settleAfterRetainer = \(\) => \{\s*for \(const delay of \[[0-9, ]+\]\) \{\s*window\.setTimeout\(/);
   assert.ok((workspace.match(/settleAfterRetainer\(\);/g) ?? []).length >= 2);
   assert.doesNotMatch(read("components/booking/record-retainer-payment.tsx"), /recorded against your name\. Confirm the booking/);
 });

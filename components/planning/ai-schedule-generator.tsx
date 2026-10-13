@@ -209,6 +209,11 @@ export function AiScheduleGenerator({
   // For naming the recipient of the suggested questions.
   const { records: contacts } = useTenantDocuments("contacts");
   const [draft, setDraft] = useState<Draft | null>(null);
+  // The draft just published, while it stays on screen for the vendor
+  // re-share below: "Nothing reaches your crew until you publish" and the
+  // Publish button sat above "Published…" (UAT 2026-10-13 F12). Any edit makes
+  // a new draft, and the button is back.
+  const [publishedDraft, setPublishedDraft] = useState<Draft | null>(null);
   /** Blocks whose end the studio set; every other block runs to the next one. */
   const [pinned, setPinned] = useState<Set<string>>(() => new Set());
   /** What the laid-out day wants the studio to check, said once above the lines. */
@@ -850,7 +855,10 @@ export function AiScheduleGenerator({
       // names the next move, which is the confirmation the notice alone
       // could not give from the bottom of a long page. Unless vendors hold
       // the old version: then the next move is here, and leaving would hide it.
-      if (response.persisted && stale > 0) setStaleVendors(stale);
+      if (response.persisted && stale > 0) {
+        setStaleVendors(stale);
+        setPublishedDraft(draft);
+      }
       else if (response.persisted) returnToJob(firstSendWaiting ? { then: "send_to_vendors" } : undefined);
     } catch (caught: unknown) {
       setPublishNotice({ failed: true, message: friendlyError(caught, "Publish failed.") });
@@ -1982,6 +1990,7 @@ export function AiScheduleGenerator({
               ) : null}
             </section>
           ) : null}
+          {publishedDraft && publishedDraft === draft ? null : (
           <div className="human-boundary">
             <CheckCircle2 />
             <span>
@@ -2014,6 +2023,7 @@ export function AiScheduleGenerator({
               {publishing ? "Publishing…" : "Publish reviewed schedule"}
             </button>
           </div>
+          )}
           {publishNotice ? (
             <p
               className={publishNotice.failed ? "form-notice form-notice-error" : "form-notice"}

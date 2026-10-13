@@ -2782,10 +2782,41 @@ export function todayInbox(input: TodayInput): TodayInbox {
 
   // ── Approve · AI-prepared work ─────────────────────────────────────
   const briefCards = new Set<string>();
+  // A form's review and the follow-up drafted from it are one decision: the
+  // follow-up asks the couple what the review found missing. Two forms made
+  // four cards for one wedding (UAT 2026-10-13 F2). While a form's follow-up
+  // waits, its review rides on it: the follow-up card says how many flags the
+  // form raised, so a contradiction or a risk is never out of sight.
+  const formsWithFollowup = new Set(
+    rows(input.aiActions)
+      .filter(
+        (action) =>
+          text(action.capability) === "planning_followup_draft" &&
+          text(action.status) === "review_required" &&
+          !(text(action.snoozedUntil) > input.now),
+      )
+      .map((action) => text(action.id).replace(/^ai_planning_followup_/, ""))
+      .filter(Boolean),
+  );
+  const flagsOnForm = new Map<string, number>();
+  for (const action of rows(input.aiActions)) {
+    if (text(action.capability) !== "questionnaire_review" || text(action.status) !== "review_required") continue;
+    const review = asRecord(action.structuredOutput);
+    const count = [review.contradictions, review.planningRisks].reduce(
+      (sum: number, list) => sum + (Array.isArray(list) ? list.length : 0),
+      0,
+    );
+    flagsOnForm.set(text(action.id).replace(/^ai_questionnaire_/, ""), count);
+  }
   for (const action of rows(input.aiActions)) {
     if (text(action.status) !== "review_required") continue;
     // Already on its inquiry's card, above.
     if (mergedReplies.has(action.id)) continue;
+    if (
+      text(action.capability) === "questionnaire_review" &&
+      formsWithFollowup.has(text(action.id).replace(/^ai_questionnaire_/, ""))
+    )
+      continue;
     // A payment reminder is sent from its bill's overdue card. With no such
     // card the bill is paid, voided or no longer late: nothing to send.
     if (text(asRecord(asRecord(action.structuredOutput).paymentReminder).invoiceId)) continue;
@@ -2946,6 +2977,13 @@ export function todayInbox(input: TodayInput): TodayInbox {
           : null,
         eventFact(eventFor(action.projectId), now),
         waitingFact(changedAt(action), now),
+        // The form's review rides on this card (above): its flags, counted.
+        text(action.capability) === "planning_followup_draft"
+          ? (() => {
+              const flags = flagsOnForm.get(text(action.id).replace(/^ai_planning_followup_/, "")) ?? 0;
+              return flags ? `${flags} planning ${flags === 1 ? "flag" : "flags"} on the form` : null;
+            })()
+          : null,
       ].filter((fact): fact is string => Boolean(fact)),
       band: bandFor({ eventDate: eventFor(action.projectId), now }),
       eventDate: eventFor(action.projectId),

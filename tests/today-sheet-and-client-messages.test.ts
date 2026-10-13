@@ -650,3 +650,51 @@ test("a booked job's inquiry is answered by the booking, not left waiting on Tod
   const later = thread({ lastInboundAt: "2026-10-12T16:00:00.000Z", lastMessageAt: "2026-10-12T16:00:00.000Z" });
   assert.equal(clientCards(inboxOf({ projects: [bookedJob], conversations: [later], leads: [lead], contacts: [priyaContact] })).length, 1);
 });
+
+test("a form's review rides on its follow-up: one card per form, its flags counted", () => {
+  // UAT 2026-10-13 F2: two forms made four cards for one wedding.
+  const review = (form: string, flags: { contradictions?: string[]; planningRisks?: string[] }) => ({
+    id: `ai_questionnaire_${form}`,
+    tenantId: "t1",
+    projectId: "p1",
+    capability: "questionnaire_review",
+    status: "review_required",
+    title: `Review planning flags: ${form}`,
+    structuredOutput: { missingInformation: [], contradictions: [], planningRisks: [], ...flags },
+    createdAt: "2026-10-12T10:00:00.000Z",
+  });
+  const followup = (form: string) => ({
+    id: `ai_planning_followup_${form}`,
+    tenantId: "t1",
+    projectId: "p1",
+    capability: "planning_followup_draft",
+    status: "review_required",
+    title: `Approve follow-up: ${form}`,
+    structuredOutput: { subject: "A few details", body: "Could you confirm…", recipientEmail: PRIYA },
+    createdAt: "2026-10-12T10:00:00.000Z",
+  });
+  const inbox = inboxOf({
+    projects: [bookedJob],
+    aiActions: [
+      review("r1", { planningRisks: ["Travel between prep and venue"] }),
+      followup("r1"),
+      review("r2", {}),
+      followup("r2"),
+      review("r3", { contradictions: ["Two ceremony times"] }),
+    ],
+  });
+  const titles = inbox.approve.map((card) => card.title).sort();
+  assert.deepEqual(titles, ["Approve follow-up: r1", "Approve follow-up: r2", "Review planning flags: r3"]);
+  const r1 = inbox.approve.find((card) => card.title === "Approve follow-up: r1") as unknown as { facts: string[] };
+  assert.ok(r1.facts.includes("1 planning flag on the form"));
+});
+
+test("small UAT fixes stay in: the final balance to come, the publish banner, the booking re-reads", () => {
+  const payments = readFileSync("components/client/kit/client-payments.tsx", "utf8");
+  assert.match(payments, /if \(planRows\.length \|\| morning \|\| finalRaised\) return null;/);
+  assert.match(payments, /invoice to come/);
+  const generator = readFileSync("components/planning/ai-schedule-generator.tsx", "utf8");
+  assert.match(generator, /publishedDraft && publishedDraft === draft \? null/);
+  const booking = readFileSync("components/booking/project-booking-workspace.tsx", "utf8");
+  assert.match(booking, /for \(const delay of \[4000, 10000, 20000\]\)/);
+});

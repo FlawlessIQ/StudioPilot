@@ -184,6 +184,27 @@ export function ClientPayments() {
   );
   const plusTax = Boolean(agreedSalesTax && !agreedSalesTax.exempt);
   const morningAmount = morning ? money(morning.amountCents, morning.currency) : null;
+  /**
+   * The final balance they signed for, before its invoice exists. The page
+   * listed only bills already out, so after the deposit a couple saw "All
+   * paid" and a schedule of one, with $2,250 still to come in a fortnight
+   * (UAT 2026-10-13). A payment plan lists it already (planRows); a balance
+   * paid on the morning has its own row.
+   */
+  const upcomingFinal = useMemo(() => {
+    if (planRows.length || morning || finalRaised) return null;
+    const accepted = proposals.value
+      .filter((proposal) => proposal.status === "accepted")
+      .sort((left, right) => number(right.version) - number(left.version))[0];
+    const schedule = Array.isArray(accepted?.paymentSchedule) ? (accepted.paymentSchedule as Array<Record<string, unknown>>) : [];
+    const line = schedule.find(
+      (entry) =>
+        text(entry.kind) !== "retainer" &&
+        !["Retainer", "Payment in full", "Payment on the day"].includes(text(entry.label)) &&
+        number(entry.amountCents) > 0,
+    );
+    return line ? { amountCents: number(line.amountCents), dueDate: text(line.dueDate).slice(0, 10) || null } : null;
+  }, [planRows.length, morning, finalRaised, proposals.value]);
   const hostedUrl = due && typeof due.hostedUrl === "string" && due.hostedUrl ? due.hostedUrl : null;
   // An invoice the studio issued itself has no accounting app behind it: its
   // pay link is the studio's own page (own invoicing).
@@ -370,6 +391,18 @@ export function ClientPayments() {
                 }
               />
             ))}
+            {upcomingFinal ? (
+              <Row
+                subtitle={upcomingFinal.dueDate ? `Due ${date(upcomingFinal.dueDate)} · invoice to come` : "Invoice to come"}
+                title="Final balance"
+                trailing={
+                  <>
+                    <Pill>Upcoming</Pill>
+                    {money(upcomingFinal.amountCents, planCurrency)}
+                  </>
+                }
+              />
+            ) : null}
             {morning ? (
               <Row
                 subtitle={morning.eventDate ? `Due the morning of ${date(morning.eventDate)}` : "Due on the morning"}
