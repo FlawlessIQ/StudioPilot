@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { bookingGateRequirements } from "@/features/booking/gate-requirements";
-import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
+import { retainerDueFromSchedule, retainerFromSchedule } from "@/features/booking/agreed-retainer";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
 import { BookingGateService, evaluateBookingGate, type BookingCompletionStore } from "@/server/services/booking-gate-service";
 
@@ -469,4 +469,24 @@ test("a retainer can be waived only on the record, and the gate is actually told
   // The failure this replaces: the page always told the gate "no exception".
   const waiver = readFileSync("components/booking/book-without-retainer.tsx", "utf8");
   assert.match(waiver, /approvedRetainerExceptionId: exceptionId/);
+});
+
+test("the retainer is due on the date the client signed for, never in the past", () => {
+  // UAT 2026-10-13: the agreement said retainer due Oct 16, final balance
+  // Oct 27; own invoicing billed the deposit due Oct 27 on the studio's terms.
+  const schedule = [
+    { label: "Retainer", amountCents: 75000, dueDate: "2026-10-16" },
+    { label: "Final balance", amountCents: 225000, dueDate: "2026-10-27" },
+  ];
+  assert.equal(retainerDueFromSchedule(schedule, "2026-10-13"), "2026-10-16");
+  // Accepted after the agreed date: due today, not on a day already gone.
+  assert.equal(retainerDueFromSchedule(schedule, "2026-10-20"), "2026-10-20");
+  assert.equal(
+    retainerDueFromSchedule([{ label: "Payment in full", amountCents: 50000, dueDate: "2026-11-01" }], "2026-10-13"),
+    "2026-11-01",
+  );
+  // No dated retainer line: the caller's own terms apply.
+  for (const bad of [null, [], [{ label: "Retainer", amountCents: 100 }], [{ label: "Retainer", dueDate: "soon" }], [{ label: "Final balance", dueDate: "2026-10-27" }]]) {
+    assert.equal(retainerDueFromSchedule(bad, "2026-10-13"), null, JSON.stringify(bad));
+  }
 });

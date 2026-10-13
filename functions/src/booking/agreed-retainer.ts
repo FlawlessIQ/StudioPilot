@@ -51,6 +51,27 @@ export function paidInFullFromSchedule(schedule: unknown, fallbackCents: number)
   return Number.isInteger(total) && total > 0 ? total : fallbackCents;
 }
 
+/**
+ * The day the retainer is due, as the client agreed it: the date on the
+ * retainer (or payment-in-full) line of the schedule they signed. Own
+ * invoicing billed the deposit on the studio's default terms instead, so a
+ * couple who signed for a retainer due Oct 16 got an invoice due Oct 27 —
+ * the final balance's date (UAT 2026-10-13). A date already past by the time
+ * the invoice is raised is due today, never in the past. Null when the line
+ * carries no date, and the caller's own terms apply.
+ */
+export function retainerDueFromSchedule(schedule: unknown, today: string): string | null {
+  if (!Array.isArray(schedule)) return null;
+  const line = schedule.find(
+    (entry) =>
+      typeof entry === "object" && entry !== null && RETAINER_LABELS.includes(String((entry as { label?: unknown }).label)),
+  ) as { dueDate?: unknown } | undefined;
+  const due = typeof line?.dueDate === "string" ? line.dueDate : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return null;
+  return due > today ? due : today;
+}
+
+
 
 /** The same rule, against the project's accepted proposal. */
 export async function agreedRetainerCents(
@@ -80,4 +101,21 @@ export async function agreedRetainerCents(
   }
   if (accepted.empty) return fallback;
   return retainerFromSchedule(accepted.docs[0]!.get("paymentSchedule"), fallback);
+}
+
+/** The agreed retainer due date, against the project's accepted proposal. */
+export async function agreedRetainerDue(
+  db: Firestore,
+  tenantId: string,
+  projectId: string,
+  today: string,
+): Promise<string | null> {
+  const accepted = await db
+    .collection("proposals")
+    .where("tenantId", "==", tenantId)
+    .where("projectId", "==", projectId)
+    .where("status", "==", "accepted")
+    .limit(1)
+    .get();
+  return accepted.empty ? null : retainerDueFromSchedule(accepted.docs[0]!.get("paymentSchedule"), today);
 }

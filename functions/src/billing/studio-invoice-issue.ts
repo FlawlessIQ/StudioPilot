@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DocumentSnapshot, Firestore, Transaction } from "firebase-admin/firestore";
-import { agreedRetainerCents } from "../booking/agreed-retainer.js";
+import { agreedRetainerCents, agreedRetainerDue } from "../booking/agreed-retainer.js";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
 import { projectProfile } from "../job-kinds/job-kinds.js";
 import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
@@ -216,12 +216,16 @@ export async function draftStudioDeposit(
     settingsDoc.exists && settingsDoc.get("tenantId") === input.tenantId ? settingsDoc.data() : null,
   );
   const invoiceId = stableInvoiceId(input.tenantId, input.projectId, "deposit", input.trigger);
+  // Due when the client agreed to pay it; the studio's terms only when the
+  // signed schedule names no date.
+  const timeZone = text(project.get("timezone"));
+  const agreedDue = await agreedRetainerDue(db, input.tenantId, input.projectId, dueInDays(0, now, timeZone));
   const draft = depositDraft({
     amountCents,
     paidInFull: projectProfile(project.data()).payment === "paid_in_full",
     packageName: text(snapshot.get("packageName")) || "Your booking",
     currency: text(snapshot.get("currency")) || "USD",
-    dueDate: dueInDays(settings.dueDays, now, text(project.get("timezone"))),
+    dueDate: agreedDue ?? dueInDays(settings.dueDays, now, timeZone),
   });
   const written = await db.runTransaction((transaction) =>
     writeStudioInvoiceDraft(db, transaction, {

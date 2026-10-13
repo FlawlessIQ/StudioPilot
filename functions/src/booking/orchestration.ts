@@ -10,7 +10,7 @@ import {
 } from "firebase-admin/firestore";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
-import { agreedRetainerCents } from "./agreed-retainer.js";
+import { agreedRetainerCents, agreedRetainerDue, retainerDueFromSchedule } from "./agreed-retainer.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { jobCalledOff, refundOrKeepTask } from "./stopped-billing.js";
 import { bookingGateRequirements } from "./gate-requirements.js";
@@ -467,6 +467,9 @@ export const bookingContractCompleted = onDocumentWritten(
       packageSnapshot,
     );
     const days = Math.min(30, Math.max(1, Number(plan.get("policy.retainerDueDays") ?? 7)));
+    // The date the client signed for; the plan's policy only when it names none.
+    const timeZone = String(project.get("timezone") ?? "");
+    const retainerDue = (await agreedRetainerDue(db, tenantId, projectId, dueDate(0, now, timeZone))) ?? dueDate(days, now, timeZone);
     const eventDocument = productEvent({
       tenantId,
       projectId,
@@ -502,7 +505,7 @@ export const bookingContractCompleted = onDocumentWritten(
           // agreed to pay.
           amountCents: agreedRetainer,
           balanceCents: agreedRetainer,
-          dueDate: dueDate(days, now, String(project.get("timezone") ?? "")),
+          dueDate: retainerDue,
           hostedUrl: null,
           lastSyncedAt: now,
           lastProviderEventId: null,
@@ -1085,7 +1088,9 @@ async function bookWithoutAgreement(
           currency: packageSnapshot.get("currency") ?? "USD",
           amountCents,
           balanceCents: amountCents,
-          dueDate: dueDate(retainerDueDays, now, String(project.get("timezone") ?? "")),
+          dueDate:
+            retainerDueFromSchedule(proposal.get("paymentSchedule"), dueDate(0, now, String(project.get("timezone") ?? ""))) ??
+            dueDate(retainerDueDays, now, String(project.get("timezone") ?? "")),
           hostedUrl: null,
           lastSyncedAt: now,
           lastProviderEventId: null,
