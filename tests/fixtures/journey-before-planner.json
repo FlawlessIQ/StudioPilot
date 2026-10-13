@@ -1,5 +1,5 @@
 {
- "generatedFrom": "95ae3e82 (before the planner trade)",
+ "generatedFrom": "origin/main 0ea4cf52 (before the planner trade; regenerated after rebasing onto it)",
  "cases": [
   {
    "trade": "photographer",
@@ -5935,14 +5935,14 @@
       "href": "/studio/calendar?project=p1"
      },
      "owner": null,
-     "unlock": "Unlocks when the steps above are done.",
+     "unlock": null,
      "advance": null,
-     "explain": false,
+     "explain": true,
      "files": [],
      "key": "trial",
      "title": "Makeup trial",
-     "detail": "Optional — invite them from the Makeup trial card on this job whenever suits",
-     "status": "upcoming",
+     "detail": "Not booked, and no day is left before the wedding to hold it",
+     "status": "passed",
      "action": null
     },
     {
@@ -7230,14 +7230,14 @@
       "href": "/studio/calendar?project=p1"
      },
      "owner": null,
-     "unlock": "Unlocks when the steps above are done.",
+     "unlock": null,
      "advance": null,
-     "explain": false,
+     "explain": true,
      "files": [],
      "key": "trial",
      "title": "Hair trial",
-     "detail": "Optional — invite them from the Hair trial card on this job, best once the veil is chosen, so the style is built around it",
-     "status": "upcoming",
+     "detail": "Not booked, and no day is left before the wedding to hold it",
+     "status": "passed",
      "action": null
     },
     {

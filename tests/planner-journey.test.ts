@@ -57,7 +57,7 @@ import { budgetPrefillCents } from "../functions/src/planning/vendor-team";
  * Phase 2: N3–N7). Photographers, DJs, makeup and hair must not move: their
  * journeys are compared, step by step, against what the code produced before
  * the planner existed (tests/fixtures/journey-before-planner.json, generated
- * from 95ae3e82).
+ * from origin/main 0ea4cf52, the base the planner was rebased onto).
  */
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -465,7 +465,11 @@ test("a walkthrough is never the sales call, the final call or the trial", () =>
   assert.equal(currentSalesConsultation([walk]), null);
   assert.deepEqual(trialState({ consultations: [walk], now: "2027-05-01T00:00:00Z" }), { state: "not_booked", startsAt: null });
   const project = { eventDate: "2027-06-12", eventKind: "wedding" };
-  assert.equal(finalCallState({ project, planningTimeline: {}, consultations: [walk], today: "2027-05-20", now: "2027-05-20T00:00:00Z" })?.state, "invited");
+  // A walkthrough never stands in for the final call: the call reads as if it weren't there.
+  const callWith = finalCallState({ project, planningTimeline: {}, consultations: [walk], today: "2027-05-20", now: "2027-05-20T00:00:00Z" });
+  const callWithout = finalCallState({ project, planningTimeline: {}, consultations: [], today: "2027-05-20", now: "2027-05-20T00:00:00Z" });
+  assert.deepEqual(callWith, callWithout);
+  assert.ok(!["booked", "held"].includes(String(callWith?.state)));
   assert.deepEqual(walkthroughState({ consultations: [walk], project, now: "2027-05-01T00:00:00Z" }), { state: "booked", startsAt: walk.startsAt });
   assert.deepEqual(walkthroughState({ consultations: [walk], project, now: "2027-05-09T00:00:00Z" }), { state: "held", startsAt: walk.startsAt });
   assert.deepEqual(

@@ -398,6 +398,7 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
     },
     trial: null,
     trialHint: null,
+    trialBring: null,
     prepGuide: null,
     service: "planning",
     member: "coordinator",
