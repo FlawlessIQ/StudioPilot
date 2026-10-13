@@ -15,6 +15,7 @@ import { tradeOf, tradeProfile } from "../trades/trades.js";
 import { newestPartyNames, type BeautyService } from "./party-list.js";
 import { FINAL_DETAILS_STATES, finalDetailsDue, finalDetailsToday } from "./final-details-due.js";
 import { vendorAskOwedFor } from "./vendor-team.js";
+import { answersResolvedFor, resolveAnswers } from "./resolved-answers.js";
 
 /**
  * The couple's final details, confirmed when they lock.
@@ -122,9 +123,17 @@ export async function finalDetailsSnapshot(db: Firestore, tenantId: string, proj
   const returned = responses.docs
     .filter((response) => isReturned(response.get("status")) && !response.get("archivedAt"))
     .sort((left, right) => text(left.get("submittedAt")).localeCompare(text(right.get("submittedAt"))));
+  // One answer per question across the forms (resolved-answers.ts): each form's
+  // questions carry the newest real answer from any form, so a "TBD" from the
+  // inquiry never stands beside — or over — the time the final schedule gave.
+  const resolved = resolveAnswers(responses.docs.map((response) => ({ id: response.id, ...(response.data() as Record<string, unknown>) })));
   const byQuestion = new Map<string, { question: string; answer: string }>();
   for (const response of returned)
-    for (const row of contractFormAnswers({ sections: record(response.get("templateSnapshot")).sections, answers: response.get("answers"), limit: 60 }))
+    for (const row of contractFormAnswers({
+      sections: record(response.get("templateSnapshot")).sections,
+      answers: answersResolvedFor(resolved, { id: response.id, ...(response.data() as Record<string, unknown>) }),
+      limit: 60,
+    }))
       byQuestion.set(row.question.trim().toLowerCase(), row);
   const eventDate = text(project.get("eventDate")).slice(0, 10);
   const details = eventDetailsFrom({

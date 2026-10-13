@@ -181,18 +181,25 @@ function anchorKey(anchor: string): string {
 const norm = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const words = (value: unknown) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
-function answerFor(answers: Record<string, unknown>, keys: readonly string[]): string {
-  for (const key of keys) {
-    const direct = answers[key];
-    if (typeof direct === "string" && direct.trim()) return direct.trim();
-    const target = norm(key);
-    const loose = Object.entries(answers).find(([candidate]) => norm(candidate) === target)?.[1];
-    if (typeof loose === "string" && loose.trim()) return loose.trim();
-  }
-  return "";
-}
-
 const isTbdAnswer = (value: string) => /^\s*(tbd|tbc|to be (decided|determined|confirmed))\s*$/i.test(value);
+
+/**
+ * The first real answer under any of these keys; a "TBD" only when none of
+ * them holds anything real — an alias answered "TBD" on the Event details
+ * must not hide the time another key holds (GR, 2026-10-13).
+ */
+function answerFor(answers: Record<string, unknown>, keys: readonly string[]): string {
+  let undecided = "";
+  for (const key of keys) {
+    const target = norm(key);
+    for (const value of [answers[key], Object.entries(answers).find(([candidate]) => norm(candidate) === target)?.[1]]) {
+      if (typeof value !== "string" || !value.trim()) continue;
+      if (!isTbdAnswer(value)) return value.trim();
+      undecided ||= value.trim();
+    }
+  }
+  return undecided;
+}
 
 /** A clock the couple gave: "16:30", "4:30 PM", or an ISO time on the day. */
 function clockAnswer(value: string): string | null {

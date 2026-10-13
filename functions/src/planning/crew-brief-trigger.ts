@@ -7,6 +7,7 @@ import { saveFormBillingAddress } from "../contacts/address-from-form.js";
 import { fillVenueFromForm } from "./venue-from-form.js";
 import { openFinalDetailsIfDue, refreshAwaitingSignoff } from "./final-details.js";
 import { isReturned } from "./questionnaire-lifecycle.js";
+import { syncJobAnswers } from "./job-answers-sync.js";
 
 /**
  * Whether this write is the client's form coming back, or the party list on
@@ -17,11 +18,21 @@ export function formJustReturned(before: Record<string, unknown> | undefined, af
   if (after.archivedAt || !isReturned(after.status)) return false;
   if (typeof after.tenantId !== "string" || typeof after.projectId !== "string") return false;
   if (!before || !isReturned(before.status)) return true;
-  const partyList = (row: Record<string, unknown>) => {
-    const answers = row.answers;
-    return typeof answers === "object" && answers !== null ? (answers as Record<string, unknown>)["party-list"] : undefined;
-  };
-  return JSON.stringify(partyList(before) ?? null) !== JSON.stringify(partyList(after) ?? null);
+  // Any answer changed on a returned form, not only the party list: a couple
+  // fixing a time on their Event details after the sign-off was asked must see
+  // the fix in what they confirm (GR Productions, 2026-10-13). The studio
+  // locking it is the same answers.
+  return JSON.stringify(before.answers ?? null) !== JSON.stringify(after.answers ?? null);
+}
+
+/** Whether a write changed what the form says. A review, a reminder stamp or a note is not a change. */
+export function answersChanged(before: Record<string, unknown> | undefined, after: Record<string, unknown> | undefined): boolean {
+  if (!before || !after) return true;
+  return (
+    JSON.stringify(before.answers ?? null) !== JSON.stringify(after.answers ?? null) ||
+    String(before.status ?? "") !== String(after.status ?? "") ||
+    Boolean(before.archivedAt) !== Boolean(after.archivedAt)
+  );
 }
 
 /**
@@ -95,6 +106,36 @@ export const crewBriefOnQuestionnaireWrite = onDocumentWritten(
     // couple sends the form again. Their half-made edits are not the plan,
     // and deleting the brief would take the do-not-photograph list with it.
     if (after && !after.archivedAt && String(after.status) === "reopened") return;
+    // What the form says changed: every brief and review on the job follows
+    // the job's answers as they now stand (planning/job-answers-sync.ts). Its
+    // own failure falls back to this form's brief below.
+    // Nothing the briefs read changed (a review written, a reminder stamped,
+    // this sync's own "superseded"): nothing to do, and no loop.
+    if (!answersChanged(event.data?.before?.data(), after)) return;
+    // A draft being filled in (autosaves) — sent back neither before nor
+    // after this write — changes nothing a brief or a review reads.
+    const sentBack = (row: Record<string, unknown> | undefined) => Boolean(row) && !row!.archivedAt && isReturned(row!.status);
+    if (!sentBack(event.data?.before?.data()) && !sentBack(after)) return;
+    const tenantId = String((after ?? event.data?.before?.data())?.tenantId ?? "");
+    const projectId = String((after ?? event.data?.before?.data())?.projectId ?? "");
+    if (tenantId && projectId) {
+      const synced = await syncJobAnswers(getFirestore(), {
+        tenantId,
+        projectId,
+        video: await jobHasVideo(tenantId, projectId),
+        now: new Date().toISOString(),
+      }).catch((caught: unknown) => {
+        console.error(JSON.stringify({ severity: "ERROR", event: "job_answers.sync_failed", responseId, reason: caught instanceof Error ? caught.message : String(caught) }));
+        return null;
+      });
+      if (synced) {
+        if (synced.superseded.length || synced.rerun.length)
+          console.log(JSON.stringify({ severity: "INFO", event: "job_answers.reviews_followed", responseId, superseded: synced.superseded, rerun: synced.rerun }));
+        const shareableNow = after && !after.archivedAt && ["submitted", "locked"].includes(String(after.status));
+        if (!shareableNow) await reference.delete();
+        return;
+      }
+    }
     const shareable =
       after &&
       !after.archivedAt &&

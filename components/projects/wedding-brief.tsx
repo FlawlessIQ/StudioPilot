@@ -1,6 +1,7 @@
 "use client";
 
 import { FileLinks } from "@/components/documents/file-link";
+import { answersResolvedFor, resolveAnswers } from "@/features/questionnaires/resolved-answers";
 import { jobKindOf, vocab } from "@/features/job-kinds/job-kinds";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -85,19 +86,28 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
         })[0],
     [responses.records, projectId],
   );
+  // Its answers are the job's (features/questionnaires/resolved-answers.ts): the
+  // form edited last could be the Event details, still saying "TBD" for what
+  // the Final schedule settled (GR, 2026-10-13).
+  const resolved = useMemo(
+    () =>
+      resolveAnswers(
+        ((responses.records ?? []) as Row[])
+          .filter((row) => row.projectId === projectId)
+          .map((row) => ({ ...row, id: String(row.id) })),
+      ),
+    [responses.records, projectId],
+  );
   const facts = useMemo(
     () =>
       response
         ? briefFacts({
             responseId: response.id,
             fields: snapshotFields(response.templateSnapshot),
-            answers:
-              typeof response.answers === "object" && response.answers !== null
-                ? (response.answers as Record<string, unknown>)
-                : {},
+            answers: answersResolvedFor(resolved, { ...response, id: String(response.id) }) as Record<string, unknown>,
           })
         : null,
-    [response],
+    [response, resolved],
   );
   const schedule = useMemo(
     () =>

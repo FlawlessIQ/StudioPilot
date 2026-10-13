@@ -1,4 +1,5 @@
 import { isSalesConsultation } from "../booking/consultation-purpose.js";
+import { answersResolvedFor, formFreshness, resolveAnswers } from "../planning/resolved-answers.js";
 import { capExpiryAtEvent } from "../booking/proposal-expiry.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
@@ -1371,7 +1372,17 @@ async function executeReadTool(
         scopedDocuments("tasks", tenantId, scope),
         scopedDocuments("schedules", tenantId, scope),
         scopedDocuments("insuranceRequests", tenantId, scope),
-        scopedDocuments("questionnaireResponses", tenantId, scope),
+        // The raw forms, not `compact`'s allowlist: that kept only the
+        // planning package and approval state, so the answers below were
+        // always null and the resolver had nothing to resolve. Projected
+        // field by field where they're returned.
+        getFirestore()
+          .collection("questionnaireResponses")
+          .where("tenantId", "==", tenantId)
+          .where("projectId", "==", projectId)
+          .limit(60)
+          .get()
+          .then((snapshot) => snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Json) }))),
         scopedDocuments("readinessAssessments", tenantId, scope),
         /**
          * What the couple actually said.
@@ -1447,17 +1458,33 @@ async function executeReadTool(
        * consultation. The answers are the client's own words and are fenced
        * like any other untrusted content.
        */
-      questionnaires: questionnaires.map((item) => ({
-        id: item.id,
-        projectId: item.projectId,
-        planningPackage: item.planningPackage,
-        approvalState: item.approvalState,
-        templateName: item.templateName ?? null,
-        status: item.status ?? null,
-        completionPercent: item.completionPercent ?? null,
-        submittedAt: item.submittedAt ?? null,
-        answers: item.answers ?? null,
-      })),
+      // Each form's answers as the job now stands (planning/resolved-answers.ts):
+      // a question the Event details left "TBD" carries the Final schedule's
+      // answer, and a review whose questions are all answered since says so
+      // rather than repeating its old "missing" list (GR, 2026-10-13).
+      questionnaires: (() => {
+        const forms = questionnaires.map((item) => ({ ...(item as Json), id: String(item.id) }) as Json & { id: string });
+        const resolved = resolveAnswers(forms);
+        return forms.map((item) => {
+          const freshness = formFreshness(resolved, item);
+          const settledAll = (item.aiReview as Json | undefined)?.status === "superseded" || (freshness.settled.length > 0 && freshness.open.length === 0);
+          const planningPackage = item.planningPackage as Json | undefined;
+          return {
+            id: item.id,
+            projectId: item.projectId,
+            planningPackage: settledAll && planningPackage
+              ? { ...planningPackage, missingInformation: [], suggestedQuestions: [], status: "answered_since" }
+              : planningPackage,
+            approvalState: item.approvalState,
+            templateName: item.templateName ?? null,
+            status: item.status ?? null,
+            completionPercent: item.completionPercent ?? null,
+            submittedAt: item.submittedAt ?? null,
+            answers: item.answers ? answersResolvedFor(resolved, item) : null,
+            answeredSince: freshness.settled.map((settled) => ({ question: settled.label, on: settled.formName })),
+          };
+        });
+      })(),
       messages,
       /**
        * Null means no package chosen; an object means one is. Stated rather

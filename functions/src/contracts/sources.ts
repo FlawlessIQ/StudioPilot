@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { answersResolvedFor, resolveAnswers } from "../planning/resolved-answers.js";
 import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
 import { detailsLockOn, resolvePlanningTimeline, type PlanningTimeline } from "../planning/planning-timeline.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
@@ -201,18 +202,29 @@ export async function loadContractSources(
     .where("projectId", "==", project.id)
     .get();
   // Sent back counts: `submitted`, and `locked` once the studio has locked it.
-  const submitted = questionnaires.docs
-    .filter((document) => isReturned(document.get("status")))
-    .sort((left, right) =>
-      text(left.get("submittedAt")).localeCompare(text(right.get("submittedAt"))),
-    )
-    .at(-1);
-  const formAnswers = submitted
-    ? contractFormAnswers({
-        sections: record(submitted.get("templateSnapshot")).sections,
-        answers: submitted.get("answers"),
-      })
-    : [];
+  // Every returned form, not just the newest: a shot list sent back after the
+  // event details left Schedule A reading "To be confirmed" for the whole day.
+  // Each question carries the job's answer to it (planning/resolved-answers.ts):
+  // the newest real one from any form, never a "TBD" over a settled time.
+  const resolved = resolveAnswers(questionnaires.docs.map((document) => ({ id: document.id, ...(document.data() as Record<string, unknown>) })));
+  const byQuestion = new Map<string, { question: string; answer: string }>();
+  for (const document of questionnaires.docs
+    .filter((candidate) => isReturned(candidate.get("status")) && !candidate.get("archivedAt"))
+    .sort((left, right) => text(left.get("submittedAt")).localeCompare(text(right.get("submittedAt"))))) {
+    // The same wording twice on one form is two rows; across forms, one.
+    const seenHere = new Map<string, number>();
+    for (const row of contractFormAnswers({
+      sections: record(document.get("templateSnapshot")).sections,
+      answers: answersResolvedFor(resolved, { id: document.id, ...(document.data() as Record<string, unknown>) }),
+    })) {
+      const wording = row.question.trim().toLowerCase();
+      const occurrence = (seenHere.get(wording) ?? 0) + 1;
+      seenHere.set(wording, occurrence);
+      byQuestion.set(occurrence > 1 ? `${wording}#${occurrence}` : wording, row);
+    }
+  }
+  // The lock-day sign-off's limit: a contract is no place for a whole shot list.
+  const formAnswers = [...byQuestion.values()].slice(0, 60);
   const client = record(proposal.get("clientSnapshot"));
   const event = record(proposal.get("eventSnapshot"));
   const pricing = record(proposal.get("pricingSnapshot"));

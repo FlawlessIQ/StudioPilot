@@ -6,6 +6,7 @@ import { INVOICE_PDF_JOB_TYPE, storeStudioInvoicePdf, studioInvoicePdfInput } fr
 import { TWELVE_HOUR_PART, US_ENGLISH_PART } from "../ai/language.js";
 import { twelveHourTimes } from "../ai/clock-words.js";
 import { loadJobFactSheet } from "../planning/job-facts.js";
+import { isBlankValue, isTbdValue, resolveAnswers, resolvedFor } from "../planning/resolved-answers.js";
 import { SETTLED_FACTS_INSTRUCTION, answerForPeople, settledAtTrial, settledJobFacts } from "../planning/questionnaire-review-facts.js";
 import { enrichCapturedLead } from "../intake/enrich.js";
 import { convertInquiryToJob } from "../intake/convert.js";
@@ -496,7 +497,26 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     const value=record(section);
     return Array.isArray(value.fields)?value.fields.map(record):[];
   }).filter(field=>field.internalOnly!==true&&field.type!=="information");
-  const answers=record(response.get("answers"));
+  // The job's answers, one per question across every form it has sent back
+  // (planning/resolved-answers.ts): a question this form left blank or "TBD"
+  // that a newer form settled is settled, never flagged or asked for again
+  // (GR Productions, 2026-10-13).
+  const jobForms=project.exists&&project.get("tenantId")===job.get("tenantId")
+    ?await db.collection("questionnaireResponses").where("tenantId","==",string(job.get("tenantId"))).where("projectId","==",project.id).get().catch(()=>null)
+    :null;
+  const resolved=resolveAnswers((jobForms?.docs??[response]).map(form=>({id:form.id,...(form.data()??{})})));
+  const ownAnswers=record(response.get("answers"));
+  const settledElsewhere:Array<{fieldId:string;label:string;value:unknown;form:string;responseId:string}>=[];
+  const answers:Record<string,unknown>={...ownAnswers};
+  for(const field of fields){
+    const fieldId=string(field.id);
+    const own=ownAnswers[fieldId];
+    if(!isBlankValue(own)&&!isTbdValue(own))continue;
+    const settled=resolvedFor(resolved,responseId,fieldId);
+    if(!settled||settled.status!=="answered"||settled.responseId===responseId)continue;
+    answers[fieldId]=settled.value;
+    settledElsewhere.push({fieldId,label:string(field.label)||fieldId,value:settled.value,form:settled.formName,responseId:settled.responseId});
+  }
   const deterministicMissing=fields
     .filter(field=>field.required===true)
     .filter(field=>{
@@ -514,7 +534,9 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
       /vendor|planner|coordinator|dj|florist|venue contact|cater/.test(normalized)?"vendors":
       /time|timeline|schedule|coverage|ceremony|reception|first look/.test(normalized)?"schedule":
       /location|address|travel|parking|access|transport/.test(normalized)?"logistics":"preferences";
-    return[{fieldId,label,category,value:answer,source:{entityType:"questionnaire_response",entityId:responseId,locator:`answers.${fieldId}`}}];
+    // Cited where it was given: a detail settled on another form names that form.
+    const from=settledElsewhere.find(item=>item.fieldId===fieldId);
+    return[{fieldId,label,category,value:answer,source:{entityType:"questionnaire_response",entityId:from?.responseId??responseId,locator:`answers.${fieldId}`}}];
   });
   // A time field as a person reads it: a form's "07:30" reached the model and
   // came back as a flag about "07:30" (Jess Styles Bridal, 2026-10-12). Free
@@ -523,6 +545,8 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
   const facts={
     project:{name:project.get("name"),eventType:project.get("eventType"),eventDate:project.get("eventDate"),venueName:project.get("venueName"),city:project.get("city")},
     settledJobFacts:settledJobFacts(factSheet),
+    // Answered since on another form: settled, whatever this form said.
+    settledOnOtherForms:settledElsewhere.map(item=>({question:item.label,answer:answerForPeople(typeOf.get(item.fieldId)??"",item.value),form:item.form})),
     settledAtTrial:settledAtTrial(project.get("trialNotes")),
     questionnaire:fields.map(field=>({id:string(field.id),label:string(field.label),required:Boolean(field.required),answer:answerForPeople(string(field.type),answers[string(field.id)]??null)})),
     categorizedPlanningFacts:categorizedFacts.map(item=>({...item,value:answerForPeople(typeOf.get(item.fieldId)??"",item.value)})),
@@ -593,9 +617,21 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     ...missingInformation.map((message)=>({code:"MISSING_INFORMATION",severity:"warning",message,field:null})),
     ...aiReview.contradictions.map((message)=>({code:"POSSIBLE_CONTRADICTION",severity:"warning",message,field:null})),
   ];
+  // A re-run (a studio correction, or a later form settling what this one
+  // left open: planning/job-answers-sync.ts) never reopens what a person has
+  // already decided: an approved, sent or dismissed review or follow-up stays.
+  const OPEN_ACTION=["review_required","superseded","draft","pending"];
+  const followupActionId=`ai_planning_followup_${responseId}`;
+  const [priorReview,priorFollowup]=await Promise.all([db.doc(`aiActions/${actionId}`).get(),db.doc(`aiActions/${followupActionId}`).get()]);
+  const reviewOpen=!priorReview.exists||OPEN_ACTION.includes(String(priorReview.get("status")??""));
+  const followupOpen=!priorFollowup.exists||OPEN_ACTION.includes(String(priorFollowup.get("status")??""));
+  // Nothing left to ask: no follow-up to approve, and an open one is withdrawn.
+  const somethingToAsk=missingInformation.length>0||aiReview.suggestedQuestions.length>0;
   const batch=db.batch();
   batch.update(response.ref,{aiReview,planningPackage,aiReviewedAt:now,updatedAt:now,updatedBy:"vertex-ai-worker"});
-  batch.set(db.doc(`aiActions/${actionId}`),{
+  if(followupOpen&&!somethingToAsk&&priorFollowup.exists&&priorFollowup.get("status")!=="superseded")
+    batch.update(db.doc(`aiActions/${followupActionId}`),{status:"superseded",supersededAt:now,supersededReason:"nothing_left_to_ask",updatedAt:now,updatedBy:"vertex-ai-worker"});
+  if(reviewOpen)batch.set(db.doc(`aiActions/${actionId}`),{
     id:actionId,
     tenantId:job.get("tenantId"),
     projectId,
@@ -625,8 +661,7 @@ async function runQuestionnaireAnalysis(job:DocumentSnapshot){
     updatedBy:"vertex-ai-worker",
     archivedAt:null,
   },{merge:true});
-  if(followupBody&&clientContact?.exists&&string(clientContact.get("email"))){
-    const followupActionId=`ai_planning_followup_${responseId}`;
+  if(followupOpen&&somethingToAsk&&followupBody&&clientContact?.exists&&string(clientContact.get("email"))){
     batch.set(db.doc(`aiActions/${followupActionId}`),{
       id:followupActionId,
       tenantId:job.get("tenantId"),

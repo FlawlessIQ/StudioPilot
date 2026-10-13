@@ -84,8 +84,10 @@ const source = (path: string) => readFileSync(`${process.cwd()}/${path}`, "utf8"
 test("only a sent-back response reaches the contract", () => {
   const sources = source("functions/src/contracts/sources.ts");
   // `submitted`, or `locked` once the studio locks it; never a draft.
-  assert.match(sources, /\.filter\(\(document\) => isReturned\(document\.get\("status"\)\)\)/);
-  assert.match(sources, /contractFormAnswers\(\{\s*sections: record\(submitted\.get\("templateSnapshot"\)\)\.sections,\s*answers: submitted\.get\("answers"\),/);
+  assert.match(sources, /\.filter\(\(candidate\) => isReturned\(candidate\.get\("status"\)\) && !candidate\.get\("archivedAt"\)\)/);
+  // Every returned form, each question carrying the job's resolved answer (GR, 2026-10-13):
+  // the newest form alone dropped the event details when the shot list came back last.
+  assert.match(sources, /contractFormAnswers\(\{\s*sections: record\(document\.get\("templateSnapshot"\)\)\.sections,\s*answers: answersResolvedFor\(resolved,/);
   assert.match(sources, /where\("tenantId", "==", project\.get\("tenantId"\)\)/);
   assert.match(sources, /formAnswers,/);
 });

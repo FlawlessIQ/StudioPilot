@@ -59,6 +59,7 @@ import {
 import { scheduleCrewOptions } from "@/features/schedules/crew-options";
 import { crewLabels, sortLabels } from "@/features/schedules/crew-labels";
 import { useVendorTeam } from "@/components/vendors/use-vendor-team";
+import { jobAnswerRecord } from "@/features/questionnaires/resolved-answers";
 import { noEmailPublishWarning, vendorArrivalLines, vendorCategoryLabel } from "@/features/vendors/team";
 import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -301,22 +302,20 @@ export function AiScheduleGenerator({
   /**
    * Everything the couple has told the studio, across every form on the job:
    * the event details and the final schedule are separate forms, and the day
-   * needs both. Newest answer wins.
+   * needs both. One answer per question (features/questionnaires/resolved-answers.ts):
+   * the newest real answer, never a "TBD" over a time a later form settled —
+   * merged by when each form was last touched, a typo fixed on the Event
+   * details brought its TBDs back over the Final schedule (GR, 2026-10-13).
    */
-  const jobAnswers = useMemo(() => {
-    const merged: Record<string, unknown> = {};
-    (questionnaires ?? [])
-      .filter((response) => response.projectId === projectId && response.status !== "archived" && !response.withdrawnAt)
-      .sort((left, right) =>
-        String(left.updatedAt ?? left.submittedAt ?? "").localeCompare(String(right.updatedAt ?? right.submittedAt ?? "")),
-      )
-      .forEach((response) => {
-        for (const [key, value] of Object.entries(record(response.answers))) {
-          if (value !== null && value !== undefined && String(value).trim() !== "") merged[key] = value;
-        }
-      });
-    return merged;
-  }, [projectId, questionnaires]);
+  const jobAnswers = useMemo(
+    () =>
+      jobAnswerRecord(
+        (questionnaires ?? [])
+          .filter((response) => response.projectId === projectId && !response.withdrawnAt)
+          .map((response) => ({ ...response, id: String(response.id) })),
+      ),
+    [projectId, questionnaires],
+  );
   const crewOptions = useMemo(
     () =>
       scheduleCrewOptions({

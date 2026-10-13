@@ -161,6 +161,8 @@ export type EarlierAnswer = {
   value: unknown;
   responseId: string;
   fieldId: string;
+  /** When it was answered: the newest answer to a question is the one a prefill takes. */
+  answeredAt?: string;
 };
 
 export type JobFactSheet = {
@@ -407,10 +409,21 @@ export function jobFactSheet(input: {
         // Only what a person gave: a prefill copied onward would launder a guess.
         const source = text(record(provenance[fieldId]).sourceType);
         if (source && !ANSWERED_BY_PEOPLE.has(source)) continue;
-        earlier.push({ label: normalisedQuestion(field.label ?? fieldId), type: text(field.type), value, responseId: response.id, fieldId });
+        earlier.push({
+          label: normalisedQuestion(field.label ?? fieldId),
+          type: text(field.type),
+          value,
+          responseId: response.id,
+          fieldId,
+          answeredAt: text(record(provenance[fieldId]).changedAt) || text(data.submittedAt) || text(data.updatedAt) || text(data.createdAt),
+        });
       }
     }
   }
+  // Newest answer first: a prefill takes the first match, and the forms came
+  // back from an unordered query, so an older answer could fill a later form
+  // over a newer one (GR, 2026-10-13; planning/resolved-answers.ts has the rule).
+  earlier.sort((left, right) => text(right.answeredAt).localeCompare(text(left.answeredAt)) || left.responseId.localeCompare(right.responseId));
   return { facts, earlier, booked: jobIsBooked(project.state) };
 }
 

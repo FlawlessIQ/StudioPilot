@@ -97,4 +97,4 @@ export function settledAtTrial(trialNotes: unknown): Record<string, string> | nu
  * settled facts as more context and still asks the client to confirm them.
  */
 export const SETTLED_FACTS_INSTRUCTION =
-  " settledJobFacts and settledAtTrial are what the studio already knows about this job, from the booking, the inquiry and the trial. Never list any of it as missing, never ask the client for it again, and never question a detail it already answers (an extension color or length the trial noted, a ready-by time the booking holds). Flag a form answer that contradicts it as a possible contradiction.";
+  " settledJobFacts, settledAtTrial and settledOnOtherForms are what the studio already knows about this job, from the booking, the inquiry, the trial and the client's other forms (a question this form left blank or TBD that a later form answered is answered; the questionnaire answers already show it). Never list any of it as missing, never ask the client for it again, and never question a detail it already answers (an extension color or length the trial noted, a ready-by time the booking holds). Flag a form answer that contradicts it as a possible contradiction.";

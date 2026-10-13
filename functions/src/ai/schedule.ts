@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { answersResolvedFor, resolveAnswers } from "../planning/resolved-answers.js";
 import { US_ENGLISH_PART } from "./language.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
@@ -533,6 +534,13 @@ export const aiScheduleCommand = onRequest(
         })),
       );
       const crewAliases = crewIdAliases(crewFacts);
+      // Each form's answers as the job now stands (planning/resolved-answers.ts):
+      // the model saw an inquiry's "TBD" beside the final schedule's time with no
+      // rule for which wins; now every copy of a question carries the newest
+      // real answer (GR, 2026-10-13).
+      const resolvedForms = resolveAnswers(
+        questionnaires.docs.map((item) => ({ id: item.id, ...(item.data() as Record<string, unknown>) })),
+      );
       const questionnaireFacts = questionnaires.docs
         .filter((item) =>
           ["submitted", "locked"].includes(String(item.get("status"))),
@@ -540,7 +548,7 @@ export const aiScheduleCommand = onRequest(
         .map((item) => ({
           sourceId: item.id,
           templateName: item.get("templateName"),
-          answers: item.get("answers"),
+          answers: answersResolvedFor(resolvedForms, { id: item.id, ...(item.data() as Record<string, unknown>) }),
           answerProvenance: item.get("answerProvenance"),
         }));
       const approvedTimingRules = timingRules.docs

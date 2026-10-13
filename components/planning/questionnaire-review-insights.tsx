@@ -8,8 +8,24 @@ import { useWorkspace } from "@/features/auth/workspace-context";
 import { twelveHourTimes } from "@/features/ai/clock-words";
 import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
+import {
+  flagMentions,
+  formFreshness,
+  resolveAnswers,
+  resolvedFor,
+  reviewSettled,
+  type ResolvableResponse,
+} from "@/features/questionnaires/resolved-answers";
+
+/** An answer as a person reads it: a time in 12-hour form, a list joined. */
+const answerText = (value: unknown) =>
+  Array.isArray(value) ? value.map(String).join(", ") : twelveHourTimes(String(value ?? ""));
+
 
 type Review = {
+  /** Every question it asked about has been answered on a later form (planning/job-answers-sync.ts). */
+  settledSince: Array<{ label: string; value: string; formName: string }>;
+  allSettled: boolean;
   summary: string;
   missingInformation: string[];
   contradictions: string[];
@@ -42,6 +58,8 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
           id: "demo-planning-review",
           name: "Wedding Planning v4",
           review: {
+            settledSince: [],
+            allSettled: false,
             summary: "Planning details are organized; the family photo list still needs confirmation.",
             missingInformation: ["Family photo list"],
             contradictions: [],
@@ -67,6 +85,12 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
         where("projectId", "==", projectId),
       ),
     ).then((snapshot) => {
+      // The job's answers as they stand now, across every form
+      // (features/questionnaires/resolved-answers.ts): a review written when a
+      // form said "TBD" shows what a later form settled, and drops the flags
+      // and questions about it (GR Productions, 2026-10-13).
+      const forms: ResolvableResponse[] = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+      const resolved = resolveAnswers(forms);
       setReviews(
         snapshot.docs.flatMap((document) => {
           const value = document.get("aiReview");
@@ -79,23 +103,37 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
             ? planningPackage.facts.flatMap((item) => {
                 if (!item || typeof item !== "object" || Array.isArray(item)) return [];
                 const fact = item as Record<string, unknown>;
+                const fieldId = String(fact.fieldId ?? "");
+                const now = resolvedFor(resolved, document.id, fieldId);
                 return [{
-                  fieldId: String(fact.fieldId ?? ""),
+                  fieldId,
                   label: String(fact.label ?? fact.fieldId ?? "Planning detail"),
                   category: String(fact.category ?? "preferences"),
-                  value: fact.value,
+                  // What the job says now, not what this form said then.
+                  value: now && now.status === "answered" ? now.value : fact.value,
                 }];
               })
             : [];
+          const freshness = formFreshness(resolved, forms.find((form) => form.id === document.id)!);
+          const settledLabels = freshness.settled.map((item) => item.label);
+          const openLabels = freshness.open.map((item) => item.label);
+          // A missing detail or a question about something settled since goes;
+          // one also about something still open stays. Contradictions and
+          // risks are never hidden: they stand until a person clears them.
+          const current = (items: string[]) =>
+            items.filter((item) => !flagMentions(item, settledLabels) || flagMentions(item, openLabels));
+          const allSettled = review.status === "superseded" || reviewSettled(freshness, review);
           return [{
             id: document.id,
             name: String(document.get("templateName") ?? "Questionnaire"),
             review: {
+              settledSince: freshness.settled.map((item) => ({ label: item.label, value: answerText(item.value), formName: item.formName })),
+              allSettled,
               summary: twelveHourTimes(String(review.summary ?? "")),
-              missingInformation: strings(review.missingInformation),
+              missingInformation: allSettled ? [] : current(strings(review.missingInformation)),
               contradictions: strings(review.contradictions),
               planningRisks: strings(review.planningRisks),
-              suggestedQuestions: strings(review.suggestedQuestions),
+              suggestedQuestions: allSettled ? [] : current(strings(review.suggestedQuestions)),
               planningFacts,
             },
           }];
@@ -118,7 +156,16 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
       </div>
       {reviews.map(({ id, name, review }) => (
         <article className="panel questionnaire-ai-card" key={id}>
-          <header><span><small>{name}</small><h3>{review.summary}</h3></span><strong>Human review required</strong></header>
+          <header>
+            <span><small>{name}</small><h3>{review.summary}</h3></span>
+            <strong>{review.allSettled ? "Answered since" : "Human review required"}</strong>
+          </header>
+          {review.settledSince.length ? (
+            <p className="questionnaire-ai-settled">
+              {review.allSettled ? "Everything this review asked about has been answered since: " : "Answered since: "}
+              {review.settledSince.map((item) => `${item.label} ${item.value} (${item.formName})`).join("; ")}.
+            </p>
+          ) : null}
           <div>
             <section>
               <h4><Sparkles size={15} /> Planning package</h4>
@@ -127,9 +174,7 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
                   {review.planningFacts.slice(0, 8).map((fact) => (
                     <li key={`${fact.category}-${fact.fieldId}`}>
                       <strong>{fact.label}:</strong>{" "}
-                      {Array.isArray(fact.value)
-                        ? fact.value.map(String).join(", ")
-                        : String(fact.value ?? "")}
+                      {answerText(fact.value)}
                     </li>
                   ))}
                 </ul>
@@ -140,9 +185,11 @@ export function QuestionnaireReviewInsights({ projectId }: { projectId: string }
             <section><h4><CircleAlert size={15} /> Risks or conflicts</h4>{review.planningRisks.length || review.contradictions.length ? <ul>{[...review.planningRisks, ...review.contradictions].map((item) => <li key={item}>{item}</li>)}</ul> : <p>No conflicts were suggested.</p>}</section>
             <section><h4><MessageCircleQuestion size={15} /> Follow-up questions</h4>{review.suggestedQuestions.length ? <ul>{review.suggestedQuestions.map((item) => <li key={item}>{item}</li>)}</ul> : <p>No follow-up questions were suggested.</p>}</section>
           </div>
-          <Link className="button button-dark" href={`/studio/projects/${projectId}`}>
-            Review prepared follow-up
-          </Link>
+          {review.allSettled ? null : (
+            <Link className="button button-dark" href={`/studio/projects/${projectId}`}>
+              Review prepared follow-up
+            </Link>
+          )}
         </article>
       ))}
     </section>
