@@ -27,6 +27,9 @@ export type AvailabilityWindow = z.infer<typeof availabilityWindowSchema>;
 export const availabilityModeSchema = z.enum(["closed_default", "open_default"]);
 export type AvailabilityMode = z.infer<typeof availabilityModeSchema>;
 
+export const blockedSlotSchema = z.object({ startsAt: z.string().datetime(), endsAt: z.string().datetime() });
+export type BlockedSlot = z.infer<typeof blockedSlotSchema>;
+
 export const consultationSettingsSchema = auditFieldsSchema.extend({
   tenantId: z.string().min(1),
   durationMinutes: z.number().int().min(15).max(120),
@@ -39,6 +42,14 @@ export const consultationSettingsSchema = auditFieldsSchema.extend({
   // holidays, days off — regardless of what windows/unavailableWindows say
   // for that weekday, in either mode.
   blockedDates: z.array(z.string().date()).max(200),
+  /**
+   * Single times the studio has blocked on the calendar (Conor, 2026-10-13):
+   * a dentist appointment at 2, without losing the day. Treated as busy by
+   * slot generation, so every call type and every couple's booking link
+   * stops offering them (features/consultations/blocked-slots.ts). Written
+   * only by `setSlotBlocked`; past ones are pruned on each write.
+   */
+  blockedSlots: z.array(blockedSlotSchema).max(500).default([]),
   /**
    * How the studio meets couples for a consultation, as the couple chooses
    * it on their booking page. Zoom alone until the studio says otherwise;

@@ -35,6 +35,8 @@ export const consultationSettingsInputSchema = z
     windows: z.array(availabilityWindowSchema).max(21),
     unavailableWindows: z.array(availabilityWindowSchema).max(50).default([]),
     blockedDates: z.array(z.string().date()).max(200),
+    /** Single blocked times (blocked-slots.ts): busy, for every call and every couple's link. */
+    blockedSlots: z.array(z.object({ startsAt: z.string().datetime(), endsAt: z.string().datetime() })).max(500).default([]),
     /**
      * How the studio meets couples for a consultation, as the couple chooses
      * it on their booking page. Zoom alone until the studio says otherwise;
@@ -159,7 +161,8 @@ export function generateConsultationSlots(input: {
 }): ConsultationSlot[] {
   const { settings, timezone, now, startInDays, daysAhead, busy, maxSlots } = input;
   const step = input.stepMinutes && input.stepMinutes > 0 ? input.stepMinutes : settings.durationMinutes + settings.bufferMinutes;
-  const busyMs = busy.map((interval) => ({
+  // A time the studio blocked is busy like any booking (blocked-slots.ts).
+  const busyMs = [...busy, ...(settings.blockedSlots ?? []).map((slot) => ({ start: slot.startsAt, end: slot.endsAt }))].map((interval) => ({
     start: Date.parse(interval.start),
     end: Date.parse(interval.end),
   }));
@@ -208,7 +211,7 @@ export function generateConsultationSlots(input: {
   return slots.sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 }
 
-const defaultSettings: ConsultationSettingsInput = {
+export const defaultConsultationSettings: ConsultationSettingsInput = {
   durationMinutes: 45,
   bufferMinutes: 15,
   mode: "closed_default",
@@ -219,6 +222,7 @@ const defaultSettings: ConsultationSettingsInput = {
   })),
   unavailableWindows: [],
   blockedDates: [],
+  blockedSlots: [],
   meetingFormats: ["zoom"],
   inPersonLocation: null,
 };
@@ -233,7 +237,7 @@ export async function getConsultationSettings(
   tenantId: string,
 ): Promise<ConsultationSettingsInput> {
   const doc = await db.doc(`consultationSettings/${tenantId}`).get();
-  if (!doc.exists) return defaultSettings;
+  if (!doc.exists) return defaultConsultationSettings;
   const parsed = consultationSettingsInputSchema.safeParse(doc.data());
-  return parsed.success ? parsed.data : defaultSettings;
+  return parsed.success ? parsed.data : defaultConsultationSettings;
 }

@@ -14,7 +14,7 @@ import {
   resolveProviderForTenant,
 } from "../integrations/capability-resolution.js";
 import { productEvent } from "../operations/product-events.js";
-import { availabilityWindowSchema } from "./availability.js";
+import { availabilityWindowSchema, defaultConsultationSettings } from "./availability.js";
 import { agreedRetainerCents } from "./agreed-retainer.js";
 import { tenantTrade } from "../trades/tenant-trade.js";
 import { tradeVocab } from "../trades/trades.js";
@@ -112,6 +112,7 @@ import {
   retrySignedCopyInput,
 } from "../contracts/follow-ups.js";
 import { keptMeetingSettings } from "./consultation-settings-merge.js";
+import { nextBlockedSlots, type BlockedSlot } from "./blocked-slots.js";
 import { setJobSalesTaxExempt, setJobSalesTaxExemptInput } from "./job-sales-tax.js";
 import { setJobBillingMethod, setJobBillingMethodInput } from "./job-billing-method.js";
 import { deleteInvoiceRecords, deleteInvoiceRecordsInput } from "../billing/invoice-purge.js";
@@ -623,6 +624,21 @@ const commandSchema = z.discriminatedUnion("type", [
       projectId: z.string().min(1),
       expectedProjectVersion: z.number().int().nonnegative(),
       approvedRetainerExceptionId: z.string().nullable(),
+    }),
+  }),
+  z.object({
+    /**
+     * Block or unblock one time on the studio calendar (blocked-slots.ts):
+     * only `blockedSlots` changes, so it never races the availability
+     * settings, which save the whole document.
+     */
+    type: z.literal("setSlotBlocked"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      startsAt: z.string().datetime(),
+      endsAt: z.string().datetime(),
+      blocked: z.boolean(),
     }),
   }),
   z.object({
@@ -3138,6 +3154,53 @@ export const bookingCommand = onRequest(
             blockers,
           };
         });
+      } else if (command.type === "setSlotBlocked") {
+        if (!["studio_owner", "studio_admin"].includes(String(membership.role))) {
+          throw new Error("FORBIDDEN");
+        }
+        const startsMs = Date.parse(command.input.startsAt);
+        const endsMs = Date.parse(command.input.endsAt);
+        if (!(endsMs > startsMs) || endsMs - startsMs > 12 * 3_600_000) throw new Error("INVALID_TIME_RANGE");
+        if (command.input.blocked && endsMs <= Date.now()) throw new Error("SLOT_IN_PAST");
+        const settingsReference = firestore.doc(`consultationSettings/${command.tenantId}`);
+        const blockedSlots = await firestore.runTransaction(async (transaction) => {
+          const existing = await transaction.get(settingsReference);
+          const current = Array.isArray(existing.get("blockedSlots")) ? (existing.get("blockedSlots") as BlockedSlot[]) : [];
+          const next = nextBlockedSlots(current, command.input, command.input.blocked, timestamp);
+          if (existing.exists) {
+            transaction.update(settingsReference, { blockedSlots: next, updatedAt: timestamp, updatedBy: identity.uid });
+          } else {
+            // No settings saved yet: the defaults everyone reads, with this block.
+            transaction.set(settingsReference, {
+              ...defaultConsultationSettings,
+              tenantId: command.tenantId,
+              blockedSlots: next,
+              createdAt: timestamp,
+              createdBy: identity.uid,
+              updatedAt: timestamp,
+              updatedBy: identity.uid,
+            });
+          }
+          return next;
+        });
+        await firestore.collection("auditEvents").doc().create({
+          tenantId: command.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: command.input.blocked ? "consultation.slot_blocked" : "consultation.slot_unblocked",
+          entityType: "consultationSettings",
+          entityId: command.tenantId,
+          timestamp,
+          before: null,
+          after: { startsAt: command.input.startsAt, endsAt: command.input.endsAt, blocked: command.input.blocked },
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          correlationId: command.idempotencyKey,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        result = { blockedSlots };
       } else if (command.type === "setConsultationSettings") {
         if (!["studio_owner", "studio_admin"].includes(String(membership.role))) {
           throw new Error("FORBIDDEN");
@@ -3156,6 +3219,9 @@ export const bookingCommand = onRequest(
             windows: command.input.windows,
             unavailableWindows: command.input.unavailableWindows,
             blockedDates: command.input.blockedDates,
+            // Single blocked times are set one at a time (setSlotBlocked);
+            // a settings save keeps them.
+            blockedSlots: Array.isArray(before?.blockedSlots) ? before.blockedSlots : [],
             ...keptMeetingSettings(command.input, before),
             createdAt: existing.exists ? existing.get("createdAt") : timestamp,
             createdBy: existing.exists ? existing.get("createdBy") : identity.uid,

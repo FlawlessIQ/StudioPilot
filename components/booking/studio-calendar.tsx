@@ -1,6 +1,7 @@
 "use client";
 
 import { bookableCalls, callForJob, isConsultationPurpose } from "@/features/consultations/studio-booking";
+import { nextBlockedSlots, slotIsBlocked } from "@/features/consultations/blocked-slots";
 import type { ConsultationPurpose } from "@/features/consultations/purpose";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AvailabilityDialog } from "@/components/booking/availability-dialog";
@@ -60,7 +61,7 @@ import { InfoHint } from "@/components/ui/info-hint";
 
 type SettingsShape = Pick<
   ConsultationSettings,
-  "durationMinutes" | "bufferMinutes" | "mode" | "windows" | "unavailableWindows" | "blockedDates"
+  "durationMinutes" | "bufferMinutes" | "mode" | "windows" | "unavailableWindows" | "blockedDates" | "blockedSlots"
 >;
 
 const defaultSettings: SettingsShape = {
@@ -74,6 +75,7 @@ const defaultSettings: SettingsShape = {
   })),
   unavailableWindows: [],
   blockedDates: [],
+  blockedSlots: [],
 };
 
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -202,6 +204,11 @@ export function StudioCalendar() {
             blockedDates: Array.isArray(data.blockedDates)
               ? data.blockedDates.map(String)
               : [],
+            blockedSlots: Array.isArray(data.blockedSlots)
+              ? (data.blockedSlots as Array<{ startsAt?: unknown; endsAt?: unknown }>).flatMap((slot) =>
+                  typeof slot.startsAt === "string" && typeof slot.endsAt === "string" ? [{ startsAt: slot.startsAt, endsAt: slot.endsAt }] : [],
+                )
+              : [],
           });
         }
         setLoadingSettings(false);
@@ -327,8 +334,10 @@ export function StudioCalendar() {
   );
 
   const slotsByDate = useMemo(() => {
+    // Blocked times stay in the day's list, marked, so they can be unblocked;
+    // they're left out of the "open" counts and can't be booked.
     const generated = generateConsultationSlots({
-      settings,
+      settings: { ...settings, blockedSlots: [] },
       timezone,
       now: new Date(),
       startInDays: 0,
@@ -347,6 +356,36 @@ export function StudioCalendar() {
   }, [settings, timezone, busy]);
 
   const blockedSet = useMemo(() => new Set(settings.blockedDates), [settings.blockedDates]);
+  const isSlotBlocked = (slot: ConsultationSlot) => slotIsBlocked(slot, settings.blockedSlots);
+  const [slotBusy, setSlotBusy] = useState<string | null>(null);
+
+  /** Block or unblock one time (setSlotBlocked): it stops being offered to anyone. */
+  async function toggleSlot(slot: ConsultationSlot, block: boolean) {
+    setSlotBusy(slot.startsAt);
+    setBlockNotice(null);
+    try {
+      const outcome = await sendBookingCommand({
+        type: "setSlotBlocked",
+        idempotencyKey: crypto.randomUUID(),
+        input: { startsAt: slot.startsAt, endsAt: slot.endsAt, blocked: block },
+      });
+      setSettings((current) => ({
+        ...current,
+        blockedSlots: nextBlockedSlots(current.blockedSlots, slot, block, new Date().toISOString()),
+      }));
+      setBlockNotice(
+        outcome.mode === "preview"
+          ? "Preview: blocked for this session only."
+          : block
+            ? `${formatStudioTimeRange(slot.startsAt, slot.endsAt, timezone)} blocked. Nobody can book it.`
+            : `${formatStudioTimeRange(slot.startsAt, slot.endsAt, timezone)} is open again.`,
+      );
+    } catch (caught: unknown) {
+      setBlockNotice(friendlyError(caught, "That time couldn't be changed. Try again."));
+    } finally {
+      setSlotBusy(null);
+    }
+  }
 
   async function toggleBlocked(dateKey: string) {
     setBlocking(true);
@@ -534,7 +573,7 @@ export function StudioCalendar() {
             const dateKey = format(day, "yyyy-MM-dd");
             const dayProjects = projectsByDate.get(dateKey) ?? [];
             const bookedCount = consultationsByDate.get(dateKey)?.length ?? 0;
-            const openCount = slotsByDate.get(dateKey)?.length ?? 0;
+            const openCount = (slotsByDate.get(dateKey) ?? []).filter((slot) => !slotIsBlocked(slot, settings.blockedSlots)).length;
             const blocked = blockedSet.has(dateKey);
             const closed = !blocked && !weekdayHasWindow(day, settings.windows);
             const selected = selectedDateKey === dateKey;
@@ -720,7 +759,7 @@ export function StudioCalendar() {
                           booking={booking}
                           timezone={timezone}
                           freeSlots={selectedSlots.filter(
-                            (slot) => !selectedBookedKeys.has(slot.startsAt),
+                            (slot) => !selectedBookedKeys.has(slot.startsAt) && !isSlotBlocked(slot),
                           )}
                         />
                       ) : (
@@ -777,8 +816,27 @@ export function StudioCalendar() {
             ) : (
               <ul className="ds-cal-list">
                 {selectedSlots.map((slot) =>
-                  selectedBookedKeys.has(slot.startsAt) ? null : (
+                  selectedBookedKeys.has(slot.startsAt) ? null : isSlotBlocked(slot) ? (
+                    <li className="ds-cal-row ds-cal-row-slot is-blocked" key={slot.startsAt}>
+                      <span className="ds-cal-row-time">{formatStudioTimeRange(slot.startsAt, slot.endsAt, timezone)}</span>
+                      <span className="ds-cal-slot-actions">
+                        <span className="ds-cal-slot-blocked">
+                          <Lock size={11} aria-hidden="true" /> Blocked
+                        </span>
+                        <button
+                          className="ds-cal-slot-btn is-quiet"
+                          disabled={slotBusy !== null}
+                          onClick={() => void toggleSlot(slot, false)}
+                          type="button"
+                        >
+                          {slotBusy === slot.startsAt ? "…" : "Unblock"}
+                        </button>
+                      </span>
+                    </li>
+                  ) : (
                     <SlotRow
+                      blocking={slotBusy === slot.startsAt}
+                      onBlock={slotBusy === null ? () => void toggleSlot(slot, true) : null}
                       key={slot.startsAt}
                       // Arrived from a job: its booking form starts on that job.
                       projectId={schedulingFor ? schedulingFor.id : null}
@@ -960,7 +1018,12 @@ function SlotRow({
   projectId,
   purpose,
   timezone,
+  onBlock,
+  blocking,
 }: {
+  /** Block this time (null while another is being changed). */
+  onBlock: (() => void) | null;
+  blocking: boolean;
   slot: ConsultationSlot;
   tenantId: string;
   projectId: string | null;
@@ -986,9 +1049,20 @@ function SlotRow({
           onCancel={() => setOpen(false)}
         />
       ) : (
-        <button type="button" className="ds-cal-slot-btn" onClick={() => setOpen(true)}>
-          Book
-        </button>
+        <span className="ds-cal-slot-actions">
+          <button
+            aria-label={`Block ${formatStudioTimeRange(slot.startsAt, slot.endsAt, timezone)}`}
+            className="ds-cal-slot-btn is-quiet"
+            disabled={!onBlock}
+            onClick={() => onBlock?.()}
+            type="button"
+          >
+            {blocking ? "…" : "Block"}
+          </button>
+          <button type="button" className="ds-cal-slot-btn" onClick={() => setOpen(true)}>
+            Book
+          </button>
+        </span>
       )}
     </li>
   );

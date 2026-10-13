@@ -132,7 +132,7 @@ function resolveDayWindows(
  */
 export function generateConsultationSlots(input: {
   settings: Pick<ConsultationSettings, "durationMinutes" | "bufferMinutes" | "windows" | "blockedDates"> &
-    Partial<Pick<ConsultationSettings, "mode" | "unavailableWindows">>;
+    Partial<Pick<ConsultationSettings, "mode" | "unavailableWindows" | "blockedSlots">>;
   timezone: string;
   now: Date;
   startInDays: number;
@@ -145,7 +145,8 @@ export function generateConsultationSlots(input: {
   const { settings, timezone, now, startInDays, daysAhead, busy, maxSlots } = input;
   const mode = settings.mode ?? "closed_default";
   const step = input.stepMinutes && input.stepMinutes > 0 ? input.stepMinutes : settings.durationMinutes + settings.bufferMinutes;
-  const busyMs = busy.map((interval) => ({
+  // A time the studio blocked is busy like any booking (blocked-slots.ts).
+  const busyMs = [...busy, ...(settings.blockedSlots ?? []).map((slot) => ({ start: slot.startsAt, end: slot.endsAt }))].map((interval) => ({
     start: Date.parse(interval.start),
     end: Date.parse(interval.end),
   }));

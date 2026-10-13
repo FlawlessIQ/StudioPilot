@@ -332,6 +332,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   PARTNER_CODE_INVALID: "Codes are 4 to 20 letters and numbers, like SARAHMUA.",
   PARTNER_NOT_FOUND: "That partner wasn't found. Refresh and try again.",
   PAYOUT_NOT_FOUND: "That payout was already removed.",
+  SLOT_IN_PAST: "That time has already passed, so there's nothing to block.",
   COMPLETED_EXPORT_REQUIRED: "This studio's data export hasn't finished yet. Approve the deletion once it has.",
   COMP_END_MUST_BE_FUTURE: "Pick an end date after today, or choose no end date.",
   CONFIRMATION_NAME_MISMATCH: "The name you typed doesn't match the studio's name. Type it exactly as shown.",
