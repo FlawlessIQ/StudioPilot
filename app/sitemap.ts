@@ -20,6 +20,8 @@ const publicRoutes: Array<{
   { path: "/dj", changeFrequency: "monthly", priority: 0.8 },
   { path: "/makeup", changeFrequency: "monthly", priority: 0.8 },
   { path: "/hair", changeFrequency: "monthly", priority: 0.8 },
+  // The wedding planner (planner journey, Phase 5).
+  { path: "/planner", changeFrequency: "monthly", priority: 0.8 },
   { path: "/for-crew", changeFrequency: "monthly", priority: 0.7 },
   { path: "/for-clients", changeFrequency: "monthly", priority: 0.7 },
   { path: "/how-to", changeFrequency: "weekly", priority: 0.7 },

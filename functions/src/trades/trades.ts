@@ -36,9 +36,9 @@ export const TRADE_OPTIONS: ReadonlyArray<{ value: Trade; label: string; hint: s
  * DJ, makeup and hair went live together on 2026-10-12 (vendor journeys,
  * Phase 6), with their landing pages (/dj, /makeup, /hair).
  */
-export const LIVE_TRADES: readonly Trade[] = ["photographer", "dj", "makeup", "hair"];
-// The wedding planner (docs/planner-journey-plan.md) is built but not live:
-// Phase 5 launches it. `?trade=planner` opens it for walks.
+export const LIVE_TRADES: readonly Trade[] = ["photographer", "dj", "makeup", "hair", "planner"];
+// The wedding planner went live with its page (/planner) in Phase 5 of
+// docs/planner-journey-plan.md (2026-10-13).
 
 /** Makeup and hair are separate trades on one shared "beauty" core. */
 export type TradeFamily = "photo" | "music" | "beauty" | "planning";
@@ -739,8 +739,8 @@ export const VENDOR_TYPE_TRADES: Readonly<Record<string, readonly Trade[]>> = {
   dj: ["dj"],
   band: [],
   hair_makeup: ["makeup", "hair"],
-  // The planner trade is not live yet (Phase 5 adds it here).
-  planner: [],
+  // Live since the planner's launch (docs/planner-journey-plan.md, Phase 5).
+  planner: ["planner"],
   florist: [],
   caterer: [],
   transportation: [],

@@ -94,9 +94,9 @@ function OnboardingFlow() {
   const [checkoutNext, setCheckoutNext] = useState(true);
   const [heard, setHeard] = useState<HeardValue | "">("");
   // "What do you do?" (features/trades/trades.ts). Live trades are offered —
-  // since 2026-10-12 all four, so the question always shows, starting on the
-  // trade the visitor arrived with (`?trade=` from /dj, /makeup, /hair or a
-  // vendor invite). A trade not yet live shows only for that visitor.
+  // since 2026-10-12 DJ, makeup and hair, and since its Phase 5 the planner,
+  // so the question always shows, starting on the trade the visitor arrived
+  // with (`?trade=` from /dj, /makeup, /hair, /planner or a vendor invite). A trade not yet live shows only for that visitor.
   const arrivedWith = useSyncExternalStore(noSubscribe, chosenTrade, () => null);
   const [trade, setTrade] = useState<Trade | "">("");
   const pickedTrade: Trade = trade || arrivedWith || "photographer";

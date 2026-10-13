@@ -231,6 +231,7 @@ const PUBLIC_ROUTES = [
   "/dj",
   "/makeup",
   "/hair",
+  "/planner",
 ];
 
 const routes = projectId ? [...ROUTES, ...projectScoped(projectId)] : ROUTES;

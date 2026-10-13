@@ -10,7 +10,7 @@ import { marketingMetadata } from "@/features/marketing/metadata";
 export const metadata = marketingMetadata({
   title: "Pricing",
   description:
-    `StudioCue plans from ${planCards[0].monthly} a month, and ${vendorPlan.monthly} for DJs, makeup artists and hair stylists, with unlimited clients and projects, a 14-day trial, and no percentage taken from client payments.`,
+    `StudioCue plans from ${planCards[0].monthly} a month, and ${vendorPlan.monthly} for DJs, makeup artists, hair stylists and planners, with unlimited clients and projects, a 14-day trial, and no percentage taken from client payments.`,
   path: "/pricing",
   og: "pricing",
 });
@@ -43,14 +43,15 @@ export default function PricingPage() {
       </section>
       <p className="marketing-pricing-note">Provider subscriptions, assisted migration, and implementation services are separate. StudioCue does not take a percentage of client payments.</p>
       {/* The vendor plan (config/saas-plans.ts vendorPlanCards), beside the
-          others since DJ, makeup and hair went live (vendor journeys, Phase 6).
+          others since DJ, makeup and hair went live (vendor journeys, Phase 6),
+          and the wedding planner (planner journey, Phase 5).
           A studio still only buys its own trade's plans (stripe.ts). */}
       <section aria-labelledby="pricing-vendors-title" className="mk-section mk-trade-price" id="vendors">
         <header className="mk-section-head">
-          <span className="section-kicker">For DJs, makeup artists and hair stylists</span>
+          <span className="section-kicker">For DJs, makeup artists, hair stylists and planners</span>
           <h2 id="pricing-vendors-title">{`Pro, ${vendorPlan.monthly} a month.`}</h2>
           <p>
-            For the vendors who work the same days: the same StudioCue, with a lighter journey in your own
+            For the vendors and planners who work the same days: the same StudioCue, with a lighter journey in your own
             words and the same 14-day trial.
           </p>
         </header>

@@ -25,6 +25,7 @@ export const OG_IMAGES = [
   "dj",
   "makeup",
   "hair",
+  "planner",
 ] as const;
 export type OgImage = (typeof OG_IMAGES)[number];
 

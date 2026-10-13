@@ -20,7 +20,8 @@ import { emailHash, ensureReferralCode } from "./referrals.js";
  *   own contact) with an email, on an upcoming booked job that isn't an
  *   imported, quiet one;
  * - its trade has a live StudioCue journey (trades.ts `LIVE_TRADES`):
- *   videographers, and since 2026-10-12 DJs and hair and makeup vendors;
+ *   videographers, since 2026-10-12 DJs and hair and makeup vendors, and
+ *   since the planner's launch (docs/planner-journey-plan.md, Phase 5) planners;
  * - the studio is trialing or paying and hasn't turned invites off
  *   (Subscription → Refer a studio);
  * - the address has never been invited by anyone, never unsubscribed, and

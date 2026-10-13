@@ -53,6 +53,7 @@ export function MarketingFooter() {
         <Link href="/dj">For DJs</Link>
         <Link href="/makeup">For makeup artists</Link>
         <Link href="/hair">For hair stylists</Link>
+        <Link href="/planner">For wedding planners</Link>
         <Link href="/virtual-assistant-for-photographers">A virtual assistant for photographers</Link>
         <Link href="/how-to">How to use StudioCue</Link>
         <Link href="/about">About</Link>

@@ -673,6 +673,106 @@ const GUIDES: readonly ExplainerSource[] = [
     ],
     terms: ["party-list", "headcount-lock", "getting-ready-schedule", "kit-checklist"],
   },
+  // ── A wedding planner's own flows (docs/planner-journey-plan.md, Phase 5) ──
+  // Offered only to a trade whose journey has them (the planner), like the
+  // DJ's and beauty's above. Every other trade keeps the quiet "Add a vendor"
+  // and no guide for it, so its help reads as before.
+  {
+    id: "vendor-team",
+    title: "Build the vendor team",
+    summary: "Every vendor on the job in one list: who is booked, when they arrive, and what is still owed.",
+    audience: "studio",
+    stage: "planning",
+    routes: [],
+    alsoOn: ["/studio/projects/*"],
+    offered: ({ has }) => has.journey.vendorSteps,
+    purpose:
+      "Your client contracts and pays every vendor, but you answer for all of them on the day. The vendor team keeps who they are, where each one stands, when they arrive and what is still owed, on the job.",
+    steps: [
+      "Open the job and find **Vendor team**. Tap **Add a vendor**.",
+      "Choose **What they do**, then **Who**: one of your vendors, or **Someone new…** with their company, contact, email and phone.",
+      "Set **Where it stands**: needed, considering, booked or declined. Add their arrival, load-in and strike times, their total, what your client still owes and when, and the tip.",
+      "Tap **Add to the team**. Tap any row later to change it, then **Save changes**.",
+      "Tap **Set the budget** to count booked vendors against your client's budget, like \"$18,400 of $35,000 booked\".",
+    ],
+    next: "The Vendor team step is done when every vendor the day needs is booked. Then send them the timeline.",
+    goodToKnow: [
+      "A month-of client's vendors join the team, booked, from the Final details form they fill in eight weeks out.",
+      "**Contact sheet** prints every vendor with their phone and arrival, and the payments and tips to hand out.",
+    ],
+    terms: ["vendor-team", "planning-tier", "final-details"],
+  },
+  {
+    id: "vendor-timeline",
+    title: "Send every vendor their timeline",
+    summary: "Publish the master timeline, then one press sends each booked vendor their part and tracks who confirmed.",
+    audience: "studio",
+    stage: "planning",
+    routes: [],
+    alsoOn: ["/studio/projects/*", "/studio/schedules/*"],
+    offered: ({ has }) => has.journey.vendorSteps,
+    purpose:
+      "A changed timeline that never reaches the caterer is the day's most common failure. Each vendor gets a link to their own part, confirms it, and gets the update whenever you publish a new version.",
+    steps: [
+      "Open the job's run of show. Until one is published, the vendor team links to it: **Open the run of show**.",
+      "Tap **Add vendor arrivals**. Each booked vendor with an arrival time gets a line, and pressing it again updates them rather than adding more.",
+      "Check the lines, then tap **Publish reviewed schedule**.",
+      "Back on the job, tap **Send the timeline** (or **Send the update**) under Vendor team. It names who gets a first link, who gets the new version, and who has no email yet. Add a note if you like, then tap **Send**.",
+      "Each vendor confirms from their link. The vendor team shows it, like \"7 of 9 confirmed\".",
+    ],
+    next: "Change anything, publish again, and the send offers the update to every vendor on an older version. Vendors already on the latest version get nothing.",
+    goodToKnow: [
+      "A vendor with no email address is never sent anything. Add their email on the vendor team, then send again.",
+    ],
+    terms: ["vendors-confirmed", "vendor-team", "run-of-show"],
+  },
+  {
+    id: "planning-tiers",
+    title: "Full, partial and month-of",
+    summary: "Each package carries its planning tier, and the tier decides when the job's work starts.",
+    audience: "studio",
+    stage: "inquiry-to-booking",
+    routes: [],
+    alsoOn: ["/studio/packages", "/studio/packages/*"],
+    offered: ({ has }) => has.planningScope,
+    purpose:
+      "Full planning, partial planning and month-of coordination share the final month, the day and the review. What differs is when the work starts, so the tier is set once on the package and every job booked on it follows.",
+    steps: [
+      "Open a package and choose its **Planning tier**: full planning, partial planning or month-of coordination.",
+      "When the package is chosen for a job, its tier is copied onto the job.",
+      "Full and partial planning start the vendor team the day the job books.",
+      "Month-of coordination waits: the Final details form goes out eight weeks before, and the vendors your client lists on it join the vendor team, booked.",
+      "For every tier, Final details are due four weeks out and lock two weeks out, with the final guest count.",
+    ],
+    next: "Then the walkthrough, the master timeline and the vendors' confirmations, the same for every tier.",
+    goodToKnow: [
+      "The tier is copied when the package is chosen, so changing a package later leaves the jobs already on it as they were.",
+    ],
+    terms: ["planning-tier", "final-details", "vendor-team"],
+  },
+  {
+    id: "venue-walkthrough",
+    title: "Book the venue walkthrough",
+    summary: "Invite your client to book the walkthrough from your openings, four to six weeks out.",
+    audience: "studio",
+    stage: "planning",
+    routes: [],
+    alsoOn: ["/studio/projects/*"],
+    offered: ({ has }) => has.journey.walkthrough,
+    purpose:
+      "The walkthrough is where you, your client and the venue coordinator settle the details on site. StudioCue books it from your hours like any call, and keeps it apart from the discovery call.",
+    steps: [
+      "Open the job once it is booked. The **Venue walkthrough** card sits beside the journey.",
+      "Tap **Invite them to book the walkthrough**. Your client gets a link and picks a time from your openings.",
+      "Once they book, the card shows the time. **Send the link again** if they've lost it.",
+      "After it, the card reads Done and the journey checks off the Venue walkthrough step.",
+    ],
+    next: "With the details settled, build the master timeline and send every vendor their part.",
+    goodToKnow: [
+      "Busy times on a connected calendar are never offered, and a walkthrough is never mistaken for the discovery call.",
+    ],
+    terms: ["venue-walkthrough", "final-details"],
+  },
   {
     id: "crew-offer",
     title: (t) => (photographer(t) ? "Book your second shooter" : `Book another ${t.words.member}`),

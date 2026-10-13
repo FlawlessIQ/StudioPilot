@@ -7,6 +7,7 @@ import {
   CalendarCheck2,
   Check,
   CircleCheck,
+  ClipboardList,
   Heart,
   Music,
   Play,
@@ -30,7 +31,7 @@ import { AnnotatedShot, PhoneShot } from "@/components/marketing/screen-shot";
 import { TourLink } from "@/components/help/journey-film";
 import { StudioProof } from "@/components/marketing/studio-proof";
 import { ThreePeople } from "@/components/marketing/three-people";
-import { VENDOR_TRADE_PAGES, vendorPlan } from "@/components/marketing/trade-landing";
+import { VENDOR_TRADE_PAGES, vendorPageLinkText, vendorPlan, type VendorTrade } from "@/components/marketing/trade-landing";
 import { filmLength as shortFilmLength, helpVideo, helpVideoLength } from "@/features/help/videos";
 import { JOURNEY_FILM_ID, JOURNEY_PAGE, journeyStageHref } from "@/features/journey/expected-timeline";
 import { assistantHoursFor } from "@/features/marketing/cue-duties";
@@ -92,24 +93,37 @@ const otherWork = [
 /** The vendors beside a photographer (vendor journeys, Phase 6), each to its own page. */
 const vendorTrades = [
   {
+    trade: "dj",
     icon: Music,
     title: "DJs",
     text: "A Music & moments planner your couples fill in, and the night laid out with your MC script.",
     href: VENDOR_TRADE_PAGES.dj,
   },
   {
+    trade: "makeup",
     icon: Brush,
     title: "Makeup artists",
     text: "Quotes priced per person, trials, and a party list that lays out every chair on the morning.",
     href: VENDOR_TRADE_PAGES.makeup,
   },
   {
+    trade: "hair",
     icon: Scissors,
     title: "Hair stylists",
     text: "Trials built around the veil, extensions ordered eight weeks out, and the morning laid out.",
     href: VENDOR_TRADE_PAGES.hair,
   },
-];
+  // The wedding planner (planner journey, Phase 5).
+  {
+    trade: "planner",
+    icon: ClipboardList,
+    title: "Wedding planners",
+    // Short, so the link fits a quarter column at desk widths.
+    link: "StudioCue for planners",
+    text: "Full, partial or month-of, a vendor team with arrivals, balances and tips, and every vendor's timeline in one press.",
+    href: VENDOR_TRADE_PAGES.planner,
+  },
+] satisfies ReadonlyArray<{ trade: VendorTrade; icon: typeof Music; title: string; text: string; href: string; link?: string }>;
 
 export default function MarketingHome() {
   // "6 min" once the film is published here; without it the buttons are
@@ -419,13 +433,13 @@ export default function MarketingHome() {
         <section className="mk-section" aria-labelledby="vendors-title" id="vendors">
           <header className="mk-section-head">
             <span className="section-kicker">Not a photographer?</span>
-            <h2 id="vendors-title">DJs, makeup artists and hair stylists run on StudioCue too.</h2>
+            <h2 id="vendors-title">DJs, makeup artists, hair stylists and planners run on StudioCue too.</h2>
             <p>
               The same office manager, with a lighter journey in your own words. Pro is{" "}
               {`${vendorPlan.monthly} a month`}, with the same 14-day trial.
             </p>
           </header>
-          <div className="mk-other-grid">
+          <div className="mk-other-grid mk-vendor-grid">
             {vendorTrades.map((trade) => {
               const Icon = trade.icon;
               return (
@@ -436,7 +450,7 @@ export default function MarketingHome() {
                   <h3>{trade.title}</h3>
                   <p>{trade.text}</p>
                   <Link className="journey-film-page-link" href={trade.href}>
-                    {`StudioCue for ${trade.title === "DJs" ? "DJs" : trade.title.toLowerCase()}`} <ArrowRight aria-hidden="true" size={14} />
+                    {"link" in trade ? trade.link : vendorPageLinkText(trade.trade)} <ArrowRight aria-hidden="true" size={14} />
                   </Link>
                 </article>
               );

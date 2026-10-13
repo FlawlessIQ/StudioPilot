@@ -309,6 +309,22 @@
 .mk-trade-price .marketing-pricing-grid {
   margin-bottom: 28px;
 }
+/* The homepage's four vendor trades (planner journey, Phase 5): as many
+   columns as the section holds, never squeezed, at any window. Two classes,
+   so the one-column rule for .mk-other-grid at 980px doesn't undo it. */
+.mk-other-grid.mk-vendor-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+}
+/* A link that wraps ("StudioCue for wedding planners" in a quarter column)
+   keeps its arrow after the last word, not pushed to the card's edge. */
+.mk-other-grid.mk-vendor-grid .journey-film-page-link {
+  display: block;
+}
+.mk-other-grid.mk-vendor-grid .journey-film-page-link svg {
+  display: inline;
+  margin-left: 6px;
+  vertical-align: -2px;
+}
 .mk-trade-links {
   display: flex;
   flex-wrap: wrap;

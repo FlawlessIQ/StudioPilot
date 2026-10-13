@@ -17,7 +17,8 @@ export default async function RegisterPage({
   searchParams: Promise<{ next?: string; trade?: string }>;
 }) {
   const { next, trade } = await searchParams;
-  // Arrived from /dj, /makeup or /hair: say whose business this sets up, and
+  // Arrived from /dj, /makeup, /hair or /planner ("set up your planning
+  // business"): say whose business this sets up, and
   // its price, as the landing page did (the trade itself is remembered by
   // the form and preselected at onboarding).
   const vendorTrade =

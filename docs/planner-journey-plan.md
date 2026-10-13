@@ -9,7 +9,7 @@ execution."
 **Status: decisions taken 2026-10-12 (below). Phases 1–4 (vendor team,
 planner trade and journey, planning checklist, payment plans) are built on the
 `planner-journey` branch and walked in the emulator — see each phase's status
-section under Phases. Phase 5 (launch) is in progress. Nothing is deployed or
+section under Phases. Phase 5 (launch) is built too. Nothing is deployed or
 walked on prod yet.**
 
 The DJ, makeup and hair plan this follows is `docs/vendor-journeys-plan.md`.
@@ -626,6 +626,83 @@ server-write; tenants are readable by members), no index change.
   can).
 - Reordering items in the editor (the job sorts by due date anyway).
 - The Settings hub card still reads "Planning timeline" for a planner.
+
+### Phase 5 status (2026-10-13)
+
+Built (N10) on top of Phases 1 and 2, exactly as the DJ, makeup and hair
+launch was (`ff1ba290`). Not deployed, the sweep not run anywhere.
+
+**Live**: `planner` is in `LIVE_TRADES` (both copies), so "What do you do?"
+offers all five trades and `/auth/register?trade=planner` reads "set up your
+planning business. $75 a month after the 14-day trial" (the register page
+already did this for any live non-photographer trade; `TRADE_LABELS.planner`
+is "Planning"). `VENDOR_TYPE_TRADES.planner = ["planner"]`.
+
+**The page**: `/planner` in the shared `TradeLanding` shell. Six capability
+cards, each a shipped feature: inquiry → discovery call → one-link booking
+(the starter agreement's "your clients contract with and pay every vendor
+directly"); full / partial / month-of with Final details eight weeks out for
+month-of; the vendor team (status, arrival / load-in / strike, balances, tips,
+contract and COI, the light budget); one press, every vendor's timeline with
+"7 of 9 confirmed" and updates to older versions; walkthrough to the day
+(emergency kit, envelopes in arrival order, contact sheet); vendor credits
+and the 30-day balance. **Not claimed**: the Phase 3 planning checklist and
+Phase 4 payment plans (neither is on this branch; the test fails if the page
+mentions a checklist, installments or a payment plan). No testimonials, logos
+or counts. Sign-up `?trade=planner&plan=vendor`, $75 / $750 from
+`vendorPlanCards`, metadata + canonical, `public/og/planner.png` (film still
+at 140 s, the booking screen), SoftwareApplication JSON-LD, sitemap,
+llms.txt, the audit sweep's public routes. Linked from the footer ("For
+wedding planners"), the homepage's "Not a photographer?" band (now four
+cards, `mk-vendor-grid`: `auto-fit` columns sized by the section, so they
+wrap rather than squeeze) and `/pricing`'s Pro section. Every vendor page
+links to the others, the planner's included.
+
+**Invites**: a planner on a photographer's (or DJ's) job is now invited by
+the daily sweep. The email reads "StudioCue runs your planning business:
+discovery calls, proposals, agreements and retainers; full planning, partial
+planning or month-of coordination …", at $75 / $750, no referral offer, and
+its button opens `/auth/register?trade=planner&plan=vendor`.
+`LAUNCHED_TRADES` gained `planner`; the launch script takes
+`--trade planner` (default: every launched trade — anyone already invited is
+skipped by the once-ever record). Dry run by default:
+
+    # emulator
+    FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx tsx scripts/sweep-vendor-invites.mts --trade planner
+    # production, dry run (nothing written), then the send
+    npx tsx scripts/sweep-vendor-invites.mts --prod --trade planner
+    STRIPE_SECRET_KEY=$(gcloud secrets versions access latest --secret=STRIPE_SECRET_KEY --project=studiohub-prod) \
+      npx tsx scripts/sweep-vendor-invites.mts --prod --trade planner --send
+
+**Help and Cue**: four studio guides offered only to the trade that has the
+flow — `vendor-team` and `vendor-timeline` (`journey.vendorSteps`),
+`planning-tiers` (`planningScope`, on the Packages pages) and
+`venue-walkthrough` (`journey.walkthrough`). Their bold labels are checked
+against the product in `tests/planner-launch.test.ts` (the shared help test
+only reads the photographer's guides). Glossary terms and Cue's planner
+how-to facts were already added in Phase 2.
+
+**Console**: the Studios trade filter and column read `TRADES` and
+`TRADE_LABELS`, so planners show as "Planning" with no change.
+
+**Copy pins**: the wedding-word pins rose for marketing copy that is
+wedding-only by nature (`trade-landing.tsx` 11 → 15, `marketing-layout.tsx`
+5 → 6, new `app/planner/page.tsx` 3); the planner copy uses "clients" where
+it could. Photographers, DJs, makeup and hair are unchanged; the burden tests
+did not move.
+
+**Deploy notes**: functions first. Changed under `functions/src`: the trades
+mirror (imported almost everywhere — deploy all functions), the email
+templates (renderer `operationsTaskWorker`), `saas/vendor-invites.ts`
+(`vendorInviteScheduler`) and `saas/vendor-invite-sweep.ts` (script only). No
+new function export. Then the freshness script, the app rollout, and only
+then the sweep's dry run on prod.
+
+**Owed**: the prod walks of Phases 1, 2 and 5 (sign up from `/planner` on a
+test address and check the trade and the price); the sweep's prod dry run,
+read by a person before any `--send`; counsel on the planner agreement; the
+pilot planner; and adding the checklist and payment plans to the page and the
+invite when Phases 3 and 4 merge.
 
 ## Decisions
 

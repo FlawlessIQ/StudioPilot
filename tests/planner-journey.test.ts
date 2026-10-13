@@ -93,9 +93,9 @@ test("the mirrors match: planning scope, hand-out, trades", () => {
 
 // ─── N3: the trade ───────────────────────────────────────────────────────────
 
-test("the planner is a trade, built but not live", () => {
+test("the planner is a trade, live since its launch (Phase 5)", () => {
   assert.ok(TRADES.includes("planner"));
-  assert.ok(!LIVE_TRADES.includes("planner"));
+  assert.ok(LIVE_TRADES.includes("planner"));
   const words = tradeVocab("planner");
   assert.equal(words.provider, "planner");
   assert.equal(words.consultation, "Discovery call");

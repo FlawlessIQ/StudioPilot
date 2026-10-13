@@ -766,7 +766,7 @@ function possessive(name: string): string {
 /**
  * What StudioCue does for a vendor invited from a studio's job, in their own
  * trade (saas/vendor-invites.ts `inviteTrades`): only what the trade's journey
- * has shipped (docs/vendor-journeys-plan.md). Null for a videographer, who
+ * has shipped (docs/vendor-journeys-plan.md, docs/planner-journey-plan.md). Null for a videographer, who
  * signs up as a photographer and reads the referral invite.
  */
 export function vendorInvitePitch(inviteTrades: unknown): { headline: string; detail: string } | null {
@@ -785,6 +785,12 @@ export function vendorInvitePitch(inviteTrades: unknown): { headline: string; de
       detail: "quotes priced per person, agreements and deposits, trials, the party list, a reminder to order extensions eight weeks out, and the morning laid out chair by chair.",
     };
   if (trades[0] === "makeup") return { headline: "StudioCue runs your makeup bookings", detail: `${beauty}.` };
+  // A planner listed on a job (docs/planner-journey-plan.md, Phase 5).
+  if (trades[0] === "planner")
+    return {
+      headline: "StudioCue runs your planning business",
+      detail: "discovery calls, proposals, agreements and retainers; full planning, partial planning or month-of coordination, with the right forms going out at the right time; the vendor team on every job, with arrival times, balances and tips; and one press that sends every vendor their own timeline and tracks who has confirmed.",
+    };
   return null;
 }
 

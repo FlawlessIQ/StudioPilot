@@ -36,6 +36,7 @@ const MARKETING = [
   "app/dj/page.tsx",
   "app/makeup/page.tsx",
   "app/hair/page.tsx",
+  "app/planner/page.tsx",
   "components/marketing/marketing-layout.tsx",
   "components/marketing/studio-proof.tsx",
   "components/marketing/trade-landing.tsx",

@@ -58,8 +58,9 @@ const JOBS = new Map(
   ].map((entry) => [entry.id, entry]),
 );
 
-test("the launch sweep covers DJs and hair and makeup vendors, not the videographers already invited", () => {
-  assert.deepEqual(launchedVendorTypes(), ["dj", "hair_makeup"]);
+test("the launch sweep covers DJs, hair and makeup vendors and planners, not the videographers already invited", () => {
+  assert.deepEqual(launchedVendorTypes(), ["planner", "dj", "hair_makeup"]);
+  assert.deepEqual(launchedVendorTypes(["dj", "makeup", "hair"]), ["dj", "hair_makeup"]);
   assert.equal(vendorTypeIsLive("dj"), true);
   assert.equal(vendorTypeIsLive("hair_makeup"), true);
   assert.deepEqual([...vendorTypeLiveTrades("hair_makeup")], ["makeup", "hair"]);
@@ -170,7 +171,9 @@ test("the daily sweep and the launch script share one check and one write", () =
   assert.match(script, /dryRun: !send/);
   assert.match(script, /if \(send\) await queueVendorInvite\(/);
   assert.match(script, /checkVendorInvite\(/);
-  assert.match(script, /sweepCandidates\(vendors, jobs, now\.slice\(0, 10\)\)/);
+  assert.match(script, /sweepCandidates\(vendors, jobs, now\.slice\(0, 10\), launched\)/);
+  assert.match(script, /launchedVendorTypes\(launched\)/);
+  assert.match(script, /launched = launchedTradesFrom\(option\("--trade"\)\)/);
   // Production only when asked for by name.
   assert.match(script, /if \(!emulator && !prod\) \{/);
 });

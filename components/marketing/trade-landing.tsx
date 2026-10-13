@@ -7,12 +7,17 @@ import { SITE_URL } from "@/lib/site";
 
 /**
  * The DJ, makeup and hair landing pages (/dj, /makeup, /hair): vendor
- * journeys, Phase 6 (docs/vendor-journeys-plan.md).
+ * journeys, Phase 6 (docs/vendor-journeys-plan.md). The wedding planner's
+ * (/planner) joined them at its launch (docs/planner-journey-plan.md, Phase 5).
  *
  * Every claim is something the trade's journey has shipped (the plan's
  * Status section): the DJ's Music & moments planner, MC script and "Lay out
  * the night"; the beauty trial, party list, "Lay out the morning" and kit
- * checklist; a hair stylist's extensions reminders and veil-first trial. No
+ * checklist; a hair stylist's extensions reminders and veil-first trial; a
+ * planner's vendor team, timeline sends and confirmations, tiers, Final
+ * details, walkthrough, envelopes and vendor credits (Phases 1 and 2 of the
+ * planner plan; the Phase 3 planning checklist and Phase 4 payment plans are
+ * not claimed until they ship). No
  * testimonials, logos or customer counts — there are none yet to cite
  * (no-invented-testimonials). The vendor plan's price comes from
  * config/saas-plans.ts, so the page can't drift from what Checkout charges.
@@ -21,10 +26,24 @@ import { SITE_URL } from "@/lib/site";
  * "What do you do?" on the visitor's trade (features/trades/chosen-trade.ts).
  */
 
-// The planner's page comes with its launch (docs/planner-journey-plan.md, Phase 5).
-export type VendorTrade = Exclude<Trade, "photographer" | "planner">;
-export const VENDOR_TRADE_PAGES: Readonly<Record<VendorTrade, string>> = { dj: "/dj", makeup: "/makeup", hair: "/hair" };
-const PAGE_NAMES: Readonly<Record<VendorTrade, string>> = { dj: "DJs", makeup: "Makeup artists", hair: "Hair stylists" };
+export type VendorTrade = Exclude<Trade, "photographer">;
+export const VENDOR_TRADE_PAGES: Readonly<Record<VendorTrade, string>> = {
+  dj: "/dj",
+  makeup: "/makeup",
+  hair: "/hair",
+  planner: "/planner",
+};
+const PAGE_NAMES: Readonly<Record<VendorTrade, string>> = {
+  dj: "DJs",
+  makeup: "Makeup artists",
+  hair: "Hair stylists",
+  planner: "Wedding planners",
+};
+
+/** "StudioCue for DJs", "StudioCue for wedding planners": a link to a trade's page. */
+export function vendorPageLinkText(trade: VendorTrade): string {
+  return `StudioCue for ${trade === "dj" ? "DJs" : PAGE_NAMES[trade].toLowerCase()}`;
+}
 
 export const vendorPlan = vendorPlanCards[0];
 
@@ -157,6 +176,45 @@ const PAGES: Readonly<Record<VendorTrade, TradePage>> = {
       },
     ],
   },
+  planner: {
+    eyebrow: "For wedding planners",
+    title: "Every vendor on the same timeline, and you know who has it.",
+    description:
+      "StudioCue runs the office side of your planning business: inquiries, discovery calls, proposals, agreements and retainers, and the vendor team on every wedding. One press sends each vendor their own timeline, and you see who has confirmed. Cue, your office manager, drafts each next step for you to approve.",
+    category: "Client and vendor management software for wedding planners",
+    capabilities: [
+      {
+        title: "Inquiry → discovery call → booked",
+        text: "Your inquiry form asks the date, the venue, the guest count, the help they want, the vendors they already have and their budget for the day. They book a discovery call from your real hours. When they accept your proposal, StudioCue writes the agreement from it, and they sign online and pay the retainer from the same link when your payments are connected.",
+        points: ["An inquiry form made for planners", "Discovery calls booked from your calendar", "A starter agreement: your clients contract with and pay every vendor directly"],
+      },
+      {
+        title: "Full, partial or month-of",
+        text: "Each package carries its planning tier. Full and partial planning work the vendor team from the day they book. A month-of client gets the Final details form eight weeks out, and the vendors they list on it join your team, booked.",
+        points: ["The tier on the package and the job", "The right form at the right time", "Final details locked two weeks out, with the final guest count"],
+      },
+      {
+        title: "The vendor team",
+        text: "Every vendor on the job in one list: who is booked, considering or still needed, when they arrive, load in and strike, what your clients still owe them and when, the tip, and whether their contract and insurance are in. Set the budget and booked vendors count against it: \"$18,400 of $35,000 booked\".",
+        points: ["Status, arrival and load-in for each vendor", "Balances, due dates and tips", "Final details prefilled from the team"],
+      },
+      {
+        title: "One press, every vendor's timeline",
+        text: "Draw each booked vendor's arrival onto the master timeline and publish it. One press sends every vendor a link to their own part, and each confirms from it: \"7 of 9 confirmed\". Change the timeline and publish again, and the update goes to anyone on an older version.",
+        points: ["The master timeline with vendor arrivals", "Confirmations tracked per vendor", "Updates reach whoever has an old version"],
+      },
+      {
+        title: "Walkthrough to the day",
+        text: "Invite your clients to book the venue walkthrough from your openings, four to six weeks out. The day before, your assistants' reminder carries the emergency kit and the payments and tips to hand out, in the order vendors arrive, and the vendor contact sheet prints from the job.",
+        points: ["Walkthroughs booked from your calendar", "Envelopes listed in arrival order", "A printable vendor contact sheet"],
+      },
+      {
+        title: "Credits, then done",
+        text: "The balance is due 30 days before the day, and Cue drafts the reminders for you to send. After the day, one press sends your clients every vendor's name and website, yours first, to tag when they share it. Then the review, and the job closes.",
+        points: ["Vendor credits in one press", "Assistants offered the date in one tap", "No percentage taken from your payments"],
+      },
+    ],
+  },
 };
 
 /** Structured data for a trade's page: StudioCue, for this trade, at the vendor plan's price. */
@@ -188,7 +246,7 @@ export function VendorPlanCard({ trade, featured = true }: { trade?: VendorTrade
     <article className={`marketing-price-card ${featured ? "is-featured" : ""}`}>
       <div className="marketing-plan-heading">
         <span>
-          <small>StudioCue for DJs, makeup and hair</small>
+          <small>StudioCue for vendors and planners</small>
           <h3>{vendorPlan.name}</h3>
         </span>
       </div>
@@ -212,7 +270,7 @@ export function VendorPlanCard({ trade, featured = true }: { trade?: VendorTrade
   );
 }
 
-/** Links to the three vendor pages, the current one left out. */
+/** Links to the vendor and planner pages, the current one left out. */
 export function VendorTradeLinks({ except }: { except?: VendorTrade }) {
   return (
     <nav aria-label="StudioCue for vendors" className="mk-trade-links">
@@ -220,7 +278,7 @@ export function VendorTradeLinks({ except }: { except?: VendorTrade }) {
         .filter((trade) => trade !== except)
         .map((trade) => (
           <Link className="journey-film-page-link" href={VENDOR_TRADE_PAGES[trade]} key={trade}>
-            {`StudioCue for ${PAGE_NAMES[trade] === "DJs" ? "DJs" : PAGE_NAMES[trade].toLowerCase()}`} <ArrowRight aria-hidden="true" size={14} />
+            {vendorPageLinkText(trade)} <ArrowRight aria-hidden="true" size={14} />
           </Link>
         ))}
     </nav>

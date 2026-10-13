@@ -6,7 +6,7 @@ import { BOOKED_JOB_STATES, INVITED_VENDOR_TYPES } from "./referral-program.js";
  * The one-off launch sweep (docs/vendor-journeys-plan.md, Phase 6).
  *
  * The daily invite sweep (vendor-invites.ts) only looks back three days, so
- * a DJ or a hair and makeup vendor added to a booked job while their trade
+ * a DJ, a hair and makeup vendor or a planner added to a booked job while their trade
  * wasn't live would never be invited. When a trade launches, this picks the
  * vendors of that trade on upcoming booked jobs; scripts/sweep-vendor-invites.mts
  * then puts each one through the daily sweep's own checks and writes
@@ -18,8 +18,25 @@ import { BOOKED_JOB_STATES, INVITED_VENDOR_TYPES } from "./referral-program.js";
  * vendors in the same order.
  */
 
-/** The trades that went live on 2026-10-12. */
-export const LAUNCHED_TRADES: readonly Trade[] = ["dj", "makeup", "hair"];
+/**
+ * The trades launched after photographers: DJ, makeup and hair on 2026-10-12,
+ * and the wedding planner in its Phase 5 (docs/planner-journey-plan.md). The
+ * script's `--trade planner` sweeps one launch; with none it sweeps them all,
+ * and anyone already invited is skipped by the once-ever record.
+ */
+export const LAUNCHED_TRADES: readonly Trade[] = ["dj", "makeup", "hair", "planner"];
+
+/**
+ * The launched trades a `--trade` list names, in LAUNCHED_TRADES order; every
+ * launched trade when it names none. An unknown or never-launched trade
+ * throws, so a typo can't quietly sweep nothing.
+ */
+export function launchedTradesFrom(names: readonly string[]): Trade[] {
+  const wanted = names.map((name) => name.trim().toLowerCase()).filter(Boolean);
+  const unknown = wanted.filter((name) => !(LAUNCHED_TRADES as readonly string[]).includes(name));
+  if (unknown.length) throw new Error(`Not a launched trade: ${unknown.join(", ")} (one of ${LAUNCHED_TRADES.join(", ")})`);
+  return LAUNCHED_TRADES.filter((trade) => !wanted.length || wanted.includes(trade));
+}
 
 /**
  * The vendor types whose trade just launched: a type invited at all

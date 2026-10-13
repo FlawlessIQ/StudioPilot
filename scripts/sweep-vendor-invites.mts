@@ -2,11 +2,12 @@
  * The one-off launch sweep of vendor invites (docs/vendor-journeys-plan.md,
  * Phase 6).
  *
- * DJ, makeup and hair went live on 2026-10-12 (trades.ts LIVE_TRADES). The
+ * DJ, makeup and hair went live on 2026-10-12, and the wedding planner in
+ * Phase 5 of docs/planner-journey-plan.md (trades.ts LIVE_TRADES). The
  * daily invite sweep (functions/src/saas/vendor-invites.ts) only looks at
- * vendors changed, or jobs booked, in the last three days, so the DJs and
- * hair and makeup vendors already sitting on booked jobs would never be
- * invited. This finds them: vendors of a newly live trade, on an upcoming
+ * vendors changed, or jobs booked, in the last three days, so the DJs, hair
+ * and makeup vendors and planners already sitting on booked jobs would never
+ * be invited. This finds them: vendors of a newly live trade, on an upcoming
  * booked job, never invited.
  *
  * Selection is pure and tested (functions/src/saas/vendor-invite-sweep.ts,
@@ -33,7 +34,12 @@
  *
  *   # in the emulator, --send takes BILLING_MOCK_MODE=true instead
  *
- * Options: `--tenant <id>[,<id>…]` limits it to those studios;
+ *   # the planner's launch only (Phase 5): every command above takes --trade
+ *   npx tsx scripts/sweep-vendor-invites.mts --trade planner
+ *
+ * Options: `--trade <trade>[,<trade>…]` limits it to those launches (dj,
+ * makeup, hair, planner; default all of them — anyone already invited is
+ * skipped as `already_invited`); `--tenant <id>[,<id>…]` limits it to those studios;
  * `--per-studio <n>` (default 10, as the daily sweep) and `--limit <n>`
  * (default 200 per run) cap the sends — anyone left over is named, and a
  * re-run tomorrow picks them up.
@@ -42,6 +48,7 @@ import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldPath, getFirestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import {
+  launchedTradesFrom,
   launchedVendorTypes,
   sweepCandidates,
   sweepCounts,
@@ -73,6 +80,13 @@ const number = (name: string, fallback: number): number => {
   return Number.isInteger(value) && value > 0 ? value : fallback;
 };
 const tenants = new Set(option("--tenant"));
+let launched: ReturnType<typeof launchedTradesFrom>;
+try {
+  launched = launchedTradesFrom(option("--trade"));
+} catch (caught: unknown) {
+  console.error(caught instanceof Error ? caught.message : String(caught));
+  process.exit(1);
+}
 const perStudio = number("--per-studio", PER_STUDIO_DAILY);
 const limit = number("--limit", PER_RUN);
 
@@ -120,7 +134,7 @@ async function isUser(email: string): Promise<boolean> {
 
 async function main() {
   const now = new Date().toISOString();
-  const types = launchedVendorTypes();
+  const types = launchedVendorTypes(launched);
   console.log(`${send ? "SENDING" : "DRY RUN (nothing is written)"}: vendor invites for ${types.map(sweepTradeLabel).join(", ")}`);
   console.log(`Target: ${emulator ? `emulator ${process.env.FIRESTORE_EMULATOR_HOST}` : "studiohub-prod"}`);
   console.log(`Caps: ${perStudio} per studio, ${limit} in all${tenants.size ? `; studios: ${[...tenants].join(", ")}` : ""}\n`);
@@ -154,7 +168,7 @@ async function main() {
     archived: Boolean(doc.get("archivedAt")),
     projectIds: Array.isArray(doc.get("projectIds")) ? (doc.get("projectIds") as unknown[]).map(String) : [],
   }));
-  const candidates = sweepCandidates(vendors, jobs, now.slice(0, 10));
+  const candidates = sweepCandidates(vendors, jobs, now.slice(0, 10), launched);
   console.log(`${vendorDocs.length} vendor records of those types; ${candidates.length} on an upcoming booked job.\n`);
 
   const ctx = inviteContext(now, { perStudio, isUser, dryRun: !send });

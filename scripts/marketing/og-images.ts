@@ -47,6 +47,8 @@ const CARDS: Record<OgImage, { at: number; kicker: string; headline: string }> =
   dj: { at: 140, kicker: "For wedding DJs", headline: "The night planned, and every name said right." },
   makeup: { at: 200, kicker: "For makeup artists", headline: "Every chair on the morning, planned from one list." },
   hair: { at: 20, kicker: "For hair stylists", headline: "The morning planned, the extensions ordered on time." },
+  // The planner's page (planner journey, Phase 5): a still with no photography in it.
+  planner: { at: 140, kicker: "For wedding planners", headline: "Every vendor on the same timeline." },
 };
 
 const MARK = `<svg viewBox="0 0 96 96" width="44" height="44"><rect x="8" y="8" width="80" height="80" rx="22" fill="#F4F1E8"/><circle cx="48" cy="48" r="21" fill="none" stroke="#14201B" stroke-width="5.5"/><circle cx="48" cy="48" r="7" fill="#14201B"/><circle cx="71.5" cy="24.5" r="5.5" fill="#C9973D"/></svg>`;

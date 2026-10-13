@@ -112,8 +112,10 @@ test("only a trade with nothing to deliver skips editing and delivery", () => {
 });
 
 test("vendor invites go only to trades with a live journey", () => {
-  // DJ, makeup and hair launched together on 2026-10-12 (Phase 6).
-  assert.deepEqual([...LIVE_TRADES], ["photographer", "dj", "makeup", "hair"]);
+  // DJ, makeup and hair launched together on 2026-10-12 (Phase 6); the
+  // wedding planner in its own Phase 5 (docs/planner-journey-plan.md).
+  assert.deepEqual([...LIVE_TRADES], ["photographer", "dj", "makeup", "hair", "planner"]);
+  assert.equal(vendorTypeIsLive("planner"), true);
   assert.equal(vendorTypeIsLive("videographer"), true);
   assert.equal(vendorTypeIsLive("dj"), true);
   assert.equal(vendorTypeIsLive("hair_makeup"), true);
@@ -150,11 +152,11 @@ test("a new studio starts with its trade's plan and nothing photographic", () =>
   assert.match(onboarding, /final_invoice_notice: \{ enabled: !trade\.journey\.balanceOnTheDay,/);
   assert.match(onboarding, /for \(const starter of photographer \? starterQuestionnaires\(\) : \[\]\)/);
   // Signup offers live trades only, and a `?trade=` link can preselect one.
-  // Every trade but the planner is live, so "What do you do?" shows four; a
-  // `?trade=planner` link opens the planner for walks (docs/planner-journey-plan.md).
+  // Every trade is live since the planner's launch, so "What do you do?"
+  // shows all five (docs/planner-journey-plan.md, Phase 5).
   assert.deepEqual(
     TRADE_OPTIONS.filter((option) => LIVE_TRADES.includes(option.value)).map((option) => option.value),
-    TRADES.filter((trade) => trade !== "planner"),
+    [...TRADES],
   );
   const form = read("features/auth/onboarding-form.tsx");
   assert.match(form, /LIVE_TRADES\.includes\(option\.value\) \|\| option\.value === arrivedWith/);
