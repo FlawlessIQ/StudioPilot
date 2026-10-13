@@ -2982,6 +2982,17 @@ export function todayInbox(input: TodayInput): TodayInbox {
       .map((lead) => text(lead.projectId))
       .filter(Boolean),
   );
+  // When each job's inquiry arrived. The inquiry is answered by the job
+  // moving on — a proposal, an agreement, a booking — none of which is a
+  // typed reply, so a booked wedding's first message read "Stacey sent you a
+  // message · Waiting on your reply" on Today after eleven emails to her
+  // (UAT 2026-10-13). A message after the inquiry still waits as before.
+  const inquiryArrivedAt = new Map<string, string>();
+  for (const lead of rows(input.leads)) {
+    const projectId = text(lead.projectId);
+    const at = text(lead.createdAt);
+    if (projectId && at && at > (inquiryArrivedAt.get(projectId) ?? "")) inquiryArrivedAt.set(projectId, at);
+  }
   const shownActionIds = new Set([...act, ...approve].map((item) => item.id));
   // A drafted reply the studio snoozed puts the whole conversation off until
   // then, not just the draft: the client's card must not stand in for it.
@@ -3015,6 +3026,8 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // answer from here.
     if (!job || job.archivedAt || ["LOST", "ARCHIVED"].includes(text(job.state))) continue;
     if (text(job.state) === "LEAD" && jobsFromInquiries.has(projectId)) continue;
+    const inquiryAt = inquiryArrivedAt.get(projectId);
+    if (inquiryAt && !preBookingStates.has(text(job.state)) && thread.waitingSince <= inquiryAt) continue;
     // A message is news for two weeks. After that it stays only while the
     // studio hasn't opened it, on a job still going: a "Thank you so much!"
     // read in June on a wedding since closed is not today's work, and must

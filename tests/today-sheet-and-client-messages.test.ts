@@ -640,3 +640,13 @@ test("in a sheet, outside .ds-root, the review card's small text is legible", ()
   assert.match(block, /font-size: 11\.5px;/);
   assert.doesNotMatch(block, /\.ds-root|white-space: nowrap/);
 });
+
+test("a booked job's inquiry is answered by the booking, not left waiting on Today", () => {
+  // UAT 2026-10-13: "Stacey Spags sent you a message · Waiting on your reply" —
+  // her only message was the inquiry, and the job had been proposed, signed and booked.
+  const lead = { id: "lead1", tenantId: "t1", projectId: "p1", createdAt: "2026-10-12T14:00:00.000Z" };
+  assert.equal(clientCards(inboxOf({ projects: [bookedJob], conversations: [thread()], leads: [lead], contacts: [priyaContact] })).length, 0);
+  // Something they wrote after the inquiry still waits for the studio.
+  const later = thread({ lastInboundAt: "2026-10-12T16:00:00.000Z", lastMessageAt: "2026-10-12T16:00:00.000Z" });
+  assert.equal(clientCards(inboxOf({ projects: [bookedJob], conversations: [later], leads: [lead], contacts: [priyaContact] })).length, 1);
+});
