@@ -264,3 +264,11 @@ test("review fixes: a vendor code is never a Studio referral; an abandoned check
   assert.match(read("server/vendors/vendor-offer.ts"), /invite\.get\("signedUpTenantId"\)/);
   assert.match(read("functions/src/planning/final-details.ts"), /vendorAskOwedFor\(db, tenantId, project\.id\)/);
 });
+
+test("a vendor's offer code on a trade with no vendor plan promises nothing on the subscription page", () => {
+  // Checkout refuses it on the Studio plan (referredBy); the page used to say
+  // "Because you worked an event with …, you get $50/month" anyway.
+  const page = readFileSync("components/saas/live-subscription.tsx", "utf8");
+  assert.match(page, /result\.plan === "vendor" && !vendorPlanOffered\) setCodeNotForPlan\(true\)/);
+  assert.match(page, /codeNotForPlan\s*\n?\s*\? ` The code \$\{promotionCode\} is a vendor's offer/);
+});

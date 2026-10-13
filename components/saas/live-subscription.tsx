@@ -57,20 +57,26 @@ export function LiveSubscription() {
   // Another studio's referral code: name the studio and the offer before
   // Checkout, since Stripe's page only shows the discount line.
   const [referredBy, setReferredBy] = useState<{ referrerName: string; offer: string; plan: "studio" | "vendor" } | null>(null);
+  // A vendor's offer code typed by a studio whose trade has no vendor plan:
+  // Checkout won't honor it (saas/stripe.ts referredBy), so the page mustn't
+  // promise it either (UAT 2026-10-13).
+  const [codeNotForPlan, setCodeNotForPlan] = useState(false);
+  const vendorPlanOffered = tradeCards.some((card) => card.key === "vendor");
   useEffect(() => {
     if (status !== "incomplete" || !promotionCode) return;
     let active = true;
     billingCommand<{ kind: string | null; referrerName?: string; offer?: string; plan?: string }>("previewCode", { promotionCode })
       .then((result) => {
-        if (active && result?.kind === "referral" && result.referrerName && result.offer)
-          // A vendor's own offer code is the vendor plan's (functions/src/saas/vendor-offer.ts).
-          setReferredBy({ referrerName: result.referrerName, offer: result.offer, plan: result.plan === "vendor" ? "vendor" : "studio" });
+        if (!active || result?.kind !== "referral" || !result.referrerName || !result.offer) return;
+        // A vendor's own offer code is the vendor plan's (functions/src/saas/vendor-offer.ts).
+        if (result.plan === "vendor" && !vendorPlanOffered) setCodeNotForPlan(true);
+        else setReferredBy({ referrerName: result.referrerName, offer: result.offer, plan: result.plan === "vendor" ? "vendor" : "studio" });
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [status, promotionCode]);
+  }, [status, promotionCode, vendorPlanOffered]);
   // How the studio arrived: back from Stripe Checkout (?checkout=success — the
   // trial is being provisioned by the webhook and this live page flips to
   // trialing on its own) or a cancelled session. Drives the banner below.
@@ -181,9 +187,11 @@ export function LiveSubscription() {
               ? referredBy.plan === "vendor"
                 ? ` Because you worked an event with ${referredBy.referrerName}, you get ${referredBy.offer}.`
                 : ` ${referredBy.referrerName} referred you: on the Studio plan you get ${referredBy.offer}.`
-              : preTrial && promotionCode
-                ? ` Your code ${promotionCode} is applied at checkout — if it covers everything, Stripe won't ask for a card.`
-                : null}
+              : preTrial && promotionCode && codeNotForPlan
+                ? ` The code ${promotionCode} is a vendor's offer on the vendor plan, so it doesn't apply to your plans.`
+                : preTrial && promotionCode
+                  ? ` Your code ${promotionCode} is applied at checkout — if it covers everything, Stripe won't ask for a card.`
+                  : null}
           </p>
         </div>
         <div className="subscription-status">
