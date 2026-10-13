@@ -115,10 +115,8 @@ export function RecordRetainerPayment({
             in and change them. */}
         {standingInvoice ? (
           <p className="record-attestation-caveat">
-            {`This marks the ${paidInFull ? "invoice" : `${deposit} invoice`} already out with the client as paid,`}{" "}
-            rather than raising a second one. It does not mark it paid in{" "}
-            {providerLabel ?? "your accounting tool"} — do that there too, so the
-            two agree.
+            {`This marks the ${paidInFull ? "invoice" : `${deposit} invoice`} already out with the client as paid, rather than raising a second one.`}
+            {providerLabel ? ` It does not mark it paid in ${providerLabel} — do that there too, so the two agree.` : null}
           </p>
         ) : null}
         <label>

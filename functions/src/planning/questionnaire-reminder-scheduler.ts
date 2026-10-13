@@ -92,6 +92,8 @@ export const questionnaireReminderScheduler = onSchedule(
             type: "questionnaire_reminder",
             actionUrl: link.actionUrl,
             questionnaireResponseId: response.id,
+            // The form by its own name in the email (email-templates.ts).
+            formName: typeof response.get("templateName") === "string" ? response.get("templateName") : null,
             reminderDaysBeforeDue: offset,
             // The partner's own copy and link, when anyone's is an
             // invitation (client/partner-invitations.ts).

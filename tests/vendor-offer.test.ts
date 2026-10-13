@@ -272,3 +272,13 @@ test("a vendor's offer code on a trade with no vendor plan promises nothing on t
   assert.match(page, /result\.plan === "vendor" && !vendorPlanOffered\) setCodeNotForPlan\(true\)/);
   assert.match(page, /codeNotForPlan\s*\n?\s*\? ` The code \$\{promotionCode\} is a vendor's offer/);
 });
+
+test("a form request names the form it asks for", () => {
+  // UAT 2026-10-13 F1: two forms both read "Details needed by FlawlessIQ".
+  const ask = (values: Record<string, unknown>) =>
+    renderEmailTemplate({ key: "questionnaire_request", brand, recipientName: "Stacey", projectName: "Stacey Spags Wedding", values } as Parameters<typeof renderEmailTemplate>[0]);
+  const named = ask({ formName: "Final schedule", actionUrl: "https://studio-cue.com/client" });
+  assert.equal(named.subject, `Your final schedule for ${brand.studioName}`);
+  assert.match(named.text, /your final schedule/);
+  assert.match(ask({ actionUrl: "https://studio-cue.com/client" }).subject, /^Details needed by /);
+});

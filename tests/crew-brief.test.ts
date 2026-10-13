@@ -182,3 +182,11 @@ test("times read as a photographer says them", () => {
     ["5:00 PM", "11:30 PM"],
   );
 });
+
+test("a bare 24-hour time reads 12-hour in the brief, whatever field it landed in", () => {
+  // UAT 2026-10-13 F3: the Final schedule's "13:30" settled an earlier text field.
+  assert.equal(answerText("text", "13:30"), "1:30 PM");
+  assert.equal(answerText("text", "10:00"), "10:00 AM");
+  assert.equal(answerText("text", "Around 13:30, after lunch"), "Around 13:30, after lunch");
+  assert.equal(answerText("text", "24:00"), "24:00");
+});

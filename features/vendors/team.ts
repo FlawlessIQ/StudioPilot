@@ -555,3 +555,16 @@ export function noEmailPublishWarning(entries: readonly TeamEntryLike[]): string
     ? "1 booked vendor has no email, so they won't get the schedule. Add it on the job's vendor team."
     : `${missing.length} booked vendors have no email, so they won't get the schedule. Add them on the job's vendor team.`;
 }
+
+/**
+ * A phone number as people read it: a US number as (908) 555-0188, anything
+ * else as it was typed. Vendors' numbers are stored as typed, so the couple's
+ * "9085550188" showed as raw digits on every sheet (UAT 2026-10-13).
+ */
+export function displayPhone(value: unknown): string {
+  const typed = typeof value === "string" ? value.trim() : "";
+  const digits = typed.replace(/\D/g, "");
+  const local = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (local.length !== 10 || /[^\d\s().+-]/.test(typed)) return typed;
+  return `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`;
+}

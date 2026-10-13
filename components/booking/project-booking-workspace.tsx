@@ -1756,11 +1756,15 @@ export function ProjectBookingWorkspace({ projectId }: { projectId: string }) {
                     packageSnapshotId={String(packageSnapshot.id)}
                     projectId={projectId}
                     providerLabel={
-                      typeof invoice.provider === "string" && invoice.provider
-                        ? invoice.provider === "quickbooks"
-                          ? "QuickBooks"
-                          : invoice.provider.replaceAll("_", " ")
-                        : "QuickBooks"
+                      // An invoice the studio raised itself lives only here:
+                      // no other books to bring in line (UAT 2026-10-13 F8).
+                      invoice.billedBy === "studio"
+                        ? null
+                        : typeof invoice.provider === "string" && invoice.provider
+                          ? invoice.provider === "quickbooks"
+                            ? "QuickBooks"
+                            : invoice.provider.replaceAll("_", " ")
+                          : "QuickBooks"
                     }
                     retainerLabel={currency(
                       invoice.amountCents,

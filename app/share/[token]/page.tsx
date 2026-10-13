@@ -5,7 +5,7 @@ import {
   vendorVisibleItems,
   type ScheduleShareScope,
 } from "@/features/schedules/vendor-share";
-import { vendorContactSheet } from "@/features/vendors/team";
+import { displayPhone, vendorContactSheet } from "@/features/vendors/team";
 import { spokenClock } from "@/features/schedules/day-clock";
 import type { ScheduleItem } from "@/features/schedules/schema";
 import { tradeVocab } from "@/features/trades/trades";
@@ -240,7 +240,7 @@ export default async function RunOfShowSharePage({
                     .join(" · ")}
                 </span>
                 <span className="ros-contact-ways">
-                  {contact.phone ? <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{contact.phone}</a> : null}
+                  {contact.phone ? <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{displayPhone(contact.phone)}</a> : null}
                   {contact.email ? <a href={`mailto:${contact.email}`}>{contact.email}</a> : null}
                 </span>
               </li>

@@ -404,3 +404,10 @@ test("a trial booked before that names the studio's place when its email goes", 
   assert.match(reader, /trialNeedsPlace\(data\) && !text\(input\.job\.location\)\s+\? await getConsultationSettings\(/);
   assert.match(reader, /\.catch\(\(\) => null\)/);
 });
+
+test("a bare 24-hour time goes to the review as 12-hour, whatever field it landed in", async () => {
+  const { answerForPeople } = await import("../functions/src/planning/questionnaire-review-facts");
+  assert.equal(answerForPeople("text", "10:00"), "10:00 AM");
+  assert.equal(answerForPeople("short_text", "23:00"), "11:00 PM");
+  assert.equal(answerForPeople("text", "after 10:00"), "after 10:00");
+});

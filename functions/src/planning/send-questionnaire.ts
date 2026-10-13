@@ -133,6 +133,8 @@ export async function sendNewQuestionnaire(
     tenantId: input.tenantId,
     projectId: input.projectId,
     type: "questionnaire_request",
+    // The form by its own name in the email (email-templates.ts).
+    formName: String(template.get("name") ?? "") || null,
     actionUrl: link.actionUrl,
     // The partner's own copy and link go beside it when anyone's link
     // is an invitation (client/partner-invitations.ts).

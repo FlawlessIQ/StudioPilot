@@ -5,7 +5,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { useVendorTeam, type TeamRecord } from "@/components/vendors/use-vendor-team";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { spokenClock } from "@/features/schedules/day-clock";
-import { vendorCategoryLabel, vendorTeamProgress } from "@/features/vendors/team";
+import { displayPhone, vendorCategoryLabel, vendorTeamProgress } from "@/features/vendors/team";
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const dollars = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2, minimumFractionDigits: 0 });
@@ -42,7 +42,7 @@ export function VendorContactSheet({ projectId }: { projectId: string }) {
   const facts = (entry: TeamRecord) =>
     [
       ["Contact", text(entry.contactName)],
-      ["Phone", text(entry.phone)],
+      ["Phone", displayPhone(entry.phone)],
       ["Email", text(entry.email)],
       ["Arrives", clock(entry.arrivalTime)],
       ["Load-in", clock(entry.loadInTime)],

@@ -1,5 +1,6 @@
 import { isSalesConsultation } from "../booking/consultation-purpose.js";
 import { answersResolvedFor, formFreshness, resolveAnswers } from "../planning/resolved-answers.js";
+import { answerForPeople } from "../planning/questionnaire-review-facts.js";
 import { capExpiryAtEvent } from "../booking/proposal-expiry.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
@@ -77,6 +78,12 @@ import {
   proposalsToRetire,
   staleReason,
 } from "./proposal-supersede.js";
+
+/** Every bare 24-hour answer in a form as people say it (questionnaire-review-facts.ts answerForPeople). */
+function peopleTimes(answers: unknown): unknown {
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) return answers;
+  return Object.fromEntries(Object.entries(answers as Record<string, unknown>).map(([key, value]) => [key, answerForPeople("", value)]));
+}
 
 type Json = Record<string, unknown>;
 
@@ -1480,7 +1487,8 @@ async function executeReadTool(
             status: item.status ?? null,
             completionPercent: item.completionPercent ?? null,
             submittedAt: item.submittedAt ?? null,
-            answers: item.answers ? answersResolvedFor(resolved, item) : null,
+            // A bare "23:00" goes as "11:00 PM": Cue answered "11:00 PM (23:00)" (UAT 2026-10-13 F3).
+            answers: item.answers ? peopleTimes(answersResolvedFor(resolved, item)) : null,
             answeredSince: freshness.settled.map((settled) => ({ question: settled.label, on: settled.formName })),
           };
         });

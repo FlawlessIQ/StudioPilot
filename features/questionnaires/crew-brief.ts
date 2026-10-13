@@ -174,7 +174,10 @@ export function answerText(type: string, value: unknown): string {
     return value ? "Yes" : "No";
   }
   if (typeof value === "number") return String(value);
-  if (typeof value === "string") return value.trim();
+  // A bare "13:30" is a time whatever the field: an answer settled on the
+  // Final schedule's time field lands in an earlier form's text field
+  // (resolved-answers.ts), and read "13:30" in the brief (UAT 2026-10-13).
+  if (typeof value === "string") return /^([01]?\d|2[0-3]):[0-5]\d$/.test(value.trim()) ? clockTime(value) : value.trim();
   if (Array.isArray(value))
     return value
       .map((item) => answerText(type, item))

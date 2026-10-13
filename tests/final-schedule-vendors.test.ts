@@ -84,3 +84,16 @@ test("the publish warns about booked vendors with no email, and never about anyo
   assert.match(noEmailPublishWarning([{ status: "booked", email: "" }]) ?? "", /^1 booked vendor has no email/);
   assert.match(noEmailPublishWarning([{ status: "booked", email: null }, { status: "booked", email: "petal" }]) ?? "", /^2 booked vendors/);
 });
+
+test("vendor phones read as people write them, on every sheet and in the PDF", async () => {
+  const { displayPhone } = await import("@/features/vendors/team");
+  const { displayPhone: serverDisplayPhone } = await import("../functions/src/planning/vendor-team");
+  for (const format of [displayPhone, serverDisplayPhone]) {
+    assert.equal(format("9085550188"), "(908) 555-0188");
+    assert.equal(format("+1 908 555 0188"), "(908) 555-0188");
+    assert.equal(format("908.555.0188"), "(908) 555-0188");
+    assert.equal(format("+44 20 7946 0958"), "+44 20 7946 0958");
+    assert.equal(format("ext 22 9085550188"), "ext 22 9085550188");
+    assert.equal(format(undefined), "");
+  }
+});

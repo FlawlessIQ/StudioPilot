@@ -16,6 +16,7 @@ import {
   type CoupleVendorView,
 } from "@/features/vendors/couple-team";
 import type { VendorType } from "@/features/vendors/schema";
+import { displayPhone } from "@/features/vendors/team";
 
 /**
  * "Your vendor team": the other vendors working the day, listed by the
@@ -168,7 +169,7 @@ export function ClientVendorTeam() {
                         phone: vendor.phone ?? "",
                       })
                     }
-                    subtitle={[coupleVendorKindLabel(vendor.category), vendor.contactName, vendor.phone ?? vendor.email].filter(Boolean).join(" · ")}
+                    subtitle={[coupleVendorKindLabel(vendor.category), vendor.contactName, (vendor.phone ? displayPhone(vendor.phone) : vendor.email)].filter(Boolean).join(" · ")}
                     title={vendor.company}
                   />
                 ))}

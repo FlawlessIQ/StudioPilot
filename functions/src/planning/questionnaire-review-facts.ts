@@ -64,7 +64,10 @@ const text = (value: unknown) => (typeof value === "string" ? value.trim() : "")
  * "07:30" is "7:30 AM". Any other answer goes as the client wrote it.
  */
 export function answerForPeople(type: string, value: unknown): unknown {
-  return type === "time" && typeof value === "string" ? twelveHourClock(value) : value;
+  if (typeof value !== "string") return value;
+  // A bare "13:30" is a time whatever field it landed in — a Final schedule
+  // time settles an earlier form's text field (UAT 2026-10-13 F3).
+  return type === "time" || /^([01]?\d|2[0-3]):[0-5]\d$/.test(value.trim()) ? twelveHourClock(value) : value;
 }
 
 export type SettledFact = { fact: string; value: string };

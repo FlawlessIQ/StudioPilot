@@ -1186,3 +1186,12 @@ export async function runVendorTeamCommand(
     }
   }
 }
+
+/** A phone number as people read it — the functions copy of features/vendors/team.ts displayPhone. */
+export function displayPhone(value: unknown): string {
+  const typed = typeof value === "string" ? value.trim() : "";
+  const digits = typed.replace(/\D/g, "");
+  const local = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (local.length !== 10 || /[^\d\s().+-]/.test(typed)) return typed;
+  return `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`;
+}

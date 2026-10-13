@@ -1598,14 +1598,19 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       }
       // A DJ's planner or a makeup artist's party list, by its own name
       // (trades.ts `detailsForm`); a photographer's reads as it always did.
-      const form = tradeVocab(values.trade).detailsForm;
+      // The form's own name when the job carries it ("Final schedule"): two
+      // forms both read "Details needed by …" and named neither (UAT 2026-10-13 F1).
+      const named = stringValue(values, "formName");
+      const form = named || tradeVocab(values.trade).detailsForm;
       // A vendor's client fills in this one form and the plan of the day is
       // drawn from it (trades.ts `journey.oneForm`), so the request says so.
       const oneForm = tradeProfile(values.trade).journey.oneForm && form;
       const planName = tradeVocab(values.trade).planOfDay ?? "Plan";
       const planWord = `${planName.charAt(0).toLowerCase()}${planName.slice(1)}`;
       return {
-        subject: `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
+        subject: named
+          ? `${reminder ? "Reminder: " : ""}Your ${named.toLowerCase()} for ${brand.studioName}`
+          : `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
         preheader: form ? `Complete your ${form}.` : "Complete your photography project questionnaire.",
         eyebrow: form ? (reminder ? `${form} reminder` : form) : reminder ? "Questionnaire reminder" : "Planning questionnaire",
         heading: reminder

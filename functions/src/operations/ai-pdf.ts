@@ -32,7 +32,7 @@ import { dayFieldsFor, normaliseInquiryFormConfig, resolveInquiryEventType } fro
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { offerLastDay } from "../booking/proposal-expiry.js";
 import { runOfShowDocument } from "../planning/run-of-show-doc.js";
-import { vendorTeamCategoryLabel } from "../planning/vendor-team.js";
+import { displayPhone, vendorTeamCategoryLabel } from "../planning/vendor-team.js";
 import { crewLabels } from "../planning/crew-labels.js";
 import { eventZone } from "../planning/day-clock.js";
 import { itemCrewIds } from "../planning/item-crew.js";
@@ -933,7 +933,7 @@ async function runOfShowFor(db:FirebaseFirestore.Firestore,schedule:DocumentSnap
     .map(entry=>({
       company:String(entry.company??""),
       role:[vendorTeamCategoryLabel(entry.category),String(entry.contactName??"").trim()].filter(Boolean).join(" · "),
-      phone:String(entry.phone??""),
+      phone:displayPhone(entry.phone),
       email:String(entry.email??""),
     }))
     .sort((left,right)=>left.role.localeCompare(right.role)||left.company.localeCompare(right.company));
