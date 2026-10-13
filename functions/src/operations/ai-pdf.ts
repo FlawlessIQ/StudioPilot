@@ -1088,7 +1088,8 @@ async function pdfInput(job:DocumentSnapshot){const db=getFirestore();const tena
       // As before, for a PDF service that predates `document`.
       items:items.map(item=>({start:String(item.startAt),end:String(item.endAt),title:String(item.title),location:String(item.location??"")})),
       generated_at:generatedAt,
-      document:{title:document.title,subtitle:document.subtitle,studio:tenantName,facts:document.facts,rows:document.rows,footer:document.footer},
+      // contacts: the "Vendor Contacts" page (run_of_show.py) — built above and, until UAT 2026-10-13, never sent.
+      document:{title:document.title,subtitle:document.subtitle,studio:tenantName,facts:document.facts,rows:document.rows,footer:document.footer,contacts:document.contacts},
     }}}
   if(type==="closeout_pdf"){const closeout=await db.doc(`projectCloseouts/${String(job.get("closeoutId"))}`).get();if(!closeout.exists)throw new Error("CLOSEOUT_NOT_FOUND");const project=await db.doc(`projects/${String(closeout.get("projectId"))}`).get();const requirements=Array.isArray(closeout.get("requirements"))?closeout.get("requirements") as Array<Json>:[];return{endpoint:"closeouts",entity:closeout,payload:{tenant_name:tenantName,project_id:String(closeout.get("projectId")),closeout_id:closeout.id,project_name:String(project.get("name")??closeout.get("projectId")),requirements:requirements.map(item=>({label:String(item.label),complete:Boolean(item.complete),evidence_id:item.evidenceId??null})),generated_at:generatedAt}}}
   throw new Error("UNSUPPORTED_PDF_JOB")}

@@ -114,7 +114,7 @@ export function VendorReshareBanner({ projectId }: { projectId: string }) {
           {names.join(", ")} {stale.length === 1 ? "is" : "are"} still on the version before {Number(current?.version ?? 0)}. Their
           links keep showing that one until you share this one. Each gets a fresh link; their old one stops opening.
         </p>
-        <label className="record-edit-span">
+        <label className="vendor-reshare-note">
           A note with it (optional)
           <textarea
             maxLength={4000}

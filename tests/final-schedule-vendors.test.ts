@@ -47,6 +47,8 @@ test("the printed run of show lists vendor contacts within the PDF service's lim
   assert.deepEqual(plain.contacts, []);
   assert.match(read("cloud-run/pdf/run_of_show.py"), /contacts: list\[RunOfShowContact\] = Field\(default_factory=list, max_length=40\)/);
   assert.match(read("functions/src/operations/ai-pdf.ts"), /collection\("projectVendors"\)/);
+  // Built and never sent (UAT 2026-10-13): the payload's document must carry them.
+  assert.match(read("functions/src/operations/ai-pdf.ts"), /document:\{[^}]*contacts:document\.contacts\}/);
 });
 
 test("the final details email says the vendor list is asked for, only when it is", () => {

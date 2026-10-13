@@ -420,3 +420,19 @@
   font-size: 12.5px;
   min-width: 0;
 }
+
+/* ── Re-share the new timeline (vendor-reshare-banner.tsx) ───────────── */
+/* The note sits under its label at the panel's full width; it borrowed
+   .record-edit-span, which is only styled inside .record-edit, and rendered
+   as a narrow box beside the label (UAT 2026-10-13). */
+.vendor-reshare-note {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.vendor-reshare-note textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
