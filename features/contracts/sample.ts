@@ -102,6 +102,53 @@ export function sampleContractSources(studioName: string, today: string, trade?:
       contractDate: today,
     };
   }
+  // A wedding planner's own preview: a planning tier, the coordinator and an
+  // assistant on the day — it showed "2 photographers, 8 hours" and a
+  // heirloom album (UAT 2026-10-13).
+  if (trade === "planner") {
+    return {
+      client: { names: "Emma Hart & James Cole", email: "emma@example.com" },
+      event: { name: "Emma & James's wedding", type: "Wedding", date: "2027-06-12", venue: "Wildflower Barn" },
+      packages: [{ name: "Full Planning", totalCents: 650_000 }],
+      package: {
+        name: "Full Planning",
+        coverage: "1 coordinator and 1 assistant, up to 12 hours",
+        deliverables: [
+          "Vendor sourcing and booking",
+          "Budget tracking",
+          "Monthly planning meetings",
+          "Venue walkthrough",
+          "Rehearsal and wedding-day coordination",
+        ],
+      },
+      pricing: { currency: "USD", totalCents: 650_000, retainerCents: 195_000 },
+      paymentSchedule: [
+        { label: "Retainer", amountCents: 195_000, dueDate: null },
+        { label: "Final balance", amountCents: 455_000, dueDate: "2027-05-13" },
+      ],
+      depositLabel: agreementDepositLabel(trade),
+      formAnswers: [
+        { question: "Ceremony start", answer: "3:00 PM" },
+        { question: "Guest count", answer: "140" },
+      ],
+      eventDetails: eventDetailsFrom({
+        eventType: "Wedding",
+        eventKind: "wedding",
+        date: "June 12, 2027",
+        venue: "Wildflower Barn",
+        coverage: "1 coordinator and 1 assistant, up to 12 hours",
+        answers: [
+          { question: "Ceremony location", answer: "Wildflower Barn, the meadow" },
+          { question: "Ceremony start", answer: "3:00 PM" },
+          { question: "Reception times", answer: "5:30 PM – 11:00 PM" },
+          { question: "Expected guest count", answer: "140" },
+        ],
+        trade: String(trade),
+      }),
+      studio,
+      contractDate: today,
+    };
+  }
   return {
     client: { names: "Emma Hart & James Cole", email: "emma@example.com" },
     event: {

@@ -61,3 +61,10 @@ test("one package of a vendor's several keeps its own paragraph, hours, the shar
   assert.equal(photo.planningScope, undefined);
   assert.equal((photo.addOns as unknown[]).length, 0);
 });
+
+test("a planner's agreement preview is a planner's, not a photographer's", async () => {
+  const { sampleContractSources } = await import("../features/contracts/sample");
+  const words = JSON.stringify(sampleContractSources("Bloom Events", "2026-10-13", "planner"));
+  assert.doesNotMatch(words, /photographer|gallery|album/i);
+  assert.match(words, /coordinator/);
+});
