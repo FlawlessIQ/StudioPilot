@@ -478,6 +478,13 @@ export function useTodayInbox(): {
     emailJobs: emailJobs.records,
     integrationConnections: integrationConnections.records,
     billingSettings: billingSettings.records,
+    // Null only once both are read and neither has one: the reminder on Today.
+    emailFooterAddress:
+      tenants.records && billingSettings.records
+        ? text((tenants.records.find((tenant) => tenant.id === workspace.tenantId)?.emailBranding as { postalAddress?: unknown } | undefined)?.postalAddress) ||
+          text(billingSettings.records[0]?.businessAddress) ||
+          null
+        : undefined,
     bookingOrchestrations: bookingOrchestrations.records,
     crewCascades: crewCascades.records,
     crewMessages: crewMessages.records,

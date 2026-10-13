@@ -3603,12 +3603,15 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
   const brandMark = logoUrl
     ? `<img src="${escapeHtml(logoUrl)}" width="44" height="44" alt="${studioName}" style="display:block;width:44px;height:44px;border-radius:10px;object-fit:contain;">`
     : `<div style="width:44px;height:44px;border-radius:10px;background:#151916;color:#ffffff;font-size:19px;font-weight:800;line-height:44px;text-align:center;">${escapeHtml(input.brand.studioName.charAt(0).toUpperCase())}</div>`;
-  // A postal address on every email (CAN-SPAM): the studio's own when it
-  // has set one, otherwise StudioCue's operator (launch plan §1.6).
-  const footerAddress =
-    !isPlatformSender && input.brand.postalAddress?.trim()
-      ? input.brand.postalAddress.trim()
-      : OPERATOR_FOOTER;
+  // The postal address in the footer (Conor, 2026-10-13: studio mail showed
+  // FlawlessIQ's office address because 12 of 13 studios had none set).
+  // StudioCue's own mail, some of it marketing, keeps the operator's
+  // (CAN-SPAM). A studio's mail to its clients, crew and vendors is
+  // transactional: it shows the studio's address (Email branding, else its
+  // invoice address: operations/jobs.ts), and none when the studio has none.
+  const footerAddress = isPlatformSender
+    ? OPERATOR_FOOTER
+    : (input.brand.postalAddress?.trim() || null);
   const contact = input.brand.contactEmail
     ? ` Questions? Reply to this email or contact <a href="mailto:${escapeHtml(input.brand.contactEmail)}" style="color:#4f5752;">${escapeHtml(input.brand.contactEmail)}</a>.`
     : "";
@@ -3660,8 +3663,8 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
         </td></tr>
         <tr><td class="email-footer" style="padding:20px 18px 0;color:#7b837d;font-size:12px;line-height:1.65;text-align:center;">
           ${sentByLine}${contact}<br>
-          This message relates to a private studio workspace or ${photoWord(input.values)}project.<br>
-          ${escapeHtml(footerAddress)}
+          This message relates to a private studio workspace or ${photoWord(input.values)}project.${footerAddress ? `<br>
+          ${escapeHtml(footerAddress)}` : ""}
         </td></tr>
       </table>
     </td></tr>
@@ -3688,7 +3691,7 @@ export function renderEmailTemplate(input: RenderEmailInput): RenderedEmail {
     isPlatformSender
       ? `Sent by ${input.brand.studioName}.`
       : `Sent by ${input.brand.studioName} using ${input.brand.productName}.`,
-    footerAddress,
+    ...(footerAddress ? [footerAddress] : []),
   ].join("\n");
 
   // What the studio actually said, without the branded wrapper. `text` is the

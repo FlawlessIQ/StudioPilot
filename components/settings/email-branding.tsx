@@ -319,11 +319,11 @@ export function EmailBranding() {
             * retyping it per agreement is how it ends up wrong on one.
             */}
           <label>
-            Business address <span>(shown on contracts)</span>
+            Business address <span>(on your contracts and at the bottom of your emails)</span>
             <input
               maxLength={240}
               onChange={(event) => update("postalAddress", event.target.value)}
-              placeholder="2 Green Village Rd, Suite 209, Madison NJ 07940"
+              placeholder="123 Main St, Suite 4, Springfield NJ 07081"
               value={branding.postalAddress}
             />
           </label>

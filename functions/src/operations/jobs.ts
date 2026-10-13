@@ -682,11 +682,16 @@ async function emailContext(
   const db = getFirestore();
   const tenantId = String(document.get("tenantId") ?? "");
   const projectId = String(document.get("projectId") ?? "");
-  const [tenant, project] = await Promise.all([
+  const [tenant, project, billingSettings] = await Promise.all([
     tenantId && tenantId !== "platform"
       ? db.doc(`tenants/${tenantId}`).get()
       : Promise.resolve(null),
     projectId ? db.doc(`projects/${projectId}`).get() : Promise.resolve(null),
+    // The business address on the studio's own invoices, for the footer
+    // when Email branding has none (email-templates.ts).
+    tenantId && tenantId !== "platform"
+      ? db.doc(`billingSettings/${tenantId}`).get()
+      : Promise.resolve(null),
   ]);
   const emailBranding = objectValue(tenant?.get("emailBranding"));
   const brandColors = objectValue(tenant?.get("brandColors"));
@@ -881,7 +886,11 @@ async function emailContext(
           ),
         ),
         contactEmail,
-        postalAddress: firstString(emailBranding.postalAddress) ?? null,
+        postalAddress:
+          firstString(
+            emailBranding.postalAddress,
+            billingSettings?.exists && billingSettings.get("tenantId") === tenantId ? billingSettings.get("businessAddress") : null,
+          ) ?? null,
       };
   return {
     brand,

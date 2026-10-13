@@ -154,7 +154,7 @@ export const contractMergeFields = [
    * of {{studio.address}}", "questions to {{studio.phone}}" — and a field they
    * can place beats a header they cannot move.
    */
-  { key: "studio.address", label: "Studio address", example: "2 Green Village Rd, Suite 209, Madison NJ 07940" },
+  { key: "studio.address", label: "Studio address", example: "123 Main St, Suite 4, Springfield NJ 07081" },
   { key: "studio.phone", label: "Studio phone", example: "201.320.4296" },
   { key: "studio.email", label: "Studio email", example: "info@yourstudio.com" },
   { key: "studio.website", label: "Studio website", example: "www.yourstudio.com" },

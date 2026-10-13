@@ -95,8 +95,12 @@ test("the email footer carries the operator's address, the same one the legal pa
   assert.ok(OPERATOR_FOOTER.includes(LEGAL_ENTITY.name));
   assert.ok(OPERATOR_FOOTER.includes(LEGAL_ENTITY.addressOneLine));
   const brand = { studioName: "Alder & Muse", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null };
+  // A studio's own mail never carries StudioCue's address (2026-10-13): its
+  // own, or none. StudioCue's own mail carries the operator's.
   const withoutAddress = renderEmailTemplate({ key: "proposal_sent", brand, recipientName: "Ana", projectName: null, values: {} });
-  assert.ok(withoutAddress.text.includes(LEGAL_ENTITY.addressOneLine));
+  assert.ok(!withoutAddress.text.includes(LEGAL_ENTITY.addressOneLine));
+  const platform = renderEmailTemplate({ key: "platform_vendor_invite", brand: { ...brand, studioName: "StudioCue" }, recipientName: "Ana", projectName: null, values: {} });
+  assert.ok(platform.text.includes(LEGAL_ENTITY.addressOneLine));
   const withAddress = renderEmailTemplate({
     key: "proposal_sent",
     brand: { ...brand, postalAddress: "12 Main St, Hoboken, NJ 07030" },

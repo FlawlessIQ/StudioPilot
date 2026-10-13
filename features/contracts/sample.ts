@@ -9,7 +9,7 @@ export function sampleContractSources(studioName: string, today: string, trade?:
   const studio = {
     name: studioName,
     legalName: null,
-    address: "2 Green Village Rd, Suite 209, Madison NJ 07940",
+    address: "123 Main St, Suite 4, Springfield NJ 07081",
     phone: "201.320.4296",
     email: "info@example.com",
     website: "www.example.com",
@@ -146,7 +146,7 @@ export function sampleContractSources(studioName: string, today: string, trade?:
   studio: {
       name: studioName,
       legalName: null,
-      address: "2 Green Village Rd, Suite 209, Madison NJ 07940",
+      address: "123 Main St, Suite 4, Springfield NJ 07081",
       phone: "201.320.4296",
       email: "info@example.com",
       website: "www.example.com",

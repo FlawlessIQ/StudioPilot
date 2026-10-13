@@ -28,7 +28,7 @@ test("a studio can place its own details anywhere in its wording", () => {
     overrides: {},
   });
   const text = JSON.stringify(resolved.document.blocks);
-  assert.match(text, /2 Green Village Rd/);
+  assert.match(text, /123 Main St/);
   assert.match(text, /201\.320\.4296/);
   assert.match(text, /info@example\.com/);
 });

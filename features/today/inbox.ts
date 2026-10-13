@@ -467,6 +467,12 @@ export type TodayInput = {
   integrationConnections?: TodayRecord[] | null;
   /** The studio's billing settings (one record): its invoice payment details. */
   billingSettings?: TodayRecord[] | null;
+  /**
+   * The address at the bottom of the studio's emails: Email branding's, else
+   * its invoice address (functions/src/operations/jobs.ts). Null: it has
+   * none, so its emails go without one. Undefined: not known yet.
+   */
+  emailFooterAddress?: string | null;
   bookingOrchestrations?: TodayRecord[] | null;
   crewCascades?: TodayRecord[] | null;
   /**
@@ -2544,6 +2550,27 @@ export function todayInbox(input: TodayInput): TodayInbox {
       band: bandFor({ eventDate: text(job?.eventDate) || null, dueDate: text(invoice.dueDate) || null, now }),
       eventDate: text(job?.eventDate) || null,
       score: score({ lane: "act", severity: "step", eventDate: text(job?.eventDate) || null, updatedAt: changedAt(invoice), now }),
+    });
+  }
+  // ── FYI · no business address for the bottom of its emails ─────────
+  // Conor, 2026-10-13: studio mail showed FlawlessIQ's office address. It now
+  // shows the studio's own, or none; asked once there's work to send about.
+  if (input.emailFooterAddress === null && rows(input.projects).some((job) => !job.archivedAt)) {
+    fyi.push({
+      id: "setup-business-address",
+      lane: "fyi",
+      kind: null,
+      title: "Add your business address",
+      detail: "It goes on your contracts and at the bottom of every email StudioCue sends for you. Without one, your emails go out with no address.",
+      evidence: null,
+      projectId: null,
+      projectName: null,
+      action: { kind: "link", label: "Add it", href: "/studio/settings/email-branding" },
+      jobHref: null,
+      facts: [],
+      band: "later",
+      eventDate: null,
+      score: score({ lane: "fyi", updatedAt: null, now }),
     });
   }
   // ── Act · a booking link out with nothing to take the deposit ───────
