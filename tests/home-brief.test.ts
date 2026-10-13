@@ -210,3 +210,23 @@ test("representation keeps global severity order in the result", () => {
   const scores = mixed.map((entry) => entry.score);
   assert.deepEqual([...scores], [...scores].sort((a, b) => b - a));
 });
+
+test("Today's outstanding and overdue agree with the Invoices ledger", async () => {
+  // UAT 2026-10-13: Today read "$12,438 outstanding, 7 overdue" beside a ledger of $0.
+  const { homeMetrics } = await import("@/features/dashboard/home-metrics");
+  const metrics = homeMetrics({
+    now: new Date("2026-10-13T15:00:00Z"),
+    projects: [],
+    invoiceReferences: [
+      { id: "failed", status: "failed", amountCents: 50000, balanceCents: 50000, dueDate: "2026-10-01" },
+      { id: "old", status: "superseded", amountCents: 75000, balanceCents: 75000, dueDate: "2026-09-01" },
+      { id: "draft", status: "draft", amountCents: 20000, balanceCents: 20000, dueDate: "2026-09-01" },
+      { id: "paid", status: "paid", amountCents: 75000, balanceCents: 0, dueDate: "2026-10-16" },
+      { id: "late", status: "sent", amountCents: 30000, balanceCents: 30000, dueDate: "2026-10-01" },
+      { id: "owed", status: "sent", amountCents: 10000, balanceCents: 10000, dueDate: "2026-11-01" },
+    ],
+  });
+  assert.equal(metrics.outstandingCents, 40000);
+  assert.equal(metrics.overdueInvoiceCount, 1);
+  assert.equal(metrics.bookedValueCents, 135000);
+});

@@ -8,6 +8,7 @@
  */
 
 import { activeProjectStates } from "@/features/dashboard/active-states";
+import { ledgerState } from "@/features/billing/invoice-ledger";
 import {
   daysUntilEvent,
   eventDateHasPassed,
@@ -104,22 +105,22 @@ export function homeMetrics(input: {
     )
     .sort((left, right) => left.daysAway - right.daysAway);
 
-  const bookedValueCents = invoices.reduce(
-    (sum, invoice) => sum + cents(invoice.amountCents),
+  // The Invoices ledger's rules (features/billing/invoice-ledger.ts), so Today
+  // and the ledger never disagree. Today summed every record — a failed
+  // QuickBooks attempt, a superseded bill and its replacement, drafts — and
+  // read "$12,438 outstanding, 7 overdue" beside a ledger of $0 (UAT 2026-10-13).
+  const standing = invoices
+    .map((invoice) => ({ invoice, state: ledgerState(invoice, today) }))
+    .filter((entry) => entry.state !== "closed");
+  const bookedValueCents = standing.reduce(
+    (sum, { invoice }) => sum + cents(invoice.amountCents),
     0,
   );
-  const outstandingCents = invoices.reduce(
-    (sum, invoice) => sum + cents(invoice.balanceCents),
-    0,
-  );
+  const outstandingCents = standing
+    .filter((entry) => entry.state === "owed" || entry.state === "overdue")
+    .reduce((sum, { invoice }) => sum + Math.max(0, cents(invoice.balanceCents)), 0);
 
-  const overdueInvoiceCount = invoices.filter(
-    (invoice) =>
-      cents(invoice.balanceCents) > 0 &&
-      text(invoice.dueDate) !== "" &&
-      text(invoice.dueDate) < today &&
-      !["voided", "refunded", "paid"].includes(text(invoice.status)),
-  ).length;
+  const overdueInvoiceCount = standing.filter((entry) => entry.state === "overdue").length;
 
   return {
     eventsThisMonth,
