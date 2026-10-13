@@ -2376,13 +2376,19 @@
   gap: 20px;
   align-items: flex-start;
 }
-.ds-cal > :first-child {
-  flex: 1.65 1 480px;
-  min-width: 0;
-}
-.ds-cal > :not(:first-child) {
+/* By name, not by position: "first child gets the month's share" gave it to
+   the "Scheduling a … for" banner whenever one showed, and squeezed the
+   month into the day's 300px column (Conor, 2026-10-13). The banner takes
+   its own row above both. */
+.ds-cal > * {
   flex: 1 1 300px;
   min-width: 0;
+}
+.ds-cal > .ds-cal-context {
+  flex: 1 1 100%;
+}
+.ds-cal > .ds-cal-grid-card {
+  flex: 1.65 1 480px;
 }
 
 .ds-cal-grid-card {

@@ -337,6 +337,13 @@ const commandSchema = z.discriminatedUnion("type", [
       endsAt: z.string().datetime(),
       timezone: z.string().min(1),
       location: z.string().max(500).nullable(),
+      /**
+       * Which call (booking/consultation-purpose.ts). The journey's final
+       * details call, trial and walkthrough steps open the calendar on their
+       * own call; without this every one was booked as a sales consultation
+       * (Conor, 2026-10-13). Absent = the consultation, as before.
+       */
+      purpose: z.enum(["consultation", "final_details", "trial", "walkthrough"]).optional(),
     }),
   }),
   z.object({
@@ -984,6 +991,8 @@ export const bookingCommand = onRequest(
           command.tenantId,
           command.idempotencyKey,
         );
+        const purpose = command.input.purpose ?? "consultation";
+        const salesCall = purpose === "consultation";
         // These placeholders are mock-mode fixtures and must not be written in
         // live mode. The provider worker creates the real resources only when
         // the field is still empty — `if (mode === "zoom" && !meetingId)` and
@@ -1012,6 +1021,7 @@ export const bookingCommand = onRequest(
           projectId: command.input.projectId,
           contactId: command.input.contactId,
           mode: command.input.mode,
+          purpose,
           status: "scheduled",
           startsAt: command.input.startsAt,
           endsAt: command.input.endsAt,
@@ -1054,11 +1064,15 @@ export const bookingCommand = onRequest(
         // It is rendered from the consultation when it goes, not from these
         // fields (booking/consultation-email.ts): the Zoom link does not exist
         // yet, and is made by the provider worker a moment from now.
-        const confirmationRescheduleUrl = await coupleInquiryUrl(firestore, {
-          tenantId: command.tenantId,
-          projectId: command.input.projectId,
-          now: timestamp,
-        }).catch(() => null);
+        // The couple's inquiry page moves only the sales call; any other
+        // call is moved by replying (as rescheduleConsultation does).
+        const confirmationRescheduleUrl = salesCall
+          ? await coupleInquiryUrl(firestore, {
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              now: timestamp,
+            }).catch(() => null)
+          : null;
         await firestore
           .doc(`emailJobs/consultation_confirmation_${consultationId}`)
           .create({
@@ -1068,6 +1082,7 @@ export const bookingCommand = onRequest(
             contactId: command.input.contactId,
             consultationId,
             type: "consultation_confirmation",
+            purpose,
             startsAt: command.input.startsAt,
             location: command.input.location ?? null,
             rescheduleUrl: confirmationRescheduleUrl,
@@ -1089,7 +1104,31 @@ export const bookingCommand = onRequest(
         const projectReference = firestore.doc(
           `projects/${command.input.projectId}`,
         );
-        await firestore.runTransaction(async (transaction) => {
+        // Booked for them: the couple's own link for this call stops offering
+        // times, so they can't book a second one (public-scheduling.ts reads
+        // a booked link as booked).
+        if (!salesCall) {
+          const links = await firestore
+            .collection("consultationBookingLinks")
+            .where("tenantId", "==", command.tenantId)
+            .where("projectId", "==", command.input.projectId)
+            .get();
+          await Promise.all(
+            links.docs
+              .filter((link) => link.get("status") === "pending" && consultationPurpose(link.data()) === purpose)
+              .map((link) =>
+                link.ref.update({ status: "booked", bookedConsultationId: consultationId, bookedAt: timestamp, updatedAt: timestamp, updatedBy: identity.uid }),
+              ),
+          );
+        }
+        // A trial booked here, as one booked from the client's link: the job
+        // says so, so Today never asks to invite them (public-scheduling.ts).
+        if (purpose === "trial") {
+          await projectReference.update({ trialBookedAt: timestamp }).catch(() => undefined);
+        }
+        // Only the sales call moves a job on, and only it waits on the
+        // event form's read.
+        if (salesCall) await firestore.runTransaction(async (transaction) => {
           const project = await transaction.get(projectReference);
           if (!project.exists || project.get("tenantId") !== command.tenantId)
             return;
@@ -1134,7 +1173,7 @@ export const bookingCommand = onRequest(
         });
         // An event form the couple sent from their inquiry page waited for
         // the call to be booked (intake/inquiry-form.ts).
-        await queueInquiryFormAnalysis(firestore, {
+        if (salesCall) await queueInquiryFormAnalysis(firestore, {
           tenantId: command.tenantId,
           projectId: command.input.projectId,
           now: timestamp,

@@ -1,5 +1,7 @@
 "use client";
 
+import { bookableCalls, callForJob, isConsultationPurpose } from "@/features/consultations/studio-booking";
+import type { ConsultationPurpose } from "@/features/consultations/purpose";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AvailabilityDialog } from "@/components/booking/availability-dialog";
 import { ConsultationCorrections } from "@/components/booking/consultation-corrections";
@@ -154,14 +156,22 @@ export function StudioCalendar() {
   // (post-mount, so SSR and first paint match) to show whose consultation this
   // is — otherwise the month view looks like the generic calendar with no cue.
   const [schedulingForId, setSchedulingForId] = useState<string | null>(null);
+  // Which call: the journey step's link says (`?call=final_details`), else the
+  // job's likely next one (features/consultations/studio-booking.ts).
+  const [callParam, setCallParam] = useState<string | null>(null);
   useEffect(() => {
-    void Promise.resolve().then(() =>
-      setSchedulingForId(new URLSearchParams(window.location.search).get("project")),
-    );
+    void Promise.resolve().then(() => {
+      const search = new URLSearchParams(window.location.search);
+      setSchedulingForId(search.get("project"));
+      setCallParam(search.get("call"));
+    });
   }, []);
   const schedulingFor = schedulingForId
     ? (projects ?? []).find((project) => project.id === schedulingForId)
     : undefined;
+  const schedulingCall = schedulingFor
+    ? callForJob({ param: callParam, projectState: schedulingFor.state, trade: workspace.tenantTrade })
+    : null;
 
   // Studio-local timezone + the weekly-availability settings doc, kept live
   // so a change made in Settings (or another tab) shows up here without a
@@ -379,7 +389,7 @@ export function StudioCalendar() {
       {schedulingFor ? (
         <div className="ds-cal-context" role="status">
           <span>
-            {`Scheduling ${withArticle(meeting)} for`}{" "}
+            {`Booking ${withArticle(schedulingCall ? schedulingCall.label.toLowerCase() : meeting)} for`}{" "}
             <strong>{String(schedulingFor.name ?? "this project")}</strong> — pick
             an open time below.
           </span>
@@ -772,6 +782,7 @@ export function StudioCalendar() {
                       key={slot.startsAt}
                       // Arrived from a job: its booking form starts on that job.
                       projectId={schedulingFor ? schedulingFor.id : null}
+                      purpose={schedulingCall ? schedulingCall.purpose : null}
                       slot={slot}
                       tenantId={tenantId}
                       timezone={timezone}
@@ -947,11 +958,14 @@ function SlotRow({
   slot,
   tenantId,
   projectId,
+  purpose,
   timezone,
 }: {
   slot: ConsultationSlot;
   tenantId: string;
   projectId: string | null;
+  /** The call the page is booking for that job, when it came from one. */
+  purpose: ConsultationPurpose | null;
   timezone: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -965,6 +979,7 @@ function SlotRow({
       {open ? (
         <BookSlotForm
           initialProjectId={projectId}
+          initialPurpose={purpose}
           slot={slot}
           tenantId={tenantId}
           timezone={timezone}
@@ -983,6 +998,7 @@ function BookSlotForm({
   slot,
   onCancel,
   initialProjectId,
+  initialPurpose,
   timezone,
 }: {
   slot: ConsultationSlot;
@@ -990,14 +1006,26 @@ function BookSlotForm({
   /** The studio's zone, sent with the booking — never the browser's. */
   timezone: string;
   onCancel: () => void;
-  /** The job the studio came from ("Scheduling a consultation for …"). */
+  /** The job the studio came from ("Booking the final details call for …"). */
   initialProjectId: string | null;
+  initialPurpose: ConsultationPurpose | null;
 }) {
-  const meeting = meetingWord(useWorkspace().tenantTrade);
+  const trade = useWorkspace().tenantTrade;
+  const calls = bookableCalls(trade);
   const { records: projects, loading } = useTenantDocuments("projects");
   const initial = initialProjectId ? (projects ?? []).find((project) => project.id === initialProjectId) : undefined;
   const initialContacts = initial?.clientContactIds;
   const [projectId, setProjectId] = useState(initial ? initial.id : "");
+  // Picked by the studio, else the call the page came for, else the chosen
+  // job's likely next one: a booked job is past its consultation.
+  const [pickedPurpose, setPickedPurpose] = useState<ConsultationPurpose | null>(null);
+  const chosenProject = (projects ?? []).find((project) => project.id === projectId);
+  const call = callForJob({
+    param: pickedPurpose ?? (projectId === initialProjectId ? initialPurpose : null),
+    projectState: chosenProject?.state,
+    trade,
+  });
+  const meeting = call.label.toLowerCase();
   const [contactId, setContactId] = useState(
     Array.isArray(initialContacts) ? String(initialContacts[0] ?? "") : "",
   );
@@ -1052,6 +1080,7 @@ function BookSlotForm({
           endsAt: slot.endsAt,
           timezone,
           location: null,
+          purpose: call.purpose,
         },
       });
       setBooked(true);
@@ -1076,6 +1105,7 @@ function BookSlotForm({
           value={projectId}
           onChange={(event) => {
             setProjectId(event.target.value);
+            setPickedPurpose(null);
             const selected = projects?.find((project) => project.id === event.target.value);
             const contacts = selected?.clientContactIds;
             setContactId(Array.isArray(contacts) ? String(contacts[0] ?? "") : "");
@@ -1092,6 +1122,22 @@ function BookSlotForm({
           ))}
         </select>
       </label>
+      {calls.length > 1 ? (
+        <label>
+          <span>Call</span>
+          <select
+            disabled={booked}
+            value={call.purpose}
+            onChange={(event) => setPickedPurpose(isConsultationPurpose(event.target.value) ? event.target.value : null)}
+          >
+            {calls.map((option) => (
+              <option key={option.purpose} value={option.purpose}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label>
         <span>Meeting type</span>
         <select

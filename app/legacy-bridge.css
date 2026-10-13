@@ -1391,10 +1391,10 @@
 
 /* The month takes the larger share beside the day (design-system.css wraps
    them by the calendar's own width, not the window's). */
-.ds-root .ds-cal > :first-child {
+.ds-root .ds-cal > .ds-cal-grid-card {
   flex-grow: 2.1;
 }
-.ds-root .ds-cal > :not(:first-child) {
+.ds-root .ds-cal > .ds-cal-panel {
   flex-grow: 0.9;
 }
 

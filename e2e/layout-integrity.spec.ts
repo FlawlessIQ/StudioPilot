@@ -30,6 +30,9 @@ const staticRoutes = globSync("app/**/page.tsx")
 const recordRoutes = [
   "/studio/projects/demo-project",
   "/studio/planning?project=demo-project",
+  // Scheduling a call for a job: the "Scheduling a … for" banner sits above
+  // the month, which it once squeezed into the day's column (2026-10-13).
+  "/studio/calendar?project=demo-project",
   "/studio/proposals/demo-proposal",
   "/studio/proposals/demo-proposal/preview",
   "/studio/schedules/demo-schedule",

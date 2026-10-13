@@ -1,3 +1,4 @@
+import { bookCallHref } from "@/features/consultations/studio-booking";
 import { journeyFor, vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import type { ProjectState } from "@/features/projects/schema";
@@ -1434,7 +1435,14 @@ export function projectJourney(input: JourneyInput): {
             : call.state === "not_sent"
               ? prepStatus("current")
               : prepStatus("upcoming"),
-      action: null,
+      // The studio can book it for them (Conor, 2026-10-13): the calendar
+      // opens on this call, not a consultation.
+      // Only while it's waiting on the couple or on the studio: an upcoming
+      // step never offers an action (its "Open calendar" still opens on it).
+      action:
+        call.state === "invited" || call.state === "not_sent"
+          ? { kind: "link", label: `Book the ${tradeWords.finalCall.toLowerCase()}`, href: bookCallHref(input.projectId, "final_details") }
+          : null,
       record: null,
       owner: null,
       unlock: null,
@@ -1876,16 +1884,16 @@ export function projectJourney(input: JourneyInput): {
     proposal: { label: `Open ${tradeVocab(input.trade).proposal.toLowerCase()}`, href: project("/studio/proposals") },
     contract: { label: "Open contract", href: project("/studio/booking") },
     retainer: { label: `Open ${tradeVocab(input.trade).deposit}`, href: project("/studio/booking") },
-    trial: { label: "Open calendar", href: project("/studio/calendar") },
+    trial: { label: "Open calendar", href: bookCallHref(input.projectId, "trial") },
     vendor_team: { label: "Open the vendor team", href: `/studio/projects/${input.projectId}#vendor-team` },
-    walkthrough: { label: "Open calendar", href: project("/studio/calendar") },
+    walkthrough: { label: "Open calendar", href: bookCallHref(input.projectId, "walkthrough") },
     vendors_confirmed: { label: "Open the vendor team", href: `/studio/projects/${input.projectId}#vendor-team` },
     schedule_form: {
       label: "Open form",
       href: project("/studio/questionnaires"),
     },
     run_of_show: { label: "Open schedule", href: project("/studio/schedules") },
-    final_call: { label: "Open calendar", href: project("/studio/calendar") },
+    final_call: { label: "Open calendar", href: bookCallHref(input.projectId, "final_details") },
     crew: { label: "Open crew", href: project("/studio/crew") },
     extensions: { label: "Open tasks", href: project("/studio/tasks") },
     coi: { label: "Open insurance", href: project("/studio/insurance") },
