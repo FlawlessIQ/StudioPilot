@@ -115,9 +115,34 @@ export function csvCell(value: unknown): string {
   return /[",\n\r]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
 }
 
+/**
+ * The Console's own words for a vendor's standing (features/console/vendor-database.ts;
+ * tests/platform-vendors.test.ts keeps the two in step). The export wrote the
+ * codes — "held", "opted_out" — where the page says "No journey yet" (UAT 2026-10-13).
+ */
+export const CSV_PROSPECT_LABELS: Record<string, string> = {
+  vendor_plan: "Vendor plan",
+  studio_plan: "Studio plan",
+  held: "No journey yet",
+};
+export const CSV_OFFER_LABELS: Record<string, string> = {
+  none: "Not contacted",
+  invited: "Invited",
+  offered: "Offered",
+  claimed: "Code used",
+  signed_up: "Signed up",
+  opted_out: "Opted out",
+};
+
+function csvValue(row: VendorRow, field: keyof VendorRow): unknown {
+  if (field === "prospect") return CSV_PROSPECT_LABELS[String(row.prospect)] ?? row.prospect;
+  if (field === "offer") return CSV_OFFER_LABELS[String(row.offer)] ?? row.offer;
+  return row[field];
+}
+
 export function vendorsCsv(rows: readonly VendorRow[]): string {
   const lines = [CSV_COLUMNS.map(([, label]) => label).join(",")];
-  for (const row of rows) lines.push(CSV_COLUMNS.map(([field]) => csvCell(row[field])).join(","));
+  for (const row of rows) lines.push(CSV_COLUMNS.map(([field]) => csvCell(csvValue(row, field))).join(","));
   return `${lines.join("\n")}\n`;
 }
 

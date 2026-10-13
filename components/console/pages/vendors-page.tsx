@@ -131,7 +131,7 @@ export function VendorsPage() {
     const result = await run<{ csv: string; count: number }>(
       "exportPlatformVendors",
       filtered ? { ids: shown.map((row) => row.id) } : {},
-      { done: (made) => `Exported ${made.count} vendors.` },
+      { done: (made) => `Exported ${made.count} ${made.count === 1 ? "vendor" : "vendors"}.` },
     );
     if (!result) return;
     const url = URL.createObjectURL(new Blob([result.csv], { type: "text/csv;charset=utf-8" }));

@@ -146,3 +146,12 @@ test("wired: the trigger, the handlers, no browser read, the page, the nav and t
   assert.match(backfill, /Refusing to run/);
   assert.match(backfill, /if \(!write\)/);
 });
+
+test("the export uses the Console's words for prospect and offer", async () => {
+  const { CSV_OFFER_LABELS, CSV_PROSPECT_LABELS } = await import("../functions/src/console/handlers/vendors");
+  const { OFFER_STATE_LABELS, PROSPECT_LABELS } = await import("../features/console/vendor-database");
+  assert.deepEqual(CSV_OFFER_LABELS, OFFER_STATE_LABELS);
+  assert.deepEqual(CSV_PROSPECT_LABELS, PROSPECT_LABELS);
+  const csv = vendorsCsv([{ company: "Petal & Stem", prospect: "held", offer: "opted_out" } as unknown as VendorRow]);
+  assert.match(csv, /No journey yet,Opted out/);
+});
