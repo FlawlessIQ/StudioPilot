@@ -8,6 +8,7 @@ import { appUrl, platformEmailJob } from "../console/studio-owner.js";
 import { vendorTypeIsLive, vendorTypeLiveTrades } from "../trades/trades.js";
 import { BOOKED_JOB_STATES, INVITED_VENDOR_TYPES, normalizeReferralCode } from "./referral-program.js";
 import { emailHash, ensureReferralCode } from "./referrals.js";
+import { newVendorOfferCode, vendorOfferAudience, vendorOfferLink } from "./vendor-offer.js";
 
 /**
  * Vendor invites (Conor, 2026-10-08): the vendors on a studio's booked jobs
@@ -236,8 +237,24 @@ export async function queueVendorInvite(db: Firestore, invite: PreparedInvite, c
   if (ctx.dryRun) throw new Error("DRY_RUN_WRITES_NOTHING");
   const token = randomBytes(18).toString("base64url");
   const jobId = `vendor_invite_${invite.hash.slice(0, 32)}`;
+  // A DJ, hair, makeup or planner vendor gets the vendor offer and a code of
+  // their own (saas/vendor-offer.ts); a videographer, the studio's code.
+  const offerCode = vendorOfferAudience(invite.vendorType) === "vendor" ? newVendorOfferCode() : null;
   const batch = db.batch();
+  if (offerCode)
+    // `create`: a code already taken fails the batch, and tomorrow's run tries again.
+    batch.create(db.doc(`saasReferralCodes/${offerCode}`), {
+      code: offerCode,
+      kind: "vendor_offer",
+      tenantId: invite.tenantId,
+      offerFor: invite.hash,
+      projectId: invite.projectId,
+      vendorType: invite.vendorType,
+      createdAt: ctx.nowIso,
+    });
   batch.create(db.doc(`vendorInvites/${invite.hash}`), {
+    ...(offerCode ? { offerCode } : {}),
+    source: "vendor_invite",
     id: invite.hash,
     tenantId: invite.tenantId,
     vendorId: invite.vendorId,
@@ -259,12 +276,17 @@ export async function queueVendorInvite(db: Firestore, invite: PreparedInvite, c
         soleRecipient: true,
         referrerTenantId: invite.tenantId,
         studioName: invite.studioName,
-        code: invite.code,
+        code: offerCode ?? invite.code,
+        offerCode,
         // The trades the vendor would sign up as (trades.ts), so the email
         // names theirs: "StudioCue runs your DJ bookings".
         vendorType: invite.vendorType,
         inviteTrades: [...vendorTypeLiveTrades(invite.vendorType)],
-        actionUrl: appUrl(vendorInviteLink(invite.vendorType, invite.code)),
+        actionUrl: appUrl(
+          offerCode
+            ? vendorOfferLink({ vendorType: invite.vendorType, code: offerCode, medium: "email" })
+            : vendorInviteLink(invite.vendorType, invite.code),
+        ),
         unsubscribeUrl: appUrl(`/api/public/unsubscribe?e=${invite.hash}&t=${token}`),
         maxAttempts: 5,
         createdBy: "vendor-invites",

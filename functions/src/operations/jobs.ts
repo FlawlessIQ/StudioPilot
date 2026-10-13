@@ -76,6 +76,7 @@ import {
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { vendorAskOwedFor } from "../planning/vendor-team.js";
+import { vendorTimelineOffer } from "../saas/vendor-offer.js";
 import { billingHoldFor, holdJobForBilling } from "../saas/billing-hold.js";
 import { isReservedTestAddress } from "../communications/test-address.js";
 import { studioWroteIt } from "../communications/studio-reply.js";
@@ -1120,6 +1121,17 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
       vendorTeamAsk: await vendorAskOwedFor(getFirestore(), String(document.get("tenantId") ?? ""), String(document.get("projectId") ?? "")),
     };
   }
+  // A vendor's timeline carries StudioCue's offer the first time StudioCue
+  // ever writes to them, when they're offered one (saas/vendor-offer.ts);
+  // their opt-out from offers never stops a timeline.
+  let offerUnsubscribeUrl: string | null = null;
+  if (type === "vendor_timeline") {
+    const offer = await vendorTimelineOffer(getFirestore(), document, new Date().toISOString());
+    if (offer?.firstContact) {
+      reminderValues = { ...reminderValues, vendorOffer: offer };
+      offerUnsubscribeUrl = offer.unsubscribeUrl;
+    }
+  }
   const recipient = await recipientFor(document);
   const context = await emailContext(document, recipient);
   const rendered = renderEmailTemplate({
@@ -1216,7 +1228,7 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
   };
   // Sales mail carries a one-click unsubscribe (RFC 8058) the inbox shows
   // beside the sender; it posts to the same link as the one in the email.
-  const unsubscribeUrl = firstString(document.get("unsubscribeUrl"));
+  const unsubscribeUrl = firstString(document.get("unsubscribeUrl")) ?? offerUnsubscribeUrl;
   if (unsubscribeUrl) {
     payload.headers = {
       "List-Unsubscribe": `<${unsubscribeUrl}>`,

@@ -17054,6 +17054,38 @@ form:has(> .address-field) > .address-field,
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* StudioCue's offer to a vendor (server/vendors/vendor-offer.ts): quiet, under the timeline. */
+.ros-offer {
+  margin-top: 28px;
+  padding: 18px;
+  border: 1px solid var(--line, #e3e6e3);
+  border-radius: 12px;
+  background: var(--surface-soft, #f6f8f6);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.ros-offer h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+.ros-offer p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ros-offer-from {
+  color: var(--muted, #5f6763);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ros-offer-code strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+}
+.ros-offer .button {
+  justify-self: start;
+}
 .ros-confirm {
   border-top: 1px solid var(--line);
   margin-top: 22px;

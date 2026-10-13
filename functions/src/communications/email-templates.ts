@@ -794,6 +794,38 @@ export function vendorInvitePitch(inviteTrades: unknown): { headline: string; de
   return null;
 }
 
+/**
+ * The vendor offer under a vendor's timeline (saas/vendor-offer.ts): one line
+ * of pitch in their trade's words, the price, their code and a quiet link.
+ * Null when there is no offer on the email.
+ */
+export function vendorOfferCopy(
+  raw: unknown,
+  studioName: string,
+  /** The job's word for its day, in the client's kind (job-kinds.ts vocab): "wedding", "event". */
+  event = "event",
+): { details: Array<{ label: string; value: string }>; action: { label: string; url: string }; note: string } | null {
+  const offer = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : null;
+  const url = offer ? safeUrl(stringValue(offer, "actionUrl")) : null;
+  const code = offer ? stringValue(offer, "code") : "";
+  if (!offer || !url || !code) return null;
+  const studio = stringValue(offer, "studioName") || studioName;
+  const pitch = vendorInvitePitch(offer.trades);
+  const studioPlan = offer.audience === "studio";
+  const price = studioPlan
+    ? "14 days free, then $75/month billed yearly for your first year, half the usual $150"
+    : "14 days free, then $50/month for your first 12 months, or $500 for your first year";
+  const unsubscribe = safeUrl(stringValue(offer, "unsubscribeUrl"));
+  return {
+    details: [
+      { label: "From StudioCue", value: `${studio} runs this ${event} on StudioCue. ${pitch ? `${pitch.headline}, too.` : "It can run your bookings, too."} Because you worked this one: ${price}.` },
+      { label: "Your code", value: code },
+    ],
+    action: { label: studioPlan ? "Try StudioCue with this code" : "Try StudioCue at the vendor price", url },
+    note: `${studio} listed you on this ${event}, which is how we have your address. We won't email you about StudioCue again${unsubscribe ? `, and you can opt out of offers here: ${unsubscribe}` : ""}. You'll still get this ${event}'s timeline.`,
+  };
+}
+
 function copyFor(input: RenderEmailInput): EmailCopy {
   const { brand, values } = input;
   // The event's own zone, put on the job by the sender (see emailContext).
@@ -1985,6 +2017,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const venue = stringValue(values, "venueName");
       const note = stringValue(values, "studioNote");
       const whole = stringValue(values, "shareScope") === "full";
+      // StudioCue's offer, the first time it ever writes to this vendor
+      // (saas/vendor-offer.ts): a footnote under the timeline, never its point.
+      const offer = vendorOfferCopy(values.vendorOffer, brand.studioName, vocab(kind).event);
       return {
         subject: update
           ? `Updated timeline: ${occasion}${on}`
@@ -2005,7 +2040,10 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             : "Please open it and confirm it works for you. There's nothing to sign in to.",
         ],
         action: shareUrl ? { label: "View and confirm", url: shareUrl } : undefined,
-        note: "This link is yours alone. If the plan changes, you'll get the new version.",
+        note: offer
+          ? `This link is yours alone. If the plan changes, you'll get the new version. ${offer.note}`
+          : "This link is yours alone. If the plan changes, you'll get the new version.",
+        ...(offer ? { details: offer.details, secondaryAction: offer.action } : {}),
       };
     }
     case "event_reminder": {
@@ -2674,6 +2712,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       if (pitch) {
         const price = PLAN_LIST_PRICE_CENTS.vendor!;
         const dollars = (cents: number) => `$${(cents / 100).toLocaleString("en-US")}`;
+        // The vendor offer (saas/vendor-offer.ts): their own code, a third off the first year.
+        const offerCode = stringValue(values, "offerCode");
         return {
           subject: `${studio} invited you to try StudioCue`,
           preheader: `${pitch.headline}. 14 days free.`,
@@ -2684,8 +2724,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             `${studio} runs their bookings on StudioCue, and you're on one of their upcoming events. They'd like you to try it too.`,
             `${pitch.headline}: ${pitch.detail}`,
             "Cue, its assistant, drafts each next step for you to approve. Nothing goes to a client until you say so.",
-            `Try it free for 14 days, then ${dollars(price.monthly)} a month, or ${dollars(price.yearly)} a year.`,
+            offerCode
+              ? `Because you're on one of ${possessive(studio)} events: try it free for 14 days, then $50 a month for your first 12 months, or $500 for your first year (usually ${dollars(price.monthly)} and ${dollars(price.yearly)}).`
+              : `Try it free for 14 days, then ${dollars(price.monthly)} a month, or ${dollars(price.yearly)} a year.`,
           ],
+          details: offerCode ? [{ label: "Your code", value: offerCode }] : undefined,
           action: actionUrl ? { label: "Start your free trial", url: actionUrl } : undefined,
           note: `You're getting this once because ${studio} added you to a job on StudioCue. We won't email you about it again.`,
           secondaryAction: unsubscribeUrl ? { label: "Don't email me about StudioCue", url: unsubscribeUrl } : undefined,

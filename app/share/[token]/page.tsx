@@ -9,6 +9,8 @@ import { vendorContactSheet } from "@/features/vendors/team";
 import { spokenClock } from "@/features/schedules/day-clock";
 import type { ScheduleItem } from "@/features/schedules/schema";
 import { tradeVocab } from "@/features/trades/trades";
+import { shareOfferFor } from "@/server/vendors/vendor-offer";
+import { jobKindOf, vocab } from "@/features/job-kinds/job-kinds";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,6 +154,13 @@ export default async function RunOfShowSharePage({
   const venue = project.venueName ? String(project.venueName) : null;
   // What the studio provides, in its trade's word: a DJ's plan is a music plan.
   const service = tradeVocab(tenant.trade).service;
+  // StudioCue's offer to a vendor who isn't on it yet (server/vendors/vendor-offer.ts).
+  // Never in the way of the timeline: a failure here shows the page without it.
+  const offer = await shareOfferFor(adminFirestore, {
+    tenantId: String(share.tenantId),
+    vendorId: String(share.vendorContactId ?? ""),
+    studioName,
+  }).catch(() => null);
 
   return (
     <Shell>
@@ -262,6 +271,22 @@ export default async function RunOfShowSharePage({
           </form>
         )}
       </div>
+
+      {offer ? (
+        <aside className="ros-offer" aria-label="From StudioCue">
+          <p className="ros-offer-from">From StudioCue</p>
+          <h2>{offer.headline}</h2>
+          <p>
+            {offer.studioName}{" "}runs this {vocab(jobKindOf(project)).event} on StudioCue. Because you worked it: {offer.summary}.
+          </p>
+          <p className="ros-offer-code">
+            Your code <strong>{offer.code}</strong>
+          </p>
+          <a className="button button-light" href={offer.url}>
+            Try it at the vendor price
+          </a>
+        </aside>
+      ) : null}
     </Shell>
   );
 }

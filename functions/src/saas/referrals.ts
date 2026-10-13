@@ -69,7 +69,19 @@ export async function ensureReferralCode(db: Firestore, tenantId: string, now = 
  * code gives a photographer the same offer, and what they earn is tallied in
  * the Console and paid by hand (features/console/partner-payouts.ts).
  */
-export type ReferralMatch = { code: string; referrerTenantId: string; referrerName: string; partnerId?: string | null };
+export type ReferralMatch = {
+  code: string;
+  referrerTenantId: string;
+  referrerName: string;
+  partnerId?: string | null;
+  /**
+   * A vendor's own offer code (saas/vendor-offer.ts): the vendor plan's
+   * offer, for the address it was made for, crediting the studio whose
+   * wedding brought them. Absent for a studio's or a partner's code.
+   */
+  kind?: "vendor_offer";
+  offerFor?: string;
+};
 
 /** The studio or partner a code belongs to, or null when it isn't a referral code. */
 export async function lookupReferral(db: Firestore, rawCode: unknown): Promise<ReferralMatch | null> {
@@ -87,7 +99,13 @@ export async function lookupReferral(db: Firestore, rawCode: unknown): Promise<R
   if (typeof referrerTenantId !== "string" || !referrerTenantId) return null;
   const tenant = await db.doc(`tenants/${referrerTenantId}`).get();
   if (!tenant.exists || tenant.get("archivedAt")) return null;
-  return { code, referrerTenantId, referrerName: studioNameOf(tenant) || "A StudioCue studio" };
+  const vendorOffer = record.get("kind") === "vendor_offer";
+  return {
+    code,
+    referrerTenantId,
+    referrerName: studioNameOf(tenant) || "A StudioCue studio",
+    ...(vendorOffer ? { kind: "vendor_offer" as const, offerFor: String(record.get("offerFor") ?? "") } : {}),
+  };
 }
 
 /**

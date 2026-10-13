@@ -33,6 +33,7 @@ import {
   updateReferralStatus,
 } from "./referrals.js";
 import { OFFER_SUMMARY, REFERRAL_CREDIT_CENTS, creditDueAt } from "./referral-program.js";
+import { VENDOR_OFFER_SUMMARY, vendorOfferCoupon } from "./vendor-offer.js";
 import { appUrl } from "../console/studio-owner.js";
 
 const billingCommandSchema = z.object({
@@ -238,6 +239,42 @@ async function referredBy(
   return { code: referral.code, referrerTenantId: referral.referrerTenantId, via: viaInvite ? "vendor_invite" : "code" };
 }
 
+/**
+ * The vendor offer a first checkout on the vendor plan carries
+ * (saas/vendor-offer.ts): a vendor's own code, claimed by one studio only —
+ * the vendor may sign up from another inbox than the one it was sent to, but
+ * the code doesn't go round — and never by someone who owns the studio that
+ * made it. Marks their once-ever record signed up, so the Console's vendor
+ * database and the studio's referral card both see it.
+ */
+async function vendorOfferBy(
+  db: FirebaseFirestore.Firestore,
+  rawCode: string | undefined,
+  tenantId: string,
+  uid: string,
+): Promise<{ code: string; referrerTenantId: string; via: "vendor_offer" } | null> {
+  const referral = await lookupReferral(db, rawCode).catch(() => null);
+  if (!referral || referral.kind !== "vendor_offer" || !referral.offerFor || referral.referrerTenantId === tenantId) return null;
+  const ownsReferrer = await db.doc(`memberships/${referral.referrerTenantId}_${uid}`).get();
+  if (ownsReferrer.exists && ownsReferrer.get("role") === "studio_owner") return null;
+  const now = new Date().toISOString();
+  const inviteReference = db.doc(`vendorInvites/${referral.offerFor}`);
+  const claimed = await db.runTransaction(async (transaction) => {
+    const invite = await transaction.get(inviteReference);
+    if (!invite.exists) return false;
+    const by = invite.get("offerClaimedTenantId");
+    if (typeof by === "string" && by && by !== tenantId) return false;
+    transaction.update(inviteReference, {
+      offerClaimedTenantId: tenantId,
+      offerClaimedAt: invite.get("offerClaimedAt") ?? now,
+      signedUpTenantId: tenantId,
+      signedUpAt: invite.get("signedUpAt") ?? now,
+    });
+    return true;
+  });
+  return claimed ? { code: referral.code, referrerTenantId: referral.referrerTenantId, via: "vendor_offer" } : null;
+}
+
 /** What a studio's Subscription page shows about its referrals. */
 async function referralStatus(db: FirebaseFirestore.Firestore, tenantId: string) {
   const code = await ensureReferralCode(db, tenantId);
@@ -319,7 +356,9 @@ export const billingCommand = onRequest(
           referral
             ? referral.referrerTenantId === parsed.tenantId
               ? { kind: "own" }
-              : { kind: "referral", referrerName: referral.referrerName, offer: OFFER_SUMMARY }
+              : referral.kind === "vendor_offer"
+                ? { kind: "referral", plan: "vendor", referrerName: referral.referrerName, offer: VENDOR_OFFER_SUMMARY }
+                : { kind: "referral", plan: "studio", referrerName: referral.referrerName, offer: OFFER_SUMMARY }
             : { kind: parsed.promotionCode ? "code" : null },
         );
         return;
@@ -450,9 +489,15 @@ export const billingCommand = onRequest(
           firstCheckout && parsed.plan === "studio"
             ? await referredBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
             : null;
+        // A vendor's own offer code: the vendor plan's first year at the
+        // offer price (saas/vendor-offer.ts), on a first checkout only.
+        const vendorOffer =
+          firstCheckout && parsed.plan === "vendor"
+            ? await vendorOfferBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
+            : null;
         // Beta codes: a code from the signup link is applied up front; with
         // none (or one Stripe won't honour) Checkout offers its own field.
-        const promotion = referral ? null : await lookupPromotion(secret, parsed.promotionCode);
+        const promotion = referral || vendorOffer ? null : await lookupPromotion(secret, parsed.promotionCode);
         const priceId = priceFor(parsed.plan, parsed.cadence);
         if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
         // A comped studio choosing to pay starts paying now: its stored
@@ -489,6 +534,15 @@ export const billingCommand = onRequest(
           if (referral.partnerId) params.set("subscription_data[metadata][referralPartnerId]", referral.partnerId);
           else params.set("subscription_data[metadata][referrerTenantId]", referral.referrerTenantId);
           params.set("subscription_data[metadata][referralVia]", referral.via);
+        }
+        if (vendorOffer) {
+          params.delete("allow_promotion_codes");
+          params.set("discounts[0][coupon]", await vendorOfferCoupon(db, parsed.cadence));
+          // The webhook records the referral from these once Checkout completes,
+          // and the studio is credited after three months paying (D2).
+          params.set("subscription_data[metadata][referralCode]", vendorOffer.code);
+          params.set("subscription_data[metadata][referrerTenantId]", vendorOffer.referrerTenantId);
+          params.set("subscription_data[metadata][referralVia]", vendorOffer.via);
         }
         // A discount the team applied in the Console before the card was
         // added rides into this Checkout instead. Stripe takes one discount

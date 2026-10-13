@@ -23,6 +23,7 @@ import type { ConsoleStudio } from "./model";
 
 export const SOURCE_CHANNELS = [
   "referral",
+  "vendor_offer",
   "vendor",
   "instagram",
   "facebook",
@@ -42,6 +43,7 @@ export type SourceChannel = (typeof SOURCE_CHANNELS)[number] | "unknown";
 
 export const CHANNEL_LABELS: Record<SourceChannel, string> = {
   referral: "Studio referral",
+  vendor_offer: "Vendor offer (worked a wedding)",
   vendor: "A vendor, no code",
   instagram: "Instagram",
   facebook: "Facebook",
@@ -170,6 +172,10 @@ export function classifyStudio(input: {
     return { channel: attribution.manual.channel, basis: "manual", detail: attribution.manual.detail ?? null, ...referrerFields, ...base };
   if (referral?.partnerId)
     return { channel: "referral", basis: "referral", detail: [referral.referrerName, "partner"].filter(Boolean).join(" · "), ...referrerFields, ...base };
+  // A vendor who signed up with the offer from a wedding they worked
+  // (functions/src/saas/vendor-offer.ts): their own channel, still naming the studio.
+  if (referral?.via === "vendor_offer" && referrerTenantId)
+    return { channel: "vendor_offer", basis: "referral", detail: referrerName, ...referrerFields, ...base };
   if (referrerTenantId)
     return {
       channel: "referral",

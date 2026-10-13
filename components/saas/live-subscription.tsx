@@ -56,14 +56,15 @@ export function LiveSubscription() {
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
   // Another studio's referral code: name the studio and the offer before
   // Checkout, since Stripe's page only shows the discount line.
-  const [referredBy, setReferredBy] = useState<{ referrerName: string; offer: string } | null>(null);
+  const [referredBy, setReferredBy] = useState<{ referrerName: string; offer: string; plan: "studio" | "vendor" } | null>(null);
   useEffect(() => {
     if (status !== "incomplete" || !promotionCode) return;
     let active = true;
-    billingCommand<{ kind: string | null; referrerName?: string; offer?: string }>("previewCode", { promotionCode })
+    billingCommand<{ kind: string | null; referrerName?: string; offer?: string; plan?: string }>("previewCode", { promotionCode })
       .then((result) => {
         if (active && result?.kind === "referral" && result.referrerName && result.offer)
-          setReferredBy({ referrerName: result.referrerName, offer: result.offer });
+          // A vendor's own offer code is the vendor plan's (functions/src/saas/vendor-offer.ts).
+          setReferredBy({ referrerName: result.referrerName, offer: result.offer, plan: result.plan === "vendor" ? "vendor" : "studio" });
       })
       .catch(() => undefined);
     return () => {
@@ -177,7 +178,9 @@ export function LiveSubscription() {
               ? "Pick the plan that fits your studio to open your workspace. Your card is collected now but nothing is charged until the trial ends — cancel any time before then."
               : "Manage your plan and billing securely through Stripe."}
             {preTrial && referredBy
-              ? ` ${referredBy.referrerName} referred you: on the Studio plan you get ${referredBy.offer}.`
+              ? referredBy.plan === "vendor"
+                ? ` Because you worked an event with ${referredBy.referrerName}, you get ${referredBy.offer}.`
+                : ` ${referredBy.referrerName} referred you: on the Studio plan you get ${referredBy.offer}.`
               : preTrial && promotionCode
                 ? ` Your code ${promotionCode} is applied at checkout — if it covers everything, Stripe won't ask for a card.`
                 : null}
@@ -297,10 +300,15 @@ export function LiveSubscription() {
                   <StatusBadge tone="success">Current</StatusBadge>
                 ) : null}
               </div>
-              {preTrial && referredBy && card.key === "studio" ? (
+              {preTrial && referredBy && card.key === "studio" && referredBy.plan === "studio" ? (
                 <>
                   <strong>$75<small>/month, billed yearly</small></strong>
                   <p>$900 your first year, or $100/month billed monthly · referred by {referredBy.referrerName}</p>
+                </>
+              ) : preTrial && referredBy && card.key === "vendor" && referredBy.plan === "vendor" ? (
+                <>
+                  <strong>$50<small>/month</small></strong>
+                  <p>for your first 12 months, or $500 your first year · from an event with {referredBy.referrerName}</p>
                 </>
               ) : (
                 <>
