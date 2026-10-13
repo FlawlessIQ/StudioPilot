@@ -4,6 +4,8 @@ import { ArrowLeft, CircleCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { RegisterForm } from "@/features/auth/register-form";
 import { vendorPlanCards } from "@/config/saas-plans";
+import { adminFirestore } from "@/server/firebase/admin";
+import { signupOfferFor } from "@/server/vendors/vendor-offer";
 import { LIVE_TRADES, TRADE_LABELS, type Trade } from "@/features/trades/trades";
 
 export const metadata: Metadata = {
@@ -14,9 +16,9 @@ export const metadata: Metadata = {
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; trade?: string }>;
+  searchParams: Promise<{ next?: string; trade?: string; code?: string }>;
 }) {
-  const { next, trade } = await searchParams;
+  const { next, trade, code } = await searchParams;
   // Arrived from /dj, /makeup, /hair or /planner ("set up your planning
   // business"): say whose business this sets up, and
   // its price, as the landing page did (the trade itself is remembered by
@@ -24,6 +26,9 @@ export default async function RegisterPage({
   const vendorTrade =
     trade && trade !== "photographer" && LIVE_TRADES.includes(trade as Trade) ? (trade as Trade) : null;
   const vendorWord = vendorTrade ? (vendorTrade === "dj" ? "DJ" : TRADE_LABELS[vendorTrade].toLowerCase()) : null;
+  // A vendor's own offer link (their timeline email or share page) says the
+  // price they were promised, not the plan's list price.
+  const offer = vendorWord && code ? await signupOfferFor(adminFirestore, code).catch(() => null) : null;
   const isClientInvite = next?.startsWith("/auth/client-invite?token=") ?? false;
   const backHref = isClientInvite && next ? next : "/";
   const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
@@ -88,7 +93,9 @@ export default async function RegisterPage({
           <p>
             {isClientInvite
               ? "Use the email that received the invitation. After verification, your project will connect automatically."
-              : vendorWord
+              : vendorWord && offer
+                ? `Verify your work email, then set up your ${vendorWord} business. ${offer.studioName ? `Because you worked an event with ${offer.studioName}: ` : ""}${offer.summary}.`
+                : vendorWord
                 ? `Verify your work email, then set up your ${vendorWord} business. ${vendorPlanCards[0]!.monthly} a month after the 14-day trial.`
                 : "Verify your work email, then set up your own private studio."}
           </p>

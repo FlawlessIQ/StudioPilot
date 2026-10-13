@@ -282,3 +282,28 @@ test("a form request names the form it asks for", () => {
   assert.match(named.text, /your final schedule/);
   assert.match(ask({ actionUrl: "https://studio-cue.com/client" }).subject, /^Details needed by /);
 });
+
+test("the signup page names a live vendor offer, and only a live one", async () => {
+  // UAT 2026-10-13: emailed "$50/month for your first 12 months", the link landed on "$75 a month".
+  const { signupOfferFor } = await import("../server/vendors/vendor-offer");
+  const docs: Record<string, Record<string, unknown> | undefined> = {
+    "saasReferralCodes/VOKATV9Y4F": { kind: "vendor_offer", offerFor: "h1", tenantId: "t1" },
+    "saasReferralCodes/VOTAKEN234": { kind: "vendor_offer", offerFor: "h2", tenantId: "t1" },
+    "saasReferralCodes/VONOTVO234": { kind: "studio" },
+    "vendorInvites/h1": {},
+    "vendorInvites/h2": { signedUpTenantId: "t9" },
+    "tenants/t1": { brandName: "FlawlessIQ" },
+  };
+  const db = {
+    doc: (path: string) => ({
+      get: async () => ({ exists: Boolean(docs[path]), get: (field: string) => docs[path]?.[field] }),
+    }),
+  } as unknown as Parameters<typeof signupOfferFor>[0];
+  const live = await signupOfferFor(db, "vokatv9y4f");
+  assert.equal(live?.studioName, "FlawlessIQ");
+  assert.match(live?.summary ?? "", /\$50\/month for your first 12 months/);
+  assert.equal(await signupOfferFor(db, "VOTAKEN234"), null);
+  assert.equal(await signupOfferFor(db, "VONOTVO234"), null);
+  assert.equal(await signupOfferFor(db, "FLAWLESSIQ"), null);
+  assert.match(readFileSync("app/auth/register/page.tsx", "utf8"), /vendorWord && offer\s*\n?\s*\? `Verify your work email/);
+});

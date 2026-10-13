@@ -58,3 +58,25 @@ export async function shareOfferFor(
     studioName: input.studioName,
   };
 }
+
+/**
+ * The offer behind a signup link's `code`, for the Create-your-account page:
+ * a vendor emailed "$50/month for your first 12 months" landed on "$75 a
+ * month after the 14-day trial" (UAT 2026-10-13). Only a real vendor-offer
+ * code nobody has signed up with yet; Checkout decides for itself
+ * (functions/src/saas/stripe.ts vendorOfferBy).
+ */
+export async function signupOfferFor(db: Firestore, code: string): Promise<{ summary: string; studioName: string } | null> {
+  const normalized = code.trim().toUpperCase();
+  if (!/^VO[A-Z0-9]{8}$/.test(normalized)) return null;
+  const record = await db.doc(`saasReferralCodes/${normalized}`).get();
+  if (!record.exists || record.get("kind") !== "vendor_offer") return null;
+  const offerFor = String(record.get("offerFor") ?? "");
+  const [invite, tenant] = await Promise.all([
+    offerFor ? db.doc(`vendorInvites/${offerFor}`).get() : null,
+    db.doc(`tenants/${String(record.get("tenantId") ?? "")}`).get(),
+  ]);
+  if (invite?.get("signedUpTenantId")) return null;
+  const studioName = String(tenant.get("brandName") ?? "").trim() || String(tenant.get("businessName") ?? "").trim() || String(tenant.get("name") ?? "").trim();
+  return { summary: VENDOR_OFFER_SUMMARY, studioName };
+}
