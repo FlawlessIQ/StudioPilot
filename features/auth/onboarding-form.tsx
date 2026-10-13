@@ -403,7 +403,7 @@ function OnboardingFlow() {
           required
           minLength={2}
           maxLength={120}
-          placeholder={pickedTrade === "dj" ? "Spin Theory DJs" : pickedTrade === "makeup" ? "Glow by Ana" : pickedTrade === "hair" ? "Jess Styles Bridal" : "Alder & Muse Photography"}
+          placeholder={pickedTrade === "dj" ? "Spin Theory DJs" : pickedTrade === "makeup" ? "Glow by Ana" : pickedTrade === "hair" ? "Jess Styles Bridal" : pickedTrade === "planner" ? "Willow & Lane Events" : "Alder & Muse Photography"}
         />
         <small>Your legal business name for agreements can be changed any time in Studio details.</small>
       </label>
