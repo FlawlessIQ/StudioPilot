@@ -16,8 +16,8 @@ import { SITE_URL } from "@/lib/site";
  * checklist; a hair stylist's extensions reminders and veil-first trial; a
  * planner's vendor team, timeline sends and confirmations, tiers, Final
  * details, walkthrough, envelopes and vendor credits (Phases 1 and 2 of the
- * planner plan; the Phase 3 planning checklist and Phase 4 payment plans are
- * not claimed until they ship). No
+ * planner plan), its planning checklist (Phase 3) and payment plans (Phase 4,
+ * every trade). No
  * testimonials, logos or customer counts — there are none yet to cite
  * (no-invented-testimonials). The vendor plan's price comes from
  * config/saas-plans.ts, so the page can't drift from what Checkout charges.
@@ -190,8 +190,8 @@ const PAGES: Readonly<Record<VendorTrade, TradePage>> = {
       },
       {
         title: "Full, partial or month-of",
-        text: "Each package carries its planning tier. Full and partial planning work the vendor team from the day they book. A month-of client gets the Final details form eight weeks out, and the vendors they list on it join your team, booked.",
-        points: ["The tier on the package and the job", "The right form at the right time", "Final details locked two weeks out, with the final guest count"],
+        text: "Each package carries its planning tier. Full and partial planning work the vendor team from the day they book, with a planning checklist dated back from the day: book the venue, the caterer, the florist, each due on Today when its month comes. A month-of client gets the Final details form eight weeks out, and the vendors they list on it join your team, booked.",
+        points: ["The tier on the package and the job", "A planning checklist, your own list or ours", "Final details locked two weeks out, with the final guest count"],
       },
       {
         title: "The vendor team",
@@ -210,8 +210,8 @@ const PAGES: Readonly<Record<VendorTrade, TradePage>> = {
       },
       {
         title: "Credits, then done",
-        text: "The balance is due 30 days before the day, and Cue drafts the reminders for you to send. After the day, one press sends your clients every vendor's name and website, yours first, to tag when they share it. Then the review, and the job closes.",
-        points: ["Vendor credits in one press", "Assistants offered the date in one tap", "No percentage taken from your payments"],
+        text: "Offer a payment plan: the retainer, up to six installments, then the balance 30 days before the day. Each installment is billed two weeks ahead and chased if it's late. After the day, one press sends your clients every vendor's name and website, yours first, to tag when they share it. Then the review, and the job closes.",
+        points: ["Payment plans with up to six installments", "Vendor credits in one press", "No percentage taken from your payments"],
       },
     ],
   },

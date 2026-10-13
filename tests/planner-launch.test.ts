@@ -99,9 +99,11 @@ test("the page claims what the planner has shipped, and nothing still to come", 
     /30 days before/,
   ])
     assert.match(own, claim);
-  // Phase 3 (the planning checklist) and Phase 4 (payment plans) are not on
-  // this branch: the page says nothing about them until they ship.
-  assert.doesNotMatch(own, /checklist|installment|payment plan|guest list|seating|floor plan/i);
+  // The planning checklist (Phase 3) and payment plans (Phase 4) shipped with it.
+  assert.match(own, /planning checklist/i);
+  assert.match(own, /up to six installments/);
+  // What StudioCue leaves to planners' own tools (the plan's decision 6).
+  assert.doesNotMatch(own, /guest list|seating|floor plan/i);
   // Every vendor page links to the others, the planner's included.
   for (const trade of ["dj", "makeup", "hair"] as const) {
     const page = renderToStaticMarkup(TradeLanding({ trade }));
