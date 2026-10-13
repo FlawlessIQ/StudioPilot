@@ -517,3 +517,11 @@ for (const exempt of [false, true]) {
     assert.ok(!writes.some(([, path]) => path.startsWith("providerJobs/")));
   });
 }
+
+test("no final balance summary is drafted for a job with nothing left to pay", () => {
+  // UAT 2026-10-13: a family session paid in full got "the balance is $0.00 —
+  // the invoice will arrive separately".
+  const scheduler = readFileSync("functions/src/communications/lifecycle-scheduler.ts", "utf8");
+  assert.match(scheduler, /item\.trigger === "final_invoice_notice" &&\s*\(!hasFinalBalance\(projectProfile\(project\.data\(\)\)\) \|\|/);
+  assert.match(scheduler, /balance\.balanceCents <= 0/);
+});

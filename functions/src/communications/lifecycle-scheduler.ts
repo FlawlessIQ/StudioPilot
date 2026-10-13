@@ -1,5 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
-import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { hasFinalBalance, jobKindOf, projectProfile } from "../job-kinds/job-kinds.js";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { productEvent } from "../operations/product-events.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
@@ -136,6 +136,16 @@ export const lifecycleMessageScheduler = onSchedule(
         const actionReference = db.doc(`aiActions/${actionId}`);
         const existing = await actionReference.get();
         if (existing.exists) continue;
+        // No balance to summarize: a job paid in full to book (or billed once,
+        // on the day or after) never has one, and a job already paid up owes
+        // nothing. Both were drafted "the balance is $0.00 … the invoice will
+        // arrive separately" (UAT 2026-10-13).
+        if (
+          item.trigger === "final_invoice_notice" &&
+          (!hasFinalBalance(projectProfile(project.data())) ||
+            (balance.paymentsOnRecord && balance.balanceCents !== null && balance.balanceCents <= 0))
+        )
+          continue;
 
         const facts: LifecycleFacts = {
           studioName: tenantEntry.studioName,
