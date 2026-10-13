@@ -130,7 +130,19 @@ export function SourcesPage() {
       ).slice(0, 8),
     [rows],
   );
-  const viaInvites = useMemo(() => (rows ?? []).filter((row) => row.source.channel === "referral" && row.source.detail?.endsWith("vendor invite")), [rows]);
+  // Both doors a vendor's timeline email opens: the vendor plan's own offer
+  // (a DJ, planner, hair or makeup artist), and a videographer on the studio's
+  // referral code. Only the second was counted, so the first vendor-offer
+  // signup sat beside "No studios from vendor invites yet" (UAT 2026-10-13).
+  const viaInvites = useMemo(
+    () =>
+      (rows ?? []).filter(
+        (row) =>
+          row.source.channel === "vendor_offer" ||
+          (row.source.channel === "referral" && row.source.detail?.endsWith("vendor invite")),
+      ),
+    [rows],
+  );
 
   const listed = channel ? inPeriod.filter((row) => row.source.channel === channel) : inPeriod;
   const open = (rows ?? []).find((row) => row.studio.tenantId === openId) ?? null;
@@ -203,7 +215,11 @@ export function SourcesPage() {
             )}
           </Panel>
           <Panel flush title="From vendor invites, all time">
-            <FunnelTable empty="No studios from vendor invites yet." label="Studios from vendor invites" rows={funnelBy(viaInvites, () => ({ key: "vendor_invite", label: "Vendor invites" }))} />
+            <FunnelTable empty="No studios from vendor invites yet." label="Studios from vendor invites" rows={funnelBy(viaInvites, (row) =>
+                row.source.channel === "vendor_offer"
+                  ? { key: "vendor_offer", label: "Vendor offer (vendor plan)" }
+                  : { key: "vendor_invite", label: "Studio plan, via a studio's code" },
+              )} />
           </Panel>
           <Panel flush title="The link they arrived on">
             <FunnelTable empty="No tracked links in this period. Tag links with utm_source and utm_campaign to see them here." label="Signups by link" rows={byLink} />

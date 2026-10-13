@@ -307,3 +307,9 @@ test("the signup page names a live vendor offer, and only a live one", async () 
   assert.equal(await signupOfferFor(db, "FLAWLESSIQ"), null);
   assert.match(readFileSync("app/auth/register/page.tsx", "utf8"), /vendorWord && offer\s*\n?\s*\? `Verify your work email/);
 });
+
+test("Sources counts vendor-offer signups among studios from vendor invites", () => {
+  const page = readFileSync("components/console/pages/sources-page.tsx", "utf8");
+  assert.match(page, /row\.source\.channel === "vendor_offer" \|\|/);
+  assert.match(page, /Vendor offer \(vendor plan\)/);
+});
