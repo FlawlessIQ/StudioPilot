@@ -25,7 +25,7 @@ export type PayableInvoice = {
 };
 
 /** Bills a couple pays. */
-const PAYABLE_KINDS = new Set(["retainer", "final"]);
+const PAYABLE_KINDS = new Set(["retainer", "installment", "final"]);
 /** Raised, but not yet a bill the couple has: nothing to pay against. */
 const NOT_YET_BILLED = new Set(["draft", "review_required", "queued"]);
 const STUDIO_VOUCHED = new Set(["manual_attested", "imported"]);

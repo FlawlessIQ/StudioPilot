@@ -91,7 +91,7 @@ export async function sendStudioInvoice(context: CommandContext, input: z.infer<
         tenantId: context.tenantId,
         projectId,
         invoiceId: invoice.id,
-        type: kind === "final" ? "final_invoice" : "retainer_invoice",
+        type: kind === "final" || kind === "installment" ? "final_invoice" : "retainer_invoice",
         recipient: email,
         recipientName: contact ? text(contact.get("displayName")) || null : null,
         // The invoice the studio issued: its PDF travels with the email
@@ -99,7 +99,10 @@ export async function sendStudioInvoice(context: CommandContext, input: z.infer<
         billedBy: "studio",
         attachmentDocumentId: invoicePdfDocumentId(invoice.id),
         invoiceNumber: text(invoice.get("number")),
-        invoiceKindLabel: invoiceKindLabel(kind, invoice.get("paidInFull") === true),
+        invoiceKindLabel: invoiceKindLabel(kind, invoice.get("paidInFull") === true, {
+          sequence: invoice.get("installmentSequence"),
+          count: invoice.get("installmentCount"),
+        }),
         amountLabel: invoiceMoney(Number(invoice.get("balanceCents")), text(invoice.get("currency")) || "USD"),
         dueLabel: text(invoice.get("dueDate")) ? invoiceDate(text(invoice.get("dueDate"))) : null,
         paymentInstructions: settings.paymentInstructions,

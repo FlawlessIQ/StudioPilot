@@ -42,7 +42,15 @@ export const invoiceStatusSchema = z.enum([
   "review_required",
 ]);
 
-export const invoiceKindSchema = z.enum(["retainer", "final", "adjustment"]);
+/**
+ * - `retainer`: the deposit (or the whole price, paid in full).
+ * - `installment`: one payment of a payment plan, between the deposit and
+ *   the final balance (features/billing/payment-plan.ts), numbered by
+ *   `installmentSequence`.
+ * - `final`: the final balance — what is left after the deposit and every
+ *   installment billed.
+ */
+export const invoiceKindSchema = z.enum(["retainer", "installment", "final", "adjustment"]);
 
 export const invoiceProviderStateSchema = z.enum([
   "queued",
@@ -93,6 +101,11 @@ export const invoiceReferenceSchema = auditFieldsSchema
     taxCents: z.number().int().nonnegative().safe().optional(),
     /** The studio's own pay link for this bill (Square, PayPal …). */
     payLinkUrl: z.string().url().nullable().optional(),
+    // --- an installment of a payment plan ---
+    /** Which installment: 1, 2, 3 … (the schedule line's `sequence`). */
+    installmentSequence: z.number().int().positive().max(6).optional(),
+    /** How many the plan had when it was billed, for "Installment 2 of 3". */
+    installmentCount: z.number().int().positive().max(6).optional(),
   })
   .passthrough();
 

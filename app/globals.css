@@ -1492,6 +1492,88 @@ textarea:focus-visible {
   width: 100%;
 }
 
+/* A payment plan on an offer (components/proposals/payment-plan-editor.tsx)
+   and the client's schedule (components/client/kit/client-payments.tsx).
+   Each line's name, date and amount wrap below one another in a narrow
+   column, never squeeze. */
+.payment-plan-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  min-width: 0;
+}
+.payment-plan-lines {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  list-style: none;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.payment-plan-line {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+}
+.payment-plan-line:first-child {
+  border-top: 0;
+}
+.payment-plan-line.is-fixed {
+  background: var(--paper);
+}
+.payment-plan-name {
+  flex: 1 1 8rem;
+  font-weight: 700;
+  min-width: 0;
+}
+.payment-plan-when {
+  color: var(--muted);
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+.payment-plan-amount {
+  flex: 1 1 7rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  text-align: right;
+}
+.payment-plan-amount input {
+  text-align: right;
+}
+.payment-plan-line input {
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 8px 10px;
+  width: 100%;
+}
+.payment-plan-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+.payment-plan-editor > .button {
+  justify-self: start;
+}
+/* The plan spans the whole field grid on a draft (studio-proposal-workspace.tsx). */
+.proposal-field-grid > .proposal-field-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.proposal-field-wide > .payment-plan-editor {
+  margin-top: 0;
+}
+
 .proposal-selected-project {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

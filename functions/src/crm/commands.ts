@@ -720,6 +720,8 @@ const commandSchema = z.discriminatedUnion("type", [
       paymentShape: z.enum(PAYMENT_SHAPES).optional(),
       /** A planner's tier (planning/planning-scope.ts); null clears it. */
       planningScope: z.enum(PLANNING_SCOPES).nullable().optional(),
+      /** The payment plan its proposals start with (billing/payment-plan.ts): null, or 0, is none. */
+      paymentPlan: z.object({ installments: z.number().int().min(0).max(6) }).nullable().optional(),
       retainerRule: z
         .discriminatedUnion("type", [
           z.object({
@@ -786,6 +788,8 @@ const commandSchema = z.discriminatedUnion("type", [
       paymentShape: z.enum(PAYMENT_SHAPES).optional(),
       /** A planner's tier: full, partial or month-of coordination (planning/planning-scope.ts). */
       planningScope: z.enum(PLANNING_SCOPES).nullable().optional(),
+      /** The payment plan its proposals start with (billing/payment-plan.ts): null, or 0, is none. */
+      paymentPlan: z.object({ installments: z.number().int().min(0).max(6) }).nullable().optional(),
       basePriceCents: z.number().int().nonnegative().safe(),
       currency: z.string().length(3),
       retainerRule: z.discriminatedUnion("type", [

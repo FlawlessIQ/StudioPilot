@@ -4,6 +4,7 @@ import { describeCoverage, resolveCoverage } from "../packages/coverage.js";
 import { packageInclusionItems } from "../packages/inclusions.js";
 import { normaliseBillingSettings, salesTaxApplies } from "../billing/sales-tax-settings.js";
 import { gatedFinalLines, quickBooksHoldReason, type HoldReason } from "./quickbooks-final-tax.js";
+import { installmentName } from "../billing/payment-plan.js";
 import {
   billedCrewCount,
   coverageHours,
@@ -184,12 +185,17 @@ export const QUICKBOOKS_ITEMISED_FLAG = "quickbooksItemisedInvoices";
 export async function planQuickBooksInvoiceLines(db: Firestore, invoice: DocumentSnapshot): Promise<QuickBooksInvoicePlan> {
   const amountCents = cents(invoice.get("amountCents"));
   const kind = text(invoice.get("kind"));
+  // One installment of a payment plan (billing/payment-plan.ts): "Installment 2 of 3".
+  const installment =
+    kind === "installment"
+      ? installmentName(cents(invoice.get("installmentSequence")) || 1, cents(invoice.get("installmentCount")) || null)
+      : null;
   const single: QuickBooksInvoicePlan = {
     lines: [
       {
         kind: kind === "retainer" ? "retainer" : "amount",
-        title: kind === "retainer" ? "Retainer" : kind === "final" ? "Final balance" : "Amount due",
-        description: kind === "retainer" ? "Retainer" : kind === "final" ? "Final balance" : kind || "Amount due",
+        title: kind === "retainer" ? "Retainer" : kind === "final" ? "Final balance" : (installment ?? "Amount due"),
+        description: kind === "retainer" ? "Retainer" : kind === "final" ? "Final balance" : (installment ?? (kind || "Amount due")),
         quantity: 1,
         unitPriceCents: amountCents,
         amountCents,
@@ -199,7 +205,7 @@ export async function planQuickBooksInvoiceLines(db: Firestore, invoice: Documen
     taxCents: 0,
     itemised: false,
   };
-  if (kind !== "retainer" && kind !== "final") return single;
+  if (kind !== "retainer" && kind !== "final" && kind !== "installment") return single;
   // Once the switch reads as on, a failure further down still takes the gated
   // path — and a final is still held for the studio. Falling back to today's
   // path would send a bill whose tax nobody had checked.
@@ -229,6 +235,9 @@ export async function planQuickBooksInvoiceLines(db: Firestore, invoice: Documen
       holdReason: quickBooksHoldReason({ kind, gated: true, holdRetainerForReview: settings.holdRetainerForReview }),
       estimateRateBasisPoints: settings.salesTax.estimateRateBasisPoints,
     };
+    // An installment is a part of the agreed price, like the deposit: one
+    // untaxed line, sent as it is (the tax goes on the final balance).
+    if (kind === "installment") return { ...single, gated };
     const [snapshots, accepted] = await Promise.all([
       loadJobPackageSnapshots(db, tenantId, project.data() ?? {}),
       loadAcceptedProposal(db, tenantId, projectId),
@@ -260,6 +269,7 @@ export async function planQuickBooksInvoiceLines(db: Firestore, invoice: Documen
       items,
       retainerPaidCents: typeof retainerPaid === "number" ? retainerPaid : null,
       taxApplies: gated.taxApplies,
+      installmentsCents: cents(calculation.installmentsCents),
     });
     return { ...result, gated };
   } catch (caught) {

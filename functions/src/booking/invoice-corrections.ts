@@ -14,6 +14,7 @@ import { isStandingInvoice } from "./invoice-standing.js";
 import { finalBillBasis, quickBooksIsTaxAuthority } from "./final-tax-authority.js";
 import { voidInvoiceTask } from "./stopped-billing.js";
 import { combinedSnapshot, readJobSnapshots } from "../packages/combined-snapshot.js";
+import { installmentsBilledCents, installmentsOutstandingCents } from "../billing/payment-plan.js";
 
 /**
  * Taking back a bill, and correcting a payment — the server half.
@@ -410,7 +411,11 @@ export async function approveFinalInvoiceIn(
     (sum, candidate) => sum + paidOnInvoice((candidate.data() ?? {}) as CorrectableInvoice),
     0,
   );
-  const amountCents = totalCents - paidCents;
+  // A payment plan's installments still owed on their own bills come off
+  // too, as they do in final-invoice.ts: the final is what is left.
+  const standingData = others.map((candidate) => (candidate.data() ?? {}) as Record<string, unknown>);
+  const installmentsOwedCents = installmentsOutstandingCents(standingData);
+  const amountCents = totalCents - paidCents - installmentsOwedCents;
   if (!Number.isSafeInteger(amountCents) || amountCents <= 0) throw new Error("NOTHING_OWED");
   if (amountCents !== input.confirmAmountCents) throw new Error("FINAL_AMOUNT_CHANGED");
   const calculation = (invoice.get("calculation") ?? {}) as Record<string, unknown>;
@@ -428,8 +433,12 @@ export async function approveFinalInvoiceIn(
           ? { label: "Sales tax — calculated by QuickBooks when the invoice is made", amountCents: 0, source: "quickbooks" }
           : { label: "Approved tax", amountCents: taxCents, source },
         { label: "Payments received", amountCents: -paidCents, source: "invoiceReferences" },
+        ...(installmentsOwedCents
+          ? [{ label: "Installments, billed separately", amountCents: -installmentsOwedCents, source: "invoiceReferences" }]
+          : []),
       ],
       packageTotalCents: totalCents,
+      ...(installmentsBilledCents(standingData) ? { installmentsCents: installmentsBilledCents(standingData) } : {}),
       taxCents,
       ...(quickBooksTax ? { taxAuthority: "quickbooks", agreedTaxExcludedCents: basis.agreedTaxExcludedCents } : {}),
       expectedBalanceCents: amountCents,

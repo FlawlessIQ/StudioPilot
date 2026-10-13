@@ -27,6 +27,15 @@ import { isStandingInvoice } from "./invoice-standing.js";
 import { journeyFor, paymentScheduleFor, projectProfile } from "../job-kinds/job-kinds.js";
 import { queueInquiryFormAnalysis } from "../intake/inquiry-form.js";
 import { tradeProfile } from "../trades/trades.js";
+import {
+  finalScheduleLine,
+  MAX_INSTALLMENTS,
+  packagePaymentPlan,
+  paymentPlanSchedule,
+  scheduleInstallments,
+  shiftPlanDay,
+  type PlanInstallmentInput,
+} from "../billing/payment-plan.js";
 
 const authoringFields = z.object({
   expiresAt: z.string().datetime(),
@@ -45,6 +54,26 @@ const authoringFields = z.object({
    * only moves the split between the two payments.
    */
   retainerOverrideCents: z.number().int().nonnegative().safe().nullable().optional(),
+  /**
+   * The payment plan on this offer (billing/payment-plan.ts): the
+   * installments between the deposit and the final balance, each with its
+   * date and amount (left blank: an even share of what is left). Null: no
+   * plan. Left out: a new offer takes its package's default; a saved one
+   * keeps what it had, its amounts following any new total.
+   */
+  paymentPlan: z
+    .object({
+      installments: z
+        .array(
+          z.object({
+            dueDate: z.string().date(),
+            amountCents: z.number().int().positive().safe().nullable().optional(),
+          }),
+        )
+        .max(MAX_INSTALLMENTS),
+    })
+    .nullable()
+    .optional(),
 });
 
 const commandSchema = z.discriminatedUnion("type", [
@@ -276,6 +305,12 @@ function paymentSchedule(
   balanceDueDate: string | null,
   retainerOverrideCents: number | null | undefined,
   project: unknown,
+  /**
+   * A payment plan (billing/payment-plan.ts): how many installments (a
+   * package's default) or the studio's own lines. Nothing, or none: the
+   * schedule written exactly as before plans.
+   */
+  plan?: { installments: number | readonly PlanInstallmentInput[]; trade: unknown; today: string },
 ) {
   const totalCents = numberValue(packageData.totalCents);
   // Never more than the total: a deposit larger than the price would make
@@ -285,13 +320,59 @@ function paymentSchedule(
       ? Math.min(retainerOverrideCents, totalCents)
       : numberValue(packageData.retainerCents);
   const fields = (project && typeof project === "object" ? project : {}) as { eventDate?: unknown };
-  return paymentScheduleFor(projectProfile(project).payment, {
-    totalCents,
-    retainerCents,
-    retainerDueDate,
-    balanceDueDate,
-    eventDate: typeof fields.eventDate === "string" ? fields.eventDate : null,
-  });
+  const eventDate = typeof fields.eventDate === "string" ? fields.eventDate : null;
+  const payment = projectProfile(project).payment;
+  const wanted =
+    plan && (typeof plan.installments === "number" ? plan.installments > 0 : plan.installments.length > 0);
+  // A plan sits between a deposit and a balance; a job paid in full, on the
+  // day or invoiced after has one bill and no plan.
+  if (wanted && payment === "deposit_and_balance") {
+    const eventDay = (eventDate ?? "").slice(0, 10);
+    // The balance's date when the studio left it blank: the trade's
+    // (trades.ts balanceDueDaysBefore), what the final bill is raised for.
+    const finalDueDate =
+      balanceDueDate ??
+      (/^\d{4}-\d{2}-\d{2}$/.test(eventDay) ? shiftPlanDay(eventDay, -tradeProfile(plan!.trade).balanceDueDaysBefore) : null);
+    const built = paymentPlanSchedule({
+      totalCents,
+      retainerCents,
+      retainerDueDate,
+      finalDueDate,
+      today: plan!.today,
+      installments: plan!.installments,
+    });
+    if (!built.ok) throw new Error(built.error);
+    if (built.installments > 0) return { lines: built.lines, hasPaymentPlan: true };
+  }
+  return {
+    lines: paymentScheduleFor(payment, { totalCents, retainerCents, retainerDueDate, balanceDueDate, eventDate }),
+    hasPaymentPlan: false,
+  };
+}
+
+/** A saved schedule's installments as lines to build again: their dates, and their amounts unless `blankAmounts`. */
+function savedPlan(schedule: unknown, blankAmounts: boolean): PlanInstallmentInput[] {
+  return scheduleInstallments(schedule)
+    .filter((line) => line.dueDate)
+    .map((line) => ({ dueDate: line.dueDate, amountCents: blankAmounts ? null : line.amountCents }));
+}
+
+/** The package's default plan: the first package on the job that has one. */
+async function packageDefaultInstallments(
+  transaction: Transaction,
+  tenantId: string,
+  snapshots: ReadonlyArray<Record<string, unknown>>,
+): Promise<number> {
+  const db = getFirestore();
+  const ids = [...new Set(snapshots.map((data) => stringValue(data.packageId)).filter(Boolean))].slice(0, 4);
+  const packages = await Promise.all(ids.map((id) => transaction.get(db.doc(`packages/${id}`))));
+  for (const id of ids) {
+    const found = packages.find((document) => document.id === id);
+    if (!found?.exists || found.get("tenantId") !== tenantId) continue;
+    const plan = packagePaymentPlan(found.get("paymentPlan"));
+    if (plan) return plan.installments;
+  }
+  return 0;
 }
 
 function lineItems(packageData: Record<string, unknown>) {
@@ -507,6 +588,23 @@ export const proposalCommand = onRequest(
                 lineItems: lineItems(data),
               })),
             );
+            // The payment plan (billing/payment-plan.ts): the studio's own
+            // lines from the composer, or the package's default, or none.
+            const planTrade = (await transaction.get(db.doc(`tenants/${command.tenantId}`))).get("trade");
+            const planInstallments =
+              command.input.paymentPlan === undefined
+                ? await packageDefaultInstallments(transaction, command.tenantId, [packageData, ...additionalPackageData])
+                : command.input.paymentPlan === null
+                  ? 0
+                  : command.input.paymentPlan.installments;
+            const schedule = paymentSchedule(
+              combinedPricing,
+              command.input.retainerDueDate,
+              command.input.balanceDueDate,
+              command.input.retainerOverrideCents,
+              project.data(),
+              { installments: planInstallments, trade: planTrade, today: timestamp.slice(0, 10) },
+            );
             const proposalId = stableId(
               "proposal",
               command.tenantId,
@@ -553,13 +651,8 @@ export const proposalCommand = onRequest(
               // From the combined pricing the proposal carries, not the
               // primary package: a second package's price was missing from
               // the schedule until the draft was next saved (H2, M4).
-              paymentSchedule: paymentSchedule(
-                combinedPricing,
-                command.input.retainerDueDate,
-                command.input.balanceDueDate,
-                command.input.retainerOverrideCents,
-                project.data(),
-              ),
+              paymentSchedule: schedule.lines,
+              hasPaymentPlan: schedule.hasPaymentPlan,
               retainerOverrideCents:
                 typeof command.input.retainerOverrideCents === "number"
                   ? command.input.retainerOverrideCents
@@ -1021,17 +1114,39 @@ export const proposalCommand = onRequest(
                   : null
                 : command.input.retainerOverrideCents;
             const draftProject = await transaction.get(db.doc(`projects/${projectId}`));
-            transaction.update(proposalReference, {
-              expiresAt: command.input.expiresAt,
-              notes: command.input.notes,
-              termsSummary: command.input.termsSummary,
-              paymentSchedule: paymentSchedule(
+            /**
+             * The payment plan: the studio's lines when sent, none when null.
+             * Left out (Cue, an older screen), the saved installments stay on
+             * their dates — with their amounts, or, when those no longer fit
+             * a new deposit, an even share of what is left.
+             */
+            const planTrade = (await transaction.get(db.doc(`tenants/${command.tenantId}`))).get("trade");
+            const stored = proposal.get("paymentSchedule");
+            const scheduleFor = (installments: number | readonly PlanInstallmentInput[]) =>
+              paymentSchedule(
                 pricing,
                 command.input.retainerDueDate,
                 command.input.balanceDueDate,
                 retainerOverrideCents,
                 draftProject.exists ? draftProject.data() : null,
-              ),
+                { installments, trade: planTrade, today: timestamp.slice(0, 10) },
+              );
+            let draftSchedule: ReturnType<typeof paymentSchedule>;
+            if (command.input.paymentPlan !== undefined) {
+              draftSchedule = scheduleFor(command.input.paymentPlan?.installments ?? 0);
+            } else {
+              try {
+                draftSchedule = scheduleFor(savedPlan(stored, false));
+              } catch {
+                draftSchedule = scheduleFor(savedPlan(stored, true));
+              }
+            }
+            transaction.update(proposalReference, {
+              expiresAt: command.input.expiresAt,
+              notes: command.input.notes,
+              termsSummary: command.input.termsSummary,
+              paymentSchedule: draftSchedule.lines,
+              hasPaymentPlan: draftSchedule.hasPaymentPlan,
               retainerOverrideCents,
               draftRevision: nextRevision,
               updatedAt: timestamp,
@@ -1180,18 +1295,38 @@ export const proposalCommand = onRequest(
                 : Number.isFinite(priorScheduledRetainer) && priorScheduledRetainer !== priorPricingRetainer
                   ? priorScheduledRetainer
                   : null;
-            const schedule = paymentSchedule(
-              pricing,
-              typeof priorSchedule[0]?.dueDate === "string" ? String(priorSchedule[0].dueDate) : null,
-              typeof priorSchedule[1]?.dueDate === "string" ? String(priorSchedule[1].dueDate) : null,
-              retainerOverrideCents,
-              project.data(),
-            );
+            // The balance's date is the closing line's: with a payment plan
+            // the second line is the first installment. A plan keeps its
+            // dates; its amounts follow the new total (billing/payment-plan.ts).
+            const priorFinalDue = scheduleInstallments(priorSchedule).length
+              ? (finalScheduleLine(priorSchedule)?.dueDate ?? null)
+              : typeof priorSchedule[1]?.dueDate === "string"
+                ? String(priorSchedule[1].dueDate)
+                : null;
+            const planTrade = (await transaction.get(db.doc(`tenants/${command.tenantId}`))).get("trade");
+            const revisedFor = (installments: number | readonly PlanInstallmentInput[]) =>
+              paymentSchedule(
+                pricing,
+                typeof priorSchedule[0]?.dueDate === "string" ? String(priorSchedule[0].dueDate) : null,
+                priorFinalDue,
+                retainerOverrideCents,
+                project.data(),
+                { installments, trade: planTrade, today: timestamp.slice(0, 10) },
+              );
+            let schedule: ReturnType<typeof paymentSchedule>;
+            try {
+              schedule = revisedFor(savedPlan(priorSchedule, true));
+            } catch {
+              // The saved dates no longer fit (nothing left after the deposit):
+              // spaced again from today, collapsing when none fit.
+              schedule = revisedFor(scheduleInstallments(priorSchedule).length);
+            }
             const priced = {
               packageSnapshotId: primaryId,
               additionalPackageSnapshotIds: owned.slice(1).map((snapshot) => snapshot.id),
               pricingSnapshot: pricing,
-              paymentSchedule: schedule,
+              paymentSchedule: schedule.lines,
+              hasPaymentPlan: schedule.hasPaymentPlan,
               packageDetails: packageDetails(
                 owned.map((snapshot) => ({ id: snapshot.id, data: objectValue(snapshot.data()) })),
               ),

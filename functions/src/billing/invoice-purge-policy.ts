@@ -81,6 +81,15 @@ export function invoiceDeletePlan(input: {
   const paid = invoiceIsPaid(invoice);
   if (!paid && paidOn(invoice) > 0) return { allowed: false, reason: "INVOICE_PARTLY_PAID" };
   if (!paid) return { allowed: true, settles: null, paidInFull: false };
+  // A paid installment of a payment plan comes off the final balance
+  // (features/billing/payment-plan.ts), like the deposit: it goes once the
+  // final is paid, and leaves no note — readiness and closeout read the final.
+  if (invoice.kind === "installment") {
+    const balancePaid =
+      input.others.some((other) => other.kind === "final" && !CLOSED.has(String(other.status ?? "")) && invoiceIsPaid(other)) ||
+      invoiceSettledByDeletion(input.project, "final");
+    return balancePaid ? { allowed: true, settles: null, paidInFull: false } : { allowed: false, reason: "INVOICE_STILL_NEEDED" };
+  }
   const kind: SettledKind = invoice.kind === "final" ? "final" : "retainer";
   const paidInFull = invoice.paidInFull === true;
   if (kind === "final" || paidInFull || !input.jobHasFinalBalance) return { allowed: true, settles: kind, paidInFull };

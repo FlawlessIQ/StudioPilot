@@ -235,6 +235,8 @@ tenant at desktop and phone width.
    installments on dates, the last one the balance. Each installment is an
    invoice through the same billing paths (QuickBooks, Stripe, own
    invoicing), chased by the same reminders.
+   - **Status (2026-10-12): built on a worktree branch, not deployed.** See
+     "Phase 4 as built" below.
 5. **Launch** (N10) — ≈ 2–3 days, then the pilot.
 
 ### Phase 1 status (2026-10-12)
@@ -437,6 +439,83 @@ invoice scheduler and readiness modules all changed, plus two new trigger
 exports. Run the freshness script after. The PDF service changed
 (`cloud-run/pdf/run_of_show.py`, chip colors for C). No rules change in this
 phase beyond Phase 1's. **Not yet walked on prod** (the plan's "done when").
+
+### Phase 4 as built (payment plans)
+
+Every trade, off by default: a studio that never turns a plan on sees
+exactly what it saw before (the vendor burden test does not move).
+
+- **The rules** live in `features/billing/payment-plan.ts`, copied to
+  `functions/src/billing/payment-plan.ts` (drift test in
+  `tests/payment-plan.test.ts`):
+  - **Shape.** Deposit (the package's retainer rule), 1–6 installments, the
+    final balance. Schedule lines keep the labels "Retainer" and "Final
+    balance" and add "Installment N", each with `kind` and `sequence`.
+  - **Spacing.** N installments and the final make N + 1 equal gaps, by
+    day, between booking (the deposit's date, or today) and the final's due
+    date (the composer's date, or event − `balanceDueDaysBefore`).
+  - **Rounding.** What is left after the deposit is split evenly in whole
+    cents; the remainder goes on the last line, the final balance.
+  - **Short lead time.** Payments are at least 14 days apart (a bill goes
+    out 14 days before it falls due, so only one is ever waiting). Only
+    floor(days / 14) − 1 installments fit; none fit → deposit + final, as
+    without a plan.
+  - **A studio's own lines.** Dates after the deposit's, in order, none
+    after the final's; amounts whole cents above $0, together no more than
+    is left after the deposit; a blank amount shares the rest evenly with
+    the final.
+  - **After signing** (amendment): paid lines stay; the rest of the new
+    total is spread evenly over the unpaid installments and the final, on
+    their dates; an unpaid line now after the balance date folds into the
+    final; unpaid bills whose amount moved are superseded and raised again
+    (docs/booking-amendments.md).
+- **Package and proposal.** `packages.paymentPlan: { installments }` (package
+  forms; `crmCommand` create/updatePackage). The proposal composer and the
+  draft page carry a plan editor (`components/proposals/payment-plan-editor.tsx`);
+  `proposalCommand` create/update_draft take `paymentPlan`, build the
+  schedule server-side and write `hasPaymentPlan`. Left out (Cue), a new
+  draft takes its package's default and a saved one keeps its dates.
+- **Invoices.** `invoiceReferences.kind: "installment"` with
+  `installmentSequence`/`installmentCount`
+  (`functions/src/booking/installment-invoice.ts`), through the same paths
+  as the final: QuickBooks (one untaxed "Installment 2 of 3" line; proven
+  against the sandbox with `scripts/uat/quickbooks-installment-sandbox.mts`),
+  Stripe, or the studio's own numbered invoice with its PDF. Emails go out
+  as `final_invoice` named "installment 2 of 3". Payment reminders say
+  "installment".
+- **The daily run.** `finalInvoiceScheduler` first runs
+  `raiseDueInstallments` (`functions/src/operations/installment-billing.ts`,
+  no new Cloud Function): the earliest unbilled installment, 14 days before
+  its date, one at a time; the final balance's guards (booked and ahead, not
+  quiet, held, put away or cancelled) and, like the final, never resolving an
+  invoicing customer. A voided or refused installment is left to the studio.
+  The daily final waits while an installment is still to be billed.
+- **The final balance** is the agreed total less the deposit paid, every
+  installment billed (paid or not) and earlier balance payments; one sent
+  early takes the unbilled installments in, and then no installment is raised.
+  The QuickBooks final shows them on an "Installments" line; the studio's PDF
+  lists each one.
+- **By hand.** `bookingCommand sendInstallment` and
+  `recordInstallmentPayment`; `recordInvoicePayment` takes installments.
+  Today's card "Bill X's installment 2 of 3 · $…" (Send / Paid another way),
+  the Invoices page and Cue's `send_final_balance` card offer the next
+  installment first.
+- **Readers.** Today's and the Invoices page's final balance, the job
+  journey ("Payment plan · 2 of 4 paid"), closeout ("Final balance settled"
+  waits for every installment), readiness, invoice deletion, the client's
+  portal ("Your payment plan"), autopay consent (the final only), the
+  agreement's `{{payment.schedule}}` (dated lines), the proposal preview,
+  ledger and thread labels.
+- **Walked in the emulator** (`scripts/uat/payment-plan-walk.mts`,
+  `scripts/uat/payment-plan-screens.mts`): a package on a 3-installment plan,
+  the composer's editor at 1280 and 390, a draft accepted, signed and its
+  deposit recorded; the daily run before, on and after installment 2's bill
+  day; the studio's PDFs and emails; an amendment respreading the unpaid
+  lines; the client's schedule; a QuickBooks (mock) job billed by hand.
+- **Deferred:** autopay of installments (finals only); a Cue action of its
+  own for installments (Cue's final-balance card offers them); the month-out
+  "final balance summary" message still quotes everything left to pay;
+  Stripe's line description is the generic one; a plan on one-off packages.
 
 ## Decisions
 

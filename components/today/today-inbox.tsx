@@ -62,6 +62,7 @@ import { InfoHint } from "@/components/ui/info-hint";
 import { finalBillWords } from "@/features/billing/final-bill-words";
 import { useJobBilling } from "@/components/booking/use-job-billing";
 import { StudioInvoiceActions } from "@/components/booking/studio-invoice-actions";
+import { InstallmentCardActions } from "@/components/booking/installment-actions";
 import { useFinalBillCheckedFirst } from "@/components/booking/use-final-bill-checked-first";
 import { heldSendFrom, UndoSend, type HeldSend } from "@/components/communications/undo-send";
 import { TodayGroupEvents } from "@/components/today/today-group-events";
@@ -439,6 +440,15 @@ export function TodayInbox() {
               ) : !loading && lead?.action.kind === "final_balance" ? (
                 <span className="today-inquiry-buttons">
                   <FinalBalanceCardActions action={lead.action} onCleared={() => clear(lead.id)} onSettle={setSettling} />
+                </span>
+              ) : !loading && lead?.action.kind === "installment" ? (
+                <span className="today-inquiry-buttons">
+                  <InstallmentCardActions
+                    amountCents={lead.action.amountCents}
+                    onCleared={() => clear(lead.id)}
+                    projectId={lead.action.projectId}
+                    sequence={lead.action.sequence}
+                  />
                 </span>
               ) : !loading && lead?.action.kind === "studio_invoice" ? (
                 <span className="today-inquiry-buttons">
@@ -1178,6 +1188,13 @@ function TodayCard({
           </>
         ) : item.action.kind === "final_balance" ? (
           <FinalBalanceCardActions action={item.action} onCleared={onCleared} onSettle={onSettleBalance} />
+        ) : item.action.kind === "installment" ? (
+          <InstallmentCardActions
+            amountCents={item.action.amountCents}
+            onCleared={onCleared}
+            projectId={item.action.projectId}
+            sequence={item.action.sequence}
+          />
         ) : item.action.kind === "studio_invoice" ? (
           <StudioInvoiceCardActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "shot_list" ? (

@@ -136,7 +136,7 @@ export type PaymentReminderFacts = {
   studioName: string;
   clientFirstName: string | null;
   projectName: string;
-  /** "retainer" or "final"; anything else reads as the balance. */
+  /** "retainer", "installment" (a payment plan's) or "final"; anything else reads as the balance. */
   invoiceKind: string;
   balanceCents: number;
   dueDate: string;
@@ -153,7 +153,7 @@ export type PaymentReminderFacts = {
  * third says it is the last note before the studio gets in touch.
  */
 export function paymentReminderDraft(facts: PaymentReminderFacts): { subject: string; body: string; title: string } {
-  const what = facts.invoiceKind === "retainer" ? "retainer" : "balance";
+  const what = facts.invoiceKind === "retainer" ? "retainer" : facts.invoiceKind === "installment" ? "installment" : "balance";
   const amount = money(facts.balanceCents);
   const due = longDate(facts.dueDate);
   const daysLate = Math.max(

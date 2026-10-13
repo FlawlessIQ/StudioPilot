@@ -26,19 +26,32 @@ import {
 import { EmptyMoment } from "@/components/client/kit/empty-moment";
 import { InfoHint } from "@/components/ui/info-hint";
 import { todayLocalIso } from "@/lib/format/event-date";
+import { installmentName } from "@/features/billing/payment-plan";
+import { paymentPlanRows, type PlanScheduleRow } from "@/features/billing/payment-plan-view";
 
 /**
  * "retainer" and "final" are the system's words, not a couple's — and a
  * vendor's client pays a deposit (trades.ts `deposit`).
  */
-function invoiceName(kind: unknown, trade?: unknown): string {
+function invoiceName(kind: unknown, trade?: unknown, invoice?: Record<string, unknown>): string {
   const value = text(kind, "");
   if (value === "retainer") {
     const word = tradeVocab(trade).deposit;
     return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
   }
+  // A payment plan's: "Installment 2 of 3" (features/billing/payment-plan.ts).
+  if (value === "installment")
+    return installmentName(number(invoice?.installmentSequence) || 1, number(invoice?.installmentCount) || null);
   if (value === "final") return "Final balance";
   return value ? value.replace(/^\w/, (c) => c.toUpperCase()) : "Invoice";
+}
+
+/** A payment plan line's when, in the client's words. */
+function planRowWhen(row: PlanScheduleRow): string {
+  if (row.state === "in_final") return "Included in your final balance";
+  const when = row.dueDate ? `due ${date(row.dueDate)}` : "due on signing";
+  if (row.state === "billed") return `Invoice sent · ${when}`;
+  return when.charAt(0).toUpperCase() + when.slice(1);
 }
 
 /**
@@ -135,6 +148,25 @@ export function ClientPayments() {
   }, [proposals.value]);
   const finalRaised = standing.some((invoice) => invoice.kind === "final");
   /**
+   * A payment plan (features/billing/payment-plan.ts): every payment agreed —
+   * the deposit, each installment, the final balance — paid, billed, or still
+   * to come. Without it the page listed only the bills already out, and said
+   * "All paid" between installments.
+   */
+  const depositWord = tradeVocab(workspace.tenantTrade).deposit;
+  const planRows = useMemo(() => {
+    const accepted = proposals.value
+      .filter((proposal) => proposal.status === "accepted")
+      .sort((left, right) => number(right.version) - number(left.version))[0];
+    return paymentPlanRows({
+      schedule: accepted?.paymentSchedule,
+      invoices: invoices.value,
+      depositWord: `${depositWord.charAt(0).toUpperCase()}${depositWord.slice(1)}`,
+    });
+  }, [proposals.value, invoices.value, depositWord]);
+  const nextPlanned = planRows.find((row) => row.state === "upcoming") ?? null;
+  const planCurrency = text(standing[0]?.currency, "USD");
+  /**
    * A makeup artist's or hair stylist's client pays the rest on the morning
    * (features/billing/balance-on-the-day.ts). No invoice is sent for it, so
    * without this the page said "All paid" with the balance still to come.
@@ -172,7 +204,7 @@ export function ClientPayments() {
     due && payRoute
       ? invoicePayNote(payRoute, {
           studioName,
-          invoiceName: invoiceName(due.kind, workspace.tenantTrade),
+          invoiceName: invoiceName(due.kind, workspace.tenantTrade, due),
           providerName: provider,
           hasInstructions: payRoute === "direct" && Boolean(instructions),
         })
@@ -207,13 +239,13 @@ export function ClientPayments() {
         ) : null}
         <div className="kit-stack-tight">
           <p className="kit-eyebrow">Payments</p>
-          <h1 className="kit-title">{due || morning ? "Your next payment" : "All paid"}</h1>
+          <h1 className="kit-title">{due || morning || nextPlanned ? "Your next payment" : "All paid"}</h1>
         </div>
 
         {due ? (
           <Card tone="accent">
             <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
-              {invoiceName(due.kind, workspace.tenantTrade)} · {invoiceOverdue(due) ? "overdue" : `due ${date(due.dueDate)}`}
+              {invoiceName(due.kind, workspace.tenantTrade, due)} · {invoiceOverdue(due) ? "overdue" : `due ${date(due.dueDate)}`}
             </p>
             <p className="kit-amount">{money(due.balanceCents, due.currency)}</p>
             {number(due.balanceCents) < number(due.amountCents) ? (
@@ -259,11 +291,47 @@ export function ClientPayments() {
                 : `The balance of ${morningAmount}${plusTax ? ", plus sales tax," : ""} is due on the morning. You pay ${studioName ?? "your studio"} on the day — there's no invoice to pay before then.`}
             </p>
           </Card>
+        ) : nextPlanned ? (
+          <Card tone="accent">
+            <p className="kit-eyebrow" style={{ color: "var(--kit-accent)" }}>
+              {nextPlanned.label} · {nextPlanned.dueDate ? `due ${date(nextPlanned.dueDate)}` : "date to come"}
+            </p>
+            <p className="kit-amount">{money(nextPlanned.amountCents, planCurrency)}</p>
+            <p className="kit-caption">
+              {`Everything billed so far is paid. ${studioName ?? "Your studio"} sends this invoice about two weeks before it's due.`}
+            </p>
+          </Card>
         ) : (
           <Card tone="accent">
             <p className="kit-body">Everything billed so far is paid. Thank you.</p>
           </Card>
         )}
+
+        {planRows.length ? (
+          <section className="kit-stack-tight" aria-label="Payment plan">
+            <h2 className="kit-subsection">
+              Your payment plan
+              <InfoHint label="Payment plan">
+                {`Your ${depositWord}, then each installment, then the final balance. Each invoice is sent about two weeks before it's due.`}
+              </InfoHint>
+            </h2>
+            <List>
+              {planRows.map((row, index) => (
+                <Row
+                  key={`${row.label}-${index}`}
+                  subtitle={planRowWhen(row)}
+                  title={row.label}
+                  trailing={
+                    <>
+                      {row.state === "paid" ? <Pill tone="accent">Paid</Pill> : null}
+                      {row.state === "in_final" ? null : money(row.amountCents, planCurrency)}
+                    </>
+                  }
+                />
+              ))}
+            </List>
+          </section>
+        ) : null}
 
         <section className="kit-stack-tight" aria-label="Payment schedule">
           <h2 className="kit-subsection">
@@ -289,7 +357,7 @@ export function ClientPayments() {
                 ]
                   .filter(Boolean)
                   .join(" · ")}
-                title={invoiceName(invoice.kind, workspace.tenantTrade)}
+                title={invoiceName(invoice.kind, workspace.tenantTrade, invoice)}
                 trailing={
                   <>
                     {invoiceOverdue(invoice) ? (

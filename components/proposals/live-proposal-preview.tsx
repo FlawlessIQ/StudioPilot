@@ -10,6 +10,8 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { formatDueDate, formatEventDate } from "@/lib/format/event-date";
 import { retainerFromSchedule } from "@/features/booking/agreed-retainer";
+import { hasPaymentPlan } from "@/features/billing/payment-plan";
+import { scheduleLineLabel } from "@/features/billing/schedule-label";
 import { TRADE_LABELS, tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 
 type Proposal = Record<string, unknown> & { id: string };
@@ -142,7 +144,12 @@ export function LiveProposalPreview({ id }: { id: string }) {
           {salesTax?.exempt ? <tr><td>No sales tax on this booking</td><td>None</td></tr> : null}
         </tbody></table>
       </section>
-      <section className="pdf-terms"><h2>Payment schedule</h2><div><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{balanceWithSalesTax(money(Math.max(0, total - retainer), currency), salesTax)}</strong></span></div><p className="pdf-terms-summary">{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
+      <section className="pdf-terms"><h2>Payment schedule</h2><div>{hasPaymentPlan(proposal.paymentSchedule) && Array.isArray(proposal.paymentSchedule) ? (
+        // A payment plan (features/billing/payment-plan.ts): every line, the last carrying any sales tax.
+        (proposal.paymentSchedule as Array<Record<string, unknown>>).map((line, index, all) => (
+          <span key={index}><small>{scheduleLineLabel(String(line.label ?? "Payment"), workspace.tenantTrade)}</small><strong>{index === all.length - 1 ? balanceWithSalesTax(money(Number(line.amountCents ?? 0), currency), salesTax) : money(Number(line.amountCents ?? 0), currency)}</strong></span>
+        ))
+      ) : (<><span><small>Retainer</small><strong>{money(retainer, currency)}</strong></span><span><small>Remaining balance</small><strong>{balanceWithSalesTax(money(Math.max(0, total - retainer), currency), salesTax)}</strong></span></>)}</div><p className="pdf-terms-summary">{String(proposal.termsSummary ?? "Final terms are the ones in the signed agreement.")}</p></section>
       <footer><span>Generated {formatDueDate(new Date().toISOString())}</span><span>{workspace.tenantName}</span><span>Preview</span></footer>
       </main>
     </div>

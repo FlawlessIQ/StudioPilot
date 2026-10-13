@@ -111,6 +111,8 @@ const REACHED: Record<string, string> = {
   setSignedCopyShared: "SignedCopySharing", recordSignedAgreement: "RecordSignedAgreement",
   createRetainerInvoice: "\"createRetainerInvoice\"", recordRetainerPayment: "RecordRetainerPayment",
   recordFinalPayment: "RecordFinalPayment", sendFinalBalance: "FinalBalanceActions", approveRetainerException: "BookWithoutRetainer",
+  // A payment plan's next installment: send_final_balance offers it first (booking-actions.tsx).
+  sendInstallment: "InstallmentCardActions", recordInstallmentPayment: "InstallmentCardActions",
   voidInvoice: "<VoidInvoice", correctPaymentRecord: "<CorrectPayment", recordInvoicePayment: "<RecordInvoicePayment", approveFinalInvoice: "<ApproveFinalInvoice",
   // A bill held in QuickBooks for the tax check: send with or without tax.
   sendHeldInvoice: "<HeldInvoiceReview",

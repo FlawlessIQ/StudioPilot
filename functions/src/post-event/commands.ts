@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { isStandingInvoice } from "../booking/invoice-standing.js";
+import { installmentsOutstandingCents } from "../billing/payment-plan.js";
 import { invoiceSettledByDeletion, paidInFullSettledByDeletion } from "../billing/invoice-purge-policy.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { onRequest } from "firebase-functions/v2/https";
@@ -946,14 +947,16 @@ export const postEventCommand = onRequest(
             // QuickBooks, the studio's own invoice, or paid in full up front.
             label: "Final balance settled",
             complete:
-              (Boolean(finalInvoice) &&
+              ((Boolean(finalInvoice) &&
                 Number(finalInvoice?.get("balanceCents") ?? 1) === 0 &&
                 finalInvoice?.get("status") === "paid") ||
-              (!finalInvoice && Boolean(paidInFullBill)) ||
-              // Paid, and its record deleted by the studio (own invoicing):
-              // the job's money-free settled note stands in for it.
-              (!finalInvoice &&
-                (invoiceSettledByDeletion(project.data(), "final") || paidInFullSettledByDeletion(project.data()))),
+                (!finalInvoice && Boolean(paidInFullBill)) ||
+                // Paid, and its record deleted by the studio (own invoicing):
+                // the job's money-free settled note stands in for it.
+                (!finalInvoice &&
+                  (invoiceSettledByDeletion(project.data(), "final") || paidInFullSettledByDeletion(project.data())))) &&
+              // …and no installment of a payment plan still owed on its own bill.
+              installmentsOutstandingCents(invoices.docs.map((item) => item.data() as Record<string, unknown>)) === 0,
             evidenceId: finalInvoice?.id ?? paidInFullBill?.id ?? null,
             // An imported or legacy job with no package: nothing to record a
             // payment against, so it may be vouched for (closeout-attestation.ts).

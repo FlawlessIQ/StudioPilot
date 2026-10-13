@@ -18,7 +18,7 @@ import {
   queryConsultationAvailability,
   sendBookingCommand,
 } from "@/lib/booking/command-client";
-import { addCalendarDays, todayLocalIso } from "@/lib/format/event-date";
+import { addCalendarDays, formatDueDate, todayLocalIso } from "@/lib/format/event-date";
 import { defaultExpiryDay } from "@/features/booking/proposal-expiry";
 import { ProposalPackagesPanel } from "@/components/proposals/proposal-packages-panel";
 import { RecordProposalAcceptance } from "@/components/booking/record-proposal-acceptance";
@@ -90,6 +90,9 @@ import {
   type Rec,
 } from "./action-kit";
 import { OwnerOnly } from "./job-actions";
+import { finalScheduleLine, hasPaymentPlan, installmentName } from "@/features/billing/payment-plan";
+import { journeyPaymentPlan } from "@/features/billing/payment-plan-view";
+import { InstallmentCardActions } from "@/components/booking/installment-actions";
 
 const notFound = (title: string) => (
   <ActionShell title={title}>
@@ -795,7 +798,10 @@ export function EditProposalCard({ action }: ActionCardProps) {
                 // The dates live on the payment schedule; the proposal has no
                 // retainerDueDate field, so every save here cleared them.
                 retainerDueDate: scheduleDue(proposal.paymentSchedule, 0),
-                balanceDueDate: scheduleDue(proposal.paymentSchedule, 1),
+                // The closing line: with a payment plan the second is the first installment.
+                balanceDueDate: hasPaymentPlan(proposal.paymentSchedule)
+                  ? (finalScheduleLine(proposal.paymentSchedule)?.dueDate ?? null)
+                  : scheduleDue(proposal.paymentSchedule, 1),
                 // Left out, the server keeps the retainer the studio set.
               });
               return "The draft is saved.";
@@ -1512,6 +1518,32 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
     );
   if (due.finalStanding)
     return <ActionShell title={title}><Done>{`${jobName(job)}'s final bill is already out. Open Invoices to see where it is.`}</Done></ActionShell>;
+  // A payment plan (features/billing/payment-plan.ts): its next installment
+  // is the bill to send, as on Today; the final balance waits for the plan.
+  const plan = journeyPaymentPlan({ projectId: job.id, proposals, invoices, today: todayLocalIso() });
+  if (plan?.billNow)
+    return (
+      <ActionShell
+        detail={`${plan.paid} of ${plan.payments} payments made. It goes through your invoicing provider, or as your own invoice on a job you bill yourself.`}
+        icon={<HandCoins size={15} />}
+        title={`Send ${installmentName(plan.billNow.sequence, plan.billNow.count).toLowerCase()} · ${jobName(job)}`}
+      >
+        <InstallmentCardActions
+          amountCents={plan.billNow.amountCents}
+          onCleared={() => setMessage(`${installmentName(plan.billNow!.sequence, plan.billNow!.count)} is on its way.`)}
+          primaryClassName="button button-dark"
+          projectId={job.id}
+          secondaryClassName="button button-light"
+          sequence={plan.billNow.sequence}
+        />
+      </ActionShell>
+    );
+  if (plan?.installmentsPending)
+    return (
+      <ActionShell title={title}>
+        <Done>{`${jobName(job)} is on a payment plan: ${plan.paid} of ${plan.payments} payments made, and the final balance follows the installments still to come.${plan.next ? ` Next: ${plan.next.label.toLowerCase()}${plan.next.dueDate ? `, due ${formatDueDate(plan.next.dueDate)}` : ""}.` : ""}`}</Done>
+      </ActionShell>
+    );
   if (!due.cents) return <ActionShell title={title}><Done>{`Nothing is left to pay on ${jobName(job)}.`}</Done></ActionShell>;
   return (
     <ActionShell
@@ -1536,15 +1568,22 @@ export function SendFinalBalanceCard({ action }: ActionCardProps) {
 }
 
 /** Which bill the operator named, in their words: "the retainer", "the final". */
-function namedInvoiceKind(subject: string | null): "retainer" | "final" | null {
+function namedInvoiceKind(
+  subject: string | null,
+  jobInvoices: readonly Rec[] = [],
+): "retainer" | "installment" | "final" | null {
   const words = (subject ?? "").toLowerCase();
+  // A payment plan's installment (features/billing/payment-plan.ts), before
+  // "balance" — on a job that has one. Elsewhere "an installment" is any
+  // part payment, as it always was.
+  if (/installment/.test(words)) return jobInvoices.some((invoice) => str(invoice.kind) === "installment") ? "installment" : null;
   if (/final|balance|rest/.test(words)) return "final";
   if (/retainer|deposit/.test(words)) return "retainer";
   return null;
 }
 
 const invoiceLine = (invoice: Rec, deposit = "retainer") =>
-  `${str(invoice.kind) === "final" ? "Final balance" : `${deposit.charAt(0).toUpperCase()}${deposit.slice(1)}`} · ${dollars(invoice.amountCents)} · ${statusLabel(invoice.status)}`;
+  `${str(invoice.kind) === "final" ? "Final balance" : str(invoice.kind) === "installment" ? `Installment ${Number(invoice.installmentSequence) || 1}` : `${deposit.charAt(0).toUpperCase()}${deposit.slice(1)}`} · ${dollars(invoice.amountCents)} · ${statusLabel(invoice.status)}`;
 
 /** Void a wrong or no-longer-owed bill: the booking page's own control. */
 export function VoidInvoiceCard({ action }: ActionCardProps) {
@@ -1560,7 +1599,7 @@ export function VoidInvoiceCard({ action }: ActionCardProps) {
   if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
-  const kind = namedInvoiceKind(action.subject);
+  const kind = namedInvoiceKind(action.subject, onJob(invoices, job.id));
   const voidable = onJob(invoices, job.id).filter(
     (item) => invoiceVoidRefusal(item) === null && (!kind || str(item.kind) === kind),
   );
@@ -1608,7 +1647,7 @@ export function RecordPartialPaymentCard({ action }: ActionCardProps) {
   if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
-  const kind = namedInvoiceKind(action.subject);
+  const kind = namedInvoiceKind(action.subject, onJob(invoices, job.id));
   const payable = onJob(invoices, job.id).filter(
     (item) => invoicePaymentRefusal(item) === null && (!kind || str(item.kind) === kind),
   );
@@ -1652,7 +1691,7 @@ export function CorrectPaymentCard({ action }: ActionCardProps) {
   if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
-  const kind = namedInvoiceKind(action.subject);
+  const kind = namedInvoiceKind(action.subject, onJob(invoices, job.id));
   const correctable = onJob(invoices, job.id).filter(
     (item) => paymentCorrectable(item) && (!kind || str(item.kind) === kind),
   );
@@ -1985,7 +2024,7 @@ export function SendStudioInvoiceCard({ action }: ActionCardProps) {
   if (loading || !invoices) return <ActionShell title={title}><Loading /></ActionShell>;
   if (!job) return notFound(title);
   if (message) return <ActionShell title={title}><Done>{message}</Done></ActionShell>;
-  const named = namedInvoiceKind(action.subject);
+  const named = namedInvoiceKind(action.subject, onJob(invoices, job.id));
   const owed = onJob(invoices, job.id)
     .filter(
       (invoice) =>

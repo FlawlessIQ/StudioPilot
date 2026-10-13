@@ -174,7 +174,7 @@ test("the studio's screens take the trade's word, labels both spelled out", () =
   const booking = read("components/booking/project-booking-workspace.tsx");
   assert.match(booking, /const depositWord = tradeVocab\(workspace\.tenantTrade\)\.deposit;/);
   assert.doesNotMatch(booking, /"Paid straight after signing"/, "with the studio invoicing, it isn't straight after");
-  assert.match(read("components/booking/invoice-corrections.tsx"), /invoice\.kind === "final" \? "final balance" : tradeVocab\(trade\)\.deposit;/);
+  assert.match(read("components/booking/invoice-corrections.tsx"), /invoice\.kind === "final"\s*\? "final balance"[\s\S]{0,240}: tradeVocab\(trade\)\.deposit;/);
   assert.match(read("components/client/kit/client-payments.tsx"), /if \(value === "retainer"\) \{\s*const word = tradeVocab\(trade\)\.deposit;/);
   assert.match(read("components/ai/actions/booking-actions.tsx"), /const deposit = tradeVocab\(cardTrade\)\.deposit;/);
 });

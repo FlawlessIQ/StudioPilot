@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { paidInFullSettledByDeletion, settledInvoiceStatus } from "../billing/invoice-purge-policy.js";
+import { finalStatusWithInstallments } from "../billing/payment-plan.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
 import type {
   DocumentData,
@@ -1658,10 +1659,13 @@ export const workflowCommand = onRequest(
           retainerInvoiceStatus:
             (invoiceOfKind("retainer")?.get("status") as string | undefined) ??
             settledInvoiceStatus(projectSnapshot.data(), "retainer"),
-          finalInvoiceStatus:
+          // A payment plan's installment still owed keeps the balance part-paid.
+          finalInvoiceStatus: finalStatusWithInstallments(
             (invoiceOfKind("final")?.get("status") as string | undefined) ??
-            settledInvoiceStatus(projectSnapshot.data(), "final") ??
-            (paidInFullSettledByDeletion(projectSnapshot.data()) ? "paid" : null),
+              settledInvoiceStatus(projectSnapshot.data(), "final") ??
+              (paidInFullSettledByDeletion(projectSnapshot.data()) ? "paid" : null),
+            invoicesSnapshot.docs.map((document) => document.data() as Record<string, unknown>),
+          ),
           questionnaireStatus:
             (questionnaire?.get("status") as string | undefined) ?? null,
           questionnaireAnswers: questionnaire?.get("answers"),

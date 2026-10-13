@@ -42,6 +42,7 @@ import { useFinalDetailsRecords } from "@/components/planning/use-final-details-
 import { todayLocalIso } from "@/lib/format/event-date";
 import { callLabel, nextSalesCall } from "@/features/consultations/upcoming";
 import { depositByStudio } from "@/features/booking/deposit-by-studio";
+import { journeyPaymentPlan } from "@/features/billing/payment-plan-view";
 
 const text = (value: unknown): string =>
   typeof value === "string" ? value : "";
@@ -334,6 +335,13 @@ export function useProjectJourney({
       finalInvoice,
       todayLocalIso(),
     ),
+    // A payment plan: "2 of 4 paid" (features/billing/payment-plan-view.ts).
+    paymentPlan: journeyPaymentPlan({
+      projectId,
+      proposals: proposals.records,
+      invoices: projectInvoices,
+      today: todayLocalIso(),
+    }),
     questionnaireStatus:
       text(currentQuestionnaire(forProject(questionnaires.records))?.status) || null,
     // Status alone ticked this step while `answers` was `{}`.

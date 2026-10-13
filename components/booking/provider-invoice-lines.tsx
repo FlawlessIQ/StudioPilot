@@ -62,7 +62,9 @@ export function ProviderInvoiceLines({ invoice }: { invoice: Record<string, unkn
               ? quickBooksTax
                 ? "Packages − retainer; QuickBooks adds the sales tax"
                 : "Packages − retainer + tax"
-              : "Retainer, then the packages at $0"}
+              : invoice.kind === "installment"
+                ? "One installment of the payment plan, untaxed"
+                : "Retainer, then the packages at $0"}
           </em>
         </small>
       </span>

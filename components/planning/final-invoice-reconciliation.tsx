@@ -16,6 +16,9 @@ import { InfoHint } from "@/components/ui/info-hint";
 import { ProviderInvoiceLines } from "@/components/booking/provider-invoice-lines";
 import { HeldInvoiceReview } from "@/components/booking/held-invoice-review";
 import { heldInvoiceView } from "@/features/billing/held-invoice-review";
+import { journeyPaymentPlan } from "@/features/billing/payment-plan-view";
+import { installmentName } from "@/features/billing/payment-plan";
+import { InstallmentCardActions } from "@/components/booking/installment-actions";
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -56,7 +59,10 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
           recordsDeleted: invoiceRecordsDeleted(project),
         })
       : null;
-  const unbilled = due && !due.finalStanding && due.cents ? due : null;
+  // A payment plan (features/billing/payment-plan.ts): its next installment
+  // comes first, and the final balance waits while any is still to be billed.
+  const plan = project ? journeyPaymentPlan({ projectId: project.id, proposals, invoices: records, today: new Date().toISOString().slice(0, 10) }) : null;
+  const unbilled = due && !due.finalStanding && due.cents && !plan?.installmentsPending ? due : null;
   const finalInvoices =
     records?.filter(
       (invoice) =>
@@ -103,6 +109,24 @@ export function FinalInvoiceReconciliation({ projectId }: { projectId?: string }
             onDone={setSettled}
             packageSnapshotId={typeof project.packageSnapshotId === "string" ? project.packageSnapshotId : null}
             projectId={project.id}
+          />
+        </article>
+      ) : null}
+      {!loading && plan?.billNow && project ? (
+        <article className="panel final-invoice-unbilled">
+          <span>
+            <strong>{`${String(project.name ?? "This job")}'s ${installmentName(plan.billNow.sequence, plan.billNow.count).toLowerCase()} hasn't been billed`}</strong>
+            <small>
+              {`${money(plan.billNow.amountCents, "USD")}, due ${new Date(`${plan.billNow.dueDate}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}. ${plan.paid} of ${plan.payments} payments made. Send the bill, or record it if they paid another way.`}
+            </small>
+          </span>
+          <InstallmentCardActions
+            amountCents={plan.billNow.amountCents}
+            onCleared={() => setSettled(`${installmentName(plan.billNow!.sequence, plan.billNow!.count)} is on its way.`)}
+            primaryClassName="button button-dark"
+            projectId={project.id}
+            secondaryClassName="button button-light"
+            sequence={plan.billNow.sequence}
           />
         </article>
       ) : null}

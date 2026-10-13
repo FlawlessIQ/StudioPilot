@@ -118,7 +118,7 @@ export function reopenedInvoiceTask(input: {
   currency: unknown;
   now: string;
 }) {
-  const kind = input.kind === "final" ? "final balance" : "retainer";
+  const kind = input.kind === "final" ? "final balance" : input.kind === "installment" ? "installment" : "retainer";
   const number = text(input.docNumber);
   return studioTask({
     id: `invoice_reopened_${input.invoiceId}`,

@@ -66,6 +66,12 @@ const guarded: Array<[string, string, RegExp]> = [
     /return clientOutreachStop\(project\) === null;/,
   ],
   [
+    "a payment plan's installments skip a quiet booking, as the final does",
+    "functions/src/operations/installment-billing.ts",
+    // tests/payment-plan-billing.test.ts holds the behaviour.
+    /return clientOutreachStop\(project\) === null;/,
+  ],
+  [
     "workflow rules don't fire for a quiet booking",
     "functions/src/automation/runtime.ts",
     /if \(clientAutomationsPaused\(project\.data\(\)\)\) \{/,

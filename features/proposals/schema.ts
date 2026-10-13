@@ -73,7 +73,17 @@ export const proposalSchema = auditFieldsSchema.extend({
     label: z.string().min(1),
     amountCents: cents,
     dueDate: z.string().date().nullable(),
+    /**
+     * What the line is, on a schedule with a payment plan
+     * (features/billing/payment-plan.ts): the deposit, an installment, or the
+     * final balance. A line written before plans has none; its label says.
+     */
+    kind: z.enum(["retainer", "installment", "final"]).optional(),
+    /** An installment's place: 1, 2, 3 … */
+    sequence: z.number().int().positive().max(6).optional(),
   })).min(1),
+  /** The schedule carries installments (features/billing/payment-plan.ts); what the daily run looks for. */
+  hasPaymentPlan: z.boolean().optional(),
   expiresAt: z.string().datetime(),
   notes: z.string().max(4000).nullable(),
   termsSummary: z.string().min(10).max(6000),

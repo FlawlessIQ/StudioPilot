@@ -3,6 +3,7 @@
 import { paidInFullSettledByDeletion, settledInvoiceStatus } from "@/features/billing/invoice-purge-policy";
 import { currentQuestionnaire } from "@/features/questionnaires/studio-edit";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
+import { finalStatusWithInstallments } from "@/features/billing/payment-plan";
 import {
   crewDemand,
   jobCoverage,
@@ -93,10 +94,13 @@ export function useReadinessEvidence(projectId: string): ReadinessEvidence {
     retainerInvoiceStatus:
       text(projectInvoices.find((invoice) => invoice.kind === "retainer")?.status) ||
       settledInvoiceStatus(projectRecord, "retainer"),
-    finalInvoiceStatus:
+    // A payment plan's installment still owed keeps the balance part-paid.
+    finalInvoiceStatus: finalStatusWithInstallments(
       text(currentFinalInvoice(projectInvoices)?.status) ||
-      settledInvoiceStatus(projectRecord, "final") ||
-      (paidInFullSettledByDeletion(projectRecord) ? "paid" : null),
+        settledInvoiceStatus(projectRecord, "final") ||
+        (paidInFullSettledByDeletion(projectRecord) ? "paid" : null),
+      projectInvoices,
+    ),
     questionnaireStatus: text(questionnaire?.status) || null,
     questionnaireAnswers: questionnaire?.answers,
     scheduleStatus: text(latestSchedule?.status) || null,

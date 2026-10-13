@@ -60,7 +60,8 @@ test("any edit the record doesn't hold makes the form dirty", () => {
 
 test("approving saves a dirty draft first and stops when the save fails", () => {
   const body = workspaceSource.slice(workspaceSource.indexOf("async function submitDraft"));
-  const save = body.indexOf('if (dirty && !(await run("update_draft"))) return;');
+  // A changed payment plan counts as dirty too (features/billing/payment-plan.ts).
+  const save = body.indexOf('if ((dirty || planDirty) && !(await run("update_draft"))) return;');
   const submit = body.indexOf('run("submit_for_approval")');
   assert.ok(save > 0, "submitDraft saves when dirty and returns on failure");
   assert.ok(submit > save, "submit runs only after the save");

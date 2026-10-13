@@ -6,6 +6,13 @@ import { projectStateLabel } from "@/features/projects/state-label";
 import { awaitingEventReconciliation } from "@/features/projects/job-moment";
 import { trialDayLeft } from "@/features/consultations/trial";
 import type { VendorTeamProgress } from "@/features/vendors/team";
+import type { JourneyPaymentPlan } from "@/features/billing/payment-plan-view";
+
+/** "Feb 4" for a calendar day. */
+const shortDay = (day: string) =>
+  /^\d{4}-\d{2}-\d{2}/.test(day)
+    ? new Date(`${day.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+    : day;
 
 /**
  * The Journey — Gabriel's easy flow as a deterministic engine.
@@ -271,6 +278,13 @@ export type JourneyInput = {
    * to chase.
    */
   finalInvoiceOverdue?: boolean;
+  /**
+   * A payment plan (features/billing/payment-plan-view.ts): the final
+   * balance step reads the plan's progress, "2 of 4 paid", and is done only
+   * when every installment and the balance are. Absent: no plan, and the
+   * step reads exactly as it always has.
+   */
+  paymentPlan?: JourneyPaymentPlan | null;
   questionnaireStatus: string | null;
   /**
    * Whether the studio has an active questionnaire this job could be sent.
@@ -700,7 +714,8 @@ function shapeForLightJourney(steps: JourneyStep[], input: JourneyInput): void {
   // itself before the night (a DJ). Either way it is only a step of its own
   // when it has gone overdue.
   const balance = find("final_balance");
-  if (balance && light.oneForm && !input.finalInvoiceOverdue) {
+  // A payment plan the studio turned on keeps its step: it is the plan.
+  if (balance && light.oneForm && !input.finalInvoiceOverdue && !input.paymentPlan) {
     const paid = input.finalInvoiceStatus === "paid";
     remove("final_balance");
     const day = find("event_day");
@@ -1614,7 +1629,40 @@ export function projectJourney(input: JourneyInput): {
   // $6,265 outstanding, while Today ranked that same balance as the single
   // most urgent thing in the studio.
   const finalOverdue = Boolean(input.finalInvoiceOverdue) && !finalDone;
-  push({
+  // A payment plan: the same step, reading the plan's progress. Done only
+  // when every installment and the balance are paid (or the studio settled
+  // the checkpoint); the studio's move when one is due to bill or overdue.
+  const plan = input.paymentPlan;
+  if (plan) {
+    const planDone = plan.paid >= plan.payments || settled("final-balance");
+    const nextLine = plan.next
+      ? ` · next: ${plan.next.label.toLowerCase()}, ${new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: plan.next.amountCents % 100 ? 2 : 0,
+        }).format(plan.next.amountCents / 100)}${plan.next.dueDate ? ` due ${shortDay(plan.next.dueDate)}` : ""}`
+      : "";
+    push({
+      key: "final_balance",
+      // The progress in the title: the rail and "waiting on" lines show only titles.
+      title: planDone ? "Payment plan" : `Payment plan · ${plan.paid} of ${plan.payments} paid`,
+      detail: planDone
+        ? `Paid in full · ${plan.payments} of ${plan.payments} paid`
+        : plan.overdue
+          ? `${plan.paid} of ${plan.payments} paid · a payment is past its due date`
+          : `${plan.paid} of ${plan.payments} paid${nextLine}`,
+      status: planDone ? "complete" : plan.overdue || plan.billNow ? "current" : plan.next?.billed ? "waiting_client" : "upcoming",
+      action: planDone
+        ? null
+        : plan.overdue
+          ? { kind: "link", label: "Follow up on payment", href: project("/studio/invoices") }
+          : plan.billNow
+            ? { kind: "link", label: `Send ${plan.billNow.sequence ? `installment ${plan.billNow.sequence}` : "the installment"}`, href: project("/studio/invoices") }
+            : plan.next?.billed
+              ? { kind: "link", label: "Check payment status", href: project("/studio/invoices") }
+              : null,
+    });
+  } else push({
     key: "final_balance",
     title: "Final balance",
     detail: finalDone

@@ -36,6 +36,13 @@ import { mayContactClient } from "../post-event/client-outreach.js";
 import { isStandingInvoice } from "./invoice-standing.js";
 import { sendFinalBalance, sendFinalBalanceInput } from "./send-final-balance.js";
 import {
+  recordInstallmentPayment,
+  recordInstallmentPaymentInput,
+  sendInstallment,
+  sendInstallmentInput,
+} from "./send-installment.js";
+import { finalBalanceOnPlan } from "../billing/payment-plan.js";
+import {
   approveFinalInvoice,
   approveFinalInvoiceInput,
   correctPaymentRecord,
@@ -506,6 +513,20 @@ const commandSchema = z.discriminatedUnion("type", [
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
     input: sendFinalBalanceInput,
+  }),
+  // A payment plan's next installment: sent now, or paid another way — see
+  // ./send-installment.ts.
+  z.object({
+    type: z.literal("sendInstallment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: sendInstallmentInput,
+  }),
+  z.object({
+    type: z.literal("recordInstallmentPayment"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: recordInstallmentPaymentInput,
   }),
   // Taking back a bill, correcting a payment, sending a final bill held for
   // review — see ./invoice-corrections.ts.
@@ -2225,6 +2246,24 @@ export const bookingCommand = onRequest(
           actorId: identity.uid,
           mockMode,
         });
+      } else if (command.type === "sendInstallment") {
+        result = await sendInstallment(firestore, {
+          tenantId: command.tenantId,
+          projectId: command.input.projectId,
+          role: String(membership.role),
+          actorId: identity.uid,
+          mockMode,
+        });
+      } else if (command.type === "recordInstallmentPayment") {
+        result = await recordInstallmentPayment(firestore, {
+          tenantId: command.tenantId,
+          role: String(membership.role),
+          actorId: identity.uid,
+          idempotencyKey: command.idempotencyKey,
+          ipAddress: request.ip ?? null,
+          userAgent: request.get("user-agent") ?? null,
+          input: command.input,
+        });
       } else if (
         command.type === "voidInvoice" ||
         command.type === "correctPaymentRecord" ||
@@ -2276,7 +2315,7 @@ export const bookingCommand = onRequest(
         ) {
           throw new Error("BALANCE_ATTESTATION_PERMISSION_REQUIRED");
         }
-        const [project, packageSnapshot, retainers, existingFinals] =
+        const [project, packageSnapshot, retainers, existingFinals, installmentBills] =
           await Promise.all([
             firestore.doc(`projects/${command.input.projectId}`).get(),
             firestore
@@ -2297,6 +2336,15 @@ export const bookingCommand = onRequest(
               // Not limit(1), for the reason recorded on the retainer path: a
               // superseded attempt must not hide the live invoice behind it.
               .limit(10)
+              .get(),
+            // A payment plan's installments (billing/payment-plan.ts): the
+            // balance paid another way takes in those not yet billed.
+            firestore
+              .collection("invoiceReferences")
+              .where("tenantId", "==", command.tenantId)
+              .where("projectId", "==", command.input.projectId)
+              .where("kind", "==", "installment")
+              .limit(30)
               .get(),
           ]);
         if (
@@ -2430,12 +2478,13 @@ export const bookingCommand = onRequest(
             Number(jobTotal ?? packageSnapshot.get("totalCents") ?? 0),
             retainerPaidCents,
           );
+          const agreedSchedule = accepted.empty ? null : accepted.docs[0]!.get("paymentSchedule");
           const amountCents = accepted.empty
             ? fallback
-            : finalBalanceFromSchedule(
-                accepted.docs[0]!.get("paymentSchedule"),
-                fallback,
-              );
+            : (finalBalanceOnPlan(
+                agreedSchedule,
+                installmentBills.docs.map((document) => document.data() as Record<string, unknown>),
+              ) ?? finalBalanceFromSchedule(agreedSchedule, fallback));
           if (!Number.isInteger(amountCents) || amountCents < 0) {
             throw new Error("BALANCE_AMOUNT_NOT_FOUND");
           }

@@ -461,15 +461,22 @@ function recordValue(key: string, sources: ContractSources): string | null {
         ),
         salesTaxOf(sources),
       );
-    case "payment.schedule":
+    case "payment.schedule": {
+      // A payment plan's lines (billing/payment-plan.ts) carry their dates:
+      // "Installment 2 $1,200.00 due February 4, 2027". A schedule without one
+      // reads as it always has.
+      const dated = sources.paymentSchedule.some((row) => /^Installment \d+$/.test(row.label));
       return sources.paymentSchedule.length
         ? sources.paymentSchedule
             .map(
               (row, index) =>
-                `${agreementScheduleLabel(row.label, sources.depositLabel)} ${scheduleAmount(sources, row.amountCents, index)}`,
+                `${agreementScheduleLabel(row.label, sources.depositLabel)} ${scheduleAmount(sources, row.amountCents, index)}${
+                  dated && row.dueDate ? ` due ${formatContractDate(row.dueDate)}` : ""
+                }`,
             )
             .join("; ")
         : null;
+    }
     case "studio.name":
       return nonEmpty(sources.studio.name);
     case "studio.legal_name":

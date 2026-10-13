@@ -22,6 +22,7 @@
  */
 
 import { paidInFullSettledByDeletion, settledInvoiceStatus } from "../billing/invoice-purge-policy.js";
+import { finalStatusWithInstallments } from "../billing/payment-plan.js";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   readinessEvidenceFromFacts,
@@ -146,10 +147,13 @@ export async function loadReadinessEvidence(
     // A paid bill the studio deleted leaves a settled note (own invoicing).
     retainerInvoiceStatus:
       text(invoiceOfKind("retainer")?.get("status")) || settledInvoiceStatus(project.data(), "retainer"),
-    finalInvoiceStatus:
+    // A payment plan's installment still owed keeps the balance part-paid.
+    finalInvoiceStatus: finalStatusWithInstallments(
       text(invoiceOfKind("final")?.get("status")) ||
-      settledInvoiceStatus(project.data(), "final") ||
-      (paidInFullSettledByDeletion(project.data()) ? "paid" : null),
+        settledInvoiceStatus(project.data(), "final") ||
+        (paidInFullSettledByDeletion(project.data()) ? "paid" : null),
+      invoices.docs.map((document) => document.data() as Record<string, unknown>),
+    ),
     questionnaireStatus: text(questionnaire?.get("status")) || null,
     questionnaireAnswers: questionnaire?.get("answers"),
     scheduleStatus: text(latestSchedule?.get("status")) || null,

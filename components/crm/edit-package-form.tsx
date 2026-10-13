@@ -31,6 +31,7 @@ import {
   type EditableDeliverable,
 } from "@/components/crm/package-deliverables-editor";
 import { PackageAddOnPicker } from "@/components/crm/package-add-on-picker";
+import { packagePaymentPlan } from "@/features/billing/payment-plan";
 import { expectedDeliverables } from "@/features/post-event/deliverables";
 
 type RetainerMode = "percentage" | "fixed" | "per_crew_member";
@@ -78,6 +79,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
     terms?: string;
     paymentShape?: PaymentShape;
     planningScope?: PlanningScope | "";
+    /** Installments on the payment plan (features/billing/payment-plan.ts); "0" is none. */
+    installments?: string;
   }>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +116,8 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
   // A planner's tier (planning-scope.ts): shown only for a trade that has one.
   const scoped = tradeShape.planningScope;
   const planningScope: PlanningScope | "" = edits.planningScope ?? (isPlanningScope(record?.planningScope) ? record.planningScope : "");
+  // The payment plan its proposals start with: off unless the studio set one.
+  const installments = Number(edits.installments ?? packagePaymentPlan(record?.paymentPlan)?.installments ?? 0);
   const name = edits.name ?? String(record?.name ?? "");
   const description = edits.description ?? String(record?.description ?? "");
   const terms = edits.terms ?? String(record?.terms ?? "");
@@ -262,6 +267,10 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
         })),
         // Only when changed: an untouched list is left exactly as stored.
         ...(edits.addOnIds ? { addOnIds: edits.addOnIds } : {}),
+        // The plan, only when changed (and none on a package paid in one bill).
+        ...(edits.installments !== undefined || (edits.paymentShape !== undefined && !hasDeposit && installments > 0)
+          ? { paymentPlan: hasDeposit && installments > 0 ? { installments } : null }
+          : {}),
         ...(edits.description !== undefined ? { description: description.trim() } : {}),
         ...(edits.terms !== undefined ? { terms: terms.trim() } : {}),
         active,
@@ -427,6 +436,18 @@ export function EditPackageForm({ packageId }: { packageId: string }) {
             ) : null}
           </>
         ) : null}
+        <label>
+          Payment plan
+          <select onChange={(event) => set("installments", event.target.value)} value={String(installments)}>
+            <option value="0">{`None: ${deposit} and final balance`}</option>
+            {[1, 2, 3, 4, 5, 6].map((count) => (
+              <option key={count} value={String(count)}>
+                {count === 1 ? "1 installment" : `${count} installments`}
+              </option>
+            ))}
+          </select>
+          <small>{`Installments between the ${deposit} and the final balance, spread evenly. Each ${offer} can change them; one already sent keeps its own.`}</small>
+        </label>
         </>
         ) : null}
         <label>

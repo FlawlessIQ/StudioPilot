@@ -33,6 +33,7 @@ import {
   planClientProposalDecision,
 } from "@/server/client/proposal-decision";
 import { isStandingInvoice } from "@/features/booking/invoice-standing";
+import { finalBalanceOnPlan } from "@/features/billing/payment-plan";
 import { invoiceRaisedAtProvider } from "@/features/client/invoice-pay-route";
 import { clientJobClosed } from "@/features/client/job-choice";
 import { isAmendable } from "@/features/booking/amendable";
@@ -501,6 +502,9 @@ const clientRecordFields = {
     // "which invoice?" and a studio answering from QuickBooks are holding
     // two references that never meet.
     "providerDocNumber",
+    // A payment plan's installment: "Installment 2 of 3" on the client's list.
+    "installmentSequence",
+    "installmentCount",
     "lastSyncedAt",
     // An invoice the studio issued through StudioCue: its own number.
     "billedBy",
@@ -2111,9 +2115,13 @@ async function autopayStatus(tenantId: string, projectId: string) {
   );
   const totalCents =
     Number.isSafeInteger(agreedTotal) && agreedTotal > 0 ? agreedTotal : Number(snapshot?.get("totalCents") ?? 0);
+  // On a payment plan autopay charges only the final balance, never the
+  // installments (billed on their own): its closing line, plus any installment
+  // not yet billed, which the final would take in (features/billing/payment-plan.ts).
+  const onPlan = final ? null : finalBalanceOnPlan(acceptedProposal?.get("paymentSchedule"), rows);
   const amountCents = final
     ? Number(final.balanceCents ?? 0)
-    : Math.max(0, totalCents - Number(retainer?.amountCents ?? 0));
+    : (onPlan ?? Math.max(0, totalCents - Number(retainer?.amountCents ?? 0)));
   const eventDate = safeString(project.get("eventDate"));
   let dueDate = safeString(final?.dueDate);
   if (!dueDate && eventDate) {

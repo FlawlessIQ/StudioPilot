@@ -140,9 +140,11 @@ test("the three places a package is priced all use the one function", () => {
 test("a proposal's schedule follows every package, and keeps a hand-set retainer (M4)", () => {
   const source = readFileSync("functions/src/booking/proposals.ts", "utf8");
   // create_draft: the schedule is built from the combined pricing.
-  assert.match(source, /paymentSchedule: paymentSchedule\(\s*combinedPricing,/);
-  // revise_packages: the override is carried through.
-  assert.match(source, /typeof priorSchedule\[1\]\?\.dueDate === "string" \? String\(priorSchedule\[1\]\.dueDate\) : null,\s*retainerOverrideCents,/);
+  assert.match(source, /const schedule = paymentSchedule\(\s*combinedPricing,/);
+  assert.match(source, /paymentSchedule: schedule\.lines,/);
+  // revise_packages: the override is carried through, and the balance's date
+  // is the closing line's (with a payment plan, the second is an installment).
+  assert.match(source, /priorFinalDue,\s*retainerOverrideCents,/);
   assert.match(source, /retainerOverrideCents:\s*typeof command\.input\.retainerOverrideCents === "number"/);
   // Lines say what they are.
   assert.match(source, /kind: "package" as const/);

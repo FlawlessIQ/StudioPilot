@@ -9,6 +9,7 @@ import { assignmentIcs, assignmentPlace } from "../crew/calendar-ics.js";
 import { studioNotificationAddress } from "../communications/notify-address.js";
 import { reconcileProjectReadiness } from "../workflow/readiness-triggers.js";
 import { jobBillingFor } from "../billing/job-billing-reader.js";
+import { scheduleInstallments } from "../billing/payment-plan.js";
 
 /**
  * What a signed booking change does.
@@ -233,9 +234,17 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
       const owed = num(invoice.get("balanceCents")) > 0 && invoice.get("status") !== "paid";
       if (!owed) continue;
       const kind = text(invoice.get("kind"));
+      // A payment plan's installment with nothing paid on it, whose line the
+      // change moved or folded away (billing/payment-plan.ts): superseded, and
+      // the daily run raises it again at the new figure.
+      const planLine =
+        kind === "installment"
+          ? scheduleInstallments(schedule).find((line) => line.sequence === num(invoice.get("installmentSequence")))
+          : undefined;
       const stale =
         (kind === "final" && (totalChanged || dateChanged)) ||
-        (kind === "retainer" && num(invoice.get("amountCents")) !== money.retainerCents);
+        (kind === "retainer" && num(invoice.get("amountCents")) !== money.retainerCents) ||
+        (kind === "installment" && paidOf(invoice) === 0 && (!planLine || planLine.amountCents !== num(invoice.get("amountCents"))));
       if (!stale) continue;
       superseded.push(invoice);
       if (kind === "final") finalSuperseded = true;
@@ -256,7 +265,7 @@ export async function applyAmendment(db: Firestore, amendmentId: string) {
             tenantId,
             projectId,
             title: `Void ${number ? `invoice ${number}` : "the old invoice"} in ${text(invoice.get("provider"), "your invoicing app") === "quickbooks" ? "QuickBooks" : "your invoicing app"}`,
-            description: `The booking change replaced this ${kind === "final" ? "balance" : "retainer"} invoice. StudioCue no longer counts it; void it where it was raised so the couple isn't billed twice.`,
+            description: `The booking change replaced this ${kind === "final" ? "balance" : kind === "installment" ? "installment" : "retainer"} invoice. StudioCue no longer counts it; void it where it was raised so the couple isn't billed twice.`,
             now,
           }),
         );

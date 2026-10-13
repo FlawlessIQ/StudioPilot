@@ -17,6 +17,7 @@
 
 import { formatDueDate } from "@/lib/format/event-date";
 import { offerLastDay } from "@/features/booking/proposal-expiry";
+import { installmentName } from "@/features/billing/payment-plan";
 import { FILE_BEARING, type FileRef } from "@/features/documents/file-ref";
 import { leadAnswers, type LeadAnswer } from "@/features/leads/lead-answers";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
@@ -372,7 +373,10 @@ export function projectThread(input: ThreadInput): ThreadEntry[] {
     const kind =
       text(invoice.kind) === "final"
         ? "Final balance"
-        : `${tradeWords.deposit.charAt(0).toUpperCase()}${tradeWords.deposit.slice(1)}`;
+        : text(invoice.kind) === "installment"
+          ? // A payment plan's (features/billing/payment-plan.ts).
+            installmentName(Number(invoice.installmentSequence) || 1, Number(invoice.installmentCount) || null)
+          : `${tradeWords.deposit.charAt(0).toUpperCase()}${tradeWords.deposit.slice(1)}`;
     const created = firstAt(invoice, "createdAt", "issuedAt");
     const status = text(invoice.status);
     push(

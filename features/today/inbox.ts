@@ -47,6 +47,8 @@ import {
 import { countdownPhrase, formatDueDate } from "@/lib/format/event-date";
 import { isAmendable } from "@/features/booking/amendable";
 import { outstandingFinalBalance } from "@/features/booking/final-balance-due";
+import { installmentName } from "@/features/billing/payment-plan";
+import { journeyPaymentPlan } from "@/features/billing/payment-plan-view";
 import { heldInvoiceView } from "@/features/billing/held-invoice-review";
 import { crewThreads } from "@/features/crew/crew-threads";
 import { asConversation, clientThreadsAwaitingStudio } from "@/features/messaging/awaiting-studio";
@@ -108,6 +110,18 @@ export type TodayAction =
       singleBill?: boolean;
       /** Collected on the morning (makeup, hair): record it in one tap (record-final-payment.tsx). */
       onTheDay?: boolean;
+    }
+  | {
+      /**
+       * A payment plan's next installment, due to be billed and not yet:
+       * send it now, or record it paid another way
+       * (components/booking/installment-actions.tsx).
+       */
+      kind: "installment";
+      label: string;
+      projectId: string;
+      sequence: number;
+      amountCents: number;
     }
   | {
       /**
@@ -2197,6 +2211,56 @@ export function todayInbox(input: TodayInput): TodayInbox {
     // owes nothing more. Paid on the day or invoiced after is one bill for
     // the whole price, offered when it falls due (job-kinds.ts).
     const profile = projectProfile(job);
+    // A payment plan's next installment, once its bill is due to go out and
+    // nothing has billed it (features/billing/payment-plan.ts): the daily run
+    // sends it when the deposit has an invoicing customer, so the card stays
+    // only when it couldn't — a deposit recorded by hand. Before the final:
+    // the final's card waits until every installment is billed, since it
+    // would take them in.
+    if (hasFinalBalance(profile) && !invoiceRecordsDeleted(job)) {
+      const plan = journeyPaymentPlan({
+        projectId: job.id,
+        proposals: rows(input.proposals),
+        invoices: rows(input.invoiceReferences),
+        today: input.now.slice(0, 10),
+      });
+      if (plan?.billNow) {
+        finalBalanceProjectIds.add(job.id);
+        const due = plan.billNow;
+        const owed = new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: due.amountCents % 100 ? 2 : 0,
+        }).format(due.amountCents / 100);
+        const name = installmentName(due.sequence, due.count);
+        act.push({
+          id: `installment-${job.id}-${due.sequence}`,
+          lane: "act",
+          kind: "invoice",
+          title: `Bill ${clientOf(job)}'s ${name.toLowerCase()} · ${owed}`,
+          detail: `Due ${formatDueDate(due.dueDate)}. ${plan.paid} of ${plan.payments} payments made. Nothing has billed it yet: send it from here, or record it if they paid another way.`,
+          evidence: null,
+          projectId: job.id,
+          projectName: text(job.name) || null,
+          action: {
+            kind: "installment",
+            label: `Send ${name.toLowerCase()}`,
+            projectId: job.id,
+            sequence: due.sequence,
+            amountCents: due.amountCents,
+          },
+          jobHref: `/studio/projects/${job.id}`,
+          facts: [eventFact(text(job.eventDate) || null, now)].filter((fact): fact is string => Boolean(fact)),
+          band: bandFor({ eventDate: text(job.eventDate) || null, dueDate: due.dueDate, now }),
+          eventDate: text(job.eventDate) || null,
+          score: score({ lane: "act", severity: "step", eventDate: text(job.eventDate) || null, updatedAt: changedAt(job), now }),
+        });
+        continue;
+      }
+      // An installment still to come: the final balance waits for it, as the
+      // daily run's final does (final-invoice.ts `waitForInstallments`).
+      if (plan?.installmentsPending) continue;
+    }
     // Makeup and hair: the balance is collected on the morning and never
     // billed ahead (simpler vendor journeys; billing/balance-on-the-day.ts).
     // The card is the morning's, with the amount they agreed to.
@@ -2405,7 +2469,14 @@ export function todayInbox(input: TodayInput): TodayInbox {
       currency: "USD",
       minimumFractionDigits: cents % 100 ? 2 : 0,
     }).format(cents / 100);
-    const label = invoice.paidInFull === true ? "" : text(invoice.kind) === "final" ? "final " : "deposit ";
+    const label =
+      invoice.paidInFull === true
+        ? ""
+        : text(invoice.kind) === "final"
+          ? "final "
+          : text(invoice.kind) === "installment"
+            ? `${installmentName(Number(invoice.installmentSequence) || 1, Number(invoice.installmentCount) || null).toLowerCase()} `
+            : "deposit ";
     act.push({
       id: `studio-invoice-${invoice.id}`,
       lane: "act",

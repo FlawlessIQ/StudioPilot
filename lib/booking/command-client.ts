@@ -247,6 +247,33 @@ export async function sendFinalBalance(projectId: string) {
 }
 
 /**
+ * A payment plan's next installment, now (functions/src/booking/send-installment.ts):
+ * raised through the studio's invoicing provider, or drafted as the studio's
+ * own invoice. The amount is the server's — the agreed line.
+ */
+export async function sendInstallment(projectId: string) {
+  return sendBookingCommand({
+    type: "sendInstallment",
+    idempotencyKey: `installment_${projectId}_${crypto.randomUUID()}`,
+    input: { projectId },
+  });
+}
+
+/** The next installment, paid another way: recorded paid for the agreed amount. */
+export async function recordInstallmentPayment(input: {
+  projectId: string;
+  paidAt: string;
+  method: string;
+  reference: string | null;
+}) {
+  return sendBookingCommand({
+    type: "recordInstallmentPayment",
+    idempotencyKey: `installment_paid_${input.projectId}_${crypto.randomUUID()}`,
+    input: { ...input, attestation: true },
+  });
+}
+
+/**
  * "Don't charge sales tax on this job" (owner/admin). See
  * functions/src/booking/job-sales-tax.ts; firestore.rules refuses the field
  * from a browser write.

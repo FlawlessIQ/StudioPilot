@@ -168,6 +168,8 @@ export function gatedFinalLines(input: {
   items: readonly JobPackageItem[];
   retainerPaidCents: number | null;
   taxApplies: boolean;
+  /** A payment plan's installments, billed on their own (quickBooksFinalLines). */
+  installmentsCents?: number;
 }): FinalLinesResult {
   const built = quickBooksFinalLines({
     amountCents: input.amountCents,
@@ -176,6 +178,7 @@ export function gatedFinalLines(input: {
     discountCents: input.discountCents,
     items: input.items,
     retainerPaidCents: input.retainerPaidCents,
+    installmentsCents: input.installmentsCents,
   });
   const lines = built.lines.map((line, index): InvoiceLine => {
     if (!input.taxApplies) return { ...line, taxable: false };

@@ -8,6 +8,7 @@ import { projectProfile } from "@/features/job-kinds/job-kinds";
 import { deliverableDueDate, deliveryProgress } from "@/features/post-event/deliverables";
 import { jobExpectedDeliverables } from "@/features/post-event/job-deliverables";
 import { currentFinalInvoice } from "@/features/booking/final-balance-due";
+import { journeyPaymentPlan } from "@/features/billing/payment-plan-view";
 import { isLiveConsultation } from "@/features/consultations/live";
 import { walkthroughState } from "@/features/consultations/walkthrough";
 import { publishedTimelineVersion, vendorTeamProgress } from "@/features/vendors/team";
@@ -359,6 +360,8 @@ export function useTodayInbox(): {
           currentFinalInvoice(projectInvoices),
           today,
         ),
+        // A payment plan: "2 of 4 paid" (features/billing/payment-plan-view.ts).
+        paymentPlan: journeyPaymentPlan({ projectId, proposals: proposals.records, invoices: projectInvoices, today }),
         questionnaireStatus:
           text(currentQuestionnaire(forProject(questionnaires.records, projectId))?.status) || null,
         questionnaireHasAnswers: questionnaireHasAnswers(

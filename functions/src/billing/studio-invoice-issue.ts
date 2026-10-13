@@ -49,7 +49,8 @@ export function dueInDays(days: number, nowIso: string, timeZone: string): strin
 }
 
 export type StudioInvoiceDraft = {
-  kind: "retainer" | "final";
+  /** An installment of a payment plan is drafted like a final (booking/installment-invoice.ts), untaxed like a deposit. */
+  kind: "retainer" | "installment" | "final";
   paidInFull: boolean;
   /** Pre-tax. */
   subtotalCents: number;

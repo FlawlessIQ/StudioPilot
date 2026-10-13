@@ -57,6 +57,7 @@ import { quickBooksCompany, studioCueInvoiceItemRefs } from "../integrations/qui
 import { reopenedByProvider, reopenedInvoiceTask } from "../booking/quickbooks-money-events-core.js";
 import { providerVoidJobType } from "../booking/invoice-corrections.js";
 import { landStudioPaymentAtProvider, studioPaymentFor } from "../booking/invoice-payments.js";
+import { installmentName } from "../billing/payment-plan.js";
 
 /**
  * A call's name on the studio's calendar and Zoom: a photographer's
@@ -1677,12 +1678,17 @@ async function enqueueRetainerEmail(input:{
   if(existing.exists&&existing.get("status")==="succeeded")return {alreadyDelivered:true};
   const now=new Date().toISOString();
   const appUrl=process.env.NEXT_PUBLIC_APP_URL??"https://studiohub.app";
+  // An installment of a payment plan goes out as a balance bill, named for
+  // what it is ("installment 2 of 3"), never as a retainer.
+  let installmentLabel:string|null=null;
+  if(input.kind==="installment"){const bill=await input.db.doc(`invoiceReferences/${input.invoiceId}`).get();installmentLabel=installmentName(Number(bill.get("installmentSequence"))||1,Number(bill.get("installmentCount"))||null).toLowerCase();}
   await input.db.doc(`emailJobs/invoice_${input.invoiceId}`).set({
     id:`invoice_${input.invoiceId}`,
     tenantId:input.tenantId,
     projectId:input.projectId,
     invoiceId:input.invoiceId,
-    type:input.kind==="final"?"final_invoice":"retainer_invoice",
+    type:input.kind==="final"||input.kind==="installment"?"final_invoice":"retainer_invoice",
+    ...(installmentLabel?{invoiceKindLabel:installmentLabel}:{}),
     recipient:input.email,
     // The provider's own pay page when there is one, the portal when there
     // is not. Never nothing: an invoice email with no way to pay is a

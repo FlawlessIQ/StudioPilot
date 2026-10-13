@@ -148,7 +148,8 @@ test("sending by hand resolves the customer; the scheduler still never bills any
 
 test("a final bill reaches the couple as a final bill, not a retainer", () => {
   const runtime = read("functions/src/operations/provider-runtime.ts");
-  assert.match(runtime, /type:input\.kind==="final"\?"final_invoice":"retainer_invoice"/);
+  // An installment of a payment plan goes out as a balance bill too (billing/payment-plan.ts).
+  assert.match(runtime, /type:input\.kind==="final"\|\|input\.kind==="installment"\?"final_invoice":"retainer_invoice"/);
   assert.match(runtime, /kind:String\(invoice\.get\("kind"\)\?\?""\)/);
 });
 

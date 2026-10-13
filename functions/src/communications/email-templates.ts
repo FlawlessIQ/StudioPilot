@@ -1504,9 +1504,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
               : undefined,
         };
       }
-      const label = isRetainer ? deposit : "final balance";
+      // An installment of a payment plan names itself ("installment 2 of 3").
+      const installment = !isRetainer && !isReminder ? stringValue(values, "invoiceKindLabel") : "";
+      const label = isRetainer ? deposit : installment || "final balance";
       return {
-        subject: `${isReminder ? "Reminder: " : ""}${isRetainer ? Deposit : "Final invoice"} from ${brand.studioName}`,
+        subject: `${isReminder ? "Reminder: " : ""}${isRetainer ? Deposit : installment ? "Invoice" : "Final invoice"} from ${brand.studioName}`,
         preheader: `Review your ${label} in the secure accounting portal.`,
         eyebrow: isReminder ? "Payment reminder" : "Invoice ready",
         heading: isReminder

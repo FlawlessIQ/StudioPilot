@@ -136,7 +136,8 @@ export function voidInvoiceTask(input: {
 }) {
   const number = String(input.invoice.get("providerDocNumber") ?? "");
   const provider = providerName(input.invoice.get("provider"));
-  const kind = input.invoice.get("kind") === "final" ? "balance" : "retainer";
+  const kind =
+    input.invoice.get("kind") === "final" ? "balance" : input.invoice.get("kind") === "installment" ? "installment" : "retainer";
   return stoppedBillingTask({
     id: `invoice_void_${input.invoice.id}`,
     tenantId: input.tenantId,

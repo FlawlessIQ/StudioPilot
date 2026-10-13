@@ -9,6 +9,8 @@
  * Pure: the page passes the records it already holds.
  */
 
+import { installmentName } from "@/features/billing/payment-plan";
+
 type Row = Readonly<Record<string, unknown>>;
 
 export type LedgerSource = "studio" | "quickbooks" | "stripe" | "recorded";
@@ -83,6 +85,8 @@ function kindLabel(invoice: Row): string {
   if (invoice.paidInFull === true) return "Payment in full";
   const kind = text(invoice.kind);
   if (kind === "retainer") return "Deposit";
+  // A payment plan's: "Installment 2 of 3" (features/billing/payment-plan.ts).
+  if (kind === "installment") return installmentName(Number(invoice.installmentSequence) || 1, Number(invoice.installmentCount) || null);
   if (kind === "final") return "Final balance";
   if (kind === "adjustment") return "Booking change";
   return "Invoice";

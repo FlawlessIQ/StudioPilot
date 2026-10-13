@@ -287,6 +287,12 @@ export function quickBooksFinalLines(input: {
   items: readonly JobPackageItem[];
   /** The retainer actually paid; null when unknown (everything paid counts as one). */
   retainerPaidCents: number | null;
+  /**
+   * A payment plan's installments, billed on their own bills
+   * (billing/payment-plan.ts): their own line, never "Payments received",
+   * since one may not be paid yet.
+   */
+  installmentsCents?: number;
 }): FinalLinesResult {
   const amount = cents(input.amountCents);
   const total = cents(input.packageTotalCents);
@@ -342,11 +348,15 @@ export function quickBooksFinalLines(input: {
     credit,
     input.retainerPaidCents === null ? credit : Math.max(0, cents(input.retainerPaidCents)),
   );
-  const otherPayments = credit - retainerReceived;
+  const installments = Math.min(credit - retainerReceived, Math.max(0, cents(input.installmentsCents ?? 0)));
+  const otherPayments = credit - retainerReceived - installments;
   const lines = [
     ...packageLines,
     ...(retainerReceived > 0
       ? [line({ kind: "retainer_received" as const, title: "Retainer received", description: "Retainer received — thank you", quantity: 1, unitPriceCents: -retainerReceived, taxable: false })]
+      : []),
+    ...(installments > 0
+      ? [line({ kind: "payments_received" as const, title: "Installments", description: "Installments, billed separately", quantity: 1, unitPriceCents: -installments, taxable: false })]
       : []),
     ...(otherPayments > 0
       ? [line({ kind: "payments_received" as const, title: "Payments received", description: "Payments received", quantity: 1, unitPriceCents: -otherPayments, taxable: false })]

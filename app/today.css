@@ -892,6 +892,24 @@
   }
 }
 
+/* Three actions (send, paid another way, open the job: a payment plan's
+   installment card) never fit the auto column beside the text — squeezed
+   there, the title went one word a line (payment plan walk, 2026-10-12).
+   Whatever the width, they take the line under the text. */
+.today-card:has(> .today-card-actions > :nth-child(3)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.today-card.has-glyph:has(> .today-card-actions > :nth-child(3)) {
+  grid-template-columns: 30px minmax(0, 1fr);
+}
+.today-card.has-glyph:has(> .today-card-actions > :nth-child(3)) > .today-card-actions {
+  grid-column: 2;
+  justify-content: flex-start;
+}
+.today-card-actions:has(> :nth-child(3)) {
+  flex-wrap: wrap;
+}
+
 /* ── Setup as a conversation (Phase 3) ────────────────────────────── */
 
 .setup-conversation {
@@ -2087,4 +2105,38 @@
   flex: none;
   gap: 6px;
   margin-left: auto;
+}
+
+/* A payment plan's installment, paid another way (components/booking/installment-actions.tsx).
+   Fields wrap below each other in a narrow card, never squeeze. */
+.installment-record {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  width: 100%;
+}
+.installment-record label {
+  color: var(--muted, #8a938d);
+  display: grid;
+  flex: 1 1 10rem;
+  font-size: 12.5px;
+  gap: 4px;
+  min-width: 0;
+}
+.installment-record input {
+  background: var(--panel, #fff);
+  border: 1px solid var(--line, #d8ddd8);
+  border-radius: 8px;
+  color: var(--ink, #1b221d);
+  font: inherit;
+  font-size: 14px;
+  min-width: 0;
+  padding: 7px 9px;
+  width: 100%;
+}
+.installment-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

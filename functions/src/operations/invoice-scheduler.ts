@@ -6,6 +6,7 @@ import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { hasFinalBalance, journeyFor, projectProfile } from "../job-kinds/job-kinds.js";
 import { TRADES, tradeProfile } from "../trades/trades.js";
 import { jobBillingFor } from "../billing/job-billing-reader.js";
+import { raiseDueInstallments } from "./installment-billing.js";
 
 const date = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -194,6 +195,12 @@ export const finalInvoiceScheduler = onSchedule(
       for (const snapshot of snapshots) if (snapshot.exists) tenants.set(snapshot.id, snapshot);
     }
 
+    // Payment plans first (operations/installment-billing.ts): an installment
+    // falling due with the final is billed before it, so the final nets it off.
+    await raiseDueInstallments(db, date(today)).catch((caught: unknown) =>
+      console.error("installments not raised", caught),
+    );
+
     for (const project of inWindow) {
       const tenantId = String(project.get("tenantId") ?? "");
       const tenant = tenants.get(tenantId);
@@ -223,6 +230,8 @@ export const finalInvoiceScheduler = onSchedule(
             actor: "final-invoice-scheduler",
             now: new Date().toISOString(),
             billing,
+            // A payment plan's installment still to come: the final waits.
+            waitForInstallments: true,
           }),
         );
         // Every skip is findable: a balance that is owed and never billed

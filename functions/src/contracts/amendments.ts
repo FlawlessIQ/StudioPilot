@@ -54,6 +54,13 @@ import { applyAmendment } from "../booking/amendment-apply.js";
 import { clientOutreachStop, mayContactClient } from "../post-event/client-outreach.js";
 import { resendBlockedUntil } from "./resend.js";
 import { tradeVocab } from "../trades/trades.js";
+import {
+  finalScheduleLine,
+  hasPaymentPlan,
+  paidInstallments,
+  respreadPaymentPlan,
+  scheduleInstallments,
+} from "../billing/payment-plan.js";
 
 /**
  * Changing a signed booking: the studio's commands.
@@ -760,14 +767,37 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     paidCents,
   });
   const shift = daysBetween(previousDate, newDate);
-  const balanceDue = text(baseSchedule[1]?.dueDate);
-  const schedule = [
+  // The closing line's date: with a payment plan the second line is the
+  // first installment, not the balance.
+  const planned = scheduleInstallments(baseSchedule).length > 0;
+  const balanceDue = planned ? (finalScheduleLine(baseSchedule)?.dueDate ?? "") : text(baseSchedule[1]?.dueDate);
+  // A balance due before the wedding moves with it.
+  const nextBalanceDue = balanceDue ? (dateChanged ? shiftDate(balanceDue, shift) : balanceDue) : null;
+  /**
+   * A payment plan is spread again (billing/payment-plan.ts
+   * respreadPaymentPlan): installments with money on them stay as billed;
+   * the rest of the new total, after the deposit, is shared evenly over the
+   * unpaid installments and the final balance, on their dates. One now due
+   * after the balance is folded into it. amendment-apply.ts supersedes an
+   * unpaid installment bill whose amount moved, and the daily run raises it
+   * again at the new figure.
+   */
+  const respread = planned
+    ? respreadPaymentPlan({
+        schedule: baseSchedule,
+        totalCents: pricing.totalCents,
+        retainerCents: money.retainerCents,
+        retainerDueDate: typeof baseSchedule[0]?.dueDate === "string" ? String(baseSchedule[0].dueDate) : null,
+        finalDueDate: nextBalanceDue,
+        paid: paidInstallments(invoices.docs.map((invoice) => invoice.data() as Record<string, unknown>)),
+      })
+    : null;
+  const schedule: Array<Record<string, unknown>> = respread ?? [
     { label: "Retainer", amountCents: money.retainerCents, dueDate: baseSchedule[0]?.dueDate ?? null },
     {
       label: "Final balance",
       amountCents: money.finalBalanceCents,
-      // A balance due before the wedding moves with it.
-      dueDate: balanceDue ? (dateChanged ? shiftDate(balanceDue, shift) : balanceDue) : null,
+      dueDate: nextBalanceDue,
     },
   ];
 
@@ -795,6 +825,23 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     currency: pricing.currency,
     plusSalesTax: Boolean(pricing.salesTax && !pricing.salesTax.exempt),
   });
+  // A payment plan says what is left to pay, line by line, once spread again.
+  if (respread && (dateChanged || pricing.totalCents !== previousTotalCents)) {
+    const paidSequences = new Set(
+      paidInstallments(invoices.docs.map((invoice) => invoice.data() as Record<string, unknown>)).map((entry) => entry.sequence),
+    );
+    const money$ = (cents: number) =>
+      new Intl.NumberFormat("en-US", { style: "currency", currency: pricing.currency || "USD", minimumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100);
+    const day = (value: unknown) =>
+      typeof value === "string" && ISO_DATE.test(value)
+        ? new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })
+        : "";
+    const left = respread
+      .filter((line) => line.kind === "final" || (line.kind === "installment" && !paidSequences.has(line.sequence ?? 0)))
+      .filter((line) => line.amountCents > 0)
+      .map((line) => `${line.kind === "final" ? "final balance" : line.label} ${money$(line.amountCents)}${day(line.dueDate) ? ` due ${day(line.dueDate)}` : ""}`);
+    if (left.length) changes.push(`The payment plan's remaining payments: ${left.join("; ")}.`);
+  }
 
   // The proposal the change becomes when signed. Held in its own collection
   // until then, so no reader of `proposals` takes it for the current one;
@@ -814,6 +861,7 @@ export async function draftAmendment(context: CommandContext, input: z.infer<typ
     pricingSnapshot: pricing,
     packageDetails: packageDetails(nextSnapshots),
     paymentSchedule: schedule,
+    hasPaymentPlan: hasPaymentPlan(schedule),
     eventSnapshot,
     retainerOverrideCents: money.retainerCents,
     draftRevision: 1,

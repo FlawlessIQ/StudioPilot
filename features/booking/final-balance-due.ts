@@ -13,6 +13,8 @@
  * money they never received.
  */
 
+import { finalScheduleLine, hasPaymentPlan, installmentsOutstandingCents } from "@/features/billing/payment-plan";
+
 type Row = Record<string, unknown> & { id: string };
 
 const NOT_STANDING = ["superseded", "failed", "voided", "void", "cancelled"];
@@ -74,12 +76,19 @@ export function outstandingFinalBalance(input: {
     const balance = Number(invoice.balanceCents ?? amount);
     return sum + Math.max(0, amount - balance);
   }, 0);
+  // A payment plan's installments still owed are owed on their own bills, not
+  // on the final (features/billing/payment-plan.ts; final-invoice.ts bills the same).
+  const owedOnInstallments = installmentsOutstandingCents(standing);
   const schedule = Array.isArray(accepted?.paymentSchedule)
     ? (accepted!.paymentSchedule as Array<Record<string, unknown>>)
     : [];
   return {
-    cents: input.recordsDeleted !== true && Number.isFinite(total) && total > paid ? total - paid : null,
-    dueDate: text(schedule[1]?.dueDate) || null,
+    cents:
+      input.recordsDeleted !== true && Number.isFinite(total) && total > paid + owedOnInstallments
+        ? total - paid - owedOnInstallments
+        : null,
+    // The closing line: with a payment plan the second is the first installment.
+    dueDate: (hasPaymentPlan(schedule) ? finalScheduleLine(schedule)?.dueDate : text(schedule[1]?.dueDate)) || null,
     // A final bill out with the couple (or paid): nothing new to send.
     finalStanding: standing.some((invoice) => invoice.kind === "final"),
     lastFailure: finalBillFailure(

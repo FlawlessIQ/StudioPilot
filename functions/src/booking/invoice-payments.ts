@@ -320,7 +320,8 @@ export function paymentSyncTask(input: {
 }) {
   const provider = providerName(input.invoice.get("provider"));
   const number = String(input.invoice.get("providerDocNumber") ?? "");
-  const kind = input.invoice.get("kind") === "final" ? "final balance" : "retainer";
+  const kind =
+    input.invoice.get("kind") === "final" ? "final balance" : input.invoice.get("kind") === "installment" ? "installment" : "retainer";
   const amount = (Number(input.payment.amountCents) / 100).toLocaleString("en-US", {
     style: "currency",
     currency: String(input.invoice.get("currency") ?? "") || "USD",

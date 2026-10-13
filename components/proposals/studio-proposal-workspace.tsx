@@ -102,8 +102,26 @@ import {
 import { isCataloguePackage } from "@/features/packages/one-off";
 import type { OneOffPackageInput } from "@/features/packages/one-off-form";
 import { OneOffPackageForm } from "@/components/proposals/one-off-package-form";
+import {
+  NO_PLAN,
+  PaymentPlanEditor,
+  planCommandInput,
+  planDraftFromSchedule,
+  planPreview,
+  type PlanDraft,
+  type PlanInputs,
+} from "@/components/proposals/payment-plan-editor";
+import { finalScheduleLine, hasPaymentPlan, packagePaymentPlan } from "@/features/billing/payment-plan";
 
 type Value = Record<string, unknown> & { id: string };
+
+/**
+ * The final balance's due date on a saved schedule: the closing line's, since
+ * with a payment plan the second line is the first installment.
+ */
+function balanceDueOf(schedule: ReadonlyArray<Record<string, unknown>>): unknown {
+  return hasPaymentPlan(schedule) ? finalScheduleLine(schedule)?.dueDate : schedule[1]?.dueDate;
+}
 
 type ProjectOption = {
   id: string;
@@ -946,6 +964,9 @@ export function StudioProposalComposer() {
   const [termsSummary, setTermsSummary] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  /** The payment plan on this offer: the package's default until the studio changes it. */
+  // Kept per job (its packages), so choosing another job starts from that one's default.
+  const [planFor, setPlanFor] = useState<{ key: string; draft: PlanDraft }>({ key: "", draft: NO_PLAN });
   // A project at the right stage without a locked package is not a dead
   // end: the composer walks through locking one right here. (Links arrive
   // with ?projectId= from the proposal center or ?project= from the
@@ -1071,6 +1092,40 @@ export function StudioProposalComposer() {
   // payment — in full to book, on the day, or invoiced after (job-kinds.ts).
   const selectedPayment = selected?.profile.payment ?? "deposit_and_balance";
   const selectedNeeds = selected ? bookingGateNeeds(selected.profile) : { agreement: true, payment: true };
+  /**
+   * The payment plan the job's packages start with (packages.paymentPlan,
+   * off unless a studio turned it on): the first package on the job that has
+   * one. Read when the job is chosen; the studio changes it below.
+   */
+  const selectedPackageIds = selected
+    ? [selected.packageSnapshot, ...selected.extraSnapshots]
+        .map((snapshot) => text(objectValue(snapshot).packageId))
+        .filter(Boolean)
+        .join(",")
+    : "";
+  useEffect(() => {
+    if (!dataIsLive || !workspace.tenantId || !selectedPackageIds) return;
+    let active = true;
+    const { firestore } = getFirebaseClient();
+    void Promise.all(selectedPackageIds.split(",").map((id) => getDoc(doc(firestore, "packages", id))))
+      .then((documents) => {
+        if (!active) return;
+        const found = documents
+          .map((document) =>
+            document.exists() && document.get("tenantId") === workspace.tenantId
+              ? packagePaymentPlan(document.get("paymentPlan"))
+              : null,
+          )
+          .find(Boolean);
+        setPlanFor({ key: selectedPackageIds, draft: found ? { count: found.installments, lines: null } : NO_PLAN });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [selectedPackageIds, workspace.tenantId]);
+  const plan = planFor.key === selectedPackageIds ? planFor.draft : NO_PLAN;
+  const setPlan = (draft: PlanDraft) => setPlanFor({ key: selectedPackageIds, draft });
 
   function selectProject(nextProjectId: string) {
     setProjectId(nextProjectId);
@@ -1316,6 +1371,17 @@ export function StudioProposalComposer() {
   const addOns = Array.isArray(pricing.addOns)
     ? pricing.addOns.map(objectValue)
     : [];
+  // What the payment plan is worked out from: the total, the deposit as set
+  // here, and the two dates above.
+  const planInputs: PlanInputs = {
+    totalCents: combined.totalCents,
+    retainerCents:
+      retainerOverride === null ? combined.retainerCents : Math.round(Number(retainerOverride || 0) * 100),
+    retainerDueDate,
+    finalDueDate: balanceDueDate,
+    today: dateInput(new Date().toISOString()),
+  };
+  const planOffered = selectedPayment === "deposit_and_balance";
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1325,6 +1391,12 @@ export function StudioProposalComposer() {
     }
     if (selected.openProposalId) {
       router.push(`/studio/proposals/${selected.openProposalId}`);
+      return;
+    }
+    // A plan whose lines don't fit says why beside it; nothing is saved.
+    const planBuilt = planOffered && plan.count > 0 ? planPreview(plan, planInputs) : null;
+    if (planBuilt && !planBuilt.ok) {
+      setError(friendlyError(new Error(planBuilt.error), "The payment plan's installments don't fit."));
       return;
     }
     setSaving(true);
@@ -1342,6 +1414,8 @@ export function StudioProposalComposer() {
             ? null
             : Math.round(Number(retainerOverride || 0) * 100),
         balanceDueDate: balanceDueDate || null,
+        // The plan as shown (billing/payment-plan.ts); none on a job paid in one bill.
+        ...(planOffered ? { paymentPlan: planCommandInput(plan, planInputs) } : {}),
       });
       const proposalId = text(command.result.proposalId, "demo-proposal");
       router.push(`/studio/proposals/${proposalId}`);
@@ -1801,6 +1875,9 @@ export function StudioProposalComposer() {
                   </label>
                 ) : null}
               </div>
+              {planOffered && selected ? (
+                <PaymentPlanEditor depositWord={Deposit} inputs={planInputs} onChange={setPlan} value={plan} />
+              ) : null}
             </div>
           </section>
         </div>
@@ -2031,6 +2108,8 @@ export function StudioProposalWorkspace({
   const [balanceDueDate, setBalanceDueDate] = useState(
     dataIsLive ? "" : "2027-05-29",
   );
+  /** The payment plan on this draft (features/billing/payment-plan.ts), as saved until changed. */
+  const [draftPlan, setDraftPlan] = useState<PlanDraft>(NO_PLAN);
 
   const load = useCallback(async () => {
     if (!dataIsLive || workspace.loading || !workspace.tenantId) return;
@@ -2049,7 +2128,9 @@ export function StudioProposalWorkspace({
       ? value.paymentSchedule.map(objectValue)
       : [];
     setRetainerDueDate(dateInput(paymentValues[0]?.dueDate));
-    setBalanceDueDate(dateInput(paymentValues[1]?.dueDate));
+    // The closing line's date: with a payment plan the second is the first installment.
+    setBalanceDueDate(dateInput(balanceDueOf(paymentValues)));
+    setDraftPlan(planDraftFromSchedule(paymentValues));
     setDraftRetainer(null);
     if (!Array.isArray(value.packageDetails)) {
       const snapshotIds = [
@@ -2145,6 +2226,20 @@ export function StudioProposalWorkspace({
    * separately. If the second fails, the proposal is in exactly the state the
    * old two-button flow left it in, and the Approve button is right there.
    */
+  // What the draft's payment plan is worked out from: its total, the deposit
+  // as typed here (or as saved), and the two dates.
+  const draftSchedule = Array.isArray(proposal?.paymentSchedule) ? proposal.paymentSchedule.map(objectValue) : [];
+  const draftPlanInputs: PlanInputs = {
+    totalCents: number(objectValue(proposal?.pricingSnapshot).totalCents),
+    retainerCents:
+      draftRetainer !== null
+        ? Math.max(0, Math.round(Number(draftRetainer || 0) * 100))
+        : number(draftSchedule[0]?.amountCents),
+    retainerDueDate,
+    finalDueDate: balanceDueDate,
+    today: dateInput(new Date().toISOString()),
+  };
+
   async function submitDraft(approve: boolean) {
     if (!proposal) return;
     // Save first. Submitting reads the record, not the form, so a retainer,
@@ -2159,12 +2254,16 @@ export function StudioProposalWorkspace({
         termsSummary: text(proposal.termsSummary, ""),
         expiresOn: dateInput(proposal.expiresAt),
         retainerDueDate: dateInput(stored[0]?.dueDate),
-        balanceDueDate: dateInput(stored[1]?.dueDate),
+        balanceDueDate: dateInput(balanceDueOf(stored)),
         draftRetainer: null,
       },
       { notes, termsSummary, expiresOn, retainerDueDate, balanceDueDate, draftRetainer },
     );
-    if (dirty && !(await run("update_draft"))) return;
+    // The payment plan, changed and not saved, counts too.
+    const planDirty =
+      JSON.stringify(planCommandInput(draftPlan, draftPlanInputs)) !==
+      JSON.stringify(planCommandInput(planDraftFromSchedule(stored), draftPlanInputs));
+    if ((dirty || planDirty) && !(await run("update_draft"))) return;
     // The returned flag, not the `error` state: that variable is the value
     // captured when this closure rendered, so reading it after the await would
     // always see the state from before the command ran.
@@ -2203,6 +2302,13 @@ export function StudioProposalWorkspace({
             0,
             Math.round(Number(draftRetainer || 0) * 100),
           );
+        }
+        // The payment plan as shown (features/billing/payment-plan.ts): a
+        // deposit job only; one paid in one bill has none.
+        if (jobPayment === "deposit_and_balance") {
+          const planBuilt = draftPlan.count > 0 ? planPreview(draftPlan, draftPlanInputs) : null;
+          if (planBuilt && !planBuilt.ok) throw new Error(planBuilt.error);
+          input.paymentPlan = planCommandInput(draftPlan, draftPlanInputs);
         }
       }
       const command = await runProposalCommand(type, input);
@@ -2734,6 +2840,17 @@ export function StudioProposalWorkspace({
                     value={balanceDueDate}
                   />
                 </label>
+                ) : null}
+                {jobPayment === "deposit_and_balance" ? (
+                  <div className="proposal-field-wide">
+                    <PaymentPlanEditor
+                      depositWord={DepositWord}
+                      disabled={working !== null}
+                      inputs={draftPlanInputs}
+                      onChange={setDraftPlan}
+                      value={draftPlan}
+                    />
+                  </div>
                 ) : null}
               </div>
             ) : (

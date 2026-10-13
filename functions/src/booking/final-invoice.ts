@@ -8,6 +8,7 @@ import type { JobBilling } from "../billing/job-billing.js";
 import { writeStudioInvoiceDraft } from "../billing/studio-invoice-issue.js";
 import { invoiceRecordsDeleted } from "../billing/invoice-purge-policy.js";
 import { normaliseStudioInvoiceSettings, studioInvoiceTaxCents } from "../billing/studio-invoice-settings.js";
+import { installmentLabel, installmentsBilledCents, nextInstallmentToBill } from "../billing/payment-plan.js";
 
 /**
  * Raising the final-balance invoice.
@@ -22,6 +23,11 @@ import { normaliseStudioInvoiceSettings, studioInvoiceTaxCents } from "../billin
  * paid: the retainer and, after a change to a job that had paid in full, the
  * earlier final invoice too. For an unchanged job that is the retainer alone,
  * which is what this has always charged.
+ *
+ * On a payment plan (billing/payment-plan.ts) every installment billed comes
+ * off too — paid or not, since each is owed on its own bill — so the final is
+ * what is left, and one raised early takes in the installments not yet
+ * billed. The daily run raises no installment once a final stands.
  */
 
 const date = (value: Date) => value.toISOString().slice(0, 10);
@@ -62,6 +68,12 @@ export async function raiseFinalInvoice(
     billedWithoutRetainer?: boolean;
     /** When the bill is due; two weeks before the event when omitted. */
     dueDate?: string;
+    /**
+     * The daily run only: on a payment plan with an installment still to be
+     * billed, the final waits for it (billing/payment-plan.ts). A person's
+     * Send, or a booking change, bills the rest now and takes it in.
+     */
+    waitForInstallments?: boolean;
     /**
      * How the job is billed (billing/job-billing-reader.ts jobBillingFor),
      * read by the caller before the transaction. A job the studio bills
@@ -153,6 +165,16 @@ export async function raiseFinalInvoice(
         .limit(5),
     )
   ).docs.sort((a, b) => Number(b.get("version") ?? 0) - Number(a.get("version") ?? 0))[0];
+  if (
+    options.waitForInstallments &&
+    nextInstallmentToBill({
+      schedule: accepted?.get("paymentSchedule"),
+      invoices: invoices.map((invoice) => invoice.data() as Record<string, unknown>),
+      today: options.now.slice(0, 10),
+      ignoreDate: true,
+    })
+  )
+    return { raised: false, reason: "installments_pending" };
   const agreedPricing = (accepted?.get("pricingSnapshot") ?? null) as Record<string, unknown> | null;
   const agreedTotal = Number(agreedPricing?.totalCents);
   const fromProposal = Boolean(accepted && Number.isSafeInteger(agreedTotal) && agreedTotal > 0);
@@ -191,7 +213,12 @@ export async function raiseFinalInvoice(
   const earlierFinalsPaidCents = standing
     .filter((invoice) => invoice.get("kind") === "final")
     .reduce((sum, invoice) => sum + paidOf(invoice), 0);
-  const amountCents = totalCents - retainerPaidCents - earlierFinalsPaidCents;
+  // A payment plan's installments, each billed on its own (billing/payment-plan.ts).
+  const installments = standing
+    .filter((invoice) => invoice.get("kind") === "installment")
+    .sort((a, b) => Number(a.get("installmentSequence") ?? 0) - Number(b.get("installmentSequence") ?? 0));
+  const installmentsCents = installmentsBilledCents(installments.map((invoice) => invoice.data() as Record<string, unknown>));
+  const amountCents = totalCents - retainerPaidCents - earlierFinalsPaidCents - installmentsCents;
   if (!Number.isSafeInteger(totalCents) || !Number.isSafeInteger(amountCents) || amountCents <= 0)
     return { raised: false, reason: "nothing_owed" };
 
@@ -227,6 +254,9 @@ export async function raiseFinalInvoice(
       ...(earlierFinalsPaidCents
         ? [{ label: "Earlier balance payments received", amountCents: -earlierFinalsPaidCents, source: "invoiceReferences" }]
         : []),
+      ...(installmentsCents
+        ? [{ label: "Installments, billed separately", amountCents: -installmentsCents, source: "invoiceReferences" }]
+        : []),
     ],
     packageTotalCents: totalCents,
     // The tax inside packageTotalCents, so the QuickBooks invoice can show the
@@ -238,6 +268,7 @@ export async function raiseFinalInvoice(
       : {}),
     retainerExpectedCents,
     retainerPaidCents,
+    ...(installmentsCents ? { installmentsCents } : {}),
     expectedBalanceCents: amountCents,
     discrepancies,
     authority: studioBilled ? "studio" : provider,
@@ -257,6 +288,18 @@ export async function raiseFinalInvoice(
         ? [{ description: `Deposit paid${retainer?.get("number") ? ` (${String(retainer.get("number"))})` : ""}`, amountCents: retainerPaidCents }]
         : []),
       ...(earlierFinalsPaidCents ? [{ description: "Earlier balance payments", amountCents: earlierFinalsPaidCents }] : []),
+      // Each installment of a payment plan: paid, or billed on its own.
+      ...installments.map((invoice) => {
+        const number = invoice.get("number") ? ` (${String(invoice.get("number"))})` : "";
+        const label = installmentLabel(Number(invoice.get("installmentSequence") ?? 1));
+        return {
+          description:
+            paidOf(invoice) >= Number(invoice.get("amountCents") ?? 0)
+              ? `${label} paid${number}`
+              : `${label}, billed separately${number}`,
+          amountCents: Number(invoice.get("amountCents") ?? 0),
+        };
+      }),
     ];
     const written = await writeStudioInvoiceDraft(db, transaction, {
       tenantId,

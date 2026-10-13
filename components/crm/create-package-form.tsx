@@ -61,6 +61,8 @@ const schema = z
     retainerAmount: z.coerce
       .number()
       .min(0, "A retainer cannot be negative."),
+    // A payment plan its proposals start with (features/billing/payment-plan.ts): 0 is none.
+    installments: z.coerce.number().int().min(0).max(6),
     coverageHours: z.coerce
       .number()
       // Read by every trade's studio, so in words a DJ or a stylist uses too.
@@ -167,7 +169,7 @@ export function CreatePackageForm({
   const [addOnIds, setAddOnIds] = useState<string[]>([]);
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", planningScope: "", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, coverageHours: roles[0] === "dj" ? 5 : 8, photographers: roles[0] === "dj" ? 1 : 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: roles[0] === "dj" ? "Reception sound, Dance floor lighting, MC" : "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
+    defaultValues: { name: "", description: "", eventType: "wedding", paymentShape: "deposit_and_balance", planningScope: "", basePrice: 0, retainerMode: "percentage", retainerAmount: 30, installments: 0, coverageHours: roles[0] === "dj" ? 5 : 8, photographers: roles[0] === "dj" ? 1 : 2, videographers: 0, billPhotographers: true, billVideographers: true, deliverables: roles[0] === "dj" ? "Reception sound, Dance floor lighting, MC" : "Online gallery, High-resolution downloads", travelArea: "Within 50 miles", terms: "Subject to the completed studio agreement." },
   });
   // The workspace (and so the trade) loads after the form's defaults are
   // taken: a DJ's start as one DJ, five hours and what a DJ includes, a makeup
@@ -236,6 +238,10 @@ export function CreatePackageForm({
                   amountPerCrewCents: Math.round(values.retainerAmount * 100),
                   billedRoles: billedRolesFrom(values, roles),
                 },
+        // Only when the studio turns one on: a package without a plan is written as it always was.
+        ...(values.paymentShape === "deposit_and_balance" && values.installments > 0
+          ? { paymentPlan: { installments: values.installments } }
+          : {}),
         includedCoverageMinutes: Math.round(values.coverageHours * 60),
         includedCoverage: coverageFrom(values, roles),
         includedDeliverables: values.deliverables.split(",").map((item) => item.trim()).filter(Boolean),
@@ -395,6 +401,18 @@ export function CreatePackageForm({
             ) : null}
           </>
         ) : null}
+        <label>
+          Payment plan
+          <select {...register("installments")}>
+            <option value={0}>{`None: ${words.deposit} and final balance`}</option>
+            {[1, 2, 3, 4, 5, 6].map((count) => (
+              <option key={count} value={count}>
+                {count === 1 ? "1 installment" : `${count} installments`}
+              </option>
+            ))}
+          </select>
+          <small>{`Installments between the ${words.deposit} and the final balance, spread evenly. You can change them on each ${words.proposal.toLowerCase()}.`}</small>
+        </label>
         </>
         ) : null}
         <label>

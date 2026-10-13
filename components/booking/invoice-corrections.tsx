@@ -49,7 +49,12 @@ function providerLabel(provider: unknown): string {
 
 // A vendor's client pays a deposit, a photographer's a retainer (trades.ts).
 const kindLabel = (invoice: InvoiceRow, trade?: unknown) =>
-  invoice.kind === "final" ? "final balance" : tradeVocab(trade).deposit;
+  invoice.kind === "final"
+    ? "final balance"
+    : invoice.kind === "installment"
+      ? // A payment plan's (features/billing/payment-plan.ts).
+        `installment ${Number((invoice as Record<string, unknown>).installmentSequence) || 1}`
+      : tradeVocab(trade).deposit;
 
 function refreshMoney() {
   refreshTenantRecords("invoiceReferences", "projects", "tasks", "checkpoints", "readinessAssessments");
@@ -123,7 +128,9 @@ export function VoidInvoice({
           }, so the couple can no longer pay it. It stays on the record with your reason. `}
           {invoice.kind === "final"
             ? "You can send a new final bill afterwards."
-            : `You can raise a new ${tradeVocab(workspace.tenantTrade).deposit} invoice afterwards.`}
+            : invoice.kind === "installment"
+              ? "Send it again from Today when you're ready, or record it if they paid another way."
+              : `You can raise a new ${tradeVocab(workspace.tenantTrade).deposit} invoice afterwards.`}
         </p>
         <label>
           Why

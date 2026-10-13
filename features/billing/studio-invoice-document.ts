@@ -66,6 +66,8 @@ export type StudioInvoiceSource = {
   issuedAt: string | null;
   dueDate: string | null;
   paidInFull: boolean;
+  /** An installment of a payment plan: which one, of how many. */
+  installment?: { sequence: number; count: number | null } | null;
   payLinkUrl: string | null;
   lines: Array<{ description: string; quantity: number; unitAmountCents: number; amountCents: number }>;
   /**
@@ -151,10 +153,22 @@ function eventDay(value: string | null): string {
   }).format(date);
 }
 
-/** The client's word for a bill: never "retainer_invoice" or "final". */
-export function invoiceKindLabel(kind: string, paidInFull: boolean): string {
+/**
+ * The client's word for a bill: never "retainer_invoice" or "final". An
+ * installment of a payment plan is "Installment 2 of 3" (billing/payment-plan.ts).
+ */
+export function invoiceKindLabel(
+  kind: string,
+  paidInFull: boolean,
+  installment?: { sequence?: unknown; count?: unknown } | null,
+): string {
   if (paidInFull) return "Payment in full";
   if (kind === "retainer") return "Deposit";
+  if (kind === "installment") {
+    const sequence = Math.max(1, Math.round(Number(installment?.sequence) || 1));
+    const count = Math.round(Number(installment?.count) || 0);
+    return count > 1 && count >= sequence ? `Installment ${sequence} of ${count}` : `Installment ${sequence}`;
+  }
   if (kind === "final") return "Final balance";
   if (kind === "adjustment") return "Booking change";
   return "Invoice";
@@ -207,6 +221,10 @@ export function studioInvoiceSource(id: string, raw: unknown): StudioInvoiceSour
     issuedAt: textOf(invoice.issuedAt) || textOf(invoice.createdAt) || null,
     dueDate: textOf(invoice.dueDate) || null,
     paidInFull: invoice.paidInFull === true,
+    installment:
+      textOf(invoice.kind) === "installment"
+        ? { sequence: Math.max(1, cents(invoice.installmentSequence)), count: cents(invoice.installmentCount) || null }
+        : null,
     payLinkUrl: textOf(invoice.payLinkUrl) || null,
     lines,
     credits,
@@ -243,7 +261,7 @@ export function studioInvoicePdfPayload(input: {
     ? invoice.lines
     : [
         {
-          description: invoiceKindLabel(invoice.kind, invoice.paidInFull),
+          description: invoiceKindLabel(invoice.kind, invoice.paidInFull, invoice.installment),
           quantity: 1,
           unitAmountCents: subtotalCents,
           amountCents: subtotalCents,
@@ -301,7 +319,7 @@ export function studioInvoicePdfPayload(input: {
     invoice_id: invoice.id,
     project_id: invoice.projectId,
     invoice_number: invoice.number,
-    kind_label: invoiceKindLabel(invoice.kind, invoice.paidInFull),
+    kind_label: invoiceKindLabel(invoice.kind, invoice.paidInFull, invoice.installment),
     stamp: voided ? "VOID" : paid ? "PAID" : "",
     issued_on: invoiceDate(invoice.issuedAt),
     due_on: dueOn,
