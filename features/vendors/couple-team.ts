@@ -2,7 +2,7 @@ import { z } from "zod";
 import { clientOutreachStop } from "@/features/post-event/client-outreach";
 import { jobKindOf } from "@/features/job-kinds/job-kinds";
 import { detailsLockOn, planningFormOpensOn, type PlanningTimeline } from "@/features/planning/planning-timeline";
-import { tradeOf, type Trade } from "@/features/trades/trades";
+import { tradeOf, tradeProfile, type Trade } from "@/features/trades/trades";
 import { VENDOR_TYPES, type VendorType } from "@/features/vendors/schema";
 import { VENDOR_CATEGORY_LABELS } from "@/features/vendors/team";
 
@@ -57,6 +57,7 @@ const OWN_KIND: Readonly<Record<Trade, VendorType | null>> = {
   dj: "dj",
   makeup: null,
   hair: null,
+  planner: "planner",
 };
 
 export function coupleVendorKinds(trade: unknown): VendorType[] {
@@ -163,6 +164,8 @@ export function coupleVendorAsk(input: {
   today: string;
   /** The planning form has already gone out, whatever the date. */
   planningFormSent?: boolean;
+  /** The studio's trade: a planner builds the team itself, so its couple is never asked. */
+  trade?: unknown;
 }): CoupleVendorAsk {
   const { project, timeline, today } = input;
   const eventDate = text(project.eventDate).slice(0, 10);
@@ -172,6 +175,9 @@ export function coupleVendorAsk(input: {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || today >= eventDate) return closed;
   // The studio said the planner runs the vendors (Phase 1: "The planner handles vendors").
   if (project.vendorTeamByPlanner === true) return closed;
+  // A planning studio runs the team (trades.ts vendorTeam "default"); a
+  // month-of couple hands theirs over on the Final details form instead.
+  if (input.trade !== undefined && tradeProfile(input.trade).vendorTeam === "default") return closed;
   const opensOn = planningFormOpensOn(eventDate, timeline);
   const lockOn = detailsLockOn(eventDate, timeline);
   return {

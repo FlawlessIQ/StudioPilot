@@ -86,6 +86,7 @@ async function vendorTeamFor(
         timeline: resolvePlanningTimeline(tenant.get("planningTimeline")),
         today: todayInZone(text(project.get("timezone"))),
         planningFormSent: true,
+        trade: tenant.get("trade") ?? null,
       })
     : null;
   const answered = coupleVendorAnswer(record);

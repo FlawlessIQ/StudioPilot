@@ -538,3 +538,20 @@ export function vendorContactSheet(entries: ReadonlyArray<Record<string, unknown
     }))
     .sort((left, right) => left.category.localeCompare(right.category) || left.company.localeCompare(right.company));
 }
+
+// ─── Before the schedule is published (vendor network, Phase 2) ─────────────
+
+/**
+ * What the publish says about booked vendors with no email address: they
+ * won't get the schedule. A warning, never a block — the studio can always
+ * publish, and print the sheet or call them (docs/vendor-network-plan-2026-10-12.md).
+ */
+export function noEmailPublishWarning(entries: readonly TeamEntryLike[]): string | null {
+  const missing = entries.filter(
+    (entry) => !entry.archivedAt && entry.status === "booked" && !String(entry.email ?? "").includes("@"),
+  );
+  if (!missing.length) return null;
+  return missing.length === 1
+    ? "1 booked vendor has no email, so they won't get the schedule. Add it on the job's vendor team."
+    : `${missing.length} booked vendors have no email, so they won't get the schedule. Add them on the job's vendor team.`;
+}

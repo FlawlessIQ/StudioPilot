@@ -103,7 +103,11 @@ export function VendorTeamPanel({
   const phone = usePhone();
   const [editing, setEditing] = useState<TeamRecord | "new" | null>(null);
   const [budgetOpen, setBudgetOpen] = useState(false);
-  const [sending, setSending] = useState(false);
+  // Sent here from a publish ("?vendors=send"): the send is open and waiting.
+  // Read once, as the panel first renders; it shows nothing until the team loads.
+  const [sending, setSending] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("vendors") === "send",
+  );
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -132,12 +136,6 @@ export function VendorTeamPanel({
       .then(() => refreshTenantRecords("clientVendorTeams"))
       .catch(() => undefined);
   }, [fresh, canWork, projectId]);
-  // Sent here from a publish ("?vendors=send"): the send is open and waiting.
-  const loaded = !team.loading;
-  useEffect(() => {
-    if (!loaded || typeof window === "undefined") return;
-    if (new URLSearchParams(window.location.search).get("vendors") === "send") setSending(true);
-  }, [loaded]);
   if (!canWork || team.loading) return null;
   const visibility = alwaysShow
     ? "panel"

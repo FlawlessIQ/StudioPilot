@@ -75,6 +75,7 @@ import {
 } from "./quickbooks-held-invoice.js";
 import { recordProviderVoidFailed } from "../booking/invoice-corrections.js";
 import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { vendorAskOwedFor } from "../planning/vendor-team.js";
 import { billingHoldFor, holdJobForBilling } from "../saas/billing-hold.js";
 import { isReservedTestAddress } from "../communications/test-address.js";
 import { studioWroteIt } from "../communications/studio-reply.js";
@@ -1109,6 +1110,15 @@ async function sendEmail(document: DocumentSnapshot): Promise<Result> {
     if (plan.kind === "wait")
       throw new Error(`${CONSULTATION_MEETING_PENDING}:the meeting link is still being made`);
     consultationValues = plan.values;
+  }
+  // The planning form's request and reminders carry the vendor ask while the
+  // couple still owes it, read now: a list sent since is not asked for again
+  // (planning/vendor-team.ts vendorAskOwed).
+  if ((type === "questionnaire_request" && document.get("variant") !== "review") || type === "questionnaire_reminder") {
+    reminderValues = {
+      ...reminderValues,
+      vendorTeamAsk: await vendorAskOwedFor(getFirestore(), String(document.get("tenantId") ?? ""), String(document.get("projectId") ?? "")),
+    };
   }
   const recipient = await recipientFor(document);
   const context = await emailContext(document, recipient);

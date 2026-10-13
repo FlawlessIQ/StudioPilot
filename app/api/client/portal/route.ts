@@ -1190,6 +1190,7 @@ async function clientProject(tenantId: string, projectId: string) {
         timeline: resolvePlanningTimeline(tenantSnapshot.get("planningTimeline")),
         today: todayIso,
         planningFormSent: Boolean(planningFormDoc) || planningFormIn,
+        trade: tenantSnapshot.get("trade") ?? null,
       });
       const answered = coupleVendorAnswer(record) !== "unanswered";
       if (!ask.available && !answered) return null;

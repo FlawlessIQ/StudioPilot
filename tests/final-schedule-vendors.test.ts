@@ -67,3 +67,18 @@ test("wired: confirming waits on the answer, the link shows the team, a publish 
   assert.match(read("lib/projects/return-to-job.ts"), /\?vendors=send#vendor-team/);
   assert.match(read("components/vendors/vendor-team-panel.tsx"), /get\("vendors"\) === "send"/);
 });
+
+test("the publish warns about booked vendors with no email, and never about anyone else", async () => {
+  const { noEmailPublishWarning } = await import("../features/vendors/team");
+  assert.equal(noEmailPublishWarning([]), null);
+  assert.equal(
+    noEmailPublishWarning([
+      { status: "booked", email: "dj@example.com" },
+      { status: "needed", email: null },
+      { status: "booked", email: null, archivedAt: "2026-10-01T00:00:00Z" },
+    ]),
+    null,
+  );
+  assert.match(noEmailPublishWarning([{ status: "booked", email: "" }]) ?? "", /^1 booked vendor has no email/);
+  assert.match(noEmailPublishWarning([{ status: "booked", email: null }, { status: "booked", email: "petal" }]) ?? "", /^2 booked vendors/);
+});

@@ -602,6 +602,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   // A wedding's vendor team (functions/src/planning/vendor-team.ts).
   FINAL_DETAILS_VENDORS_NEEDED: "Add your other vendors first — or tell us there aren't any.",
   VENDOR_EMAIL_IS_YOURS: "That's your own email address. Add the vendor's email or phone number instead.",
+  VENDOR_EMAIL_IS_CREW: "That email belongs to someone on the studio's own team. Add the vendor's email or phone number instead.",
   VENDOR_TEAM_NOT_ASKED: "Your studio isn't collecting vendors for this event right now. Message them if something has changed.",
   VENDOR_KIND_NOT_OFFERED: "Choose what that vendor does from the list.",
   VENDOR_CONTACT_REQUIRED: "Add an email or a phone number for each vendor, so everyone can reach them.",

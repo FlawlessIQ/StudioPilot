@@ -1585,6 +1585,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ...(oneForm && !reminder
             ? [`It's the one form we need from you: we build your ${planWord} from it and send it to you, with nothing more to fill in or approve.`]
             : []),
+          // The vendor ask rides along, never an email of its own (planning/vendor-team.ts vendorAskOwed).
+          ...(values.vendorTeamAsk === true
+            ? [
+                "While you're in your portal, add the other vendors working your day under Plan, so everyone gets the same schedule and can reach each other. It takes about two minutes.",
+              ]
+            : []),
         ],
         action: actionUrl
           ? { label: form ? `Complete your ${form.toLowerCase()}` : "Complete questionnaire", url: actionUrl }

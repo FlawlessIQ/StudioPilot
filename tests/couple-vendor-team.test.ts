@@ -62,6 +62,9 @@ test("never asked: an inquiry, a portrait session, an imported or paused job, th
   assert.equal(coupleVendorAsk({ project: { ...wedding, clientAutomationsPausedAt: "2026-09-01T00:00:00Z" }, timeline, today }).available, false);
   assert.equal(coupleVendorAsk({ project: wedding, timeline, today: "2027-06-12" }).available, false);
   assert.equal(coupleVendorAsk({ project: { ...wedding, vendorTeamByPlanner: true }, timeline, today }).available, false);
+  // A planning studio builds the team itself; every other trade's couple is asked.
+  assert.equal(coupleVendorAsk({ project: wedding, timeline, today, trade: "planner" }).available, false);
+  for (const trade of ["photographer", "dj", "makeup", "hair", null]) assert.equal(coupleVendorAsk({ project: wedding, timeline, today, trade }).available, true);
 });
 
 test("the studio's own trade is left off its client's list", () => {
@@ -170,4 +173,24 @@ test("wired: the portal route saves it, the studio reads it, nobody writes it fr
   // A couple's entry is marked as theirs, the studio's as the studio's.
   assert.match(read("server/vendors/couple-team.ts"), /source: "couple"/);
   assert.match(read("functions/src/planning/vendor-team.ts"), /source: "studio"/);
+});
+
+test("the planning form's emails carry the vendor ask only while the couple owes it", async () => {
+  const { vendorAskOwed } = await import("../functions/src/planning/vendor-team");
+  const { renderEmailTemplate } = await import("../functions/src/communications/email-templates");
+  const project = { state: "BOOKED", eventKind: "wedding", eventDate: "2027-06-12" };
+  const today = "2027-01-10";
+  assert.equal(vendorAskOwed({ project, trade: "photographer", answered: false, today }), true);
+  assert.equal(vendorAskOwed({ project, trade: "photographer", answered: true, today }), false);
+  assert.equal(vendorAskOwed({ project, trade: "planner", answered: false, today }), false);
+  assert.equal(vendorAskOwed({ project: { ...project, vendorTeamByPlanner: true }, trade: "dj", answered: false, today }), false);
+  assert.equal(vendorAskOwed({ project: { ...project, importedAt: "2026-09-01T00:00:00Z" }, trade: "dj", answered: false, today }), false);
+  assert.equal(vendorAskOwed({ project: { ...project, eventKind: "portraits" }, trade: "photographer", answered: false, today }), false);
+  assert.equal(vendorAskOwed({ project, trade: "hair", answered: false, today: "2027-06-12" }), false);
+
+  const brand = { studioName: "GR Productions", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null };
+  const render = (values: Record<string, unknown>) =>
+    renderEmailTemplate({ key: "questionnaire_reminder", brand, recipientName: "Maya", projectName: "Maya Brooks Wedding", values } as never);
+  assert.match(render({ vendorTeamAsk: true, actionUrl: "https://studio-cue.com/client" }).text, /other vendors working your day/);
+  assert.doesNotMatch(render({ vendorTeamAsk: false, actionUrl: "https://studio-cue.com/client" }).text, /other vendors/);
 });

@@ -59,7 +59,7 @@ import {
 import { scheduleCrewOptions } from "@/features/schedules/crew-options";
 import { crewLabels, sortLabels } from "@/features/schedules/crew-labels";
 import { useVendorTeam } from "@/components/vendors/use-vendor-team";
-import { vendorArrivalLines, vendorCategoryLabel } from "@/features/vendors/team";
+import { noEmailPublishWarning, vendorArrivalLines, vendorCategoryLabel } from "@/features/vendors/team";
 import { currentJobSnapshots, jobCoverageMinutes } from "@/features/packages/job-packages";
 import { InfoHint } from "@/components/ui/info-hint";
 import { VendorReshareBanner } from "@/components/planning/vendor-reshare-banner";
@@ -817,6 +817,8 @@ export function AiScheduleGenerator({
       String(entry.email ?? "").includes("@") &&
       !sharedVendorIds.has(entry.vendorId),
   );
+
+  const noEmailWarning = noEmailPublishWarning(vendorTeam.entries);
 
   async function publish() {
     if (!draft) return;
@@ -1996,7 +1998,12 @@ export function AiScheduleGenerator({
                 {/* Say what is wrong rather than letting the command refuse. */}
                 {publishBlockers.length
                   ? publishBlockers.join(" ")
-                  : "Publishing replaces the current version, so anyone who already confirmed will be asked again."}
+                  : [
+                      "Publishing replaces the current version, so anyone who already confirmed will be asked again.",
+                      noEmailWarning,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
               </small>
             </span>
             <button

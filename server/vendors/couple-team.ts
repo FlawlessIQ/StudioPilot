@@ -97,6 +97,7 @@ export async function coupleVendorTeamFor(
     timeline: resolvePlanningTimeline(tenant.get("planningTimeline")),
     today: todayInZone(text(project.get("timezone")), input.now),
     planningFormSent,
+    trade: tenant.get("trade") ?? null,
   });
   // Booked vendors only: a florist the planner is still weighing up isn't
   // someone the couple has.
@@ -123,6 +124,20 @@ export type CoupleVendorSaveResult = {
   alreadyListed: string[];
 };
 
+/** Whether any of these addresses belongs to someone on the studio's crew roster. */
+async function crewAddressAmong(db: Firestore, tenantId: string, emails: readonly string[]): Promise<boolean> {
+  const wanted = new Set(emails);
+  let cursor: DocumentSnapshot | undefined;
+  for (;;) {
+    let query = db.collection("crewProfiles").where("tenantId", "==", tenantId).orderBy("__name__").select("email", "archivedAt").limit(500);
+    if (cursor) query = query.startAfter(cursor);
+    const page = await query.get();
+    if (page.docs.some((profile) => !profile.get("archivedAt") && wanted.has(normalizeEmail(profile.get("email"))))) return true;
+    if (page.size < 500) return false;
+    cursor = page.docs[page.size - 1];
+  }
+}
+
 export async function submitCoupleVendorTeam(
   db: Firestore,
   input: {
@@ -138,6 +153,9 @@ export async function submitCoupleVendorTeam(
   const projectReference = db.doc(`projects/${projectId}`);
   const recordReference = db.doc(coupleVendorRecordPath(projectId));
   const emails = [...new Set(rows.map((row) => normalizeEmail(row.email)).filter(Boolean))];
+  // One address, one role (b9f53c1c): a crew member's address on the vendor
+  // team would send them a vendor's mail and a vendor's offer.
+  if (emails.length && (await crewAddressAmong(db, tenantId, emails))) throw new Error("VENDOR_EMAIL_IS_CREW");
 
   const outcome = await db.runTransaction(async (transaction) => {
     const [project, tenant, record, team] = await Promise.all([
@@ -152,6 +170,7 @@ export async function submitCoupleVendorTeam(
       timeline: resolvePlanningTimeline(tenant.get("planningTimeline")),
       today: todayInZone(text(project.get("timezone")), new Date(now)),
       planningFormSent: true,
+      trade: tenant.get("trade") ?? null,
     });
     if (!ask.available) throw new Error("VENDOR_TEAM_NOT_ASKED");
     const offered = new Set<string>(coupleVendorKinds(tenant.get("trade")));

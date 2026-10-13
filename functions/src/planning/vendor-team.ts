@@ -6,6 +6,7 @@ import { mintRunOfShowShare, shareIdFor } from "./share-mint.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { companyKey, parseVendorSection, vendorsToImport } from "./vendor-section.js";
 import { creditLineText, vendorCredits } from "./vendor-credits.js";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 
 /**
  * A wedding's vendor team, written (docs/planner-journey-plan.md, N1 + N2).
@@ -344,6 +345,43 @@ export function crewVendorContactsFrom(entries: readonly DocumentData[]): CrewVe
 export function coupleNameOf(projectName: unknown): string {
   const name = typeof projectName === "string" ? projectName.trim() : "";
   return name.replace(/\s+wedding$/i, "").trim() || name;
+}
+
+/** Job states with the day ahead and the couple booked: when the vendor ask runs. */
+const ASK_STATES = new Set(["BOOKED", "PLANNING", "READY"]);
+
+/**
+ * Whether the couple still owes their vendor list (features/vendors/couple-team.ts
+ * `coupleVendorAsk`, the same rule from the functions side): a booked wedding
+ * with the day ahead, not quiet, not run by a planner, at a studio that isn't
+ * a planner, and not yet answered. The planning form's request and reminders
+ * carry one line about it when it is — no email series of its own
+ * (docs/vendor-network-plan-2026-10-12.md, Phase 1).
+ */
+export function vendorAskOwed(input: { project: DocumentData; trade: unknown; answered: boolean; today: string }): boolean {
+  const { project } = input;
+  if (input.answered || project.importedAt || project.vendorTeamByPlanner === true) return false;
+  if (jobKindOf(project) !== "wedding" || !ASK_STATES.has(str(project.state))) return false;
+  if (tradeProfile(input.trade).vendorTeam === "default" || clientOutreachStop(project) !== null) return false;
+  const eventDate = str(project.eventDate).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(eventDate) && input.today < eventDate;
+}
+
+/** `vendorAskOwed` for one job, read as the email goes. */
+export async function vendorAskOwedFor(db: Firestore, tenantId: string, projectId: string): Promise<boolean> {
+  if (!tenantId || !projectId) return false;
+  const [project, tenant, answer] = await Promise.all([
+    db.doc(`projects/${projectId}`).get(),
+    db.doc(`tenants/${tenantId}`).get(),
+    db.doc(`clientVendorTeams/${projectId}`).get(),
+  ]);
+  if (!project.exists || project.get("tenantId") !== tenantId) return false;
+  return vendorAskOwed({
+    project: project.data() ?? {},
+    trade: tenant.get("trade"),
+    answered: answer.exists && answer.get("tenantId") === tenantId && ["listed", "none"].includes(str(answer.get("answer"))),
+    today: new Date().toISOString().slice(0, 10),
+  });
 }
 
 // ─── Writes ──────────────────────────────────────────────────────────────────
