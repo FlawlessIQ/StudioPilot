@@ -109,15 +109,25 @@ export function partnerCodeStem(input: { name: string; business?: string | null;
   return stem.slice(0, 16);
 }
 
-/** STEM, then STEM2, STEM3…, kept within the 20-character limit. */
-export function nextFreeCode(stem: string, taken: (code: string) => boolean): string {
-  if (!taken(stem)) return stem;
-  for (let n = 2; n < 1000; n += 1) {
-    const suffix = String(n);
-    const candidate = `${stem.slice(0, 20 - suffix.length)}${suffix}`;
-    if (!taken(candidate)) return candidate;
+/** No 0/O or 1/I, so a code read aloud or off a phone is typed right. */
+const SUFFIX_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+export const PARTNER_CODE_SUFFIX = 4;
+
+/**
+ * A made code is the partner's name plus four random characters, never the
+ * name alone (Conor, 2026-10-13: "I don't want codes to just be the partners
+ * name. Make it more unique"): MIKEYB → MIKEYB7KQX. Still readable as theirs,
+ * not guessable, and two partners with one name never collide.
+ */
+export function makePartnerCode(stem: string, taken: (code: string) => boolean, random: () => number = Math.random): string {
+  const head = stem.slice(0, 20 - PARTNER_CODE_SUFFIX - 6);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    let suffix = "";
+    for (let index = 0; index < PARTNER_CODE_SUFFIX; index += 1) suffix += SUFFIX_ALPHABET[Math.floor(random() * SUFFIX_ALPHABET.length)];
+    const code = `${head}${suffix}`;
+    if (!taken(code)) return code;
   }
-  return stem;
+  return `${head}${Date.now().toString(36).toUpperCase().slice(-PARTNER_CODE_SUFFIX)}`;
 }
 
 export type PartnerDraft = {
@@ -141,7 +151,7 @@ export type PartnerImportRow =
 export type ExistingPartner = { code: string; email?: string | null };
 
 /** The sheet, read and checked: what will be made, what's already there, and what needs fixing. */
-export function planPartnerImport(text: string, existing: ExistingPartner[], columns?: PartnerColumns): { columns: PartnerColumns; header: string[]; rows: PartnerImportRow[]; tooMany: boolean } {
+export function planPartnerImport(text: string, existing: ExistingPartner[], columns?: PartnerColumns, random: () => number = Math.random): { columns: PartnerColumns; header: string[]; rows: PartnerImportRow[]; tooMany: boolean } {
   const [header = [], ...body] = parseCsv(text);
   const map = columns ?? detectPartnerColumns(header);
   const existingCodes = new Set(existing.map((partner) => partner.code));
@@ -190,7 +200,7 @@ export function planPartnerImport(text: string, existing: ExistingPartner[], col
       sheetCodesUsed.add(sheetCode);
       code = sheetCode;
     } else {
-      code = nextFreeCode(partnerCodeStem({ name: personName, business, type }), (candidate) => taken.has(candidate));
+      code = makePartnerCode(partnerCodeStem({ name: personName, business, type }), (candidate) => taken.has(candidate), random);
       taken.add(code);
     }
     rows.push({

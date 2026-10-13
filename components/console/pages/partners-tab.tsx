@@ -21,7 +21,7 @@ import {
   type PayoutMethod,
   type ReferralStage,
 } from "@/features/console/partner-payouts";
-import { PARTNER_EXPORT_HEADER, partnerExportRows } from "@/features/console/partner-import";
+import { makePartnerCode, PARTNER_CODE_SUFFIX, PARTNER_EXPORT_HEADER, partnerCodeStem, partnerExportRows } from "@/features/console/partner-import";
 import { normalizeReferralCode, OFFER_SUMMARY } from "@/features/subscriptions/referral-program";
 import { money, shortDate } from "@/lib/console/format";
 import { useLiveQuery } from "@/lib/console/live";
@@ -274,7 +274,11 @@ function PartnerDrawer({
     active: partner?.active !== false,
   });
   const field = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm((current) => ({ ...current, [key]: event.target.value }));
-  const code = normalizeReferralCode(form.code);
+  // A blank code takes the suggestion: the name plus four random characters (features/console/partner-import.ts).
+  const stem = form.name.trim().length >= 2 || form.business.trim().length >= 2 ? partnerCodeStem({ name: form.name, business: form.business, type: form.type }) : "";
+  const [suffix] = useState(() => makePartnerCode("", () => false));
+  const suggestedCode = !partner && stem ? `${stem.slice(0, 20 - PARTNER_CODE_SUFFIX - 6)}${suffix}` : "";
+  const code = normalizeReferralCode(form.code || suggestedCode);
   const valid = form.name.trim().length >= 2 && (!form.email || /\S+@\S+\.\S+/.test(form.email)) && (partner ? true : Boolean(code));
   const details = {
     name: form.name.trim(),
@@ -287,7 +291,7 @@ function PartnerDrawer({
   };
   const save = async () => {
     if (!partner) {
-      const result = await run<{ partnerId: string; code: string }>("createPartner", { ...details, code: form.code }, { done: (made) => `Code ${made.code} is ready. Copy its signup link into the message.` });
+      const result = await run<{ partnerId: string; code: string }>("createPartner", { ...details, code: code ?? form.code }, { done: (made) => `Code ${made.code} is ready. Copy its signup link into the message.` });
       if (result) onCreated?.(result.partnerId);
       return;
     }
@@ -339,7 +343,7 @@ function PartnerDrawer({
           </>
         ) : (
           <p className="cx-hint">
-            The code is what the partner shares, so use their name: <strong>SARAHMUA</strong>, <strong>DJMIKE</strong>. A photographer who signs up with it gets the referral price. It can&apos;t be changed once made.
+            The code is what the partner shares: their name plus a few random characters, like <strong>SARAHMUA7KQX</strong>, so it reads as theirs but isn&apos;t just their name. Leave it blank and one is made for you. A photographer who signs up with it gets the referral price. It can&apos;t be changed once made.
           </p>
         )}
         <div className="cx-row-2">
@@ -370,7 +374,7 @@ function PartnerDrawer({
           ) : (
             <div className="cx-field">
               <label className="cx-label" htmlFor="partner-code">Code</label>
-              <input className="cx-input" id="partner-code" onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} placeholder="SARAHMUA" value={form.code} />
+              <input className="cx-input" id="partner-code" onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} placeholder={suggestedCode || "SARAHMUA7KQX"} value={form.code} />
               {form.code && !code ? <span className="cx-hint">4 to 20 letters and numbers.</span> : null}
             </div>
           )}

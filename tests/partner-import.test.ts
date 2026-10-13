@@ -5,7 +5,7 @@ import { parseCsv } from "../features/imports/spreadsheet.ts";
 import {
   PARTNER_EXPORT_HEADER,
   detectPartnerColumns,
-  nextFreeCode,
+  makePartnerCode,
   partnerCodeStem,
   partnerExportRows,
   partnerTypeFromLabel,
@@ -40,8 +40,17 @@ test("a blank code is made from the business, else the name, within the limits",
   assert.equal(partnerCodeStem({ name: "Mike Ortiz", business: null, type: "dj" }), "MIKEORTIZ");
   assert.equal(partnerCodeStem({ name: "Al", business: "The Events Co", type: "planner" }), "THEEVENTSCO");
   assert.equal(partnerCodeStem({ name: "Jo", business: null, type: "dj" }), "JODJ");
-  assert.equal(nextFreeCode("MIKE", (code) => ["MIKE", "MIKE2"].includes(code)), "MIKE3");
-  assert.equal(nextFreeCode("ABCDEFGHIJKLMNOPQRST", (code) => code === "ABCDEFGHIJKLMNOPQRST").length, 20);
+});
+
+test("a made code is never just the name: name plus four random characters, no 0/O/1/I", () => {
+  const code = makePartnerCode("MIKEYB", () => false);
+  assert.match(code, /^MIKEYB[2-9A-HJ-NP-Z]{4}$/);
+  assert.notEqual(code, "MIKEYB");
+  assert.equal(makePartnerCode("BELLABRIDALBEAUT", () => false).length, 14, "room left for the server's clash number");
+  // A clash rolls again rather than numbering.
+  let calls = 0;
+  const seq = () => [0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5][calls++ % 8]!;
+  assert.equal(makePartnerCode("SARA", (candidate) => candidate === "SARA2222", seq), "SARAJJJJ");
 });
 
 test("a 200-row sheet: codes made, clashes numbered, existing skipped, bad rows named", () => {
@@ -52,7 +61,7 @@ test("a 200-row sheet: codes made, clashes numbered, existing skipped, bad rows 
   assert.equal(ready.length, 200);
   const codes = ready.map((row) => (row.status === "ready" ? row.partner.code : ""));
   assert.equal(new Set(codes).size, 200, "every code unique");
-  assert.deepEqual(codes.slice(0, 3), ["GLAMSQUAD", "GLAMSQUAD2", "GLAMSQUAD3"]);
+  assert.ok(codes.every((code) => /^GLAMSQUAD[2-9A-HJ-NP-Z]{4}$/.test(code)), "the name, then four random characters");
   assert.ok(ready.every((row) => row.status === "ready" && row.partner.codeMade && row.partner.type === "makeup"));
 
   const mixed = planPartnerImport(
@@ -69,8 +78,8 @@ test("a 200-row sheet: codes made, clashes numbered, existing skipped, bad rows 
     [{ code: "TAKENALREADY", email: "taken@example.com" }, { code: "OLDCODE" }],
   );
   const byLine = new Map(mixed.rows.map((row) => [row.line, row]));
-  // Dana asked for SARAHLEE in the sheet, so Sarah's made code steps aside.
-  assert.equal(byLine.get(2)?.status === "ready" && byLine.get(2)?.partner.code, "SARAHLEE2");
+  const sarah = byLine.get(2);
+  assert.ok(sarah?.status === "ready" && /^SARAHLEE[2-9A-Z]{4}$/.test(sarah.partner.code) && sarah.partner.codeMade);
   assert.equal(byLine.get(3)?.status, "exists");
   assert.equal(byLine.get(4)?.status, "problem");
   assert.equal(byLine.get(5)?.status, "problem");

@@ -118,7 +118,7 @@ export function PartnerImportDrawer({ existing, onClose, onDownload }: { existin
         ) : (
           <>
             <p className="cx-hint">
-              {`A CSV with a row per partner. Excel or Google Sheets: File → Download → CSV. Columns are matched by name: Name (or First and Last name), Business, Email, Phone, Type, Code, How you pay them, Notes. Leave Code blank and one is made from the business or name. Anyone already a partner (same email or code) is skipped, so the same sheet can go in again. Up to ${PARTNER_IMPORT_MAX} at a time.`}
+              {`A CSV with a row per partner. Excel or Google Sheets: File → Download → CSV. Columns are matched by name: Name (or First and Last name), Business, Email, Phone, Type, Code, How you pay them, Notes. Leave Code blank and one is made from the business or name plus four random characters (MIKEYB7KQX). Anyone already a partner (same email or code) is skipped, so the same sheet can go in again. Up to ${PARTNER_IMPORT_MAX} at a time.`}
             </p>
             <div className="cx-inline">
               <Button onClick={() => input.current?.click()}>
