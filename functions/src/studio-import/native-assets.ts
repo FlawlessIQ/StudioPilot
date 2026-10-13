@@ -504,6 +504,8 @@ export function importedStudioPackage(input: {
   sourceText?: string;
   /** Where the ids of the extras a vendor's list becomes start. */
   addOnIdPrefix?: string;
+  /** Where the ids of a list's shared Extras start: the same for every package of one import. */
+  sharedAddOnIdPrefix?: string;
 }) {
   const content = record(input.structuredContent);
   const trade = tradeOf(input.trade);
@@ -588,7 +590,8 @@ export function importedStudioPackage(input: {
   const addOns: ImportedAddOn[] = addOnSource.length
     ? addOnSource
         .map((item) => {
-          const stem = `${input.addOnIdPrefix ?? "imported_addon"}_${slugOf(item.name)}`;
+          const prefix = base ? input.addOnIdPrefix : (input.sharedAddOnIdPrefix ?? input.addOnIdPrefix);
+          const stem = `${prefix ?? "imported_addon"}_${slugOf(item.name)}`;
           let id = stem;
           for (let n = 2; addOnIds.has(id); n += 1) id = `${stem}_${n}`;
           addOnIds.add(id);

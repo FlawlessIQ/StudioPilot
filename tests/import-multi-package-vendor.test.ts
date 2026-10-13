@@ -68,3 +68,22 @@ test("a planner's agreement preview is a planner's, not a photographer's", async
   assert.doesNotMatch(words, /photographer|gallery|album/i);
   assert.match(words, /coordinator/);
 });
+
+test("a list's shared extras are one library entry each, whichever package carries them", () => {
+  // UAT 2026-10-13: each extra appeared three times in the picker, once per tier.
+  const ids = ["Full Planning", "Partial Planning"].map((name, index) =>
+    (
+      importedStudioPackage({
+        name,
+        structuredContent: { lineItems: [{ name, price: index ? 4200 : 6500 }] },
+        displayOrder: index,
+        trade: "planner",
+        sourceText: LIST,
+        addOnIdPrefix: `imported_addon_asset${index}`,
+        sharedAddOnIdPrefix: "imported_addon_session1",
+      }).addOns as Array<{ id: string }>
+    ).map((addOn) => addOn.id),
+  );
+  assert.deepEqual(ids[0], ids[1]);
+  assert.ok(ids[0]!.every((id) => id.startsWith("imported_addon_session1_")));
+});

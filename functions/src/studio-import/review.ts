@@ -787,6 +787,7 @@ export async function activateStudioImport(input: {
                     trade,
                     sourceText: draftSourceText(version, items),
                     addOnIdPrefix: `imported_addon_${string(version.get("assetId"))}`,
+                    sharedAddOnIdPrefix: `imported_addon_${input.sessionId}`,
                   }),
                 ] as const,
               ]
@@ -1055,6 +1056,8 @@ export async function activateStudioImport(input: {
           trade,
           sourceText: draftSourceText(version, items),
           addOnIdPrefix: `imported_addon_${assetId}`,
+          // One library entry per extra the whole list shares, not one per package.
+          sharedAddOnIdPrefix: `imported_addon_${input.sessionId}`,
         });
         const provenance = {
           tenantId: input.tenantId,
