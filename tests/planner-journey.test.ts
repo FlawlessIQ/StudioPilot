@@ -643,6 +643,17 @@ test("payments and tips to hand out come from the vendor team", () => {
   assert.equal(handOut.totalCents, 175_000);
   assert.equal(handOutSummary(handOut), "3 envelopes to hand out, $1,750");
   assert.equal(handOutSummary(paymentsToHandOut([], "2027-06-12")), null);
+  // The envelopes go out as the vendors walk in, whatever order the records come back in.
+  const byArrival = paymentsToHandOut(
+    [
+      { status: "booked", company: "Spin Theory DJs", category: "dj", tipCents: 15_000, arrivalTime: "15:00", createdAt: "2027-01-01T00:00:00Z" },
+      { status: "booked", company: "Sugar Bloom", category: "bakery", tipCents: 5_000, createdAt: "2027-01-02T00:00:00Z" },
+      { status: "booked", company: "Hart Light Studio", category: "photographer", tipCents: 15_000, arrivalTime: "12:00", createdAt: "2027-01-03T00:00:00Z" },
+      { status: "booked", company: "Petal & Stem", category: "florist", tipCents: 10_000, loadInTime: "13:30", createdAt: "2027-01-04T00:00:00Z" },
+    ],
+    "2027-06-12",
+  );
+  assert.deepEqual(byArrival.lines.map((line) => line.who.split(" (")[0]), ["Hart Light Studio", "Petal & Stem", "Spin Theory DJs", "Sugar Bloom"]);
   // In the assistants' reminder, a planner's only.
   const brand = { studioName: "Wren & Co. Events", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null };
   const reminder = renderEmailTemplate({ key: "crew_reminder", brand, recipientName: "Jo", projectName: "Maya Brooks Wedding", values: { trade: "planner", handOut: handOut.lines.map(handOutLineText), scheduleUrl: "https://studio-cue.com/crew/schedule?assignment=a" } });

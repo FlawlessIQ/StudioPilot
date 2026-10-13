@@ -6,9 +6,10 @@ be required … then fit it into a studiocue flow that uses the features we have
 already, similar to what we did with the other journeys. plan this out before
 execution."
 
-**Status: decisions taken 2026-10-12 (below). Phase 1 (the vendor team) is
-built on a branch and walked in the emulator — see "Phase 1 status" under
-Phases. Phases 2–5 are not started.**
+**Status: decisions taken 2026-10-12 (below). Phase 1 (the vendor team) and
+Phase 2 (the planner trade and journey) are built on a branch and walked in
+the emulator — see "Phase 1 status" and "Phase 2 status" under Phases. Neither
+is deployed or walked on prod.**
 The DJ, makeup and hair plan this follows is `docs/vendor-journeys-plan.md`.
 Sources are at the end.
 
@@ -331,12 +332,111 @@ looks as before). Functions changed: `planningCommand` (commands +
 function export.
 
 **Deferred**
-- Journey steps and readiness checks (Phase 2 reads `vendorTeamProgress`).
+- Journey steps and readiness checks (Phase 2 reads `vendorTeamProgress`). Done in Phase 2.
 - Budget prefill at inquiry → job conversion (Phase 2, with the planner's
-  inquiry form asking the wedding's budget).
+  inquiry form asking the wedding's budget). Done in Phase 2.
 - Inviting a photographer listed on a DJ's or planner's team to StudioCue
   (`photographer` is not in `VENDOR_TYPE_TRADES`).
-- "Payments and tips to hand out" on the day-before kit list (N7).
+- "Payments and tips to hand out" on the day-before kit list (N7). Done in Phase 2.
+
+### Phase 2 status (2026-10-12)
+
+Built (N3–N7) in `288625f3` and walked in the emulator; not deployed. The
+photographer, DJ, makeup and hair journeys are byte-for-byte as before
+(`tests/fixtures/journey-before-planner.json`, made from `95ae3e82`).
+
+**The trade**: `planner` is in `TRADES` (both copies), not in `LIVE_TRADES`,
+so only `?trade=planner` reaches it. Its vocabulary covers the discovery call,
+Final details, master timeline, retainer and the emergency kit. Its profile
+has no delivery, requires the call, books through one link and sets
+`vendorTeam: "default"`. The balance falls due 30 days before. The walkthrough
+is 60 minutes. It is on the vendor plan. Final details go 3 months out,
+automatically, with the lock 14 days out and no final call. Coverage role
+`coordinator`, crew track C1/C2, PDF chip colors for C.
+
+**Tiers**: `planningScope` (full / partial / coordination) on the package,
+its snapshot and the job (`features/planning/planning-scope.ts` + mirror).
+Month-of sends Final details 8 weeks out, and its vendor team starts at that
+intake. Full and partial work the team from booking.
+`planningChecklistApplies` is the Phase 3 hook.
+
+**Journey**: 11 steps. The "Vendor team", "Venue walkthrough" and "Vendors
+confirmed" steps show for a trade whose profile asks for them; the master
+timeline folds into "Vendors confirmed". 6 client asks, 5 checks, 5 setup
+questions, pinned in `tests/vendor-burden.test.ts`. Today and readiness read
+the same team progress. Readiness recomputes on `projectVendors` and
+`scheduleShares` writes (two new trigger exports,
+`readinessOnProjectVendorWritten` and `readinessOnScheduleShareWritten`). The
+invoker script discovers event triggers by itself, so it needs no new names.
+
+**Walkthrough**: a consultation purpose `walkthrough` (both copies) with its
+own length and window, an invite and card on the job, and its own email. It is
+never the sales call, the final call or the trial. A planner's lock sends no
+sign-off, because the walkthrough settles the details.
+
+**Starter content**: example packages per tier, extras, a plain-English
+planner agreement (counsel review owed), and Schedule A planner parts. Also
+the inquiry form with the wedding's budget, now prefilled onto the job at
+conversion. The Final details form has a vendor section, prefilled from the
+team and read back into it.
+
+**Day and after**: payments and tips to hand out (`features/vendors/hand-out.ts`
++ mirror) appear on the day's step and in the assistants' reminder, **ordered
+by arrival time** like the contact sheet, so envelopes go out as vendors walk
+in. The day step opens the contact sheet. "Send vendor credits"
+(`sendVendorCredits`) runs once, only after the day, and never for a quiet job.
+Cue gets a trade instruction and glossary terms. The final-bill run now reads
+44 days ahead (a planner's window); every other trade still bills at its own
+28.
+
+**Walked in the emulator (2026-10-12)**: `scripts/uat/planner-journey-walk.mts`,
+**43 of 43 pass**. It runs through the real onboarding, command functions, app
+routes (couple's portal, vendor confirm) and schedulers. Only the clock and
+the mock QuickBooks connection are written by hand.
+- Setup: the studio is made through onboarding (trade planner, vendor plan).
+  The timeline is 3 months / auto / 14 days / no final call. Final details is
+  the only seeded form. There are 5 checks. The inquiry form asks venue, tier,
+  vendors and budget.
+- Month-of: the inquiry becomes a job with a $35,000 budget. The discovery call
+  is booked from the link, then proposal (with an extra assistant at $450 a
+  person), accepted, signed, retainer paid and BOOKED. The tier is on the job
+  and the snapshot, and the schedule says "Retainer". There are no Final
+  details at booking, and the team "comes in with the final details, eight
+  weeks out". Nothing goes at nine weeks. The Final details go at eight. The
+  couple returns three vendors, who join the team as booked: "All 3 vendors
+  booked", and readiness counts the check. The walkthrough is booked from its
+  own link (60-minute openings) and the job stays BOOKED. Arrivals are drawn
+  from the team, the master timeline is published and sent to three vendors in
+  one press, and one confirms: "1 of 3 confirmed · waiting on 2". The
+  assistants' reminder carries the kit and the envelopes in arrival order. The
+  day step reads "3 envelopes to hand out, $2,450" and opens the contact
+  sheet. No lock sign-off is sent. Post-production is refused, the job goes to
+  review, and the vendor credits go once with the studio first.
+- Full planning: booked on Full, with the vendor team as the next step from
+  booking. "1 of 2 booked · 1 still to find". The Final details wait until
+  three months out, then go with the vendor section prefilled from the team.
+  The balance is billed 44 days out, due 30 days before.
+
+**What the walk found**
+- Fixed: the envelopes in the assistants' reminder came out in Firestore
+  document order, which is effectively random. `paymentsToHandOut` now orders
+  by arrival (then load-in, then when they joined the team), in both copies,
+  with a test.
+- Harness only: an add-on must be offered on the package before a proposal
+  can take it. Readiness never writes a checkpoint's status; it scores the job
+  from evidence, so the walk reads the evidence and the score.
+- Open, not fixed: in the month-of walk, "Venue walkthrough", "Vendors
+  confirmed" and "Final balance" stay unticked after the review. The walk
+  compressed the clock: the walkthrough slot is still in the future, only 1 of
+  3 vendors confirmed, and the balance was never billed. A real job would tick
+  them, but past-the-day steps left open are worth a look on prod.
+
+**Deploy notes**: functions first, all of them. The shared trades, email
+templates (renderer `operationsTaskWorker`), planning, booking, intake,
+invoice scheduler and readiness modules all changed, plus two new trigger
+exports. Run the freshness script after. The PDF service changed
+(`cloud-run/pdf/run_of_show.py`, chip colors for C). No rules change in this
+phase beyond Phase 1's. **Not yet walked on prod** (the plan's "done when").
 
 ## Decisions
 

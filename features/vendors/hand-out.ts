@@ -25,6 +25,9 @@ export type HandOutEntry = {
   balanceDueCents?: unknown;
   balanceDueDate?: unknown;
   tipCents?: unknown;
+  arrivalTime?: unknown;
+  loadInTime?: unknown;
+  createdAt?: unknown;
 };
 
 export type HandOutLine = {
@@ -55,12 +58,19 @@ function categoryWords(category: unknown): string {
 
 /**
  * Who gets an envelope, and what is in it: booked vendors with a balance due
- * on the day (or undated) or a tip, in the order the team lists them.
+ * on the day (or undated) or a tip, in the order they arrive (as the contact
+ * sheet lists them), so the envelopes go out as the vendors walk in. The
+ * team's own order breaks a tie; anyone with no time comes last.
  */
 export function paymentsToHandOut(entries: readonly HandOutEntry[], eventDate: string | null | undefined): HandOut {
   const day = words(eventDate).slice(0, 10);
   const lines: HandOutLine[] = [];
-  for (const entry of entries) {
+  const arrives = (entry: HandOutEntry) => words(entry.arrivalTime) || words(entry.loadInTime) || "99:99";
+  const ordered = entries
+    .map((entry, index) => ({ entry, index }))
+    .sort((left, right) => arrives(left.entry).localeCompare(arrives(right.entry)) || words(left.entry.createdAt).localeCompare(words(right.entry.createdAt)) || left.index - right.index)
+    .map(({ entry }) => entry);
+  for (const entry of ordered) {
     if (entry.archivedAt || entry.status !== "booked") continue;
     const due = words(entry.balanceDueDate).slice(0, 10);
     // Due before the day: the couple pays it ahead, not from an envelope.
