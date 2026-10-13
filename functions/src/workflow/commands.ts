@@ -205,6 +205,9 @@ const commandSchema = z.discriminatedUnion("type", [
       dueDate: z.string().date().nullable(),
       priority: z.enum(["low", "normal", "high", "urgent"]),
       blocking: z.boolean(),
+      // A one-off item added to a planner's planning checklist on the job
+      // (planning/planning-checklist.ts): the same task, listed with the checklist.
+      source: z.literal("planning_checklist").optional(),
     }),
   }),
   z.object({

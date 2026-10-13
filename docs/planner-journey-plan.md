@@ -6,10 +6,12 @@ be required … then fit it into a studiocue flow that uses the features we have
 already, similar to what we did with the other journeys. plan this out before
 execution."
 
-**Status: decisions taken 2026-10-12 (below). Phase 1 (the vendor team) and
-Phase 2 (the planner trade and journey) are built on a branch and walked in
-the emulator — see "Phase 1 status" and "Phase 2 status" under Phases. Neither
-is deployed or walked on prod.**
+**Status: decisions taken 2026-10-12 (below). Phases 1–4 (vendor team,
+planner trade and journey, planning checklist, payment plans) are built on the
+`planner-journey` branch and walked in the emulator — see each phase's status
+section under Phases. Phase 5 (launch) is in progress. Nothing is deployed or
+walked on prod yet.**
+
 The DJ, makeup and hair plan this follows is `docs/vendor-journeys-plan.md`.
 Sources are at the end.
 
@@ -207,7 +209,7 @@ would pin:
 | N5 | Meeting purposes | S–M | Add `walkthrough` (and a generic `planning_meeting`) to the consultation purposes in both copies. Each purpose needs its own length (`trialMinutes` set the precedent). Every sales-call site already asks `isSalesConsultation`, so new purposes are safe. |
 | N6 | Starter content | M | Example packages (three tiers by guest band, plus add-ons); a planner starter agreement (scope, the couple pays vendors directly, not liable for vendors, commission disclosure, meals, overtime, travel); Schedule A planner parts; the planner inquiry form; the **Final details** recommended form, with the vendor section prefilled from the vendor team. |
 | N7 | Day and after | S–M | The emergency kit (`kitChecklist`); a printable vendor contact sheet and a "payments and tips to hand out" list from the vendor team; a "Send vendor credits" email after the review ask. |
-| N8 | Planning checklist (full/partial) | M | Starter dated tasks per tier through workflow templates' `dueDateRule` (relative to the event date), surfacing on Today when due. Includes a minimal editor for the task name and the months out. |
+| N8 | Planning checklist (full/partial) | M | Starter dated tasks per tier relative to the event date, surfacing on Today when due, with a minimal editor for the name and the months out. Built as fixed-id tasks that carry their own offset rather than through workflow templates (no UI for those, and a template run is per-job state the tasks already are) — see "Phase 3 status". |
 | N9 | **Payment plan (installments)** | L, cross-trade | StudioCue bills only deposit + final balance (`invoiceKind` retainer/final/adjustment; `paymentScheduleFor` returns one or two lines). Planners take a retainer plus 3–4 installments; DJs and photographers ask for payment plans too. Touches proposals, invoices, the schedulers, QuickBooks and own invoicing. **In scope (decision 2)**, every trade. |
 | N10 | Launch | S–M | `/planner` landing page; `LIVE_TRADES`; `VENDOR_TYPE_TRADES.planner = ["planner"]`. Every photographer who has listed a planner on a job becomes an invite, using the existing invite and sweep. Help guides; Cue's `tradeInstruction`; the pilot. |
 
@@ -516,6 +518,114 @@ exactly what it saw before (the vendor burden test does not move).
   own for installments (Cue's final-balance card offers them); the month-out
   "final balance summary" message still quotes everything left to pay;
   Stripe's line description is the generic one; a plan on one-off packages.
+
+### Phase 3 status (2026-10-13)
+
+Built (N8) on a branch on top of Phase 2 (288625f3) and walked in the
+emulator; not deployed. Photographers, DJs, makeup, hair and a planner's
+month-of coordination jobs are untouched: the trigger returns before reading
+anything for a job without a full or partial tier, the burden tests did not
+move, and a checklist item is the studio's task, never a client ask.
+
+**The deterministic core**: `features/planning/planning-checklist.ts`
+(mirrored at `functions/src/planning/planning-checklist.ts`, compared below
+the marker by `tests/planning-checklist.test.ts`).
+- Starter lists: **full** (19 items, 12 months to 2 weeks out: budget and
+  first guest count, venue; photographer, videographer; officiant, caterer,
+  design; save-the-dates, florist, DJ or band; hair and makeup; rentals,
+  cake; invitations and day-of stationery, transportation; mail the
+  invitations 8 weeks, chase RSVPs 5 weeks, marriage license reminder 4
+  weeks, seating chart and final count 2 weeks) and **partial** (12 items,
+  from 6 months: their booked vendors and contracts, design, the remaining
+  vendors, RSVPs, license, seating chart). No item repeats a journey step
+  (walkthrough, Final details, vendors confirmed, balance).
+- An item is `{key, title, amount, unit: months|weeks}`. Due = the wedding
+  date minus the offset (calendar months, clamped to the month's last day;
+  weeks as 7 days); **a date already past is due today**.
+- Task ids `planning_<projectId>_<itemKey>`; `tasks.source =
+  "planning_checklist"`; each task carries `checklistKey`,
+  `checklistAmount`, `checklistUnit` and `checklistDueDate` (the date
+  StudioCue set).
+- `checklistTaskPlan` (booking: create missing; never touch a finished,
+  removed or hand-moved task), `followEventDate` (date moved: open tasks on
+  StudioCue's date follow by their own offset), `checklistProgress` ("6 of 18
+  done", next due first, removed items not counted), `checklistProblem` (the
+  editor's validation, in the studio's words).
+
+**Writing it**: `planningChecklistOnProjectWritten`
+(`functions/src/planning/planning-checklist-sync.ts`), a new Firestore
+trigger on `projects/{id}` — chosen over hooks in each command because a job
+books and moves through several paths (the booking orchestrator,
+`updateProject`, a signed amendment, imports, Cue).
+- Not yet applied, and the job is full/partial, BOOKED/PLANNING/READY, not
+  archived, with a date → one transaction reads the tenant's list, writes the
+  tasks and `projects.planningChecklist = {scope, appliedAt, itemCount,
+  studioList}`. Written once: an item the studio finished or cancelled
+  (removing = `cancelTask`) is never brought back, and a later edit of the
+  studio's list reaches only jobs booked afterwards.
+- Applied, and `eventDate` changed → `followEventDate` over the job's
+  checklist tasks (three equality filters, no composite index).
+- A booked full job with no date gets its checklist when the date is set.
+
+**The studio's own list**: `planningCommand` `setPlanningChecklist`
+(owner/admin, only for a trade whose profile has `planningScope`; items or
+`null` for the starter list back; audited) →
+`tenants/{id}.planningChecklists.{full|partial} = {items, updatedAt,
+updatedBy}`. An empty list is a choice (no checklist). Editor:
+`components/planning/planning-checklist-settings.tsx`, under the planning
+timeline in Settings → Planning (`PlanningSettingsSection`; planner only):
+Full / Partial tabs, rename, remove, add, "N months/weeks before", Save, "Use
+StudioCue's list", and "Changes apply to jobs booked from now on; jobs
+already booked keep the checklist they have."
+
+**On the job**: `components/planning/planning-checklist-panel.tsx`, under the
+vendor team in both layouts, only for a full/partial job (or one with
+checklist tasks): "N of M done · K overdue", a progress bar, the next three
+open items (compact rows on every width; "Show all M"), a check to mark done
+(and to reopen), "Add an item" (a one-off through `workflowCommand`
+`createTask`, which gained an optional `source: "planning_checklist"`; it
+keeps its own date), and links to the task list (edit or remove) and the
+studio's list.
+
+**Today**: a checklist task reaches Today **on the day it falls due** (other
+tasks still arrive once overdue), says "On your planning checklist" and
+"due today" (in "Next two weeks", not "Already late") / "was due …", and opens the job at `#planning-checklist`.
+
+**Walked in the emulator (2026-10-13)** with
+`scripts/uat/planning-checklist-walk.mts` (26 of 26): a planner studio
+made through `tenantOnboardingCommand` with trade `planner`; Priya Shah,
+full planning, 11 months out (2027-09-13), booked through the real
+proposal, agreement and retainer → 19 tasks, budget and venue due today
+(their 12 months had passed), photographer and videographer 2026-11-13 …
+seating chart 2027-08-30; both due-today items on Today, each opening the
+job's checklist; the venue marked done and the officiant moved by hand;
+`updateProject` refused the date move (`EVENT_DATE_LOCKED_AFTER_SIGNING` —
+a signed booking moves through an amendment, whose apply step writes
+`projects.eventDate`), so the walk wrote the field as the amendment would,
+four weeks later → open items followed (photographer 2026-12-11, seating
+chart 2027-09-27), the venue stayed done, the officiant kept its date,
+nothing was written twice; a one-off → "1 of 20 done". A nameless item and
+a doubled item were refused; the studio's own 3-item list saved; Priya's
+job kept its 20; Ava Lee, booked afterwards, got the 3 (marker
+`studioList: true`); Maya Brooks, month-of, got none. Screens at 1280, 1024
+and 390 (job panel, "Show all" + add form, Settings editor, Today): layout
+audit clean on everything new; Today at 1280/1024 reports the existing
+countdown ("7 months to") overlapping, which this phase did not touch.
+Under a heavily loaded machine the emulator delivered the trigger up to
+two minutes after booking; the walk waits four.
+
+**Deploy notes**: functions first. New export
+`planningChecklistOnProjectWritten` (an event trigger: the invoker script
+discovers it). Changed: `planningCommand` (the new command) and
+`workflowCommand` (`createTask` source). No rules change (tasks stay
+server-write; tenants are readable by members), no index change.
+
+**Deferred**
+- A tier changed after booking (partial → full) does not swap the list.
+- Assigning checklist items to a team member from the panel (the task list
+  can).
+- Reordering items in the editor (the job sorts by due date anyway).
+- The Settings hub card still reads "Planning timeline" for a planner.
 
 ## Decisions
 

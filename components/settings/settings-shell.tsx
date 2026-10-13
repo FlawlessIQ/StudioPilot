@@ -30,7 +30,7 @@ import {
 
 import { CrewOfferSettings } from "@/components/crew/crew-offer-settings";
 import { InvoiceSettings } from "@/components/settings/invoice-settings";
-import { PlanningTimelineSettings } from "@/components/planning/planning-timeline-settings";
+import { PlanningSettingsSection } from "@/components/planning/planning-checklist-settings";
 import { JobTypesSettings } from "@/components/job-kinds/job-types-settings";
 import { EmailTemplateDesigner } from "@/components/communications/email-template-designer";
 import { LifecyclePackPanel } from "@/components/communications/lifecycle-pack-panel";
@@ -87,7 +87,7 @@ const SECTION_COMPONENT: Record<SectionKey, ComponentType> = {
   firstReply: FirstReplySettings,
   drafts: LifecyclePackPanel,
   forwarding: InquiryForwardingSettings,
-  planning: PlanningTimelineSettings,
+  planning: PlanningSettingsSection,
   crewOffers: CrewOfferSettings,
   insurance: CoiSettings,
   invoices: InvoiceSettings,

@@ -57,6 +57,7 @@ import { jobValueCents } from "@/features/packages/job-packages";
 import { balanceMayBeAttested } from "@/features/booking/agreed-final-balance";
 import { providerName as readable } from "@/lib/format/provider-name";
 import { taskIsSettled } from "@/features/tasks/schema";
+import { isPlanningChecklistTask } from "@/features/planning/planning-checklist";
 import type { OutsideStepReminder } from "@/features/outside-steps/registry";
 import { inquiryNextMove } from "@/features/inquiries/next-move";
 import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
@@ -1632,6 +1633,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
     kind?: LibraryKind | null;
     /** Acts on the card itself instead of linking away. */
     action?: TodayAction;
+    /** Who put it here, when not Cue stopping safely. */
+    evidence?: string;
+    /** Its band, when it is not late: a checklist item due today is due this fortnight. */
+    band?: TodayBand;
   }) => {
     act.push({
       id: item.id,
@@ -1639,7 +1644,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
       kind: item.kind ?? null,
       title: item.title,
       detail: item.detail,
-      evidence: "Cue stopped safely — this one needs you",
+      evidence: item.evidence ?? "Cue stopped safely — this one needs you",
       projectId: item.projectId ?? null,
       projectName: item.projectName ?? null,
       action: item.action ?? {
@@ -1653,7 +1658,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
         eventFact(item.eventDate, now),
         waitingFact(item.updatedAt, now),
       ].filter((fact): fact is string => Boolean(fact)),
-      band: bandFor({
+      band: item.band ?? bandFor({
         eventDate: item.eventDate,
         dueDate: item.dueDate,
         overdue: true,
@@ -1844,7 +1849,10 @@ export function todayInbox(input: TodayInput): TodayInbox {
   for (const task of rows(input.tasks)) {
     const due = text(task.dueAt ?? task.dueDate).slice(0, 10);
     const done = taskIsSettled(task.status);
-    if (!due || due >= today || done) continue;
+    // A planner's checklist item reaches Today on the day it falls due, not
+    // the day after (features/planning/planning-checklist.ts).
+    const checklist = isPlanningChecklistTask(task);
+    if (!due || (checklist ? due > today : due >= today) || done) continue;
     if (!jobStillOpen(task.projectId)) continue;
     // The change request already has its card above, with the couple's words.
     if (
@@ -1876,18 +1884,21 @@ export function todayInbox(input: TodayInput): TodayInbox {
       title: text(task.title) || "Overdue task",
       detail: nameFor(task.projectId) ?? "Studio task",
       dueDate: due,
-      extraFacts: [`was due ${formatDueDate(due)}`],
+      extraFacts: [checklist && due === today ? "due today" : `was due ${formatDueDate(due)}`],
       // The task list, filtered to the job: that is where Mark done, Edit and
       // Cancel are. The card used to open the job page, which has none of
       // them, so an overdue task could be looked at from Today but not done.
-      href: task.projectId
+      href: checklist && task.projectId
+        ? `/studio/projects/${encodeURIComponent(text(task.projectId))}#planning-checklist`
+        : task.projectId
         ? `/studio/tasks?project=${encodeURIComponent(text(task.projectId))}`
         : "/studio/tasks",
       projectId: text(task.projectId) || null,
       projectName: nameFor(task.projectId),
       eventDate: eventFor(task.projectId),
       updatedAt: changedAt(task),
-      label: "Open the task",
+      label: checklist ? "Open the checklist" : "Open the task",
+      ...(checklist ? { evidence: "On your planning checklist", ...(due === today ? { band: "soon" as const } : {}) } : {}),
     });
   }
 

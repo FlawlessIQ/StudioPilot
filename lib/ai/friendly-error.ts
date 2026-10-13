@@ -957,6 +957,10 @@ const PREFIX_FALLBACKS: Array<[RegExp, string]> = [
  * These say what to change instead.
  */
 const DETAILED_BY_CODE: Record<string, (detail: string) => string> = {
+  // A planner's own planning checklist, refused with the item at fault
+  // (planning/planning-checklist.ts, checklistProblem).
+  PLANNING_CHECKLIST_INVALID: (detail) =>
+    detail ? `Your checklist wasn't saved. ${detail}` : "Your checklist wasn't saved. Check each item has a name and a time before the day.",
   // The studio's inquiry form, refused whole with its reasons
   // (intake/inquiry-form-config.ts, validateInquiryFormConfig).
   INQUIRY_FORM_INVALID: (detail) =>

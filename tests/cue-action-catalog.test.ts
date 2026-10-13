@@ -254,6 +254,7 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   refreshQuestionnairePrefill: "runs as a couple opens their form",
   requestDetailChange: "couple", decideDetailChange: "the change-request card on Today",
   setPlanningTimeline: "Settings → Planning timeline",
+  setPlanningChecklist: "Settings → Planning checklist (a planner's own list)",
   // Own invoicing, Phase 0 (docs/own-invoicing-plan-2026-10-09.md). Cue
   // offers the per-job choice in Phase 6; until then it's on the booking page.
   setStudioInvoiceSettings: "Settings → Invoices and payments",

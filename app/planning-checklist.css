@@ -1,0 +1,269 @@
+/* A planner's planning checklist (components/planning): the job's panel and
+   the studio's editor in Settings → Planning. Sized by its container, never
+   the viewport: rows wrap, never squeeze. */
+
+/* ── The job's panel ─────────────────────────────────────────────────── */
+.planning-checklist-panel {
+  display: grid;
+  gap: 12px;
+}
+.planning-checklist-head {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  justify-content: space-between;
+}
+.planning-checklist-heading {
+  display: grid;
+  flex: 1 1 12rem;
+  gap: 2px;
+  min-width: 0;
+}
+.planning-checklist-heading .eyebrow {
+  margin: 0;
+}
+.planning-checklist-heading h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.planning-checklist-head > .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.planning-checklist-summary {
+  display: grid;
+  gap: 8px;
+}
+.planning-checklist-summary p {
+  align-items: center;
+  color: var(--ink-soft, #56605a);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  gap: 4px 8px;
+  margin: 0;
+}
+.planning-checklist-summary p > svg {
+  color: var(--muted);
+  flex: none;
+}
+.planning-checklist-summary strong {
+  color: var(--ink, #1d211e);
+}
+.planning-checklist-overdue {
+  color: #9a4b16;
+  font-weight: 600;
+}
+.planning-checklist-bar {
+  background: var(--soft, #f4f6f3);
+  border-radius: 999px;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+}
+.planning-checklist-bar > span {
+  background: var(--accent, #2f6b4a);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+.planning-checklist-empty {
+  margin: 0;
+}
+.planning-checklist-rows {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* A check, then words that take the rest of the row and wrap inside it. */
+.planning-checklist-row {
+  align-items: flex-start;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e7e2);
+  border-radius: 11px;
+  display: flex;
+  gap: 10px;
+  padding: 9px 12px;
+}
+.planning-checklist-check {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  margin: -4px;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+.planning-checklist-check:hover {
+  color: var(--accent, #2f6b4a);
+}
+.planning-checklist-row.is-done .planning-checklist-check {
+  color: var(--accent, #2f6b4a);
+}
+.planning-checklist-text {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+.planning-checklist-text strong {
+  font-size: 14.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.planning-checklist-text small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.planning-checklist-row.is-done .planning-checklist-text strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.planning-checklist-row.is-overdue .planning-checklist-text small {
+  color: #9a4b16;
+  font-weight: 600;
+}
+.planning-checklist-add {
+  background: var(--soft, #f4f6f3);
+  border: 1px solid var(--line, #e2e7e2);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 12px 14px;
+}
+.planning-checklist-add label {
+  display: grid;
+  flex: 1 1 12rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  gap: 6px;
+  min-width: 0;
+}
+.planning-checklist-add input {
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #d7ddd7);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  min-height: 40px;
+  padding: 8px 11px;
+  width: 100%;
+}
+.planning-checklist-add-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.planning-checklist-add-actions .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.planning-checklist-add small {
+  color: var(--muted);
+  flex: 1 1 100%;
+  font-size: 12.5px;
+}
+.planning-checklist-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+/* ── The studio's editor (Settings → Planning) ───────────────────────── */
+.planning-checklist-settings {
+  display: grid;
+  gap: 14px;
+}
+.planning-checklist-settings > .form-notice {
+  margin: 0;
+}
+.planning-checklist-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.planning-checklist-tier {
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #d7ddd7);
+  border-radius: 999px;
+  color: var(--ink-soft, #56605a);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 6px 14px;
+}
+.planning-checklist-tier.is-active {
+  background: var(--ink, #1d211e);
+  border-color: var(--ink, #1d211e);
+  color: #fff;
+}
+.planning-checklist-editor {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* The name takes the row; the timing wraps under it when the row is narrow. */
+.planning-checklist-editor-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line, #e2e7e2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding-bottom: 8px;
+}
+.planning-checklist-editor-title {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.planning-checklist-editor-when {
+  align-items: center;
+  display: flex;
+  flex: 0 1 auto;
+  gap: 6px;
+}
+.planning-checklist-editor input,
+.planning-checklist-editor select {
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #d7ddd7);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 7px 10px;
+}
+.planning-checklist-editor-title input {
+  width: 100%;
+}
+.planning-checklist-editor-when input {
+  width: 4.5rem;
+}
+.planning-checklist-editor-remove {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+.planning-checklist-editor-actions .button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}

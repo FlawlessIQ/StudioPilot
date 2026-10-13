@@ -88,6 +88,7 @@ import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray
 import { ProjectJobPlan } from "@/components/projects/project-job-plan";
 import { ParticipantRoster } from "@/components/group-events/participant-roster";
 import { VendorTeamPanel } from "@/components/vendors/vendor-team-panel";
+import { PlanningChecklistPanel } from "@/components/planning/planning-checklist-panel";
 import { ProjectShotList } from "@/components/projects/project-shot-list";
 import { ProjectPlanningCopilot } from "@/components/projects/project-planning-copilot";
 import { crmProjects } from "@/config/crm-demo-data";
@@ -1923,6 +1924,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           />
           {/* The wedding's other vendors: quiet until the studio adds one (components/vendors). */}
           <VendorTeamPanel projectId={projectId} state={state} />
+          <PlanningChecklistPanel project={project} projectId={projectId} tasks={related.tasks} />
           <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />
           {leadInviteEl}
           {trialInviteEl}
@@ -1961,6 +1963,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
             />
             {/* The wedding's other vendors: quiet until the studio adds one (components/vendors). */}
             <VendorTeamPanel projectId={projectId} state={state} />
+            <PlanningChecklistPanel project={project} projectId={projectId} tasks={related.tasks} />
             {/* Group events: each parent pays (features/group-events). Renders
                 nothing on a job that doesn't offer a roster. */}
             <ParticipantRoster project={project} projectId={projectId} tenantId={workspace.tenantId} />

@@ -13,6 +13,7 @@
 @import "./studiocue-reimagined.css";
 @import "./confirm-step.css";
 @import "./vendor-team.css";
+@import "./planning-checklist.css";
 @source "../app";
 @source "../components";
 @source "../features";

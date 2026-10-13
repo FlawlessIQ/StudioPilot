@@ -76,6 +76,7 @@ import { templateLinkProblems } from "./template-rules.js";
 import { eventZone } from "./day-clock.js";
 import { importVendorsFromForm, isVendorTeamCommand, refreshVendorOnTeams, runVendorTeamCommand, vendorTeamCommands } from "./vendor-team.js";
 import { VENDOR_SECTION_FIELD_ID } from "./vendor-section.js";
+import { CHECKLIST_KEY_PATTERN, CHECKLIST_LIMITS, CHECKLIST_SCOPES, CHECKLIST_UNITS, checklistFor, checklistProblem } from "./planning-checklist.js";
 
 const item = z.object({
   id: z.string(),
@@ -632,6 +633,31 @@ const command = z.discriminatedUnion("type", [
       vendorContactId: z.string().min(1),
     }),
   }),
+  z.object({
+    /**
+     * The studio's own planning checklist for a tier (planning-checklist.ts):
+     * its items and how long before the day each falls due. Null puts the
+     * starter list back. Owner or admin, for a trade that sells planning.
+     * Jobs already booked keep the checklist they were given.
+     */
+    type: z.literal("setPlanningChecklist"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: z.object({
+      scope: z.enum(CHECKLIST_SCOPES),
+      items: z
+        .array(
+          z.object({
+            key: z.string().regex(CHECKLIST_KEY_PATTERN),
+            title: z.string().trim().min(CHECKLIST_LIMITS.titleMin).max(CHECKLIST_LIMITS.titleMax),
+            amount: z.number().int().min(1).max(CHECKLIST_LIMITS.weeks),
+            unit: z.enum(CHECKLIST_UNITS),
+          }),
+        )
+        .max(CHECKLIST_LIMITS.items)
+        .nullable(),
+    }),
+  }),
   // A wedding's vendor team and its timeline sends (vendor-team.ts).
   ...vendorTeamCommands,
 ]);
@@ -740,6 +766,41 @@ export const planningCommand = onRequest(
         });
         await batch.commit();
         result = { planningTimeline: parsed.input };
+      } else if (parsed.type === "setPlanningChecklist") {
+        if (!["studio_owner", "studio_admin"].includes(role)) throw new Error("FORBIDDEN");
+        const tenantReference = db.doc(`tenants/${parsed.tenantId}`);
+        const tenantSnapshot = await tenantReference.get();
+        // Only a trade that sells planning tiers has a checklist (trades.ts planningScope).
+        if (!tradeProfile(tenantSnapshot.get("trade")).planningScope) throw new Error("FORBIDDEN");
+        const items = parsed.input.items;
+        const problem = items === null ? null : checklistProblem(items);
+        if (problem) throw new Error(`PLANNING_CHECKLIST_INVALID: ${problem}`);
+        const lists = plainRecord(tenantSnapshot.get("planningChecklists"));
+        const before = lists[parsed.input.scope] ?? null;
+        const saved = { items, updatedAt: now, updatedBy: identity.uid };
+        const auditId = stable("audit_planning_checklist", parsed.tenantId, parsed.idempotencyKey);
+        const batch = db.batch();
+        batch.set(tenantReference, { planningChecklists: { [parsed.input.scope]: saved } }, { merge: true });
+        batch.set(db.doc(`auditEvents/${auditId}`), {
+          id: auditId,
+          tenantId: parsed.tenantId,
+          projectId: null,
+          actorId: identity.uid,
+          actorType: "user",
+          action: "tenant.planning_checklist_updated",
+          entityType: "tenant",
+          entityId: parsed.tenantId,
+          timestamp: now,
+          before,
+          after: { scope: parsed.input.scope, items },
+          ipAddress: null,
+          userAgent: null,
+          correlationId: auditId,
+          automationRunId: null,
+          providerEventId: null,
+        });
+        await batch.commit();
+        result = { scope: parsed.input.scope, items: checklistFor({ [parsed.input.scope]: saved }, parsed.input.scope) };
       } else if (parsed.type === "requestShotList") {
         // "Ask now" on the job (shot-list-upload.ts): the same request the
         // day's sweep sends, once per job.
