@@ -441,6 +441,59 @@ const RATIO_WORD = /\b(?:per|each|every|a|an)\b/i;
 const VENDOR_HOURS =
   /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)\b(?!\s+(?:notice|before|prior|in\s+advance|ahead))/i;
 
+
+/**
+ * A list of several packages, read from what the studio pasted: the lines
+ * under one package's own heading ("Full Planning — $6,500" then its
+ * paragraph), and an Extras section every package shares. The AI split Bloom
+ * Events' list into three packages and kept only each name and price — the
+ * description read "Full Planning 6,500", the hours were lost and the three
+ * extras were dropped (UAT 2026-10-13). Nothing here is invented: every word
+ * and price is the studio's own.
+ */
+const PRICED_HEADING = /\$\s*\d/;
+const EXTRAS_HEADING = /^(?:extras|add[- ]?ons|optional extras|enhancements|à la carte|a la carte)\b[:\s]*$/i;
+
+export function packageSection(sourceText: string, name: string): string {
+  const lines = sourceText.split(/\r?\n/).map((line) => line.trim());
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return "";
+  const start = lines.findIndex((line) => line.toLowerCase().startsWith(wanted) && PRICED_HEADING.test(line));
+  if (start < 0) return "";
+  const body: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!line || EXTRAS_HEADING.test(line) || PRICED_HEADING.test(line) && /\s[—–-]\s/.test(line) && line.length < 80) break;
+    body.push(line);
+  }
+  return body.join(" ").slice(0, 3000);
+}
+
+export function sharedExtras(sourceText: string): Array<{ name: string; cents: number; unit: string | null; detail: string }> {
+  const lines = sourceText.split(/\r?\n/).map((line) => line.trim());
+  const start = lines.findIndex((line) => EXTRAS_HEADING.test(line));
+  if (start < 0) return [];
+  const extras: Array<{ name: string; cents: number; unit: string | null; detail: string }> = [];
+  for (const line of lines.slice(start + 1)) {
+    if (!line) break;
+    const match = /^(.+?)\s*[—–:-]\s*\$\s*([\d,]+(?:\.\d{1,2})?)(?:\s*(?:per|\/|an?|each)\s+([a-z]+))?/i.exec(line);
+    if (!match) continue;
+    const cents = Math.round(Number(match[2]!.replace(/,/g, "")) * 100);
+    if (!(cents > 0)) continue;
+    extras.push({ name: match[1]!.trim().slice(0, 120), cents, unit: match[3]?.toLowerCase() ?? null, detail: "" });
+    if (extras.length >= MAX_IMPORTED_ADD_ONS) break;
+  }
+  return extras;
+}
+
+/** A planner's tier, from what the package is called (features/planning/planning-scope.ts). */
+export function planningScopeFromName(name: string): "full" | "partial" | "coordination" | null {
+  const value = name.toLowerCase();
+  if (/\b(?:month|day|week)[- ]of\b|\bcoordinat/.test(value)) return "coordination";
+  if (/\bpartial\b/.test(value)) return "partial";
+  if (/\bfull\b/.test(value)) return "full";
+  return null;
+}
+
 export function importedStudioPackage(input: {
   name: string;
   structuredContent: unknown;
@@ -523,9 +576,17 @@ export function importedStudioPackage(input: {
       ].map((item) => (item.detail ? `${item.name} — ${item.detail}` : item.name))
     : [];
   const addOnIds = new Set<string>();
-  const addOns: ImportedAddOn[] = base
-    ? priced
-        .filter((item) => item !== base)
+  // One package of several on a vendor's list: its own paragraph and the
+  // list's shared extras, from the studio's text (packageSection above).
+  const pasted = text(input.sourceText);
+  const ownSection = vendor && !base ? packageSection(pasted, input.name) : "";
+  const listExtras =
+    vendor && !base
+      ? sharedExtras(pasted).map((extra) => ({ name: extra.name, detail: extra.detail, cents: extra.cents, byQuantity: Boolean(extra.unit), unit: extra.unit }))
+      : [];
+  const addOnSource = base ? priced.filter((item) => item !== base) : listExtras;
+  const addOns: ImportedAddOn[] = addOnSource.length
+    ? addOnSource
         .map((item) => {
           const stem = `${input.addOnIdPrefix ?? "imported_addon"}_${slugOf(item.name)}`;
           let id = stem;
@@ -546,7 +607,13 @@ export function importedStudioPackage(input: {
   // What the package itself says, without its extras' lines. A draft
   // description that walks through the extras too is the list again, not
   // the package.
-  const ownDescription = text(content.description);
+  // "Full Planning 6,500" is the name and the price again, not a description.
+  const draftDescription = text(content.description);
+  const ownDescription =
+    ownSection &&
+    (!draftDescription || draftDescription.replace(/[\d,.$\s]/g, "").toLowerCase() === input.name.replace(/\s/g, "").toLowerCase())
+      ? ownSection
+      : draftDescription;
   const packageDescription =
     base &&
     addOns.some((addOn) =>
@@ -615,7 +682,7 @@ export function importedStudioPackage(input: {
    * 1 hour" from a list that never mentioned hours (2026-10-10). Zero is
    * unstated: the agreement, the quote and the package lists skip it.
    */
-  const vendorHours = Number(packageText.match(VENDOR_HOURS)?.[1]);
+  const vendorHours = Number((ownSection || packageText).match(VENDOR_HOURS)?.[1]);
   const includedCoverageMinutes = vendor
     ? vendorHours > 0 && vendorHours <= 24
       ? Math.round(vendorHours * 60)
@@ -656,9 +723,14 @@ export function importedStudioPackage(input: {
     includedPhotographers,
     includedDeliverables: base
       ? inclusions.slice(0, 40)
-      : details.length
-        ? details.slice(0, 40)
-        : [description],
+      : ownSection
+        ? ownSection.split(/[:;,]\s+|\.\s+/).map((part) => part.trim()).filter((part) => part.length > 2).slice(0, 40)
+        : details.length
+          ? details.slice(0, 40)
+          : [description],
+    // A planner's tier, from the package's name (planning-scope.ts): the
+    // checklist and when the Final details form goes out both follow it.
+    ...(trade === "planner" && planningScopeFromName(input.name) ? { planningScope: planningScopeFromName(input.name) } : {}),
     includedTravelArea: text(content.travelArea),
     addOns,
     taxRateBasisPoints: 0,
