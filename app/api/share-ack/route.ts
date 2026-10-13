@@ -56,7 +56,9 @@ export async function POST(request: Request): Promise<Response> {
   if (outcome.status === "already") {
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com")
       .replace(/\/$/, "");
-    return Response.redirect(`${appUrl}/share/confirmed`, 303);
+    // Back to their own timeline, which now reads "Confirmed": a page of its
+    // own left them nowhere to go (Conor, 2026-10-13).
+    return Response.redirect(`${appUrl}/share/${encodeURIComponent(token)}?confirmed=1`, 303);
   }
   if (outcome.status !== "claimed") {
     return Response.json(
@@ -89,5 +91,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://studio-cue.com")
     .replace(/\/$/, "");
-  return Response.redirect(`${appUrl}/share/confirmed`, 303);
+  // Back to their own timeline, which now reads "Confirmed": a page of its
+    // own left them nowhere to go (Conor, 2026-10-13).
+    return Response.redirect(`${appUrl}/share/${encodeURIComponent(token)}?confirmed=1`, 303);
 }

@@ -50,10 +50,14 @@ function Unavailable({ title, body }: { title: string; body: string }) {
 
 export default async function RunOfShowSharePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams?: Promise<{ confirmed?: string }>;
 }) {
   const { token } = await params;
+  // Just confirmed (POST /api/share-ack sends them back here): say so at the top.
+  const justConfirmed = (await searchParams)?.confirmed === "1";
   const now = new Date().toISOString();
 
   const snapshot = await adminFirestore
@@ -170,6 +174,12 @@ export default async function RunOfShowSharePage({
         {eventDay ? <span className="ros-day"> · {eventDay}</span> : null}
       </h1>
       {venue ? <p className="ros-venue">{venue}</p> : null}
+
+      {justConfirmed && acknowledged ? (
+        <p className="ros-confirmed ros-confirmed-banner" role="status">
+          {`✓ You’re confirmed. ${studioName} has been notified, and if anything changes they’ll send you the update.`}
+        </p>
+      ) : null}
 
       {/* When the planner owns the day, this page is the photography plan, not
           the timeline everyone follows. Saying so here stops a vendor working
