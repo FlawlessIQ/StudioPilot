@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { collection, limit, query } from "firebase/firestore";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, Plus } from "lucide-react";
+import { Copy, Download, Plus, Upload } from "lucide-react";
 import {
   PARTNER_RATE_CENTS,
   PARTNER_TIER_AFTER,
@@ -21,16 +21,18 @@ import {
   type PayoutMethod,
   type ReferralStage,
 } from "@/features/console/partner-payouts";
+import { PARTNER_EXPORT_HEADER, partnerExportRows } from "@/features/console/partner-import";
 import { normalizeReferralCode, OFFER_SUMMARY } from "@/features/subscriptions/referral-program";
 import { money, shortDate } from "@/lib/console/format";
 import { useLiveQuery } from "@/lib/console/live";
-import { studioHref } from "@/lib/console/studio-display";
+import { downloadCsv, studioHref, toCsv } from "@/lib/console/studio-display";
 import { useNow } from "@/lib/console/use-now";
 import { useConsole } from "../console-context";
 import { DataTable } from "../data-table";
 import { ConfirmDialog, Drawer } from "../overlay";
 import { Button, Empty, KV, Notice, PageHead, Panel, Pill, Stat, StatStrip, Tag } from "../ui";
 import { useCommand } from "../use-command";
+import { PartnerImportDrawer } from "./partner-import-drawer";
 
 /**
  * Referral partners (features/console/partner-payouts.ts has the rules):
@@ -83,8 +85,8 @@ export function NewPartnerButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function PartnersTab({ open, setOpen }: { open: "new" | string | null; setOpen: (next: "new" | string | null) => void }) {
-  const { toast } = useConsole();
+export function PartnersTab({ open, setOpen }: { open: "new" | "import" | string | null; setOpen: (next: "new" | "import" | string | null) => void }) {
+  const { can, toast } = useConsole();
   const partners = useLiveQuery<Partner>("console:partners", (firestore) => query(collection(firestore, "saasPartners"), limit(5000)));
   const payouts = useLiveQuery<Payout>("console:partner-payouts", (firestore) => query(collection(firestore, "saasPartnerPayouts"), limit(10000)));
   const referrals = useLiveQuery<Referral>("console:referrals", (firestore) => query(collection(firestore, "saasReferrals"), limit(10000)));
@@ -111,6 +113,22 @@ export function PartnersTab({ open, setOpen }: { open: "new" | string | null; se
       ?.writeText(partnerSignupLink(origin(), code))
       .then(() => toast(`Signup link for ${code} copied.`, "ok"))
       .catch(() => undefined);
+
+  /** Every partner, or just the codes given, with their signup links: a spreadsheet or an agent like Muse reads it. */
+  const exportPartners = (codes?: string[]) => {
+    const wanted = codes ? new Set(codes) : null;
+    const chosen = rows.filter((row) => !wanted || wanted.has(row.code));
+    downloadCsv(
+      `studiocue-partners-${new Date().toISOString().slice(0, 10)}.csv`,
+      toCsv(
+        PARTNER_EXPORT_HEADER,
+        partnerExportRows(
+          origin(),
+          chosen.map((row) => ({ ...row, signedUp: row.tally.signedUp, counted: row.tally.counted, owedCents: row.tally.owedCents })),
+        ),
+      ),
+    );
+  };
 
   const columns = useMemo<ColumnDef<Row, unknown>[]>(
     () => [
@@ -166,7 +184,7 @@ export function PartnersTab({ open, setOpen }: { open: "new" | string | null; se
     [],
   );
 
-  const current = open && open !== "new" ? rows.find((row) => row.id === open) ?? null : null;
+  const current = open && open !== "new" && open !== "import" ? rows.find((row) => row.id === open) ?? null : null;
 
   return (
     <>
@@ -183,6 +201,16 @@ export function PartnersTab({ open, setOpen }: { open: "new" | string | null; se
       <p className="cx-page-intro">
         {`Planners, DJs, hair and makeup artists who send photographers our way. A photographer who signs up with a partner's code gets ${OFFER_SUMMARY}. A referral counts once that photographer has been paying for 3 months and still is. The partner earns ${money(PARTNER_RATE_CENTS)} per referral that counts; past ${PARTNER_TIER_AFTER}, every one is ${money(PARTNER_TOP_RATE_CENTS)}, the first ${PARTNER_TIER_AFTER} included. You pay them yourself and record it here.`}
       </p>
+      <div className="cx-inline">
+        {can("codes.write") ? (
+          <Button onClick={() => setOpen("import")}>
+            <Upload size={13} /> Import a spreadsheet
+          </Button>
+        ) : null}
+        <Button disabled={!rows.length} onClick={() => exportPartners()}>
+          <Download size={13} /> Export with signup links
+        </Button>
+      </div>
       <DataTable
         columns={columns}
         empty={<Empty title="No partners yet">{"Make a code for each planner, DJ, hair or makeup artist who'll share StudioCue with photographers."}</Empty>}
@@ -193,6 +221,9 @@ export function PartnersTab({ open, setOpen }: { open: "new" | string | null; se
         onRowClick={(row) => setOpen(row.id)}
         rows={partners.rows ? rows : null}
       />
+      {open === "import" ? (
+        <PartnerImportDrawer existing={partners.rows ?? []} onClose={() => setOpen(null)} onDownload={exportPartners} />
+      ) : null}
       {open === "new" ? <PartnerDrawer key="new" onClose={() => setOpen(null)} onCreated={(id) => setOpen(id)} partner={null} /> : null}
       {current ? (
         <PartnerDrawer

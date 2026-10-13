@@ -66,6 +66,87 @@ export const partnerHandlers = {
     },
   }),
 
+  /**
+   * Many at once, from a spreadsheet (features/console/partner-import.ts reads
+   * it; the Console sends it in chunks). Each row stands alone: one taken code
+   * or one existing partner never stops the rest. A code the Console made gets
+   * a number on the end if it turns out to be taken; a code from the sheet is
+   * the partner's choice, so it is refused instead.
+   */
+  createPartners: consoleHandler({
+    capability: "codes.write",
+    input: z.object({
+      partners: z.array(partnerFields.extend({ code: z.string().trim().min(1).max(40), codeMade: z.boolean().default(false) })).min(1).max(100),
+    }),
+    async run({ db, identity, now }, input) {
+      const existing = await db.collection("saasPartners").select("email", "code").get();
+      const emails = new Map(existing.docs.filter((doc) => doc.get("email")).map((doc) => [String(doc.get("email")).toLowerCase(), String(doc.get("code"))]));
+      const results: Array<{ index: number; partnerId?: string; code?: string; skipped?: string; error?: string }> = [];
+      for (const [index, row] of input.partners.entries()) {
+        const email = row.email ?? null;
+        const known = email ? emails.get(email) : undefined;
+        if (known) {
+          results.push({ index, code: known, skipped: "ALREADY_PARTNER" });
+          continue;
+        }
+        const stem = normalizeReferralCode(row.code);
+        if (!stem) {
+          results.push({ index, error: "PARTNER_CODE_INVALID" });
+          continue;
+        }
+        try {
+          const reference = db.collection("saasPartners").doc();
+          let made: string | null = null;
+          for (let attempt = 1; attempt <= (row.codeMade ? 20 : 1) && !made; attempt += 1) {
+            const suffix = attempt === 1 ? "" : String(attempt);
+            const code = `${stem.slice(0, 20 - suffix.length)}${suffix}`;
+            if (await codeTaken(db, code)) continue;
+            const codeReference = db.doc(`saasReferralCodes/${code}`);
+            made = await db.runTransaction(async (transaction) => {
+              if ((await transaction.get(codeReference)).exists) return null;
+              transaction.create(codeReference, { code, partnerId: reference.id, createdAt: now });
+              transaction.create(reference, {
+                id: reference.id,
+                code,
+                name: row.name,
+                business: row.business ?? null,
+                email,
+                phone: row.phone ?? null,
+                type: row.type,
+                payoutHandle: row.payoutHandle ?? null,
+                notes: row.notes ?? null,
+                active: true,
+                createdAt: now,
+                createdBy: identity.uid,
+                updatedAt: now,
+                importedAt: now,
+              });
+              return code;
+            });
+          }
+          if (!made) {
+            results.push({ index, error: "CODE_TAKEN" });
+            continue;
+          }
+          if (email) emails.set(email, made);
+          results.push({ index, partnerId: reference.id, code: made });
+        } catch (caught) {
+          results.push({ index, error: caught instanceof Error ? caught.message : "FAILED" });
+        }
+      }
+      const created = results.filter((result) => result.partnerId);
+      return {
+        result: { results },
+        audit: {
+          tenantId: null,
+          entityType: "referral_partner",
+          entityId: "import",
+          after: { created: created.length, skipped: results.filter((result) => result.skipped).length, failed: results.filter((result) => result.error).length, codes: created.map((result) => result.code) },
+        },
+      };
+    },
+  }),
+
   /** Their details, and whether the code still works. The code itself never changes: it's on links already sent. */
   updatePartner: consoleHandler({
     capability: "codes.write",

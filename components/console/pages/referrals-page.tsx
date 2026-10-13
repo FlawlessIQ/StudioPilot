@@ -52,7 +52,7 @@ const stateOf = (row: Referral): State => (row.creditedAt ? "credited" : row.for
 
 export function ReferralsPage() {
   const [tab, setTab] = useState<"partners" | "studios">("partners");
-  const [partner, setPartner] = useState<"new" | string | null>(null);
+  const [partner, setPartner] = useState<"new" | "import" | string | null>(null);
   return (
     <>
       <Topbar crumbs={[{ label: "Grow" }, { label: "Referrals" }]}>
