@@ -31,7 +31,7 @@ export const PARTNER_VENDOR_TOP_RATE_CENTS = 10_000;
 /** More than this many referrals that count, and every one earns the top rate. */
 export const PARTNER_TIER_AFTER = 10;
 
-export const PARTNER_TYPES = ["planner", "dj", "hair", "makeup", "other"] as const;
+export const PARTNER_TYPES = ["planner", "dj", "hair", "makeup", "other", "team"] as const;
 export type PartnerType = (typeof PARTNER_TYPES)[number];
 export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
   planner: "Planner",
@@ -39,7 +39,17 @@ export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
   hair: "Hair",
   makeup: "Makeup",
   other: "Other",
+  team: "Our team",
 };
+
+/**
+ * Our own codes (Conor, 2026-10-14: "a code for Gabe and a code for myself so
+ * that we can start sending emails ourselves … and track our own
+ * performance"): counted like any partner's, never paid.
+ */
+export function partnerIsPaid(type: PartnerType | string | null | undefined): boolean {
+  return type !== "team";
+}
 
 export const PAYOUT_METHODS = ["venmo", "zelle", "paypal", "check", "bank", "other"] as const;
 export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
@@ -116,12 +126,13 @@ export type PartnerTally = {
 };
 
 /** One partner's referrals and payouts, added up. */
-export function partnerTally(referrals: readonly PartnerReferral[], payouts: readonly PartnerPayout[]): PartnerTally {
+export function partnerTally(referrals: readonly PartnerReferral[], payouts: readonly PartnerPayout[], options: { paid?: boolean } = {}): PartnerTally {
+  const paid = options.paid !== false;
   const stages = referrals.map(referralStage);
   const counted = stages.filter((stage) => stage === "counts").length;
   const countedVendors = referrals.filter((referral, index) => stages[index] === "counts" && referredVendor(referral)).length;
-  const rateCents = partnerRateCents(counted);
-  const vendorRateCents = partnerVendorRateCents(counted);
+  const rateCents = paid ? partnerRateCents(counted) : 0;
+  const vendorRateCents = paid ? partnerVendorRateCents(counted) : 0;
   const earnedCents = (counted - countedVendors) * rateCents + countedVendors * vendorRateCents;
   const paidCents = payouts.reduce((sum, payout) => sum + Math.max(0, Math.round(Number(payout.amountCents) || 0)), 0);
   return {

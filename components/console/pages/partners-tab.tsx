@@ -17,6 +17,7 @@ import {
   PAYOUT_METHOD_LABELS,
   REFERRAL_STAGE_LABELS,
   partnerSignupLink,
+  partnerIsPaid,
   partnerTally,
   referralStage,
   referredVendor,
@@ -103,7 +104,7 @@ export function PartnersTab({ open, setOpen }: { open: "new" | "import" | string
     }
     return (partners.rows ?? []).map((partner) => {
       const own = byPartner.get(partner.id) ?? [];
-      return { ...partner, referrals: own, tally: partnerTally(own, (payouts.rows ?? []).filter((payout) => payout.partnerId === partner.id)) };
+      return { ...partner, referrals: own, tally: partnerTally(own, (payouts.rows ?? []).filter((payout) => payout.partnerId === partner.id), { paid: partnerIsPaid(partner.type) }) };
     });
   }, [partners.rows, payouts.rows, referrals.rows]);
   type Row = (typeof rows)[number];
@@ -176,7 +177,7 @@ export function PartnersTab({ open, setOpen }: { open: "new" | "import" | string
       { id: "signed", header: "Signed up", accessorFn: (row) => row.tally.signedUp, meta: { width: 90, priority: 2 } },
       { id: "paying", header: "Paying", accessorFn: (row) => row.tally.paying, meta: { width: 80, priority: 3 } },
       { id: "counts", header: "Count", accessorFn: (row) => row.tally.counted, meta: { width: 80 } },
-      { id: "rate", header: "Rate", accessorFn: (row) => row.tally.rateCents, meta: { width: 80, priority: 3 }, cell: ({ row }) => money(row.original.tally.rateCents) },
+      { id: "rate", header: "Rate", accessorFn: (row) => row.tally.rateCents, meta: { width: 80, priority: 3 }, cell: ({ row }) => (partnerIsPaid(row.original.type) ? money(row.original.tally.rateCents) : "Not paid") },
       {
         id: "owed",
         header: "Owed",
@@ -342,7 +343,7 @@ function PartnerDrawer({
                 ["Count", tally.toTopRate > 0 ? `${tally.counted}, ${tally.toTopRate} more to reach the top rate (${money(PARTNER_TOP_RATE_CENTS)} a photographer, ${money(PARTNER_VENDOR_TOP_RATE_CENTS)} a vendor)` : `${tally.counted}, at the top rate`],
                 [
                   "Earned",
-                  `${money(tally.earnedCents)} (${[
+                  !partnerIsPaid(partner.type) ? "Our own code: counted, never paid" : `${money(tally.earnedCents)} (${[
                     tally.counted - tally.countedVendors ? `${tally.counted - tally.countedVendors} photographer${tally.counted - tally.countedVendors === 1 ? "" : "s"} × ${money(tally.rateCents)}` : null,
                     tally.countedVendors ? `${tally.countedVendors} vendor${tally.countedVendors === 1 ? "" : "s"} × ${money(tally.vendorRateCents)}` : null,
                   ]

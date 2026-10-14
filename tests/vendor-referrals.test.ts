@@ -85,3 +85,18 @@ test("the old prices are gone from the site, the signup says half price, and the
   assert.match(codes, /\["studio", "multi_brand", "vendor"\]/);
   assert.match(codes, /a code made here gives it with nobody paid/);
 });
+
+test("our own codes are tracked like a partner's and never paid", async () => {
+  const { partnerIsPaid, PARTNER_TYPE_LABELS } = await import("../features/console/partner-payouts.ts");
+  const { partnerTypeFromLabel } = await import("../features/console/partner-import.ts");
+  const ours = partnerTally([counted("studio"), counted("vendor"), { partnerId: "p1", signedUpAt: "x" }], [], { paid: false });
+  assert.deepEqual([ours.signedUp, ours.counted, ours.earnedCents, ours.owedCents, ours.rateCents], [3, 2, 0, 0, 0]);
+  assert.equal(partnerIsPaid("team"), false);
+  assert.equal(partnerIsPaid("dj"), true);
+  assert.equal(PARTNER_TYPE_LABELS.team, "Our team");
+  assert.equal(partnerTypeFromLabel("Team"), "team");
+  assert.equal(partnerTypeFromLabel("Internal"), "team");
+  assert.equal(partnerTypeFromLabel("Venue owner, 10 hours"), "other");
+  assert.match(read("functions/src/console/handlers/partners.ts"), /"other", "team"\] as const/);
+  assert.match(read("components/console/pages/partners-tab.tsx"), /\{ paid: partnerIsPaid\(partner\.type\) \}/);
+});

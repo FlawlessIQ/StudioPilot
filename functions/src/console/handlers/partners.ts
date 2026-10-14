@@ -14,7 +14,8 @@ import { codeTaken } from "./codes.js";
  * a payout is recorded here so the Console knows what is still owed.
  */
 
-const PARTNER_TYPES = ["planner", "dj", "hair", "makeup", "other"] as const;
+// "team": our own codes, counted and never paid (features/console/partner-payouts.ts).
+const PARTNER_TYPES = ["planner", "dj", "hair", "makeup", "other", "team"] as const;
 const PAYOUT_METHODS = ["venmo", "zelle", "paypal", "check", "bank", "other"] as const;
 const text = (max: number) => z.string().trim().max(max).nullable().optional();
 

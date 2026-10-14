@@ -90,6 +90,7 @@ export function partnerTypeFromLabel(raw: string): PartnerType {
   find(/\bdj\b|disc ?jockey|deejay|music|entertain/, "dj");
   find(/hair|stylist|salon/, "hair");
   find(/make ?up|\bmua\b|beauty|cosmetic/, "makeup");
+  find(/\bteam\b|\binternal\b|\bours?\b/, "team");
   hits.sort((a, b) => a[0] - b[0]);
   return hits[0]?.[1] ?? "other";
 }
