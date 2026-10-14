@@ -35,7 +35,7 @@ import {
   visibleQuestionnaireSections,
 } from "@/features/questionnaires/client-form";
 import { outstandingRequired } from "@/features/questionnaires/outstanding";
-import { BEFORE_KINDS, isJobKind, vocab } from "@/features/job-kinds/job-kinds";
+import { BEFORE_KINDS, isJobKind, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
 import { tradeVocab } from "@/features/trades/trades";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { scheduleZoneLabel } from "@/features/schedules/item-clock";
@@ -626,7 +626,12 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                   inputMode={field === "estimatedGuestCount" ? "numeric" : field === "phone" ? "tel" : undefined}
                   key={field}
                   label={
-                    (field === "eventDate" ? vocab(preview.eventKind).dateAsk : null) ?? fieldCopy[field].label
+                    (field === "eventDate"
+                      ? vocab(preview.eventKind).dateAsk
+                      : // A mitzvah's venue is the party's: the service is at the synagogue.
+                        field === "venue" && journeyProfile(kindForWords).honoree
+                        ? "Party venue"
+                        : null) ?? fieldCopy[field].label
                   }
                   min={field === "estimatedGuestCount" ? 1 : undefined}
                   name={field}

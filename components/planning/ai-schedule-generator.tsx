@@ -48,7 +48,7 @@ import {
 import { planBuiltDay } from "@/features/schedules/built-day";
 import { planMitzvahNight } from "@/features/schedules/mitzvah-plan";
 import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
-import { jobKindOf, vocab } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
 import {
   WEDDING_STANDARD_MOMENTS,
   dayPlanOf,
@@ -1339,11 +1339,12 @@ export function AiScheduleGenerator({
               <>
                 <h2>{mcScript ? "Lay out the night" : chairs ? "Lay out the morning" : "Lay out the day"}</h2>
                 <p>
+                  {/* In the job's words: "the family’s" for a mitzvah (job-kinds.ts). */}
                   {mcScript
-                    ? "Built from the couple’s times and their Music & moments planner: the running order, with their songs and names on each line. Every line is yours to change."
+                    ? `Built from ${vocab(jobKindOf(selectedProject)).clientFallback}’s times and their ${dayPlanOf(selectedProject) === "mitzvah" ? "music & MC planner" : "Music & moments planner"}: the running order, with their songs and names on each line. Every line is yours to change.`
                     : chairs
-                      ? "Built from their party list: everyone's chair, worked back from when they need to be ready, the bride in the middle. Every line is yours to change."
-                    : "Built from the couple’s Final Schedule answers, and only those. Ask for suggested times for anything they left out. Every line is yours to change."}
+                      ? `Built from their party list: everyone's chair, worked back from when they need to be ready${journeyProfile(jobKindOf(selectedProject)).partner ? ", the bride in the middle" : ""}. Every line is yours to change.`
+                    : `Built from ${vocab(jobKindOf(selectedProject)).clientFallback}’s Final Schedule answers, and only those. Ask for suggested times for anything they left out. Every line is yours to change.`}
                 </p>
               </>
             ) : (

@@ -33,7 +33,65 @@ kind (quinceañera, sweet 16) then costs one row per table.
 | 3: photo/video planning | **Built 2026-10-14.** 4355 tests, typecheck, functions build, lint and the production build pass. Not deployed. |
 | 4: other trades | **Built 2026-10-14.** Not deployed. |
 | 5: agreements | **Built 2026-10-14 as a draft for counsel.** Not deployed. |
-| 6: walk | Not started |
+| 6: walk | **Photographer walked on prod 2026-10-14** (FlawlessIQ, Rachel Cohen / Sam's bar mitzvah). Fixes committed, not deployed. DJ, beauty and planner walks are still owed. |
+
+**The prod walk, 2026-10-14** (photographer, FlawlessIQ, conor+mitzvah@)
+
+Worked:
+- The kind in Settings → Job types, with wedding-weight fields.
+- The three forms seeded when the type was saved.
+- The public form's "Who are we celebrating?" and "Which is it?".
+- The /i/ page: "Hi Rachel — tell us about Sam's bar mitzvah".
+- The AI reply: "Sam's bar mitzvah photography".
+- The journey's "Mitzvah details form".
+- The contract step's "Mitzvah details not given yet… Ask the family", and
+  the wedding-agreement warning.
+- Schedule A "Mitzvah details" (Service, Party, Times) and Schedule B, in
+  the prepared agreement.
+- "Mitzvah brief".
+- "There's no party start time yet", and the mitzvah moment chips.
+
+Fixed (one commit after this walk):
+1. **The job made when the inquiry arrived** (intake/convert.ts) dropped
+   the honoree and type. It now keeps them, and is named by the type
+   ("Rachel Cohen Bar mitzvah").
+2. **The job header** shows "Sam's bar mitzvah".
+3. **The contract's {{event.type}}** says "Bar mitzvah", not the studio's
+   "Bar or bat mitzvah".
+4. **Schedule B contradicted the studio's own terms.** FlawlessIQ's grant
+   it "all images… for competition, advertising". Schedule B now says it
+   governs where they differ, uses "the Studio" and "the Client", says
+   "many" not "most", and lists competitions.
+5. **The AI proposal draft offered to "document your service on Saturday
+   morning".** The prompt now forbids offering the service, and the draft
+   is given the honoree.
+6. **A reply declining a taken date still ended "pick a time to talk".**
+   The link is skipped on a conflict. This applied to every kind.
+7. **The studio's new-inquiry alert** now shows "Event: Bar mitzvah" and
+   "Celebrating: Sam".
+8. **Wedding words on a mitzvah job** now say the job, the family or the
+   client:
+   - the public form's "Event date" and "Venue", now "Party date" and
+     "Party venue" (and the /i/ venue)
+   - proposal Change packages: "Engagement shoot… this couple"
+   - "the couple signs both at once"
+   - the run-of-show "This wedding" eyebrow
+   - "Built from the couple's Final Schedule answers" and its DJ and
+     beauty siblings
+   - "This wedding stays off Today"
+
+Open, not fixed:
+- **Sending the details form with a new inquiry only works for weddings**
+  ("Send a form with new wedding inquiries", INQUIRY_FORM_EVENT_TYPES).
+  The "Mitzvah details" form says "Send it with new bar and bat mitzvah
+  inquiries", so that promise is false until the setting is per kind.
+- **FlawlessIQ's reply sign-off reads "Conor — GR Productions"** (studio
+  data).
+- "Workspace access could not be verified" showed once on Inquiry capture
+  and cleared on reload.
+- The public form's "Which is it?" could be clearer ("Bar or bat
+  mitzvah?").
+- New types are added below "General question".
 
 **What Phase 4 did** (4360 tests, typecheck, functions build, lint and build pass)
 - **The DJ: `mitzvah-music-planner`.** It asks:

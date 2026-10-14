@@ -171,7 +171,7 @@ export function TimelineAuthorityPanel({ scheduleId, projectId }: { scheduleId?:
     <section className="panel timeline-authority-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">This wedding</p>
+          <p className="eyebrow">This job</p>
           <h2>Whose timeline is the real one?</h2>
           <p>When there&rsquo;s a planner, their timeline may be the one everyone follows.</p>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { AMENDABLE_STATES, BookingAmendment } from "@/components/booking/booking-amendment";
-import { jobKindOf, journeyFor, journeyProfile, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyFor, journeyProfile, mitzvahOf, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
 import { eventDateLock } from "@/features/projects/event-date-lock";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
@@ -1826,7 +1826,11 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
               video-led ones. The event type is what the studio called it; the
               trade is not ours to add. */}
           <p>
-            {String(project.eventType)} · {displayDate(project.eventDate)}
+            {/* A mitzvah names itself and its child: "Sam's bar mitzvah" (job-kinds.ts). */}
+            {journeyProfile(jobKindOf(project)).honoree && mitzvahOf(project).type
+              ? vocab(jobKindOf(project), project).YourEvent
+              : String(project.eventType)}{" "}
+            · {displayDate(project.eventDate)}
           </p>
           {/* The five arcs, not fifteen states — the same model as the Jobs
               table's track (features/journey/phases.ts). The precise state is

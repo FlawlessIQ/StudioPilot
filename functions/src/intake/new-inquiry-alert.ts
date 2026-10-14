@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { studioNotificationAddress } from "../communications/notify-address.js";
+import { isMitzvahType, MITZVAH_TYPE_LABELS } from "../job-kinds/job-kinds.js";
 
 /**
  * Tell the studio a new inquiry arrived, by email.
@@ -94,6 +95,9 @@ export function formInquiryDetails(input: {
   phone: string | null;
   partnerName: string | null;
   eventTypeLabel: string | null;
+  /** Who a mitzvah celebrates, and which (job-kinds.ts): "Sam", "bar". */
+  honoreeName?: string | null;
+  mitzvahType?: string | null;
   venue: string | null;
   city: string | null;
   estimatedGuestCount: number | null;
@@ -114,7 +118,9 @@ export function formInquiryDetails(input: {
     ["Email", input.email],
     ["Phone", input.phone],
     ["Partner", input.partnerName],
-    ["Event", input.eventTypeLabel],
+    // Which mitzvah, when they said, rather than the studio's "Bar or bat mitzvah" (prod walk, 2026-10-14).
+    ["Event", isMitzvahType(input.mitzvahType) ? MITZVAH_TYPE_LABELS[input.mitzvahType] : input.eventTypeLabel],
+    ["Celebrating", input.honoreeName],
     ["Venue", input.venue],
     ["City", input.venue && input.city && input.venue.includes(input.city) ? null : input.city],
     ["Guests", input.estimatedGuestCount ? String(input.estimatedGuestCount) : null],

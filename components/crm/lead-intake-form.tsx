@@ -323,6 +323,9 @@ export function LeadIntakeForm({
   const [emailLeft, setEmailLeft] = useState(false);
   const emailFix = emailLeft ? suggestEmailFix(String(email)) : null;
   const chosenType = types.find((type) => type.id === typeKey) ?? null;
+  // A session's date, a mitzvah's party date (the service is often another
+  // day: prod walk, 2026-10-14), anything else's event date.
+  const dateLabel = chosenType?.kind === "portraits" ? "Session date" : asksHonoree(chosenType) ? "Party date" : "Event date";
   const day = dayFieldsFor(chosenType);
   const steps: StepKey[] = inquirySkipsDetails(chosenType) ? ["you", "more"] : ["you", "day", "more"];
   const stepIndex = Math.min(step, steps.length - 1);
@@ -663,15 +666,11 @@ export function LeadIntakeForm({
                     hint={day.eventDate === "required" ? "Tap to pick the date." : "Optional — leave it empty if you’re not sure yet."}
                     label={
                       day.eventDate === "required" ? (
-                        chosenType?.kind === "portraits" ? (
-                          <>Session date <span className="required-mark">Required</span></>
-                        ) : (
-                          <>Event date <span className="required-mark">Required</span></>
-                        )
-                      ) : chosenType?.kind === "portraits" ? (
-                        "Session date"
+                        <>
+                          {dateLabel} <span className="required-mark">Required</span>
+                        </>
                       ) : (
-                        "Event date"
+                        dateLabel
                       )
                     }
                     type="date"
@@ -681,7 +680,7 @@ export function LeadIntakeForm({
                 {day.venue ? (
                   <AddressField
                     hint="If you have chosen one. Start typing and pick from the list."
-                    label="Venue"
+                    label={asksHonoree(chosenType) ? "Party venue" : "Venue"}
                     onChange={applyVenue}
                     placeholder="Venue name or address"
                     source={{ kind: "public", tenantSlug }}

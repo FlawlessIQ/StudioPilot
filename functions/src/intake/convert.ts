@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { plausiblePersonName } from "./form-email.js";
 import { moveLeadThreadsToProject } from "./lead-thread.js";
-import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { jobKindOf, journeyProfile, MITZVAH_TYPE_LABELS, mitzvahOf } from "../job-kinds/job-kinds.js";
 import { budgetPrefillCents } from "../planning/vendor-team.js";
 
 /**
@@ -168,12 +168,20 @@ export async function convertInquiryToJob(
       });
     }
 
+    // Who a mitzvah celebrates, from the inquiry (job-kinds.ts `honoree`): the
+    // job was made without them, so it read "Bar or bat mitzvah" with no
+    // child (prod walk, 2026-10-14). The name says which mitzvah, when known.
+    const leadKind = jobKindOf({ eventKind: lead.get("eventKind"), eventTypeId: lead.get("eventTypeId"), eventTypeLabel });
+    const mitzvah = journeyProfile(leadKind).honoree ? mitzvahOf(lead.data()) : null;
+    const jobWord = mitzvah?.type ? MITZVAH_TYPE_LABELS[mitzvah.type] : eventTypeLabel;
+
     if (!existingProject.exists) {
       transaction.create(projectReference, {
         id: projectId,
         projectId,
         tenantId: input.tenantId,
-        name: `${displayName} ${eventTypeLabel}`.trim().slice(0, 160),
+        name: `${displayName} ${jobWord}`.trim().slice(0, 160),
+        ...(mitzvah ? { honoreeName: mitzvah.honoree, mitzvahType: mitzvah.type } : {}),
         eventTypeId: text(lead.get("eventTypeId")) || eventTypeLabel.toLowerCase(),
         eventType: eventTypeLabel,
         // The kind decides the job's words, steps and timings

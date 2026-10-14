@@ -145,6 +145,10 @@ export async function withInquiryLink(
     db.doc(`leads/${input.leadId}`).get(),
     db.doc(`tenants/${input.tenantId}`).get(),
   ]);
+  // The date is taken: the reply says so, and "pick a time to talk" under it
+  // contradicted it (prod walk, 2026-10-14). The studio adds a link by hand
+  // if it wants to offer another date.
+  if (kindLead.get("availabilityStatus") === "conflict") return { body: input.body, linked: false };
   const line = inquiryLinkLine(
     url,
     await inquiryLinkCarriesForm(db, input),

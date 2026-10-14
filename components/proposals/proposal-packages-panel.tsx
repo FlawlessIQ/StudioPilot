@@ -10,6 +10,7 @@ import { runProposalCommand } from "@/lib/proposals/command-client";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { extraIdeasFor } from "@/features/packages/extra-ideas";
 import { tradeOf, tradeVocab } from "@/features/trades/trades";
+import { jobKindOf, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
 import {
   REVISABLE_PROPOSAL_STATUSES,
   oneOffReplaceConfirmText,
@@ -362,7 +363,8 @@ export function ProposalPackagesPanel({
       {!agreementOut ? (
         <p className="proposal-packages-hint">
           {tradeOf(workspace.tenantTrade) === "photographer"
-            ? "Engagement shoot, photo booth, an extra hour? Add them to a package with Add extras — from your library, or written just for this couple."
+            ? // A couple's engagement shoot; any other client's photo booth (job-kinds.ts `partner`).
+              `${journeyProfile(jobKindOf(project)).partner ? "Engagement shoot" : "A guest book"}, photo booth, an extra hour? Add them to a package with Add extras — from your library, or written just for ${vocab(jobKindOf(project)).clientFallback.replace(/^the /, "this ")}.`
             : `${extraIdeasFor(workspace.tenantTrade)
                 .slice(0, 2)
                 .map((idea, index) => (index ? idea.name.toLowerCase() : idea.name))

@@ -133,3 +133,34 @@ test("Schedule B: the congregation's rules and children, in each trade's words, 
   const sourcesCode = readFileSync("functions/src/contracts/sources.ts", "utf8");
   assert.match(sourcesCode, /agreementTerms === "mitzvah"\s*\? \{ kindTerms: mitzvahTermsBlocks\(/);
 });
+
+test("what the prod walk of 2026-10-14 found stays fixed", async () => {
+  const read = (path: string) => readFileSync(path, "utf8");
+  // The job made when the inquiry arrives keeps who it celebrates, and names which mitzvah.
+  const convert = read("functions/src/intake/convert.ts");
+  assert.match(convert, /\.\.\.\(mitzvah \? \{ honoreeName: mitzvah\.honoree, mitzvahType: mitzvah\.type \} : \{\}\)/);
+  assert.match(convert, /name: `\$\{displayName\} \$\{jobWord\}`/);
+  // A taken date gets no "pick a time to talk" under a reply that declines it.
+  assert.match(read("functions/src/intake/inquiry-link.ts"), /availabilityStatus"\) === "conflict"\) return \{ body: input\.body, linked: false \}/);
+  // The studio's alert says who and which.
+  const { formInquiryDetails } = await import("../functions/src/intake/new-inquiry-alert.ts");
+  const rows = formInquiryDetails({
+    email: "rachel@example.com", phone: null, partnerName: null, eventTypeLabel: "Bar or bat mitzvah",
+    honoreeName: "Sam", mitzvahType: "bar", venue: null, city: null, estimatedGuestCount: null,
+    servicesRequested: [], budgetRange: null, referralSource: null, coiRequired: null,
+    venueContactName: null, venueContactEmail: null, answers: [],
+  });
+  assert.deepEqual(rows.filter((row) => row.label === "Event" || row.label === "Celebrating"), [
+    { label: "Event", value: "Bar mitzvah" },
+    { label: "Celebrating", value: "Sam" },
+  ]);
+  // Schedule B wins over a studio's own image-use term, in the agreement's defined words.
+  const terms = JSON.stringify(mitzvahTermsBlocks("photographer"));
+  assert.match(terms, /Where they differ from the terms above, these apply/);
+  assert.match(terms, /The Studio will not use images/);
+  assert.doesNotMatch(terms, /Most guests/);
+  // The proposal draft never offers the service.
+  assert.match(read("functions/src/ai/copilot.ts"), /never offer to photograph or film the service itself/);
+  // The contract names which mitzvah, not the studio's type label.
+  assert.match(read("functions/src/contracts/sources.ts"), /MITZVAH_TYPE_LABELS\[mitzvahOf\(project\.data\(\)\)\.type!\]/);
+});

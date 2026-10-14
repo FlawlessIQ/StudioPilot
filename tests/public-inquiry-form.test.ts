@@ -85,12 +85,15 @@ test("a refused submit tells the person, and takes them to the field", () => {
 test("every field the schema requires is marked required on the form", () => {
   // City was required and unmarked, which is why nobody could see what was
   // wrong. Keep the visible contract and the schema in step.
-  for (const field of ["First name", "Last name", "Email", "Phone", "Event date", "City"]) {
+  for (const field of ["First name", "Last name", "Email", "Phone", "City"]) {
     const pattern = new RegExp(
       `${field} <span className="required-mark">`,
     );
     assert.match(form, pattern, `${field} is required but not marked`);
   }
+  // The date's label is the kind's ("Event date", "Session date", a mitzvah's "Party date").
+  assert.match(form, /\{dateLabel\} <span className="required-mark">/, "the date is required but not marked");
+  assert.match(form, /const dateLabel = [^;]*"Event date"/);
 });
 
 test("a studio previewing its own form creates no inquiry", () => {

@@ -371,7 +371,7 @@ export const EXPECTED_TIMELINE: readonly ExpectedStage[] = [
     title: "The quiet months",
     when: `Booking until ${plural(D.planningFormMonthsBefore, "month")} before`,
     span: { from: { anchor: "wedding", months: -12 }, to: { anchor: "wedding", months: -D.planningFormMonthsBefore } },
-    summary: "Nothing needs you. This wedding stays off Today until there's something to do.",
+    summary: "Nothing needs you. This job stays off Today until there's something to do.",
     byItself: [
       { text: "Keeps the job in **Jobs** with nothing outstanding, and brings it back to **Today** by itself when it needs you." },
     ],

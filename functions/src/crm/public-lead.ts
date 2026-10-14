@@ -506,6 +506,8 @@ export const publicLeadIntake = onRequest(
             phone: input.phone,
             partnerName: input.partnerName,
             eventTypeLabel,
+            honoreeName: input.honoreeName,
+            mitzvahType: input.mitzvahType,
             venue: input.venuePlace?.formatted ?? input.venue,
             city: input.city,
             estimatedGuestCount: input.estimatedGuestCount,

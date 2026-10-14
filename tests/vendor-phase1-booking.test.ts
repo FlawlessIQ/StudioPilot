@@ -247,7 +247,7 @@ test("a vendor sends the booking link; a photographer's send reads as before", (
   const send = read("components/contracts/combined-agreement-send.tsx");
   assert.match(send, /const oneLink = tradeProfile\(workspace\.tenantTrade\)\.journey\.oneLinkBooking;/);
   assert.match(send, /oneLink \? "Send the booking link" : "Send as one booking agreement"/);
-  assert.match(send, /`Your terms and these prices together — the couple signs both at once, and that accepts the \$\{offer\}\.`/);
+  assert.match(send, /`Your terms and these prices together — the client signs both at once, and that accepts the \$\{offer\}\.`/);
   assert.match(send, /`Sign & send to \$\{preview\.clientName \|\| "the couple"\}`/);
 
   const proposal = read("components/proposals/studio-proposal-workspace.tsx");

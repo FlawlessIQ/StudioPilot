@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { answersResolvedFor, resolveAnswers } from "../planning/resolved-answers.js";
-import { finalDetailsLockApplies, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
+import { finalDetailsLockApplies, jobKindOf, journeyProfile, MITZVAH_TYPE_LABELS, mitzvahOf, vocab } from "../job-kinds/job-kinds.js";
 import { detailsLockOn, resolvePlanningTimeline, type PlanningTimeline } from "../planning/planning-timeline.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
@@ -325,7 +325,14 @@ export async function loadContractSources(
       client: { names: coupleNames(contacts, clientName), email: clientEmail },
       event: {
         name: text(event.name) || text(project.get("name")),
-        type: text(event.eventType) || text(project.get("eventType")),
+        // A mitzvah names which one ("Bar mitzvah"), not the studio's type
+        // label ("Bar or bat mitzvah"): prod walk, 2026-10-14.
+        type:
+          (journeyProfile(jobKindOf(project.data())).honoree && mitzvahOf(project.data()).type
+            ? MITZVAH_TYPE_LABELS[mitzvahOf(project.data()).type!]
+            : "") ||
+          text(event.eventType) ||
+          text(project.get("eventType")),
         date: text(event.eventDate) || text(project.get("eventDate")).slice(0, 10),
         // The records first; then where the couple said it is on their form,
         // so a blank job venue doesn't hold the agreement back.
