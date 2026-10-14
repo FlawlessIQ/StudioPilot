@@ -550,47 +550,54 @@ function ThreadNextMove({
         // One voice means it also speaks when the answer is "nothing". The
         // thread used to simply end, which reads as a page that has not
         // finished loading rather than a job that is genuinely waiting.
-        <div className="thread-next is-clear">
-          <div className="thread-next-copy">
-            {studioOpenWork.length ? (
-              <>
-                {/* Not "waiting on someone else" — this is the studio's own
-                    work, and it is the next real thing on the job. */}
-                <p className="thread-next-eyebrow">
-                  <Check size={12} /> Nothing is blocked
-                </p>
-                <strong>
-                  {studioOpenWork.length === 1
-                    ? `${studioOpenWork[0]} is still yours to confirm.`
-                    : `${studioOpenWork[0]} and ${studioOpenWork.length - 1} other ${studioOpenWork.length === 2 ? "check" : "checks"} are still yours to confirm.`}
-                </strong>
-                <small>
-                  Nothing is due yet, and everything else is with a client or a
-                  provider.
-                </small>
-                <Link
-                  className="button button-light"
-                  href={`/studio/projects/${projectId}#project-checkpoints`}
-                  onClick={(event) => {
-                    if (jumpIfSamePage(`/studio/projects/${projectId}#project-checkpoints`)) event.preventDefault();
-                  }}
-                >
-                  Confirm what you know <ArrowRight size={14} />
-                </Link>
-              </>
-            ) : (
-              <>
-                <p className="thread-next-eyebrow">
-                  <Check size={12} /> Nothing for you right now
-                </p>
-                <strong>This job is waiting on someone else.</strong>
-                <small>
-                  It comes back here the moment it needs a decision from you.
-                </small>
-              </>
-            )}
+        studioOpenWork.length ? (
+          // The studio's own checks are its next move, so they get the next
+          // move's card. They sat on a pale card under "Nothing is blocked",
+          // and a check's name is a milestone ("Location confirmed"), so the
+          // line read "Location confirmed is still yours to confirm" (Conor,
+          // 2026-10-14). The name is quoted as the checklist item it is.
+          <div className="thread-next">
+            <span className="thread-next-glow" aria-hidden="true" />
+            <div className="thread-next-copy">
+              <p className="thread-next-eyebrow">
+                <Sparkles size={12} /> Your next move
+              </p>
+              <strong>
+                {studioOpenWork.length === 1
+                  ? `Check off \u201c${studioOpenWork[0]}\u201d`
+                  : `Check off ${studioOpenWork.length} items on the checklist`}
+              </strong>
+              <small>
+                {studioOpenWork.length === 1
+                  ? "Check it off once you know. Nothing else is due — the rest is with the client or a provider."
+                  : `Starting with \u201c${studioOpenWork[0]}\u201d. Nothing else is due — the rest is with the client or a provider.`}
+              </small>
+            </div>
+            <div className="thread-next-actions">
+              <Link
+                className="thread-next-go"
+                href={`/studio/projects/${projectId}#project-checkpoints`}
+                onClick={(event) => {
+                  if (jumpIfSamePage(`/studio/projects/${projectId}#project-checkpoints`)) event.preventDefault();
+                }}
+              >
+                Open the checklist <ArrowRight size={15} />
+              </Link>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="thread-next is-clear">
+            <div className="thread-next-copy">
+              <p className="thread-next-eyebrow">
+                <Check size={12} /> Nothing for you right now
+              </p>
+              <strong>This job is waiting on someone else.</strong>
+              <small>
+                It comes back here the moment it needs a decision from you.
+              </small>
+            </div>
+          </div>
+        )
       )}
     </div>
   );
