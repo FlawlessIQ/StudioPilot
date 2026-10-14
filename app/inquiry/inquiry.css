@@ -271,7 +271,7 @@
     --cue-emerald-deep: #0a7a55;
     --cue-emerald-soft: #d9f4ea;
     --cue-brass: #c99a3f;
-    --cue-brass-deep: #977325;
+    --cue-brass-deep: #7a5c1c;
     --cue-brass-soft: #f6efda
 }
 :root {
@@ -295,9 +295,9 @@
 }
 :root {
     --ink: #171a18;
-    --ink-soft: #4f5752;
-    --muted: #747d77;
-    --line: #e5e8e4;
+    --ink-soft: #434a45;
+    --muted: #555d57;
+    --line: #dce1db;
     --line-strong: #d7dcd7;
     --paper: #fff;
     --canvas: #f6f7f5;
@@ -980,9 +980,9 @@ a,button,[role=button],summary,label {
 }
 .ds-root[data-ds-theme=rose],.ds-root[data-ds-theme=coral],.ds-root[data-ds-theme=emerald] {
     --ds-ink: #191b20;
-    --ds-ink-soft: #565d68;
-    --ds-muted: #8b929d;
-    --ds-line: #e8eaf0;
+    --ds-ink-soft: #474e58;
+    --ds-muted: #545c66;
+    --ds-line: #dde1e7;
     --ds-line-soft: #f2f4f7;
     --ds-canvas: #f6f7f9;
     --ds-paper: #fff;
@@ -1018,7 +1018,7 @@ a,button,[role=button],summary,label {
     --ds-claret-bright: #12c084;
     --ds-claret-soft: #d9f4ea;
     --ds-brass: #c99a3f;
-    --ds-brass-deep: #977325;
+    --ds-brass-deep: #7a5c1c;
     --ds-brass-soft: #f6efda;
     --ds-forest: #2f6f8f;
     --ds-forest-soft: #e0eef4;

@@ -117,6 +117,6 @@ test("Today's inquiries card wraps rather than squeezes, and the layout guard ru
   const spec = read("e2e/layout-integrity.spec.ts");
   assert.match(spec, /globSync\("app\/\*\*\/page\.tsx"\)/);
   assert.match(spec, /const widths = \[1024, 1280, 1536, 390\];/);
-  assert.match(read(".github/workflows/ci.yml"), /npx playwright test e2e\/layout-integrity\.spec\.ts --project=desktop-chromium/);
+  assert.match(read(".github/workflows/ci.yml"), /npx playwright test e2e\/layout-integrity\.spec\.ts( e2e\/contrast\.spec\.ts)? --project=desktop-chromium/);
   assert.match(read("CLAUDE.md"), /## UI layout \(read before writing CSS\)/);
 });

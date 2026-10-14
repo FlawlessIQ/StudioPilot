@@ -791,15 +791,16 @@ export function BookingAutopilotWorkspace({
             {kindProfile.consultation && tradeCalls ? (
               <>
                 <p className="eyebrow"><Sparkles size={14} /> {`From the ${callWord}`}</p>
-                <h1>From conversation<br />{`to a reviewable ${offer}.`}</h1>
+                {/* Plain words, not a headline (laptop UI audit, 2026-10-14). */}
+                <h1>{`Prepare the ${offer}`}</h1>
                 <p>
-                  {`Capture what the client said once. StudioCue grounds a brief, recommends an existing package, and prepares a ${offer} without inventing pricing or sending anything.`}
+                  {`Note what the client said. StudioCue suggests one of your packages and drafts the ${offer} — nothing goes out until you approve it.`}
                 </p>
               </>
             ) : (
               <>
                 <p className="eyebrow"><Sparkles size={14} /> From the inquiry</p>
-                <h1>From inquiry<br />{`to a priced ${offer}.`}</h1>
+                <h1>{`Send the ${offer}`}</h1>
                 <p>
                   {/* A makeup artist or hair stylist never has a call to skip. */}
                   {tradeCalls

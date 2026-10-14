@@ -7,7 +7,6 @@ import { QuestionnaireReviewInsights } from "@/components/planning/questionnaire
 import { InquiryEventFormSetting } from "@/components/planning/inquiry-event-form-setting";
 import { RecommendedQuestionnaires } from "@/components/planning/recommended-questionnaires";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
-import { PendingImportNotice } from "@/components/ai/pending-import-notice";
 
 // Every studio page names itself on its tab; these fell back to
 // "StudioCue · Photography Operations OS" (UI audit, 2026-10-02).
@@ -28,7 +27,6 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
             </p>
           </div>
         </header>
-        {!project ? <PendingImportNotice destination="questionnaires" /> : null}
         {project ? <ProjectContextBar projectId={project} /> : null}
         {project ? <QuestionnaireReviewInsights projectId={project} /> : null}
         {/* The journey's "Send the form" lands here, so the first thing on the
@@ -54,7 +52,7 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
                   client review stays focused here.
                 </p>
               </div>
-              <Link className="button button-light" href="/studio/questionnaires">
+              <Link className="button button-light" href="/studio/questionnaires/templates">
                 Manage questionnaire templates
               </Link>
             </section>
@@ -63,9 +61,19 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
           <>
             {/* Which form new wedding inquiries fill in before the call. */}
             <InquiryEventFormSetting />
-            {/* GR Productions' wedding forms, for any studio to copy. */}
-            <RecommendedQuestionnaires />
-            <QuestionnaireBuilder />
+            {/* The builder and the recommended forms have their own page
+                (questionnaires/templates): rendered here they put 812 buttons
+                under the list (laptop UI audit, 2026-10-14). */}
+            <section className="panel focused-tool-link">
+              <div>
+                <p className="eyebrow">Templates</p>
+                <h2>Build or change a questionnaire</h2>
+                <p>Start from a recommended form, or edit the ones you send.</p>
+              </div>
+              <Link className="button button-light" href="/studio/questionnaires/templates">
+                Open templates
+              </Link>
+            </section>
           </>
         )}
       </div>

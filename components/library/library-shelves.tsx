@@ -71,7 +71,7 @@ const SETUP: Shelf[] = [
   {
     title: "Questionnaire templates",
     description: "Collect the client details each project type needs.",
-    href: "/studio/questionnaires",
+    href: "/studio/questionnaires/templates",
     kind: "questionnaire",
     collection: "questionnaireTemplates",
     emptyLabel: "No forms to send yet",

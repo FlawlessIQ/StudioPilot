@@ -16,6 +16,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  MoreHorizontal,
   Send,
   ShieldCheck,
   Sparkles,
@@ -492,6 +493,9 @@ export function LiveClientCards({
   const [invitationStatusErrorKey, setInvitationStatusErrorKey] = useState<
     string | null
   >(null);
+  // Edit, archive and invite open under a row from its ··· button. They sat
+  // in every row as a 252px strip of small pills (laptop UI audit, 2026-10-14).
+  const [openClientId, setOpenClientId] = useState<string | null>(null);
   const listView = clientListView(view);
   const search = searchClientList(records ?? [], listView, q);
   const values = search.rows
@@ -695,8 +699,19 @@ export function LiveClientCards({
             ) : (
               <span />
             )}
-            {/* A row's controls side by side, as small buttons; each used to
-                take a full-width line of its own (docs/ui-audit-2026-09-27.md). */}
+            <button
+              aria-expanded={openClientId === client.id}
+              aria-label={`More for ${name}`}
+              className="ds-people-more"
+              onClick={() => setOpenClientId((open) => (open === client.id ? null : client.id))}
+              title="Edit, archive or invite"
+              type="button"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            {/* A row's controls side by side, as small buttons, under the row
+                once ··· opens them (docs/ui-audit-2026-09-27.md). */}
+            {openClientId === client.id ? (
             <div className="record-row-actions">
               {/* Correcting and archiving a client — the two things this page
                   could never do. See components/clients/client-record-actions. */}
@@ -736,6 +751,7 @@ export function LiveClientCards({
                 </details>
               ) : null}
             </div>
+            ) : null}
           </article>
         );
       })}

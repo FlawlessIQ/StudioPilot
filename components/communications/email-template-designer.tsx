@@ -5,6 +5,7 @@ import { Link2, LoaderCircle, MailCheck, RotateCcw, Save, Send } from "lucide-re
 import { useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { sendCommunicationsCommand } from "@/lib/communications/command-client";
+import { withTimeout } from "@/lib/async/with-timeout";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { EMAIL_GROUPS, editableEmailsFor, emailGroupLabel } from "@/features/communications/email-catalog";
 import { linkMarkup } from "@/features/communications/link-markup";
@@ -133,11 +134,17 @@ export function EmailTemplateDesigner() {
   const runPreview = useCallback(
     async (content: ReturnType<typeof contentOf> | null) => {
       const id = ++requestId.current;
-      const response = await sendCommunicationsCommand({
-        type: "previewTemplate",
-        idempotencyKey: crypto.randomUUID(),
-        input: { key, content },
-      });
+      // A preview that never answers left "Loading the email…" on screen for
+      // good (laptop UI audit, 2026-10-14); after 20 seconds it says so.
+      const response = await withTimeout(
+        sendCommunicationsCommand({
+          type: "previewTemplate",
+          idempotencyKey: crypto.randomUUID(),
+          input: { key, content },
+        }),
+        20_000,
+        "The preview is taking too long. Try again in a moment.",
+      );
       // A slower answer for an earlier keystroke or email never overwrites a newer one.
       if (id !== requestId.current) return null;
       const payload = response.payload as Partial<Preview>;

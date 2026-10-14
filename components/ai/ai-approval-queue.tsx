@@ -900,15 +900,13 @@ export function AiApprovalQueue() {
 
   return (
     <div className="ai-queue-page">
+      {/* A plain title, not a headline: "Prepared for you. Never decided for
+          you." read as marketing inside the app (laptop UI audit, 2026-10-14). */}
       <header className="ai-queue-hero">
         <div>
-          <p className="eyebrow"><Sparkles size={14} /> Waiting on you</p>
-          <h1>Prepared for you.<br />Never decided for you.</h1>
-          <p>
-            Cue, your office manager, prepared these. Each one shows its
-            source facts, the record it changes, and exactly what happens
-            after you approve.
-          </p>
+          <p className="eyebrow"><Sparkles size={14} /> Cue</p>
+          <h1>Waiting on you</h1>
+          <p>Cue prepared these. Nothing goes out until you approve it.</p>
         </div>
         <aside>
           <span><strong>{aiActions.length + approvals.length}</strong><small>waiting for review</small></span>
@@ -934,34 +932,33 @@ export function AiApprovalQueue() {
       {loading ? (
         <div className="ai-queue-empty"><LoaderCircle className="spin" /><strong>Loading review work…</strong></div>
       ) : filter === "review" ? (
-        <section className={isPhone ? "ai-queue-list is-compact" : "ai-queue-list"}>
-          {isPhone ? (
-            <>
-              {aiActions.map((action) => (
-                <PreparedCompactRow
-                  item={{ kind: "ai", record: action }}
-                  key={action.id}
-                  onOpen={() => setReviewingId(action.id)}
-                />
-              ))}
-              {approvals.map((approval) => (
-                <PreparedCompactRow
-                  item={{ kind: "automation", record: approval }}
-                  key={approval.id}
-                  onOpen={() => setReviewingId(approval.id)}
-                />
-              ))}
-            </>
-          ) : (
-            <>
-              {aiActions.map((action) => (
-                <AiQueueCard action={action} key={action.id} onDecision={onDecision} />
-              ))}
-              {approvals.map((approval) => (
-                <AutomationApprovalCard approval={approval} key={approval.id} onDecision={onDecision} />
-              ))}
-            </>
-          )}
+        // One line per draft, opened one at a time: in a sheet on a phone,
+        // in place on a laptop. Every card used to render fully expanded —
+        // preview, why, and the approve / edit / reject controls — 22,646px
+        // for 35 drafts (laptop UI audit, 2026-10-14).
+        <section className="ai-queue-list is-compact">
+          {aiActions.map((action) => (
+            <div className={!isPhone && reviewingId === action.id ? "ai-queue-row is-open" : "ai-queue-row"} key={action.id}>
+              <PreparedCompactRow
+                item={{ kind: "ai", record: action }}
+                onOpen={() => setReviewingId((current) => (current === action.id && !isPhone ? null : action.id))}
+              />
+              {!isPhone && reviewingId === action.id ? (
+                <AiQueueCard action={action} onDecision={onDecision} />
+              ) : null}
+            </div>
+          ))}
+          {approvals.map((approval) => (
+            <div className={!isPhone && reviewingId === approval.id ? "ai-queue-row is-open" : "ai-queue-row"} key={approval.id}>
+              <PreparedCompactRow
+                item={{ kind: "automation", record: approval }}
+                onOpen={() => setReviewingId((current) => (current === approval.id && !isPhone ? null : approval.id))}
+              />
+              {!isPhone && reviewingId === approval.id ? (
+                <AutomationApprovalCard approval={approval} onDecision={onDecision} />
+              ) : null}
+            </div>
+          ))}
           {!aiActions.length && !approvals.length ? (
             <div className="ai-queue-empty">
               <Check size={22} />
@@ -985,7 +982,7 @@ export function AiApprovalQueue() {
       <SheetDialog
         label="Review prepared decision"
         onClose={() => setReviewingId(null)}
-        open={Boolean(reviewingAction ?? reviewingApproval)}
+        open={isPhone && Boolean(reviewingAction ?? reviewingApproval)}
       >
         {reviewingAction ? (
           <AiQueueCard action={reviewingAction} onDecision={onDecision} />

@@ -32,6 +32,10 @@ const POSITIVE = new Set([
   "QUALIFIED",
   "IN_PROGRESS",
   "SCHEDULED",
+  // A certificate of insurance that reached the venue.
+  "SENT_TO_VENUE",
+  "VENUE_ACKNOWLEDGED",
+  "ACKNOWLEDGED",
 ]);
 
 // Amber — awaiting action from you or the client.
@@ -45,6 +49,10 @@ const IN_PROGRESS = new Set([
   "PENDING",
   "SUBMITTED",
   "SENT",
+  // A certificate being checked: every insurance row was the same grey bar
+  // whatever it said (laptop UI audit, 2026-10-14).
+  "UNDER_REVIEW",
+  "REQUESTED",
 ]);
 
 const FRESH = new Set(["LEAD", "NEW", "INQUIRY", "DRAFT", "OPEN"]);
@@ -61,6 +69,7 @@ const NEGATIVE = new Set([
   "BLOCKED",
   "OVERDUE",
   "DECLINED",
+  "CORRECTION_REQUIRED",
 ]);
 
 const MUTED = new Set(["ARCHIVED", "CLOSED", "INACTIVE"]);

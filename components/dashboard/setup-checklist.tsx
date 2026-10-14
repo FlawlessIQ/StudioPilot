@@ -54,6 +54,21 @@ export function SetupChecklist() {
   const completed = order.filter((key) => !open.has(key)).length;
   const total = order.length;
 
+  // Finished: one line and a way back in. A studio that had answered every
+  // question still met the whole checklist at the top of Help (laptop UI
+  // audit, 2026-10-14).
+  if (!loading && completed === total)
+    return (
+      <section className="ds-card ds-setup is-done">
+        <span>
+          <Check aria-hidden="true" size={16} /> Your studio is set up.
+        </span>
+        <Link className="ds-btn" href="/studio/setup">
+          Review setup <ArrowRight size={16} />
+        </Link>
+      </section>
+    );
+
   return (
     <section className="ds-card ds-setup">
       <div className="ds-setup-head">

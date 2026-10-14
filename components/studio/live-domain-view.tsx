@@ -13,6 +13,8 @@ import {
   DatabaseZap,
   Inbox,
   LoaderCircle,
+  MoreHorizontal,
+  Paperclip,
   Plus,
   RotateCw,
 } from "lucide-react";
@@ -44,7 +46,9 @@ import {
   CrewRecordActions,
   crewActionsProps,
 } from "@/components/crew/crew-record-actions";
-import { TaskRecordActions } from "@/components/tasks/task-record-actions";
+import { TaskListRow } from "@/components/tasks/task-record-actions";
+import { taskIsSettled } from "@/features/tasks/schema";
+import { daysUntilEvent } from "@/lib/format/event-date";
 import { InvoiceRecordActions } from "@/components/booking/invoice-corrections";
 import { invoiceVoidRefusal, paymentCorrectable } from "@/features/booking/invoice-corrections";
 import { stateTone } from "@/lib/status-tone";
@@ -165,6 +169,21 @@ function factLabel(label: string, trade: unknown): string {
   return label;
 }
 
+/** A stored code as words: "sports" → "Sports", "contract.completed" → "Contract completed". */
+function codeWords(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const spaced = value.replace(/[._]+/g, " ").trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** A due date that has passed while money is still owed on the bill. */
+function owedAndLate(record: Record<string, unknown>): boolean {
+  const due = typeof record.dueDate === "string" ? daysUntilEvent(record.dueDate) : null;
+  const balance = Number(record.balanceCents ?? record.amountCents ?? 0);
+  const settled = ["paid", "void", "voided", "cancelled", "canceled"].includes(String(record.status ?? "").toLowerCase());
+  return due !== null && due < 0 && balance > 0 && !settled;
+}
+
 /** A coverage role as words, "makeup artist" rather than the stored "makeup_artist". */
 function roleWords(value: unknown): string {
   const role = coverageRoleSchema.safeParse(value);
@@ -220,10 +239,18 @@ type DomainConfig = {
   secondary: string[];
   /** The secondary line worked out from the whole record, when one field won't do. */
   secondaryText?: (record: Record<string, unknown>) => string | null;
+  /** The name worked out from the whole record, when the field is a code. */
+  primaryText?: (record: Record<string, unknown>) => string | null;
   /** How to render `secondary`; raw text when omitted, as it was throughout. */
   secondaryKind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority";
   status: string[];
-  facts: Array<{ label: string; fields: string[]; kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority" | "coverage" | "trades" | "list" }>;
+  facts: Array<{
+    label: string;
+    fields: string[];
+    kind?: "money" | "date" | "count" | "percent" | "retainer" | "version" | "authority" | "coverage" | "trades" | "list";
+    /** Drawn in red when true: a date that has passed on something still owed. */
+    late?: (record: Record<string, unknown>) => boolean;
+  }>;
   /**
    * What a boolean status means, as [true, false].
    *
@@ -266,7 +293,7 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "proposals",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["pricingSnapshot.packageName", "id"],
+    secondary: ["pricingSnapshot.packageName"],
     status: ["status"],
     facts: [
       { label: "Version", fields: ["version"] },
@@ -307,7 +334,7 @@ const configurations: Record<Domain, DomainConfig> = {
     facts: [
       { label: "Amount", fields: ["amountCents"], kind: "money" },
       { label: "Balance", fields: ["balanceCents"], kind: "money" },
-      { label: "Due", fields: ["dueDate"], kind: "date" },
+      { label: "Due", fields: ["dueDate"], kind: "date", late: owedAndLate },
     ],
     files: (record) => FILE_BEARING.invoiceReferences(record),
   },
@@ -315,7 +342,7 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "questionnaireResponses",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["templateName", "templateId", "id"],
+    secondary: ["templateName"],
     status: ["status"],
     facts: [
       { label: "Progress", fields: ["completionPercent"], kind: "percent" },
@@ -343,7 +370,7 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "insuranceRequests",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["venueName", "requestEmail", "id"],
+    secondary: ["venueName", "requestEmail"],
     status: ["status"],
     // The certificate's card below the list carries its progress and next
     // step; "Scan —" and "Decision pending" repeated it in raw words.
@@ -354,7 +381,11 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "schedules",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["timezone", "id"],
+    secondary: [],
+    // "America/New_York" was the subtitle of every schedule (laptop UI audit,
+    // 2026-10-14). The day it is for is what a studio reads.
+    secondaryText: (record) =>
+      typeof record.projectEventDate === "string" ? formatEventDate(record.projectEventDate) : "Run of show",
     status: ["status"],
     facts: [
       { label: "Version", fields: ["version"] },
@@ -389,7 +420,7 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "crewAssignments",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["role", "crewProfileId"],
+    secondary: ["role"],
     status: ["status"],
     facts: [
       { label: "Arrival", fields: ["arrivalAt"], kind: "date" },
@@ -415,11 +446,13 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "readinessAssessments",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["recommendedNextAction", "id"],
+    secondary: ["recommendedNextAction"],
     status: ["ready"],
     statusLabels: ["Ready", "Not ready"],
+    // What is in the way, not a score: every job read "Not ready" beside a
+    // percentage that said nothing about why (laptop UI audit, 2026-10-14).
     facts: [
-      { label: "Score", fields: ["score"], kind: "percent" },
+      { label: "Event", fields: ["projectEventDate"], kind: "date" },
       { label: "Blocking", fields: ["blockingItems"], kind: "count" },
       { label: "Overdue", fields: ["overdueItems"], kind: "count" },
     ],
@@ -429,12 +462,13 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "postProductionRecords",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["currentStep", "id"],
+    secondary: ["currentStep"],
+    secondaryText: (record) => codeWords(record.currentStep),
     status: ["currentStep"],
+    // The project's raw id was a column of its own (laptop UI audit, 2026-10-14).
     facts: [
       { label: "Target", fields: ["targetDeliveryDate"], kind: "date" },
       { label: "Updated", fields: ["updatedAt"], kind: "date" },
-      { label: "Project", fields: ["projectId"] },
     ],
     href: (record) => `/studio/post-production/${record.id}`,
   },
@@ -456,9 +490,11 @@ const configurations: Record<Domain, DomainConfig> = {
     projectScoped: true,
     primary: ["projectName"],
     secondary: ["destinationLabel", "channel"],
+    // "google" in lower case, and "Sequence 1" (laptop UI audit, 2026-10-14).
+    secondaryText: (record) =>
+      (typeof record.destinationLabel === "string" && record.destinationLabel) || codeWords(record.channel),
     status: ["status"],
     facts: [
-      { label: "Sequence", fields: ["sequence"] },
       { label: "Scheduled", fields: ["scheduledAt"], kind: "date" },
       { label: "Confirmed", fields: ["confirmedAt"], kind: "date" },
     ],
@@ -467,9 +503,9 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "workflowTemplates",
     primary: ["name"],
     secondary: ["eventTypeId", "description"],
+    secondaryText: (record) => codeWords(record.eventTypeId) ?? (typeof record.description === "string" ? record.description : null),
     status: ["status"],
     facts: [
-      { label: "Version", fields: ["version"] },
       // The records store checkpointTemplates and automationRules; these
       // read "checkpoints" and "automations", so every row showed an em
       // dash where its size should be — on the one list whose whole job is
@@ -483,7 +519,7 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "consultations",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["mode", "location", "id"],
+    secondary: ["mode", "location"],
     status: ["status"],
     facts: [
       { label: "Starts", fields: ["startsAt"], kind: "date" },
@@ -495,7 +531,8 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "bookingGateRuns",
     projectScoped: true,
     primary: ["projectName"],
-    secondary: ["idempotencyKey", "id"],
+    secondary: [],
+    secondaryText: () => "Booking check",
     status: ["status"],
     facts: [
       { label: "Checks", fields: ["checks"], kind: "count" },
@@ -508,7 +545,12 @@ const configurations: Record<Domain, DomainConfig> = {
     collection: "automationRuns",
     projectScoped: true,
     primary: ["trigger.type", "trigger", "workflowVersion"],
-    secondary: ["idempotencyKey", "id"],
+    // The idempotency key and the run id were its subtitle (laptop UI audit,
+    // 2026-10-14): an engineering page in a studio's settings.
+    primaryText: (record) =>
+      codeWords((record.trigger as Record<string, unknown> | undefined)?.type ?? record.trigger) ?? "Automation",
+    secondary: [],
+    secondaryText: (record) => (typeof record.workflowName === "string" ? record.workflowName : "Workflow step"),
     status: ["status", "result.status"],
     facts: [
       { label: "Attempt", fields: ["attemptCount"] },
@@ -519,8 +561,9 @@ const configurations: Record<Domain, DomainConfig> = {
   documents: {
     collection: "documents",
     projectScoped: true,
-    primary: ["name", "fileName", "kind", "id"],
-    secondary: ["category", "provider", "storagePath"],
+    primary: ["name", "fileName", "kind"],
+    secondary: ["category"],
+    secondaryText: (record) => codeWords(record.category),
     status: ["status", "scanStatus"],
     facts: [
       { label: "Version", fields: ["version"] },
@@ -532,7 +575,7 @@ const configurations: Record<Domain, DomainConfig> = {
   messages: {
     collection: "messages",
     projectScoped: true,
-    primary: ["subject", "templateKey", "id"],
+    primary: ["subject", "templateKey"],
     secondary: ["recipient", "channel"],
     status: ["deliveryStatus"],
     facts: [
@@ -545,13 +588,12 @@ const configurations: Record<Domain, DomainConfig> = {
   audit: {
     collection: "auditEvents",
     primary: ["action"],
-    secondary: ["entityType", "entityId"],
+    // Event codes, user ids and correlation ids (laptop UI audit, 2026-10-14).
+    primaryText: (record) => codeWords(record.action),
+    secondary: ["entityType"],
+    secondaryText: (record) => codeWords(record.entityType),
     status: ["actorType"],
-    facts: [
-      { label: "Actor", fields: ["actorId"] },
-      { label: "Timestamp", fields: ["timestamp"], kind: "date" },
-      { label: "Correlation", fields: ["correlationId"] },
-    ],
+    facts: [{ label: "When", fields: ["timestamp"], kind: "date" }],
   },
 };
 
@@ -716,6 +758,8 @@ function badgeWords(value: string | number): string | number {
     : value;
 }
 
+const PAGE_SIZE = 25;
+
 export function LiveDomainView({
   domain,
   emptyAction,
@@ -741,6 +785,13 @@ export function LiveDomainView({
   const workspace = useWorkspace();
   const recordsGeneration = useTenantRecordsGeneration();
   const [showArchived, setShowArchived] = useState(false);
+  // 25 rows a page: Invoices ran 6,786px and the audit log 11,731px as one
+  // scroll (laptop UI audit, 2026-10-14).
+  const [page, setPage] = useState(0);
+  // A row's controls and files open under it from its ··· button; closed, the
+  // row is one line (they used to be a second full-width line on every row).
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [taskView, setTaskView] = useState<"open" | "late" | "done">("open");
   const base = configurations[domain];
   /**
    * Insurance is a studio setting, defaulting to off — most studios cover
@@ -1054,11 +1105,109 @@ export function LiveDomainView({
               : 0,
           )
       : records;
-  const visibleRecords = rowActions
+  const unpaged = rowActions
     ? showArchived
       ? archivedRecords
       : liveRecords.filter((record) => !record.archivedAt)
     : liveRecords;
+  const isTasks = config.collection === "tasks";
+  const taskLate = (record: Value) => {
+    if (taskIsSettled(record.status)) return false;
+    const days = typeof record.dueDate === "string" ? daysUntilEvent(record.dueDate) : null;
+    return days !== null && days < 0;
+  };
+  const taskCounts = isTasks
+    ? {
+        open: unpaged.filter((record) => !taskIsSettled(record.status)).length,
+        late: unpaged.filter(taskLate).length,
+        done: unpaged.filter((record) => taskIsSettled(record.status)).length,
+      }
+    : null;
+  const filtered = isTasks
+    ? unpaged.filter((record) =>
+        taskView === "late" ? taskLate(record) : taskView === "done" ? taskIsSettled(record.status) : !taskIsSettled(record.status),
+      )
+    : unpaged;
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pages - 1);
+  const visibleRecords = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const pager =
+    filtered.length > PAGE_SIZE ? (
+      <footer className="live-domain-pager">
+        <span>
+          {currentPage * PAGE_SIZE + 1}–{Math.min(filtered.length, (currentPage + 1) * PAGE_SIZE)} of {filtered.length}
+        </span>
+        <span>
+          <button
+            className="button button-quiet button-sm"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+            type="button"
+          >
+            <ArrowLeft size={14} /> Previous
+          </button>
+          <button
+            className="button button-quiet button-sm"
+            disabled={currentPage >= pages - 1}
+            onClick={() => setPage(currentPage + 1)}
+            type="button"
+          >
+            Next <ArrowRight size={14} />
+          </button>
+        </span>
+      </footer>
+    ) : null;
+
+  if (isTasks && taskCounts) {
+    return (
+      <section className="panel live-domain-table" data-domain={domain}>
+        <div className="live-task-filter">
+          <div role="group" aria-label="Show tasks">
+          {(openOnly
+            ? ([["open", "Open"], ["late", "Late"]] as const)
+            : ([["open", "Open"], ["late", "Late"], ["done", "Done"]] as const)
+          ).map(([value, label]) => (
+            <button
+              aria-pressed={taskView === value}
+              key={value}
+              onClick={() => {
+                setTaskView(value);
+                setPage(0);
+              }}
+              type="button"
+            >
+              {label} <span>{taskCounts[value]}</span>
+            </button>
+          ))}
+          </div>
+        </div>
+        {visibleRecords.length ? (
+          visibleRecords.map((record) => (
+            <TaskListRow
+              href={typeof record.projectId === "string" ? `/studio/projects/${record.projectId}` : undefined}
+              key={record.id}
+              projectName={projectId ? undefined : typeof record.projectName === "string" ? record.projectName : undefined}
+              task={{
+                id: record.id,
+                status: String(record.status ?? ""),
+                title: typeof record.title === "string" ? record.title : typeof record.name === "string" ? record.name : "",
+                description: typeof record.description === "string" ? record.description : "",
+                dueDate: typeof record.dueDate === "string" ? record.dueDate : null,
+                priority: typeof record.priority === "string" ? record.priority : "normal",
+                assignedUserId: typeof record.assignedUserId === "string" ? record.assignedUserId : null,
+                assignedRole: typeof record.assignedRole === "string" ? record.assignedRole : null,
+              }}
+            />
+          ))
+        ) : (
+          <p className="live-task-none">
+            {taskView === "late" ? "Nothing is late." : taskView === "done" ? "Nothing finished yet." : "Nothing open."}
+          </p>
+        )}
+        {pager}
+      </section>
+    );
+  }
 
   return (
     <section className="panel live-domain-table" data-domain={domain}>
@@ -1075,11 +1224,9 @@ export function LiveDomainView({
         </div>
       ) : null}
       {visibleRecords.map((record) => {
-        const primary = display(
-          nested(record, config.primary),
-          undefined,
-          record.currency,
-        );
+        const primary =
+          config.primaryText?.(record) ??
+          display(nested(record, config.primary), undefined, record.currency);
         const secondary =
           config.secondaryText?.(record) ??
           display(
@@ -1093,21 +1240,23 @@ export function LiveDomainView({
             ? config.statusLabels[rawStatus ? 0 : 1]
             : rawStatus;
         const fileRefs = config.files?.(record, workspace.tenantTrade) ?? [];
-        const content = (
+        /*
+          `title` because the identity column is deliberately one line with an
+          ellipsis, and "Eight hours of wedding covera…" was otherwise
+          unreachable from the list.
+        */
+        const identity = (
           <>
-            {/*
-              `title` because the identity column is deliberately one line
-              with an ellipsis, and "Eight hours of wedding covera…" was
-              otherwise unreachable from the list.
-            */}
-            <span className="live-domain-primary">
-              <strong title={String(primary)}>{primary}</strong>
-              <small title={String(secondary)}>{secondary}</small>
-            </span>
+            <strong title={String(primary)}>{primary}</strong>
+            <small title={String(secondary)}>{secondary}</small>
+          </>
+        );
+        const cells = (
+          <>
             {config.facts.map((fact) => (
               <span key={fact.label}>
                 <small>{factLabel(fact.label, workspace.tenantTrade)}</small>
-                <strong>
+                <strong className={fact.late?.(record) ? "is-late" : undefined}>
                   {display(
                     nested(record, fact.fields),
                     fact.kind,
@@ -1125,10 +1274,14 @@ export function LiveDomainView({
             <StatusBadge tone={tone(status)}>
               {badgeWords(display(status, undefined, record.currency))}
             </StatusBadge>
-            {/* The bare arrow means "this whole row is a link". When the row
-                has its own actions it is not one any more, so the explicit
-                "Open" cell below replaces it rather than sitting beside it. */}
-            {config.href && !rowActions && !fileRefs.length ? <ArrowRight /> : null}
+          </>
+        );
+        const content = (
+          <>
+            <span className="live-domain-primary">{identity}</span>
+            {cells}
+            {/* The bare arrow means "this whole row is a link". */}
+            {config.href ? <ArrowRight /> : null}
           </>
         );
         /**
@@ -1143,28 +1296,45 @@ export function LiveDomainView({
           * nesting the cells one level deeper collapsed every column into a
           * stack — which is exactly what it did to the crew directory. The
           * actions are therefore a *cell* of the same grid, spanning its full
-          * width, and the row's link becomes an explicit "Open" cell rather
-          * than a wrapper, because buttons inside an anchor would make every
-          * click navigate.
+          * width, and the row's name becomes its link rather than a wrapper,
+          * because buttons inside an anchor would make every click navigate.
           */
         const actions = renderRowActions(rowActions, record);
-        // A row with files is not one link any more: its chips are buttons
-        // of their own, so it takes the same shape as a row with actions.
+        // A row with files or controls is not one link any more: its chips
+        // and buttons are controls of their own. The name opens the record,
+        // and the ··· button opens the controls under the row.
         if (actions || fileRefs.length) {
+          const open = openRow === record.id;
           return (
             <article className="live-domain-row-has-actions" key={record.id}>
-              {content}
               {config.href ? (
-                <Link className="live-domain-row-open" href={config.href(record)}>
-                  Open
+                <Link className="live-domain-primary live-domain-primary-link" href={config.href(record)}>
+                  {identity}
                 </Link>
+              ) : (
+                <span className="live-domain-primary">{identity}</span>
+              )}
+              {cells}
+              <button
+                aria-expanded={open}
+                aria-label={open ? "Close" : fileRefs.length && !actions ? "Files" : "More"}
+                className="live-domain-row-toggle"
+                onClick={() => setOpenRow(open ? null : record.id)}
+                type="button"
+              >
+                {fileRefs.length ? (
+                  <span className="live-domain-row-files">
+                    <Paperclip aria-hidden="true" /> {fileRefs.length}
+                  </span>
+                ) : null}
+                {actions ? <MoreHorizontal aria-hidden="true" /> : null}
+              </button>
+              {open ? (
+                <div className="record-row-actions">
+                  {fileRefs.length ? <FileLinks files={fileRefs} /> : null}
+                  {actions}
+                </div>
               ) : null}
-              {/* One cell for all of a row's controls, so they sit side by
-                  side; each used to take a full-width line of its own. */}
-              <div className="record-row-actions">
-                {fileRefs.length ? <FileLinks files={fileRefs} /> : null}
-                {actions}
-              </div>
             </article>
           );
         }
@@ -1176,6 +1346,7 @@ export function LiveDomainView({
           <article key={record.id}>{content}</article>
         );
       })}
+      {pager}
     </section>
   );
 }
@@ -1203,22 +1374,6 @@ function renderRowActions(
           website: typeof record.website === "string" ? record.website : null,
           notes: typeof record.notes === "string" ? record.notes : null,
           archived: Boolean(record.archivedAt),
-        }}
-      />
-    );
-  }
-  if (kind === "task") {
-    return (
-      <TaskRecordActions
-        task={{
-          id: record.id,
-          status: String(record.status ?? ""),
-          title: typeof record.title === "string" ? record.title : "",
-          description: typeof record.description === "string" ? record.description : "",
-          dueDate: typeof record.dueDate === "string" ? record.dueDate : null,
-          priority: typeof record.priority === "string" ? record.priority : "normal",
-          assignedUserId: typeof record.assignedUserId === "string" ? record.assignedUserId : null,
-          assignedRole: typeof record.assignedRole === "string" ? record.assignedRole : null,
         }}
       />
     );

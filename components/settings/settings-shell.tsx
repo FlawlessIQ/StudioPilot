@@ -118,7 +118,8 @@ const GROUPS: Array<{ label: string; note?: string; items: HubItem[] }> = [
     label: "Communications",
     // A new inquiry gets two emails and studios couldn't tell which setting
     // changed which (GR Productions, 2026-10-01).
-    note: "A new inquiry gets two emails. The automatic \u201cwe got your inquiry\u201d one goes right away \u2014 change its words under Email templates (Inquiry received). Your personal first reply waits on Today for you to approve: write your own under Email templates (Your reply to a new inquiry), or let Cue write each one, guided by How your first reply should go.",
+    // One sentence: it was a paragraph (laptop UI audit, 2026-10-14).
+    note: "A new inquiry gets two emails: the automatic one, under Email templates (Inquiry received), and your personal first reply, which waits on Today, under Email templates (Your reply to a new inquiry).",
     items: [
       { kind: "section", key: "forwarding", icon: Forward },
       { kind: "section", key: "templates", icon: LayoutTemplate },

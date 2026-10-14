@@ -37,6 +37,8 @@
   --ds-forest-soft: #e5ede4;
   --ds-amber: #b07d29;
   --ds-amber-soft: #f6ecd5;
+  /* Amber as text: --ds-amber is 3.1:1 on its own soft fill. */
+  --ds-amber-text: #7d560f;
   --ds-danger: #a63c3a;
   --ds-danger-soft: #f5e2df;
 
@@ -118,7 +120,7 @@
 
 .ds-root .structured-field > small {
   color: var(--ds-muted);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .ds-root .structured-field-toggle {
@@ -159,7 +161,7 @@
   border-radius: 999px;
   color: var(--ds-forest);
   display: flex;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   height: 24px;
   justify-content: center;
@@ -220,7 +222,7 @@
 .ds-root .structured-preview dt,
 .ai-queue-card .structured-preview dt {
   color: var(--ds-muted, #97897a);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -401,7 +403,7 @@
   align-items: flex-start;
   background: var(--ds-amber-soft);
   border-radius: var(--ds-r-sm);
-  color: var(--ds-amber);
+  color: var(--ds-amber-text);
   display: flex;
   font-size: 12.5px;
   gap: 8px;
@@ -509,7 +511,8 @@
 }
 
 .ds-root .prepared-compact-icon.is-automation {
-  background: linear-gradient(150deg, var(--ds-brass) 0%, var(--ds-brass-deep) 100%);
+  /* Initials on brass were 2.4:1; the deep end of the same brass carries them. */
+  background: linear-gradient(150deg, #8a6a2c 0%, var(--ds-brass-deep) 100%);
 }
 
 .ds-root .prepared-compact-body {
@@ -520,7 +523,7 @@
 
 .ds-root .prepared-compact-body small {
   color: var(--ds-ink-soft);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -539,7 +542,7 @@
 
 .ds-root .prepared-compact-body em {
   color: var(--ds-ink-soft);
-  font-size: 11.5px;
+  font-size: 12px;
   font-style: normal;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -548,7 +551,7 @@
 
 .ds-root .prepared-compact-row .ai-confidence {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 12px;
   padding: 3px 7px;
 }
 
@@ -599,7 +602,7 @@
   background: var(--ds-line-soft);
   border-radius: 999px;
   color: var(--ds-ink-soft);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
 }
@@ -690,7 +693,7 @@
   align-items: baseline;
   color: var(--ds-ink-soft);
   display: flex;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   gap: 8px;
   justify-content: space-between;
@@ -700,7 +703,7 @@
 }
 
 .ds-root .job-plan-phase-label em {
-  font-size: 10.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -808,7 +811,7 @@
   border-radius: 999px;
   color: var(--ds-ink-soft);
   flex-shrink: 0;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.03em;
   padding: 3px 8px;
@@ -1047,7 +1050,7 @@
   text-overflow: ellipsis;
 }
 .ds-switcher-copy small {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-muted);
 }
 .ds-switcher > svg {
@@ -1063,7 +1066,8 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   color: #fdf4ef;
-  background: linear-gradient(150deg, var(--ds-brass) 0%, var(--ds-brass-deep) 100%);
+  /* Initials on brass were 2.4:1; the deep end of the same brass carries them. */
+  background: linear-gradient(150deg, #8a6a2c 0%, var(--ds-brass-deep) 100%);
 }
 .ds-avatar-ink {
   background: linear-gradient(150deg, #3a3129 0%, #221c16 100%);
@@ -1086,7 +1090,7 @@
 }
 .ds-nav-label {
   padding: 0 11px 6px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -1374,7 +1378,7 @@
   gap: 6px;
   padding: 4px 11px;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   border: 1px solid transparent;
@@ -1389,7 +1393,7 @@
 .ds-badge-claret  { background: var(--ds-claret-soft); color: var(--ds-claret-deep); }
 .ds-badge-brass   { background: var(--ds-brass-soft); color: var(--ds-brass-deep); }
 .ds-badge-forest  { background: var(--ds-forest-soft); color: var(--ds-forest); }
-.ds-badge-amber   { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.ds-badge-amber   { background: var(--ds-amber-soft); color: var(--ds-amber-text); }
 .ds-badge-danger  { background: var(--ds-danger-soft); color: var(--ds-danger); }
 
 /* =========================================================================
@@ -1480,7 +1484,7 @@
 .ds-chip-claret { background: var(--ds-claret-soft); color: var(--ds-claret); }
 .ds-chip-brass  { background: var(--ds-brass-soft); color: var(--ds-brass-deep); }
 .ds-chip-forest { background: var(--ds-forest-soft); color: var(--ds-forest); }
-.ds-chip-amber  { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.ds-chip-amber  { background: var(--ds-amber-soft); color: var(--ds-amber-text); }
 
 .ds-stat-value {
   font-family: var(--ds-serif);
@@ -1511,7 +1515,7 @@
   gap: 6px;
 }
 .ds-stat-note svg { color: var(--ds-brass-deep); }
-.ds-stat-note.is-warn svg { color: var(--ds-amber); }
+.ds-stat-note.is-warn svg { color: var(--ds-amber-text); }
 
 /* =========================================================================
    Main two-column grid
@@ -1638,7 +1642,8 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: linear-gradient(150deg, var(--ds-brass) 0%, var(--ds-brass-deep) 100%);
+  /* Initials on brass were 2.4:1; the deep end of the same brass carries them. */
+  background: linear-gradient(150deg, #8a6a2c 0%, var(--ds-brass-deep) 100%);
   color: #fff9ef;
 }
 .ds-ai-head strong {
@@ -1648,7 +1653,7 @@
 }
 .ds-ai-head small {
   display: block;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-muted);
 }
 .ds-ai-draft {
@@ -1744,7 +1749,7 @@
   display: block;
 }
 .ds-agenda-date span {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1835,11 +1840,15 @@
 .ds-root[data-ds-theme="coral"],
 .ds-root[data-ds-theme="emerald"] {
   --ds-ink: #191b20;
-  --ds-ink-soft: #565d68;
+  --ds-ink-soft: #474e58;
   /* Was #8b929d: 3.1:1 on white, under AA's 4.5 — every label, tab and
      subtitle in the studio read as disabled (UI audit, 2026-10-02). */
-  --ds-muted: #6b7280;
-  --ds-line: #e8eaf0;
+  /* Darkened again 2026-10-14 (laptop UI audit): #6b7280 sat at 4.5:1 on
+     the page, right on the line, and was the studio's most common text
+     colour. Faint text had no token at all and fell back to #8a9791. */
+  --ds-muted: #545c66;
+  --ds-ink-faint: #5f6772;
+  --ds-line: #dde1e7;
   --ds-line-soft: #f2f4f7;
   --ds-canvas: #f6f7f9;
   --ds-paper: #ffffff;
@@ -1881,14 +1890,15 @@
   --ds-claret-bright: #12c084;
   --ds-claret-soft: #d9f4ea;
   --ds-brass: #c99a3f;
-  --ds-brass-deep: #977325;
+  --ds-brass-deep: #7a5c1c;
   --ds-brass-soft: #f6efda;
   /* The one filled "do this" colour. White on the bright #0ea372 accent is
      3.2:1, and five different fills had grown up for the main action
      (UI audit, 2026-10-02); every primary button now reads these. */
   --ds-action: #0b7d57;
   --ds-action-deep: #086447;
-  --ds-action-fill: linear-gradient(160deg, #0d8a60 0%, #09704e 100%);
+  /* From #0d8a60: white on it was 4.36:1 (laptop UI audit, 2026-10-14). */
+  --ds-action-fill: linear-gradient(160deg, #0b7d57 0%, #086447 100%);
   --ds-forest: #2f6f8f; /* shift "success/almost-ready" to teal-blue so it reads distinct from the green accent */
   --ds-forest-soft: #e0eef4;
   --ds-shell-glow-1: rgba(18, 192, 132, 0.07);
@@ -1971,7 +1981,7 @@
   color: var(--ds-ink);
 }
 .ds-user-pop-identity .ds-switcher-copy small {
-  font-size: 11px;
+  font-size: 12px;
 }
 .ds-user-pop a,
 .ds-user-pop button {
@@ -2029,7 +2039,7 @@
   min-width: 0;
 }
 .ds-side-ai-copy small {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2041,7 +2051,7 @@
 }
 .ds-side-ai-copy em {
   font-style: normal;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-muted);
   line-height: 1.4;
 }
@@ -2117,7 +2127,7 @@
   margin-top: 1px;
 }
 .ds-crew-privacy strong { display: block; font-size: 12.5px; color: var(--ds-ink); }
-.ds-crew-privacy small { font-size: 11.5px; line-height: 1.45; color: var(--ds-ink-soft); }
+.ds-crew-privacy small { font-size: 12px; line-height: 1.45; color: var(--ds-ink-soft); }
 
 /* Search trigger (reuses the app's GlobalSearch button `.command-search`) */
 .ds-root .command-search {
@@ -2227,7 +2237,7 @@
   height: 38px;
   border-radius: 11px;
   background: var(--ds-amber-soft);
-  color: var(--ds-amber);
+  color: var(--ds-amber-text);
   flex-shrink: 0;
 }
 .ds-alert-copy { flex: 1; min-width: 0; }
@@ -2452,7 +2462,7 @@
   align-items: center;
   gap: 6px;
   margin-left: auto;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
   color: var(--ds-brass-deep);
   white-space: nowrap;
@@ -2465,7 +2475,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--ds-ink-soft);
 }
@@ -2490,7 +2500,7 @@
 }
 
 .ds-cal-weekdays span {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2544,7 +2554,8 @@
 }
 
 .ds-cal-day.is-today time {
-  color: var(--ds-claret);
+  /* Deep green: the bright accent is 2.8:1 on today's tint. */
+  color: var(--ds-claret-deep);
 }
 
 .ds-cal-day.is-selected {
@@ -2612,7 +2623,7 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
 }
@@ -2735,7 +2746,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
   color: var(--ds-claret);
   margin-left: auto;
@@ -2745,7 +2756,7 @@
   border: 0;
   border-radius: 999px;
   cursor: pointer;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
   padding: 6px 12px;
   background: var(--ds-forest-soft);
@@ -2790,7 +2801,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
   color: var(--ds-danger);
 }
@@ -2859,7 +2870,7 @@
    (`.ds-cal-grid .ds-cal-day…`, 0,3,0) to win outright on mobile. */
 @media (max-width: 560px) {
   .ds-root .ds-cal-weekdays span {
-    font-size: 9px;
+    font-size: 12px;
     padding-inline: 3px;
   }
   .ds-root .ds-cal-grid .ds-cal-day {
@@ -2980,7 +2991,7 @@
    The Test button beside it is the thing that acts; this only reports. */
 .ds-int-meta {
   margin: 1px 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2996,7 +3007,7 @@
 }
 .ds-int-caps {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ds-brass-deep);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3010,13 +3021,13 @@
   min-width: 132px;
 }
 .ds-int-health small {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ds-muted);
 }
 .ds-int-health strong {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-ink-soft);
   font-weight: 600;
   overflow: hidden;
@@ -3041,7 +3052,7 @@
 }
 .ds-cal-consult-actions select {
   font: inherit;
-  font-size: 11.5px;
+  font-size: 12px;
   padding: 3px 6px;
   border: 1px solid var(--ds-line-soft);
   border-radius: 6px;
@@ -3055,7 +3066,7 @@
 }
 .ds-cal-consult-note {
   flex-basis: 100%;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--ds-ink-soft);
 }
@@ -3089,7 +3100,7 @@
 }
 .ds-int-detail summary {
   cursor: pointer;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
   color: var(--ds-brass-deep);
   list-style: none;
@@ -3109,7 +3120,7 @@
   border-top: 1px solid var(--ds-line-soft);
 }
 .ds-int-detail dt {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--ds-muted);
@@ -3172,7 +3183,8 @@
   font-size: 12px;
   font-weight: 600;
   color: #fdf4ef;
-  background: linear-gradient(150deg, var(--ds-brass) 0%, var(--ds-brass-deep) 100%);
+  /* Initials on brass were 2.4:1; the deep end of the same brass carries them. */
+  background: linear-gradient(150deg, #8a6a2c 0%, var(--ds-brass-deep) 100%);
   flex-shrink: 0;
 }
 
@@ -3206,7 +3218,7 @@
   min-width: 72px;
 }
 .ds-people-stat small {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ds-muted);
@@ -3227,7 +3239,7 @@
 }
 .ds-people-job small {
   color: var(--ds-muted);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -3291,7 +3303,7 @@
 }
 .ds-people-invite > summary {
   cursor: pointer;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 650;
   color: var(--ds-brass-deep);
   list-style: none;
@@ -3324,7 +3336,7 @@
 .record-edit form label {
   display: grid;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--ds-ink-soft, #5c665f);
 }
@@ -3350,7 +3362,7 @@
 
 .record-edit form label small {
   color: var(--ds-ink-soft, #6b7570);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.45;
 }
@@ -3400,7 +3412,7 @@
 
 .crew-profile-document label small {
   color: var(--ds-ink-soft, #6b7570);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .crew-profile-document input[type="file"] {
@@ -3442,7 +3454,7 @@
 
 .record-edit-locked {
   color: var(--ds-ink-soft, #6b7570);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   margin: 0;
 }
@@ -3503,8 +3515,8 @@
 }
 
 .live-domain-row-open {
-  color: var(--ds-brass-deep, #977325);
-  font-size: 11.5px;
+  color: var(--ds-brass-deep, #7a5c1c);
+  font-size: 12px;
   font-weight: 650;
   justify-self: end;
   text-decoration: none;
@@ -3524,7 +3536,7 @@
 
 .record-archive-confirm small {
   color: var(--ds-ink-soft, #5c665f);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -3627,7 +3639,7 @@
 }
 
 .project-planning-copilot-list small {
-  font-size: 0.68rem;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -3745,7 +3757,7 @@
 }
 
 .crew-role-plan-summary article.is-short small {
-  color: var(--ds-amber);
+  color: var(--ds-amber-text);
 }
 .delivery-announcement-import {
   display: grid;
@@ -3847,7 +3859,8 @@
   gap: 20px;
   padding: 28px;
   border-radius: var(--ds-r-lg);
-  background: linear-gradient(135deg, var(--ds-claret), var(--ds-claret-deep));
+  /* The deep end of the green: white on the bright #0ea372 was 3.2:1. */
+  background: linear-gradient(135deg, var(--ds-claret-deep), var(--ds-action-deep, #086447));
   color: var(--ds-paper);
 }
 
@@ -4187,7 +4200,7 @@
 .task-row-actions .button {
   min-height: 30px;
   padding: 0 10px;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* Editing a task in its row (wave 3): the row's full width, laid out like
@@ -4207,7 +4220,7 @@
 .task-edit-form label {
   display: grid;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--ds-ink-soft, #5c665f);
 }
@@ -4276,7 +4289,7 @@
   margin: 12px 0 0;
   padding: 0 6px;
   color: var(--ds-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   letter-spacing: 0.02em;
 }
 

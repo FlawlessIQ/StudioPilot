@@ -78,8 +78,11 @@ jobs:
     # Every page, at a laptop, a desk and a phone: nothing squeezed to a word
     # per line, drawn on top of something else, or wider than the window
     # (e2e/layout-integrity.spec.ts). Today's inquiries card shipped broken on
-    # every desk-sized window because nothing looked (2026-10-09). Mock mode:
-    # no Firebase, the demo records stand in for real jobs.
+    # every desk-sized window because nothing looked (2026-10-09). Every studio
+    # page is also read for contrast and text size (e2e/contrast.spec.ts):
+    # hardcoded greys drifted back after the 2026-10-02 audit darkened the
+    # tokens (2026-10-14). Mock mode: no Firebase, the demo records stand in
+    # for real jobs.
     name: Layout integrity
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -92,7 +95,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build
-      - run: npx playwright test e2e/layout-integrity.spec.ts --project=desktop-chromium
+      - run: npx playwright test e2e/layout-integrity.spec.ts e2e/contrast.spec.ts --project=desktop-chromium
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

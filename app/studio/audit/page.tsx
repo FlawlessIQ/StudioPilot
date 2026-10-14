@@ -9,9 +9,9 @@ export default function AuditPage() {
     <AppShell active="Workflows">
       <StudioDomainPage
         domain="audit"
-        eyebrow="Immutable evidence"
+        eyebrow="Your studio's record"
         title="Audit log"
-        description="Meaningful user, system, automation, AI, and provider actions."
+        description="What people, Cue and connected apps did in your studio, newest first."
       />
     </AppShell>
   );

@@ -240,12 +240,9 @@ export function EventDayCopilot({
     <div className="event-day-copilot">
       <header className="event-day-hero">
         <div>
-          <p className="eyebrow">Mobile event command</p>
-          <h1>Event day, without the scavenger hunt</h1>
-          <p>
-            One current brief for the schedule, crew, readiness, insurance,
-            and venue details you need on the day.
-          </p>
+          <p className="eyebrow">On the day</p>
+          <h1>Event day</h1>
+          <p>The schedule, crew, insurance and venue details for the day, in one place.</p>
         </div>
         <Sparkles aria-hidden="true" />
       </header>

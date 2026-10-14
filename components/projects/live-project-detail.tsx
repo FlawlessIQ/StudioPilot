@@ -83,6 +83,7 @@ import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { useZoomConnected } from "@/components/integrations/use-capability";
 import { defaultConsultationMode } from "@/features/consultations/meeting-mode";
 import { ProjectWorkspaceNav } from "@/components/projects/project-workspace-nav";
+import { useShellSection } from "@/components/layout/app-shell";
 import { useHashTarget } from "@/lib/ui/hash-target";
 import { ProjectPreparedTray } from "@/components/projects/project-prepared-tray";
 import { ProjectJobPlan } from "@/components/projects/project-job-plan";
@@ -1250,6 +1251,12 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   const [checkpoints, setCheckpoints] = useState<CheckpointRecord[]>(
     dataIsLive ? [] : mockCheckpoints(projectId),
   );
+  // An inquiry's page belongs under Inquiries, as its back link says.
+  useShellSection(
+    project && (preBookingStates.has(String(project.state)) || String(project.state) === "LOST")
+      ? "Inquiries"
+      : null,
+  );
   const [related, setRelated] = useState<RelatedRecords>(emptyRelatedRecords);
   const [error, setError] = useState<string | null>(null);
   // "Change the booking", opened from Edit job's locked date as well as its
@@ -1821,40 +1828,56 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
           </p>
           {/* The five arcs, not fifteen states — the same model as the Jobs
               table's track (features/journey/phases.ts). The precise state is
-              the small print. */}
+              the small print. A status line, not a row of pills: drawn as
+              pills it sat over the job's tabs looking just like them, with
+              "Booking" and "Delivery" in both, so the stages read as buttons
+              and the tabs as a status (laptop UI audit, 2026-10-14). */}
           <div className="project-phase" aria-label={`Stage: ${stateLabel(state, workspace.tenantTrade)}`}>
             {projectPhaseIndex(state) === 0 ? (
               <StatusBadge tone={stateTone(state)} dot>
                 {stateLabel(state, workspace.tenantTrade)}
               </StatusBadge>
             ) : null}
-            {projectPhaseIndex(state) > 0 ? (
-            <ol className="project-phase-track">
-              {journeyPhaseOrder.map((phase, index) => {
-                const reached = projectPhaseIndex(state);
-                const finished = state === "CLOSED" || state === "ARCHIVED";
-                const position =
-                  index + 1 < reached || (finished && index + 1 === reached)
-                    ? "done"
-                    : index + 1 === reached
-                      ? "current"
-                      : "ahead";
-                return (
-                  <li
-                    aria-current={position === "current" ? "step" : undefined}
-                    className={`is-${position}`}
-                    key={phase}
-                  >
-                    <span aria-hidden="true" />
-                    {journeyPhaseLabelFor(phase, workspace.tenantTrade)}
-                  </li>
-                );
-              })}
-            </ol>
-            ) : null}
-            {projectPhaseIndex(state) > 0 ? (
-              <small>{stateLabel(state, workspace.tenantTrade)}</small>
-            ) : null}
+            {projectPhaseIndex(state) > 0 ? (() => {
+              const reached = projectPhaseIndex(state);
+              const finished = state === "CLOSED" || state === "ARCHIVED";
+              const current = journeyPhaseOrder[Math.min(reached, journeyPhaseOrder.length) - 1];
+              const next = finished ? undefined : journeyPhaseOrder[reached];
+              return (
+                <>
+                  <p className="project-phase-caption">
+                    <strong>
+                      Stage {Math.min(reached, journeyPhaseOrder.length)} of {journeyPhaseOrder.length} ·{" "}
+                      {journeyPhaseLabelFor(current, workspace.tenantTrade)}
+                    </strong>
+                    <small>
+                      {stateLabel(state, workspace.tenantTrade)}
+                      {next ? ` · next: ${journeyPhaseLabelFor(next, workspace.tenantTrade)}` : ""}
+                    </small>
+                  </p>
+                  <ol className="project-phase-track">
+                    {journeyPhaseOrder.map((phase, index) => {
+                      const position =
+                        index + 1 < reached || (finished && index + 1 === reached)
+                          ? "done"
+                          : index + 1 === reached
+                            ? "current"
+                            : "ahead";
+                      return (
+                        <li
+                          aria-current={position === "current" ? "step" : undefined}
+                          className={`is-${position}`}
+                          key={phase}
+                          title={journeyPhaseLabelFor(phase, workspace.tenantTrade)}
+                        >
+                          <span className="sr-only">{journeyPhaseLabelFor(phase, workspace.tenantTrade)}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </>
+              );
+            })() : null}
           </div>
         </div>
       </header>
@@ -1867,7 +1890,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
         project={project}
         projectId={projectId}
       />
-      <ProjectWorkspaceNav projectId={projectId} />
+      <ProjectWorkspaceNav counts={{ planning: outstanding.length }} projectId={projectId} />
       <div className="project-facts">
         <span>
           <CalendarDays size={17} />

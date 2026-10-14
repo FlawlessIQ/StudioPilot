@@ -104,10 +104,15 @@ sidebar and side rail had already narrowed.
 - Before calling UI done, run the layout guard (CI runs it as "Layout
   integrity"; it finds every `app/**/page.tsx` itself):
   ```bash
-  npm run build && npx playwright test e2e/layout-integrity.spec.ts --project=desktop-chromium
+  npm run build && npx playwright test e2e/layout-integrity.spec.ts e2e/contrast.spec.ts --project=desktop-chromium
   ```
   For a live page, run `e2e/support/layout-audit.ts` in the browser at 1024,
   1280 and phone width.
+- Text is readable: every studio page passes WCAG AA contrast and has no text
+  under 12px (11px in capitals), checked by `e2e/contrast.spec.ts` in the
+  same CI job. Colour text from the tokens (`--ds-muted`, `--ds-ink-faint`,
+  `--accent`, `--ds-amber-text`), never a hardcoded grey; the bright
+  `--ds-claret` and `--ds-amber` are fills, not text colours.
 - Terminology follows the studio's trade: words come from `tradeVocab()` /
   `tradeProfile()` (features/trades), never a hardcoded "photographer",
   "gallery", "coverage" or "proposal". `tests/job-kind-copy.test.ts` pins

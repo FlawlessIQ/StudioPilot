@@ -681,10 +681,18 @@ export function StudioProposalCenter({
           return ["accepted", "declined", "expired", "superseded", "withdrawn", "discarded"].includes(
             status,
           );
-        return true;
+        // A replaced version is history: it stays under Outcomes, and "All"
+        // shows the version that counts (laptop UI audit, 2026-10-14 — old
+        // versions crowded a 3,484px list).
+        return status !== "superseded";
       }),
     [filter, focusProject, proposals],
   );
+  // 25 a page, as every other list (components/studio/live-domain-view.tsx).
+  const [listPage, setListPage] = useState(0);
+  const listPages = Math.max(1, Math.ceil(visible.length / 25));
+  const shownPage = Math.min(listPage, listPages - 1);
+  const shown = visible.slice(shownPage * 25, shownPage * 25 + 25);
   const counts = useMemo(() => {
     const values = proposals ?? [];
     return {
@@ -772,7 +780,10 @@ export function StudioProposalCenter({
               <button
                 aria-selected={filter === value}
                 key={value}
-                onClick={() => setFilter(value)}
+                onClick={() => {
+                  setFilter(value);
+                  setListPage(0);
+                }}
                 role="tab"
                 type="button"
               >
@@ -824,7 +835,7 @@ export function StudioProposalCenter({
           </div>
         ) : (
           <div className="proposal-center-list">
-            {visible.map((proposal) => {
+            {shown.map((proposal) => {
               const pricing = objectValue(proposal.pricingSnapshot);
               const event = objectValue(proposal.eventSnapshot);
               const client = objectValue(proposal.clientSnapshot);
@@ -870,6 +881,31 @@ export function StudioProposalCenter({
                 </Link>
               );
             })}
+            {visible.length > 25 ? (
+              <footer className="live-domain-pager">
+                <span>
+                  {shownPage * 25 + 1}–{Math.min(visible.length, shownPage * 25 + 25)} of {visible.length}
+                </span>
+                <span>
+                  <button
+                    className="button button-quiet button-sm"
+                    disabled={shownPage === 0}
+                    onClick={() => setListPage(shownPage - 1)}
+                    type="button"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    className="button button-quiet button-sm"
+                    disabled={shownPage >= listPages - 1}
+                    onClick={() => setListPage(shownPage + 1)}
+                    type="button"
+                  >
+                    Next
+                  </button>
+                </span>
+              </footer>
+            ) : null}
           </div>
         )}
       </section>
@@ -1439,12 +1475,11 @@ export function StudioProposalComposer() {
       <header className="proposal-composer-heading">
         <div>
           {/* A makeup artist or hair stylist sends a quote (trades.ts). */}
-          <p className="eyebrow">{`New ${words.offer}`}</p>
-          <h1>Turn a selected package into a clear decision.</h1>
-          <p>
-            The price you send is the price they see. You control the
-            presentation, timing, and approval path.
-          </p>
+          {/* A plain title: "Turn a selected package into a clear decision."
+              read as marketing inside the app (laptop UI audit, 2026-10-14). */}
+          <p className="eyebrow">{words.Offers}</p>
+          <h1>{`New ${words.offer}`}</h1>
+          <p>The price you send is the price they see.</p>
         </div>
         <div>
           <ShieldCheck />

@@ -1491,7 +1491,7 @@ export function AiScheduleGenerator({
                     ? "The submitted questionnaire changed after the current version. The new draft will be compared when you publish it."
                     : weddingDay
                       ? "Open it to change a time, or start over from the couple’s answers. Publishing makes a new version and shows what changed."
-                      : "Generate only when facts changed. Publishing creates an immutable version and shows the exact impact."}
+                      : "Generate only when facts changed. Publishing saves a new version and shows exactly what changed."}
                 </small>
               </span>
             </div>

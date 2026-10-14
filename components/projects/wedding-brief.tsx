@@ -200,8 +200,12 @@ export function WeddingBrief({ projectId }: { projectId: string }) {
                   <strong>{item.title}</strong>
                   {item.detail ? <small>{item.detail}</small> : null}
                 </span>
+                {/* A quiet button, not small coloured text (laptop UI audit,
+                    2026-10-14). */}
                 {item.href ? (
-                  <Link href={item.href}>Open</Link>
+                  <Link className="button button-quiet button-sm" href={item.href}>
+                    Open <ArrowRight size={14} />
+                  </Link>
                 ) : null}
               </li>
             ))}

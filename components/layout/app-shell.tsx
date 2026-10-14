@@ -164,6 +164,22 @@ const activeGroups: Record<string, string[]> = {
 
 const StudioShellContext = createContext(false);
 
+/**
+ * A page saying which sidebar section it belongs to, when its route can't.
+ *
+ * Every job lives at /studio/projects/[id], so an inquiry's page lit up Jobs
+ * while its own back link said "All inquiries" (laptop UI audit, 2026-10-14).
+ */
+const ShellSectionContext = createContext<(section: string | null) => void>(() => {});
+
+export function useShellSection(section: string | null) {
+  const set = useContext(ShellSectionContext);
+  useEffect(() => {
+    set(section);
+    return () => set(null);
+  }, [section, set]);
+}
+
 const studioRouteLabels: Record<string, string> = {
   audit: "Workflows",
   "ai-queue": "Waiting on you",
@@ -251,6 +267,7 @@ function StudioShell({
    * "Clients" and lost the thread the photographer was following.
    */
   const inJob = useSearchParams().has("project");
+  const [sectionOverride, setSectionOverride] = useState<string | null>(null);
   // The drawer is only a drawer below 860px; above that the sidebar is
   // permanently visible and must never be inert.
   const [compactViewport, setCompactViewport] = useState(false);
@@ -327,7 +344,9 @@ function StudioShell({
       items: section.items.filter((item) => canSee(item)),
     }))
     .filter((section) => section.items.length);
-  const currentGroup = inJob
+  const currentGroup = sectionOverride
+    ? sectionOverride
+    : inJob
     ? "Jobs"
     : (Object.entries(activeGroups).find(([, values]) =>
         values.includes(resolvedActive),
@@ -590,7 +609,7 @@ function StudioShell({
             ) : (
               <>
                 <BillingBanner access={billingAccess} isOwner={isOwner} />
-                {children}
+                <ShellSectionContext.Provider value={setSectionOverride}>{children}</ShellSectionContext.Provider>
               </>
             )}
           </main>

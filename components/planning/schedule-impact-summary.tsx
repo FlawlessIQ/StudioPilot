@@ -48,7 +48,7 @@ export function ScheduleImpactSummary({ scheduleId }: { scheduleId: string }) {
         <div>
           <p className="eyebrow">Version {version} impact</p>
           <h2>What changed</h2>
-          <p>Calculated from immutable schedule versions before notifications were sent.</p>
+          <p>Worked out from the saved versions before anyone was told.</p>
         </div>
         <CalendarClock aria-hidden="true" />
       </div>

@@ -7,6 +7,13 @@
    become dead and can be removed.
    ========================================================================= */
 
+/* A bare <small> is "smaller" than its label: 10px under a 12px label, the
+   size the laptop UI audit (2026-10-14) flagged on import, proposal and
+   delivery forms. Zero specificity, so any rule that sizes a small wins. */
+:where(.ds-root) small {
+  font-size: max(12px, 0.85em);
+}
+
 .ds-root {
   /* Remap legacy custom properties onto emerald tokens */
   --ink: var(--ds-ink);
@@ -20,7 +27,9 @@
   --background: var(--ds-canvas);
   --border: var(--ds-line);
   --soft: var(--ds-line-soft);
-  --accent: var(--ds-claret);
+  /* Text-safe green: links and labels read --accent, and the bright
+     #0ea372 is 3.2:1 on white (laptop UI audit, 2026-10-14). */
+  --accent: var(--ds-claret-deep);
   /* Read by fourteen rules (booking steps, outcomes icons, notices) and
      defined nowhere, so each fell back to currentColor: the booked card's
      border rendered ink-black (UI audit, 2026-10-02). */
@@ -31,7 +40,7 @@
   --sage: var(--ds-forest-soft);
   --sage-dark: var(--ds-forest);
   --amber: var(--ds-amber-soft);
-  --amber-dark: var(--ds-amber);
+  --amber-dark: var(--ds-amber-text);
   --rose: var(--ds-danger-soft);
   --rose-dark: var(--ds-danger);
   --blue: #e7eef3;
@@ -160,7 +169,7 @@
    active" — blue, while the job bar's "Booked" was green (UI audit,
    2026-10-02). */
 .ds-root .status-success { background: var(--ds-claret-soft); color: var(--ds-claret-deep); }
-.ds-root .status-warning { background: var(--ds-amber-soft); color: var(--ds-amber); }
+.ds-root .status-warning { background: var(--ds-amber-soft); color: var(--ds-amber-text); }
 .ds-root .status-danger { background: var(--ds-danger-soft); color: var(--ds-danger); }
 .ds-root .status-info { background: #e6eef5; color: #35607d; border-color: #cddef0; }
 
@@ -169,6 +178,18 @@
   border-radius: var(--ds-r-lg);
   border-color: var(--ds-line);
   box-shadow: var(--ds-shadow-sm);
+}
+
+/* White on white (laptop UI audit, 2026-10-14): cards on the near-white page
+   lost their edge, and a panel inside a panel read as one surface. The cards
+   a job is built from carry the same lift as a panel, and a panel nested in
+   another sits on a faint fill instead of a second white sheet. */
+.ds-root :is(.job-rail-card, .project-facts) {
+  box-shadow: var(--ds-shadow-sm);
+}
+.ds-root :is(.panel, .project-detail-disclosure) .panel {
+  background: #f9fafb;
+  box-shadow: none;
 }
 
 /* =========================================================================
@@ -181,7 +202,7 @@
   background:
     radial-gradient(520px 300px at 82% 6%, rgba(176, 138, 82, 0.22), transparent 60%),
     radial-gradient(560px 340px at 8% 108%, rgba(255, 255, 255, 0.08), transparent 60%),
-    linear-gradient(158deg, #0f8a5e 0%, #0a5c40 60%, #063826 100%);
+    linear-gradient(158deg, #0b7d57 0%, #0a5c40 60%, #063826 100%);
   color: #eef7f1;
 }
 .ds-root .auth-brand-panel .brand-logo { color: #ffffff; }
@@ -276,7 +297,7 @@
   background:
     radial-gradient(520px 300px at 88% 18%, rgba(176, 138, 82, 0.20), transparent 60%),
     radial-gradient(560px 340px at 58% 118%, rgba(255, 255, 255, 0.07), transparent 60%),
-    linear-gradient(128deg, #0f8a5e 0%, #0a5c40 58%, #063826 100%);
+    linear-gradient(128deg, #0b7d57 0%, #0a5c40 58%, #063826 100%);
 }
 .ds-root .studio-ai-primary {
   background: #fbf6ea;
@@ -303,7 +324,7 @@
 .ds-root .next-action-card {
   background:
     radial-gradient(360px 200px at 90% -10%, rgba(176, 138, 82, 0.18), transparent 60%),
-    linear-gradient(150deg, #0f8a5e 0%, #0a5c40 60%, #063826 100%);
+    linear-gradient(150deg, #0b7d57 0%, #0a5c40 60%, #063826 100%);
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow: 0 22px 52px rgb(6 42 28 / 20%);
 }
@@ -351,7 +372,7 @@
   background:
     radial-gradient(520px 300px at 84% 6%, rgba(176, 138, 82, 0.20), transparent 60%),
     radial-gradient(560px 340px at 55% 118%, rgba(255, 255, 255, 0.07), transparent 60%),
-    linear-gradient(122deg, #0f8a5e 0%, #0a5c40 62%, #063826 100%);
+    linear-gradient(122deg, #0b7d57 0%, #0a5c40 62%, #063826 100%);
 }
 .ds-root .ai-queue-hero h1 {
   color: #ffffff;
@@ -377,7 +398,7 @@
   background:
     radial-gradient(520px 300px at 86% -8%, rgba(176, 138, 82, 0.22), transparent 60%),
     radial-gradient(560px 340px at 60% 122%, rgba(255, 255, 255, 0.07), transparent 60%),
-    linear-gradient(124deg, #0f8a5e 0%, #0a5c40 62%, #063826 100%);
+    linear-gradient(124deg, #0b7d57 0%, #0a5c40 62%, #063826 100%);
 }
 .ds-root .crew-cascade-hero > svg {
   color: #ddefe3;
@@ -492,7 +513,7 @@
   background:
     radial-gradient(520px 300px at 84% -10%, rgba(176, 138, 82, 0.2), transparent 60%),
     radial-gradient(560px 340px at 58% 122%, rgba(255, 255, 255, 0.07), transparent 60%),
-    linear-gradient(122deg, #0f8a5e 0%, #0a5c40 62%, #063826 100%);
+    linear-gradient(122deg, #0b7d57 0%, #0a5c40 62%, #063826 100%);
 }
 
 /* Capability routing — "which connected provider handles this job" */
@@ -679,7 +700,7 @@
 .ds-root .crm-table-head,               /* globals.css:4777, was 8px */
 .ds-root .studio-command-kicker,        /* globals.css:242, was 10px */
 .ds-root .studio-command-badge {        /* globals.css:359, was 9px */
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* Metadata / secondary text: was 6-10px (globals.css:11481's .em was the
@@ -728,7 +749,7 @@
    strong/small elements that actually carry the undersized text). Same
    bands as above. */
 .ds-root .project-table-head {          /* globals.css:3394, was 9px */
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .ds-root .project-name small,
@@ -807,7 +828,7 @@
 .ds-root .studio-import-simulation li > span,
 .ds-root .studio-import-source-proof blockquote small,
 .ds-root .template-import-kicker {
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* Secondary / metadata / body text — 270 selectors */
@@ -1146,7 +1167,7 @@
    line-by-line, not a label. */
 .ds-root .studio-import-draft-editor textarea,
 .ds-root .studio-import-merge-control select, /* reimagined.css:1544-1546 font: 500 10px, shorthand-missed */
-.ds-root .ai-queue-editor textarea {     /* reimagined.css:2346 font: 500 9px, shorthand-missed */
+.ds-root .ai-queue-editor textarea {     /* reimagined.css:2346 font: 500 12px, shorthand-missed */
   font-size: 13px;
 }
 
@@ -1428,7 +1449,7 @@
   border-left: 2px solid var(--ds-brass, #b08a52);
   background: color-mix(in srgb, var(--ds-brass, #b08a52) 14%, transparent);
   color: var(--ds-ink, #1d2521);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
   text-align: left;
@@ -1444,7 +1465,7 @@
 
 /* Availability: present, but never competing with a commitment. */
 .ds-root .ds-cal-openhint {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--ds-ink-faint, #8a9791);
   letter-spacing: 0.01em;
@@ -1531,7 +1552,7 @@
 }
 
 .ds-root .ds-cal-agenda-date small {
-  font-size: 10.5px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ds-ink-faint, #8a9791);
@@ -1581,12 +1602,12 @@
 }
 
 .ds-root .ds-cal-row-facts {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-ink-soft, #5b6b63);
 }
 
 .ds-root .ds-cal-row-readiness {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   padding: 3px 7px;
   border-radius: 999px;
@@ -1626,7 +1647,7 @@
 .ds-root .ds-cal-row-slot .ds-cal-slot-btn {
   width: auto;
   padding: 4px 12px;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1663,7 +1684,7 @@
 }
 
 .ds-root .project-context-identity small {
-  font-size: 10.5px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.11em;
   color: var(--ds-ink-faint, #8a9791);
@@ -1706,7 +1727,7 @@
 }
 
 .ds-root .project-context-facts small {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-ink-soft, #5b6b63);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1844,7 +1865,7 @@
   display: inline-block;
   max-width: 34ch;
   margin-top: 3px;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.35;
   color: var(--ds-accent-deep, #0b6e4f);
 }
@@ -1989,7 +2010,7 @@
 .ds-root .report-funnel-rate em {
   font-style: normal;
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ds-danger, #a3201a);
 }
 
@@ -2156,7 +2177,7 @@
     border-radius: 11px;
     color: var(--ds-ink-soft, #5b6b63);
     font-family: inherit;
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.2;
     text-align: center;
@@ -2254,7 +2275,7 @@
   border-radius: 99px;
   display: inline-flex;
   flex: none;
-  font-size: 10px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 700;
   gap: 4px;
@@ -2275,13 +2296,13 @@
 
 .ds-root .plan-area-flag.is-done {
   background: transparent;
-  color: var(--ds-muted, #747d77);
+  color: var(--ds-muted, #555d57);
 }
 
 /* Not done and not to-do: the event went past it. */
 .ds-root .plan-area-flag.is-past {
   background: transparent;
-  color: var(--ds-muted, #747d77);
+  color: var(--ds-muted, #555d57);
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -2316,7 +2337,7 @@
 }
 
 .ds-root .crm-form .form-checkbox small {
-  color: var(--ds-muted, #747d77);
+  color: var(--ds-muted, #555d57);
   font-weight: 400;
   grid-column: 2;
 }
@@ -2333,7 +2354,7 @@
 }
 
 .ds-root .client-payment-card > div:first-child > span small {
-  color: var(--ds-muted, #747d77);
+  color: var(--ds-muted, #555d57);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: .04em;
@@ -2695,7 +2716,7 @@
   justify-content: space-between;
 }
 .ds-root .delivery-before-event p {
-  color: var(--ds-ink-soft, #565d68);
+  color: var(--ds-ink-soft, #474e58);
   font-size: 14px;
   line-height: 1.5;
   margin: 0;
@@ -2727,7 +2748,7 @@
   margin: 4px 0 6px;
 }
 .ds-root .job-kinds-guide > p:not(.eyebrow) {
-  color: var(--ds-ink-soft, #565d68);
+  color: var(--ds-ink-soft, #474e58);
   margin: 0 0 14px;
   max-width: 62ch;
 }
@@ -2739,14 +2760,14 @@
   padding: 0;
 }
 .ds-root .job-kinds-guide li {
-  border-top: 1px solid var(--ds-line, #e8eaf0);
+  border-top: 1px solid var(--ds-line, #dde1e7);
   display: grid;
   gap: 2px 18px;
   grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
   padding: 11px 0;
 }
 .ds-root .job-kinds-guide li span {
-  color: var(--ds-ink-soft, #565d68);
+  color: var(--ds-ink-soft, #474e58);
   font-size: 13px;
 }
 @media (max-width: 640px) {
@@ -2795,7 +2816,7 @@
   z-index: 1;
 }
 .ds-root .inquiry-row-actions .form-error {
-  font-size: 11.5px;
+  font-size: 12px;
   margin: 0;
   text-align: right;
 }
@@ -2960,4 +2981,531 @@
   color: #9d4b3f;
   font-size: 12px;
   font-weight: 600;
+}
+
+/* =========================================================================
+   The job's tabs and its stage (laptop UI audit, 2026-10-14)
+   The stage track and the tabs were two rows of the same rounded pills, one
+   above the other, with "Booking" and "Delivery" in both. On a laptop the
+   tabs are now an underline bar, the stage a thin progress line under a
+   caption. Phones keep their segmented control until the mobile audit.
+   ========================================================================= */
+.ds-root .project-phase {
+  display: grid;
+  gap: 7px;
+  justify-items: start;
+  max-width: 420px;
+}
+.ds-root .project-phase-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+}
+.ds-root .project-phase-caption strong {
+  color: var(--ds-ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+.ds-root .project-phase-caption small {
+  color: var(--ds-muted);
+  font-size: 12.5px;
+}
+.ds-root .project-phase-track {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  min-width: 240px;
+  overflow: visible;
+}
+.ds-root .project-phase-track li,
+.ds-root .project-phase-track li.is-current {
+  height: 5px;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--ds-line);
+}
+.ds-root .project-phase-track li.is-done {
+  background: var(--ds-claret-deep);
+}
+.ds-root .project-phase-track li.is-current {
+  background: var(--ds-claret);
+}
+
+@media (min-width: 761px) {
+  .ds-root .project-workspace-nav.project-workspace-nav,
+  .ds-root .project-workspace-nav.project-workspace-nav.is-contextual {
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--ds-line);
+    border-radius: 0;
+    box-shadow: none;
+    gap: 26px;
+    padding: 0 2px;
+  }
+  .ds-root .project-workspace-nav.project-workspace-nav a,
+  .ds-root .project-workspace-nav.project-workspace-nav.is-contextual a {
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: var(--ds-ink-soft);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: -1px;
+    min-height: 44px;
+    padding: 0 1px;
+  }
+  .ds-root .project-workspace-nav.project-workspace-nav a:hover {
+    background: transparent;
+    border-bottom-color: var(--ds-line);
+    color: var(--ds-ink);
+  }
+  .ds-root .project-workspace-nav.project-workspace-nav a.active {
+    background: transparent;
+    border-bottom-color: var(--ds-claret-deep);
+    color: var(--ds-ink);
+  }
+  .ds-root .project-workspace-nav.project-workspace-nav a svg {
+    color: var(--ds-muted);
+  }
+  .ds-root .project-workspace-nav.project-workspace-nav a.active svg {
+    color: var(--ds-claret-deep);
+  }
+}
+.ds-root .project-workspace-count {
+  background: var(--ds-amber-soft);
+  border-radius: 999px;
+  color: var(--ds-amber-text);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1;
+  padding: 3px 7px;
+}
+
+/* =========================================================================
+   Lists: one line a row, controls behind ···, 25 a page
+   (laptop UI audit, 2026-10-14; components/studio/live-domain-view.tsx)
+   ========================================================================= */
+.ds-root .live-domain-table > article.live-domain-row-has-actions {
+  grid-template-columns: minmax(190px, 1.5fr) repeat(3, minmax(110px, 0.75fr)) auto min-content;
+}
+.ds-root .live-domain-primary-link {
+  color: inherit;
+  text-decoration: none;
+}
+.ds-root .live-domain-primary-link:hover strong {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ds-root .live-domain-row-toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ds-ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  justify-self: end;
+  min-height: 32px;
+  min-width: 32px;
+  justify-content: center;
+  padding: 0 6px;
+}
+.ds-root .live-domain-row-toggle:hover,
+.ds-root .live-domain-row-toggle[aria-expanded="true"] {
+  background: var(--ds-line-soft);
+  border-color: var(--ds-line);
+  color: var(--ds-ink);
+}
+.ds-root .live-domain-row-files {
+  align-items: center;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 650;
+  gap: 3px;
+}
+.ds-root .live-domain-table .live-domain-row-files svg {
+  height: 14px;
+  width: 14px;
+}
+.ds-root .live-domain-pager {
+  align-items: center;
+  border-top: 1px solid var(--ds-line);
+  color: var(--ds-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px 20px;
+}
+.ds-root .live-domain-pager > span:last-child {
+  display: flex;
+  gap: 8px;
+}
+
+/* Tasks: a tick box, the title and one meta line. */
+.ds-root .live-task-filter {
+  border-bottom: 1px solid var(--ds-line);
+  padding: 12px 16px;
+}
+.ds-root .live-task-none {
+  color: var(--ds-muted);
+  margin: 0;
+  padding: 18px 20px;
+}
+.ds-root .live-domain-table > article.task-list-row {
+  align-items: center;
+  border-bottom: 1px solid var(--ds-line);
+  display: grid;
+  gap: 6px 14px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  padding: 12px 16px 12px 20px;
+}
+.ds-root .task-check {
+  align-items: center;
+  background: var(--ds-paper);
+  border: 1.5px solid var(--ds-muted);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  width: 20px;
+}
+.ds-root .task-check:hover {
+  border-color: var(--ds-claret-deep);
+}
+.ds-root .task-check[aria-pressed="true"] {
+  background: var(--ds-claret-deep);
+  border-color: var(--ds-claret-deep);
+}
+.ds-root .task-list-row.is-settled .task-check:disabled {
+  background: var(--ds-line-soft);
+  border-color: var(--ds-line);
+  color: var(--ds-muted);
+}
+.ds-root .live-domain-table .task-check svg {
+  height: 14px;
+  width: 14px;
+}
+.ds-root .task-list-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ds-root .task-list-title {
+  color: var(--ds-ink);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.ds-root a.task-list-title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ds-root .task-list-row.is-settled .task-list-title {
+  color: var(--ds-muted);
+  text-decoration: line-through;
+}
+.ds-root .task-list-meta {
+  color: var(--ds-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  gap: 2px 0;
+}
+.ds-root .live-domain-table .task-list-meta > span {
+  display: inline;
+}
+.ds-root .task-list-meta > span + span::before {
+  content: "·";
+  margin: 0 7px;
+}
+.ds-root .task-late {
+  color: var(--ds-danger);
+  font-weight: 650;
+}
+.ds-root .live-domain-table .task-list-flags {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.ds-root .task-menu-toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--ds-ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+.ds-root .task-menu-toggle:hover,
+.ds-root .task-menu-toggle[aria-expanded="true"] {
+  background: var(--ds-line-soft);
+  border-color: var(--ds-line);
+  color: var(--ds-ink);
+}
+.ds-root .task-undo {
+  font-size: 12px;
+  min-height: 30px;
+  padding: 0 10px;
+}
+.ds-root .task-list-menu,
+.ds-root .task-list-row > .task-edit-form,
+.ds-root .task-list-row > .task-list-notice {
+  grid-column: 2 / -1;
+}
+.ds-root .task-list-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ds-root .task-list-menu .button {
+  font-size: 12px;
+  min-height: 30px;
+  padding: 0 10px;
+}
+.ds-root .task-list-row > .task-list-notice {
+  margin: 0;
+}
+
+/* Clients: edit, archive and invite behind ···, opening under the row. */
+@media (min-width: 761px) {
+  .ds-root .ds-people-row {
+    grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1fr) 118px 34px 34px;
+  }
+  .ds-root .ds-people-row > .record-row-actions {
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    order: 8;
+    padding-left: 56px;
+  }
+}
+.ds-root .ds-people-more {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-r-sm);
+  color: var(--ds-ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  order: 7;
+  width: 34px;
+}
+.ds-root .ds-people-more:hover,
+.ds-root .ds-people-more[aria-expanded="true"] {
+  background: var(--ds-line-soft);
+  color: var(--ds-ink);
+}
+
+/* One tab style, one filter style (laptop UI audit, 2026-10-14). Sections
+   (People, a job's tabs, Crew's own views) are an underline bar; filters
+   inside a list (Active / Prospects / Archived, Open / Late / Done) are one
+   segmented control. Four looks had grown up: boxed pills, flat text, an
+   underline and a sunk segmented strip, two of them on the Crew page. */
+@media (min-width: 761px) {
+  .ds-root .section-nav {
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--ds-line);
+    border-radius: 0;
+    gap: 26px;
+    padding: 0 2px;
+    width: auto;
+  }
+  .ds-root .section-nav a {
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-size: 14px;
+    margin-bottom: -1px;
+    min-height: 44px;
+    padding: 0 1px;
+  }
+  .ds-root .section-nav a:hover {
+    border-bottom-color: var(--ds-line);
+  }
+  .ds-root .section-nav a.active {
+    background: transparent;
+    border-bottom-color: var(--ds-claret-deep);
+    box-shadow: none;
+  }
+  .ds-root .crew-hub-tabs button[aria-selected="true"] {
+    border-bottom-color: var(--ds-claret-deep);
+  }
+}
+.ds-root .crm-tabs,
+.ds-root .live-task-filter,
+.ds-root .crew-hub-filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.ds-root .crm-tabs,
+.ds-root .live-task-filter > [role="group"],
+.ds-root .crew-hub-filters {
+  background: var(--ds-line-soft);
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  padding: 3px;
+  width: fit-content;
+}
+.ds-root .crm-tabs :is(a, button),
+.ds-root .live-task-filter button,
+.ds-root .crew-hub-filters button {
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--ds-ink-soft);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 12px;
+}
+.ds-root .crm-tabs :is(a, button).active,
+.ds-root .live-task-filter button[aria-pressed="true"],
+.ds-root .crew-hub-filters button[aria-pressed="true"],
+.ds-root .crew-hub-filters button.active {
+  background: var(--ds-paper);
+  box-shadow: 0 1px 2px rgba(25, 27, 32, 0.1);
+  color: var(--ds-ink);
+}
+.ds-root .live-domain-table .live-task-filter button span {
+  color: var(--ds-muted);
+  display: inline;
+  font-weight: 500;
+  margin-left: 3px;
+}
+
+/* Waiting on you: one line per draft; the one you open expands in place
+   (components/ai/ai-approval-queue.tsx; laptop UI audit, 2026-10-14). */
+.ds-root .ai-queue-list.is-compact {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.ds-root .ai-queue-row {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.ds-root .ai-queue-row.is-open > .prepared-compact-row {
+  border-color: var(--ds-claret-deep);
+  box-shadow: 0 0 0 3px var(--ds-claret-soft);
+}
+.ds-root .ai-queue-row.is-open .prepared-compact-chevron {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ds-root .ai-queue-row .prepared-compact-chevron {
+    transition: transform 0.15s ease;
+  }
+}
+.ds-root .live-domain-table strong.is-late {
+  color: var(--ds-danger);
+}
+
+/* Waiting on you's header: the shared small-text rule painted its line and
+   counts the page's muted grey on dark green (laptop UI audit, 2026-10-14). */
+.ds-root .ai-queue-page .ai-queue-hero > div > p:last-child,
+.ds-root .ai-queue-page .ai-queue-hero aside small,
+.ds-root .ai-queue-page .ai-queue-hero aside strong {
+  color: #fff;
+}
+
+/* "Delete this job permanently" sat in the job rail as a red-bordered box in
+   bold red, louder than "Archive job" beside it (laptop UI audit,
+   2026-10-14). Closed, it is a quiet line; open, it is the boxed danger zone. */
+.ds-root .project-danger-zone:not([open]) {
+  border-color: transparent;
+  margin-top: 0;
+}
+.ds-root .project-danger-zone:not([open]) > summary {
+  color: var(--ds-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 0;
+}
+.ds-root .project-danger-zone:not([open]) > summary:hover {
+  color: var(--ds-danger);
+}
+
+/* The Booking tab's dark header: its line and step chips took the page's
+   muted grey from shared rules and all but vanished on the dark green
+   (laptop UI audit, 2026-10-14). */
+.ds-root .booking-autopilot-hero:not(.is-settled) .eyebrow {
+  color: #ddefe3;
+}
+.ds-root .booking-autopilot-hero:not(.is-settled) > div > p:last-child,
+.ds-root .booking-autopilot-hero:not(.is-settled) aside span {
+  color: rgba(255, 255, 255, 0.86);
+}
+.ds-root .booking-autopilot-hero:not(.is-settled) aside span.is-complete {
+  color: #fff;
+}
+
+/* The new-job Cue panel is dark; `.ds-root .eyebrow` painted its eyebrow
+   brass at 1.8:1 over the panel's own pale green. */
+.ds-root .intake-copilot .eyebrow {
+  color: #a8c7b4;
+}
+
+/* Text on the green heroes reads in near-white, and their stat panels are
+   a darker glass rather than a lighter one: a lighter panel lifted the green
+   under the labels to 3.9:1 (laptop UI audit, 2026-10-14). */
+.ds-root .ai-queue-page .ai-queue-hero .eyebrow,
+.ds-root .event-day-hero > div > p:last-child {
+  color: #eef7f1;
+}
+.ds-root .ai-queue-page .ai-queue-hero aside,
+.ds-root .template-import-hero aside {
+  background: rgba(0, 0, 0, 0.12);
+}
+.ds-root .template-import-hero .template-import-kicker {
+  color: #fbeefb;
+}
+.ds-root .template-import-hero h1 + p,
+.ds-root .template-import-hero aside small {
+  color: #fff;
+}
+
+/* A status is a pill, not a bar stretched across its column. */
+.ds-root .live-domain-table .status-badge {
+  justify-self: start;
+}
+
+.ds-root .ds-setup.is-done {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  justify-content: space-between;
+}
+.ds-root .ds-setup.is-done > span {
+  align-items: center;
+  color: var(--ds-ink);
+  display: inline-flex;
+  font-weight: 600;
+  gap: 8px;
+}
+.ds-root .ds-setup.is-done > span svg {
+  color: var(--ds-claret-deep);
 }

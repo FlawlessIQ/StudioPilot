@@ -27,7 +27,8 @@ test("a stage change without a reason says so instead of doing nothing", () => {
 test("a task row shows who it's for", () => {
   const row = source("components/tasks/task-record-actions.tsx");
   assert.match(row, /assigneeLabel\(assigneeValue\(task\), useTaskAssignees\(\)\)/);
-  assert.equal((row.match(/\{forEl\}/g) ?? []).length, 2);
+  // Open or settled, the row's one meta line names who it's for.
+  assert.equal((row.match(/\{forEl\}/g) ?? []).length, 1);
 });
 
 test("invoice rows say Retainer or Final bill, not a provider id", () => {

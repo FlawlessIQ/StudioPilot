@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { AgreementLinkCard } from "@/components/contracts/agreement-link-card";
 import { ProjectBookingWorkspace } from "@/components/booking/project-booking-workspace";
@@ -18,24 +17,11 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
           <div>
             <p className="eyebrow">Booking documents & balances</p>
             <h1>Contracts & payments</h1>
-            <p>Track signatures and QuickBooks balances together without treating either as complete before its provider confirms it.</p>
+            <p>Every agreement and bill, and where each one stands.</p>
           </div>
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
-        {project ? (
-          <ProjectBookingWorkspace projectId={project} />
-        ) : (
-          <>
-          <AgreementLinkCard />
-          <section className="panel booking-project-prompt">
-            <h2>Choose a project to continue booking</h2>
-            <p>Open a project and select Booking to prepare its contract, retainer, and booking review in order.</p>
-            <Link className="button button-dark" href="/studio/projects">
-              Open projects
-            </Link>
-          </section>
-          </>
-        )}
+        {project ? <ProjectBookingWorkspace projectId={project} /> : null}
         <section>
           <div className="section-heading-row"><div><p className="eyebrow">Agreements</p><h2>Contracts</h2></div></div>
           <LiveDomainView domain="contracts" projectId={project} />
@@ -44,6 +30,11 @@ export default async function ContractsPage({ searchParams }: { searchParams: Pr
           <div className="section-heading-row"><div><p className="eyebrow">Provider history</p><h2>Invoices & balances</h2></div></div>
           <LiveDomainView domain="invoices" projectId={project} />
         </section>
+        {/* The agreement every contract is written from, after the lists:
+            it and a "Choose a project" card stood between the heading and
+            the first contract (laptop UI audit, 2026-10-14). Starting a
+            booking is the job's Booking tab, so that card is gone. */}
+        {project ? null : <AgreementLinkCard />}
       </div>
     </AppShell>
   );

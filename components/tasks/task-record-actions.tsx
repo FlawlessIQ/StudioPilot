@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CheckCircle2, LoaderCircle, PencilLine, RotateCcw, X } from "lucide-react";
+import { Check, LoaderCircle, MoreHorizontal, PencilLine, RotateCcw, X } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
 import { AssigneeSelect, useTaskAssignees } from "@/components/tasks/task-assignee";
 import { assigneeFields, assigneeLabel, assigneeValue } from "@/features/tasks/assignee";
 import { taskIsSettled } from "@/features/tasks/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { daysUntilEvent, formatDueDate } from "@/lib/format/event-date";
 import { runWorkflowCommand } from "@/lib/workflows/command-client";
 
 export type TaskRow = {
@@ -24,28 +27,41 @@ export type TaskRow = {
 const UNDO_WINDOW_MS = 8000;
 
 /**
- * Marking a task done, and every way back from it.
+ * One task as one line: a tick box, the title, and "15 days late · Smith
+ * Wedding · For you" under it.
  *
- * `completeTask` had no caller until this row existed, and then tasks only
- * went one way: a mis-click on "Mark done" was permanent, a task could not be
- * edited, reassigned or called off, and a cancelled one could still be marked
- * done. Now an open task can be edited or cancelled, "Mark done" offers Undo
- * for a few seconds, and a settled task can be reopened afterwards.
+ * Each task used to be a ~250px card — Due, Priority and For on lines of their
+ * own, "Mark done", "Edit" and "Cancel" stacked as text, a late date printed
+ * like any other (laptop UI audit, 2026-10-14). Priority shows only when it is
+ * above normal, and Edit and Cancel live in the row's ··· menu.
  *
- * A settled task keeps its row, because the list is also the record of what
- * was done.
+ * Marking done offers Undo for a few seconds, and a settled task can be
+ * reopened afterwards: `completeTask` had no caller until this row existed,
+ * and then tasks only went one way. A settled task keeps its row, because the
+ * list is also the record of what was done.
  */
-export function TaskRecordActions({ task }: { task: TaskRow }) {
+export function TaskListRow({
+  task,
+  href,
+  projectName,
+}: {
+  task: TaskRow;
+  href?: string;
+  projectName?: string;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
   const settled = taskIsSettled(task.status);
-  // Who it's for, on the row itself: the picker set it, but nothing showed it
-  // (prod walk, 2026-09-30).
+  const cancelled = String(task.status) === "cancelled";
   const forLabel = assigneeLabel(assigneeValue(task), useTaskAssignees());
-  const forEl = forLabel ? <small className="task-row-assignee">For {forLabel}</small> : null;
+  const forEl = forLabel ? <span className="task-row-assignee">For {forLabel}</span> : null;
+  const days = task.dueDate ? daysUntilEvent(task.dueDate) : null;
+  const late = !settled && days !== null && days < 0;
+  const priority = String(task.priority ?? "normal");
 
   useEffect(() => {
     if (!justCompleted) return;
@@ -69,105 +85,172 @@ export function TaskRecordActions({ task }: { task: TaskRow }) {
     }
   }
 
-  const spinner = (type: string) =>
-    busy === type ? <LoaderCircle className="spin" size={14} /> : null;
-
-  if (settled) {
-    return (
-      <span className="task-row-actions">
-        {forEl}
-        <button
-          className="button button-quiet"
-          disabled={busy !== null}
-          onClick={() =>
-            void run("reopenTask", {}, "Reopened.", "That task could not be reopened.").then((ok) => {
-              if (ok) setJustCompleted(false);
-            })
-          }
-          type="button"
-        >
-          {spinner("reopenTask") ?? <RotateCcw size={14} />} {justCompleted ? "Undo" : "Reopen"}
-        </button>
-        {notice ? (
-          <p className="form-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
-      </span>
-    );
-  }
-
+  const title = task.title || "Untitled task";
   return (
-    <span className="task-row-actions">
-      {forEl}
+    <article className={`task-list-row${settled ? " is-settled" : ""}${late ? " is-late" : ""}`}>
       <button
-        className="button button-quiet"
-        disabled={busy !== null}
+        aria-label={settled ? (cancelled ? "Canceled" : justCompleted ? "Undo" : "Reopen") : `Mark "${title}" done`}
+        aria-pressed={settled}
+        className="task-check"
+        disabled={busy !== null || cancelled}
         onClick={() =>
-          void run("completeTask", {}, "Marked done.", "That task could not be completed.").then((ok) => {
-            if (ok) setJustCompleted(true);
-          })
+          settled
+            ? void run("reopenTask", {}, "Reopened.", "That task could not be reopened.").then((ok) => {
+                if (ok) setJustCompleted(false);
+              })
+            : void run("completeTask", {}, "Marked done.", "That task could not be completed.").then((ok) => {
+                if (ok) setJustCompleted(true);
+              })
         }
+        title={settled ? (cancelled ? "Canceled" : "Reopen") : "Mark done"}
         type="button"
       >
-        {spinner("completeTask") ?? <CheckCircle2 size={14} />}{" "}
-        Mark done
+        {busy === "completeTask" || busy === "reopenTask" ? (
+          <LoaderCircle className="spin" size={14} />
+        ) : settled && !cancelled ? (
+          <Check size={14} />
+        ) : cancelled ? (
+          <X size={14} />
+        ) : null}
       </button>
-      <button
-        className="button button-quiet"
-        disabled={busy !== null}
-        onClick={() => setEditing((open) => !open)}
-        type="button"
-      >
-        <PencilLine size={14} /> Edit
-      </button>
-      {confirmCancel ? (
-        <>
+      <div className="task-list-main">
+        {href ? (
+          <Link className="task-list-title" href={href}>
+            {title}
+          </Link>
+        ) : (
+          <strong className="task-list-title">{title}</strong>
+        )}
+        <span className="task-list-meta">
+          {settled ? (
+            <span>{cancelled ? "Canceled" : "Done"}</span>
+          ) : days === null ? (
+            <span>No due date</span>
+          ) : late ? (
+            <span className="task-late">
+              {-days === 1 ? "1 day late" : `${-days} days late`}
+            </span>
+          ) : (
+            <span>{days === 0 ? "Due today" : `Due ${formatDueDate(task.dueDate)}`}</span>
+          )}
+          {projectName ? <span>{projectName}</span> : null}
+          {forEl}
+        </span>
+      </div>
+      <span className="task-list-flags">
+        {!settled && (priority === "urgent" || priority === "high") ? (
+          <StatusBadge tone={priority === "urgent" ? "danger" : "warning"}>
+            {priority === "urgent" ? "Urgent" : "High"}
+          </StatusBadge>
+        ) : null}
+        {justCompleted ? (
           <button
-            className="button button-danger"
+            className="button button-quiet task-undo"
             disabled={busy !== null}
             onClick={() =>
-              void run("cancelTask", { reason: null }, "Canceled. It stays on the list as a record.", "That task could not be canceled.").then(
-                () => setConfirmCancel(false),
-              )
+              void run("reopenTask", {}, "Reopened.", "That task could not be reopened.").then((ok) => {
+                if (ok) setJustCompleted(false);
+              })
             }
             type="button"
           >
-            {spinner("cancelTask")}{" "}
-            Cancel the task
+            <RotateCcw size={14} /> Undo
           </button>
-          <button className="button button-quiet" onClick={() => setConfirmCancel(false)} type="button">
-            Keep it
+        ) : null}
+        {cancelled ? null : (
+          <button
+            aria-expanded={menuOpen}
+            aria-label={`More for "${title}"`}
+            className="task-menu-toggle"
+            onClick={() => {
+              setMenuOpen((open) => !open);
+              setConfirmCancel(false);
+            }}
+            type="button"
+          >
+            <MoreHorizontal size={16} />
           </button>
-        </>
-      ) : (
-        <button
-          className="button button-quiet"
-          disabled={busy !== null}
-          onClick={() => setConfirmCancel(true)}
-          type="button"
-        >
-          <X size={14} /> Cancel
-        </button>
-      )}
+        )}
+      </span>
+      {menuOpen ? (
+        <div className="task-list-menu">
+          {settled ? (
+            <button
+              className="button button-quiet"
+              disabled={busy !== null}
+              onClick={() =>
+                void run("reopenTask", {}, "Reopened.", "That task could not be reopened.").then((ok) => {
+                  if (ok) setMenuOpen(false);
+                })
+              }
+              type="button"
+            >
+              <RotateCcw size={14} /> Reopen
+            </button>
+          ) : (
+            <>
+              <button
+                className="button button-quiet"
+                disabled={busy !== null}
+                onClick={() => setEditing((open) => !open)}
+                type="button"
+              >
+                <PencilLine size={14} /> Edit
+              </button>
+              {confirmCancel ? (
+                <>
+                  <button
+                    className="button button-danger"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      void run("cancelTask", { reason: null }, "Canceled. It stays on the list as a record.", "That task could not be canceled.").then(
+                        () => setConfirmCancel(false),
+                      )
+                    }
+                    type="button"
+                  >
+                    {busy === "cancelTask" ? <LoaderCircle className="spin" size={14} /> : null}{" "}
+                    Cancel the task
+                  </button>
+                  <button className="button button-quiet" onClick={() => setConfirmCancel(false)} type="button">
+                    Keep it
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="button button-quiet"
+                  disabled={busy !== null}
+                  onClick={() => setConfirmCancel(true)}
+                  type="button"
+                >
+                  <X size={14} /> Cancel
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
       {editing ? (
         <TaskEditForm
           busy={busy === "updateTask"}
           onCancel={() => setEditing(false)}
           onSave={(changes) =>
             void run("updateTask", changes, "Saved.", "That task could not be saved.").then((ok) => {
-              if (ok) setEditing(false);
+              if (ok) {
+                setEditing(false);
+                setMenuOpen(false);
+              }
             })
           }
           task={task}
         />
       ) : null}
       {notice ? (
-        <p className="form-notice" role="status">
+        <p className="form-notice task-list-notice" role="status">
           {notice}
         </p>
       ) : null}
-    </span>
+    </article>
   );
 }
 

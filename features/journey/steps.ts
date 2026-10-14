@@ -1240,7 +1240,7 @@ export function projectJourney(input: JourneyInput): {
                 : "Send the form",
           href:
             input.hasSendableQuestionnaire === false
-              ? "/studio/questionnaires"
+              ? "/studio/questionnaires/templates"
               : project("/studio/questionnaires"),
         }),
   });

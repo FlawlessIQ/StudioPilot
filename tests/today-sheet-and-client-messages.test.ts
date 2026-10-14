@@ -637,7 +637,8 @@ test("in a sheet, outside .ds-root, the review card's small text is legible", ()
   ]) {
     assert.ok(block.includes(selector), selector);
   }
-  assert.match(block, /font-size: 11\.5px;/);
+  // The studio's 12px floor (e2e/contrast.spec.ts, 2026-10-14); it was 11.5px.
+  assert.match(block, /font-size: 12px;/);
   assert.doesNotMatch(block, /\.ds-root|white-space: nowrap/);
 });
 

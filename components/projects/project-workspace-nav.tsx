@@ -21,9 +21,12 @@ const links = [
 export function ProjectWorkspaceNav({
   projectId,
   compact = false,
+  counts,
 }: {
   projectId: string;
   compact?: boolean;
+  /** What is still open behind a tab ("2 things before the day" is Plan's). */
+  counts?: Partial<Record<(typeof links)[number]["route"], number>>;
 }) {
   const pathname = usePathname();
   // Nothing to deliver (a DJ, a makeup artist): no Delivery tab (trades.ts).
@@ -55,6 +58,11 @@ export function ProjectWorkspaceNav({
           <Link className={active ? "active" : ""} href={href} key={item.label}>
             <Icon aria-hidden="true" size={14} />
             {item.label}
+            {counts?.[item.route] ? (
+              <em className="project-workspace-count" title={`${counts[item.route]} still open`}>
+                {counts[item.route]}
+              </em>
+            ) : null}
           </Link>
         );
       })}

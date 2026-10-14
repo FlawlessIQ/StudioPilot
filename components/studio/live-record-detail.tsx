@@ -51,7 +51,7 @@ const config: Record<
       ["Accepted", ["acceptedAt"]],
     ],
     boundary:
-      "This version and its pricing snapshot are immutable. Proposal acceptance does not mark a contract signed.",
+      "This version and its price can't change once sent. Accepting it doesn't sign the contract.",
   },
   schedule: {
     collections: ["schedules"],
@@ -141,7 +141,7 @@ const config: Record<
       ["Updated", ["updatedAt"]],
     ],
     boundary:
-      "Published workflow versions are immutable for active runs unless an authorized migration is explicitly executed.",
+      "Jobs already running keep the version they started with.",
   },
 };
 
@@ -659,7 +659,7 @@ export function LiveRecordDetail({
       {kind === "schedule" && typeof record.projectId === "string" ? (
         <RecordTimelineAnswer projectId={record.projectId} />
       ) : null}
-      {items.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Schedule items</h2><p>Current immutable version</p></div></div>{items.map((item, index) => <article key={String(item.id ?? index)}><time>{show(item.startAt, "Arrival")}</time><span><strong>{show(item.title, "Title")}</strong><small>{show(item.location, "Location")}</small></span><small>{show(item.endAt, "Departure")}</small></article>)}</section> : null}
+      {items.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Schedule items</h2><p>The version your crew and client see</p></div></div>{items.map((item, index) => <article key={String(item.id ?? index)}><time>{show(item.startAt, "Arrival")}</time><span><strong>{show(item.title, "Title")}</strong><small>{show(item.location, "Location")}</small></span><small>{show(item.endAt, "Departure")}</small></article>)}</section> : null}
       {requirements.length ? <section className="panel live-detail-list"><div className="panel-heading"><div><h2>Requirements</h2><p>Verified completion evidence</p></div></div>{requirements.map((item, index) => <article key={String(item.id ?? index)}><span><strong>{show(item.name, "Name")}</strong><small>{show(item.kind, "Kind")}</small></span>{requirementFile(item) ? <FileLink file={requirementFile(item)!} /> : null}<StatusBadge>{show(item.status, "Status")}</StatusBadge></article>)}</section> : null}
       {checkpoints.length ? (
         <section className="panel live-detail-list is-two-column">

@@ -1055,7 +1055,7 @@ export function SettingsCard({ action }: ActionCardProps) {
       // A full-page editor: it does not fit a chat column (it overflowed by
       // 460px on a 1440px screen), so the card opens it instead.
       body: null,
-      href: "/studio/questionnaires",
+      href: "/studio/questionnaires/templates",
       open: "Open the questionnaire editor",
     },
     edit_email_template: {
