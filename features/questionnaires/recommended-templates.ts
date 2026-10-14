@@ -820,7 +820,7 @@ const mitzvahPartyList = (help: string): RecommendedSection => ({
 });
 
 const MITZVAH_HELP: Record<string, string> = {
-  "ready-by-time": "Usually when your photographer arrives for the family portraits. Ask them if you're not sure.",
+  "ready-by-time": "Usually when the family portraits start, or when you leave for the service.",
   "day-of-contact": "Who we call on the day if it isn't you: a grandparent, a friend or your planner.",
 };
 

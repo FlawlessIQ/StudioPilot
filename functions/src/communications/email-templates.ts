@@ -1603,6 +1603,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // The form's own name when the job carries it ("Final schedule"): two
       // forms both read "Details needed by …" and named neither (UAT 2026-10-13 F1).
       const named = stringValue(values, "formName");
+      // "Mitzvah music & MC planner" keeps its MC: Title words come down,
+      // initials stay (emulator walk, 2026-10-14).
       const form = named || tradeVocab(values.trade, values.eventKind).detailsForm;
       // A vendor's client fills in this one form and the plan of the day is
       // drawn from it (trades.ts `journey.oneForm`), so the request says so.
@@ -1611,7 +1613,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const planWord = `${planName.charAt(0).toLowerCase()}${planName.slice(1)}`;
       return {
         subject: named
-          ? `${reminder ? "Reminder: " : ""}Your ${named.toLowerCase()} for ${brand.studioName}`
+          ? `${reminder ? "Reminder: " : ""}Your ${named.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase())} for ${brand.studioName}`
           : `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
         preheader: form ? `Complete your ${form}.` : "Complete your photography project questionnaire.",
         eyebrow: form ? (reminder ? `${form} reminder` : form) : reminder ? "Questionnaire reminder" : "Planning questionnaire",

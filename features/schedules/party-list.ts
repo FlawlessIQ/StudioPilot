@@ -28,14 +28,16 @@ export type PartyMember = {
 // "Mother of the bride", "bride's sister": the bride named as whose someone is
 // is not the bride, so the bride is the word on its own (readRole strips the rest).
 const ROLE_WORDS: ReadonlyArray<[RegExp, PartyRole]> = [
-  [/\bbride\b(?!['’]s)|\bto be wed\b/i, "bride"],
+  // The child a mitzvah celebrates sits where a bride does: the middle
+  // chair, done last ("Lily — the bat mitzvah", emulator walk 2026-10-14).
+  [/\bbride\b(?!['’]s)|\bto be wed\b|\b(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah\b|\bhonou?ree\b/i, "bride"],
   [/\bmother\b|\bmom\b|\bmum\b|\bmob\b|\bmog\b|\bgrandmother\b|\bgrandma\b/i, "mother"],
   [/flower ?girl|junior|\bjr\.? bridesmaid\b|\bchild\b|\bkid\b|\bdaughter\b|\bniece\b/i, "child"],
   [/bridesmaid|maid of honou?r|\bmoh\b|matron|\bparty\b|\bfriend\b|\bsister\b|\bguest\b/i, "party"],
 ];
 
 function readRole(text: string): PartyRole | null {
-  const plain = text.replace(/\b(?:of|to) the (?:bride|groom)\b/gi, "");
+  const plain = text.replace(/\b(?:of|to) the (?:bride|groom|(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah)\b/gi, "");
   return ROLE_WORDS.find(([pattern]) => pattern.test(plain))?.[1] ?? null;
 }
 

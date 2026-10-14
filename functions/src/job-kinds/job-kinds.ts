@@ -368,6 +368,8 @@ export function isMitzvahType(value: unknown): value is MitzvahType {
 /** The mitzvah a label names: "Bat Mitzvah" is bat. Null when it doesn't say. */
 export function mitzvahTypeFromLabel(label: unknown): MitzvahType | null {
   const value = kindText(label);
+  // "Bar or bat mitzvah" names both: it says neither.
+  if (/\bbar\b/.test(value) && /\bbat\b/.test(value)) return null;
   if (/\bbar[\s-]*mitzv/.test(value)) return "bar";
   if (/\bbat[\s-]*mitzv/.test(value)) return "bat";
   if (/\bb'?nai\b/.test(value)) return "bnai";

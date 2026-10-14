@@ -287,7 +287,7 @@ This agreement was prepared on {{contract.date}}.
  * it is offered as more than a starting point (as for every starter here).
  * Their client pays a retainer (trades.ts `deposit`).
  */
-export const PLANNER_STARTER_AGREEMENT = `This agreement is between {{studio.legal_name}} ("the Planner") and {{client.names}} ("the Client") for wedding planning services for the {{event.type}} on {{event.date}} at {{event.venue}}.
+export const PLANNER_STARTER_AGREEMENT = `This agreement is between {{studio.legal_name}} ("the Planner") and {{client.names}} ("the Client") for planning services for the {{event.type}} on {{event.date}} at {{event.venue}}.
 
 ## 1. Services
 The Planner will provide {{package.name}}: {{package.coverage}}. Included:

@@ -304,7 +304,12 @@ export async function sendPlanningFormAtBooking(db: Firestore, project: Document
   if (!tenantId) return "no_tenant";
   const studio = await loadStudio(db, tenantId);
   if (!studio.timeline.formAtBooking) return "off";
-  if (!journeyProfile(jobKindOf(data)).planningTimeline) return "not_wedding";
+  // A wedding's form, or a kind's own (a mitzvah's music planner or party
+  // list): a DJ booked for a bar mitzvah got nothing at booking (emulator
+  // walk, 2026-10-14). Kinds with no day of their own still wait.
+  const kind = jobKindOf(data);
+  const onTimeline = journeyProfile(kind).planningTimeline;
+  if (!onTimeline && !journeyProfile(kind).dayPlan) return "not_wedding";
   if (data.importedAt || clientOutreachStop(data) !== null) return "quiet";
   const eventDate = text(data.eventDate).slice(0, 10);
   if (!eventDate || eventDate <= now.slice(0, 10)) return "no_date";
@@ -316,7 +321,9 @@ export async function sendPlanningFormAtBooking(db: Firestore, project: Document
     if (planningFormDue(data, studio.timeline, today)) await sendShotList(db, project, studio, today, now);
     return outcome;
   };
-  const template = planningFormTemplate(studio, text(data.eventTypeId), true) ?? planningFormTemplate(studio, "wedding", true);
+  const template =
+    planningFormTemplate(studio, text(data.eventTypeId), onTimeline) ??
+    planningFormTemplate(studio, onTimeline ? "wedding" : kind, onTimeline);
   if (!template) return withShotList("no_form");
   const responses = await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", project.id).get();
   if (liveAssignmentFor(responses.docs.map((response) => ({ id: response.id, ...response.data() })), { id: template.id, name: text(template.name) })) {

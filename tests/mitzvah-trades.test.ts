@@ -86,7 +86,7 @@ test("a family's party list seats the mom, the grandmother and the child", () =>
     "Rachel Cohen — mom — makeup — lashes\nLily — the bat mitzvah — light makeup\nGrandma Ruth — grandmother — makeup",
     "makeup",
   );
-  assert.deepEqual(people.map((person) => person.role), ["mother", "party", "mother"]);
+  assert.deepEqual(people.map((person) => person.role), ["mother", "bride", "mother"]); // the child sits where a bride does
 });
 
 test("a mitzvah planner's checklist: the synagogue, the candles, the montage — no license, no officiant", () => {
@@ -205,4 +205,38 @@ test("a planner edits the mitzvah checklist apart from the wedding's; vendors ca
   assert.ok(VENDOR_TEAM_CATEGORIES.includes("entertainment"));
   const { vendorTypeIsLive } = await import("../features/trades/trades.ts");
   assert.equal(vendorTypeIsLive("entertainment"), false);
+});
+
+test("what the emulator walk of 2026-10-14 found stays fixed", async () => {
+  const { mitzvahTypeFromLabel, vocab } = await import("@/features/job-kinds/job-kinds");
+  // The type label names both: it is neither, so the portal never says "the bat mitzvah" for Sam.
+  assert.equal(mitzvahTypeFromLabel("Bar or bat mitzvah"), null);
+  assert.equal(mitzvahTypeFromLabel("Bat Mitzvah"), "bat");
+  const portal = readFileSync("app/api/client/portal/route.ts", "utf8");
+  assert.match(portal, /honoreeName: safeString\(projectSnapshot\.get\("honoreeName"\)\)/);
+  assert.match(portal, /mitzvahType: safeString\(projectSnapshot\.get\("mitzvahType"\)\)/);
+  assert.doesNotMatch(vocab("mitzvah", { eventType: "Bar or bat mitzvah" }).event, /bat mitzvah/i);
+
+  // The child sits where a bride does; their mother stays a mother.
+  const party = parsePartyList("Rachel Cohen — mom of the bat mitzvah — makeup\nLily — the bat mitzvah — light makeup", "makeup");
+  assert.deepEqual(party.map((member) => member.role), ["mother", "bride"]);
+
+  // A DJ, makeup artist or hair stylist booked for a mitzvah gets their form at booking.
+  const scheduler = readFileSync("functions/src/planning/planning-form-scheduler.ts", "utf8");
+  assert.match(scheduler, /if \(!onTimeline && !journeyProfile\(kind\)\.dayPlan\) return "not_wedding";/);
+
+  // A planner's agreement is for planning services, not wedding planning services.
+  const { starterAgreementFor } = await import("@/features/contracts/sample");
+  assert.doesNotMatch(starterAgreementFor("planner").body, /wedding planning services/);
+
+  // Initials stay in a form's email subject: "music & MC planner".
+  const { renderEmailTemplate } = await import("../functions/src/communications/email-templates.ts");
+  const email = renderEmailTemplate({
+    key: "questionnaire_request",
+    brand: { studioName: "Spin Theory", productName: "StudioCue", accentColor: "#35664a", logoUrl: null, contactEmail: null },
+    recipientName: "Rachel",
+    projectName: "Cohen Bar Mitzvah",
+    values: { trade: "dj", eventKind: "mitzvah", formName: "Mitzvah music & MC planner", actionUrl: "https://studio-cue.com/client" },
+  });
+  assert.equal(email.subject, "Your mitzvah music & MC planner for Spin Theory");
 });

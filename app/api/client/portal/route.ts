@@ -1207,6 +1207,11 @@ async function clientProject(tenantId: string, projectId: string) {
     // The kind decides the client's steps: no agreement for a family
     // session, nothing to pay before a sports day (job-kinds.ts).
     eventKind: jobKindOf(projectSnapshot.data()),
+    // Who a mitzvah celebrates, and which: without them the portal read the
+    // type label "Bar or bat mitzvah" and said "the bat mitzvah" (emulator
+    // walk, 2026-10-14).
+    honoreeName: safeString(projectSnapshot.get("honoreeName")),
+    mitzvahType: safeString(projectSnapshot.get("mitzvahType")),
     paymentShape: projectProfile(projectSnapshot.data()).payment,
     eventDate: safeString(projectSnapshot.get("eventDate")),
     timezone: safeString(projectSnapshot.get("timezone")),
