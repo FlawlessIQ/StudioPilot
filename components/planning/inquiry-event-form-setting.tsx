@@ -127,7 +127,7 @@ export function InquiryEventFormSetting({
         !response.persisted
           ? "Preview: nothing was saved."
           : templateId
-            ? `Saved. ${kind ? "Families" : "Couples"} who write in about a ${kindWords} will be asked to fill out ${name ?? "this form"} ${calls ? "before they pick a time to talk" : "on their inquiry page"}.`
+            ? `Saved. ${kind ? "Families" : "Couples"} who write in about a ${kind ? "bar or bat mitzvah" : kindWords} will be asked to fill out ${name ?? "this form"} ${calls ? "before they pick a time to talk" : "on their inquiry page"}.`
             : calls
               ? "Saved. The inquiry page goes straight to picking a time again."
               : "Saved. The inquiry page asks just a few details again.",
