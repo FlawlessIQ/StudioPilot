@@ -61,6 +61,8 @@ export default async function QuestionnairesPage({ searchParams }: { searchParam
           <>
             {/* Which form new wedding inquiries fill in before the call. */}
             <InquiryEventFormSetting />
+            {/* Its own form for a bar or bat mitzvah, when the inquiry form offers one. */}
+            <InquiryEventFormSetting kind="mitzvah" />
             {/* The builder and the recommended forms have their own page
                 (questionnaires/templates): rendered here they put 812 buttons
                 under the list (laptop UI audit, 2026-10-14). */}

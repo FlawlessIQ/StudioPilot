@@ -1,4 +1,5 @@
 import { isSalesConsultation } from "../booking/consultation-purpose.js";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { isReturned, liveAssignmentFor } from "../planning/questionnaire-lifecycle.js";
@@ -83,6 +84,39 @@ export function inquiryGetsEventForm(
   appliesTo: readonly string[] = INQUIRY_FORM_EVENT_TYPES,
 ): boolean {
   return appliesTo.includes(inquiryEventKind(inquiry));
+}
+
+/**
+ * Kinds whose inquiries get a form of their own, chosen on its own picker
+ * (leadCaptureSettings/{tenantId}.inquiryEventFormByKind.{kind}): a bar or bat
+ * mitzvah's details form, not the wedding's (docs/mitzvah-journey-plan-2026-10-14.md;
+ * prod walk, 2026-10-14 — "Send it with new bar and bat mitzvah inquiries"
+ * had no setting to do it with).
+ */
+export const INQUIRY_FORM_KINDS = ["mitzvah"] as const;
+export type InquiryFormKind = (typeof INQUIRY_FORM_KINDS)[number];
+
+/**
+ * The form an inquiry is asked to fill in, by id, or null for none: its
+ * kind's own when the kind has one (INQUIRY_FORM_KINDS), else the studio's
+ * wedding setting when the inquiry is one it applies to.
+ */
+export function inquiryFormChoiceFor(
+  settings: Record<string, unknown> | undefined,
+  inquiry: { eventTypeId?: unknown; eventTypeLabel?: unknown; eventKind?: unknown },
+): string | null {
+  const all = record(settings);
+  const kind = jobKindOf({ eventKind: inquiry.eventKind, eventTypeId: inquiry.eventTypeId, eventTypeLabel: inquiry.eventTypeLabel });
+  if ((INQUIRY_FORM_KINDS as readonly string[]).includes(kind)) {
+    return text(record(record(all.inquiryEventFormByKind)[kind]).templateId) || null;
+  }
+  const setting = record(all.inquiryEventForm);
+  const chosen = text(setting.templateId);
+  if (!chosen) return null;
+  const appliesTo = Array.isArray(setting.eventTypes) && setting.eventTypes.length
+    ? setting.eventTypes.map(String)
+    : INQUIRY_FORM_EVENT_TYPES;
+  return inquiryGetsEventForm(inquiry, appliesTo) ? chosen : null;
 }
 
 type TemplateLike = {
@@ -425,12 +459,6 @@ export async function inquiryFormState(
   },
 ): Promise<InquiryFormState | null> {
   const settings = await db.doc(INQUIRY_FORM_SETTINGS_PATH(context.tenantId)).get();
-  const setting = record(settings.get("inquiryEventForm"));
-  const chosenId = text(setting.templateId);
-  if (!chosenId) return null;
-  const appliesTo = Array.isArray(setting.eventTypes) && setting.eventTypes.length
-    ? setting.eventTypes.map(String)
-    : INQUIRY_FORM_EVENT_TYPES;
   // The kind the couple chose on the form stands for the job too, until the
   // studio changes the job's event type.
   const kind = context.project
@@ -445,7 +473,9 @@ export async function inquiryFormState(
         eventTypeLabel: context.lead.get("eventTypeLabel"),
         eventKind: context.lead.get("eventKind"),
       };
-  if (!inquiryGetsEventForm(kind, appliesTo)) return null;
+  // Its kind's own form (a mitzvah's), or the studio's wedding form.
+  const chosenId = inquiryFormChoiceFor(settings.data(), kind);
+  if (!chosenId) return null;
   const templates = await db
     .collection("questionnaireTemplates")
     .where("tenantId", "==", context.tenantId)

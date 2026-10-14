@@ -63,6 +63,7 @@ import { refreshResponsePrefill, refreshResponsePrefillWithChoices } from "./job
 import { sendNewQuestionnaire } from "./send-questionnaire.js";
 import {
   INQUIRY_FORM_EVENT_TYPES,
+  INQUIRY_FORM_KINDS,
   INQUIRY_FORM_SETTINGS_PATH,
 } from "../intake/inquiry-form.js";
 import {
@@ -319,6 +320,11 @@ const command = z.discriminatedUnion("type", [
     idempotencyKey: z.string().min(8),
     input: z.object({
       templateId: z.string().min(1).max(200).nullable(),
+      /**
+       * A kind with its own inquiry form (inquiry-form.ts INQUIRY_FORM_KINDS,
+       * a mitzvah's). Left out, it is the wedding setting, as it always was.
+       */
+      kind: z.enum(INQUIRY_FORM_KINDS).optional(),
     }),
   }),
   z.object({
@@ -1462,21 +1468,33 @@ export const planningCommand = onRequest(
         const settingsReference = db.doc(INQUIRY_FORM_SETTINGS_PATH(parsed.tenantId));
         const before = await settingsReference.get();
         const batch = db.batch();
+        const kind = parsed.input.kind;
         batch.set(
           settingsReference,
-          {
-            tenantId: parsed.tenantId,
-            inquiryEventForm: parsed.input.templateId
-              ? {
-                  templateId: parsed.input.templateId,
-                  templateName,
-                  eventTypes: [...INQUIRY_FORM_EVENT_TYPES],
-                  updatedAt: now,
-                  updatedBy: identity.uid,
-                }
-              : null,
-            updatedAt: now,
-          },
+          kind
+            ? {
+                // The kind's own form, beside the wedding one (a mitzvah's details form).
+                tenantId: parsed.tenantId,
+                inquiryEventFormByKind: {
+                  [kind]: parsed.input.templateId
+                    ? { templateId: parsed.input.templateId, templateName, updatedAt: now, updatedBy: identity.uid }
+                    : null,
+                },
+                updatedAt: now,
+              }
+            : {
+                tenantId: parsed.tenantId,
+                inquiryEventForm: parsed.input.templateId
+                  ? {
+                      templateId: parsed.input.templateId,
+                      templateName,
+                      eventTypes: [...INQUIRY_FORM_EVENT_TYPES],
+                      updatedAt: now,
+                      updatedBy: identity.uid,
+                    }
+                  : null,
+                updatedAt: now,
+              },
           { merge: true },
         );
         const auditReference = db.doc(
@@ -1492,8 +1510,10 @@ export const planningCommand = onRequest(
           entityType: "leadCaptureSettings",
           entityId: parsed.tenantId,
           timestamp: now,
-          before: { inquiryEventForm: before.get("inquiryEventForm") ?? null },
-          after: { templateId: parsed.input.templateId, templateName },
+          before: kind
+            ? { inquiryEventFormByKind: { [kind]: (before.get("inquiryEventFormByKind") as Record<string, unknown> | undefined)?.[kind] ?? null } }
+            : { inquiryEventForm: before.get("inquiryEventForm") ?? null },
+          after: { templateId: parsed.input.templateId, templateName, ...(kind ? { kind } : {}) },
           ipAddress: null,
           userAgent: request.header("user-agent") ?? null,
           correlationId: parsed.idempotencyKey,

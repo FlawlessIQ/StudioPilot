@@ -48,6 +48,8 @@ export function inquiryFormChoices<T extends TemplateRow & { eventTypeId?: unkno
       id: template.id,
       name: String(template.name ?? "Untitled questionnaire"),
       forWeddings: String(template.eventTypeId ?? "wedding") === "wedding",
+      // The kind a form is for, so a kind's own picker (a mitzvah's) lists its forms first.
+      eventTypeId: String(template.eventTypeId ?? "wedding"),
       recommendedId: typeof (template as { recommendedId?: unknown }).recommendedId === "string"
         ? String((template as { recommendedId?: unknown }).recommendedId)
         : null,

@@ -81,10 +81,17 @@ Fixed (one commit after this walk):
    - "This wedding stays off Today"
 
 Open, not fixed:
-- **Sending the details form with a new inquiry only works for weddings**
-  ("Send a form with new wedding inquiries", INQUIRY_FORM_EVENT_TYPES).
-  The "Mitzvah details" form says "Send it with new bar and bat mitzvah
-  inquiries", so that promise is false until the setting is per kind.
+- ~~**Sending the details form with a new inquiry only works for
+  weddings.**~~ **Fixed:** the form is now chosen per kind.
+  - Where it's stored: `leadCaptureSettings.inquiryEventFormByKind.mitzvah`.
+  - How it's picked: `inquiryFormChoiceFor` in intake/inquiry-form.ts, read
+    by the inquiry page and the reply's link line.
+  - How it's saved: `setInquiryEventForm` takes a `kind`.
+  - Where it's chosen: the Questionnaires page shows "Send a form with new
+    bar & bat mitzvah inquiries" while the inquiry form offers the kind.
+  - The first time a studio offers mitzvah inquiries, its newly copied
+    Mitzvah details form becomes the choice, as a wedding's does at signup.
+  - A mitzvah inquiry is never sent the wedding form.
 - **FlawlessIQ's reply sign-off reads "Conor — GR Productions"** (studio
   data).
 - "Workspace access could not be verified" showed once on Inquiry capture

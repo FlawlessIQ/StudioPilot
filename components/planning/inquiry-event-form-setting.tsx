@@ -15,6 +15,7 @@ import { getFirebaseClient } from "@/lib/firebase/client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { dataIsLive } from "@/lib/runtime-mode";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { JOB_KIND_LABELS } from "@/features/job-kinds/job-kinds";
 
 /**
  * "Send this form with every new wedding inquiry" — the studio's event form
@@ -26,8 +27,20 @@ import { tradeProfile, tradeVocab } from "@/features/trades/trades";
  * (leadCaptureSettings/{tenantId}.inquiryEventForm), written only by the
  * planning command setInquiryEventForm, which checks owner or admin.
  */
-export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = {}) {
+export function InquiryEventFormSetting({
+  onSaved,
+  kind,
+}: {
+  onSaved?: () => void;
+  /**
+   * A kind with its own inquiry form (functions/src/intake/inquiry-form.ts
+   * INQUIRY_FORM_KINDS): a mitzvah's details form, saved beside the wedding
+   * one. Shown only while the studio's inquiry form offers the kind.
+   */
+  kind?: "mitzvah";
+} = {}) {
   const workspace = useWorkspace();
+  const kindWords = kind ? JOB_KIND_LABELS[kind].toLowerCase() : "wedding";
   // A makeup artist or hair stylist has no call: the inquiry page takes the
   // couple's details and the quote follows (functions/src/intake/inquiry-link.ts).
   // A DJ's call is a vibe call (trades.ts).
@@ -44,6 +57,8 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
   // Null until the studio touches the picker; "" means "no form".
   const [choice, setChoice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(!dataIsLive);
+  // A kind's picker shows only while the inquiry form offers the kind.
+  const [offered, setOffered] = useState(!kind);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -54,9 +69,17 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
     void getDoc(doc(firestore, "leadCaptureSettings", workspace.tenantId))
       .then((snapshot) => {
         if (!active) return;
-        const setting = snapshot.get("inquiryEventForm") as { templateId?: unknown } | null | undefined;
+        const setting = (
+          kind
+            ? (snapshot.get("inquiryEventFormByKind") as Record<string, unknown> | undefined)?.[kind]
+            : snapshot.get("inquiryEventForm")
+        ) as { templateId?: unknown } | null | undefined;
         setSavedId(typeof setting?.templateId === "string" ? setting.templateId : null);
         setDecided(setting !== undefined);
+        if (kind) {
+          const types = (snapshot.get("inquiryForm") as { eventTypes?: Array<{ kind?: unknown }> } | undefined)?.eventTypes;
+          setOffered(Array.isArray(types) && types.some((type) => type?.kind === kind));
+        }
         setLoaded(true);
       })
       .catch(() => {
@@ -65,24 +88,34 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
     return () => {
       active = false;
     };
-  }, [workspace.tenantId, ownerOrAdmin]);
+  }, [workspace.tenantId, ownerOrAdmin, kind]);
 
   const rows = templates ?? [];
   // A saved id goes stale when the form is edited; show the live version.
   const current = currentInquiryFormTemplate(rows, savedId);
-  const choices = inquiryFormChoices(rows);
+  // A kind's picker lists its own forms first.
+  const choices = kind
+    ? [...inquiryFormChoices(rows)].sort((left, right) => Number(right.eventTypeId === kind) - Number(left.eventTypeId === kind))
+    : inquiryFormChoices(rows);
+  const forThisKind = (item: (typeof choices)[number]) => (kind ? item.eventTypeId === kind : item.forWeddings);
   // A studio that hasn't chosen starts on its wedding form, ready to save:
   // "Don't send a form", greyed out, was where every studio sat (2026-10-05).
   const selected =
-    choice ?? current?.id ?? (decided ? "" : suggestedInquiryForm(choices));
+    choice ??
+    current?.id ??
+    (decided
+      ? ""
+      : kind
+        ? (choices.find((item) => item.recommendedId === `${kind}-details`)?.id ?? "")
+        : suggestedInquiryForm(choices));
 
-  if (!ownerOrAdmin) return null;
+  if (!ownerOrAdmin || !offered) return null;
 
   async function save(templateId: string | null) {
     setBusy(true);
     setNotice(null);
     try {
-      const response = await sendPlanningCommand("setInquiryEventForm", { templateId });
+      const response = await sendPlanningCommand("setInquiryEventForm", { templateId, ...(kind ? { kind } : {}) });
       const name = choices.find((item) => item.id === templateId)?.name;
       setSavedId(templateId);
       setChoice(null);
@@ -94,7 +127,7 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
         !response.persisted
           ? "Preview: nothing was saved."
           : templateId
-            ? `Saved. Couples who write in about a wedding will be asked to fill out ${name ?? "this form"} ${calls ? "before they pick a time to talk" : "on their inquiry page"}.`
+            ? `Saved. ${kind ? "Families" : "Couples"} who write in about a ${kindWords} will be asked to fill out ${name ?? "this form"} ${calls ? "before they pick a time to talk" : "on their inquiry page"}.`
             : calls
               ? "Saved. The inquiry page goes straight to picking a time again."
               : "Saved. The inquiry page asks just a few details again.",
@@ -108,15 +141,21 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
 
   return (
     // Today and setup link here (features/today/setup-gaps.ts) when it hasn't been chosen.
-    <section className="panel" aria-labelledby="inquiry-event-form-heading" id="inquiry-form">
+    <section
+      className="panel"
+      aria-labelledby={kind ? `inquiry-event-form-heading-${kind}` : "inquiry-event-form-heading"}
+      id={kind ? `inquiry-form-${kind}` : "inquiry-form"}
+    >
       <div>
         <p className="eyebrow">
           <ClipboardList aria-hidden="true" size={14} />{" "}
           {calls ? `Before the ${callWord}` : "With every new inquiry"}
         </p>
-        <h2 id="inquiry-event-form-heading">Send a form with new wedding inquiries</h2>
+        <h2 id={kind ? `inquiry-event-form-heading-${kind}` : "inquiry-event-form-heading"}>
+          {`Send a form with new ${kindWords} inquiries`}
+        </h2>
         <p>
-          {`Couples fill it in on the page your first reply links to${
+          {`${kind ? "Families" : "Couples"} fill it in on the page your first reply links to${
             calls ? ", before they pick a time to talk — so you have their answers for the call" : ` — so you have their answers for the ${offer}`
           }, and for the contract. It lands on the job like any other questionnaire.`}
         </p>
@@ -137,7 +176,7 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
           }}
         >
           <label>
-            Form for wedding inquiries
+            {`Form for ${kindWords} inquiries`}
             <select onChange={(event) => setChoice(event.target.value)} value={selected}>
               <option value="">
                 {calls ? "Don’t send a form — go straight to picking a time" : "Don’t send a form — ask just a few details"}
@@ -145,7 +184,7 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
               {choices.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
-                  {item.forWeddings ? "" : " (not a wedding form)"}
+                  {forThisKind(item) ? "" : ` (not a ${kind ? "mitzvah" : "wedding"} form)`}
                 </option>
               ))}
             </select>
@@ -163,7 +202,7 @@ export function InquiryEventFormSetting({ onSaved }: { onSaved?: () => void } = 
       )}
       {current && !notice ? (
         <p className="form-notice" role="status">
-          {`Wedding inquiries are asked to fill out ${String(current.name ?? "your form")} first.`}
+          {`${kind ? "Bar & bat mitzvah" : "Wedding"} inquiries are asked to fill out ${String(current.name ?? "your form")} first.`}
         </p>
       ) : null}
       {notice ? <p className="form-notice" role="status">{notice}</p> : null}

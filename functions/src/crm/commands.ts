@@ -4938,8 +4938,17 @@ export const crmCommand = onRequest(
             const had = new Set(existingTemplates.docs.map((template) => String(template.get("recommendedId") ?? "")));
             kindForms = recommendedFor(tradeOf(tenantForForms.get("trade")), offeredKinds).filter((form) => !had.has(form.id));
           }
+          // A kind's details form, copied in now, is what its inquiries are
+          // asked, as a wedding's is at signup (saas/onboarding.ts) — unless
+          // the studio already chose a form for the kind.
+          const byKind = (settings.get("inquiryEventFormByKind") ?? {}) as Record<string, unknown>;
+          const kindInquiryForms: Record<string, { templateId: string; templateName: string; updatedAt: string; updatedBy: string }> = {};
           for (const form of kindForms) {
             const questionnaireId = randomUUID();
+            const kindOfForm = String(form.eventTypeId);
+            if (form.id === `${kindOfForm}-details` && byKind[kindOfForm] === undefined) {
+              kindInquiryForms[kindOfForm] = { templateId: questionnaireId, templateName: form.name, updatedAt: timestamp, updatedBy: identity.uid };
+            }
             transaction.create(db.doc(`questionnaireTemplates/${questionnaireId}`), {
               id: questionnaireId,
               tenantId: command.tenantId,
@@ -4963,6 +4972,7 @@ export const crmCommand = onRequest(
             {
               tenantId: command.tenantId,
               inquiryForm: { ...checked.config, updatedAt: timestamp, updatedBy: identity.uid },
+              ...(Object.keys(kindInquiryForms).length ? { inquiryEventFormByKind: kindInquiryForms } : {}),
               updatedAt: timestamp,
             },
             { merge: true },

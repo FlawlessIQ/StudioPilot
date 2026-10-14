@@ -164,3 +164,26 @@ test("what the prod walk of 2026-10-14 found stays fixed", async () => {
   // The contract names which mitzvah, not the studio's type label.
   assert.match(read("functions/src/contracts/sources.ts"), /MITZVAH_TYPE_LABELS\[mitzvahOf\(project\.data\(\)\)\.type!\]/);
 });
+
+test("a mitzvah inquiry gets its own form; a wedding inquiry the wedding one", async () => {
+  const { inquiryFormChoiceFor } = await import("../functions/src/intake/inquiry-form.ts");
+  const settings = {
+    inquiryEventForm: { templateId: "wedding-form", eventTypes: ["wedding"] },
+    inquiryEventFormByKind: { mitzvah: { templateId: "mitzvah-form" } },
+  };
+  const mitzvah = { eventKind: "mitzvah", eventTypeId: "new_type", eventTypeLabel: "Bar or bat mitzvah" };
+  const wedding = { eventKind: "wedding", eventTypeId: "wedding", eventTypeLabel: "Wedding" };
+  const portraits = { eventKind: "portraits", eventTypeId: "portraits", eventTypeLabel: "Portraits" };
+  assert.equal(inquiryFormChoiceFor(settings, mitzvah), "mitzvah-form");
+  assert.equal(inquiryFormChoiceFor(settings, wedding), "wedding-form");
+  assert.equal(inquiryFormChoiceFor(settings, portraits), null);
+  // No mitzvah form chosen: a mitzvah inquiry is never sent the wedding's.
+  assert.equal(inquiryFormChoiceFor({ inquiryEventForm: settings.inquiryEventForm }, mitzvah), null);
+  assert.equal(inquiryFormChoiceFor({ ...settings, inquiryEventFormByKind: { mitzvah: null } }, mitzvah), null);
+  assert.equal(inquiryFormChoiceFor(undefined, wedding), null);
+  // The command saves it beside the wedding setting, and offering the kind sets it to the copied details form.
+  const read = (path: string) => readFileSync(path, "utf8");
+  assert.match(read("functions/src/planning/commands.ts"), /inquiryEventFormByKind: \{\s*\[kind\]:/);
+  assert.match(read("functions/src/crm/commands.ts"), /form\.id === `\$\{kindOfForm\}-details` && byKind\[kindOfForm\] === undefined/);
+  assert.match(read("app/studio/questionnaires/page.tsx"), /<InquiryEventFormSetting kind="mitzvah" \/>/);
+});

@@ -4,11 +4,7 @@ import { BEFORE_KINDS, isJobKind, journeyProfile, vocab } from "../job-kinds/job
 import { tradeProfile } from "../trades/trades.js";
 import { getConsultationSettings } from "../booking/availability.js";
 import { convertInquiryToJob } from "./convert.js";
-import {
-  INQUIRY_FORM_EVENT_TYPES,
-  INQUIRY_FORM_SETTINGS_PATH,
-  inquiryGetsEventForm,
-} from "./inquiry-form.js";
+import { INQUIRY_FORM_SETTINGS_PATH, inquiryFormChoiceFor } from "./inquiry-form.js";
 
 /**
  * The couple's own link: tell us about your day, then pick a time to talk.
@@ -120,14 +116,13 @@ async function inquiryLinkCarriesForm(
     db.doc(INQUIRY_FORM_SETTINGS_PATH(input.tenantId)).get(),
     db.doc(`leads/${input.leadId}`).get(),
   ]);
-  const setting = settings.get("inquiryEventForm") as { templateId?: unknown; eventTypes?: unknown } | undefined;
-  if (!setting || typeof setting.templateId !== "string" || !setting.templateId) return false;
-  const appliesTo = Array.isArray(setting.eventTypes) && setting.eventTypes.length
-    ? setting.eventTypes.map(String)
-    : INQUIRY_FORM_EVENT_TYPES;
-  return inquiryGetsEventForm(
-    { eventTypeId: lead.get("eventTypeId"), eventTypeLabel: lead.get("eventTypeLabel"), eventKind: lead.get("eventKind") },
-    appliesTo,
+  // Its kind's own form (a mitzvah's), or the studio's wedding form (inquiry-form.ts).
+  return (
+    inquiryFormChoiceFor(settings.data(), {
+      eventTypeId: lead.get("eventTypeId"),
+      eventTypeLabel: lead.get("eventTypeLabel"),
+      eventKind: lead.get("eventKind"),
+    }) !== null
   );
 }
 
