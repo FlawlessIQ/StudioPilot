@@ -31,7 +31,72 @@ kind (quinceañera, sweet 16) then costs one row per table.
 | 1: kind | **Built 2026-10-14.** 4343 tests, typecheck, functions build, lint and the production build pass. |
 | 2: family's side | **Built 2026-10-14.** 4346 tests, typecheck, functions build, lint and the production build pass. |
 | 3: photo/video planning | **Built 2026-10-14.** 4355 tests, typecheck, functions build, lint and the production build pass. Not deployed. |
-| 4–6 | Not started (part of 4 was pulled into 2) |
+| 4: other trades | **Built 2026-10-14.** Not deployed. |
+| 5: agreements | **Built 2026-10-14 as a draft for counsel.** Not deployed. |
+| 6: walk | Not started |
+
+**What Phase 4 did** (4360 tests, typecheck, functions build, lint and build pass)
+- **The DJ: `mitzvah-music-planner`.** It asks:
+  - where and when (the party)
+  - the grand entrance and its names
+  - the hora songs and the chair lift
+  - who says the blessings, and the speeches
+  - the candle lighting, with a song for each candle
+  - the montage and the games
+  - the dance floor and the microphones
+
+  "Lay out the night" uses `planMitzvahNight`: the party in order, with no
+  crew arriving, portraits or service. The MC script fills the hora (song
+  and chair lift), the blessings, the parents' speech (the toast order,
+  never the parent dances), the candles, the montage and the games.
+  `djMomentsFor("mitzvah")` gives the party's chips.
+- **Makeup and hair.** `mitzvah-makeup-party-list` and
+  `mitzvah-hair-party-list`: "Before the party", the family as the party
+  list with the family's examples, skin or hair (no veil), and good to
+  know. The chair roles needed no change: mom and grandma read as mother,
+  and the honoree as party.
+- **The planner.**
+  - `mitzvah-planner-final-details`: the service and the party, key people
+    and the candle lighting, the décor and venue, guests and kids, vendors.
+  - A mitzvah starter checklist (synagogue date, kids' entertainment,
+    tallit and kippot, hotel block, Friday and Sunday events, montage
+    photos, candle-lighting list; no license or officiant).
+  - The checklist is read by kind. A studio's saved wedding list never
+    reaches a mitzvah; `planningChecklists["mitzvah:full"]` would.
+  - **The settings screen can't edit a mitzvah list yet.**
+- **The scheduler** prefers a kind's `-final-details` form too. The
+  inquiry-form suggestion never offers the new after-booking forms.
+- **Guard:** `tests/mitzvah-trades.test.ts`. It found wedding words in the
+  reused "Before the party" help ("the dress or the first look", "a
+  bridesmaid"), now the family's.
+
+**What Phase 5 did**
+- **Schedule B: "Bar and bat mitzvah terms"** (`mitzvahTermsBlocks(trade)`
+  in event-details.ts).
+  - It's added after Schedule A on a mitzvah job only (`agreementTerms`,
+    contracts/sources.ts `kindTerms`). Wedding agreements are unchanged and
+    the golden hashes hold.
+  - Two terms, in each trade's words:
+    - **The house of worship:** the congregation's rules can keep cameras,
+      sound or setup out of the service, and that isn't a shortfall.
+    - **Children:**
+      - photographer: no portfolio or marketing use of the honoree's or
+        any child's images without written agreement
+      - DJ: music suited to the ages
+      - makeup and hair: a parent or guardian present
+      - planner: the client supervises; the studio isn't childcare
+- The contract step's "Wedding details not given yet… Ask the couple" now
+  reads the kind's words.
+- **Owed:** counsel's review of Schedule B, with the e-sign review. The
+  studio's agreement itself is unchanged: a planner's "Wedding Planning
+  Agreement" still shows the warning on a mitzvah job.
+
+**Still open after Phases 4–5:**
+- The checklist settings screen for a mitzvah list.
+- Vendor types (Decision 5).
+- The extras library's "Bridesmaid makeup" and "Veil placement" ideas.
+  They're the studio's catalog, not per job.
+- The planner's Cue how-to says "the wedding".
 
 **What Phase 3 did**
 - **Three photographer forms** with `eventTypeId: "mitzvah"`:

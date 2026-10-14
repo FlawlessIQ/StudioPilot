@@ -107,6 +107,58 @@ export const STARTER_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readon
   ],
 };
 
+/**
+ * A bar or bat mitzvah's starter lists (docs/mitzvah-journey-plan-2026-10-14.md,
+ * Phase 4). The synagogue sets the date, often years ahead; the planner books
+ * the party around it, with the kids' entertainment, the tallit and kippot,
+ * the montage photos and the candle-lighting list on the way. No officiant
+ * and no marriage license.
+ */
+export const MITZVAH_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readonly ChecklistItem[]>> = {
+  full: [
+    item("budget", "Set the budget and a first guest count with the family", 12),
+    item("synagogue_date", "Confirm the date and service time with the synagogue", 12),
+    item("venue", "Book the party venue", 12),
+    item("photographer", "Book the photographer", 10),
+    item("videographer", "Book the videographer", 10),
+    item("music", "Book the DJ or band, with an MC", 10),
+    item("caterer", "Book the caterer, with any kosher or dietary needs", 9),
+    item("entertainment", "Book the kids' entertainment: dancers, games, a photo booth", 8),
+    item("theme", "Settle the theme: colors, logo and the look of the party", 8),
+    item("save_the_dates", "Send the save-the-dates", 8),
+    item("hotel_block", "Set up a hotel block for guests from out of town", 6),
+    item("florist", "Book the florist and the centerpieces", 6),
+    item("stationery", "Order the invitations and the sign-in board", 4),
+    item("weekend", "Plan the Friday dinner and Sunday brunch, if there are any", 4),
+    item("tallit_kippot", "Order the tallit, kippot and any personalized favors", 3),
+    item("hair_makeup", "Book hair and makeup for the family", 3),
+    item("invitations_mailed", "Mail the invitations", 8, "weeks"),
+    item("montage", "Collect the montage photos and send them to the DJ", 6, "weeks"),
+    item("rsvps", "RSVP deadline: chase the missing replies", 4, "weeks"),
+    item("candle_lighting", "Settle the candle-lighting list and its songs with the family and the DJ", 3, "weeks"),
+    item("seating_chart", "Seating chart and final count to the venue and caterer", 2, "weeks"),
+    item("favors", "The sign-in board, favors and kippot ready to set out", 2, "weeks"),
+  ],
+  partial: [
+    item("vendor_review", "Go through the vendors they've booked and their contracts", 6),
+    item("theme", "Settle the theme: colors, logo and the look of the party", 5),
+    item("entertainment", "Book the kids' entertainment: dancers, games, a photo booth", 5),
+    item("florist", "Book the florist and the centerpieces", 5),
+    item("tallit_kippot", "Order the tallit, kippot and any personalized favors", 3),
+    item("hair_makeup", "Book hair and makeup for the family", 3),
+    item("montage", "Collect the montage photos and send them to the DJ", 6, "weeks"),
+    item("rsvps", "RSVP deadline: chase the missing replies", 4, "weeks"),
+    item("candle_lighting", "Settle the candle-lighting list and its songs with the family and the DJ", 3, "weeks"),
+    item("seating_chart", "Seating chart and final count to the venue and caterer", 2, "weeks"),
+    item("favors", "The sign-in board, favors and kippot ready to set out", 2, "weeks"),
+  ],
+};
+
+/** Kinds with starter lists of their own; every other kind reads the wedding's. */
+const KIND_CHECKLISTS: Readonly<Record<string, Readonly<Record<ChecklistScope, readonly ChecklistItem[]>>>> = {
+  mitzvah: MITZVAH_PLANNING_CHECKLISTS,
+};
+
 export function isChecklistScope(value: unknown): value is ChecklistScope {
   return typeof value === "string" && (CHECKLIST_SCOPES as readonly string[]).includes(value);
 }
@@ -148,7 +200,7 @@ function storedItems(value: unknown): ChecklistItem[] | null {
   return (value as ChecklistItem[]).map((entry) => item(entry.key, entry.title.trim(), entry.amount, entry.unit));
 }
 
-function savedList(stored: unknown, scope: ChecklistScope): ChecklistItem[] | null {
+function savedList(stored: unknown, scope: string): ChecklistItem[] | null {
   const lists = (stored && typeof stored === "object" ? stored : {}) as Record<string, unknown>;
   const saved = lists[scope] && typeof lists[scope] === "object" ? (lists[scope] as Record<string, unknown>) : null;
   return saved ? storedItems(saved.items) : null;
@@ -157,14 +209,20 @@ function savedList(stored: unknown, scope: ChecklistScope): ChecklistItem[] | nu
 /**
  * The studio's list for a tier: its own when it has saved one (an empty list
  * is a choice — no checklist), the starter list otherwise.
+ *
+ * A kind with lists of its own (a mitzvah's) reads the studio's saved list
+ * for that kind (`planningChecklists["mitzvah:full"]`), else its starter: a
+ * studio's wedding list would hand a mitzvah family a marriage license.
  */
-export function checklistFor(stored: unknown, scope: ChecklistScope): ChecklistItem[] {
+export function checklistFor(stored: unknown, scope: ChecklistScope, kind?: string | null): ChecklistItem[] {
+  const own = kind ? KIND_CHECKLISTS[kind] : undefined;
+  if (own) return savedList(stored, `${kind}:${scope}`) ?? own[scope].map((entry) => ({ ...entry }));
   return savedList(stored, scope) ?? STARTER_PLANNING_CHECKLISTS[scope].map((entry) => ({ ...entry }));
 }
 
 /** Whether the studio has made this tier's list its own. */
-export function checklistIsCustom(stored: unknown, scope: ChecklistScope): boolean {
-  return savedList(stored, scope) !== null;
+export function checklistIsCustom(stored: unknown, scope: ChecklistScope, kind?: string | null): boolean {
+  return savedList(stored, kind && KIND_CHECKLISTS[kind] ? `${kind}:${scope}` : scope) !== null;
 }
 
 /** "10 months before", "1 week before". */

@@ -46,6 +46,7 @@ import {
   withTbdTitle,
 } from "@/features/schedules/day-plan";
 import { planBuiltDay } from "@/features/schedules/built-day";
+import { planMitzvahNight } from "@/features/schedules/mitzvah-plan";
 import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 import { jobKindOf, vocab } from "@/features/job-kinds/job-kinds";
 import {
@@ -1004,8 +1005,12 @@ export function AiScheduleGenerator({
     // the gaps' suggestions come on request ("Suggest times for the gaps").
     // A DJ's night is the ceremony music and the reception's running order,
     // not a photographer's day (night-plan.ts).
+    // A mitzvah's night runs from the party (mitzvah-plan.ts), not a ceremony.
+    const nightInput = { answers: jobAnswers, coverageMinutes: packageMinutes ?? null, venue: dayPlanInput().venue };
     const plan = mcScript
-      ? planNight({ answers: jobAnswers, coverageMinutes: packageMinutes ?? null, venue: dayPlanInput().venue })
+      ? dayPlanOf(selectedProject) === "mitzvah"
+        ? planMitzvahNight(nightInput)
+        : planNight(nightInput)
       : chairs
         ? chairMorning()
         : planBuiltDay(dayPlanOf(selectedProject), { ...dayPlanInput(), answeredOnly: true });

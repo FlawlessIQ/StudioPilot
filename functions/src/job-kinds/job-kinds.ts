@@ -523,6 +523,8 @@ export type JourneyProfile = {
    * (`mitzvahType`); the parents stay the client and the contact.
    */
   honoree: boolean;
+  /** Terms the kind adds to the agreement after Schedule A (event-details.ts): a mitzvah's Schedule B. */
+  agreementTerms: "mitzvah" | null;
 };
 
 /** The steps every kind but a wedding leaves out. */
@@ -534,6 +536,7 @@ const PLAIN_STEPS = {
   partner: false,
   scheduleAParts: null,
   honoree: false,
+  agreementTerms: null,
 } as const;
 
 const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
@@ -556,6 +559,7 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     partner: true,
     scheduleAParts: "wedding",
     honoree: false,
+    agreementTerms: null,
   },
   // The wedding's weight (docs/mitzvah-journey-plan-2026-10-14.md): a call,
   // an agreement, a deposit and a balance, a run of show, crew and an album.
@@ -580,6 +584,8 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     dayPlan: "mitzvah",
     scheduleAParts: "mitzvah",
     honoree: true,
+    // Phase 5: the congregation's rules and children, as Schedule B.
+    agreementTerms: "mitzvah",
   },
   // Gabe, 2026-10-02: no agreement ("that's overkill"), paid in full.
   portraits: {

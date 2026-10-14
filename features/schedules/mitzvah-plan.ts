@@ -292,6 +292,26 @@ export function planMitzvahDay(input: {
   };
 }
 
+/**
+ * A DJ's mitzvah night: the party in order, from the music planner's party
+ * start, with every line laid out (a DJ's night is drafted whole, as a
+ * wedding's is, night-plan.ts). No photo crew arriving, no portraits, no
+ * service: the DJ is at none of them.
+ */
+export function planMitzvahNight(input: {
+  answers: Record<string, unknown>;
+  coverageMinutes?: number | null;
+  venue?: string | null;
+}): DayPlan {
+  const plan = planMitzvahDay({ ...input, secondTeam: false });
+  const notForTheDj = new Set<MitzvahMilestone>(["arrive", "family_portraits", "service", "kids_room"]);
+  return {
+    ...plan,
+    rows: plan.rows.filter((row) => !notForTheDj.has(keyOf(row))),
+    notes: plan.notes.filter((note) => !/crew sheet|portrait session|before coverage/.test(note)),
+  };
+}
+
 function keyOf(row: PlanRow): MitzvahMilestone {
   return String(row.key).replace(/^mitzvah:/, "") as MitzvahMilestone;
 }

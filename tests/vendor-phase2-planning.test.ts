@@ -70,7 +70,8 @@ test("the one-form trades are the trade profiles' own", () => {
 
 test("the event details form stays in a vendor's library to copy, without the camera questions", () => {
   for (const trade of VENDORS) {
-    const library = recommendedLibraryFor(trade);
+    // The wedding forms; a vendor's mitzvah form sits in the library too (mitzvah plan, Phase 4).
+    const library = recommendedLibraryFor(trade).filter((form) => form.eventTypeId === "wedding");
     assert.deepEqual(library.map((form) => form.id), ["wedding-event-details", OWN_FORM[trade]], trade);
     const details = library[0]!;
     assert.ok(!details.sections.some((section) => section.id === "coverage"));

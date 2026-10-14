@@ -160,6 +160,19 @@ export const DJ_MOMENTS: ReadonlyArray<{ label: string; title: string; minutes: 
  */
 const DJ_MOMENTS_BY_KIND: Readonly<Partial<Record<JobKind, typeof DJ_MOMENTS>>> = {
   wedding: DJ_MOMENTS,
+  // A mitzvah's party (docs/mitzvah-journey-plan-2026-10-14.md, Phase 4),
+  // titled so the MC script finds each line's song and announcement.
+  mitzvah: [
+    { label: "Grand entrance", title: "Grand entrance", minutes: 5 },
+    { label: "Hora", title: "Hora", minutes: 15 },
+    { label: "Blessings", title: "Blessings over the challah and wine", minutes: 10 },
+    { label: "Speeches", title: "Parents' speech and toast", minutes: 15 },
+    { label: "Candle lighting", title: "Candle lighting", minutes: 30 },
+    { label: "Montage", title: "Montage", minutes: 10 },
+    { label: "Games", title: "Kids' games", minutes: 20 },
+    { label: "Cake", title: "Cake", minutes: 10 },
+    { label: "Last dance", title: "Last dance", minutes: 5 },
+  ],
 };
 
 export function djMomentsFor(kind: JobKind): typeof DJ_MOMENTS {

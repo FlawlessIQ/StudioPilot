@@ -69,8 +69,21 @@ export function inquiryFormChoices<T extends TemplateRow & { eventTypeId?: unkno
 export function suggestedInquiryForm(
   choices: ReadonlyArray<{ id: string; name: string; forWeddings: boolean; recommendedId: string | null }>,
 ): string {
-  const afterBooking = new Set(["wedding-final-schedule", "wedding-shot-list"]);
-  const clientsOneForm = new Set(["dj-music-planner", "makeup-party-list", "hair-party-list"]);
+  const afterBooking = new Set([
+    "wedding-final-schedule",
+    "wedding-shot-list",
+    "mitzvah-final-schedule",
+    "mitzvah-shot-list",
+    "mitzvah-planner-final-details",
+  ]);
+  const clientsOneForm = new Set([
+    "dj-music-planner",
+    "makeup-party-list",
+    "hair-party-list",
+    "mitzvah-music-planner",
+    "mitzvah-makeup-party-list",
+    "mitzvah-hair-party-list",
+  ]);
   const offered = choices.filter((item) => !clientsOneForm.has(item.recommendedId ?? ""));
   return (
     offered.find((item) => item.recommendedId === "wedding-event-details")?.id ??

@@ -10,6 +10,7 @@ import {
   followEventDate,
   planningChecklistTaskId,
 } from "./planning-checklist.js";
+import { jobKindOf } from "../job-kinds/job-kinds.js";
 
 /**
  * A planner's planning checklist, written and kept in step
@@ -54,7 +55,8 @@ export async function applyPlanningChecklist(db: Firestore, projectId: string, n
     if (!scope || !tenantId || data.archivedAt || !CHECKLIST_STATES.has(text(data.state)) || !DAY.test(eventDate)) return "not_yet";
     const tenant = await transaction.get(db.doc(`tenants/${tenantId}`));
     const stored = tenant.get("planningChecklists");
-    const items = checklistFor(stored, scope);
+    // A mitzvah's own list, not the studio's wedding one (planning-checklist.ts).
+    const items = checklistFor(stored, scope, jobKindOf(data));
     const references = items.map((entry) => db.doc(`tasks/${planningChecklistTaskId(projectId, entry.key)}`));
     const existing = references.length ? await transaction.getAll(...references) : [];
     const today = now.slice(0, 10);
@@ -107,7 +109,7 @@ export async function applyPlanningChecklist(db: Firestore, projectId: string, n
         scope,
         appliedAt: now,
         itemCount: items.length,
-        studioList: checklistIsCustom(stored, scope),
+        studioList: checklistIsCustom(stored, scope, jobKindOf(data)),
       },
     });
     return "applied";

@@ -718,6 +718,163 @@ const MITZVAH_SHOT_LIST: RecommendedSection[] = [
   },
 ];
 
+/**
+ * The other trades' mitzvah forms (docs/mitzvah-journey-plan-2026-10-14.md,
+ * Phase 4), on the same ids the mitzvah day plan (mitzvah-plan.ts), the MC
+ * script (mc-script.ts) and the chair plan read: `party-location`,
+ * `party-start-time`, `entrance-names`, `candle-lighting-list`, `party-list`.
+ */
+const mitzvahParty = (endHelp: string): RecommendedSection => ({
+  id: "where-and-when",
+  title: "Where and when",
+  fields: [
+    field("party-location", "Party location", "address", true),
+    field("party-start-time", "Party start time", "time", true, { help: "When the cocktail hour and the kids' room open." }),
+    field("party-end-time", "Party end time", "time", true, { help: endHelp }),
+  ],
+});
+
+/** A DJ's mitzvah night: the entrance, the hora, the blessings, the candles with a song each, the montage, the games. */
+const MITZVAH_MUSIC_PLANNER: RecommendedSection[] = [
+  mitzvahParty("When the music stops."),
+  {
+    id: "entrances",
+    title: "Grand entrance",
+    fields: [
+      field("grand-entrance-song", "Grand entrance song", "text", false),
+      field("entrance-names", "Who we introduce, in order, and how to say each name", "long_text", true, {
+        help: "One per line, as you'd like them said. For example: \"The Cohen family\", \"Grandparents Ruth and Mel\", \"And our bar mitzvah, Sam!\".",
+      }),
+    ],
+  },
+  {
+    id: "hora",
+    title: "The hora",
+    fields: [
+      field("hora-songs", "Hora songs", "long_text", false, { help: "Hava Nagila, or anything you'd like instead or after it." }),
+      field("chair-lift", "Who goes up in the chair, in order", "long_text", false, {
+        help: "Usually your child first, then the parents. Grandparents too, if they'd like.",
+      }),
+    ],
+  },
+  {
+    id: "blessings-and-speeches",
+    title: "Blessings and speeches",
+    fields: [
+      field("blessings", "Who says the blessings over the challah and the wine", "long_text", false),
+      field("toast-order", "Speeches and toasts, in order", "long_text", false),
+    ],
+  },
+  {
+    id: "candles",
+    title: "The candle lighting",
+    fields: [
+      field("candle-lighting-list", "The candle lighting, in order", "long_text", true, {
+        help: "One candle per line: who lights it, how to introduce them, and their song. For example: \"In memory — Grandpa Saul — 'Somewhere Over the Rainbow'\". Usually 13 or 14 candles.",
+      }),
+    ],
+  },
+  {
+    id: "montage-and-games",
+    title: "The montage and the games",
+    fields: [
+      field("montage-file", "The montage: how we'll get it, and how long it runs", "text", false, {
+        help: "A link to the video file, or who's sending it. We'll play it after the candles unless you'd rather another time.",
+      }),
+      field("games", "Games and dancers for the kids", "long_text", false, {
+        help: "Anything planned: a dance-off, kids against adults, motivational dancers, prizes.",
+      }),
+    ],
+  },
+  {
+    id: "dance-floor",
+    title: "The dance floor",
+    fields: [
+      field("cake-cutting-song", "Cake", "text", false, { help: "A song for the cake, if you'd like one." }),
+      field("last-dance-song", "Last dance", "text", false),
+      field("must-play", "Must-play songs", "long_text", false),
+      field("do-not-play", "Do-not-play songs", "long_text", false),
+      field("genres", "Genres you love, and any you don't", "long_text", false),
+      choice("guest-requests", "Guest requests", ["Yes, take requests", "Only if they fit the night", "No requests"]),
+      choice("explicit-lyrics", "Explicit lyrics", ["Clean versions only", "Fine for the adults later on", "Anything goes"]),
+    ],
+  },
+  {
+    id: "on-the-day",
+    title: "On the day",
+    fields: [
+      field("microphones", "Who needs a microphone", "long_text", false, {
+        help: "A clip-on microphone for your child's speech, handhelds for the parents and the blessings.",
+      }),
+      field("venue-coordinator", "Venue coordinator — name and phone", "text", false),
+      field("load-in-notes", "Load-in, parking and power at your venue", "long_text", false),
+    ],
+  },
+];
+
+/** Who's getting ready, for a mitzvah family: the same field as a wedding's, with the family's examples. */
+const mitzvahPartyList = (help: string): RecommendedSection => ({
+  id: "your-party",
+  title: "Your family",
+  fields: [field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, { help })],
+});
+
+const MITZVAH_HELP: Record<string, string> = {
+  "ready-by-time": "Usually when your photographer arrives for the family portraits. Ask them if you're not sure.",
+  "day-of-contact": "Who we call on the day if it isn't you: a grandparent, a friend or your planner.",
+};
+
+const MITZVAH_BEFORE_PARTY: RecommendedSection = {
+  ...PARTY_LIST[0]!,
+  id: "the-morning",
+  title: "Before the party",
+  fields: PARTY_LIST[0]!.fields.map((entry) => (MITZVAH_HELP[entry.id] ? { ...entry, help: MITZVAH_HELP[entry.id] } : entry)),
+};
+
+/** A mitzvah's hair, without a veil. */
+const MITZVAH_HAIR_DETAILS: RecommendedSection = {
+  ...HAIR_DETAILS,
+  fields: HAIR_DETAILS.fields.filter((entry) => entry.id !== "veil"),
+};
+
+/** A planner's mitzvah: the service and the portraits, the party, the people, the candles, the décor, the vendors. */
+const MITZVAH_PLANNER_FINAL_DETAILS: RecommendedSection[] = [
+  {
+    id: "service-and-party",
+    title: "The service and the party",
+    fields: [
+      field("synagogue", "Synagogue", "address", true),
+      field("service-time", "Service start time", "time", true),
+      field("portrait-session-date", "Portrait session date", "date", false),
+      field("party-location", "Party location", "address", true),
+      field("party-start-time", "Party start time", "time", true),
+      field("party-end-time", "Party end time", "time", false),
+    ],
+  },
+  {
+    id: "key-people",
+    title: "Key people",
+    fields: [
+      field("key-people", "The people we should know on the day", "long_text", true, {
+        help: "Grandparents, the rabbi or cantor, anyone giving a blessing or a speech, and who we call if we can't reach you.",
+      }),
+      field("candle-lighting-list", "The candle lighting, in order", "long_text", false, {
+        help: "One candle per line: who lights it. We line them up, and your DJ calls them.",
+      }),
+    ],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "decor-and-venue"),
+  {
+    id: "guests",
+    title: "Guests",
+    fields: [
+      field("guest-count", "Final guest count", "text", true),
+      field("kids-count", "How many of them are kids", "text", false),
+    ],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "vendors"),
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -797,6 +954,66 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       dueDaysBeforeEvent: 7,
       reminderDaysBeforeDue: [14, 3],
       sections: MITZVAH_SHOT_LIST,
+    },
+    {
+      id: "mitzvah-music-planner",
+      name: "Mitzvah music & MC planner",
+      summary:
+        "Where and when, the entrance names and how to say them, the hora and the chair lift, the blessings and speeches, the candle lighting with a song for each candle, the montage, the games and the dance floor. Your run of show is laid out from it.",
+      useIt: "Your mitzvah planning form: it goes out when they book.",
+      eventTypeId: "mitzvah",
+      trades: ["dj"],
+      dueDaysBeforeEvent: 14,
+      reminderDaysBeforeDue: [14, 3],
+      sections: MITZVAH_MUSIC_PLANNER,
+    },
+    {
+      id: "mitzvah-makeup-party-list",
+      name: "Mitzvah party list",
+      summary: "When everyone needs to be ready, where, and everyone in the family getting makeup.",
+      useIt: "Your mitzvah planning form: it goes out when they book.",
+      eventTypeId: "mitzvah",
+      trades: ["makeup"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        MITZVAH_BEFORE_PARTY,
+        mitzvahPartyList(
+          "Name — who they are — hair, makeup or both — anything we should know. For example: \"Rachel Cohen — mom — makeup — lashes\", \"Lily — the bat mitzvah — light makeup\", \"Grandma Ruth — grandmother — makeup\".",
+        ),
+        MAKEUP_SKIN,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "mitzvah-hair-party-list",
+      name: "Mitzvah party list",
+      summary: "When everyone needs to be ready, where, and everyone in the family getting their hair done.",
+      useIt: "Your mitzvah planning form: it goes out when they book.",
+      eventTypeId: "mitzvah",
+      trades: ["hair"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        MITZVAH_BEFORE_PARTY,
+        mitzvahPartyList(
+          "Name — who they are — anything we should know. For example: \"Rachel Cohen — mom — blowout\", \"Lily — the bat mitzvah — half up, with flowers\", \"Grandma Ruth — grandmother — set and style\".",
+        ),
+        MITZVAH_HAIR_DETAILS,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "mitzvah-planner-final-details",
+      name: "Mitzvah final details",
+      summary:
+        "The service and the party, the people to know, the candle lighting, what the family is bringing and the venue's rules, the final count, and every vendor.",
+      useIt: "Your mitzvah planning form.",
+      eventTypeId: "mitzvah",
+      trades: ["planner"],
+      dueDaysBeforeEvent: 28,
+      reminderDaysBeforeDue: [14, 3],
+      sections: MITZVAH_PLANNER_FINAL_DETAILS,
     },
     {
       id: "dj-music-planner",

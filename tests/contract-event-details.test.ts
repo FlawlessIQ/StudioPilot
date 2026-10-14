@@ -110,5 +110,6 @@ test("the schedule's words: what it means, then the details", () => {
 test("wired: sources fill it, drafts carry what's missing, the studio is told before sending", () => {
   assert.match(read("functions/src/contracts/sources.ts"), /eventDetails = eventDetailsFrom\(/);
   assert.match(read("functions/src/contracts/commands.ts"), /detailsMissing: loaded\.sources\.eventDetails\?\.missing/);
-  assert.match(read("components/contracts/native-contract-step.tsx"), /Wedding details not given yet/);
+  // In the kind's words: "Wedding details" for a wedding (or a job from before kinds), "Mitzvah details" for a mitzvah.
+  assert.match(read("components/contracts/native-contract-step.tsx"), /\$\{vocab\(jobKind \?\? BEFORE_KINDS\)\.detailsForm\} not given yet/);
 });

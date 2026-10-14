@@ -349,6 +349,51 @@ function lockSentence(lockDaysBefore: number | null | undefined, headcountLock =
   return `These details form part of this agreement. Anything marked "To be confirmed" is added when the final details are confirmed, ${when} before the date. After that, changes to locations or times are agreed with us in writing.`;
 }
 
+/**
+ * Schedule B — a bar or bat mitzvah's terms (docs/mitzvah-journey-plan-2026-10-14.md,
+ * Phase 5). Added at the end of the agreement for a mitzvah job only
+ * (job-kinds.ts `agreementTerms`), the way Schedule A is, so a wedding's
+ * agreement is word for word what it was.
+ *
+ * Two terms a wedding doesn't need: the congregation's rules (cameras, sound
+ * and setup are often kept out of the service), and children (most guests
+ * are children, and their images are not the studio's to show). In the
+ * trade's own words; the trade is passed in, since this file has no imports.
+ *
+ * DRAFT: written for counsel's review with the e-sign review. Not legal advice.
+ */
+export function mitzvahTermsBlocks(trade?: string | null): Block[] {
+  const field = "event.terms";
+  const which = String(trade ?? "").trim().toLowerCase();
+  const worship =
+    which === "dj"
+      ? "The studio follows the rules of the synagogue or congregation for music, sound and announcements, which may keep equipment out of the service or limit when and where the studio can play. Anything those rules exclude is not part of the services and is not a shortfall."
+      : which === "makeup" || which === "hair"
+        ? "The studio follows the rules of the synagogue or congregation for where and when it may work, and its dress and timing. Anything those rules exclude is not part of the services and is not a shortfall."
+        : which === "planner"
+          ? "The studio works within the rules of the synagogue or congregation for the service, the rehearsal and the portraits, and coordinates with its staff. Anything those rules exclude is not part of the services and is not a shortfall."
+          : "The studio follows the rules of the synagogue or congregation for photography and video, which often keep cameras out of the service and may limit when and where the studio can photograph. Anything those rules exclude is not part of the services and is not a shortfall.";
+  const children =
+    which === "dj"
+      ? "Most guests at a mitzvah are children. The studio plays music and runs games suited to their ages, and keeps explicit lyrics out while children are present unless the client asks otherwise in writing."
+      : which === "makeup" || which === "hair"
+        ? "Services for anyone under 18 are given with a parent or guardian present, and with products suited to their age."
+        : which === "planner"
+          ? "Most guests at a mitzvah are children. The client remains responsible for supervising them: the studio coordinates the event and does not provide childcare."
+          : "Most guests at a mitzvah are children. The studio will not use images of the honoree, or of any other child from this event, in its portfolio, website, social media or advertising unless the client agrees in writing. The images delivered are for the family's personal use.";
+  return [
+    { type: "heading", level: 2, content: [{ text: "Schedule B — Bar and bat mitzvah terms", field }] },
+    { type: "paragraph", content: [{ text: "These terms are part of this agreement for this event.", field }] },
+    {
+      type: "list",
+      items: [
+        { content: [{ text: "The house of worship: ", bold: true as const, field }, { text: worship, field }] },
+        { content: [{ text: "Children: ", bold: true as const, field }, { text: children, field }] },
+      ],
+    },
+  ];
+}
+
 /** The schedule as agreement blocks: a heading, what it means, the details. */
 export function eventDetailsBlocks(details: EventDetails): Block[] {
   if (!details.rows.length) return [];

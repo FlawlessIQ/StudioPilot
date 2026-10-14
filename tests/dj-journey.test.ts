@@ -40,7 +40,9 @@ test("a DJ starts with the Music & moments planner, locked ten days out, sent at
 
 test("every planner answer the MC script reads is a question on the planner", () => {
   const planner = recommendedFor("dj").find((form) => form.id === "dj-music-planner")!;
-  const ids = new Set(planner.sections.flatMap((section) => section.fields.map((field) => field.id)));
+  // A wedding's planner or a mitzvah's (mitzvah plan, Phase 4): each line's answer is asked on one of them.
+  const mitzvah = recommendedFor("dj", ["mitzvah"]).find((form) => form.id === "mitzvah-music-planner")!;
+  const ids = new Set([planner, mitzvah].flatMap((form) => form.sections.flatMap((section) => section.fields.map((field) => field.id))));
   const source = read("features/schedules/mc-script.ts");
   const keys = [...source.matchAll(/(?:song|announcement): "([a-z-]+)"/g)].map((match) => match[1]!);
   assert.ok(keys.length >= 10);
@@ -108,7 +110,8 @@ test("a DJ's night runs from the ceremony music to the send-off, anchored on the
   assert.ok(late.rows.every((row) => row.time < "24:00"));
   assert.equal(planNight({ answers: {} }).rows.length, 0);
   // The editor lays out a DJ's night, not a photographer's day.
-  assert.match(read("components/planning/ai-schedule-generator.tsx"), /const plan = mcScript\s*\? planNight\(/);
+  // A mitzvah's night runs from the party instead (mitzvah-plan.ts, planMitzvahNight).
+  assert.match(read("components/planning/ai-schedule-generator.tsx"), /const plan = mcScript\s*\? dayPlanOf\(selectedProject\) === "mitzvah"\s*\? planMitzvahNight\(nightInput\)\s*: planNight\(nightInput\)/);
 });
 
 test("DJs are a crew role: D1, D2, never ranked as photographers", () => {

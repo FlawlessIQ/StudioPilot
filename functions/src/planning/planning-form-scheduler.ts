@@ -65,7 +65,7 @@ export function planningFormTemplate(
   const sendable = candidates.filter((template) => !/-shot-list$/.test(text(template.recommendedId)));
   return (
     sendable.find((template) => /planning/i.test(text(template.name))) ??
-    sendable.find((template) => /-final-schedule$/.test(text(template.recommendedId))) ??
+    sendable.find((template) => /-final-(schedule|details)$/.test(text(template.recommendedId))) ??
     sendable[0] ??
     null
   );

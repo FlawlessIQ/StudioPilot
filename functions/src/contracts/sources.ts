@@ -15,7 +15,7 @@ import {
 import { retainerFromSchedule } from "../booking/agreed-retainer.js";
 import { isReturned } from "../planning/questionnaire-lifecycle.js";
 import { contractFormAnswers } from "./form-answers.js";
-import { eventDetailsFrom, venueFromAnswers } from "./event-details.js";
+import { eventDetailsFrom, mitzvahTermsBlocks, venueFromAnswers } from "./event-details.js";
 import { formatContractDate } from "./document.js";
 import { normalizeUnitLabel, quantityText } from "../packages/unit-label.js";
 
@@ -358,6 +358,10 @@ export async function loadContractSources(
       packages,
       formAnswers,
       eventDetails,
+      // A mitzvah's Schedule B (job-kinds.ts `agreementTerms`); nothing for any other kind.
+      ...(journeyProfile(jobKindOf(project.data())).agreementTerms === "mitzvah"
+        ? { kindTerms: mitzvahTermsBlocks(text(tenant.get("trade")) || null) }
+        : {}),
       paymentSchedule: schedule.map((row) => ({
         label: text(row.label) || "Payment",
         amountCents: cents(row.amountCents),

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { balanceWithSalesTax, readPricedSalesTax, totalWithSalesTax } from "../billing/sales-tax-pricing.js";
 import type { PricedSalesTax } from "../pricing/package-price.js";
-import { eventDetailsBlocks, type EventDetails } from "./event-details.js";
+import { eventDetailsBlocks, type EventDetails, type mitzvahTermsBlocks } from "./event-details.js";
 import { tradeOf, tradeProfile, tradeVocab } from "../trades/trades.js";
 
 /**
@@ -282,6 +282,12 @@ export type ContractSources = {
    * own preview of an old template, tests of the template alone).
    */
   eventDetails?: EventDetails | null;
+  /**
+   * Terms a kind of job adds at the end, after Schedule A: a mitzvah's
+   * Schedule B (./event-details.ts `mitzvahTermsBlocks`). Absent for every
+   * other kind, so their agreements are unchanged.
+   */
+  kindTerms?: ReturnType<typeof mitzvahTermsBlocks> | null;
   studio: {
     name: string;
     legalName: string | null;
@@ -786,6 +792,8 @@ export function resolveContractDocument(input: {
   }
   // Schedule A in every agreement: at the end when the template doesn't place it.
   if (sources.eventDetails && !detailsPlaced) blocks.push(...eventDetailsBlocks(sources.eventDetails));
+  // A kind's own terms last (a mitzvah's Schedule B).
+  if (sources.kindTerms?.length) blocks.push(...sources.kindTerms);
   const resolvedFields = [...fields.values()];
   return {
     document: {

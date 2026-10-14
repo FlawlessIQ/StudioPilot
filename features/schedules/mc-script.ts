@@ -54,6 +54,14 @@ const RULES: ReadonlyArray<{ title: RegExp; song?: string; announcement?: string
   { title: /recessional/i, song: "recessional-song" },
   { title: /\bceremony\b/i, song: "entrance-song" },
   { title: /grand entrance|entrances?\b|introduc/i, song: "grand-entrance-song", announcement: "entrance-names" },
+  // A mitzvah's night (the mitzvah music planner, recommended-templates.ts):
+  // the parents' speech before "parent" claims it for the parent dances.
+  { title: /\bhora\b/i, song: "hora-songs", announcement: "chair-lift" },
+  { title: /challah/i, announcement: "blessings" },
+  { title: /parents?['’]? speech/i, announcement: "toast-order" },
+  { title: /candle/i, announcement: "candle-lighting-list" },
+  { title: /montage/i, announcement: "montage-file" },
+  { title: /\bgames\b/i, announcement: "games" },
   { title: /parent|father|mother/i, song: "parent-dance-songs" },
   { title: /first dance/i, song: "first-dance-song" },
   { title: /toast|speech/i, announcement: "toast-order" },

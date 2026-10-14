@@ -19,6 +19,7 @@ import { normaliseTypedName } from "@/features/contracts/signing-policy";
 import { agreementChangedSincePrepared } from "@/features/contracts/agreement-version";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { BEFORE_KINDS, vocab } from "@/features/job-kinds/job-kinds";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import {
   prepareContract,
@@ -533,7 +534,7 @@ export function NativeContractStep({
       ) : null}
       {detailsMissing.length ? (
         <p className="booking-delivery-warning" role="status">
-          {`Wedding details not given yet: ${detailsMissing.join(", ").toLowerCase()}. They go in Schedule A as "To be confirmed" and are confirmed with the final details ${lockWhen} before. Ask the couple now if you'd rather they were in the signed agreement.`}
+          {`${vocab(jobKind ?? BEFORE_KINDS).detailsForm} not given yet: ${detailsMissing.join(", ").toLowerCase()}. They go in Schedule A as "To be confirmed" and are confirmed with the final details ${lockWhen} before. Ask ${vocab(jobKind ?? BEFORE_KINDS).clientFallback} now if you'd rather they were in the signed agreement.`}
         </p>
       ) : null}
       {parsed ? (
