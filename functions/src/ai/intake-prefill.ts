@@ -10,7 +10,7 @@
 
 export type ProjectIntakeExtraction = {
   eventDate: string | null; // YYYY-MM-DD
-  eventType: "Wedding" | "Family" | "Corporate" | "Sports" | "Other" | null;
+  eventType: "Wedding" | "Mitzvah" | "Family" | "Corporate" | "Sports" | "Other" | null;
   email: string | null;
   phone: string | null;
   venueName: string | null;
@@ -79,6 +79,9 @@ function extractDate(text: string): string | null {
 
 function extractEventType(text: string): ProjectIntakeExtraction["eventType"] {
   const lowered = text.toLowerCase();
+  // Before the wedding words: "the bat mitzvah ceremony" is a mitzvah.
+  if (/\bb(?:a[rt]|'?nai|'?not)[\s-]*mitzv|\bmitzvah/.test(lowered))
+    return "Mitzvah";
   if (/\bwedding|bride|groom|fianc|marri|engag|elop/.test(lowered))
     return "Wedding";
   if (/\bcorporate|conference|summit|company event|gala\b/.test(lowered))

@@ -44,6 +44,7 @@ const SERVICES = new Set([
   "other",
 ]);
 const COI = new Set(["yes", "no", "not_sure"]);
+const MITZVAH = new Set(["bar", "bat", "bnai", "bnot"]);
 
 /** What the schema says, word for word, where it says something. */
 export const PUBLIC_INTAKE_MESSAGES = {
@@ -100,6 +101,9 @@ export function validatePublicLeadIntake(
   const firstName = required("firstName", 1, 80, PUBLIC_INTAKE_MESSAGES.firstName);
   const lastName = required("lastName", 1, 80, PUBLIC_INTAKE_MESSAGES.lastName);
   const partnerName = optional("partnerName", 120);
+  const honoreeName = optional("honoreeName", 80);
+  const mitzvahRaw = input.mitzvahType;
+  if (mitzvahRaw !== undefined && mitzvahRaw !== null && !MITZVAH.has(String(mitzvahRaw))) fail("mitzvahType", "Choose one of the answers.");
   const email = required("email", 0, Infinity, PUBLIC_INTAKE_MESSAGES.email, EMAIL);
   const phone = required("phone", 7, 30, PUBLIC_INTAKE_MESSAGES.phone);
   // `z.string().date()` checks the raw value, before any trimming. Blank is
@@ -178,6 +182,8 @@ export function validatePublicLeadIntake(
       firstName,
       lastName,
       partnerName,
+      honoreeName,
+      mitzvahType: (mitzvahRaw ?? null) as PublicLeadIntake["mitzvahType"],
       email,
       phone,
       eventDate: eventDate as string | null,

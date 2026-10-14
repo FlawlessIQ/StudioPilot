@@ -7,7 +7,7 @@
 // ── mirrored below ──
 
 /** What kind of event a studio's type is. "wedding" keeps the wedding-only behaviour (the event form). */
-export const INQUIRY_EVENT_KINDS = ["wedding", "portraits", "sports", "corporate", "other", "general"] as const;
+export const INQUIRY_EVENT_KINDS = ["wedding", "mitzvah", "portraits", "sports", "corporate", "other", "general"] as const;
 export type InquiryEventKind = (typeof INQUIRY_EVENT_KINDS)[number];
 
 export const INQUIRY_FIELD_MODES = ["required", "optional", "hidden"] as const;
@@ -82,6 +82,7 @@ export const INQUIRY_CONFIG_MESSAGES = {
 export function dayFieldsForKind(kind: InquiryEventKind): InquiryDayFields {
   switch (kind) {
     case "wedding":
+    case "mitzvah":
     case "corporate":
       return { eventDate: "required", city: "required", venue: true, guests: true, coi: true };
     case "portraits":
@@ -495,6 +496,17 @@ export function questionsForType(config: InquiryFormConfig, type: InquiryEventTy
  * empty sends ""). Anything that is not an object is passed through for the
  * schema to refuse.
  */
+/**
+ * The kinds whose inquiry asks who it celebrates: a mitzvah's child, by first
+ * name, and which mitzvah (job-kinds.ts `honoree`, restated here since this
+ * file has no imports).
+ */
+export const HONOREE_KINDS: readonly InquiryEventKind[] = ["mitzvah"];
+
+export function asksHonoree(type: { kind: InquiryEventKind } | null | undefined): boolean {
+  return Boolean(type && HONOREE_KINDS.includes(type.kind));
+}
+
 export function prepareInquiryInput(raw: unknown, config: InquiryFormConfig): unknown {
   if (!isRecord(raw)) return raw;
   const out: Record<string, unknown> = { ...raw };
@@ -514,6 +526,8 @@ export function prepareInquiryInput(raw: unknown, config: InquiryFormConfig): un
     out.venueContactEmail = null;
   }
   if (!fields.guests) out.estimatedGuestCount = null;
+  if (!asksHonoree(type) || blank(out.honoreeName)) out.honoreeName = null;
+  if (!asksHonoree(type) || blank(out.mitzvahType)) out.mitzvahType = null;
   if (!config.askBudget) out.budgetRange = null;
   if (!config.askReferral) out.referralSource = null;
   if (out.customAnswers === undefined || out.customAnswers === null) out.customAnswers = {};

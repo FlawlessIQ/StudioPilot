@@ -46,6 +46,26 @@ export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
       deliverables: "Online gallery, High-resolution downloads",
     },
   ],
+  // docs/mitzvah-journey-plan-2026-10-14.md: the portraits are often a
+  // separate morning at the synagogue, weeks before; the party is the day.
+  mitzvah: [
+    {
+      name: "Portraits and party",
+      description: "Torah and family portraits at the synagogue before the day, then the party, with a second photographer for the kids' room.",
+      coverageHours: 7,
+      photographers: 2,
+      videographers: 0,
+      deliverables: "Portrait session, Online gallery, High-resolution downloads",
+    },
+    {
+      name: "Party only",
+      description: "The party from the grand entrance through the hora, the candle lighting and the dancing.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+  ],
   portraits: [
     {
       name: "Mini session",
@@ -153,6 +173,16 @@ const DJ_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Ceremony sound and microphones, Cocktail hour music, Reception sound, MC, Online music planner",
     },
   ],
+  mitzvah: [
+    {
+      name: "Mitzvah party with MC",
+      description: "The grand entrance, the hora, the candle lighting with a song for every candle, the montage and the dance floor, with games for the kids.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Party sound, Dance floor lighting, MC, Candle-lighting songs, Montage playback, Online music planner",
+    },
+  ],
   corporate: [
     {
       name: "Corporate event",
@@ -200,6 +230,16 @@ const MAKEUP_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Makeup trial, Bridal makeup, Lashes, Touch-up kit",
     },
   ],
+  mitzvah: [
+    {
+      name: "Mitzvah family makeup",
+      description: "Makeup for the family before the party, with everyone after the first priced per person.",
+      coverageHours: 2,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Full makeup, Lashes, Touch-up kit",
+    },
+  ],
   other: [
     {
       name: "Event makeup",
@@ -230,6 +270,16 @@ const HAIR_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       photographers: 1,
       videographers: 0,
       deliverables: "Hair trial, Bridal hair, Veil placement",
+    },
+  ],
+  mitzvah: [
+    {
+      name: "Mitzvah family hair",
+      description: "Hair for the family before the party, with everyone after the first priced per person.",
+      coverageHours: 2,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Styling",
     },
   ],
   other: [
@@ -282,6 +332,26 @@ const PLANNER_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Two planning meetings, Venue walkthrough, Vendor confirmations, Master timeline, Rehearsal, 8 hours on the day with an assistant",
       planningScope: "coordination",
       typicalPrice: "$1,500–$3,000",
+    },
+  ],
+  mitzvah: [
+    {
+      name: "Mitzvah planning",
+      description: "From the synagogue date to the last dance: venue, vendors, the candle lighting, the montage and the weekend's other events.",
+      coverageHours: 8,
+      photographers: 2,
+      videographers: 0,
+      deliverables: "Monthly planning meetings, Vendor sourcing and booking, Budget, Candle-lighting order, Event timeline, 8 hours on the day with an assistant",
+      planningScope: "full",
+    },
+    {
+      name: "Day-of coordination",
+      description: "We take over a month out: vendors confirmed, the timeline, and the day.",
+      coverageHours: 8,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Planning meeting, Vendor confirmations, Event timeline, 8 hours on the day",
+      planningScope: "coordination",
     },
   ],
   other: [

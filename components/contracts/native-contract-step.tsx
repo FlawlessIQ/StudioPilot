@@ -528,7 +528,7 @@ export function NativeContractStep({
       </div>
       {weddingAgreementOnOtherWork ? (
         <p className="booking-delivery-warning" role="status">
-          {`This agreement is titled “${agreementTitle}”, and this is ${jobKind === "portraits" ? "a family or portrait session" : jobKind === "corporate" ? "corporate work" : jobKind === "sports" ? "a sports job" : "another kind of work"}. Read it through before you send it, or edit your agreement so it fits.`}
+          {`This agreement is titled “${agreementTitle}”, and this is ${jobKind === "mitzvah" ? "a bar or bat mitzvah" : jobKind === "portraits" ? "a family or portrait session" : jobKind === "corporate" ? "corporate work" : jobKind === "sports" ? "a sports job" : "another kind of work"}. Read it through before you send it, or edit your agreement so it fits.`}
         </p>
       ) : null}
       {detailsMissing.length ? (

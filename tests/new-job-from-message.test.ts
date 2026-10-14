@@ -436,8 +436,8 @@ test("only a per-person trade's form asks for, and sends, the ready-by time", ()
 test("the message is kept beside the job, never on it, and only for the studio", () => {
   const commands = read("", "functions/src/crm/commands.ts");
   const create = commands.slice(commands.indexOf('if (command.type === "createProject") {'));
-  assert.match(create, /const \{ sourceMessage, \.\.\.projectInput \} = command\.input;/);
-  assert.match(create, /\.\.\.projectInput,\s*eventKind,/);
+  assert.match(create, /const \{ sourceMessage, honoreeName, mitzvahType, \.\.\.projectInput \} = command\.input;/);
+  assert.match(create, /\.\.\.projectInput,\s*\.\.\.honoree,\s*eventKind,/);
   assert.match(create, /transaction\.create\(\s*db\.doc\(`\$\{JOB_SOURCE_MESSAGES\}\/\$\{projectId\}`\),/);
   // The audit trail says a message was kept, never what it said.
   assert.match(create, /sourceMessageKept: true/);

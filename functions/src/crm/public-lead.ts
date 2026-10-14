@@ -58,6 +58,10 @@ const intakeSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
   partnerName: z.string().trim().max(120).nullable().default(null),
+  // Who a mitzvah celebrates (mirrors features/leads/schema.ts); null for
+  // any type that doesn't ask (inquiry-form-config.ts `asksHonoree`).
+  honoreeName: z.string().trim().max(80).nullable().default(null),
+  mitzvahType: z.enum(["bar", "bat", "bnai", "bnot"]).nullable().default(null),
   email: z.string().trim().email(),
   phone: z.string().trim().min(7).max(30),
   // Whether a date or a city is required is the studio's form's to say
@@ -384,6 +388,8 @@ export const publicLeadIntake = onRequest(
       firstName: input.firstName,
       lastName: input.lastName,
       partnerName: input.partnerName,
+      honoreeName: input.honoreeName,
+      mitzvahType: input.mitzvahType,
       // Stored as matched: inbox capture looks leads up by lower-cased email,
       // and a mixed-case form entry was invisible to it.
       email: normalizedEmail,

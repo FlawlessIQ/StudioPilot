@@ -28,7 +28,48 @@ kind (quinceañera, sweet 16) then costs one row per table.
 | Phase | State |
 |---|---|
 | 0: re-key | **Built 2026-10-14** (branch `mitzvah-phase0`). No behavior change: 4341 tests, typecheck, functions build, lint and the production build all pass. |
-| 1–6 | Not started |
+| 1: kind | **Built 2026-10-14.** 4343 tests, typecheck, functions build, lint and the production build pass. |
+| 2–6 | Not started |
+
+**What Phase 1 did**
+- **`mitzvah` is a job kind**, labelled "Bar & bat mitzvah".
+  - Its profile is the wedding's weight: a call, an agreement, a deposit
+    and balance, a lock, a run of show, crew, an album and a whole day.
+  - The details form goes 90 days before.
+  - The wedding-only steps stay off until their mitzvah content exists:
+    planning timeline, shot list, vendor-team ask, built day plan,
+    partner, and Schedule A's required parts.
+  - The `honoree` switch is on.
+- **`vocab(kind, job)`** names the honoree: "Sam's bar mitzvah", "The
+  b'nai mitzvah", or "your celebration" when the job doesn't know.
+  - `mitzvahOf()` reads `mitzvahType` and `honoreeName`, then falls back
+    to the type's label.
+  - Most callers still pass the kind alone. Phase 2 passes the job.
+- **`jobKindFromLabel`** catches mitzvah, b'nai, b'not and bimah before
+  the wedding words.
+- **The job carries `mitzvahType` and `honoreeName`.**
+  - createProject and updateProject accept both.
+  - A job made from an inquiry inherits the inquiry's.
+  - New job and Edit job show both fields (`HonoreeFields`) when the
+    chosen type's kind has an honoree.
+- **The public inquiry form** has a "mitzvah" kind, with the wedding's day
+  fields.
+  - A mitzvah type asks "Who are we celebrating?" and "Which is it?".
+  - All three intake checks keep those answers only for a type that asks
+    (`asksHonoree`).
+  - The default form is unchanged: a studio adds the type itself.
+- **Pickers.** Setup's "What do you shoot?" offers mitzvah to every trade;
+  beauty studios now see it too.
+- **Example packages** for a photographer, DJ, makeup artist, hair stylist
+  and planner.
+- **Cue** knows the kind:
+  - "Mitzvah" is in the read-in's type list.
+  - The overview carries the honoree.
+  - The prompt says to write to the parents about their child.
+  - Prompt size pin: 19906.
+  - **A2/A4 plus a mitzvah turn are owed on prod.**
+- **Not yet looked at on screen.** The new fields appear only on a mitzvah
+  type, which no studio has yet. The Phase 6 walk screenshots them.
 
 **What Phase 0 did**
 - **Six profile switches** in `journeyProfile`: `planningTimeline`, `shotList`,

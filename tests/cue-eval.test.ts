@@ -203,7 +203,11 @@ test("a change to Cue's prompt is deliberate and re-evaluated", () => {
   // for a DJ, makeup or hair studio. It is empty for a photographer, so a
   // photographer's prompt text is unchanged; the size moved with the
   // parameter. DJ scenarios run in the Phase 2 walk.
-  const EXPECTED = 19673;
+  // Bumped 2026-10-14 (mitzvah, docs/mitzvah-journey-plan-2026-10-14.md
+  // Phase 1): a new kind, and Cue writes to the parents about their child's
+  // bar or bat mitzvah, by name when the job has one. A2/A4 plus a mitzvah
+  // turn are owed on production with the Phase 6 walk.
+  const EXPECTED = 19906;
   const drift = Math.abs(size - EXPECTED);
   assert.ok(
     drift < 40,

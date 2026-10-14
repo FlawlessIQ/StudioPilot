@@ -48,8 +48,12 @@ test("a job's kind: stored first, then its type id, then its label — never wed
   assert.equal(jobKindOf({ eventType: "Cheer" }), "sports");
   assert.equal(jobKindOf({ eventType: "Headshots" }), "corporate");
   assert.equal(jobKindOf({ eventType: "Elopement" }), "wedding");
+  // A mitzvah is its own kind, ahead of the wedding words ("ceremony").
+  assert.equal(jobKindOf({ eventType: "Bar mitzvah" }), "mitzvah");
+  assert.equal(jobKindOf({ eventType: "Bat Mitzvah ceremony" }), "mitzvah");
+  assert.equal(jobKindOf({ eventType: "B'nai Mitzvah" }), "mitzvah");
   // Unknown is "other": a family reading "your wedding" is the failure.
-  assert.equal(jobKindOf({ eventType: "Bar mitzvah" }), "other");
+  assert.equal(jobKindOf({ eventType: "Quinceañera" }), "other");
   assert.equal(jobKindOf({}), "other");
   assert.equal(jobKindOf(null), "other");
   assert.equal(jobKindFromLabel(""), null);
@@ -115,6 +119,43 @@ test("the wedding-only steps are switches, and only a wedding has them on (mitzv
   assert.equal(vocab("wedding").aboutYours, "your day");
   assert.equal(vocab("portraits").aboutYours, "your session");
   assert.equal(vocab("portraits").dayBeforeLine, "Outfits laid out, colors that sit well together");
+});
+
+test("a mitzvah runs at a wedding's weight, for the parents, naming their child (mitzvah plan, Phase 1)", () => {
+  const profile = journeyProfile("mitzvah");
+  assert.deepEqual(
+    [profile.consultation, profile.agreement, profile.payment, profile.finalDetailsLock, profile.runOfShow, profile.crew, profile.album, profile.exclusiveDay],
+    [true, true, "deposit_and_balance", true, true, true, true, true],
+  );
+  assert.equal(profile.detailsFormDaysBefore, 90);
+  assert.equal(profile.honoree, true);
+  // Only a mitzvah has someone it celebrates.
+  for (const kind of JOB_KINDS.filter((kind) => kind !== "mitzvah")) assert.equal(journeyProfile(kind).honoree, false, kind);
+
+  assert.equal(vocab("mitzvah").clientFallback, "the family");
+  assert.equal(vocab("mitzvah").yourEvent, "your celebration");
+  const sam = { eventKind: "mitzvah", mitzvahType: "bar", honoreeName: " Sam " };
+  assert.equal(vocab("mitzvah", sam).event, "bar mitzvah");
+  assert.equal(vocab("mitzvah", sam).yourEvent, "Sam's bar mitzvah");
+  assert.equal(vocab("mitzvah", sam).YourEvent, "Sam's bar mitzvah");
+  assert.equal(vocab("mitzvah", { mitzvahType: "bnai" }).YourEvent, "The b'nai mitzvah");
+  // The type's label says which, when the job doesn't.
+  assert.equal(vocab("mitzvah", { eventType: "Bat Mitzvah" }).event, "bat mitzvah");
+  assert.equal(vocab("mitzvah", {}).event, "mitzvah");
+  // Another kind's words never take a job's honoree.
+  assert.equal(vocab("wedding", sam).event, "wedding");
+});
+
+test("the inquiry keeps who it celebrates only for a type that asks", async () => {
+  const { defaultInquiryFormConfig, prepareInquiryInput } = await import("../features/leads/inquiry-form-config.ts");
+  const config = defaultInquiryFormConfig();
+  config.eventTypes.push({ id: "mitzvah", label: "Bar or bat mitzvah", kind: "mitzvah", eventDate: "required", city: "required", venue: true, guests: true, coi: true });
+  const asked = prepareInquiryInput({ eventTypeKey: "mitzvah", eventType: "Bar or bat mitzvah", honoreeName: "Sam", mitzvahType: "bar" }, config) as Record<string, unknown>;
+  assert.equal(asked.honoreeName, "Sam");
+  assert.equal(asked.mitzvahType, "bar");
+  const notAsked = prepareInquiryInput({ eventTypeKey: "wedding", eventType: "Wedding", honoreeName: "Sam", mitzvahType: "bar" }, config) as Record<string, unknown>;
+  assert.equal(notAsked.honoreeName, null);
+  assert.equal(notAsked.mitzvahType, null);
 });
 
 test("every kind has every word, and a family is never 'the couple'", () => {

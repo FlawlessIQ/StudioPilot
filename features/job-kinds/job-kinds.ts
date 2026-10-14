@@ -19,7 +19,7 @@
 // ── mirrored below ──
 
 /** The kinds of job the product understands. `general` (an inquiry-only kind) is not one. */
-export const JOB_KINDS = ["wedding", "portraits", "corporate", "sports", "other"] as const;
+export const JOB_KINDS = ["wedding", "mitzvah", "portraits", "corporate", "sports", "other"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
@@ -33,6 +33,7 @@ export const BEFORE_KINDS: JobKind = "wedding";
 /** How a kind is named to the studio — in pickers, settings and filters. */
 export const JOB_KIND_LABELS: Record<JobKind, string> = {
   wedding: "Wedding",
+  mitzvah: "Bar & bat mitzvah",
   portraits: "Family & portraits",
   corporate: "Corporate & events",
   sports: "Sports",
@@ -53,6 +54,8 @@ export function isJobKind(value: unknown): value is JobKind {
 export function jobKindFromLabel(label: unknown): JobKind | null {
   const value = kindText(label);
   if (!value) return null;
+  // Before the wedding words: a mitzvah has a ceremony too.
+  if (/mitzv|\bb'?nai\b|\bb'?not\b|\bbimah\b/.test(value)) return "mitzvah";
   if (/wedding|elop|marriage|ceremony|engagement|bridal/.test(value)) return "wedding";
   if (/headshot|corporate|conference|company|business|gala|summit|brand|commercial|staff/.test(value)) return "corporate";
   if (/sport|cheer|game|team|tournament|league|athlet|match|meet\b|race/.test(value)) return "sports";
@@ -228,6 +231,41 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     inquiryDayTitle: "Tell us about your day",
     occasionByName: true,
   },
+  // docs/mitzvah-journey-plan-2026-10-14.md. The client is the parents; the
+  // honoree is their child, named by vocab(kind, job) when the job knows them.
+  mitzvah: {
+    event: "mitzvah",
+    Event: "Mitzvah",
+    yourEvent: "your celebration",
+    YourEvent: "Your celebration",
+    theDay: "the day",
+    Day: "Mitzvah day",
+    clientFallback: "the family",
+    detailsForm: "Mitzvah details",
+    schedule: "Mitzvah run of show",
+    brief: "Mitzvah brief",
+    scheduleA: "Mitzvah details (Schedule A)",
+    afterwards: "After the celebration",
+    dayBeforeChecklist: [
+      "the candle-lighting list, final and in order",
+      "the tallit, kippot and anything for the portraits",
+      "the montage file sent to the DJ",
+    ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "The candle-lighting list, final and in order",
+    formAsks: "The service, the party, and who lights the candles",
+    timesChanged: "If the service, party, or portrait times have changed at all, just reply and we'll update the plan.",
+    finalDetailsHolds: "the service and the party, the portrait session, and the timeline",
+    musicOccasion: "party",
+    aboutYours: "your celebration",
+    whenQuestion: "when’s the celebration?",
+    dateAsk: "The date of the party",
+    newClient: "A new family",
+    othersLikeYou: "other families",
+    Clients: "Families",
+    typicalDay: "mitzvah day",
+    inquiryDayTitle: "Tell us about the celebration",
+  },
   portraits: {
     event: "session",
     Event: "Session",
@@ -317,9 +355,85 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
   },
 };
 
-/** The words for a kind of job. */
-export function vocab(kind: unknown): JobVocabulary {
-  return VOCAB[kind && isJobKind(kind) ? kind : "other"];
+// ── Mitzvahs ─────────────────────────────────────────────────────────────
+
+/**
+ * Which mitzvah a job is: bar (a boy), bat (a girl), b'nai (twins or
+ * siblings, or a mixed group), b'not (girls together). Stored on the job as
+ * `mitzvahType`, with the child's first name as `honoreeName`; the parents
+ * stay the client and the contact.
+ */
+export const MITZVAH_TYPES = ["bar", "bat", "bnai", "bnot"] as const;
+export type MitzvahType = (typeof MITZVAH_TYPES)[number];
+
+export const MITZVAH_TYPE_LABELS: Record<MitzvahType, string> = {
+  bar: "Bar mitzvah",
+  bat: "Bat mitzvah",
+  bnai: "B'nai mitzvah",
+  bnot: "B'not mitzvah",
+};
+
+export function isMitzvahType(value: unknown): value is MitzvahType {
+  return (MITZVAH_TYPES as readonly string[]).includes(kindText(value));
+}
+
+/** The mitzvah a label names: "Bat Mitzvah" is bat. Null when it doesn't say. */
+export function mitzvahTypeFromLabel(label: unknown): MitzvahType | null {
+  const value = kindText(label);
+  if (/\bbar[\s-]*mitzv/.test(value)) return "bar";
+  if (/\bbat[\s-]*mitzv/.test(value)) return "bat";
+  if (/\bb'?nai\b/.test(value)) return "bnai";
+  if (/\bb'?not\b/.test(value)) return "bnot";
+  return null;
+}
+
+/** A job's mitzvah, from its own fields, then its type's label. */
+export function mitzvahOf(job: unknown): { type: MitzvahType | null; honoree: string | null } {
+  const record = (job && typeof job === "object" ? job : {}) as {
+    mitzvahType?: unknown;
+    honoreeName?: unknown;
+    eventType?: unknown;
+    eventTypeLabel?: unknown;
+  };
+  const type = isMitzvahType(record.mitzvahType)
+    ? (kindText(record.mitzvahType) as MitzvahType)
+    : (mitzvahTypeFromLabel(record.eventTypeLabel) ?? mitzvahTypeFromLabel(record.eventType));
+  const honoree = typeof record.honoreeName === "string" ? record.honoreeName.trim().slice(0, 80) : "";
+  return { type, honoree: honoree || null };
+}
+
+const capitalize = (value: string) => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+
+/**
+ * A mitzvah's words for one job: "bat mitzvah", "Sam's bat mitzvah". Without
+ * a type it stays "mitzvah" and "your celebration".
+ */
+function mitzvahWords(base: JobVocabulary, job: unknown): JobVocabulary {
+  const { type, honoree } = mitzvahOf(job);
+  if (!type) return base;
+  const event = MITZVAH_TYPE_LABELS[type].toLowerCase();
+  const yours = honoree ? `${honoree}'s ${event}` : `the ${event}`;
+  return {
+    ...base,
+    event,
+    Event: capitalize(event),
+    yourEvent: yours,
+    YourEvent: capitalize(yours),
+    aboutYours: yours,
+  };
+}
+
+/**
+ * The words for a kind of job. Pass the job as well where it is at hand: a
+ * mitzvah then names itself ("Sam's bar mitzvah").
+ */
+export function vocab(kind: unknown, job?: unknown): JobVocabulary {
+  if (job !== undefined && isJobKind(kind) && kindText(kind) === "mitzvah") return mitzvahWords(vocabFor(kind), job);
+  return vocabFor(kind);
+}
+
+function vocabFor(kind: unknown): JobVocabulary {
+  return VOCAB[isJobKind(kind) ? (kindText(kind) as JobKind) : "other"];
 }
 
 /**
@@ -411,6 +525,12 @@ export type JourneyProfile = {
   partner: boolean;
   /** Schedule A insists on its parts (getting ready, ceremony, reception, times) from booking. */
   scheduleAParts: boolean;
+  /**
+   * The job celebrates someone who isn't the client: a mitzvah's child. It
+   * carries their first name (`honoreeName`) and which mitzvah it is
+   * (`mitzvahType`); the parents stay the client and the contact.
+   */
+  honoree: boolean;
 };
 
 /** The steps every kind but a wedding leaves out. */
@@ -421,6 +541,7 @@ const PLAIN_STEPS = {
   dayPlan: null,
   partner: false,
   scheduleAParts: false,
+  honoree: false,
 } as const;
 
 const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
@@ -442,6 +563,27 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     dayPlan: "wedding",
     partner: true,
     scheduleAParts: true,
+    honoree: false,
+  },
+  // The wedding's weight (docs/mitzvah-journey-plan-2026-10-14.md): a call,
+  // an agreement, a deposit and a balance, a run of show, crew and an album.
+  // Families book 9–18 months out; the details form goes 90 days before.
+  // The wedding-only steps stay off until their mitzvah content exists
+  // (Phases 3–4): the shot list, the vendor-team ask, the built day plan.
+  mitzvah: {
+    consultation: true,
+    agreement: true,
+    payment: "deposit_and_balance",
+    detailsFormDaysBefore: 90,
+    finalDetailsLock: true,
+    runOfShow: true,
+    crew: true,
+    coi: true,
+    billingAddressRequest: true,
+    album: true,
+    exclusiveDay: true,
+    ...PLAIN_STEPS,
+    honoree: true,
   },
   // Gabe, 2026-10-02: no agreement ("that's overkill"), paid in full.
   portraits: {
@@ -515,7 +657,7 @@ export function journeyProfile(
   kind: unknown,
   overrides: { payment?: unknown; detailsFormDaysBefore?: unknown } = {},
 ): JourneyProfile {
-  const resolved: JobKind = kind && isJobKind(kind) ? kind : "other";
+  const resolved: JobKind = isJobKind(kind) ? (kindText(kind) as JobKind) : "other";
   const base = PROFILES[resolved];
   const days = Number(overrides.detailsFormDaysBefore);
   return {

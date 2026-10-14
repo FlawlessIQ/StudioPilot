@@ -25,7 +25,8 @@ import {
 } from "@/lib/ai/project-intake-client";
 import { runCrmCommand, teamEmailWarning } from "@/lib/crm/command-client";
 import { useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
-import { jobKindFromLabel, vocab } from "@/features/job-kinds/job-kinds";
+import { isMitzvahType, jobKindFromLabel, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
+import { HonoreeFields } from "@/components/job-kinds/honoree-fields";
 import {
   clientMatchNote,
   jobNameFromRead,
@@ -62,6 +63,9 @@ const schema = z
     newClientPhone: z.string().trim().max(30),
     venueName: z.string().trim().max(160),
     city: z.string().trim().max(120),
+    // Who the job celebrates, for a kind that has someone (job-kinds.ts `honoree`).
+    honoreeName: z.string().trim().max(80),
+    mitzvahType: z.string().trim(),
   })
   .superRefine((values, context) => {
     if (values.clientMode === "existing" && !values.primaryContactId) {
@@ -228,9 +232,13 @@ export function CreateProjectForm({
       newClientPhone: "",
       venueName: "",
       city: "",
+      honoreeName: "",
+      mitzvahType: "",
     },
   });
   const clientMode = watch("clientMode");
+  // The kind of the type chosen, for the fields only some kinds have.
+  const chosenKind = jobTypes.find((type) => type.key === watch("eventType"))?.kind ?? null;
   useEffect(() => {
     if (clientModeDefaulted.current || contactsLoading) return;
     if (contacts && contacts.length === 0) {
@@ -423,6 +431,12 @@ export function CreateProjectForm({
         eventKind: jobTypes.find((type) => type.key === values.eventType)?.kind ?? "other",
         eventTypeKey: values.eventType,
         eventTypeId: jobTypes.find((type) => type.key === values.eventType)?.kind ?? "other",
+        ...(journeyProfile(chosenKind).honoree
+          ? {
+              honoreeName: values.honoreeName || null,
+              mitzvahType: isMitzvahType(values.mitzvahType) ? values.mitzvahType : null,
+            }
+          : {}),
         eventDate: values.eventDate,
         timezone: values.timezone,
         clientContactIds: [contactId],
@@ -594,6 +608,7 @@ export function CreateProjectForm({
               <input {...fieldProps("eventDate")} required type="date" />
               <small>{errors.eventDate?.message}</small>
             </label>
+            <HonoreeFields kind={chosenKind} nameProps={register("honoreeName")} typeProps={register("mitzvahType")} />
             {perPerson ? (
               <label className={filled.readyByTime ? "is-filled" : ""}>
                 Everyone ready by

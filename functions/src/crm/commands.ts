@@ -153,7 +153,7 @@ import {
   type CoverageItem,
   type CoverageRole,
 } from "../packages/coverage.js";
-import { isPaymentShape, JOB_KINDS, jobKindOf, PAYMENT_SHAPES } from "../job-kinds/job-kinds.js";
+import { isMitzvahType, isPaymentShape, JOB_KINDS, jobKindOf, journeyProfile, MITZVAH_TYPES, PAYMENT_SHAPES, type MitzvahType } from "../job-kinds/job-kinds.js";
 import { isPlanningScope, PLANNING_SCOPES } from "../planning/planning-scope.js";
 import { templateKeyForKind } from "../job-kinds/template-key.js";
 import {
@@ -255,6 +255,11 @@ const commandSchema = z.discriminatedUnion("type", [
       // optional for older callers: the kind is then read from the label.
       eventKind: z.enum(JOB_KINDS).optional(),
       eventTypeKey: z.string().trim().max(40).nullable().optional(),
+      // Who the job celebrates, for a kind that has someone (job-kinds.ts
+      // `honoree`): a mitzvah's child and which mitzvah. From a lead, the
+      // lead's own are used when these are left out.
+      honoreeName: z.string().trim().max(80).nullable().optional(),
+      mitzvahType: z.enum(MITZVAH_TYPES).nullable().optional(),
       eventDate: z.string().date(),
       timezone: z.string().min(1),
       clientContactIds: z.array(z.string()).min(1),
@@ -490,6 +495,9 @@ const commandSchema = z.discriminatedUnion("type", [
        */
       eventKind: z.enum(JOB_KINDS).optional(),
       eventTypeKey: z.string().trim().max(40).nullable().optional(),
+      /** Who the job celebrates (job-kinds.ts `honoree`). Left out, they stay as they were. */
+      honoreeName: z.string().trim().max(80).nullable().optional(),
+      mitzvahType: z.enum(MITZVAH_TYPES).nullable().optional(),
       venueName: z.string().trim().max(200).nullable().default(null),
       city: z.string().trim().max(120).nullable().default(null),
       timezone: z.string().trim().min(1).max(80),
@@ -1690,12 +1698,27 @@ export const crmCommand = onRequest(
           });
           // The pasted message is the studio's, not the job's: crew read the
           // project, so it is kept beside it (job-source-message.ts).
-          const { sourceMessage, ...projectInput } = command.input;
+          const { sourceMessage, honoreeName, mitzvahType, ...projectInput } = command.input;
+          // Who it celebrates: only for a kind that has someone, and from the
+          // inquiry when the studio didn't say.
+          const leadText = (key: string) => {
+            const value = leadDocument?.get(key);
+            return typeof value === "string" && value.trim() ? value.trim() : null;
+          };
+          const honoree = journeyProfile(eventKind).honoree
+            ? {
+                honoreeName: honoreeName ?? leadText("honoreeName"),
+                mitzvahType:
+                  mitzvahType ??
+                  (isMitzvahType(leadText("mitzvahType")) ? (leadText("mitzvahType") as MitzvahType) : null),
+              }
+            : {};
           const project = {
             id: projectId,
             projectId,
             tenantId: command.tenantId,
             ...projectInput,
+            ...honoree,
             eventKind,
             eventTypeKey: command.input.eventTypeKey ?? null,
             eventTypeId: templateKeyForKind(eventKind, command.input.eventTypeId),
@@ -4216,11 +4239,17 @@ export const crmCommand = onRequest(
                 ),
               }
             : {};
+          // Who it celebrates, when the caller says (job-kinds.ts `honoree`).
+          const honoreeChange = {
+            ...(command.input.honoreeName !== undefined ? { honoreeName: command.input.honoreeName } : {}),
+            ...(command.input.mitzvahType !== undefined ? { mitzvahType: command.input.mitzvahType } : {}),
+          };
           transaction.update(projectReference, {
             name: command.input.name,
             eventDate: command.input.eventDate,
             eventType: command.input.eventType,
             ...kindChange,
+            ...honoreeChange,
             venueName: command.input.venueName,
             city: command.input.city,
             timezone: command.input.timezone,

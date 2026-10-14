@@ -7,6 +7,7 @@ import type { PublicLeadIntake, PublicLeadIntakeInput } from "@/features/leads/s
 // The browser check without Zod (H5): features/leads/public-intake-validate.ts.
 import { publicLeadIntakeResolver } from "@/features/leads/public-intake-validate";
 import {
+  asksHonoree,
   dayFieldsFor,
   defaultInquiryFormConfig,
   inquirySkipsDetails,
@@ -40,7 +41,7 @@ import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useEmbedFrame } from "@/components/crm/use-embed-frame";
 import { TRADE_LABELS, tradeOf, tradeProfile } from "@/features/trades/trades";
-import { BEFORE_KINDS, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
+import { BEFORE_KINDS, MITZVAH_TYPES, MITZVAH_TYPE_LABELS, journeyProfile, vocab, type MitzvahType } from "@/features/job-kinds/job-kinds";
 
 
 type SubmissionResult = {
@@ -98,7 +99,7 @@ function prewarmAppCheck() {
 type StepKey = "you" | "day" | "more";
 
 const STEP_FIELDS: Record<StepKey, ReadonlyArray<keyof PublicLeadIntakeInput>> = {
-  you: ["firstName", "lastName", "email", "phone", "eventTypeKey", "eventType", "partnerName"],
+  you: ["firstName", "lastName", "email", "phone", "eventTypeKey", "eventType", "partnerName", "honoreeName", "mitzvahType"],
   day: ["eventDate", "venue", "city", "estimatedGuestCount", "coiRequired", "venueContactName", "venueContactEmail"],
   more: ["message", "customAnswers", "budgetRange", "referralSource", "consent", "honeypot"],
 };
@@ -124,6 +125,9 @@ function packageAsk(trade: unknown): string {
   if (family === "beauty") return "How many people, which services, a trial — and anything else we should know.";
   return "Photo, video or both, how many hours, an album — and anything else we should know.";
 }
+
+/** Which mitzvah, for a type that asks who it celebrates (inquiry-form-config.ts `asksHonoree`). */
+const MITZVAH_ANSWERS = MITZVAH_TYPES.map((value) => ({ value, label: MITZVAH_TYPE_LABELS[value] }));
 
 const COI_ANSWERS = [
   { value: "yes", label: "Yes" },
@@ -312,6 +316,7 @@ export function LeadIntakeForm({
   const typeKey = useWatch({ control, name: "eventTypeKey" }) ?? onlyType?.id ?? null;
   const budget = useWatch({ control, name: "budgetRange" });
   const coiRequired = useWatch({ control, name: "coiRequired" });
+  const mitzvahType = useWatch({ control, name: "mitzvahType" });
   const answers = (useWatch({ control, name: "customAnswers" }) ?? {}) as Record<string, string | undefined>;
   // "Did you mean …@gmail.com?" once they've left the field (email-typo.ts).
   const email = useWatch({ control, name: "email" }) ?? "";
@@ -360,6 +365,11 @@ export function LeadIntakeForm({
     setValue("eventType", type.label, { shouldDirty: true, shouldValidate: Boolean(errors.eventType) });
     // Asked only when the client is two people (job-kinds.ts `partner`); not sent otherwise.
     if (!journeyProfile(type.kind).partner) setValue("partnerName", null);
+    // Who it celebrates, only for a type that asks.
+    if (!asksHonoree(type)) {
+      setValue("honoreeName", null);
+      setValue("mitzvahType", null);
+    }
   }
 
   function goTo(next: number) {
@@ -624,6 +634,23 @@ export function LeadIntakeForm({
                     label="Partner’s name"
                     {...register("partnerName", { setValueAs: (value) => value || null })}
                   />
+                ) : null}
+                {asksHonoree(chosenType) ? (
+                  <>
+                    <Field
+                      autoComplete="off"
+                      hint="Optional — their first name, so the studio can use it."
+                      label="Who are we celebrating?"
+                      {...register("honoreeName", { setValueAs: (value) => value || null })}
+                    />
+                    <input type="hidden" {...register("mitzvahType", { setValueAs: (value) => value || null })} />
+                    <Choices
+                      legend="Which is it?"
+                      onChange={(next) => setValue("mitzvahType", next as MitzvahType, { shouldDirty: true })}
+                      options={MITZVAH_ANSWERS}
+                      value={(mitzvahType ?? null) as MitzvahType | null}
+                    />
+                  </>
                 ) : null}
               </div>
             ) : null}

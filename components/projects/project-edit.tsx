@@ -8,7 +8,8 @@ import { friendlyError } from "@/lib/ai/friendly-error";
 import { runCrmCommand } from "@/lib/crm/command-client";
 import type { EventDateLock } from "@/features/projects/event-date-lock";
 import { jobTypeFor, useStudioJobTypes } from "@/components/job-kinds/use-studio-job-types";
-import { JOB_KIND_LABELS, jobKindOf } from "@/features/job-kinds/job-kinds";
+import { JOB_KIND_LABELS, jobKindOf, journeyProfile } from "@/features/job-kinds/job-kinds";
+import { HonoreeFields } from "@/components/job-kinds/honoree-fields";
 
 /**
  * Correcting a job.
@@ -46,6 +47,8 @@ export function ProjectEdit({
     eventKind?: string | null;
     eventTypeKey?: string | null;
     eventTypeId?: string | null;
+    honoreeName?: string | null;
+    mitzvahType?: string | null;
     venueName: string | null;
     city: string | null;
     timezone: string;
@@ -76,12 +79,17 @@ export function ProjectEdit({
     try {
       const text = (key: string) => String(values.get(key) ?? "").trim();
       const nextDate = text("eventDate");
+      const nextKind = chosenType?.kind ?? currentKind;
       await runCrmCommand("updateProject", {
         projectId: project.id,
         name: text("name"),
         eventDate: nextDate,
         eventType: chosenType?.label ?? project.eventType,
         ...(chosenType ? { eventKind: chosenType.kind, eventTypeKey: chosenType.key } : {}),
+        // Who the job celebrates, when its kind has someone (a mitzvah's child).
+        ...(journeyProfile(nextKind).honoree
+          ? { honoreeName: text("honoreeName") || null, mitzvahType: text("mitzvahType") || null }
+          : {}),
         venueName: text("venueName") || null,
         city: text("city") || null,
         timezone: text("timezone") || project.timezone,
@@ -188,6 +196,11 @@ export function ProjectEdit({
                 </small>
               ) : null}
             </label>
+            <HonoreeFields
+              kind={chosenType?.kind ?? currentKind}
+              nameProps={{ defaultValue: project.honoreeName ?? "" }}
+              typeProps={{ defaultValue: project.mitzvahType ?? "" }}
+            />
             <label>
               Venue
               <input defaultValue={project.venueName ?? ""} maxLength={200} name="venueName" />

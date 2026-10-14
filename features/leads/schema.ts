@@ -43,6 +43,13 @@ export const publicLeadIntakeFields = z.object({
   firstName: z.string().trim().min(1, "Tell us your first name.").max(80),
   lastName: z.string().trim().min(1, "Tell us your last name.").max(80),
   partnerName: z.string().trim().max(120).nullable().default(null),
+  /**
+   * Who a mitzvah celebrates: the child's first name and which mitzvah
+   * (job-kinds.ts `honoree`). Only kept for a type that asks
+   * (inquiry-form-config.ts `asksHonoree`).
+   */
+  honoreeName: z.string().trim().max(80, "Keep this under 80 characters.").nullable().default(null),
+  mitzvahType: z.enum(["bar", "bat", "bnai", "bnot"], { message: "Choose one of the answers." }).nullable().default(null),
   email: z
     .string()
     .trim()

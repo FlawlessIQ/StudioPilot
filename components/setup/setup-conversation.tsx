@@ -517,13 +517,13 @@ function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
 function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
   // A DJ plays weddings, corporate events and parties (inquiry-form-config.ts).
   const trade = tradeOf(useWorkspace().tenantTrade);
-  // A beauty studio's form offers a wedding and a special event (inquiry-form-config.ts).
+  // A beauty studio's form offers a wedding, a mitzvah and a special event (inquiry-form-config.ts).
   const beauty = trade === "makeup" || trade === "hair";
   const kinds: readonly JobKind[] =
     trade === "dj"
       ? JOB_KINDS.filter((kind) => kind !== "portraits" && kind !== "sports")
       : beauty
-        ? JOB_KINDS.filter((kind) => kind === "wedding" || kind === "other")
+        ? JOB_KINDS.filter((kind) => kind === "wedding" || kind === "mitzvah" || kind === "other")
         : JOB_KINDS;
   // The first kind (weddings) starts ticked.
   const [chosen, setChosen] = useState<JobKind[]>([JOB_KINDS[0]]);
