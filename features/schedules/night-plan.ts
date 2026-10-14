@@ -1,5 +1,6 @@
 import { clockMinutes, clockOf, minutesClock } from "./day-clock";
 import type { DayPlan, PlanRow } from "./day-plan";
+import type { JobKind } from "@/features/job-kinds/job-kinds";
 
 /**
  * A DJ's night, laid out from the couple's times (docs/vendor-journeys.md).
@@ -151,3 +152,16 @@ export const DJ_MOMENTS: ReadonlyArray<{ label: string; title: string; minutes: 
   { label: "Last dance", title: "Last dance", minutes: 5 },
   { label: "Send-off", title: "Send-off", minutes: 10 },
 ];
+
+/**
+ * A DJ's moments for a kind of job (job-kinds.ts). Only the wedding's exist
+ * so far, and every kind reads them, as it always has; a kind with its own
+ * night adds a row here.
+ */
+const DJ_MOMENTS_BY_KIND: Readonly<Partial<Record<JobKind, typeof DJ_MOMENTS>>> = {
+  wedding: DJ_MOMENTS,
+};
+
+export function djMomentsFor(kind: JobKind): typeof DJ_MOMENTS {
+  return DJ_MOMENTS_BY_KIND[kind] ?? DJ_MOMENTS;
+}

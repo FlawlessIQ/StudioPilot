@@ -10,7 +10,7 @@ import { detailsLockOn, resolvePlanningTimeline, type PlanningTimeline } from ".
 import { mintBookingLink } from "../booking/booking-link.js";
 import { FINAL_DETAILS_PURPOSE } from "../booking/consultation-purpose.js";
 import { getConsultationSettings } from "../booking/availability.js";
-import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
+import { finalDetailsLockApplies, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { tradeOf, tradeProfile } from "../trades/trades.js";
 import { newestPartyNames, type BeautyService } from "./party-list.js";
 import { FINAL_DETAILS_STATES, finalDetailsDue, finalDetailsToday } from "./final-details-due.js";
@@ -139,6 +139,10 @@ export async function finalDetailsSnapshot(db: Firestore, tenantId: string, proj
   const details = eventDetailsFrom({
     eventType: text(project.get("eventType")) || "Wedding",
     eventKind: jobKindOf(project.data()),
+    kindDetails: {
+      required: journeyProfile(jobKindOf(project.data())).scheduleAParts,
+      title: vocab(jobKindOf(project.data())).detailsForm,
+    },
     date: /^\d{4}-\d{2}-\d{2}$/.test(eventDate) ? formatContractDate(eventDate) : null,
     venue: text(project.get("venueName")) || null,
     coverage: null,

@@ -1,7 +1,7 @@
 "use client";
 
 import { fillMcScript, patchMcScript, type McScript } from "@/features/schedules/mc-script";
-import { DJ_MOMENTS, planNight } from "@/features/schedules/night-plan";
+import { djMomentsFor, planNight } from "@/features/schedules/night-plan";
 import { chairDayPlan, planChairs } from "@/features/schedules/chair-plan";
 import { parsePartyList, type BeautyService } from "@/features/schedules/party-list";
 import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
@@ -47,8 +47,10 @@ import {
   withTbdTitle,
 } from "@/features/schedules/day-plan";
 import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
+import { jobKindOf, vocab } from "@/features/job-kinds/job-kinds";
 import {
   WEDDING_STANDARD_MOMENTS,
+  dayPlanOf,
   isWeddingJob,
   kindMomentsFor,
   placeKindMoment,
@@ -300,7 +302,8 @@ export function AiScheduleGenerator({
   );
   const eventDay = String(selectedProject?.eventDate ?? "").slice(0, 10);
   /** A wedding is laid out from its answers; other kinds keep the AI and moment chips. */
-  const weddingDay = isWeddingJob(selectedProject);
+  // Laid out from the form alone, with no AI and no timing rules (job-kinds.ts `dayPlan`).
+  const builtDay = dayPlanOf(selectedProject) !== null;
   /** A "YYYY-MM-DDTHH:MM" field value, read at the wedding. */
   const localToIso = (local: string) =>
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(local) ? wallClockToIso(local.slice(0, 10), local.slice(11, 16), zone) : null;
@@ -1063,7 +1066,7 @@ export function AiScheduleGenerator({
   const laidOutFromForm = useRef<string | null>(null);
   const [drawnFromForm, setDrawnFromForm] = useState(false);
   useEffect(() => {
-    if (!oneForm || !weddingDay || !projectId || !eventDay) return;
+    if (!oneForm || !builtDay || !projectId || !eventDay) return;
     // Wait for what it reads, so an existing version is never missed.
     if (!schedules || !questionnaires || !packageSnapshots) return;
     if (draft || selectedSchedule || !selectedQuestionnaire) return;
@@ -1073,7 +1076,7 @@ export function AiScheduleGenerator({
     layOutDay();
     // layOutDay reads the same answers; it is a new function every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oneForm, weddingDay, projectId, eventDay, schedules, questionnaires, packageSnapshots, draft, selectedSchedule, selectedQuestionnaire]);
+  }, [oneForm, builtDay, projectId, eventDay, schedules, questionnaires, packageSnapshots, draft, selectedSchedule, selectedQuestionnaire]);
 
   function addItem() {
     changeItems((items) =>
@@ -1327,7 +1330,7 @@ export function AiScheduleGenerator({
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Draft · nothing is sent yet</p>
-            {weddingDay ? (
+            {builtDay ? (
               <>
                 <h2>{mcScript ? "Lay out the night" : chairs ? "Lay out the morning" : "Lay out the day"}</h2>
                 <p>
@@ -1345,13 +1348,13 @@ export function AiScheduleGenerator({
               </>
             )}
           </div>
-          {weddingDay ? <CalendarClock /> : <Sparkles />}
+          {builtDay ? <CalendarClock /> : <Sparkles />}
         </div>
         <form
           className="schedule-generator-form"
           onSubmit={(event) => {
             // A wedding is laid out from its answers; the AI draft is for other kinds.
-            if (weddingDay) {
+            if (builtDay) {
               event.preventDefault();
               layOutDay();
               return;
@@ -1377,7 +1380,7 @@ export function AiScheduleGenerator({
             * (layOutDay); two buttons that disagreed was the bug: GR pressed
             * the AI one and got their timing rules, not the form (2026-10-06).
             */}
-          {weddingDay ? null : (
+          {builtDay ? null : (
           <details className="form-span schedule-ai-inputs is-plain" open>
             <summary>{`${coverageWord}, times and notes for an AI draft`}</summary>
             <div className="schedule-ai-inputs-grid">
@@ -1482,14 +1485,14 @@ export function AiScheduleGenerator({
                 <strong>
                   {planningInputsChanged
                     ? "New planning details are ready to reconcile"
-                    : weddingDay && publishedVersion
+                    : builtDay && publishedVersion
                       ? `Version ${publishedVersion} is published`
                       : `A schedule version already exists for this project`}
                 </strong>
                 <small>
                   {planningInputsChanged
                     ? "The submitted questionnaire changed after the current version. The new draft will be compared when you publish it."
-                    : weddingDay
+                    : builtDay
                       ? "Open it to change a time, or start over from the couple’s answers. Publishing makes a new version and shows what changed."
                       : "Generate only when facts changed. Publishing saves a new version and shows exactly what changed."}
                 </small>
@@ -1497,12 +1500,12 @@ export function AiScheduleGenerator({
             </div>
           ) : null}
           <div className="schedule-generate-actions">
-            {weddingDay ? (
+            {builtDay ? (
               <button className="button button-dark" disabled={busy || !projectId} onClick={layOutDay} type="button">
                 <CalendarClock /> {draft ? "Start over from their answers" : mcScript ? "Lay out the night" : chairs ? "Lay out the morning" : "Lay out the day"}
               </button>
             ) : null}
-            {weddingDay ? null : (
+            {builtDay ? null : (
               <button className="button button-dark" disabled={busy} type="submit">
                 {busy ? <LoaderCircle className="spin" /> : <Sparkles />}
                 {busy ? "Generating…" : selectedSchedule ? "Prepare updated draft" : "Generate draft"}
@@ -1565,7 +1568,7 @@ export function AiScheduleGenerator({
                 <h2>
                   The day
                   <InfoHint label="The day">
-                    {weddingDay
+                    {builtDay
                       ? "Each line says where its time came from: the couple’s form, or a suggestion where they gave no time. Check the suggestions before you publish."
                       : "Each item says where its time came from: the client’s answers, one of your timing rules, or an assumption. Check the assumptions before you publish."}
                   </InfoHint>
@@ -1574,7 +1577,7 @@ export function AiScheduleGenerator({
               </div>
               <AlertTriangle />
             </div>
-            {weddingDay && withheld > 0 ? (
+            {builtDay && withheld > 0 ? (
               <p className="schedule-plan-gaps">
                 <span>
                   {`Only what the couple gave is here. ${withheld === 1 ? "One part of the day has" : `${withheld} parts of the day have`} no time from them yet.`}
@@ -1767,7 +1770,7 @@ export function AiScheduleGenerator({
               // A DJ's moments, each with room for its song and announcement.
               <div className="schedule-moments" role="group" aria-label="Add a moment">
                 <span>Add a moment</span>
-                {DJ_MOMENTS.map((moment) => (
+                {djMomentsFor(jobKindOf(selectedProject)).map((moment) => (
                   <button
                     className="schedule-moment-chip"
                     key={moment.title}
@@ -1849,7 +1852,7 @@ export function AiScheduleGenerator({
             </summary>
             {ungrounded ? (
               <p className="schedule-basis-empty">
-                {`Nothing yet — every time below is a typical ${isWeddingJob(selectedProject) ? "wedding day" : "day"}, not yours.`} Ask {clientName}{" "} the questions below, or add your own
+                {`Nothing yet — every time below is a typical ${vocab(jobKindOf(selectedProject)).typicalDay}, not yours.`} Ask {clientName}{" "} the questions below, or add your own
                 timing rules, and the next draft will be built from real
                 answers instead.
               </p>
@@ -2041,7 +2044,7 @@ export function AiScheduleGenerator({
         </>
       ) : null}
       {/* Timing rules feed the AI draft, which only jobs that aren't weddings use. */}
-      {weddingDay ? null : <TimingRuleEditor />}
+      {builtDay ? null : <TimingRuleEditor />}
     </div>
   );
 }

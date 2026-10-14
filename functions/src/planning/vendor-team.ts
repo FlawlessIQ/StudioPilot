@@ -6,7 +6,7 @@ import { mintRunOfShowShare, shareIdFor } from "./share-mint.js";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { companyKey, parseVendorSection, vendorsToImport } from "./vendor-section.js";
 import { creditLineText, vendorCredits } from "./vendor-credits.js";
-import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { jobKindOf, journeyProfile } from "../job-kinds/job-kinds.js";
 
 /**
  * A wedding's vendor team, written (docs/planner-journey-plan.md, N1 + N2).
@@ -361,7 +361,7 @@ const ASK_STATES = new Set(["BOOKED", "PLANNING", "READY"]);
 export function vendorAskOwed(input: { project: DocumentData; trade: unknown; answered: boolean; today: string }): boolean {
   const { project } = input;
   if (input.answered || project.importedAt || project.vendorTeamByPlanner === true) return false;
-  if (jobKindOf(project) !== "wedding" || !ASK_STATES.has(str(project.state))) return false;
+  if (!journeyProfile(jobKindOf(project)).vendorTeam || !ASK_STATES.has(str(project.state))) return false;
   if (tradeProfile(input.trade).vendorTeam === "default" || clientOutreachStop(project) !== null) return false;
   const eventDate = str(project.eventDate).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(eventDate) && input.today < eventDate;

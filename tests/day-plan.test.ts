@@ -408,9 +408,9 @@ test("the wedding schedule page has one way to build the day: no timing rules, n
   const layOut = editor.slice(editor.indexOf("function layOutDay()"), editor.indexOf("function addItem()"));
   assert.doesNotMatch(layOut, /rules:/, "Lay out the day reads the form only");
   assert.doesNotMatch(editor, /useTenantDocuments\("timingRules"\)/);
-  assert.match(editor, /\{weddingDay \? null : <TimingRuleEditor \/>\}/);
-  assert.match(editor, /\{weddingDay \? null : \(\s*<button className="button button-dark" disabled=\{busy\} type="submit">/);
-  assert.match(editor, /if \(weddingDay\) \{\s*event\.preventDefault\(\);\s*layOutDay\(\);/);
+  assert.match(editor, /\{builtDay \? null : <TimingRuleEditor \/>\}/);
+  assert.match(editor, /\{builtDay \? null : \(\s*<button className="button button-dark" disabled=\{busy\} type="submit">/);
+  assert.match(editor, /if \(builtDay\) \{\s*event\.preventDefault\(\);\s*layOutDay\(\);/);
   assert.doesNotMatch(read("app/studio/schedules/new/page.tsx"), /<TimingRuleEditor/);
 });
 

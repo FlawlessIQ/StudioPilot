@@ -1,0 +1,15 @@
+{
+  "components/contracts/native-contract-step.tsx": 1,
+  "components/help/journey-film.tsx": 1,
+  "components/setup/setup-conversation.tsx": 1,
+  "features/contracts/event-details.ts": 1,
+  "features/questionnaires/inquiry-form-setting.ts": 1,
+  "features/schedules/standard-moments.ts": 1,
+  "functions/src/ai/schedule-moments.ts": 1,
+  "functions/src/contracts/event-details.ts": 1,
+  "functions/src/crm/public-lead.ts": 1,
+  "functions/src/intake/capture.ts": 1,
+  "functions/src/intake/inquiry-form.ts": 1,
+  "functions/src/job-kinds/template-key.ts": 1,
+  "functions/src/saas/onboarding.ts": 1
+}

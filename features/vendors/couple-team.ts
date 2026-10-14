@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { clientOutreachStop } from "@/features/post-event/client-outreach";
-import { jobKindOf } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyProfile } from "@/features/job-kinds/job-kinds";
 import { detailsLockOn, planningFormOpensOn, type PlanningTimeline } from "@/features/planning/planning-timeline";
 import { tradeOf, tradeProfile, type Trade } from "@/features/trades/trades";
 import { VENDOR_TYPES, type VendorType } from "@/features/vendors/schema";
@@ -170,7 +170,7 @@ export function coupleVendorAsk(input: {
   const { project, timeline, today } = input;
   const eventDate = text(project.eventDate).slice(0, 10);
   const closed: CoupleVendorAsk = { available: false, open: false, opensOn: null, dueDate: null };
-  if (jobKindOf(project) !== "wedding" || project.importedAt) return closed;
+  if (!journeyProfile(jobKindOf(project)).vendorTeam || project.importedAt) return closed;
   if (!BOOKED_STATES.has(text(project.state)) || clientOutreachStop(project) !== null) return closed;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || today >= eventDate) return closed;
   // The studio said the planner runs the vendors (Phase 1: "The planner handles vendors").

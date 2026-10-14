@@ -40,6 +40,7 @@ import type { CapturedPlace } from "@/features/places/schema";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { useEmbedFrame } from "@/components/crm/use-embed-frame";
 import { TRADE_LABELS, tradeOf, tradeProfile } from "@/features/trades/trades";
+import { BEFORE_KINDS, journeyProfile, vocab } from "@/features/job-kinds/job-kinds";
 
 
 type SubmissionResult = {
@@ -103,11 +104,12 @@ const STEP_FIELDS: Record<StepKey, ReadonlyArray<keyof PublicLeadIntakeInput>> =
 };
 
 function stepCopy(key: StepKey, type: InquiryEventType | null, dated: boolean): { title: string; lede: string } {
-  const wedding = !type || type.kind === "wedding";
+  // No type chosen yet reads as a wedding, as it always has.
+  const words = vocab(type ? type.kind : BEFORE_KINDS);
   if (key === "you") return { title: "Let’s start with you", lede: "A few details so we can reply to you personally." };
   if (key === "day")
     return {
-      title: wedding ? "Tell us about your day" : "When and where?",
+      title: words.inquiryDayTitle,
       lede: dated ? "Dates are checked before availability is confirmed." : "A few details help us plan.",
     };
   if (type?.kind === "general")
@@ -356,8 +358,8 @@ export function LeadIntakeForm({
     setValue("eventTypeKey", type.id, { shouldDirty: true, shouldValidate: true });
     // The studio's label is what the inquiry is stored as (eventTypeLabel).
     setValue("eventType", type.label, { shouldDirty: true, shouldValidate: Boolean(errors.eventType) });
-    // Asked only for a wedding; not sent for anything else.
-    if (type.kind !== "wedding") setValue("partnerName", null);
+    // Asked only when the client is two people (job-kinds.ts `partner`); not sent otherwise.
+    if (!journeyProfile(type.kind).partner) setValue("partnerName", null);
   }
 
   function goTo(next: number) {
@@ -616,7 +618,7 @@ export function LeadIntakeForm({
                     ) : null}
                   </div>
                 )}
-                {chosenType?.kind === "wedding" ? (
+                {chosenType && journeyProfile(chosenType.kind).partner ? (
                   <Field
                     hint="Optional"
                     label="Partner’s name"

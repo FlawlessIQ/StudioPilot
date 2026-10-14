@@ -1,7 +1,7 @@
 import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
 import { queuePartnerSends } from "../client/partner-invitations.js";
-import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { jobKindOf, journeyProfile } from "../job-kinds/job-kinds.js";
 import { tradeProfile } from "../trades/trades.js";
 import type { PlanningTimeline } from "./planning-timeline.js";
 import { questionnaireLinkFor } from "./questionnaire-link.js";
@@ -40,7 +40,7 @@ function addDays(day: string, days: number): string {
 export function shotListRequestDue(input: { project: Row; timeline: PlanningTimeline; trade: unknown; today: string }): boolean {
   const { project, timeline, today } = input;
   if (!timeline.shotListUpload || !tradeProfile(input.trade).shotList) return false;
-  if (jobKindOf(project) !== "wedding" || project.importedAt) return false;
+  if (!journeyProfile(jobKindOf(project)).shotList || project.importedAt) return false;
   if (!BOOKED.includes(text(project.state))) return false;
   const eventDate = text(project.eventDate).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || today >= eventDate) return false;

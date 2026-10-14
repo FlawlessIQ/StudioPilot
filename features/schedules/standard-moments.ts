@@ -20,7 +20,7 @@
  * Pure, no I/O.
  */
 
-import { jobKindOf } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyProfile, type JourneyProfile } from "@/features/job-kinds/job-kinds";
 
 import { nextItemStart } from "@/features/planning/manual-run-of-show";
 
@@ -162,12 +162,21 @@ export function placeStandardMoment(
 }
 
 /**
- * Whether a job is a wedding, for offering the wedding moments — by its kind
- * (job-kinds.ts). Unknown once read as a wedding; it is "other" now, so a
+ * The day plan a job is laid out with from its form alone, with no AI and no
+ * timing rules — by its kind (job-kinds.ts `dayPlan`). Null: an AI draft from
+ * the kind's usual moments.
+ */
+export function dayPlanOf(project: Record<string, unknown> | null | undefined): JourneyProfile["dayPlan"] {
+  return journeyProfile(jobKindOf(project)).dayPlan;
+}
+
+/**
+ * Whether a job is offered the wedding moments: its kind lays out the
+ * wedding's day plan. Unknown once read as a wedding; it is "other" now, so a
  * corporate shoot is never offered "Bouquet toss".
  */
 export function isWeddingJob(project: Record<string, unknown> | null | undefined): boolean {
-  return jobKindOf(project) === "wedding";
+  return dayPlanOf(project) === "wedding";
 }
 
 /**

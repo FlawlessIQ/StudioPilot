@@ -1,5 +1,5 @@
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
-import { isJobKind, vocab } from "../job-kinds/job-kinds.js";
+import { BEFORE_KINDS, isJobKind, vocab } from "../job-kinds/job-kinds.js";
 // Mirrors features/messaging/schema.ts, features/messaging/lifecycle.ts, and
 // features/messaging/render.ts. functions/ is a separate package (own
 // tsconfig, no "@/features" path), so the deterministic lifecycle core is
@@ -224,9 +224,7 @@ export function renderLifecycleDraft(
           ? `You can always see the latest version here: ${facts.scheduleUrl}`
           : "",
         "",
-        facts.eventKind === "wedding"
-          ? "If ceremony, reception, or prep times have changed at all, just reply and we'll update the plan."
-          : "If any times or places have changed at all, just reply and we'll update the plan.",
+        vocab(facts.eventKind).timesChanged,
         "",
         `— ${facts.studioName}`,
       ]
@@ -296,21 +294,23 @@ export function renderLifecycleDraft(
     };
   }
 
-  // A family session, a team day or a corporate event has no dress or rings
-  // to get ready: the kind's own list (job-kinds.ts `dayBeforeChecklist`).
-  // A wedding, or a job from before kinds, keeps the wedding's below.
-  const kind = isJobKind(facts.eventKind) && facts.eventKind !== "wedding" ? facts.eventKind : null;
-  if (kind) {
+  // A wedding, or a job from before kinds, has its own letter: the dress on
+  // its hanger. A family session, a team day or a corporate event has no
+  // dress or rings to get ready: the kind's own list (job-kinds.ts
+  // `dayBeforeLetter`, `dayBeforeChecklist`).
+  const words = vocab(isJobKind(facts.eventKind) ? facts.eventKind : BEFORE_KINDS);
+  const letter = words.dayBeforeLetter;
+  if (letter) {
     return {
-      subject: `See you tomorrow! A quick checklist`,
+      subject: `Tomorrow's the day! A quick checklist`,
       body: [
         greeting(facts),
         "",
-        `We're looking forward to ${facts.projectName} tomorrow${facts.venueName ? ` at ${facts.venueName}` : ""}.`,
+        `We are so excited for ${facts.projectName} tomorrow${facts.venueName ? ` at ${facts.venueName}` : ""}. ${letter.excited}`,
         "",
-        "One small ask so we can start on time — please have these ready when we arrive:",
+        letter.ask,
         "",
-        ...vocab(kind).dayBeforeChecklist.map((item) => `• ${item.charAt(0).toUpperCase()}${item.slice(1)}`),
+        ...letter.items.map((item) => `• ${item}`),
         "",
         "See you tomorrow!",
         "",
@@ -318,23 +318,21 @@ export function renderLifecycleDraft(
       ].join("\n"),
       recipientEmail: facts.recipientEmail,
       recipientName: facts.recipientName,
-      highlights: ["Day-before checklist", `For ${vocab(kind).yourEvent}`],
+      highlights: [...letter.highlights],
       missingInformation: missing,
     };
   }
 
   return {
-    subject: `Tomorrow's the day! A quick checklist`,
+    subject: `See you tomorrow! A quick checklist`,
     body: [
       greeting(facts),
       "",
-      `We are so excited for ${facts.projectName} tomorrow${facts.venueName ? ` at ${facts.venueName}` : ""}. It's going to be the best day.`,
+      `We're looking forward to ${facts.projectName} tomorrow${facts.venueName ? ` at ${facts.venueName}` : ""}.`,
       "",
-      "One small ask that saves us all 20 minutes in the morning — please have these ready when we arrive:",
+      "One small ask so we can start on time — please have these ready when we arrive:",
       "",
-      "• Dress on its special hanger",
-      "• Shoes, flowers, and rings together",
-      "• Invitations and any keepsake details",
+      ...words.dayBeforeChecklist.map((item) => `• ${item.charAt(0).toUpperCase()}${item.slice(1)}`),
       "",
       "See you tomorrow!",
       "",
@@ -342,7 +340,7 @@ export function renderLifecycleDraft(
     ].join("\n"),
     recipientEmail: facts.recipientEmail,
     recipientName: facts.recipientName,
-    highlights: ["Day-before detail checklist", "Saves ~20 minutes on site"],
+    highlights: ["Day-before checklist", `For ${words.yourEvent}`],
     missingInformation: missing,
   };
 }

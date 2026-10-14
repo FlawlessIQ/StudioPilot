@@ -8,7 +8,7 @@ import {
   type ShotListRecord,
   type ShotListView,
 } from "@/features/planning/shot-list";
-import { jobKindOf } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyProfile } from "@/features/job-kinds/job-kinds";
 import { tradeProfile } from "@/features/trades/trades";
 
 export type { ShotListView };
@@ -38,7 +38,7 @@ export async function shotListFor(db: Firestore, input: { tenantId: string; proj
   const files = Array.isArray(record?.files) ? record.files : [];
   return {
     status: shotListStatus(record),
-    available: Boolean(record) || (jobKindOf(project.data() as Row) === "wedding" && tradeProfile(tenant.get("trade")).shotList),
+    available: Boolean(record) || (journeyProfile(jobKindOf(project.data() as Row)).shotList && tradeProfile(tenant.get("trade")).shotList),
     dueDate: text(record?.dueDate) || null,
     // Never the storage path: the couple's own copy isn't something to hand
     // back out, and the studio downloads through its own rules.

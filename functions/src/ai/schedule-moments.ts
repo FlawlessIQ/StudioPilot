@@ -11,7 +11,7 @@
  * place the couple's own answers on.
  */
 
-import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { jobKindOf, journeyProfile } from "../job-kinds/job-kinds.js";
 
 export const WEDDING_STANDARD_MOMENTS: ReadonlyArray<{ title: string; minutes: number }> = [
   { title: "Details", minutes: 30 },
@@ -26,10 +26,13 @@ export const WEDDING_STANDARD_MOMENTS: ReadonlyArray<{ title: string; minutes: n
   { title: "Cake cutting", minutes: 15 },
 ];
 
-/** Whether the job is a wedding, by its kind (job-kinds.ts). Unknown is "other" now, not a wedding. */
+/**
+ * Whether the job lays out the wedding's day, by its kind (job-kinds.ts
+ * `dayPlan`). Unknown is "other" now, not a wedding.
+ */
 export function isWeddingEventType(project: unknown): boolean {
-  if (typeof project === "string") return jobKindOf({ eventType: project }) === "wedding";
-  return jobKindOf(project) === "wedding";
+  const kind = typeof project === "string" ? jobKindOf({ eventType: project }) : jobKindOf(project);
+  return journeyProfile(kind).dayPlan === "wedding";
 }
 
 /**

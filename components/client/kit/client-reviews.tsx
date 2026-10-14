@@ -101,7 +101,7 @@ export function ClientReviews() {
             </InfoHint>
           </h2>
           <p className="kit-body">
-            {`If you loved working with ${studioName}, a short review on ${site} helps ${words.event === "wedding" ? "other couples" : "others"} find them. It takes a minute.`}
+            {`If you loved working with ${studioName}, a short review on ${site} helps ${words.othersLikeYou} find them. It takes a minute.`}
           </p>
           {url ? (
             <a

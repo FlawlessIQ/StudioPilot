@@ -57,7 +57,8 @@ test("it goes out with the planning form, once, and never after the lock", () =>
   assert.match(scheduler, /if \(outcome !== "not_due"\) await sendShotList\(db, project, studio, today, now\);/);
   assert.match(scheduler, /if \(detailsLocked\(text\(data\.eventDate\)\.slice\(0, 10\), today, studio\.timeline\)\) return;/);
   assert.match(scheduler, /idempotencyKey: `shot_list_\$\{project\.id\}_\$\{template\.id\}`/);
-  assert.match(scheduler, /jobKindOf\(data\) !== "wedding"/);
+  // Only for a kind that gets the shot list (job-kinds.ts `shotList`: weddings).
+  assert.match(scheduler, /!journeyProfile\(jobKindOf\(data\)\)\.shotList/);
   const commands = read("functions/src/planning/commands.ts");
   assert.match(commands, /shotListTemplateId: z\.string\(\)\.min\(1\)\.max\(200\)\.nullable\(\)\.optional\(\)/);
   assert.match(commands, /for \(const templateId of \[parsed\.input\.formTemplateId, parsed\.input\.shotListTemplateId\]\)/);

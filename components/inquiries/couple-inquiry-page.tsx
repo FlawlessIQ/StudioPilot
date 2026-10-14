@@ -35,7 +35,7 @@ import {
   visibleQuestionnaireSections,
 } from "@/features/questionnaires/client-form";
 import { outstandingRequired } from "@/features/questionnaires/outstanding";
-import { isJobKind, vocab } from "@/features/job-kinds/job-kinds";
+import { BEFORE_KINDS, isJobKind, vocab } from "@/features/job-kinds/job-kinds";
 import { tradeVocab } from "@/features/trades/trades";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { scheduleZoneLabel } from "@/features/schedules/item-clock";
@@ -488,7 +488,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const words = vocab(kindForWords);
   // "your day" stays the wedding's phrase (and an inquiry from before kinds);
   // other kinds name what it is.
-  const aboutYours = !kindForWords || kindForWords === "wedding" ? "your day" : words.yourEvent;
+  const aboutYours = vocab(kindForWords ?? BEFORE_KINDS).aboutYours;
   // Past the call, the page points at whatever is waiting in their email:
   // "your proposal is ready" read wrong to a couple whose agreement was out.
   const movedOn = {
@@ -534,9 +534,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   const phrase =
     step === "details"
       ? eventForm
-        ? preview?.eventKind === "wedding"
-          ? "when’s the wedding?"
-          : "when’s the day?"
+        ? vocab(preview?.eventKind).whenQuestion
         : `tell us about ${aboutYours}`
       : step === "form"
         ? formSent
@@ -625,9 +623,7 @@ export function CoupleInquiryPage({ token }: { token: string }) {
                   inputMode={field === "estimatedGuestCount" ? "numeric" : field === "phone" ? "tel" : undefined}
                   key={field}
                   label={
-                    field === "eventDate" && preview.eventKind !== "wedding"
-                      ? "The date you have in mind"
-                      : fieldCopy[field].label
+                    (field === "eventDate" ? vocab(preview.eventKind).dateAsk : null) ?? fieldCopy[field].label
                   }
                   min={field === "estimatedGuestCount" ? 1 : undefined}
                   name={field}

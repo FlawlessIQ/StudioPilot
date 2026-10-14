@@ -22,6 +22,14 @@
 export const JOB_KINDS = ["wedding", "portraits", "corporate", "sports", "other"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
+/**
+ * What a record from before jobs had kinds reads as, where its words were
+ * the wedding's: an old inquiry link, a day-before email, a journey with no
+ * profile. Not `jobKindOf`'s fallback, which is "other" — this is only for
+ * copy that has always read as a wedding.
+ */
+export const BEFORE_KINDS: JobKind = "wedding";
+
 /** How a kind is named to the studio — in pickers, settings and filters. */
 export const JOB_KIND_LABELS: Record<JobKind, string> = {
   wedding: "Wedding",
@@ -113,7 +121,69 @@ export type JobVocabulary = {
   afterwards: string;
   /** What the day-before email reminds the client to have ready. */
   dayBeforeChecklist: string[];
+  /** The day-before step's line on the journey, before it goes. */
+  dayBeforeLine: string;
+  /**
+   * The day-before email, when the kind has a letter of its own (a wedding's
+   * dress on its hanger, word for word as the journey film shows it). Null
+   * sends the kind's checklist in the plain letter.
+   */
+  dayBeforeLetter: {
+    excited: string;
+    ask: string;
+    items: readonly string[];
+    highlights: readonly [string, string];
+  } | null;
+  /** A photographer's prep sentence in the week-of email; null lists the checklist. */
+  prepSentence: string | null;
+  /** The planning-form step's line on the journey, before it's filled in. */
+  formAsks: string;
+  /** The month-out schedule email's "has anything changed?" line. */
+  timesChanged: string;
+  /** What a photographer's final-details email says it holds. */
+  finalDetailsHolds: string;
+  /** What a DJ's final-details email calls the event: "your night". */
+  musicOccasion: string;
+  /** About their event, on the inquiry link and page: "your day". */
+  aboutYours: string;
+  /** The inquiry page's question when it asks for the date. */
+  whenQuestion: string;
+  /** The inquiry page's label for the date; null keeps the field's own. */
+  dateAsk: string | null;
+  /** A new inquiry, to the studio, when there is no name. */
+  newClient: string;
+  /** The client, to the studio, when there is no name. */
+  yourClient: string;
+  /** Clients like this one, to the studio: "Couples often write to several…". */
+  Clients: string;
+  /** Who else a review helps: "other couples". */
+  othersLikeYou: string;
+  /** A typical day, as the day-plan builder says it. */
+  typicalDay: string;
+  /** The inquiry form's step about the day. */
+  inquiryDayTitle: string;
+  /** A vendor's timeline names the occasion by the client: "Emma & James's wedding". */
+  occasionByName: boolean;
 };
+
+/** The words every kind but a wedding shares. */
+const PLAIN_WORDS = {
+  dayBeforeLetter: null,
+  prepSentence: null,
+  formAsks: "Locations, times, and anything to know",
+  timesChanged: "If any times or places have changed at all, just reply and we'll update the plan.",
+  finalDetailsHolds: "every location and time, and the timeline",
+  musicOccasion: "event",
+  whenQuestion: "when’s the day?",
+  dateAsk: "The date you have in mind",
+  newClient: "A new client",
+  yourClient: "Your client",
+  Clients: "People",
+  othersLikeYou: "others",
+  typicalDay: "day",
+  inquiryDayTitle: "When and where?",
+  occasionByName: false,
+} as const;
 
 const VOCAB: Record<JobKind, JobVocabulary> = {
   wedding: {
@@ -134,6 +204,29 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
       "rings, flowers and invitations in one place",
       "a family photo list to whoever is gathering people",
     ],
+    dayBeforeLine: "Dress, shoes, flowers, rings, invitations ready",
+    dayBeforeLetter: {
+      excited: "It's going to be the best day.",
+      ask: "One small ask that saves us all 20 minutes in the morning — please have these ready when we arrive:",
+      items: ["Dress on its special hanger", "Shoes, flowers, and rings together", "Invitations and any keepsake details"],
+      highlights: ["Day-before detail checklist", "Saves ~20 minutes on site"],
+    },
+    prepSentence:
+      "To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive.",
+    formAsks: "Prep locations, times, and family names",
+    timesChanged: "If ceremony, reception, or prep times have changed at all, just reply and we'll update the plan.",
+    finalDetailsHolds: "where you're getting ready, the ceremony and reception, any photo stops, and the timeline",
+    musicOccasion: "night",
+    aboutYours: "your day",
+    whenQuestion: "when’s the wedding?",
+    dateAsk: null,
+    newClient: "A new couple",
+    yourClient: "Your couple",
+    Clients: "Couples",
+    othersLikeYou: "other couples",
+    typicalDay: "wedding day",
+    inquiryDayTitle: "Tell us about your day",
+    occasionByName: true,
   },
   portraits: {
     event: "session",
@@ -153,6 +246,9 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
       "little ones fed and rested before we start",
       "any props or favorite toys you want in the photos",
     ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "Outfits laid out, colors that sit well together",
+    aboutYours: "your session",
   },
   corporate: {
     event: "event",
@@ -172,6 +268,9 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
       "parking and load-in details",
       "badges, the agenda and the shot list of people who matter",
     ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "The on-site contact's name and number",
+    aboutYours: "your event",
   },
   sports: {
     event: "event",
@@ -191,6 +290,9 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
       "the roster, with names as they should be spelled",
       "the arrival time and where we meet",
     ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "Uniforms and kit ready",
+    aboutYours: "your event",
   },
   other: {
     event: "event",
@@ -209,11 +311,14 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
       "the on-site contact's name and number",
       "the timings for the day",
     ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "The on-site contact's name and number",
+    aboutYours: "your event",
   },
 };
 
 /** The words for a kind of job. */
-export function vocab(kind: JobKind | null | undefined): JobVocabulary {
+export function vocab(kind: unknown): JobVocabulary {
   return VOCAB[kind && isJobKind(kind) ? kind : "other"];
 }
 
@@ -285,7 +390,38 @@ export type JourneyProfile = {
   album: boolean;
   /** One booking per date: a second inquiry for the day is a clash. */
   exclusiveDay: boolean;
+  /**
+   * The studio's planning timeline (planning-timeline.ts) runs this kind's
+   * details form: the date it goes out, the form the studio chose, and the
+   * form at booking. Other kinds count back `detailsFormDaysBefore` with
+   * their own form.
+   */
+  planningTimeline: boolean;
+  /** The shot list goes with the planning form, and the client can upload must-take photos. */
+  shotList: boolean;
+  /** The client is asked for the rest of their vendor team. */
+  vendorTeam: boolean;
+  /**
+   * The day plan StudioCue lays out from the form's answers alone, with no
+   * AI and no timing rules (features/schedules/day-plan.ts). Null: an AI
+   * draft from the kind's usual moments.
+   */
+  dayPlan: "wedding" | null;
+  /** The client is two people: the inquiry asks for a partner and the ceremony time. */
+  partner: boolean;
+  /** Schedule A insists on its parts (getting ready, ceremony, reception, times) from booking. */
+  scheduleAParts: boolean;
 };
+
+/** The steps every kind but a wedding leaves out. */
+const PLAIN_STEPS = {
+  planningTimeline: false,
+  shotList: false,
+  vendorTeam: false,
+  dayPlan: null,
+  partner: false,
+  scheduleAParts: false,
+} as const;
 
 const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
   wedding: {
@@ -300,6 +436,12 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     billingAddressRequest: true,
     album: true,
     exclusiveDay: true,
+    planningTimeline: true,
+    shotList: true,
+    vendorTeam: true,
+    dayPlan: "wedding",
+    partner: true,
+    scheduleAParts: true,
   },
   // Gabe, 2026-10-02: no agreement ("that's overkill"), paid in full.
   portraits: {
@@ -314,6 +456,7 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     billingAddressRequest: false,
     album: true,
     exclusiveDay: false,
+    ...PLAIN_STEPS,
   },
   // Gabe: both deposit + balance and invoice-after happen; the package decides.
   corporate: {
@@ -328,6 +471,7 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     billingAddressRequest: true,
     album: false,
     exclusiveDay: true,
+    ...PLAIN_STEPS,
   },
   // Gabe: no agreement, paid on the day.
   sports: {
@@ -342,6 +486,7 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     billingAddressRequest: false,
     album: false,
     exclusiveDay: false,
+    ...PLAIN_STEPS,
   },
   other: {
     consultation: true,
@@ -355,6 +500,7 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     billingAddressRequest: true,
     album: false,
     exclusiveDay: true,
+    ...PLAIN_STEPS,
   },
 };
 
@@ -365,7 +511,8 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
  * it has set one.
  */
 export function journeyProfile(
-  kind: JobKind | null | undefined,
+  // A JobKind; anything else (an inquiry's "general", nothing) is "other".
+  kind: unknown,
   overrides: { payment?: unknown; detailsFormDaysBefore?: unknown } = {},
 ): JourneyProfile {
   const resolved: JobKind = kind && isJobKind(kind) ? kind : "other";
@@ -501,19 +648,19 @@ export function projectGateNeeds(project: unknown): {
 }
 
 /**
- * The day a job's details form goes out. Weddings follow the studio's
- * planning timeline (passed in — planning-timeline.ts counts it in months);
- * every other kind counts back its profile's days. Null for an undated job
+ * The day a job's details form goes out. A kind on the studio's planning
+ * timeline (a wedding) follows it (passed in — planning-timeline.ts counts it
+ * in months); every other kind counts back its profile's days. Null for an undated job
  * or a kind that sends no details form.
  */
 export function detailsFormOpensOn(
   project: unknown,
   eventDate: string | null | undefined,
-  weddingOpensOn: string | null,
+  timelineOpensOn: string | null,
 ): string | null {
   const profile = projectProfile(project);
   if (profile.detailsFormDaysBefore === null) return null;
-  if (profile.kind === "wedding") return weddingOpensOn;
+  if (profile.planningTimeline) return timelineOpensOn;
   const day = String(eventDate ?? "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
   const value = new Date(`${day}T12:00:00Z`);

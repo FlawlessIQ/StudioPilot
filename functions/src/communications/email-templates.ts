@@ -2016,7 +2016,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const kind = jobKindOf({ eventKind: stringValue(values, "eventKind") || undefined });
       const couple = stringValue(values, "coupleName");
       const occasion =
-        kind === "wedding" && couple
+        vocab(kind).occasionByName && couple
           ? `${couple}'s ${vocab(kind).event}`
           : input.projectName?.trim() || `the ${vocab(kind).event}`;
       const eventDate = stringValue(values, "eventDate");
@@ -2094,8 +2094,8 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             ? []
             : tradeVocab(values.trade).dayBefore
               ? [`${tradeVocab(values.trade).dayBefore!.lead}, it helps to have: ${tradeVocab(values.trade).dayBefore!.items.join("; ")}.`]
-              : eventKind === "wedding"
-              ? ["To help photography begin on time, please have the wedding dress on a hanger and keep the shoes, flowers, rings, and invitation suite together before we arrive."]
+              : vocab(eventKind).prepSentence
+              ? [vocab(eventKind).prepSentence!]
               : [`To help photography begin on time, it helps to have ready: ${vocab(eventKind).dayBeforeChecklist.join("; ")}.`]),
         ],
         action: primary,
@@ -2293,15 +2293,13 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         };
       }
       const beauty = finalTrade.family === "beauty";
-      const wedding = stringValue(values, "eventKind") === "wedding";
+      const kindWords = vocab(stringValue(values, "eventKind"));
       const summary =
         finalTrade.family === "music"
-          ? `Here's everything we have for your ${wedding ? "night" : "event"}${project}: the venue and times, and your ${finalWords.detailsForm ?? "planner"}.`
+          ? `Here's everything we have for your ${kindWords.musicOccasion}${project}: the venue and times, and your ${finalWords.detailsForm ?? "planner"}.`
           : beauty
             ? `Here's everything we have for your morning${project}: where everyone is getting ready, the ready-by time, and your ${finalWords.detailsForm ?? "party list"}.`
-            : wedding
-              ? `Here's everything we have for your day${project}: where you're getting ready, the ceremony and reception, any photo stops, and the timeline.`
-              : `Here's everything we have for your day${project}: every location and time, and the timeline.`;
+            : `Here's everything we have for your day${project}: ${kindWords.finalDetailsHolds}.`;
       return {
         subject: `Please confirm your final details with ${brand.studioName}`,
         preheader: beauty ? "Everyone getting ready, and when, in one place." : "Every location and time for your day, in one place.",
@@ -3184,8 +3182,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "studio_new_inquiry": {
-      const wedding = stringValue(values, "eventKind") === "wedding";
-      const couple = stringValue(values, "coupleName") || (wedding ? "A new couple" : "A new client");
+      const couple = stringValue(values, "coupleName") || vocab(stringValue(values, "eventKind")).newClient;
       const when = stringValue(values, "eventDateLabel");
       const availability = stringValue(values, "availability");
       const source = stringValue(values, "sourceLabel");
@@ -3238,7 +3235,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
                 `Rather answer from your own inbox? Just hit reply — it goes straight to ${firstName || "them"}. Then tap “Replied by email” on Today, so the drafted reply isn't sent as well.`,
               ]
             : [
-                `${wedding ? "Couples" : "People"} often write to several ${tradeVocab(values.trade).provider}s at once; the first thoughtful reply tends to win.`,
+                `${vocab(stringValue(values, "eventKind")).Clients} often write to several ${tradeVocab(values.trade).provider}s at once; the first thoughtful reply tends to win.`,
               ]),
         ],
         details,
@@ -3248,7 +3245,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     }
     case "studio_schedule_changes_requested": {
       const couple =
-        stringValue(values, "coupleName") || (stringValue(values, "eventKind") === "wedding" ? "Your couple" : "Your client");
+        stringValue(values, "coupleName") || vocab(stringValue(values, "eventKind")).yourClient;
       const version = Number(values.scheduleVersion) || null;
       const note = stringValue(values, "changeNote");
       return {

@@ -1,7 +1,7 @@
 "use client";
 
 import { AMENDABLE_STATES, BookingAmendment } from "@/components/booking/booking-amendment";
-import { jobKindOf, journeyFor, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
+import { jobKindOf, journeyFor, journeyProfile, projectProfile, vocab, type JobVocabulary } from "@/features/job-kinds/job-kinds";
 import { eventDateLock } from "@/features/projects/event-date-lock";
 import { ImportedBookingBanner } from "@/components/imports/imported-booking-banner";
 import { type FormEvent, useEffect, useState } from "react";
@@ -1524,7 +1524,7 @@ export function LiveProjectDetail({ projectId }: { projectId: string }) {
   // The couple's own must-take photos (features/planning/shot-list.ts).
   const shotListEl = (
     <ProjectShotList
-      eligible={jobKindOf(project) === "wedding" && tradeProfile(workspace.tenantTrade).shotList}
+      eligible={journeyProfile(jobKindOf(project)).shotList && tradeProfile(workspace.tenantTrade).shotList}
       eventDate={typeof project.eventDate === "string" ? project.eventDate : null}
       projectId={projectId}
       projectState={state}

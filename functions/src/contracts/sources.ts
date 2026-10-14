@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { answersResolvedFor, resolveAnswers } from "../planning/resolved-answers.js";
-import { finalDetailsLockApplies, jobKindOf } from "../job-kinds/job-kinds.js";
+import { finalDetailsLockApplies, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { detailsLockOn, resolvePlanningTimeline, type PlanningTimeline } from "../planning/planning-timeline.js";
 import { readPricedSalesTax } from "../billing/sales-tax-pricing.js";
 import { combineCoverage, describeCoverage, resolveCoverage } from "../packages/coverage.js";
@@ -289,6 +289,10 @@ export async function loadContractSources(
   const eventDetails = eventDetailsFrom({
     eventType: text(event.eventType) || text(project.get("eventType")),
     eventKind: jobKindOf(project.data()),
+    kindDetails: {
+      required: journeyProfile(jobKindOf(project.data())).scheduleAParts,
+      title: vocab(jobKindOf(project.data())).detailsForm,
+    },
     date: /^\d{4}-\d{2}-\d{2}$/.test(eventDate) ? formatContractDate(eventDate) : null,
     venue: text(event.venue) || text(project.get("venueName")) || null,
     coverage: coverage || null,

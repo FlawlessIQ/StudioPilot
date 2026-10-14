@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { isJobKind, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
+import { BEFORE_KINDS, isJobKind, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { tradeProfile } from "../trades/trades.js";
 import { getConsultationSettings } from "../booking/availability.js";
 import { convertInquiryToJob } from "./convert.js";
@@ -92,7 +92,8 @@ export function inquiryLinkLine(url: string, withForm: boolean, kind?: unknown, 
   // does a makeup artist or hair stylist (trades.ts): the link takes their
   // details and the price follows. A wedding keeps "your day".
   const jobKind = isJobKind(kind) ? kind : null;
-  const about = !jobKind || jobKind === "wedding" ? "your day" : vocab(jobKind).yourEvent;
+  // An inquiry from before kinds reads as a wedding, as it always has.
+  const about = vocab(jobKind ?? BEFORE_KINDS).aboutYours;
   if ((jobKind && !journeyProfile(jobKind).consultation) || !tradeProfile(trade).consultation) {
     return withForm
       ? `Tell us about ${about} here, and we'll send your price: ${url}`

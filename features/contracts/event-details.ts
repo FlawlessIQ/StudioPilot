@@ -158,6 +158,14 @@ export function eventDetailsFrom(input: {
    * confirmed". Omitted: read from the type's label, as before.
    */
   eventKind?: string | null;
+  /**
+   * What the job's kind asks of Schedule A (job-kinds.ts, passed in since
+   * this file has no imports): whether its parts are required from booking
+   * (`journeyProfile(kind).scheduleAParts`) and its title
+   * (`vocab(kind).detailsForm`). Omitted: read from `eventKind`, or the
+   * type's label, as before.
+   */
+  kindDetails?: { required: boolean; title: string };
   /** Already formatted for reading: "Saturday, June 12, 2027". */
   date: string | null;
   venue: string | null;
@@ -178,7 +186,11 @@ export function eventDetailsFrom(input: {
    */
   lockPassed?: boolean;
 }): EventDetails {
-  const wedding = input.eventKind ? input.eventKind === "wedding" : /wedding/i.test(input.eventType);
+  const wedding = input.kindDetails
+    ? input.kindDetails.required
+    : input.eventKind
+      ? input.eventKind === "wedding"
+      : /wedding/i.test(input.eventType);
   const required =
     input.trade === "dj"
       ? REQUIRED_DJ_WEDDING_PARTS
@@ -236,7 +248,9 @@ export function eventDetailsFrom(input: {
     if (entries.length === 1) rows.push({ label: label(category), value: entries[0]!.value });
     else for (const entry of entries) rows.push({ label: entry.label, value: entry.value });
   }
-  const title = wedding ? "Wedding details" : input.eventKind === "portraits" ? "Session details" : "Event details";
+  const title =
+    input.kindDetails?.title ??
+    (wedding ? "Wedding details" : input.eventKind === "portraits" ? "Session details" : "Event details");
   const lockDaysBefore = input.lockDaysBefore === undefined ? (wedding ? 28 : null) : input.lockDaysBefore;
   const locks = typeof lockDaysBefore === "number" && Number.isFinite(lockDaysBefore) && lockDaysBefore > 0;
   return {

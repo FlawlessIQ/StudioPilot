@@ -1,5 +1,5 @@
 import { bookCallHref } from "@/features/consultations/studio-booking";
-import { journeyFor, vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
+import { BEFORE_KINDS, journeyFor, vocab, type JourneyProfile } from "@/features/job-kinds/job-kinds";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
 import type { ProjectState } from "@/features/projects/schema";
 import type { FileRef } from "@/features/documents/file-ref";
@@ -765,7 +765,7 @@ export function projectJourney(input: JourneyInput): {
   const stateRank = rank(String(input.state));
   // The kind's words: "the family", "Session details" (job-kinds.ts). No
   // profile is the wedding journey, as it always was.
-  const words = vocab(input.profile?.kind ?? "wedding");
+  const words = vocab(input.profile?.kind ?? BEFORE_KINDS);
   const tradeWords = tradeVocab(input.trade);
   const delivers = tradeProfile(input.trade).delivery;
   const who = words.clientFallback;
@@ -1219,9 +1219,7 @@ export function projectJourney(input: JourneyInput): {
               ? "Who's getting ready, and by when"
               : tradeProfile(input.trade).musicPlanner
                 ? "Their songs, the moments and the night's timeline"
-                : words.event === "wedding"
-                  ? "Prep locations, times, and family names"
-                  : "Locations, times, and anything to know",
+                : words.formAsks,
     status: formDone
       ? "complete"
       : prepStatus(
@@ -1717,9 +1715,7 @@ export function projectJourney(input: JourneyInput): {
       : tradeWords.dayBefore
         ? tradeWords.dayBefore.summary
         : // A family session or a team day has no dress or rings (job-kinds.ts).
-          input.profile && input.profile.kind !== "wedding"
-          ? `${words.dayBeforeChecklist[0]!.charAt(0).toUpperCase()}${words.dayBeforeChecklist[0]!.slice(1)}`
-          : "Dress, shoes, flowers, rings, invitations ready",
+          words.dayBeforeLine,
     status: dayBeforeDone
       ? "complete"
       : eventBehindThem

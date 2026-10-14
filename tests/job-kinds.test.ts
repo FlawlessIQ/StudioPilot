@@ -93,6 +93,30 @@ test("a wedding's details form follows the studio's planning timeline", () => {
   assert.equal(journeyProfile("portraits").detailsFormDaysBefore, 14);
 });
 
+test("the wedding-only steps are switches, and only a wedding has them on (mitzvah plan, Phase 0)", () => {
+  const wedding = journeyProfile("wedding");
+  assert.deepEqual(
+    [wedding.planningTimeline, wedding.shotList, wedding.vendorTeam, wedding.dayPlan, wedding.partner, wedding.scheduleAParts],
+    [true, true, true, "wedding", true, true],
+  );
+  for (const kind of JOB_KINDS.filter((kind) => kind !== "wedding")) {
+    const profile = journeyProfile(kind);
+    assert.deepEqual(
+      [profile.planningTimeline, profile.shotList, profile.vendorTeam, profile.dayPlan, profile.partner, profile.scheduleAParts],
+      [false, false, false, null, false, false],
+      kind,
+    );
+  }
+  // An inquiry's "general", or nothing, is "other".
+  assert.equal(journeyProfile("general").partner, false);
+  assert.equal(vocab("general").whenQuestion, vocab("other").whenQuestion);
+  // The words weddings have always read, word for word.
+  assert.equal(vocab("wedding").formAsks, "Prep locations, times, and family names");
+  assert.equal(vocab("wedding").aboutYours, "your day");
+  assert.equal(vocab("portraits").aboutYours, "your session");
+  assert.equal(vocab("portraits").dayBeforeLine, "Outfits laid out, colors that sit well together");
+});
+
 test("every kind has every word, and a family is never 'the couple'", () => {
   for (const kind of JOB_KINDS) {
     const words = vocab(kind);

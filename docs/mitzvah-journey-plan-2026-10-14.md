@@ -23,6 +23,67 @@ gaps are in two places:
 Fix both generically and mitzvah becomes mostly data. The next celebration
 kind (quinceañera, sweet 16) then costs one row per table.
 
+## Status
+
+| Phase | State |
+|---|---|
+| 0: re-key | **Built 2026-10-14** (branch `mitzvah-phase0`). No behavior change: 4341 tests, typecheck, functions build, lint and the production build all pass. |
+| 1–6 | Not started |
+
+**What Phase 0 did**
+- **Six profile switches** in `journeyProfile`: `planningTimeline`, `shotList`,
+  `vendorTeam`, `dayPlan`, `partner`, `scheduleAParts`. They are on for
+  weddings only, pinned in `tests/job-kinds.test.ts`.
+- **Every gate reads its switch now**:
+  - the details-form date and the form at booking
+  - the scheduler's planning form and shot list
+  - the shot-list upload and its job card
+  - the couple vendor ask
+  - the inquiry link's partner and ceremony asks
+  - the lead form's partner field
+  - Schedule A's required parts and title (`kindDetails`, passed in, since
+    event-details has no imports)
+  - "Lay out the day" (`dayPlanOf`) and the AI moments instruction
+- **The wedding's words moved into `vocab`**, word for word:
+  - `formAsks`, `dayBeforeLine`, `dayBeforeLetter` and `prepSentence`
+  - `timesChanged` and `finalDetailsHolds`
+  - `musicOccasion`, `aboutYours`, `whenQuestion` and `dateAsk`
+  - `newClient`, `yourClient`, `Clients` and `othersLikeYou`
+  - `typicalDay`, `inquiryDayTitle` and `occasionByName`
+- **`BEFORE_KINDS`** names "a record from before kinds reads as a wedding",
+  where copy always has.
+- `vocab()` and `journeyProfile()` take any value; anything that isn't a
+  kind, like an inquiry's "general", reads as "other".
+- **DJ moments** come from `djMomentsFor(kind)`. Only the wedding row
+  exists.
+- **New guard**, `tests/job-kind-branches.test.ts`:
+  - It counts `"wedding"` comparisons outside features/job-kinds and pins
+    them at 13 files, down from about 47 checks. The pins can only come
+    down.
+  - What's left is legitimately wedding:
+    - the studio's legacy wedding type id: `template-key`,
+      `public-lead`, `capture`, `inquiry-form`, `inquiry-form-setting`,
+      `onboarding`
+    - the wedding's own day plan (`isWeddingJob`)
+    - the wedding-agreement warning
+    - the setup picker's beauty list
+    - the journey film
+- The copy guard's pins came down in 7 files.
+
+**Deferred from Phase 0 to the phase that writes their content.** Keying
+these by kind changes more than code:
+- **Recommended forms are already keyed by kind** through their
+  `eventTypeId`. A mitzvah form is a new entry with `eventTypeId:
+  "mitzvah"`, so there is nothing to re-key.
+- **Planner checklist** (Phase 4): the studio saves its list per tier. A
+  per-kind list changes the stored shape and the settings screen.
+- **Starter agreements** (Phase 5): the studio has one agreement. A
+  per-kind agreement is a new choice for the studio, and it waits on
+  counsel.
+- **`tradeVocab` day-before, kit and trial lists, and the chair roles**
+  (Phase 4): add a `kind` argument when the mitzvah rows exist, so the
+  override's shape comes from real content.
+
 ---
 
 ## How a mitzvah runs (what the defaults are built on)

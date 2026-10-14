@@ -8,7 +8,7 @@ import { queuePartnerSends } from "../client/partner-invitations.js";
 import { detailsLocked, planningFormOpensOn, resolvePlanningTimeline, type PlanningTimeline } from "./planning-timeline.js";
 import { sendNewQuestionnaire } from "./send-questionnaire.js";
 import { requestShotListIfDue } from "./shot-list-upload.js";
-import { detailsFormOpensOn, jobKindOf } from "../job-kinds/job-kinds.js";
+import { detailsFormOpensOn, jobKindOf, journeyProfile } from "../job-kinds/job-kinds.js";
 import { scopedFormOpensOn } from "./planning-scope.js";
 
 /**
@@ -92,7 +92,7 @@ async function sendShotList(db: Firestore, project: DocumentSnapshot, studio: St
   const data = project.data() ?? {};
   const tenantId = text(data.tenantId);
   const templateId = studio.timeline.shotListTemplateId;
-  if (!templateId || jobKindOf(data) !== "wedding") return;
+  if (!templateId || !journeyProfile(jobKindOf(data)).shotList) return;
   // Past the lock it would arrive already overdue.
   if (detailsLocked(text(data.eventDate).slice(0, 10), today, studio.timeline)) return;
   const template = resolveInquiryFormTemplate(studio.templates as never, templateId) as (Row & { id: string }) | null;
@@ -157,10 +157,11 @@ async function sendPlanningForm(db: Firestore, project: DocumentSnapshot, studio
   const tenantId = text(data.tenantId);
   if (!planningFormDue(data, studio.timeline, today)) return "not_due";
   const kind = jobKindOf(data);
+  const onTimeline = journeyProfile(kind).planningTimeline;
   const template =
-    planningFormTemplate(studio, text(data.eventTypeId), kind === "wedding") ??
+    planningFormTemplate(studio, text(data.eventTypeId), onTimeline) ??
     // A job filed under a studio's own id still finds the form for its kind.
-    planningFormTemplate(studio, kind, kind === "wedding");
+    planningFormTemplate(studio, kind, onTimeline);
   if (!template) return "no_form";
   const responses = await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", project.id).get();
   const live = liveAssignmentFor(
@@ -266,7 +267,7 @@ export async function sendPlanningFormAtBooking(db: Firestore, project: Document
   if (!tenantId) return "no_tenant";
   const studio = await loadStudio(db, tenantId);
   if (!studio.timeline.formAtBooking) return "off";
-  if (jobKindOf(data) !== "wedding") return "not_wedding";
+  if (!journeyProfile(jobKindOf(data)).planningTimeline) return "not_wedding";
   if (data.importedAt || clientOutreachStop(data) !== null) return "quiet";
   const eventDate = text(data.eventDate).slice(0, 10);
   if (!eventDate || eventDate <= now.slice(0, 10)) return "no_date";

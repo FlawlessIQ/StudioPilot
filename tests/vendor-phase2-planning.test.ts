@@ -240,7 +240,7 @@ test("the party list lays out the morning, and the editor drafts it from the one
   assert.equal(plan.fits, true);
   const editor = read("components/planning/ai-schedule-generator.tsx");
   assert.match(editor, /const oneForm = tradeProfile\(workspace\.tenantTrade\)\.journey\.oneForm;/);
-  assert.match(editor, /if \(!oneForm \|\| !weddingDay \|\| !projectId \|\| !eventDay\) return;/);
+  assert.match(editor, /if \(!oneForm \|\| !builtDay \|\| !projectId \|\| !eventDay\) return;/);
   assert.match(editor, /if \(draft \|\| selectedSchedule \|\| !selectedQuestionnaire\) return;/);
   assert.match(editor, /laidOutFromForm\.current = projectId;\s*setDrawnFromForm\(true\);\s*layOutDay\(\);/);
   // The day-plan test still finds the one way to build a wedding's day.

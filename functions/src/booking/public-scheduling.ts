@@ -1348,9 +1348,9 @@ export function phoneForCall(onFile: string, given: string | undefined): string 
 }
 
 /**
- * The details a couple's link asks for, by kind of inquiry. A wedding (or an
- * inquiry from before the studio had types) is asked everything it hasn't
- * said; anything else only what its type asks — never a partner or ceremony
+ * The details a couple's link asks for, by kind of inquiry. A kind whose
+ * client is two people (a wedding — job-kinds.ts `partner`), or an inquiry
+ * from before the studio had types, is asked everything it hasn't said; anything else only what its type asks — never a partner or ceremony
  * time. The date stays: a call is booked against a job, and a job needs one.
  */
 export function detailsAskedFor<T extends string>(
@@ -1358,7 +1358,7 @@ export function detailsAskedFor<T extends string>(
   kind: InquiryEventKind | null,
   fields: { city: string; venue: boolean; guests: boolean },
 ): T[] {
-  if (kind === null || kind === "wedding") return [...missing];
+  if (kind === null || journeyProfile(kind).partner) return [...missing];
   return missing.filter((field) => {
     if (field === "partnerName" || field === "ceremonyTime") return false;
     if (field === "venue") return fields.venue;
