@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, Copy, ExternalLink, Send, Upload, XCircle } from "lucide-react";
 import { FileLinks } from "@/components/documents/file-link";
 import { refreshTenantRecords } from "@/components/live/tenant-records";
@@ -11,8 +11,10 @@ import { FILE_BEARING } from "@/features/documents/file-ref";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { uploadCoiPdf } from "@/lib/planning/coi-upload";
 import { friendlyError } from "@/lib/ai/friendly-error";
-import { formatEventDate } from "@/lib/format/event-date";
+import { formatDueDate, formatEventDate } from "@/lib/format/event-date";
 import { ActionHint } from "@/components/ui/info-hint";
+import { certificateKitFields, insurerLink } from "@/features/insurance/certificate-kit";
+import { tradeVocab } from "@/features/trades/trades";
 
 type Row = Record<string, unknown> & { id: string };
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -37,13 +39,34 @@ export function CoiRequestActions({
   const workspace = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
+  // A re-send of the certificate the venue already took needs no new
+  // judgment: the reason is written, and approving is one click.
+  const [reason, setReason] = useState(
+    request.reusedFromRequestId ? "Same certificate the venue already has; the policy still covers this date." : "",
+  );
   const [venueEmail, setVenueEmail] = useState("");
   const [legalName, setLegalName] = useState(text(requirement?.venueLegalName) || text(request.venueName));
   const [address, setAddress] = useState<CapturedPlace | null>(null);
   const status = text(request.status);
   const projectId = text(request.projectId);
   const files = FILE_BEARING.insuranceRequests(request);
+  // The job's own address for the certificate (coi/reuse.ts). A request made
+  // before requests carried one gets it the first time its kit is opened.
+  const [inboxAddress, setInboxAddress] = useState(text(request.inboxAddress));
+  const wantsInbox = status === "self_serve" && !text(request.inboxAddress) && !text(request.requestEmail);
+  useEffect(() => {
+    if (!wantsInbox) return;
+    let active = true;
+    void sendPlanningCommand("ensureCoiInbox", { projectId, requestId: request.id })
+      .then((outcome) => {
+        const address = text((outcome as { result?: { inboxAddress?: unknown } }).result?.inboxAddress);
+        if (active && address) setInboxAddress(address);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [projectId, request.id, wantsInbox]);
 
   async function run(type: string, input: Record<string, unknown>, success: string) {
     setBusy(true);
@@ -148,40 +171,72 @@ export function CoiRequestActions({
       </form>
     );
   } else if (status === "self_serve" || (status === "failed" && (selfServe || text(settings?.source) === "self_serve"))) {
+    const insurer = insurerLink(settings);
+    const kit = certificateKitFields({
+      holder,
+      venueAddress,
+      venueName: text(requirement?.venueLegalName) || text(request.venueName),
+      // With the year: it goes on a legal document.
+      eventDateLabel: eventDate ? formatDueDate(eventDate) : "",
+      service: tradeVocab(workspace.tenantTrade).service,
+      additionalInsuredWording: text(requirement?.additionalInsuredWording),
+    });
     body = (
       <div className="coi-inline-form">
+        {/* Two minutes, not fifteen: the details in the order a certificate
+            form asks for them, the insurer's page, and an address the
+            certificate can be emailed straight to (self-serve kit,
+            2026-10-14). */}
         <p className="coi-status-note">
-          Make the certificate in your insurer&rsquo;s portal with these details, then drop the PDF here. StudioCue checks
-          it before it goes anywhere.
+          {`Make it on ${insurer.label === "your insurer" ? "your insurer\u2019s website" : `${insurer.label}\u2019s website`} with these details${
+            text(request.dueDate) ? `, by ${formatEventDate(text(request.dueDate))}` : ""
+          }. StudioCue checks it before anything goes to the venue.`}
         </p>
+        <ol className="coi-kit-steps">
+          <li>
+            <span>
+              <strong>1. Open {insurer.label === "your insurer" ? "your insurer\u2019s website" : insurer.label}</strong>
+              {insurer.label === "NEXT" ? <small>Certificate → Create Custom Certificate</small> : null}
+            </span>
+            {insurer.url ? (
+              <a className="button button-light button-sm" href={insurer.url} rel="noopener noreferrer" target="_blank">
+                <ExternalLink aria-hidden="true" size={14} /> Open {insurer.label === "your insurer" ? "it" : insurer.label}
+              </a>
+            ) : null}
+          </li>
+        </ol>
+        <p className="coi-kit-label"><strong>2. Copy in these details</strong></p>
         <ul className="coi-copy-list">
-          {(
-            [
-              ["Certificate holder", holder],
-              ["Venue address", venueAddress],
-              ["Event date", eventDate ? formatEventDate(eventDate) : ""],
-              ["Additional insured", text(requirement?.additionalInsuredWording)],
-            ] as const
-          )
-            .filter(([, value]) => value)
-            .map(([label, value]) => (
-              <li key={label}>
-                <span>
-                  <small>{label}</small>
-                  <strong>{value}</strong>
-                </span>
-                <button aria-label={`Copy ${label}`} className="button button-quiet button-sm" onClick={() => copy(value)} type="button">
-                  <Copy aria-hidden="true" size={14} />
-                </button>
-              </li>
-            ))}
+          {kit.map(({ label, value }) => (
+            <li key={label}>
+              <span>
+                <small>{label}</small>
+                <strong>{value}</strong>
+              </span>
+              <button aria-label={`Copy ${label}`} className="button button-quiet button-sm" onClick={() => copy(value)} type="button">
+                <Copy aria-hidden="true" size={14} />
+              </button>
+            </li>
+          ))}
         </ul>
-        {text(settings?.portalUrl) ? (
-          <a className="button button-light" href={text(settings?.portalUrl)} rel="noopener noreferrer" target="_blank">
-            <ExternalLink aria-hidden="true" size={15} /> Open your insurer&rsquo;s portal
-          </a>
+        <p className="coi-kit-label"><strong>3. Get the certificate to StudioCue</strong></p>
+        {inboxAddress ? (
+          <ul className="coi-copy-list">
+            <li>
+              <span>
+                <small>Email it here — in the insurer&rsquo;s &ldquo;send to&rdquo; box, or forward their email</small>
+                <strong className="coi-kit-address">{inboxAddress}</strong>
+              </span>
+              <button aria-label="Copy the address" className="button button-quiet button-sm" onClick={() => copy(inboxAddress)} type="button">
+                <Copy aria-hidden="true" size={14} />
+              </button>
+            </li>
+          </ul>
         ) : null}
-        {upload}
+        <div className="coi-kit-upload">
+          {inboxAddress ? <small>Or upload the PDF</small> : null}
+          {upload}
+        </div>
       </div>
     );
   } else if ((status === "under_review" || status === "approved") && !ownerOrAdmin) {
@@ -214,6 +269,17 @@ export function CoiRequestActions({
           <p className="coi-status-note">
             Sent back to your agent for a correction. If it was right after all, approve it here — or upload the
             corrected PDF yourself.
+          </p>
+        ) : null}
+        {request.reusedFromRequestId ? (
+          // The certificate this venue already has, still good for this date
+          // (coi/reuse.ts): one approval re-sends it, no new certificate.
+          <p className="coi-status-note">
+            {`The certificate you sent ${text(requirement?.venueLegalName) || "this venue"} before still covers this date${
+              text((request.extractedData as Record<string, unknown> | undefined)?.policyExpirationDate)
+                ? ` — the policy on it runs through ${formatEventDate(text((request.extractedData as Record<string, unknown>).policyExpirationDate))}`
+                : ""
+            }. Approve to send it again; no new certificate needed.`}
           </p>
         ) : null}
         <FileLinks files={files} />

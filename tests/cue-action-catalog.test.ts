@@ -223,6 +223,9 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // The couple's own acts, in their portal.
   markReviewOpened: "couple", accept: "couple or invitee", preview: "invitee", brand: "invitee whose link no longer opens",
   status_batch: "read by the clients list, not an act",
+  // The job's address for a certificate the studio makes itself: the kit asks
+  // for it when it opens; nothing for a studio to decide.
+  ensureCoiInbox: "fetched by the certificate kit itself",
   // H2 one-send agreement: behind a per-studio platform flag until counsel has
   // seen the two-signature ceremony, so not offered through Cue yet.
   previewCombinedAgreement: "flagged: counsel review pending", sendCombinedAgreement: "flagged: counsel review pending",

@@ -10,6 +10,7 @@ import {
   venueProfileId,
 } from "./automation.js";
 import { COI_APPROVABLE_STATUSES, planCoiResend } from "./corrections.js";
+import { selfServeInbox } from "./reuse.js";
 
 /**
  * The studio's side of an automated COI (H3, docs/coi-automation-plan-2026-09-28.md):
@@ -95,6 +96,8 @@ export async function completeCoiDetails(
   if (request.get("status") !== "needs_details") throw new Error("COI_DETAILS_NOT_NEEDED");
   const settings = readCoiSettings(await db.doc(`coiSettings/${context.tenantId}`).get());
   const next = settings?.source === "self_serve" ? "self_serve" : "prepared";
+  // The job's own address, for the insurer's email (self-serve kit).
+  const inbox = next === "self_serve" && !text(request.get("replyTokenHash")) ? selfServeInbox() : null;
   const batch = db.batch();
   batch.update(requirement.ref, {
     certificateHolder: input.certificateHolder ?? input.venueLegalName,
@@ -107,6 +110,7 @@ export async function completeCoiDetails(
   });
   batch.update(reference, {
     status: next,
+    ...(inbox ? { replyTokenHash: inbox.tokenHash, inboxAddress: inbox.address } : {}),
     venueName: input.venueLegalName,
     updatedAt: context.now,
     updatedBy: context.actorId,
@@ -118,6 +122,33 @@ export async function completeCoiDetails(
     return approvePreparedCoi(db, context, { projectId: input.projectId, requestId: input.requestId });
   }
   return { requestId: input.requestId, status: next };
+}
+
+export const ensureCoiInboxInput = z.object({ projectId: z.string(), requestId: z.string() });
+
+/**
+ * The job's own address for a certificate the studio makes itself, for a
+ * request made before requests carried one. Only while a certificate is still
+ * wanted from the studio; an agent's request already has the agent's thread.
+ */
+export async function ensureCoiInbox(
+  db: Firestore,
+  context: Context,
+  input: z.infer<typeof ensureCoiInboxInput>,
+): Promise<Record<string, unknown>> {
+  if (!STUDIO.includes(context.role)) throw new Error("FORBIDDEN");
+  const { reference, request } = await loadRequest(db, context, input.projectId, input.requestId);
+  const existing = text(request.get("inboxAddress"));
+  if (existing) return { requestId: input.requestId, inboxAddress: existing };
+  const status = text(request.get("status"));
+  if (status !== "self_serve" || text(request.get("replyTokenHash"))) throw new Error("COI_INBOX_NOT_AVAILABLE");
+  const inbox = selfServeInbox();
+  if (!inbox) throw new Error("COI_INBOUND_DOMAIN_NOT_CONFIGURED");
+  await reference.update(
+    { replyTokenHash: inbox.tokenHash, inboxAddress: inbox.address, updatedAt: context.now, updatedBy: context.actorId },
+    { lastUpdateTime: request.updateTime },
+  );
+  return { requestId: input.requestId, inboxAddress: inbox.address };
 }
 
 /**

@@ -1574,7 +1574,7 @@ export function projectJourney(input: JourneyInput): {
     approved: "Approved — send it to the venue",
     prepared: "Your request to your agent is ready to approve",
     needs_details: "Confirm the venue's address so the request can go",
-    self_serve: "Generate the certificate in your insurer's portal",
+    self_serve: "Make the certificate on your insurer's website",
     failed: "The certificate didn't pass the safety check — ask for it again",
   };
   const coiMove = coiStudioMove[input.coiStatus ?? ""];

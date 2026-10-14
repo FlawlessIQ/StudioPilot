@@ -126,7 +126,7 @@ const QUESTIONS: Question[] = [
   {
     key: "insurance",
     ask: "Who sends your certificates of insurance?",
-    why: "Venues often want one. Save your agent (or your insurer's portal) and StudioCue asks for it once a job is booked, follows up, and brings it back for one approval. Skip it if venues never ask.",
+    why: "Venues often want one. Save your agent — or the insurance company whose website you make them on — and StudioCue asks for it once a job is booked (or gets you the details to paste), follows up, and brings it back for one approval. Skip it if venues never ask.",
     doneLabel: "StudioCue knows who sends your certificates.",
   },
 ];

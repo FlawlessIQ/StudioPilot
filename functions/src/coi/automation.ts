@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { z } from "zod";
 import { clientOutreachStop } from "../post-event/client-outreach.js";
+import { findReusableCertificate, selfServeInbox } from "./reuse.js";
 
 /**
  * COI automation (H3, docs/coi-automation-plan-2026-09-28.md).
@@ -35,6 +36,14 @@ export const coiSettingsInput = z
     /** Copy the studio on requests to the agent. */
     ccStudio: z.boolean().default(false),
     portalUrl: z.string().trim().url().nullable().default(null),
+    /** Which insurer's website a self-serve studio makes certificates on. */
+    insurer: z.enum(["hiscox", "next", "thimble", "other"]).nullable().default(null),
+    /**
+     * When the studio's policy ends, read off its latest certificate by the
+     * extraction worker — never typed. A certificate for an event after this
+     * date is asked for once the policy has renewed, not before.
+     */
+    aiPolicyExpiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
     leadDays: z.number().int().min(7).max(365).default(60),
     chaseEveryDays: z.number().int().min(1).max(14).default(3),
     maxChases: z.number().int().min(1).max(10).default(4),
@@ -73,6 +82,8 @@ export async function saveCoiSettings(
   const batch = db.batch();
   batch.set(reference, {
     ...input,
+    // Read off certificates, not typed: saving settings keeps it.
+    aiPolicyExpiresOn: text(before.get("aiPolicyExpiresOn")) || null,
     tenantId: context.tenantId,
     updatedAt: context.now,
     updatedBy: context.actorId,
@@ -253,6 +264,17 @@ export function coiDue(eventDate: string, leadDays: number, now: string): {
   };
 }
 
+/**
+ * Whether to hold the request until the studio's policy renews: the event is
+ * after the policy ends, and it hasn't ended yet. A certificate made today
+ * would show the old policy, which the venue would refuse.
+ */
+export function waitsForRenewal(input: { eventDate: string; aiPolicyExpiresOn: string | null | undefined; now: string }): boolean {
+  const ends = text(input.aiPolicyExpiresOn).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ends)) return false;
+  return input.eventDate.slice(0, 10) > ends && input.now.slice(0, 10) <= ends;
+}
+
 export function coiRequestIds(projectId: string) {
   return {
     requestId: `coi_auto_${projectId}`,
@@ -321,6 +343,10 @@ export async function autoRequestForProject(
   if (subscription.get("entitlements.coiEnabled") !== true) return "not_entitled";
   const due = coiDue(eventDate, settings.leadDays, now);
   if (!due.timeToAsk) return "not_yet";
+  // The policy renews before the event: a certificate made now would show the
+  // policy that ends first, and the venue would refuse it. Asked the day the
+  // new one starts.
+  if (waitsForRenewal({ eventDate, aiPolicyExpiresOn: settings.aiPolicyExpiresOn, now })) return "after_renewal";
 
   const venue = projectVenue(project);
   const key = venueKey(venue);
@@ -355,13 +381,28 @@ export async function autoRequestForProject(
     specialInstructions: null,
   };
   const missing = !venueLegalName || venueAddress.length < 5;
+  // A certificate this venue already has that still covers the new date: it
+  // is re-sent, with the studio's approval, instead of asking for another.
+  const reusable = missing
+    ? null
+    : await findReusableCertificate(db, {
+        tenantId,
+        venueKeys: venueKeyCandidates(venue),
+        certificateHolder: requirement.certificateHolder,
+        eventDate,
+        projectId: project.id,
+      });
   const status = missing
     ? "needs_details"
-    : settings.source === "self_serve"
-      ? "self_serve"
-      : settings.dial === "prepare"
-        ? "prepared"
-        : "requested";
+    : reusable
+      ? "under_review"
+      : settings.source === "self_serve"
+        ? "self_serve"
+        : settings.dial === "prepare"
+          ? "prepared"
+          : "requested";
+  // The job's own address for a studio that makes its own certificates.
+  const inbox = !reusable && settings.source === "self_serve" ? selfServeInbox() : null;
   const email =
     status === "requested"
       ? agentRequestEmail({
@@ -401,17 +442,28 @@ export async function autoRequestForProject(
     status,
     autoCreated: true,
     fromVenueMemory: Boolean(profile),
-    replyTokenHash: email?.tokenHash ?? null,
+    replyTokenHash: email?.tokenHash ?? inbox?.tokenHash ?? null,
+    inboxAddress: inbox?.address ?? null,
     requestEmail: settings.source === "agent" ? settings.agentEmail : null,
     venueName: venueLegalName || null,
     dueDate: due.dueDate,
     inboundMessageId: null,
     documentId: null,
-    extractedData: null,
+    extractedData: reusable ? reusable.get("extractedData") ?? null : null,
     discrepancies: [],
     humanDecision: "pending",
     requestedAt: status === "requested" ? now : null,
-    receivedAt: null,
+    receivedAt: reusable ? now : null,
+    ...(reusable
+      ? {
+          // The same checked PDF, from the job that sent it. Nothing is
+          // scanned or read again: it was, and the venue has it already.
+          reusedFromRequestId: reusable.id,
+          temporaryObject: reusable.get("temporaryObject"),
+          sourceFilename: reusable.get("sourceFilename") ?? null,
+          scanStatus: "clean",
+        }
+      : {}),
     sentToVenueAt: null,
     venueAcknowledgedAt: null,
     createdAt: now,
@@ -431,7 +483,7 @@ export async function autoRequestForProject(
     entityId: requestId,
     timestamp: now,
     before: null,
-    after: { status, dial: settings.dial, fromVenueMemory: Boolean(profile) },
+    after: { status, dial: settings.dial, fromVenueMemory: Boolean(profile), reusedFromRequestId: reusable?.id ?? null },
     ipAddress: null,
     userAgent: null,
     correlationId: `coi_auto_${project.id}`,
@@ -445,7 +497,7 @@ export async function autoRequestForProject(
     if ((caught as { code?: unknown }).code === 6) return "already_requested";
     throw caught;
   }
-  return status;
+  return reusable ? "reused" : status;
 }
 
 /** The daily sweep: every booked job whose venue needs a certificate. */

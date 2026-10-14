@@ -3236,7 +3236,29 @@ export function todayInbox(input: TodayInput): TodayInbox {
     const href = `/studio/insurance?project=${encodeURIComponent(projectId)}`;
     const venue = text(request.venueName);
     const due = text(request.dueDate).slice(0, 10);
-    if (request.escalatedAt && ["requested", "correction_required"].includes(status)) {
+    const daysToDue = /^\d{4}-\d{2}-\d{2}$/.test(due)
+      ? Math.round((Date.parse(`${due}T12:00:00.000Z`) - now.getTime()) / 86_400_000)
+      : null;
+    if (status === "self_serve" && daysToDue !== null && daysToDue <= 5) {
+      // A studio that makes its own certificates had no warning at all: the
+      // card just sat there. Five days out it says so, as an agent's chase
+      // does (coi-chase-scheduler.ts) — self-serve kit, 2026-10-14.
+      exception({
+        id: `coi-self-due-${request.id}`,
+        kind: "insurance",
+        title: `Make the COI for ${venue || "the venue"}`,
+        detail: nameFor(projectId) ?? "Certificate of insurance",
+        dueDate: due,
+        extraFacts: [daysToDue < 0 ? `was due ${formatDueDate(due)}` : `due ${formatDueDate(due)}`, "about 2 min"],
+        evidence: "Nobody has made it yet",
+        href,
+        projectId,
+        projectName: nameFor(projectId),
+        eventDate: eventFor(projectId),
+        updatedAt: changedAt(request),
+        label: "Open the kit",
+      });
+    } else if (request.escalatedAt && ["requested", "correction_required"].includes(status)) {
       // Chasing stopped: the studio picks up the phone.
       exception({
         id: `coi-escalated-${request.id}`,
@@ -3287,15 +3309,55 @@ export function todayInbox(input: TodayInput): TodayInbox {
           status === "prepared"
             ? "Send the COI request to your agent"
             : status === "self_serve"
-              ? "Generate the COI in your insurer's portal"
+              ? `Make the COI for ${venue || "the venue"} · about 2 min`
+              : status === "under_review" && request.reusedFromRequestId
+                ? `Re-send your ${venue || "venue"} certificate — it still covers this date`
               : status === "approved"
                 ? "Send the approved COI to the venue"
                 : `COI ready${venue ? ` for ${venue}` : ""} — check it and send`,
         detail: nameFor(projectId) ?? "Certificate of insurance",
         href,
-        label: status === "prepared" ? "Review and send" : status === "self_serve" ? "Open" : "Review",
+        label:
+          status === "prepared" || (status === "under_review" && request.reusedFromRequestId)
+            ? "Review and send"
+            : status === "self_serve"
+              ? "Open the kit"
+              : "Review",
         projectId,
         updatedAt: changedAt(request),
+      });
+    }
+  }
+  // The studio's policy renews before booked jobs that need a certificate:
+  // read off its latest certificate (operations/ai-pdf.ts), and the automatic
+  // request waits for the new policy (coi/automation.ts). Said a month ahead,
+  // so a renewal that lapses is not found the week of a wedding.
+  const policyEnds = text(coiSettings?.aiPolicyExpiresOn).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(policyEnds)) {
+    const daysToRenewal = Math.round((Date.parse(`${policyEnds}T12:00:00.000Z`) - now.getTime()) / 86_400_000);
+    const after = rows(input.projects).filter(
+      (project) =>
+        project.insuranceRequired === "required" &&
+        ["BOOKED", "PLANNING", "READY"].includes(text(project.state)) &&
+        text(project.eventDate).slice(0, 10) > policyEnds &&
+        jobStillOpen(project.id),
+    );
+    if (daysToRenewal >= 0 && daysToRenewal <= 30 && after.length) {
+      fyi.push({
+        id: `coi-renewal-${policyEnds}`,
+        lane: "fyi",
+        kind: "insurance",
+        title: `Your insurance renews ${formatDueDate(policyEnds)}`,
+        detail: `${after.length === 1 ? "1 job after it needs" : `${after.length} jobs after it need`} a new certificate. StudioCue asks for ${after.length === 1 ? "it" : "them"} once the new policy starts — check it renews.`,
+        evidence: null,
+        projectId: null,
+        projectName: null,
+        action: { kind: "link", label: "Insurance settings", href: "/studio/settings/insurance" },
+        jobHref: null,
+        facts: [],
+        band: "later",
+        eventDate: null,
+        score: score({ lane: "fyi", updatedAt: null, now }),
       });
     }
   }

@@ -20,6 +20,8 @@ import {
   approvePreparedCoiInput,
   attachCoiUpload,
   attachCoiUploadInput,
+  ensureCoiInbox,
+  ensureCoiInboxInput,
   completeCoiDetails,
   completeCoiDetailsInput,
   resendCoi,
@@ -535,6 +537,13 @@ const command = z.discriminatedUnion("type", [
     input: attachCoiUploadInput,
   }),
   z.object({
+    // The job's own address for a certificate the studio makes itself.
+    type: z.literal("ensureCoiInbox"),
+    tenantId: z.string(),
+    idempotencyKey: z.string().min(8),
+    input: ensureCoiInboxInput,
+  }),
+  z.object({
     type: z.literal("approveAndSendCoi"),
     tenantId: z.string(),
     idempotencyKey: z.string().min(8),
@@ -718,6 +727,7 @@ export const planningCommand = onRequest(
         parsed.type === "approvePreparedCoi" ||
         parsed.type === "completeCoiDetails" ||
         parsed.type === "attachCoiUpload" ||
+        parsed.type === "ensureCoiInbox" ||
         parsed.type === "approveAndSendCoi" ||
         parsed.type === "resendCoi"
       ) {
@@ -2159,6 +2169,8 @@ export const planningCommand = onRequest(
         result = await approvePreparedCoi(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
       } else if (parsed.type === "completeCoiDetails") {
         result = await completeCoiDetails(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
+      } else if (parsed.type === "ensureCoiInbox") {
+        result = await ensureCoiInbox(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
       } else if (parsed.type === "attachCoiUpload") {
         result = await attachCoiUpload(db, { tenantId: parsed.tenantId, actorId: identity.uid, role, now }, parsed.input);
       } else if (parsed.type === "approveAndSendCoi") {

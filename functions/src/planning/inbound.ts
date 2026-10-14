@@ -44,18 +44,32 @@ function parseMultipart(request: Request) {
     let contentType = "";
     let attachment = Buffer.alloc(0);
     let tooLarge = false;
+    // Several files, the first PDF kept. An insurer's own email, or one the
+    // studio forwards, carries a logo or a signature image too, often first;
+    // with one file allowed, the logo was the attachment and the certificate
+    // was dropped (self-serve certificates by email, 2026-10-14).
     const parser = Busboy({
       headers: request.headers,
-      limits: { files: 1, fileSize: 15 * 1024 * 1024, fields: 30, fieldSize: 256 * 1024 },
+      limits: { files: 10, fileSize: 15 * 1024 * 1024, fields: 30, fieldSize: 256 * 1024 },
     });
     parser.on("field", (name, value) => { fields[name] = value; });
     parser.on("file", (_name, stream, info) => {
-      filename = info.filename;
-      contentType = info.mimeType;
+      const looksPdf = info.mimeType === "application/pdf" || /\.pdf$/i.test(info.filename ?? "");
+      if (attachment.length || !looksPdf) {
+        stream.resume();
+        return;
+      }
       const chunks: Buffer[] = [];
       stream.on("limit", () => { tooLarge = true; });
       stream.on("data", chunk => chunks.push(Buffer.from(chunk)));
-      stream.on("end", () => { attachment = Buffer.concat(chunks); });
+      stream.on("end", () => {
+        const body = Buffer.concat(chunks);
+        // A PDF by its first bytes, whatever its mail client called it.
+        if (attachment.length || body.subarray(0, 4).toString() !== "%PDF") return;
+        attachment = body;
+        filename = info.filename || "certificate-of-insurance.pdf";
+        contentType = "application/pdf";
+      });
     });
     parser.on("error", reject);
     parser.on("finish", () => {
@@ -85,14 +99,18 @@ function parseMultipart(request: Request) {
 }
 
 /**
- * The states in which a certificate from the agent is still wanted. `failed`
- * is a file that did not pass the safety scan, so a resend is the fix.
+ * The states in which a certificate is still wanted, from the agent or from
+ * the studio's insurer. `failed` is a file that did not pass the safety scan,
+ * so a resend is the fix.
  */
 export const ACCEPTING_STATUSES = new Set([
   "requested",
   "awaiting_response",
   "correction_required",
   "failed",
+  // A studio that makes its own certificates: the insurer's email, or the
+  // studio forwarding it, to the job's own address (self-serve kit).
+  "self_serve",
 ]);
 
 export const sendgridInboundCoi = onRequest({

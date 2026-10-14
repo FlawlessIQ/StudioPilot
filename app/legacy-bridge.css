@@ -3509,3 +3509,41 @@
 .ds-root .ds-setup.is-done > span svg {
   color: var(--ds-claret-deep);
 }
+
+/* The certificate kit for a studio that makes its own (self-serve kit,
+   2026-10-14): three numbered steps, the details as copy rows. */
+.ds-root .coi-kit-steps {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ds-root .coi-kit-steps li {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  justify-content: space-between;
+}
+.ds-root .coi-kit-steps li > span {
+  display: grid;
+  gap: 2px;
+}
+.ds-root .coi-kit-steps small,
+.ds-root .coi-kit-upload small {
+  color: var(--ds-muted);
+  font-size: 12.5px;
+}
+.ds-root .coi-kit-label {
+  margin: 4px 0 0;
+}
+.ds-root .coi-kit-address {
+  overflow-wrap: anywhere;
+}
+.ds-root .coi-kit-upload {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

@@ -61,6 +61,8 @@ const FIELD_LABELS: Record<string, string> = {
   primaryNoncontributory: "Primary and noncontributory",
   "requiredLimits.generalLiability": "General liability limit",
   "requiredLimits.damageToPremises": "Damage to rented premises",
+  policyExpirationDate: "Policy end date",
+  policyEffectiveDate: "Policy start date",
 };
 
 export function fieldLabel(field: string): string {
@@ -81,6 +83,16 @@ export function describeDiscrepancy(discrepancy: Discrepancy): {
 } {
   const label = fieldLabel(discrepancy.field);
   const missing = !discrepancy.extracted.trim();
+  // The policy period against the day: a certificate whose policy ends (or
+  // starts) on the wrong side of the event is no proof of cover for it.
+  if (discrepancy.field === "policyExpirationDate" || discrepancy.field === "policyEffectiveDate") {
+    const ends = discrepancy.field === "policyExpirationDate";
+    return {
+      label,
+      detail: `The policy on it ${ends ? "ends" : "starts"} ${readableDay(discrepancy.extracted)}, ${ends ? "before" : "after"} the event on ${readableDay(discrepancy.expected)}.`,
+      severity: discrepancy.severity,
+    };
+  }
   if (discrepancy.field.startsWith("requiredLimits.")) {
     const required = limitDollars(discrepancy.expected, true);
     const carried = limitDollars(discrepancy.extracted);
@@ -130,6 +142,13 @@ export function stillDisagrees(discrepancy: Discrepancy): boolean {
     return carried === null || carried < required;
   }
   return true;
+}
+
+/** "2027-01-03" as "Jan 3, 2027"; anything else as written. */
+function readableDay(value: string): string {
+  const day = value.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return value;
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
 /** Letters and digits only, so "Harvard College," and "harvard college" agree. */

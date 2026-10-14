@@ -11,6 +11,7 @@ import { setupOrderFor } from "@/features/today/setup-gaps";
 import { tradeVocab } from "@/features/trades/trades";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
+import { INSURERS, isInsurer, type Insurer } from "@/features/insurance/certificate-kit";
 
 type Dial = "off" | "prepare" | "auto";
 type Source = "agent" | "self_serve";
@@ -21,9 +22,12 @@ type Source = "agent" | "self_serve";
  * Who sends the studio's certificates of insurance, saved once. Every COI used
  * to begin with typing the agent's email into a form; with this, a booked job
  * whose venue needs one gets it asked for, chased and brought back for one
- * approval. Studios who generate certificates in their insurer's portal
- * (Hiscox, NEXT, Thimble…) get a task with the details to paste instead of an
- * email to an agent.
+ * approval. Studios who make their own certificates on their insurer's
+ * website (Hiscox, NEXT, Thimble…) get a kit on the job instead: the details
+ * in the order the insurer's form asks, a button to its certificate page, and
+ * an address on the job the certificate can be emailed to. None of the three
+ * lets a partner make certificates itself (checked 2026-10-14), so that form
+ * stays a person's two minutes.
  */
 export function CoiSettings() {
   const workspace = useWorkspace();
@@ -65,7 +69,13 @@ export function CoiSettings() {
     setEdits((current) => ({ ...current, [key]: next }));
   };
   const source = value<Source>("source", "agent");
+  const storedInsurer = value<string | null>("insurer", null);
+  const insurer: Insurer = isInsurer(storedInsurer) ? storedInsurer : "next";
   const dial = value<Dial>("dial", optIn && !venueAsks ? "off" : "prepare");
+  // Without an agent, Prepare and Send do the same thing — StudioCue gets
+  // everything ready and the studio makes the certificate — so a studio that
+  // makes its own sees two choices, not three that mention an agent.
+  const choice: Dial = source === "self_serve" && dial === "auto" ? "prepare" : dial;
 
   async function save() {
     setBusy(true);
@@ -78,12 +88,13 @@ export function CoiSettings() {
         agentEmail: value<string | null>("agentEmail", null) || null,
         agentPhone: value<string | null>("agentPhone", null) || null,
         ccStudio: value<boolean>("ccStudio", false),
-        portalUrl: value<string | null>("portalUrl", null) || null,
+        portalUrl: source === "self_serve" && insurer === "other" ? value<string | null>("portalUrl", null) || null : null,
+        insurer: source === "self_serve" ? insurer : null,
         leadDays: Number(value<number>("leadDays", 60)),
         chaseEveryDays: Number(value<number>("chaseEveryDays", 3)),
         maxChases: Number(value<number>("maxChases", 4)),
         agentNotes: value<string | null>("agentNotes", null) || null,
-        dial,
+        dial: choice,
       });
       refreshTenantRecords("coiSettings");
       setSaved(true);
@@ -154,8 +165,8 @@ export function CoiSettings() {
                 type="radio"
               />
               <span>
-                I make them myself in my insurer&rsquo;s portal (Hiscox, NEXT,
-                Thimble…)
+                I download them myself from my insurance company&rsquo;s
+                website (Hiscox, NEXT, Thimble…)
               </span>
             </label>
           </fieldset>
@@ -208,22 +219,44 @@ export function CoiSettings() {
               </label>
             </>
           ) : (
-            <label className="form-span">
-              Your insurer&rsquo;s certificate page
-              <input
-                onChange={(event) => set("portalUrl", event.target.value)}
-                placeholder="https://…"
-                type="url"
-                value={value("portalUrl", "") ?? ""}
-              />
-              <small>
-                Today links here with the holder, address and date ready to
-                paste.
-              </small>
-            </label>
+            <>
+              <fieldset className="form-span coi-settings-source">
+                <legend>Your insurance company</legend>
+                {(Object.keys(INSURERS) as Insurer[]).map((key) => (
+                  <label className="form-checkbox" key={key}>
+                    <input
+                      checked={insurer === key}
+                      onChange={() => set("insurer", key)}
+                      type="radio"
+                    />
+                    <span>{key === "other" ? "Another company" : INSURERS[key].label}</span>
+                  </label>
+                ))}
+                <small>
+                  Each job&rsquo;s certificate kit gets a button straight to
+                  where you make certificates.
+                </small>
+              </fieldset>
+              {insurer === "other" ? (
+                <label className="form-span">
+                  Link to where you make certificates{" "}
+                  <span className="coi-optional">optional</span>
+                  <input
+                    onChange={(event) => set("portalUrl", event.target.value)}
+                    placeholder="https://"
+                    type="url"
+                    value={value("portalUrl", "") ?? ""}
+                  />
+                  <small>
+                    The page on your insurer&rsquo;s website where you make a
+                    certificate. Adds a button to it next to the details.
+                  </small>
+                </label>
+              ) : null}
+            </>
           )}
           <label>
-            Ask this many days before the event
+            {source === "self_serve" ? "Remind me this many days before the event" : "Ask this many days before the event"}
             <input
               max={365}
               min={7}
@@ -275,20 +308,31 @@ export function CoiSettings() {
             </>
           ) : null}
           <fieldset className="form-span coi-settings-source">
-            <legend>How far StudioCue goes on its own</legend>
-            {(
-              [
-                [
-                  "prepare",
-                  "Prepare it — I approve each request before it goes to my agent",
-                ],
-                ["auto", "Send it — ask my agent as soon as it's time"],
-                ["off", "Off — I'll ask for certificates myself"],
-              ] as const
+            <legend>
+              {source === "self_serve"
+                ? "When a venue needs a certificate"
+                : "How far StudioCue goes on its own"}
+            </legend>
+            {(source === "self_serve"
+              ? ([
+                  [
+                    "prepare",
+                    "Remind me when it\u2019s time, with the details ready",
+                  ],
+                  ["off", "Off \u2014 I\u2019ll handle certificates myself"],
+                ] as const)
+              : ([
+                  [
+                    "prepare",
+                    "Prepare it \u2014 I approve each request before it goes to my agent",
+                  ],
+                  ["auto", "Send it \u2014 ask my agent as soon as it\u2019s time"],
+                  ["off", "Off \u2014 I\u2019ll ask for certificates myself"],
+                ] as const)
             ).map(([key, label]) => (
               <label className="form-checkbox" key={key}>
                 <input
-                  checked={dial === key}
+                  checked={choice === key}
                   disabled={!isOwner}
                   onChange={() => set("dial", key)}
                   type="radio"
