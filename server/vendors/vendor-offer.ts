@@ -80,3 +80,28 @@ export async function signupOfferFor(db: Firestore, code: string): Promise<{ sum
   const studioName = String(tenant.get("brandName") ?? "").trim() || String(tenant.get("businessName") ?? "").trim() || String(tenant.get("name") ?? "").trim();
   return { summary: VENDOR_OFFER_SUMMARY, studioName };
 }
+
+/**
+ * A studio's or a partner's code on a signup link (`/auth/register?code=`):
+ * whose it is, so the page can say "half price for 12 months" before the
+ * account exists (Conor, 2026-10-14: every code is 50% off). Checkout decides
+ * for itself (functions/src/saas/stripe.ts referredBy); a code that isn't a
+ * live referral code says nothing.
+ */
+export async function signupReferralFor(db: Firestore, code: string): Promise<{ referrerName: string } | null> {
+  const normalized = code.trim().toUpperCase().replace(/[\s-]+/g, "");
+  if (!/^[A-Z0-9]{4,20}$/.test(normalized)) return null;
+  const record = await db.doc(`saasReferralCodes/${normalized}`).get();
+  if (!record.exists || record.get("kind") === "vendor_offer") return null;
+  const partnerId = record.get("partnerId");
+  if (typeof partnerId === "string" && partnerId) {
+    const partner = await db.doc(`saasPartners/${partnerId}`).get();
+    if (!partner.exists || partner.get("active") === false) return null;
+    return { referrerName: String(partner.get("business") || partner.get("name") || "").trim() };
+  }
+  const tenantId = record.get("tenantId");
+  if (typeof tenantId !== "string" || !tenantId) return null;
+  const tenant = await db.doc(`tenants/${tenantId}`).get();
+  if (!tenant.exists || tenant.get("archivedAt")) return null;
+  return { referrerName: String(tenant.get("brandName") ?? "").trim() || String(tenant.get("businessName") ?? "").trim() || String(tenant.get("name") ?? "").trim() };
+}

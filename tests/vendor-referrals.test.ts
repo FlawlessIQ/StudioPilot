@@ -70,3 +70,18 @@ test("the partner's file says what a vendor gets, about them", () => {
   const vendor = String(row?.[PARTNER_EXPORT_HEADER.indexOf("What a vendor gets")]);
   assert.match(vendor, /half price for their first 12 months: \$50\/month, or \$500 for their first year/);
 });
+
+test("the old prices are gone from the site, the signup says half price, and the Console defaults to it", () => {
+  const llms = read("public/llms.txt");
+  assert.match(llms, /Pro plan, \$100\/month or \$1,000\/year/);
+  assert.match(llms, /50% off the first 12 months on any plan/);
+  assert.doesNotMatch(llms, /\$75\/month or \$750/);
+  const register = read("app/auth/register/page.tsx");
+  assert.match(register, /signupReferralFor\(adminFirestore, code\)/);
+  assert.match(register, /referred you: /);
+  const codes = read("components/console/pages/codes-page.tsx");
+  assert.match(codes, /useState\(REFERRAL_PERCENT_OFF\)/);
+  assert.match(codes, /useState<number>\(OFFER_MONTHS\)/);
+  assert.match(codes, /\["studio", "multi_brand", "vendor"\]/);
+  assert.match(codes, /a code made here gives it with nobody paid/);
+});

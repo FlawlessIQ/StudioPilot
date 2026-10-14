@@ -134,7 +134,8 @@ test("signup names a planning business at the vendor price", () => {
   // A live trade other than photography gets its own line; the planner's label is "Planning".
   assert.match(register, /trade && trade !== "photographer" && LIVE_TRADES\.includes\(trade as Trade\)/);
   assert.match(register, /TRADE_LABELS\[vendorTrade\]\.toLowerCase\(\)/);
-  assert.match(register, /set up your \$\{vendorWord\} business\. \$\{vendorPlanCards\[0\]!\.monthly\} a month after the 14-day trial\./);
+  // The list price, unless a referral code brings half price (2026-10-14).
+  assert.match(register, /set up your \$\{vendorWord\} business\. \$\{referralLine \?\? `\$\{vendorPlanCards\[0\]!\.monthly\} a month after the 14-day trial\.`\}/);
   assert.equal(TRADE_LABELS.planner.toLowerCase(), "planning");
 });
 

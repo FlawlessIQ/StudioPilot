@@ -7,6 +7,7 @@ import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Copy, Download, Plus, RefreshCw } from "lucide-react";
 import { describeDiscount, previewDiscount } from "@/features/console/discount-preview";
 import { PLAN_LABELS, PLAN_LIST_PRICE_CENTS } from "@/features/console/model";
+import { OFFER_MONTHS, REFERRAL_PERCENT_OFF } from "@/features/subscriptions/referral-program";
 import { money, shortDate } from "@/lib/console/format";
 import { useLiveQuery } from "@/lib/console/live";
 import { downloadCsv, studioHref, toCsv } from "@/lib/console/studio-display";
@@ -181,7 +182,9 @@ export function CodesPage() {
       </Topbar>
       <div className="cx-content">
         <PageHead count={promos.filter((code) => codeState(code) === "active").length} title="Discount codes" />
-        <p className="cx-page-intro">Codes apply only to StudioCue&apos;s plans in Stripe. A studio types one at checkout, or opens a signup link with it already applied.</p>
+        <p className="cx-page-intro">
+          {`Every StudioCue discount is ${REFERRAL_PERCENT_OFF}% off for the first ${OFFER_MONTHS} months, on every plan, monthly or yearly. Studio, partner and vendor codes give it on their own, and decide who is paid for the referral; a code made here gives it with nobody paid. Codes apply only to StudioCue's plans in Stripe: a customer types one at checkout, or opens a signup link with it already applied.`}
+        </p>
         {codes.error ? <Notice tone="bad">{codes.error}</Notice> : null}
         <Tabs
           label="Code views"
@@ -393,10 +396,11 @@ function CreateCodeBody({ mode, onClose }: { mode: "single" | "batch"; onClose: 
   const [count, setCount] = useState(50);
   const [label, setLabel] = useState("");
   const [kind, setKind] = useState<"percent" | "amount">("percent");
-  const [value, setValue] = useState(20);
+  // The house discount (features/subscriptions/referral-program.ts), unless there's a reason to differ.
+  const [value, setValue] = useState(REFERRAL_PERCENT_OFF);
   const [duration, setDuration] = useState<"once" | "repeating" | "forever">("repeating");
-  const [months, setMonths] = useState(3);
-  const [plans, setPlans] = useState<Array<"studio" | "multi_brand" | "vendor">>(["studio", "multi_brand"]);
+  const [months, setMonths] = useState<number>(OFFER_MONTHS);
+  const [plans, setPlans] = useState<Array<"studio" | "multi_brand" | "vendor">>(["studio", "multi_brand", "vendor"]);
   const [max, setMax] = useState<string>("");
   const [expires, setExpires] = useState("");
   const [firstTime, setFirstTime] = useState(true);

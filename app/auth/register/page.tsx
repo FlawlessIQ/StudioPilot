@@ -5,7 +5,9 @@ import { Logo } from "@/components/brand/logo";
 import { RegisterForm } from "@/features/auth/register-form";
 import { vendorPlanCards } from "@/config/saas-plans";
 import { adminFirestore } from "@/server/firebase/admin";
-import { signupOfferFor } from "@/server/vendors/vendor-offer";
+import { signupOfferFor, signupReferralFor } from "@/server/vendors/vendor-offer";
+import { OFFER_SUMMARY } from "@/features/subscriptions/referral-program";
+import { VENDOR_OFFER_SUMMARY } from "@/features/subscriptions/vendor-offer";
 import { LIVE_TRADES, TRADE_LABELS, type Trade } from "@/features/trades/trades";
 
 export const metadata: Metadata = {
@@ -29,6 +31,12 @@ export default async function RegisterPage({
   // A vendor's own offer link (their timeline email or share page) says the
   // price they were promised, not the plan's list price.
   const offer = vendorWord && code ? await signupOfferFor(adminFirestore, code).catch(() => null) : null;
+  // A studio's or a partner's code: every code is half price for 12 months
+  // (Conor, 2026-10-14), so say so here, in the plan this signup will pick.
+  const referral = code && !offer ? await signupReferralFor(adminFirestore, code).catch(() => null) : null;
+  const referralLine = referral
+    ? `${referral.referrerName ? `${referral.referrerName} referred you: ` : "With your code: "}${vendorWord ? VENDOR_OFFER_SUMMARY : OFFER_SUMMARY.replace("for the first", "for your first")}.`
+    : null;
   const isClientInvite = next?.startsWith("/auth/client-invite?token=") ?? false;
   const backHref = isClientInvite && next ? next : "/";
   const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : null;
@@ -96,8 +104,8 @@ export default async function RegisterPage({
               : vendorWord && offer
                 ? `Verify your work email, then set up your ${vendorWord} business. ${offer.studioName ? `Because you worked an event with ${offer.studioName}: ` : ""}${offer.summary}.`
                 : vendorWord
-                ? `Verify your work email, then set up your ${vendorWord} business. ${vendorPlanCards[0]!.monthly} a month after the 14-day trial.`
-                : "Verify your work email, then set up your own private studio."}
+                ? `Verify your work email, then set up your ${vendorWord} business. ${referralLine ?? `${vendorPlanCards[0]!.monthly} a month after the 14-day trial.`}`
+                : `Verify your work email, then set up your own private studio.${referralLine ? ` ${referralLine}` : ""}`}
           </p>
           <RegisterForm
             intent={isClientInvite ? "client" : "studio"}

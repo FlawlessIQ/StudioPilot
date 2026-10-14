@@ -52,8 +52,8 @@ export const planCards = [
  * artists and hair stylists (features/trades/trades.ts). Conor, 2026-10-08:
  * $75 a month full price, because their journey has fewer steps and fewer
  * features than a photographer's. Conor, 2026-10-14: $100 a month, $1,000 a
- * year (two months free, like Studio); the first year with a code is $75 a
- * month or $600 (features/subscriptions/vendor-offer.ts). Kept apart from
+ * year (two months free, like Studio); any code takes 50% off the first 12
+ * months (features/subscriptions/referral-program.ts). Kept apart from
  * `planCards`, so the photographer plans' cards and the homepage's structured
  * data never include it; since the launch (2026-10-12) the website shows it in
  * its own section, on /pricing and on /dj, /makeup and /hair
