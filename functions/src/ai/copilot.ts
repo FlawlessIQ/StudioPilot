@@ -580,6 +580,11 @@ function compact(document: DocumentSnapshot): Json & { id: string } {
     "name",
     "eventType",
     "eventKind",
+    // Who a mitzvah celebrates and which (job-kinds.ts). Without them Cue
+    // read "Rachel Cohen Bar or bat mitzvah" and called it Rachel's bat
+    // mitzvah (prod Cue scenarios, 2026-10-14).
+    "honoreeName",
+    "mitzvahType",
     "eventDate",
     "state",
     // A job the studio has put away. Without it "is this archived?" is

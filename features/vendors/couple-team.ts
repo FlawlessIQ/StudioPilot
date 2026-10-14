@@ -43,6 +43,7 @@ export const COUPLE_VENDOR_KINDS: readonly VendorType[] = [
   "bakery",
   "officiant",
   "rentals",
+  "entertainment",
   "transportation",
   "other",
 ];

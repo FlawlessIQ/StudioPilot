@@ -6,16 +6,19 @@ import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tena
 import { PlanningTimelineSettings } from "@/components/planning/planning-timeline-settings";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import {
+  CHECKLIST_KINDS,
   CHECKLIST_LIMITS,
   CHECKLIST_SCOPES,
   checklistFor,
   checklistIsCustom,
   checklistProblem,
   type ChecklistItem,
+  type ChecklistKind,
   type ChecklistScope,
   type ChecklistUnit,
 } from "@/features/planning/planning-checklist";
 import { PLANNING_SCOPE_LABELS } from "@/features/planning/planning-scope";
+import { JOB_KIND_LABELS } from "@/features/job-kinds/job-kinds";
 import { tradeProfile } from "@/features/trades/trades";
 import { friendlyError } from "@/lib/ai/friendly-error";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
@@ -49,17 +52,20 @@ export function PlanningChecklistSettings() {
   const { records: tenants } = useTenantDocuments("tenants");
   const stored = tenants?.find((entry) => entry.id === workspace.tenantId)?.planningChecklists;
   const [scope, setScope] = useState<ChecklistScope>("full");
-  const [drafts, setDrafts] = useState<Partial<Record<ChecklistScope, ChecklistItem[]>>>({});
+  // A wedding's list, or a kind's own (a mitzvah's: no license, no officiant).
+  const [kind, setKind] = useState<ChecklistKind | null>(null);
+  const draftKey = kind ? `${kind}:${scope}` : scope;
+  const [drafts, setDrafts] = useState<Partial<Record<string, ChecklistItem[]>>>({});
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const items = drafts[scope] ?? checklistFor(stored, scope);
-  const custom = checklistIsCustom(stored, scope);
-  const changed = drafts[scope] !== undefined;
+  const items = drafts[draftKey] ?? checklistFor(stored, scope, kind);
+  const custom = checklistIsCustom(stored, scope, kind);
+  const changed = drafts[draftKey] !== undefined;
 
   const edit = (next: ChecklistItem[]) => {
-    setDrafts((current) => ({ ...current, [scope]: next }));
+    setDrafts((current) => ({ ...current, [draftKey]: next }));
     setSaved(null);
     setError(null);
   };
@@ -76,12 +82,12 @@ export function PlanningChecklistSettings() {
     setBusy(true);
     setError(null);
     try {
-      const outcome = await sendPlanningCommand("setPlanningChecklist", { scope, items: tidy });
+      const outcome = await sendPlanningCommand("setPlanningChecklist", { scope, items: tidy, ...(kind ? { kind } : {}) });
       if (!outcome.persisted) {
         setSaved("Preview mode — nothing was saved.");
         return;
       }
-      setDrafts((current) => ({ ...current, [scope]: undefined }));
+      setDrafts((current) => ({ ...current, [draftKey]: undefined }));
       refreshTenantRecords("tenants");
       setSaved(next ? "Saved. Jobs booked from now on get this list." : "StudioCue’s list is back. Jobs booked from now on get it.");
     } catch (caught: unknown) {
@@ -105,6 +111,24 @@ export function PlanningChecklistSettings() {
             day. They show on Today when they’re due. Month-of coordination gets none.
           </p>
         </div>
+      </div>
+      <div aria-label="Which kind of job" className="planning-checklist-tiers" role="tablist">
+        {[null, ...CHECKLIST_KINDS].map((entry) => (
+          <button
+            aria-selected={entry === kind}
+            className={`planning-checklist-tier${entry === kind ? " is-active" : ""}`}
+            key={entry ?? "wedding"}
+            onClick={() => {
+              setKind(entry);
+              setSaved(null);
+              setError(null);
+            }}
+            role="tab"
+            type="button"
+          >
+            {entry ? JOB_KIND_LABELS[entry] : JOB_KIND_LABELS.wedding}
+          </button>
+        ))}
       </div>
       <div aria-label="Which tier" className="planning-checklist-tiers" role="tablist">
         {CHECKLIST_SCOPES.map((tier) => (

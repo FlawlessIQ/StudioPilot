@@ -41,6 +41,7 @@ export const VENDOR_TEAM_CATEGORIES = [
   "officiant",
   "bakery",
   "rentals",
+  "entertainment",
   "other",
 ] as const;
 /** What each kind is called on a printed contact sheet (features/vendors/team.ts VENDOR_CATEGORY_LABELS). */
@@ -61,6 +62,7 @@ const CATEGORY_LABELS: Record<(typeof VENDOR_TEAM_CATEGORIES)[number], string> =
   officiant: "Officiant",
   bakery: "Cake",
   rentals: "Rentals",
+  entertainment: "Entertainment",
   other: "Other",
 };
 export function vendorTeamCategoryLabel(category: unknown): string {

@@ -25,6 +25,10 @@ export const VENDOR_TYPES = [
   "officiant",
   "bakery",
   "rentals",
+  // Dancers, game hosts, a photo booth: a mitzvah books them as often as a
+  // DJ (docs/mitzvah-journey-plan-2026-10-14.md, decision 5). No trade of
+  // its own, so never invited to StudioCue.
+  "entertainment",
   "other",
 ] as const;
 export type VendorType = (typeof VENDOR_TYPES)[number];

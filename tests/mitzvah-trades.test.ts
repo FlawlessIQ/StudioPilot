@@ -187,3 +187,22 @@ test("a mitzvah inquiry gets its own form; a wedding inquiry the wedding one", a
   assert.match(read("functions/src/crm/commands.ts"), /form\.id === `\$\{kindOfForm\}-details` && byKind\[kindOfForm\] === undefined/);
   assert.match(read("app/studio/questionnaires/page.tsx"), /<InquiryEventFormSetting kind="mitzvah" \/>/);
 });
+
+test("a planner edits the mitzvah checklist apart from the wedding's; vendors can be entertainment", async () => {
+  const { checklistStorageKey } = await import("../features/planning/planning-checklist.ts");
+  assert.equal(checklistStorageKey("full"), "full");
+  assert.equal(checklistStorageKey("full", "mitzvah"), "mitzvah:full");
+  assert.equal(checklistStorageKey("partial", "wedding"), "partial");
+  const commands = readFileSync("functions/src/planning/commands.ts", "utf8");
+  assert.match(commands, /kind: z\.enum\(CHECKLIST_KINDS\)\.optional\(\)/);
+  assert.match(commands, /planningChecklists: \{ \[storageKey\]: saved \}/);
+  assert.match(readFileSync("components/planning/planning-checklist-settings.tsx", "utf8"), /aria-label="Which kind of job"/);
+  // Decision 5: dancers, game hosts and photo booths are a vendor type, never invited (no trade).
+  const { VENDOR_TYPES } = await import("../features/vendors/schema.ts");
+  const { VENDOR_CATEGORY_LABELS, VENDOR_TEAM_CATEGORIES } = await import("../features/vendors/team.ts");
+  assert.ok((VENDOR_TYPES as readonly string[]).includes("entertainment"));
+  assert.equal(VENDOR_CATEGORY_LABELS.entertainment, "Entertainment");
+  assert.ok(VENDOR_TEAM_CATEGORIES.includes("entertainment"));
+  const { vendorTypeIsLive } = await import("../features/trades/trades.ts");
+  assert.equal(vendorTypeIsLive("entertainment"), false);
+});

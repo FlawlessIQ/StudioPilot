@@ -80,7 +80,7 @@ import { templateLinkProblems } from "./template-rules.js";
 import { eventZone } from "./day-clock.js";
 import { importVendorsFromForm, isVendorTeamCommand, refreshVendorOnTeams, runVendorTeamCommand, vendorTeamCommands } from "./vendor-team.js";
 import { VENDOR_SECTION_FIELD_ID } from "./vendor-section.js";
-import { CHECKLIST_KEY_PATTERN, CHECKLIST_LIMITS, CHECKLIST_SCOPES, CHECKLIST_UNITS, checklistFor, checklistProblem } from "./planning-checklist.js";
+import { CHECKLIST_KEY_PATTERN, CHECKLIST_KINDS, CHECKLIST_LIMITS, CHECKLIST_SCOPES, CHECKLIST_UNITS, checklistFor, checklistProblem, checklistStorageKey } from "./planning-checklist.js";
 
 const item = z.object({
   id: z.string(),
@@ -672,6 +672,8 @@ const command = z.discriminatedUnion("type", [
         )
         .max(CHECKLIST_LIMITS.items)
         .nullable(),
+      /** A kind with its own list (a mitzvah's); left out, the wedding's list. */
+      kind: z.enum(CHECKLIST_KINDS).optional(),
     }),
   }),
   // A wedding's vendor team and its timeline sends (vendor-team.ts).
@@ -793,11 +795,13 @@ export const planningCommand = onRequest(
         const problem = items === null ? null : checklistProblem(items);
         if (problem) throw new Error(`PLANNING_CHECKLIST_INVALID: ${problem}`);
         const lists = plainRecord(tenantSnapshot.get("planningChecklists"));
-        const before = lists[parsed.input.scope] ?? null;
+        // A mitzvah's list is saved apart from the wedding's ("mitzvah:full").
+        const storageKey = checklistStorageKey(parsed.input.scope, parsed.input.kind);
+        const before = lists[storageKey] ?? null;
         const saved = { items, updatedAt: now, updatedBy: identity.uid };
         const auditId = stable("audit_planning_checklist", parsed.tenantId, parsed.idempotencyKey);
         const batch = db.batch();
-        batch.set(tenantReference, { planningChecklists: { [parsed.input.scope]: saved } }, { merge: true });
+        batch.set(tenantReference, { planningChecklists: { [storageKey]: saved } }, { merge: true });
         batch.set(db.doc(`auditEvents/${auditId}`), {
           id: auditId,
           tenantId: parsed.tenantId,
@@ -809,7 +813,7 @@ export const planningCommand = onRequest(
           entityId: parsed.tenantId,
           timestamp: now,
           before,
-          after: { scope: parsed.input.scope, items },
+          after: { scope: parsed.input.scope, items, ...(parsed.input.kind ? { kind: parsed.input.kind } : {}) },
           ipAddress: null,
           userAgent: null,
           correlationId: auditId,
@@ -817,7 +821,11 @@ export const planningCommand = onRequest(
           providerEventId: null,
         });
         await batch.commit();
-        result = { scope: parsed.input.scope, items: checklistFor({ [parsed.input.scope]: saved }, parsed.input.scope) };
+        result = {
+          scope: parsed.input.scope,
+          ...(parsed.input.kind ? { kind: parsed.input.kind } : {}),
+          items: checklistFor({ [storageKey]: saved }, parsed.input.scope, parsed.input.kind),
+        };
       } else if (parsed.type === "requestShotList") {
         // "Ask now" on the job (shot-list-upload.ts): the same request the
         // day's sweep sends, once per job.

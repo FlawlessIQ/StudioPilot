@@ -34,6 +34,7 @@ export type SectionCategory =
   | "bakery"
   | "officiant"
   | "rentals"
+  | "entertainment"
   | "transportation"
   | "other";
 
@@ -48,6 +49,7 @@ const CATEGORY_WORDS: ReadonlyArray<[RegExp, SectionCategory]> = [
   [/\bcakes?\b|\bbaker(?:y)?\b|\bdesserts?\b|\bpastry\b/i, "bakery"],
   [/\bofficiant\b|\bcelebrant\b|\bminister\b|\bpastor\b|\bpriest\b|\brabbi\b|\bjustice of the peace\b/i, "officiant"],
   [/\brentals?\b|\btent\b|\blinens?\b|\bchairs?\b|\bdécor rental\b/i, "rentals"],
+  [/\bentertain(?:er|ers|ment)\b|\bdancers?\b|\bphoto booth\b|\bgame host\b|\bmagician\b|\bcaricatur/i, "entertainment"],
   [/\btransport(?:ation)?\b|\blimo(?:usine)?\b|\bshuttles?\b|\bbus\b|\bcar service\b/i, "transportation"],
   [/\bplanner\b|\bcoordinator\b/i, "planner"],
   [/\bvenue\b/i, "venue"],
@@ -67,6 +69,7 @@ export const SECTION_CATEGORY_WORDS: Record<SectionCategory, string> = {
   bakery: "Cake",
   officiant: "Officiant",
   rentals: "Rentals",
+  entertainment: "Entertainment",
   transportation: "Transportation",
   other: "Other",
 };

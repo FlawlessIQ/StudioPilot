@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { US_ENGLISH_PART } from "./language.js";
-import { jobKindOf } from "../job-kinds/job-kinds.js";
+import { jobKindOf, journeyProfile, mitzvahOf } from "../job-kinds/job-kinds.js";
 import { tradeInstruction } from "../trades/trade-instruction.js";
 import { tradeProfile, tradeVocab } from "../trades/trades.js";
 import { getFirestore } from "firebase-admin/firestore";
@@ -313,7 +313,7 @@ export function fallbackDraft(input: {
  */
 export const MESSAGE_DRAFT_RULES =
   "Draft one client email for a photography studio from only the supplied facts. When a conversation is supplied, answer the client's most recent message directly and do not restate the whole thread. Write warmly and concisely in the studio's voice. Never invent availability, prices, dates, venues, links, or promises not present in the facts — put anything unknown in missingInformation instead. `facts.jobPackages`, when present, is every package the client has on this job (photography and video are often booked together): when the message refers to what they booked, name every package in `jobPackages.packages`, never just the first, and describe each only from its own `coverage`, `inclusions` and `terms`; `jobPackages.totalCents` is the combined total. `facts.packages`, when present, is the studio's catalog, not what this client booked. Never mention AI. The draft requires human review before sending. Output plain text (no markdown headers), short paragraphs." +
-  " Use the words of the job's kind (project.eventKind): a couple and their wedding only for a wedding; a family and their session for portraits; their event otherwise. Never mention a ceremony, bride or groom on a job that is not a wedding.";
+  " Use the words of the job's kind (project.eventKind): a couple and their wedding only for a wedding; for a mitzvah, write to the parents about their child's bar or bat mitzvah, by honoreeName and mitzvahType when given, never guessing either from the job's name; a family and their session for portraits; their event otherwise. Never mention a ceremony, bride or groom on a job that is not a wedding.";
 
 /** Triggers that are the studio's first personal reply to an inquiry. */
 export const FIRST_REPLY_TRIGGERS: readonly string[] = ["inquiry_reply"];
@@ -539,6 +539,9 @@ export const aiMessageDraftCommand = onRequest(
             // Leads store the label; `eventType` is a project field.
             eventType: lead.get("eventTypeLabel") ?? lead.get("eventType"),
             eventKind: lead.get("eventKind") ?? null,
+            // Who a mitzvah celebrates, and which (job-kinds.ts).
+            honoreeName: lead.get("honoreeName") ?? null,
+            mitzvahType: lead.get("mitzvahType") ?? null,
             eventDate: lead.get("eventDate"),
             venue: lead.get("venue"),
             city: lead.get("city"),
@@ -577,6 +580,10 @@ export const aiMessageDraftCommand = onRequest(
           name: project.get("name"),
           eventType: project.get("eventType"),
           eventKind: jobKindOf(project.data()),
+          // Who a mitzvah celebrates, and which (job-kinds.ts).
+          ...(journeyProfile(jobKindOf(project.data())).honoree
+            ? { honoreeName: mitzvahOf(project.data()).honoree, mitzvahType: mitzvahOf(project.data()).type }
+            : {}),
           eventDate: project.get("eventDate"),
           venueName: project.get("venueName"),
           city: project.get("city"),

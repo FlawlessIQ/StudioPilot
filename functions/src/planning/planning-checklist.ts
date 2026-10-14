@@ -133,6 +133,15 @@ export const MITZVAH_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readon
   ],
 };
 
+/** Kinds with lists of their own, saved and edited apart from the wedding's. */
+export const CHECKLIST_KINDS = ["mitzvah"] as const;
+export type ChecklistKind = (typeof CHECKLIST_KINDS)[number];
+
+/** Where a list is saved on the tenant: "full", or a kind's "mitzvah:full". */
+export function checklistStorageKey(scope: ChecklistScope, kind?: string | null): string {
+  return kind && KIND_CHECKLISTS[kind] ? `${kind}:${scope}` : scope;
+}
+
 /** Kinds with starter lists of their own; every other kind reads the wedding's. */
 const KIND_CHECKLISTS: Readonly<Record<string, Readonly<Record<ChecklistScope, readonly ChecklistItem[]>>>> = {
   mitzvah: MITZVAH_PLANNING_CHECKLISTS,
