@@ -13,6 +13,8 @@ export const VENDOR_OFFER_MONTHLY_CENTS = 5_000;
 export const VENDOR_OFFER_YEARLY_CENTS = 50_000;
 export const VENDOR_OFFER_MONTHS = 12;
 export const VENDOR_OFFER_SUMMARY = "14 days free, then $50/month for your first 12 months, or $500 for your first year";
+/** The same, said about someone else: a referrer's card, the Console, a partner's file. */
+export const VENDOR_OFFER_SUMMARY_THEIRS = "14 days free, then $50/month for their first 12 months, or $500 for their first year";
 
 export type VendorOfferAudience = "vendor" | "studio";
 

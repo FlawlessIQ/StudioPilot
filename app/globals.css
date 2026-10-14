@@ -5606,6 +5606,7 @@ textarea:focus-visible {
 .referral-card-head>svg{color:var(--accent);flex:none;margin-top:4px}
 .referral-card-head h2{margin:0 0 4px;font:500 23px var(--font-display)}
 .referral-card-head p{margin:0;color:var(--muted)}
+.referral-card-head ul{margin:8px 0 0;padding-left:18px;color:var(--muted)}
 .referral-code-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:end}
 .referral-code-row>span{display:grid;gap:4px;min-width:0}
 .referral-code-row small,.referral-stats dt,.referral-list small,.referral-invites small{color:var(--muted);font-size:13px}

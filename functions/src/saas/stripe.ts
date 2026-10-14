@@ -33,7 +33,7 @@ import {
   updateReferralStatus,
 } from "./referrals.js";
 import { OFFER_SUMMARY, REFERRAL_CREDIT_CENTS, creditDueAt } from "./referral-program.js";
-import { VENDOR_OFFER_SUMMARY, vendorOfferCoupon } from "./vendor-offer.js";
+import { VENDOR_OFFER_SUMMARY, VENDOR_OFFER_SUMMARY_THEIRS, vendorOfferCoupon } from "./vendor-offer.js";
 import { appUrl } from "../console/studio-owner.js";
 
 const billingCommandSchema = z.object({
@@ -325,6 +325,7 @@ async function referralStatus(db: FirebaseFirestore.Firestore, tenantId: string)
     code,
     link: appUrl(`/auth/register?code=${encodeURIComponent(code)}`),
     offer: OFFER_SUMMARY,
+    vendorOffer: VENDOR_OFFER_SUMMARY_THEIRS,
     creditCents: REFERRAL_CREDIT_CENTS,
     referrals: rows,
     creditedCents: rows.filter((row) => row.state === "credited").length * REFERRAL_CREDIT_CENTS,
@@ -388,7 +389,8 @@ export const billingCommand = onRequest(
               ? { kind: "own" }
               : referral.kind === "vendor_offer"
                 ? { kind: "referral", plan: "vendor", referrerName: referral.referrerName, offer: VENDOR_OFFER_SUMMARY }
-                : { kind: "referral", plan: "studio", referrerName: referral.referrerName, offer: OFFER_SUMMARY }
+                : // A studio's or a partner's code: either plan, so both offers; the page shows the one its trade can pick.
+                  { kind: "referral", plan: "any", referrerName: referral.referrerName, offer: OFFER_SUMMARY, vendorOffer: VENDOR_OFFER_SUMMARY }
             : { kind: parsed.promotionCode ? "code" : null },
         );
         return;
@@ -513,17 +515,19 @@ export const billingCommand = onRequest(
           !overrideLive &&
           normalizeStatus(existingStatus) === "incomplete" &&
           !subscriptionId;
-        // Another studio's referral code: the Studio plan's first year at the
-        // referral price, on a studio's first checkout only, never its own.
-        const referral =
-          firstCheckout && parsed.plan === "studio"
-            ? await referredBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
-            : null;
         // A vendor's own offer code: the vendor plan's first year at the
         // offer price (saas/vendor-offer.ts), on a first checkout only.
         const vendorOffer =
           firstCheckout && parsed.plan === "vendor"
             ? await vendorOfferBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
+            : null;
+        // Another studio's or a partner's referral code, on a first checkout
+        // only, never the studio's own: the Studio plan's first year at the
+        // referral price, or the vendor plan's at the vendor offer price
+        // (Conor, 2026-10-13: Gabe's partners send DJs and planners too).
+        const referral =
+          firstCheckout && !vendorOffer && (parsed.plan === "studio" || parsed.plan === "vendor")
+            ? await referredBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
             : null;
         // Beta codes: a code from the signup link is applied up front; with
         // none (or one Stripe won't honour) Checkout offers its own field.
@@ -557,7 +561,10 @@ export const billingCommand = onRequest(
         });
         if (referral) {
           params.delete("allow_promotion_codes");
-          params.set("discounts[0][coupon]", await referralCoupon(db, parsed.cadence));
+          params.set(
+            "discounts[0][coupon]",
+            parsed.plan === "vendor" ? await vendorOfferCoupon(db, parsed.cadence) : await referralCoupon(db, parsed.cadence),
+          );
           // Carried on the subscription, so the webhook ties the studio to its
           // referrer only once Checkout has actually completed.
           params.set("subscription_data[metadata][referralCode]", referral.code);
@@ -858,6 +865,7 @@ export async function writeSubscriptionFromStripe(
         tenantId,
         referrerTenantId,
         partnerId: referralPartnerId || null,
+        plan,
         code: String(subscriptionMetadata.referralCode ?? ""),
         via: typeof subscriptionMetadata.referralVia === "string" ? subscriptionMetadata.referralVia : null,
         status,

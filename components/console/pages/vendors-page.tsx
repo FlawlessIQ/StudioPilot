@@ -328,7 +328,7 @@ function VendorDrawer({ row, onClose }: { row: Row; onClose: () => void }) {
               </p>
             ) : (
               <div className="cx-form">
-                <p className="cx-hint">A partner code gives the photographers they send the referral price, and pays them for each one that counts.</p>
+                <p className="cx-hint">A partner code gives the photographers they send the referral price and the vendors the vendor offer, and pays them for each one that counts.</p>
                 <div className="cx-row-2">
                   <div className="cx-field">
                     <label className="cx-label" htmlFor="vendor-partner-code">Code</label>

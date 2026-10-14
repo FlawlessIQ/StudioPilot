@@ -66,8 +66,9 @@ export async function ensureReferralCode(db: Firestore, tenantId: string, now = 
  * Whose code it is: a studio's (`referrerTenantId`), or a referral partner's
  * (`partnerId`, made in the Console: console/handlers/partners.ts). A partner
  * is a planner, DJ, hair or makeup artist who isn't a StudioCue customer; their
- * code gives a photographer the same offer, and what they earn is tallied in
- * the Console and paid by hand (features/console/partner-payouts.ts).
+ * code gives a photographer the same offer, and a vendor the vendor offer
+ * (saas/stripe.ts), and what they earn is tallied in the Console and paid by
+ * hand (features/console/partner-payouts.ts).
  */
 export type ReferralMatch = {
   code: string;
@@ -164,6 +165,8 @@ export async function recordReferral(
     referrerTenantId: string;
     /** A referral partner's code (the Console), instead of a studio's. */
     partnerId?: string | null;
+    /** The plan the referred customer took: a partner earns half for a vendor (features/console/partner-payouts.ts). */
+    plan?: string | null;
     code: string;
     via: string | null;
     status: string;
@@ -193,6 +196,7 @@ export async function recordReferral(
         studioName: studioNameOf(referred) || null,
         referrerTenantId: partnerId ? "" : input.referrerTenantId,
         partnerId,
+        plan: input.plan ?? existing.get("plan") ?? null,
         referrerName: referrerName || null,
         code: input.code,
         via: existing.get("via") ?? input.via ?? "code",

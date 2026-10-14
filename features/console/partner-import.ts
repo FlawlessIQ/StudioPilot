@@ -1,5 +1,6 @@
 import { parseCsv } from "@/features/imports/spreadsheet";
 import { normalizeReferralCode, OFFER_SUMMARY } from "@/features/subscriptions/referral-program";
+import { VENDOR_OFFER_SUMMARY_THEIRS } from "@/features/subscriptions/vendor-offer";
 import { PARTNER_TYPE_LABELS, PARTNER_TYPES, partnerSignupLink, type PartnerType } from "./partner-payouts";
 
 /**
@@ -253,6 +254,7 @@ export const PARTNER_EXPORT_HEADER = [
   "Signup link",
   "Code works",
   "What a photographer gets",
+  "What a vendor gets",
   "How you pay them",
   "Signed up",
   "Referrals that count",
@@ -274,6 +276,7 @@ export function partnerExportRows(origin: string, partners: PartnerExportRow[]):
       partnerSignupLink(origin, partner.code),
       partner.active === false ? "No" : "Yes",
       OFFER_SUMMARY,
+      VENDOR_OFFER_SUMMARY_THEIRS,
       partner.payoutHandle ?? "",
       partner.signedUp ?? 0,
       partner.counted ?? 0,

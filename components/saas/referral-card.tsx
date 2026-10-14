@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Copy, Gift } from "lucide-react";
-import { REFERRAL_CREDIT_CENTS } from "@/features/subscriptions/referral-program";
+import { OFFER_MONTHLY_CENTS, OFFER_YEARLY_CENTS, REFERRAL_CREDIT_CENTS } from "@/features/subscriptions/referral-program";
+import { VENDOR_OFFER_MONTHLY_CENTS, VENDOR_OFFER_YEARLY_CENTS } from "@/features/subscriptions/vendor-offer";
 import { billingCommand } from "@/lib/billing/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
@@ -11,6 +12,8 @@ type Status = {
   code: string;
   link: string;
   offer: string;
+  /** What a DJ, planner, hair or makeup artist gets (the vendor plan); older functions omit it. */
+  vendorOffer?: string;
   creditCents: number;
   referrals: Array<{ signedUpAt: string | null; creditDueAt?: string | null; via: string; state: ReferralState }>;
   creditedCents: number;
@@ -31,6 +34,10 @@ const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(unde
  * Refer a studio (saas/referrals.ts): the studio's own code and link, what a
  * friend gets, what the studio has earned, and whether the vendors on its jobs
  * are invited. Owners only, like the rest of billing.
+ *
+ * Every trade has one (Conor, 2026-10-13): a DJ's code gives a photographer
+ * the Studio plan's referral price and another vendor the vendor offer, and
+ * the DJ gets the same $100 off their bill.
  */
 export function ReferralCard() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -81,12 +88,12 @@ export function ReferralCard() {
       <div className="referral-card-head">
         <Gift aria-hidden="true" />
         <span>
-          <h2 id="referral-heading">Refer a studio, get {dollars(REFERRAL_CREDIT_CENTS)}</h2>
-          <p>
-            {status
-              ? `Studios that sign up with your code get ${status.offer}. You get a one-off ${dollars(status.creditCents)} off your StudioCue bill for each one, once it has been paying for 3 months.`
-              : `Studios that sign up with your code get up to half off their first year. You get a one-off ${dollars(REFERRAL_CREDIT_CENTS)} off your bill for each one, once it has been paying for 3 months.`}
-          </p>
+          <h2 id="referral-heading">Refer a friend, get {dollars(REFERRAL_CREDIT_CENTS)}</h2>
+          <p>{`Anyone who signs up with your code gets 14 days free, then a lower price for their first year. You get a one-off ${dollars(status?.creditCents ?? REFERRAL_CREDIT_CENTS)} off your StudioCue bill for each one, once they have been paying for 3 months.`}</p>
+          <ul>
+            <li>{`Studio plan: ${dollars(OFFER_YEARLY_CENTS)} for the year, or ${dollars(OFFER_MONTHLY_CENTS)}/month`}</li>
+            <li>{`Pro plan (DJs, planners, hair and makeup): ${dollars(VENDOR_OFFER_YEARLY_CENTS)} for the year, or ${dollars(VENDOR_OFFER_MONTHLY_CENTS)}/month`}</li>
+          </ul>
         </span>
       </div>
       {status ? (
@@ -133,7 +140,7 @@ export function ReferralCard() {
             <span>
               <strong>Invite the vendors on my jobs</strong>
               <small>
-                {`Once a job is booked, the vendors on it get one email from StudioCue with your code, as soon as StudioCue is built for their line of work: videographers today, DJs, hair and makeup next. Never venues, and never anyone twice. ${status.vendorInvites.sent} invited so far.`}
+                {`Once a job is booked, the videographers, DJs, planners, hair and makeup artists on it get one email from StudioCue with a first-year offer. Never venues, and never anyone twice. ${status.vendorInvites.sent} invited so far.`}
               </small>
             </span>
           </label>

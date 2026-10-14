@@ -56,7 +56,7 @@ export function LiveSubscription() {
   const status = String(subscription?.status ?? (dataIsLive ? "loading" : "trialing"));
   // Another studio's referral code: name the studio and the offer before
   // Checkout, since Stripe's page only shows the discount line.
-  const [referredBy, setReferredBy] = useState<{ referrerName: string; offer: string; plan: "studio" | "vendor" } | null>(null);
+  const [referredBy, setReferredBy] = useState<{ referrerName: string; offer: string; plan: "studio" | "vendor"; workedWith: boolean } | null>(null);
   // A vendor's offer code typed by a studio whose trade has no vendor plan:
   // Checkout won't honor it (saas/stripe.ts referredBy), so the page mustn't
   // promise it either (UAT 2026-10-13).
@@ -65,12 +65,15 @@ export function LiveSubscription() {
   useEffect(() => {
     if (status !== "incomplete" || !promotionCode) return;
     let active = true;
-    billingCommand<{ kind: string | null; referrerName?: string; offer?: string; plan?: string }>("previewCode", { promotionCode })
+    billingCommand<{ kind: string | null; referrerName?: string; offer?: string; vendorOffer?: string; plan?: string }>("previewCode", { promotionCode })
       .then((result) => {
         if (!active || result?.kind !== "referral" || !result.referrerName || !result.offer) return;
         // A vendor's own offer code is the vendor plan's (functions/src/saas/vendor-offer.ts).
         if (result.plan === "vendor" && !vendorPlanOffered) setCodeNotForPlan(true);
-        else setReferredBy({ referrerName: result.referrerName, offer: result.offer, plan: result.plan === "vendor" ? "vendor" : "studio" });
+        else if (result.plan === "vendor") setReferredBy({ referrerName: result.referrerName, offer: result.offer, plan: "vendor", workedWith: true });
+        // A studio's or a partner's code works on either plan (saas/stripe.ts): the offer for this trade's.
+        else if (vendorPlanOffered && result.vendorOffer) setReferredBy({ referrerName: result.referrerName, offer: result.vendorOffer, plan: "vendor", workedWith: false });
+        else setReferredBy({ referrerName: result.referrerName, offer: result.offer, plan: "studio", workedWith: false });
       })
       .catch(() => undefined);
     return () => {
@@ -184,9 +187,11 @@ export function LiveSubscription() {
               ? "Pick the plan that fits your studio to open your workspace. Your card is collected now but nothing is charged until the trial ends — cancel any time before then."
               : "Manage your plan and billing securely through Stripe."}
             {preTrial && referredBy
-              ? referredBy.plan === "vendor"
+              ? referredBy.workedWith
                 ? ` Because you worked an event with ${referredBy.referrerName}, you get ${referredBy.offer}.`
-                : ` ${referredBy.referrerName} referred you: on the Studio plan you get ${referredBy.offer}.`
+                : referredBy.plan === "vendor"
+                  ? ` ${referredBy.referrerName} referred you: you get ${referredBy.offer}.`
+                  : ` ${referredBy.referrerName} referred you: on the Studio plan you get ${referredBy.offer}.`
               : preTrial && promotionCode && codeNotForPlan
                 ? ` The code ${promotionCode} is a vendor's offer on the vendor plan, so it doesn't apply to your plans.`
                 : preTrial && promotionCode
@@ -341,9 +346,9 @@ export function LiveSubscription() {
           ))}
         </div>
       </section>
-      {/* Referrals are a photographer's for now: the offer is on the Studio
-          plan, and referrals between trades are parked (docs/vendor-journeys-plan.md). */}
-      {!preTrial && trialActive && workspace.role === "studio_owner" && tradeProfile(workspace.tenantTrade).family === "photo" ? <ReferralCard /> : null}
+      {/* Every trade refers (Conor, 2026-10-13): a code gives a photographer
+          the Studio plan's referral price and a vendor the vendor offer. */}
+      {!preTrial && trialActive && workspace.role === "studio_owner" ? <ReferralCard /> : null}
       <section className="panel billing-boundary" hidden={preTrial}>
         <div>
           <CreditCard />

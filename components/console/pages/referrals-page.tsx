@@ -35,6 +35,8 @@ type Referral = {
   referrerName?: string | null;
   code?: string;
   via?: string | null;
+  /** The plan they took: "vendor" for a DJ, planner, hair or makeup artist. */
+  plan?: string | null;
   status?: string;
   signedUpAt?: string | null;
   paidAt?: string | null;
@@ -101,7 +103,12 @@ function StudioReferrals() {
         header: "Studio",
         accessorFn: (row) => names.get(row.tenantId) ?? row.studioName ?? row.tenantId,
         meta: { width: 200, flex: true },
-        cell: ({ row }) => <Link className="cx-link" href={studioHref(row.original.tenantId)}>{names.get(row.original.tenantId) ?? row.original.studioName ?? row.original.tenantId}</Link>,
+        cell: ({ row }) => (
+          <span>
+            <Link className="cx-link" href={studioHref(row.original.tenantId)}>{names.get(row.original.tenantId) ?? row.original.studioName ?? row.original.tenantId}</Link>
+            {row.original.plan === "vendor" ? <span className="cx-sub">{" · vendor"}</span> : null}
+          </span>
+        ),
       },
       {
         id: "referrer",
@@ -141,7 +148,7 @@ function StudioReferrals() {
         </PageHead>
         {referrals.error ?? credits.error ?? invites.error ? <Notice tone="bad">{referrals.error ?? credits.error ?? invites.error}</Notice> : null}
         <p className="cx-page-intro">
-          {`Every studio has a referral code on its Subscription page. A studio that signs up with one gets ${OFFER_SUMMARY}. The studio whose code it was earns a one-off ${money(REFERRAL_CREDIT_CENTS)} credit, added to its Stripe balance once the new studio has been paying for 3 months and is still paying. Vendors on studios' booked jobs are invited once, by themselves, with the studio's code.`}
+          {`Every studio has a referral code on its Subscription page. A photographer who signs up with one gets ${OFFER_SUMMARY}; a DJ, planner, hair or makeup artist gets the vendor offer. The studio whose code it was earns a one-off ${money(REFERRAL_CREDIT_CENTS)} credit, added to its Stripe balance once the new studio has been paying for 3 months and is still paying. Vendors on studios' booked jobs are invited once, by themselves, with the studio's code.`}
         </p>
         <div className="cx-grid-2">
           <Panel flush title="Studios bringing others in">

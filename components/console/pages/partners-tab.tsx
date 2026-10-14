@@ -9,6 +9,8 @@ import {
   PARTNER_RATE_CENTS,
   PARTNER_TIER_AFTER,
   PARTNER_TOP_RATE_CENTS,
+  PARTNER_VENDOR_RATE_CENTS,
+  PARTNER_VENDOR_TOP_RATE_CENTS,
   PARTNER_TYPES,
   PARTNER_TYPE_LABELS,
   PAYOUT_METHODS,
@@ -17,12 +19,14 @@ import {
   partnerSignupLink,
   partnerTally,
   referralStage,
+  referredVendor,
   type PartnerType,
   type PayoutMethod,
   type ReferralStage,
 } from "@/features/console/partner-payouts";
 import { makePartnerCode, PARTNER_CODE_SUFFIX, PARTNER_EXPORT_HEADER, partnerCodeStem, partnerExportRows } from "@/features/console/partner-import";
 import { normalizeReferralCode, OFFER_SUMMARY } from "@/features/subscriptions/referral-program";
+import { VENDOR_OFFER_SUMMARY_THEIRS } from "@/features/subscriptions/vendor-offer";
 import { money, shortDate } from "@/lib/console/format";
 import { useLiveQuery } from "@/lib/console/live";
 import { downloadCsv, studioHref, toCsv } from "@/lib/console/studio-display";
@@ -66,6 +70,7 @@ type Referral = {
   paidAt?: string | null;
   qualifiedAt?: string | null;
   forfeitedAt?: string | null;
+  plan?: string | null;
 };
 
 const STAGE_TONE: Record<ReferralStage, "info" | "warn" | "ok" | "neutral"> = { trial: "info", paying: "warn", counts: "ok", canceled: "neutral" };
@@ -199,7 +204,7 @@ export function PartnersTab({ open, setOpen }: { open: "new" | "import" | string
       </PageHead>
       {partners.error ?? payouts.error ?? referrals.error ? <Notice tone="bad">{partners.error ?? payouts.error ?? referrals.error}</Notice> : null}
       <p className="cx-page-intro">
-        {`Planners, DJs, hair and makeup artists who send photographers our way. A photographer who signs up with a partner's code gets ${OFFER_SUMMARY}. A referral counts once that photographer has been paying for 3 months and still is. The partner earns ${money(PARTNER_RATE_CENTS)} per referral that counts; past ${PARTNER_TIER_AFTER}, every one is ${money(PARTNER_TOP_RATE_CENTS)}, the first ${PARTNER_TIER_AFTER} included. You pay them yourself and record it here.`}
+        {`Planners, DJs, hair and makeup artists who send photographers and other vendors our way. A photographer who signs up with a partner's code gets ${OFFER_SUMMARY}; a DJ, planner, hair or makeup artist gets ${VENDOR_OFFER_SUMMARY_THEIRS}. A referral counts once they have been paying for 3 months and still are. The partner earns ${money(PARTNER_RATE_CENTS)} per photographer and ${money(PARTNER_VENDOR_RATE_CENTS)} per vendor that counts; past ${PARTNER_TIER_AFTER} (both together), every photographer is ${money(PARTNER_TOP_RATE_CENTS)} and every vendor ${money(PARTNER_VENDOR_TOP_RATE_CENTS)}, the first ${PARTNER_TIER_AFTER} included. You pay them yourself and record it here.`}
       </p>
       <div className="cx-inline">
         {can("codes.write") ? (
@@ -334,8 +339,16 @@ function PartnerDrawer({
                 ["Code", <span className="cx-inline" key="code"><Tag code>{partner.code}</Tag>{partner.active === false ? <Pill tone="neutral">Off</Pill> : null}</span>],
                 ["Signup link", <span className="cx-inline" key="link"><span className="cx-sub">{partnerSignupLink(origin(), partner.code)}</span><Button onClick={onCopy} size="sm">Copy</Button></span>],
                 ["Signed up", `${tally.signedUp} (${tally.inTrial} in trial, ${tally.paying} paying, ${tally.canceled} canceled)`],
-                ["Count", tally.toTopRate > 0 ? `${tally.counted}, ${tally.toTopRate} more to reach ${money(PARTNER_TOP_RATE_CENTS)} each` : `${tally.counted}, at ${money(PARTNER_TOP_RATE_CENTS)} each`],
-                ["Earned", `${money(tally.earnedCents)} (${tally.counted} × ${money(tally.rateCents)})`],
+                ["Count", tally.toTopRate > 0 ? `${tally.counted}, ${tally.toTopRate} more to reach the top rate (${money(PARTNER_TOP_RATE_CENTS)} a photographer, ${money(PARTNER_VENDOR_TOP_RATE_CENTS)} a vendor)` : `${tally.counted}, at the top rate`],
+                [
+                  "Earned",
+                  `${money(tally.earnedCents)} (${[
+                    tally.counted - tally.countedVendors ? `${tally.counted - tally.countedVendors} photographer${tally.counted - tally.countedVendors === 1 ? "" : "s"} × ${money(tally.rateCents)}` : null,
+                    tally.countedVendors ? `${tally.countedVendors} vendor${tally.countedVendors === 1 ? "" : "s"} × ${money(tally.vendorRateCents)}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" + ") || "none yet"})`,
+                ],
                 ["Paid", money(tally.paidCents)],
                 ["Owed", tally.owedCents > 0 ? <Pill key="owed" tone="warn">{money(tally.owedCents)}</Pill> : money(Math.max(0, tally.owedCents))],
               ]}
@@ -343,7 +356,7 @@ function PartnerDrawer({
           </>
         ) : (
           <p className="cx-hint">
-            The code is what the partner shares: their name plus a few random characters, like <strong>SARAHMUA7KQX</strong>, so it reads as theirs but isn&apos;t just their name. Leave it blank and one is made for you. A photographer who signs up with it gets the referral price. It can&apos;t be changed once made.
+            The code is what the partner shares: their name plus a few random characters, like <strong>SARAHMUA7KQX</strong>, so it reads as theirs but isn&apos;t just their name. Leave it blank and one is made for you. A photographer who signs up with it gets the referral price, and a DJ, planner, hair or makeup artist the vendor offer. It can&apos;t be changed once made.
           </p>
         )}
         <div className="cx-row-2">
@@ -387,7 +400,7 @@ function PartnerDrawer({
 
         {partner ? (
           <>
-            <Panel flush title="Photographers who signed up">
+            <Panel flush title="Who signed up">
               {referrals.length ? (
                 <div className="cx-timeline">
                   {[...referrals]
@@ -396,7 +409,10 @@ function PartnerDrawer({
                       const stage = referralStage(referral);
                       return (
                         <Link className="cx-item" href={studioHref(referral.tenantId)} key={referral.id}>
-                          <span className="cx-item-title">{names.get(referral.tenantId) ?? referral.studioName ?? referral.tenantId}</span>
+                          <span className="cx-item-title">
+                            {names.get(referral.tenantId) ?? referral.studioName ?? referral.tenantId}
+                            <span className="cx-sub">{referredVendor(referral) ? " · vendor" : " · photographer"}</span>
+                          </span>
                           <span className="cx-item-time"><Pill tone={STAGE_TONE[stage]}>{REFERRAL_STAGE_LABELS[stage]}</Pill></span>
                           <span className="cx-item-snippet">
                             {[`Signed up ${shortDate(referral.signedUpAt ?? null, now)}`, referral.paidAt ? `first paid ${shortDate(referral.paidAt, now)}` : null, referral.qualifiedAt ? `counted ${shortDate(referral.qualifiedAt, now)}` : null]
@@ -408,7 +424,7 @@ function PartnerDrawer({
                     })}
                 </div>
               ) : (
-                <Empty title="Nobody yet">Photographers show here as soon as one signs up with this code.</Empty>
+                <Empty title="Nobody yet">They show here as soon as someone signs up with this code.</Empty>
               )}
             </Panel>
             <Panel flush title="Payouts">

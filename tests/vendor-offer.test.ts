@@ -25,6 +25,7 @@ test("the app's copy of the offer and the server's agree", () => {
   assert.equal(app.VENDOR_OFFER_YEARLY_CENTS, server.VENDOR_OFFER_YEARLY_CENTS);
   assert.equal(app.VENDOR_OFFER_MONTHS, server.VENDOR_OFFER_MONTHS);
   assert.equal(app.VENDOR_OFFER_SUMMARY, server.VENDOR_OFFER_SUMMARY);
+  assert.equal(app.VENDOR_OFFER_SUMMARY_THEIRS, server.VENDOR_OFFER_SUMMARY_THEIRS);
   for (const type of VENDOR_TYPES) {
     assert.equal(app.vendorOfferAudience(type), server.vendorOfferAudience(type), type);
     assert.equal(
