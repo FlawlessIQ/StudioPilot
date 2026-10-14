@@ -22,7 +22,18 @@ test("the recommended forms the server seeds are the ones the app shows", () => 
   );
   assert.deepEqual(
     recommendedQuestionnaires().map((form) => form.id),
-    ["wedding-event-details", "wedding-final-schedule", "wedding-shot-list", "dj-music-planner", "makeup-party-list", "hair-party-list", "planner-final-details"],
+    [
+      "wedding-event-details",
+      "wedding-final-schedule",
+      "wedding-shot-list",
+      "mitzvah-details",
+      "mitzvah-final-schedule",
+      "mitzvah-shot-list",
+      "dj-music-planner",
+      "makeup-party-list",
+      "hair-party-list",
+      "planner-final-details",
+    ],
   );
 });
 

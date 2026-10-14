@@ -19,7 +19,8 @@ import {
   participantInvoiceSendable,
   participantInvoiceVoidJob,
 } from "../group-events/participant-invoice-core.js";
-import { tradeAllows, tradeMoves, tradeProfile } from "../trades/trades.js";
+import { tradeAllows, tradeMoves, tradeOf, tradeProfile } from "../trades/trades.js";
+import { OFFERED_KIND_FORMS, recommendedFor } from "../planning/recommended-templates.js";
 import { DELIVERY_LIMITS, deliveryUrlProblem, groupReviewDueAt, releaseDecision, rosterDeliveryMove, type ParticipantDelivery } from "../group-events/delivery.js";
 import { GROUP_DELIVERED_NOUN, GROUP_DELIVERY_EMAIL, groupDeliveryJobId } from "../group-events/participant-delivery-core.js";
 import { linkHost } from "../post-event/link-host.js";
@@ -4918,6 +4919,45 @@ export const crmCommand = onRequest(
           }
           const settingsReference = db.doc(`leadCaptureSettings/${command.tenantId}`);
           const settings = await transaction.get(settingsReference);
+          /**
+           * A kind's own forms, the first time the studio offers it: a bar or
+           * bat mitzvah's details, final schedule and shot list
+           * (docs/mitzvah-journey-plan-2026-10-14.md, Phase 3). Only forms the
+           * studio has never had, archived or not, so a form it put away
+           * stays away. Reads before the writes below.
+           */
+          const offeredKinds = [...new Set(checked.config.eventTypes.map((type) => String(type.kind)))].filter(
+            (kind) => OFFERED_KIND_FORMS.includes(kind),
+          );
+          let kindForms: ReturnType<typeof recommendedFor> = [];
+          if (offeredKinds.length) {
+            const [tenantForForms, existingTemplates] = await Promise.all([
+              transaction.get(db.doc(`tenants/${command.tenantId}`)),
+              transaction.get(db.collection("questionnaireTemplates").where("tenantId", "==", command.tenantId).limit(500)),
+            ]);
+            const had = new Set(existingTemplates.docs.map((template) => String(template.get("recommendedId") ?? "")));
+            kindForms = recommendedFor(tradeOf(tenantForForms.get("trade")), offeredKinds).filter((form) => !had.has(form.id));
+          }
+          for (const form of kindForms) {
+            const questionnaireId = randomUUID();
+            transaction.create(db.doc(`questionnaireTemplates/${questionnaireId}`), {
+              id: questionnaireId,
+              tenantId: command.tenantId,
+              name: form.name,
+              eventTypeId: form.eventTypeId,
+              status: "active",
+              sections: form.sections,
+              dueDaysBeforeEvent: form.dueDaysBeforeEvent,
+              reminderDaysBeforeDue: form.reminderDaysBeforeDue,
+              recommendedId: form.id,
+              version: 1,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              createdBy: identity.uid,
+              updatedBy: identity.uid,
+              archivedAt: null,
+            });
+          }
           transaction.set(
             settingsReference,
             {

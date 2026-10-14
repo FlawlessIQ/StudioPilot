@@ -58,6 +58,17 @@ export function standardMomentsInstruction(isWedding: boolean): string {
  * editor offers (features/schedules/standard-moments.ts, KIND_STANDARD_MOMENTS).
  */
 export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, ReadonlyArray<{ title: string; minutes: number }>>>> = {
+  mitzvah: [
+    { title: "Family portraits", minutes: 45 },
+    { title: "Kids' room", minutes: 60 },
+    { title: "Grand entrance", minutes: 5 },
+    { title: "Hora", minutes: 15 },
+    { title: "Blessings over the challah and wine", minutes: 10 },
+    { title: "Parents' speech and toast", minutes: 15 },
+    { title: "Candle lighting", minutes: 30 },
+    { title: "Montage", minutes: 10 },
+    { title: "Last dance", minutes: 5 },
+  ],
   corporate: [
     { title: "Guest arrivals and registration", minutes: 30 },
     { title: "Keynote", minutes: 45 },

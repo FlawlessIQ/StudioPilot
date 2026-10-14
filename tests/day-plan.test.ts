@@ -436,7 +436,7 @@ test("answered only: the couple's times and TBDs, no suggested lines, and a coun
 
 test("the editor lays out answered only, with a button for the rest", () => {
   const editor = readFileSync("components/planning/ai-schedule-generator.tsx", "utf8");
-  assert.match(editor, /planDay\(\{ \.\.\.dayPlanInput\(\), answeredOnly: true \}\)/);
+  assert.match(editor, /planBuiltDay\(dayPlanOf\(selectedProject\), \{ \.\.\.dayPlanInput\(\), answeredOnly: true \}\)/);
   assert.match(editor, /Suggest times for the gaps/);
 });
 

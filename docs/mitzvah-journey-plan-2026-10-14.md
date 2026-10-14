@@ -30,7 +30,55 @@ kind (quinceañera, sweet 16) then costs one row per table.
 | 0: re-key | **Built 2026-10-14** (branch `mitzvah-phase0`). No behavior change: 4341 tests, typecheck, functions build, lint and the production build all pass. |
 | 1: kind | **Built 2026-10-14.** 4343 tests, typecheck, functions build, lint and the production build pass. |
 | 2: family's side | **Built 2026-10-14.** 4346 tests, typecheck, functions build, lint and the production build pass. |
-| 3–6 | Not started |
+| 3: photo/video planning | **Built 2026-10-14.** 4355 tests, typecheck, functions build, lint and the production build pass. Not deployed. |
+| 4–6 | Not started (part of 4 was pulled into 2) |
+
+**What Phase 3 did**
+- **Three photographer forms** with `eventTypeId: "mitzvah"`:
+  - **Mitzvah details** (`mitzvah-details`): the family; who it celebrates
+    and how to say their name; the synagogue, the service time, its
+    photography rules, and the portrait session; the party (location,
+    start and end, guests, kids, kids' room); and coverage.
+  - **Mitzvah final schedule** (`mitzvah-final-schedule`): the details
+    again, plus family names, the candle lighting in order, and "Your
+    party, in order" with suggested times.
+  - **Mitzvah shot list** (`mitzvah-shot-list`): the wedding list's ids,
+    with the candles added.
+- **Seeding.** Signup still seeds wedding forms only (`recommendedFor`
+  defaults to wedding). A studio gets the mitzvah forms the first time it
+  saves an inquiry form offering the kind (crm `setInquiryForm`,
+  `OFFERED_KIND_FORMS`), only ones it has never had. The library shows
+  them to every photographer.
+- **The day plan:** `planMitzvahDay` (features/schedules/mitzvah-plan.ts),
+  picked by `planBuiltDay` from `dayPlan: "mitzvah"`.
+  - The party start is the anchor. Before it come family portraits. After
+    it come cocktails and the kids' room, entrance, hora, blessings,
+    speech, dinner, candles, montage, dancing, cake and the last dance.
+  - The service is placed only when given, as "Service (no photography)"
+    when the synagogue says so. Coverage never starts at the morning
+    service.
+  - A second team takes the kids' room.
+  - The portrait session is noted as its own date.
+  - Mitzvah "Add a moment" chips, also in the AI copy.
+- **Schedule A:** `scheduleAParts` is now `"wedding" | "mitzvah" | null`.
+  - A mitzvah requires the Service, the Party and the Times. Its labels
+    and missing list say "Service" and "Party".
+  - The synagogue, temple and service words, and the party words, are read
+    only for a mitzvah.
+- **The crew sheet:** the mitzvah answers reach the crew brief. The
+  synagogue's photography rules are first under "Before you shoot".
+- **The scheduler:**
+  - A kind off the planning timeline gets its own final schedule as the
+    planning form, never its shot list (`planningFormTemplate`).
+  - Its own shot list (`shotListTemplateFor`), also when the form is sent
+    by hand.
+  - **This also changes weddings, but only for a studio with no chosen
+    planning form:** the fallback no longer picks a shot list, and prefers
+    a final schedule.
+- **Switches on for mitzvah:** `shotList`, `dayPlan: "mitzvah"`,
+  `scheduleAParts: "mitzvah"`. The vendor-team ask and the planning
+  timeline stay off.
+- **Guard:** `tests/mitzvah-planning.test.ts`.
 
 **What Phase 2 did**
 - **Every client surface passes the job to `vocab`.**

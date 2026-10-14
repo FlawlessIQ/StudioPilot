@@ -101,13 +101,19 @@ test("the wedding-only steps are switches, and only a wedding has them on (mitzv
   const wedding = journeyProfile("wedding");
   assert.deepEqual(
     [wedding.planningTimeline, wedding.shotList, wedding.vendorTeam, wedding.dayPlan, wedding.partner, wedding.scheduleAParts],
-    [true, true, true, "wedding", true, true],
+    [true, true, true, "wedding", true, "wedding"],
   );
-  for (const kind of JOB_KINDS.filter((kind) => kind !== "wedding")) {
+  // A mitzvah has its own shot list, day plan and Schedule A (Phase 3), on its own 90-day form.
+  const mitzvah = journeyProfile("mitzvah");
+  assert.deepEqual(
+    [mitzvah.planningTimeline, mitzvah.shotList, mitzvah.vendorTeam, mitzvah.dayPlan, mitzvah.partner, mitzvah.scheduleAParts],
+    [false, true, false, "mitzvah", false, "mitzvah"],
+  );
+  for (const kind of JOB_KINDS.filter((kind) => kind !== "wedding" && kind !== "mitzvah")) {
     const profile = journeyProfile(kind);
     assert.deepEqual(
       [profile.planningTimeline, profile.shotList, profile.vendorTeam, profile.dayPlan, profile.partner, profile.scheduleAParts],
-      [false, false, false, null, false, false],
+      [false, false, false, null, false, null],
       kind,
     );
   }

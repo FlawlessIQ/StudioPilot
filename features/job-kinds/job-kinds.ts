@@ -520,11 +520,15 @@ export type JourneyProfile = {
    * AI and no timing rules (features/schedules/day-plan.ts). Null: an AI
    * draft from the kind's usual moments.
    */
-  dayPlan: "wedding" | null;
+  dayPlan: "wedding" | "mitzvah" | null;
   /** The client is two people: the inquiry asks for a partner and the ceremony time. */
   partner: boolean;
-  /** Schedule A insists on its parts (getting ready, ceremony, reception, times) from booking. */
-  scheduleAParts: boolean;
+  /**
+   * Whose parts Schedule A insists on from booking (event-details.ts): a
+   * wedding's getting ready, ceremony, reception and times; a mitzvah's
+   * service, party and times. Null: none required.
+   */
+  scheduleAParts: "wedding" | "mitzvah" | null;
   /**
    * The job celebrates someone who isn't the client: a mitzvah's child. It
    * carries their first name (`honoreeName`) and which mitzvah it is
@@ -540,7 +544,7 @@ const PLAIN_STEPS = {
   vendorTeam: false,
   dayPlan: null,
   partner: false,
-  scheduleAParts: false,
+  scheduleAParts: null,
   honoree: false,
 } as const;
 
@@ -562,7 +566,7 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     vendorTeam: true,
     dayPlan: "wedding",
     partner: true,
-    scheduleAParts: true,
+    scheduleAParts: "wedding",
     honoree: false,
   },
   // The wedding's weight (docs/mitzvah-journey-plan-2026-10-14.md): a call,
@@ -583,6 +587,10 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     album: true,
     exclusiveDay: true,
     ...PLAIN_STEPS,
+    // Phase 3: the photographer's mitzvah forms, day plan and Schedule A.
+    shotList: true,
+    dayPlan: "mitzvah",
+    scheduleAParts: "mitzvah",
     honoree: true,
   },
   // Gabe, 2026-10-02: no agreement ("that's overkill"), paid in full.

@@ -58,7 +58,38 @@ export function planningFormTemplate(
     .filter((template) => template.id !== (inquiry as { id?: string } | null)?.id)
     .filter((template) => !eventTypeId || text(template.eventTypeId) === eventTypeId)
     .sort((left, right) => text(right.createdAt).localeCompare(text(left.createdAt)));
-  return candidates.find((template) => /planning/i.test(text(template.name))) ?? candidates[0] ?? null;
+  // Never the shot list (it goes with the form), and a kind's own final
+  // schedule before any other form of its: a mitzvah's three recommended
+  // forms arrive together, so "the newest" was a coin toss (mitzvah plan,
+  // Phase 3).
+  const sendable = candidates.filter((template) => !/-shot-list$/.test(text(template.recommendedId)));
+  return (
+    sendable.find((template) => /planning/i.test(text(template.name))) ??
+    sendable.find((template) => /-final-schedule$/.test(text(template.recommendedId))) ??
+    sendable[0] ??
+    null
+  );
+}
+
+/**
+ * The shot list a job of this kind gets: the studio's chosen one for a kind
+ * on its planning timeline (a wedding), or the kind's own recommended shot
+ * list (a mitzvah's, copied in when the studio first offered the kind).
+ */
+export function shotListTemplateFor(studio: Studio, kind: string): (Row & { id: string }) | null {
+  if (journeyProfile(kind).planningTimeline) {
+    const chosen = studio.timeline.shotListTemplateId;
+    return chosen ? (resolveInquiryFormTemplate(studio.templates as never, chosen) as (Row & { id: string }) | null) : null;
+  }
+  return (
+    studio.templates.find(
+      (template) =>
+        template.status === "active" &&
+        !template.archivedAt &&
+        text(template.eventTypeId) === kind &&
+        /-shot-list$/.test(text(template.recommendedId)),
+    ) ?? null
+  );
 }
 
 async function loadStudio(db: Firestore, tenantId: string): Promise<Studio> {
@@ -91,11 +122,11 @@ export const SHOT_LIST_DUE_DAYS_BEFORE = 7;
 async function sendShotList(db: Firestore, project: DocumentSnapshot, studio: Studio, today: string, now: string): Promise<void> {
   const data = project.data() ?? {};
   const tenantId = text(data.tenantId);
-  const templateId = studio.timeline.shotListTemplateId;
-  if (!templateId || !journeyProfile(jobKindOf(data)).shotList) return;
+  const kind = jobKindOf(data);
+  if (!journeyProfile(kind).shotList) return;
   // Past the lock it would arrive already overdue.
   if (detailsLocked(text(data.eventDate).slice(0, 10), today, studio.timeline)) return;
-  const template = resolveInquiryFormTemplate(studio.templates as never, templateId) as (Row & { id: string }) | null;
+  const template = shotListTemplateFor(studio, kind);
   if (!template) return;
   const responses = await db.collection("questionnaireResponses").where("tenantId", "==", tenantId).where("projectId", "==", project.id).get();
   if (liveAssignmentFor(responses.docs.map((response) => ({ id: response.id, ...response.data() })), { id: template.id, name: text(template.name) })) return;
@@ -135,7 +166,13 @@ export async function sendShotListWithForm(
   const tenantId = text(data.tenantId);
   if (!tenantId || data.importedAt || clientOutreachStop(data) !== null) return "quiet";
   const studio = await loadStudio(db, tenantId);
-  const planning = planningFormTemplate(studio, text(data.eventTypeId), true) ?? planningFormTemplate(studio, "wedding", true);
+  // A kind on the studio's planning timeline uses the studio's chosen form;
+  // another (a mitzvah) its own (job-kinds.ts `planningTimeline`).
+  const kind = jobKindOf(data);
+  const onTimeline = journeyProfile(kind).planningTimeline;
+  const planning =
+    planningFormTemplate(studio, text(data.eventTypeId), onTimeline) ??
+    planningFormTemplate(studio, onTimeline ? "wedding" : kind, onTimeline);
   const sameForm =
     planning &&
     (planning.id === template.id || (text(planning.name) && text(planning.name) === text(template.get("name"))));

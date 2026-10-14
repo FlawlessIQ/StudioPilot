@@ -290,7 +290,7 @@ export async function loadContractSources(
     eventType: text(event.eventType) || text(project.get("eventType")),
     eventKind: jobKindOf(project.data()),
     kindDetails: {
-      required: journeyProfile(jobKindOf(project.data())).scheduleAParts,
+      parts: journeyProfile(jobKindOf(project.data())).scheduleAParts,
       title: vocab(jobKindOf(project.data())).detailsForm,
     },
     date: /^\d{4}-\d{2}-\d{2}$/.test(eventDate) ? formatContractDate(eventDate) : null,

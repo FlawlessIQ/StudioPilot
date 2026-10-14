@@ -189,6 +189,19 @@ export function isWeddingJob(project: Record<string, unknown> | null | undefined
 export type KindMoment = { label: string; title: string; minutes: number };
 
 export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, readonly KindMoment[]>>> = {
+  // A bar or bat mitzvah's party (mitzvah-plan.ts lays the evening out from
+  // the form; these add a line by hand).
+  mitzvah: [
+    { label: "Family portraits", title: "Family portraits", minutes: 45 },
+    { label: "Kids' room", title: "Kids' room", minutes: 60 },
+    { label: "Grand entrance", title: "Grand entrance", minutes: 5 },
+    { label: "Hora", title: "Hora", minutes: 15 },
+    { label: "Blessings", title: "Blessings over the challah and wine", minutes: 10 },
+    { label: "Speeches", title: "Parents' speech and toast", minutes: 15 },
+    { label: "Candle lighting", title: "Candle lighting", minutes: 30 },
+    { label: "Montage", title: "Montage", minutes: 10 },
+    { label: "Last dance", title: "Last dance", minutes: 5 },
+  ],
   corporate: [
     { label: "Arrivals", title: "Guest arrivals and registration", minutes: 30 },
     { label: "Keynote", title: "Keynote", minutes: 45 },

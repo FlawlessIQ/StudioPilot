@@ -564,6 +564,160 @@ const PLANNER_FINAL_DETAILS: RecommendedSection[] = [
   },
 ];
 
+/**
+ * A bar or bat mitzvah's details (docs/mitzvah-journey-plan-2026-10-14.md,
+ * Phase 3). The parents fill it in about their child. Three places, often on
+ * different days: the portrait session at the synagogue, the service (often on
+ * Shabbat, often closed to cameras), and the party, which is the event date
+ * and the day plan's anchor (mitzvah-plan.ts). The ids are the ones the day
+ * plan, Schedule A (event-details.ts) and the crew brief read.
+ */
+function mitzvahDetailSections(tbd: boolean): RecommendedSection[] {
+  const where = (id: string, label: string, required = true, help?: string) =>
+    field(id, label, "address", required, { allowTbd: tbd, ...(help ? { help } : {}) });
+  const when = (id: string, label: string, required = true, help?: string) =>
+    field(id, label, "time", required, { allowTbd: tbd, ...(help ? { help } : {}) });
+  return [
+    {
+      id: "family",
+      title: "Your family",
+      fields: [
+        field("event-date", "Party date", "date", true),
+        field("parent-names", "Parents' names", "text", true),
+        field("parent-email", "Parent's email", "email", true),
+        field("parent-phone", "Parent's phone", "phone", true),
+        field("billing-address", "Home address (for billing)", "address", false, {
+          help: "Street, city, state and ZIP. Where your invoices are addressed.",
+        }),
+        field("honoree-name", "Who we're celebrating (first name)", "text", true),
+        field("honoree-pronunciation", "How to say their name", "text", false, {
+          help: "As it sounds, if it's easy to get wrong. The crew and the MC read this.",
+        }),
+      ],
+    },
+    {
+      id: "service",
+      title: "The service",
+      fields: [
+        where("synagogue", "Synagogue", true, "Name and address."),
+        when("service-time", "Service start time"),
+        {
+          ...field("service-photo-rules", "The synagogue's photography rules for the service", "radio", true, {
+            help: "Many congregations allow no cameras during the service, especially on Shabbat. Ask the office if you're not sure.",
+          }),
+          options: ["No photography during the service", "Portraits only, before or after", "Photography allowed", "Not sure yet"],
+        },
+        field("portrait-session-date", "Portrait session date", "date", false, {
+          help: "Torah and family portraits at the synagogue, often at the final rehearsal or a weekday service.",
+        }),
+        field("portrait-session-time", "Portrait session start time", "time", false),
+      ],
+    },
+    {
+      id: "party",
+      title: "The party",
+      fields: [
+        where("party-location", "Party location"),
+        when("party-start-time", "Party start time", true, "When the cocktail hour and the kids' room open."),
+        when("party-end-time", "Party end time"),
+        field("guest-count", "Number of invited guests", "text", true, { allowTbd: tbd }),
+        field("kids-count", "How many of them are kids", "text", false, { allowTbd: tbd }),
+        {
+          ...field("kids-room", "Is there a separate kids' room?", "radio", false),
+          options: ["Yes", "No", "Not sure yet"],
+        },
+      ],
+    },
+    {
+      id: "coverage",
+      title: "Photo and video coverage",
+      fields: [
+        when("coverageStartTime", "Photo 1 / Video 1 start time", true, "When your main photographer and videographer start."),
+        when("coverageEndTime", "Photo 1 / Video 1 end time"),
+        when("photo-2-start-time", "Photo 2 / Video 2 start time", false, "Your second photographer and videographer, if your package includes them. They cover the kids' room."),
+        when("photo-2-end-time", "Photo 2 / Video 2 end time", false),
+      ],
+    },
+  ];
+}
+
+const MITZVAH_FAMILY: RecommendedSection = {
+  id: "family-names",
+  title: "Family and the candles",
+  fields: [
+    field("family-names", "Family names for portraits", "long_text", false, {
+      help: "Parents, grandparents and siblings — the names we call for family pictures.",
+    }),
+    field("candle-lighting-list", "The candle lighting, in order", "long_text", false, {
+      help: "One candle per line: who lights it. For example: \"In memory — Grandpa Saul\", \"Grandparents — Ruth and Mel\". We photograph every one, and your DJ calls them up.",
+    }),
+  ],
+};
+
+const MITZVAH_EVENING: RecommendedSection = {
+  id: "day-in-order",
+  title: "Your party, in order",
+  fields: [
+    step("family-portraits-time", "Family portraits at the party venue — time", "Allow 45 minutes before the party starts. Everyone in the family photos should be there and ready 15 minutes before.", {
+      fieldId: "party-start-time",
+      minutes: -75,
+    }),
+    step("grand-entrance-time", "Grand entrance — time", "Usually an hour into the party.", { fieldId: "party-start-time", minutes: 60 }),
+    step("hora-time", "Hora — time", "Straight after the entrance, with the chair lift.", { fieldId: "party-start-time", minutes: 65 }),
+    step("blessings-time", "Blessings over the challah and wine — time", "Who says each one goes on the shot list."),
+    step("speeches-time", "Parents' speech and toast — time", "Before dinner, or between the candles."),
+    step("dinner-time", "Dinner — time", "Check with your venue."),
+    step("candle-lighting-time", "Candle lighting — time", "Allow 30 minutes for 13 or 14 candles."),
+    step("montage-time", "Montage — time", "If there is one."),
+    step("dancing-time", "Dancing and games — time", "After the candles and the montage."),
+    step("cake-time", "Cake — time", "No later than 45 minutes before coverage ends.", { fieldId: "coverageEndTime", minutes: -45 }),
+    step("last-dance-time", "Last dance — time", "The last song of the night."),
+  ],
+};
+
+/** A mitzvah's shot list: the wedding's ids, so it reaches the crew the same way, with the candles first. */
+const MITZVAH_SHOT_LIST: RecommendedSection[] = [
+  {
+    id: "groups",
+    title: "Family and group pictures",
+    fields: [
+      field("must-have-groups", "Family and group pictures, in the order to call them", "long_text", false, {
+        help: "One group per line. For example: \"Sam with both sets of grandparents\", \"Sam with the cousins\", \"The whole family\".",
+      }),
+      field("candle-lighting-list", "The candle lighting, in order", "long_text", false, {
+        help: "Who lights each candle, one per line. We photograph every candle.",
+      }),
+    ],
+  },
+  {
+    id: "must-take",
+    title: "Must-take pictures",
+    fields: [
+      field("must-have-shots", "Pictures you don't want us to miss", "long_text", false, {
+        help: "The hora, a speech, friends from school, anything that matters most to you.",
+      }),
+      field("people-to-capture", "People we should be sure to photograph", "long_text", false, {
+        help: "Who they are and how we'll recognize them. For example: \"Great-aunt Ruth, blue dress, table 4\".",
+      }),
+      field("details-to-capture", "Details to capture", "long_text", false, {
+        help: "The tallit, the kippot, the sign-in board, the centerpieces, the favors.",
+      }),
+    ],
+  },
+  {
+    id: "care",
+    title: "Good to know",
+    fields: [
+      field("no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false, {
+        help: "Including any child whose parents haven't agreed to photos.",
+      }),
+      field("sensitivities", "Anything we should handle carefully", "long_text", false, {
+        help: "Separated parents, someone unwell, a recent loss. Only your crew see this.",
+      }),
+    ],
+  },
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -604,6 +758,45 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       dueDaysBeforeEvent: 7,
       reminderDaysBeforeDue: [14, 3],
       sections: SHOT_LIST,
+    },
+    // Bar and bat mitzvahs (docs/mitzvah-journey-plan-2026-10-14.md, Phase 3):
+    // a photographer's three, copied in when a studio first offers the kind
+    // (crm `setInquiryForm`), never at signup (`recommendedFor`).
+    {
+      id: "mitzvah-details",
+      name: "Mitzvah details",
+      summary:
+        "The family, who you're celebrating, the synagogue and its photography rules, the portrait session, the party and coverage, with a TBD option for anything not decided yet. What they give goes into Schedule A.",
+      useIt: "Send it with new bar and bat mitzvah inquiries.",
+      eventTypeId: "mitzvah",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 120,
+      reminderDaysBeforeDue: [14, 3],
+      sections: mitzvahDetailSections(true),
+    },
+    {
+      id: "mitzvah-final-schedule",
+      name: "Mitzvah final schedule",
+      summary:
+        "Their details again (filled in from what they already gave), family names, the candle lighting in order, and the party in order with suggested times.",
+      useIt: "Your mitzvah planning form: it goes out three months before.",
+      eventTypeId: "mitzvah",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 35,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [...mitzvahDetailSections(false), MITZVAH_FAMILY, MITZVAH_EVENING],
+    },
+    {
+      id: "mitzvah-shot-list",
+      name: "Mitzvah shot list",
+      summary:
+        "Family groups in the order to call them, the candle lighting, must-take moments, people to find, and anyone to avoid. Your crew see it on their day sheet.",
+      useIt: "It goes out with the mitzvah planning form.",
+      eventTypeId: "mitzvah",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [14, 3],
+      sections: MITZVAH_SHOT_LIST,
     },
     {
       id: "dj-music-planner",
@@ -715,11 +908,28 @@ export function recommendedLibraryFor(trade: string): RecommendedQuestionnaire[]
  * alone: the event details form it was also given asked the same where and
  * when again, a second form for a client who should fill in one.
  */
-export function recommendedFor(trade: string): RecommendedQuestionnaire[] {
+export function recommendedFor(
+  trade: string,
+  /**
+   * Which kinds' forms: a wedding's at signup, as ever; another kind's when
+   * the studio first offers it (crm `setInquiryForm`, `OFFERED_KIND_FORMS`).
+   */
+  kinds: readonly string[] = SIGNUP_KINDS,
+): RecommendedQuestionnaire[] {
   return recommendedLibraryFor(trade).filter(
-    (form) => !(form.id === EVENT_DETAILS_ID && OWN_FORM_TRADES.includes(trade)),
+    (form) => kinds.includes(form.eventTypeId) && !(form.id === EVENT_DETAILS_ID && OWN_FORM_TRADES.includes(trade)),
   );
 }
+
+/** The kind whose forms a studio starts with. */
+const SIGNUP_KINDS: readonly string[] = ["wedding"];
+
+/**
+ * Kinds whose recommended forms are copied in the first time a studio offers
+ * the kind on its inquiry form: a mitzvah's details, final schedule and shot
+ * list.
+ */
+export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah"];
 
 /** How many questions a form asks. */
 export function recommendedFieldCount(template: RecommendedQuestionnaire): number {

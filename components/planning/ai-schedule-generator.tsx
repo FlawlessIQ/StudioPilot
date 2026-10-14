@@ -41,11 +41,11 @@ import { clockOf, eventZone, isoToWallClock, spokenClock, wallClockToIso } from 
 import {
   flowEnds,
   pinnedEnds,
-  planDay,
   planItems,
   titleIsTbd,
   withTbdTitle,
 } from "@/features/schedules/day-plan";
+import { planBuiltDay } from "@/features/schedules/built-day";
 import { TimingRuleEditor } from "@/components/planning/timing-rule-editor";
 import { jobKindOf, vocab } from "@/features/job-kinds/job-kinds";
 import {
@@ -955,7 +955,7 @@ export function AiScheduleGenerator({
    */
   function suggestGaps() {
     if (!draft || !eventDay) return;
-    const full = planDay(dayPlanInput());
+    const full = planBuiltDay(dayPlanOf(selectedProject), dayPlanInput());
     const suggested = (planItems(full, {
       eventDate: eventDay,
       timeZone: zone,
@@ -1008,7 +1008,7 @@ export function AiScheduleGenerator({
       ? planNight({ answers: jobAnswers, coverageMinutes: packageMinutes ?? null, venue: dayPlanInput().venue })
       : chairs
         ? chairMorning()
-        : planDay({ ...dayPlanInput(), answeredOnly: true });
+        : planBuiltDay(dayPlanOf(selectedProject), { ...dayPlanInput(), answeredOnly: true });
     setPlanNotes(plan.notes);
     setWithheld(plan.withheld);
     if (!plan.rows.length) {

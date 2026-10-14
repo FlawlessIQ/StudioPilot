@@ -86,10 +86,25 @@ export const crewStarterFieldIds: ReadonlySet<string> = new Set([
   "teams",
   "minors-present",
   "consent-on-file",
+  // a bar or bat mitzvah (docs/mitzvah-journey-plan-2026-10-14.md, Phase 3)
+  "honoree-name",
+  "honoree-pronunciation",
+  "synagogue",
+  "service-time",
+  "service-photo-rules",
+  "portrait-session-date",
+  "portrait-session-time",
+  "party-location",
+  "party-start-time",
+  "kids-room",
+  "candle-lighting-list",
+  "family-names",
 ]);
 
 /** The answers a photographer must have read before lifting a camera. */
 const beforeYouShootIds: ReadonlySet<string> = new Set([
+  // A congregation that allows no cameras in the service (a mitzvah's).
+  "service-photo-rules",
   "no-photo-list",
   "minors-present",
   "consent-on-file",

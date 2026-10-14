@@ -111,8 +111,20 @@ const normalise = (value: string) =>
     .replace(/[^a-z0-9#]+/g, " ")
     .trim()} `;
 
+/**
+ * A mitzvah's parts (docs/mitzvah-journey-plan-2026-10-14.md): the service
+ * and the party, and the times. A makeup artist or hair stylist needs where
+ * the family gets ready and when, as at a wedding.
+ */
+export const REQUIRED_MITZVAH_PARTS: readonly Category[] = ["ceremony", "reception", "times"];
+
 /** Which part of the day a question is about — or null for anything else. */
-export function eventDetailCategory(question: string, trade?: string | null): Category | null {
+export function eventDetailCategory(
+  question: string,
+  trade?: string | null,
+  /** Whose parts (job-kinds.ts `scheduleAParts`): a mitzvah's service and party read as its ceremony and reception. */
+  parts?: "wedding" | "mitzvah" | null,
+): Category | null {
   const n = normalise(question);
   const has = (...words: string[]) => words.some((word) => n.includes(` ${word}`));
   if (has("date") && !has("time")) return null;
@@ -133,6 +145,9 @@ export function eventDetailCategory(question: string, trade?: string | null): Ca
     return "photo_locations";
   if (has("reception")) return "reception";
   if (has("ceremony", "church", "chapel")) return "ceremony";
+  // A mitzvah's: the synagogue is its ceremony, the party its reception.
+  if (parts === "mitzvah" && has("synagogue", "temple", "service", "bimah")) return "ceremony";
+  if (parts === "mitzvah" && has("party") && !has("bridal party", "wedding party")) return "reception";
   if (has("guest")) return "guests";
   if (has("planner", "coordinator", "day of contact", "call on the day", "venue contact")) return "contacts";
   return null;
@@ -165,7 +180,7 @@ export function eventDetailsFrom(input: {
    * (`vocab(kind).detailsForm`). Omitted: read from `eventKind`, or the
    * type's label, as before.
    */
-  kindDetails?: { required: boolean; title: string };
+  kindDetails?: { parts: "wedding" | "mitzvah" | null; title: string };
   /** Already formatted for reading: "Saturday, June 12, 2027". */
   date: string | null;
   venue: string | null;
@@ -186,13 +201,18 @@ export function eventDetailsFrom(input: {
    */
   lockPassed?: boolean;
 }): EventDetails {
+  const parts = input.kindDetails?.parts;
   const wedding = input.kindDetails
-    ? input.kindDetails.required
+    ? parts !== null && parts !== undefined
     : input.eventKind
       ? input.eventKind === "wedding"
       : /wedding/i.test(input.eventType);
   const required =
-    input.trade === "dj"
+    parts === "mitzvah"
+      ? isBeauty(input.trade)
+        ? REQUIRED_BEAUTY_WEDDING_PARTS
+        : REQUIRED_MITZVAH_PARTS
+      : input.trade === "dj"
       ? REQUIRED_DJ_WEDDING_PARTS
       : isBeauty(input.trade)
         ? REQUIRED_BEAUTY_WEDDING_PARTS
@@ -204,7 +224,7 @@ export function eventDetailsFrom(input: {
     const question = row.question.trim();
     const answer = row.answer.trim();
     if (!question || !answer) continue;
-    const category = eventDetailCategory(question, input.trade);
+    const category = eventDetailCategory(question, input.trade, parts);
     if (!category) continue;
     const list = sorted.get(category) ?? [];
     list.push({ label: question.replace(/[:?]\s*$/, ""), value: notDecided(answer) ? "To be confirmed" : answer });
@@ -214,13 +234,24 @@ export function eventDetailsFrom(input: {
   if (!sorted.has("ceremony") && input.venue?.trim()) sorted.set("ceremony", [{ label: "Venue", value: input.venue.trim() }]);
   // Away from a wedding there is no ceremony: the venue is the location.
   const label = (category: Category) =>
-    !wedding && category === "ceremony"
+    // A mitzvah's ceremony is the service, its reception the party.
+    parts === "mitzvah" && (category === "ceremony" || category === "reception")
+      ? category === "ceremony" ? "Service" : "Party"
+      : !wedding && category === "ceremony"
       ? "Location"
       : // A makeup artist or hair stylist isn't at the ceremony: it's the venue.
         isBeauty(input.trade) && category === "ceremony"
         ? "Venue"
         : isBeauty(input.trade) && category === "guests"
         ? "Party size"
+        : CATEGORY_LABEL[category];
+
+  // A required part, as the studio and the client read it: a mitzvah's service and party.
+  const partName = (category: Category) =>
+    parts === "mitzvah" && category === "ceremony"
+      ? "Service"
+      : parts === "mitzvah" && category === "reception"
+        ? "Party"
         : CATEGORY_LABEL[category];
 
   const rows: EventDetailRow[] = [];
@@ -235,11 +266,11 @@ export function eventDetailsFrom(input: {
   for (const category of order) {
     const entries = sorted.get(category) ?? [];
     if (wedding && required.includes(category) && entries.length && entries.every((entry) => entry.value === "To be confirmed"))
-      missing.push(CATEGORY_LABEL[category]);
+      missing.push(partName(category));
     if (!entries.length) {
       if (wedding && required.includes(category)) {
-        missing.push(CATEGORY_LABEL[category]);
-        rows.push({ label: CATEGORY_LABEL[category], value: "To be confirmed" });
+        missing.push(partName(category));
+        rows.push({ label: partName(category), value: "To be confirmed" });
       }
       continue;
     }

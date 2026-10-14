@@ -49,8 +49,10 @@ const brand = { studioName: "Glow Studio", productName: "StudioCue", accentColor
 test("a vendor starts with its own form alone; a photographer with the same three as before", () => {
   for (const trade of VENDORS) assert.deepEqual(recommendedFor(trade).map((form) => form.id), [OWN_FORM[trade]], trade);
   assert.deepEqual(recommendedFor("photographer").map((form) => form.id), ["wedding-event-details", "wedding-final-schedule", "wedding-shot-list"]);
-  // The photographer's forms are exactly the library's, untouched.
-  assert.deepEqual(recommendedFor("photographer"), recommendedLibraryFor("photographer"));
+  // The photographer starts with the library's wedding forms, untouched; the
+  // mitzvah forms arrive when the studio first offers the kind (mitzvah plan, Phase 3).
+  assert.deepEqual(recommendedFor("photographer"), recommendedLibraryFor("photographer").filter((form) => form.eventTypeId === "wedding"));
+  assert.deepEqual(recommendedFor("photographer", ["mitzvah"]).map((form) => form.id), ["mitzvah-details", "mitzvah-final-schedule", "mitzvah-shot-list"]);
   // The server seeds what the app shows, for every trade.
   for (const trade of TRADES) {
     assert.deepEqual(functionsRecommendedFor(trade), recommendedFor(trade), trade);
