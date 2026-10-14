@@ -329,7 +329,7 @@ Added 2026-10-12 (Conor): planners, DJs, hair and makeup artists who aren't Stud
 - **Export with signup links**: every partner (or, from the import drawer, just that sheet's) as a CSV with code, signup link, the offer in words, and their tally, for a spreadsheet or an agent like Muse writing to them.
 - **The code is a referral code.** The signup link (`/auth/register?code=SARAHMUA`) carries it to checkout, where `billingCommand` gives the photographer the same referral offer as a studio's code, on whichever cadence they choose: one code, both prices. The partner rides on the subscription metadata (`referralPartnerId`), and the webhook records `saasReferrals/{tenantId}` with `partnerId`.
 - **A referral counts** on the same rule as a studio's credit: three months after the photographer's first payment, still `active`. `referralCreditScheduler` marks it `qualifiedAt` (no Stripe credit: a partner has no bill). Canceled before then = doesn't count.
-- **Vendors too** (2026-10-13, Conor: "Build it all"): a partner's or a studio's code on the vendor plan gives the DJ, planner, hair or makeup artist the vendor offer ($50/month or $500 for the first year, `vendorOfferCoupon`) and records the referral with `plan: "vendor"` (`saasReferrals`, from the webhook's plan). A partner earns half for a vendor: $50, or $100 past 10; photographers and vendors count together toward the 10. A studio earns its usual $100 credit. Every trade now has a referral card on its Subscription page (no longer photographers only), and the Console marks each referral photographer or vendor.
+- **Vendors too** (2026-10-13, Conor: "Build it all"): a partner's or a studio's code on the vendor plan gives the DJ, planner, hair or makeup artist the vendor offer ($75/month or $600 for the first year since 2026-10-14, `vendorOfferCoupon`) and records the referral with `plan: "vendor"` (`saasReferrals`, from the webhook's plan). A partner earns half for a vendor: $50, or $100 past 10; photographers and vendors count together toward the 10. A studio earns its usual $100 credit. Every trade now has a referral card on its Subscription page (no longer photographers only), and the Console marks each referral photographer or vendor.
 - **Pay** (`features/console/partner-payouts.ts`): $100 per referral that counts; with more than 10, every one is $200, the first 10 included. The team pays by hand (Venmo, Zelle, check) and records it (`recordPartnerPayout`, `billing.write`, `saasPartnerPayouts`); the drawer shows earned, paid and owed. A payout recorded by mistake can be removed.
 - Sources files these studios under **Referral**, detail "{partner} · partner".
 
@@ -337,7 +337,7 @@ Added 2026-10-12 (Conor): planners, DJs, hair and makeup artists who aren't Stud
 
 Added 2026-10-13 (docs/vendor-network-plan-2026-10-12.md, Phase 3; D1, D2). A
 DJ, hair and makeup or planner vendor who worked a studio's job gets the vendor
-plan at $50/month for 12 months or $500 for the first year, with a code of
+plan at $75/month for 12 months or $600 for the first year (list $100 / $1,000 since 2026-10-14; it was $50 / $500 on a $75 plan), with a code of
 their own (`VO` + 8, `saasReferralCodes` → `kind: "vendor_offer"`, their
 `vendorInvites.offerCode`). It reaches them under the timeline in the first
 `vendor_timeline` email StudioCue ever sends them, on their schedule link each

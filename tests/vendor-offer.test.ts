@@ -13,7 +13,7 @@ import { SOURCE_CHANNELS as SERVER_CHANNELS } from "../functions/src/saas/attrib
 /**
  * The vendor offer (docs/vendor-network-plan-2026-10-12.md, Phase 3; D1, D2):
  * a vendor who worked a StudioCue studio's wedding gets the vendor plan at
- * $50/month for a year or $500 for the first year, with a code of their own,
+ * $75/month for a year or $600 for the first year (on the $100 plan since 2026-10-14), with a code of their own,
  * once by email and every time they open their schedule link.
  */
 
@@ -37,8 +37,8 @@ test("the app's copy of the offer and the server's agree", () => {
 });
 
 test("D1: a third off the vendor plan's first year", () => {
-  assert.equal(server.VENDOR_OFFER_MONTHLY_CENTS, 5_000);
-  assert.equal(server.VENDOR_OFFER_YEARLY_CENTS, 50_000);
+  assert.equal(server.VENDOR_OFFER_MONTHLY_CENTS, 7_500);
+  assert.equal(server.VENDOR_OFFER_YEARLY_CENTS, 60_000);
   assert.equal(server.VENDOR_OFFER_MONTHS, 12);
 });
 
@@ -95,7 +95,7 @@ test("the timeline email carries the offer under the timeline, never instead of 
   // The schedule is still the button.
   assert.match(offered.html, /View and confirm/);
   assert.match(offered.text, /VOABCD2345/);
-  assert.match(offered.text, /\$50\/month for your first 12 months, or \$500 for your first year/);
+  assert.match(offered.text, /\$75\/month for your first 12 months, or \$600 for your first year/);
   assert.match(offered.text, /StudioCue runs your DJ bookings, too/);
   assert.match(offered.text, /opt out of offers/);
   // A wedding reads as one; any other kind of job, as its own (job-kinds.ts vocab).
@@ -109,10 +109,10 @@ test("the timeline email carries the offer under the timeline, never instead of 
 test("a swept vendor-plan invite carries the offer and its code", () => {
   const values = { studioName: "GR Productions", inviteTrades: ["hair"], offerCode: "VOABCD2345", actionUrl: "https://studio-cue.com/auth/register?plan=vendor" };
   const rendered = renderEmailTemplate({ key: "platform_vendor_invite", brand, recipientName: "Jess", projectName: null, values } as Parameters<typeof renderEmailTemplate>[0]);
-  assert.match(rendered.text, /\$50 a month for your first 12 months, or \$500 for your first year/);
+  assert.match(rendered.text, /\$75 a month for your first 12 months, or \$600 for your first year/);
   assert.match(rendered.text, /VOABCD2345/);
   const without = renderEmailTemplate({ key: "platform_vendor_invite", brand, recipientName: "Jess", projectName: null, values: { ...values, offerCode: null } } as Parameters<typeof renderEmailTemplate>[0]);
-  assert.doesNotMatch(without.text, /\$50 a month/);
+  assert.doesNotMatch(without.text, /\$75 a month for your first/);
 });
 
 test("Sources files a vendor who signed up through the offer under its own channel, naming the studio", () => {
@@ -302,7 +302,7 @@ test("the signup page names a live vendor offer, and only a live one", async () 
   } as unknown as Parameters<typeof signupOfferFor>[0];
   const live = await signupOfferFor(db, "vokatv9y4f");
   assert.equal(live?.studioName, "FlawlessIQ");
-  assert.match(live?.summary ?? "", /\$50\/month for your first 12 months/);
+  assert.match(live?.summary ?? "", /\$75\/month for your first 12 months/);
   assert.equal(await signupOfferFor(db, "VOTAKEN234"), null);
   assert.equal(await signupOfferFor(db, "VONOTVO234"), null);
   assert.equal(await signupOfferFor(db, "FLAWLESSIQ"), null);

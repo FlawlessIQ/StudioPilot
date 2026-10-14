@@ -124,11 +124,11 @@ test("vendor invites go only to trades with a live journey", () => {
   assert.match(read("functions/src/saas/vendor-invites.ts"), /if \(!vendorTypeIsLive\(vendorType\)\) return \{ ok: false, reason: "trade_not_live" \};/);
 });
 
-test("DJs, makeup and hair buy the $75 plan; photographers never see it", () => {
+test("DJs, makeup and hair buy the $100 plan; photographers never see it", () => {
   assert.deepEqual(planCards.map((card) => card.key), ["studio", "multi_brand"]);
   const [vendor] = vendorPlanCards;
-  assert.equal(vendor.monthlyCents, 7_500);
-  assert.equal(vendor.yearlyCents, 75_000);
+  assert.equal(vendor.monthlyCents, 10_000);
+  assert.equal(vendor.yearlyCents, 100_000);
   for (const trade of TRADES) {
     const keys = plansForTrade(tradeProfile(trade).plans).map((card) => card.key);
     assert.deepEqual(keys, trade === "photographer" ? ["studio", "multi_brand"] : ["vendor"], trade);

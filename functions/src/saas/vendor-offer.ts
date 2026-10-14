@@ -10,8 +10,9 @@ import { STUDIOCUE_METADATA, stripeMock, stripeRequest } from "../console/stripe
 /**
  * The vendor offer (docs/vendor-network-plan-2026-10-12.md, Phase 3; Conor's
  * D1, 2026-10-13): a vendor who worked a StudioCue studio's wedding, and runs
- * a trade StudioCue has a journey for, gets the vendor plan at **$50/month for
- * the first 12 months, or $500 for the first year** (list $75 / $750), after
+ * a trade StudioCue has a journey for, gets the vendor plan at **$75/month for
+ * the first 12 months, or $600 for the first year** (list $100 / $1,000 since
+ * 2026-10-14; $50 / $500 on the old $75 plan), after
  * the same 14-day trial. The studio whose wedding it was earns the referral
  * credit when the vendor has paid for three months (D2), through the ordinary
  * referral settlement: the vendor's subscription carries `referrerTenantId`
@@ -35,12 +36,12 @@ import { STUDIOCUE_METADATA, stripeMock, stripeRequest } from "../console/stripe
  * (tests/vendor-offer.test.ts fails on a drift).
  */
 
-export const VENDOR_OFFER_MONTHLY_CENTS = 5_000;
-export const VENDOR_OFFER_YEARLY_CENTS = 50_000;
+export const VENDOR_OFFER_MONTHLY_CENTS = 7_500;
+export const VENDOR_OFFER_YEARLY_CENTS = 60_000;
 export const VENDOR_OFFER_MONTHS = 12;
-export const VENDOR_OFFER_SUMMARY = "14 days free, then $50/month for your first 12 months, or $500 for your first year";
+export const VENDOR_OFFER_SUMMARY = "14 days free, then $75/month for your first 12 months, or $600 for your first year";
 /** The same, said about someone else: a referrer's card, the Console, a partner's file. */
-export const VENDOR_OFFER_SUMMARY_THEIRS = "14 days free, then $50/month for their first 12 months, or $500 for their first year";
+export const VENDOR_OFFER_SUMMARY_THEIRS = "14 days free, then $75/month for their first 12 months, or $600 for their first year";
 
 const PROGRAM = "saasSettings/referralProgram";
 
@@ -236,22 +237,25 @@ async function studioReferralCode(db: Firestore, tenantId: string, now: string):
  */
 export async function vendorOfferCoupon(db: Firestore, cadence: "monthly" | "yearly"): Promise<string> {
   const field = cadence === "yearly" ? "vendorYearlyCouponId" : "vendorMonthlyCouponId";
+  const priceId = process.env[`STRIPE_PRICE_VENDOR_${cadence.toUpperCase()}`] ?? "";
+  const target = cadence === "yearly" ? VENDOR_OFFER_YEARLY_CENTS : VENDOR_OFFER_MONTHLY_CENTS;
+  // A coupon is an amount off one price, so it's kept for the price and offer it was made for:
+  // a new list price or offer (2026-10-14: $75 → $100) makes a new one, never reuses the old amount.
+  const key = `${priceId}:${target}`;
   const program = await db.doc(PROGRAM).get();
   const existing = program.get(field);
-  if (typeof existing === "string" && existing) return existing;
+  if (typeof existing === "string" && existing && program.get(`${field}Key`) === key) return existing;
   let couponId: string;
   if (stripeMock()) {
-    couponId = `mock_vendor_offer_${cadence}`;
+    couponId = `mock_vendor_offer_${cadence}_${target}`;
   } else {
-    const priceId = process.env[`STRIPE_PRICE_VENDOR_${cadence.toUpperCase()}`];
     if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
     const price = await stripeRequest<{ unit_amount?: number | null; product?: string; currency?: string }>("GET", `prices/${encodeURIComponent(priceId)}`);
-    const target = cadence === "yearly" ? VENDOR_OFFER_YEARLY_CENTS : VENDOR_OFFER_MONTHLY_CENTS;
     const amountOff = Number(price.unit_amount ?? 0) - target;
     if (!(amountOff > 0) || !price.product) throw new Error("VENDOR_OFFER_ABOVE_LIST_PRICE");
     couponId = (
       await stripeRequest<{ id: string }>("POST", "coupons", {
-        name: cadence === "yearly" ? "Vendor offer: first year $500" : "Vendor offer: $50/month for 12 months",
+        name: cadence === "yearly" ? `Vendor offer: first year $${target / 100}` : `Vendor offer: $${target / 100}/month for 12 months`,
         amount_off: amountOff,
         currency: price.currency ?? "usd",
         duration: "repeating",
@@ -262,7 +266,7 @@ export async function vendorOfferCoupon(db: Firestore, cadence: "monthly" | "yea
       })
     ).id;
   }
-  await db.doc(PROGRAM).set({ [field]: couponId, updatedAt: new Date().toISOString() }, { merge: true });
+  await db.doc(PROGRAM).set({ [field]: couponId, [`${field}Key`]: key, updatedAt: new Date().toISOString() }, { merge: true });
   return couponId;
 }
 

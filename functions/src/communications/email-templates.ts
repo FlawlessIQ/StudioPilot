@@ -12,6 +12,7 @@ import { releaseHeadline } from "../post-event/deliverables.js";
 import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds/job-kinds.js";
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
 import { PLAN_LIST_PRICE_CENTS } from "../console/model.js";
+import { VENDOR_OFFER_MONTHLY_CENTS, VENDOR_OFFER_SUMMARY, VENDOR_OFFER_YEARLY_CENTS } from "../saas/vendor-offer.js";
 
 /**
  * Account-security mail sent by the PLATFORM, not a studio: email verification
@@ -814,7 +815,7 @@ export function vendorOfferCopy(
   const studioPlan = offer.audience === "studio";
   const price = studioPlan
     ? "14 days free, then $75/month billed yearly for your first year, half the usual $150"
-    : "14 days free, then $50/month for your first 12 months, or $500 for your first year";
+    : VENDOR_OFFER_SUMMARY;
   const unsubscribe = safeUrl(stringValue(offer, "unsubscribeUrl"));
   return {
     details: [
@@ -2730,7 +2731,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             `${pitch.headline}: ${pitch.detail}`,
             "Cue, its assistant, drafts each next step for you to approve. Nothing goes to a client until you say so.",
             offerCode
-              ? `Because you're on one of ${possessive(studio)} events: try it free for 14 days, then $50 a month for your first 12 months, or $500 for your first year (usually ${dollars(price.monthly)} and ${dollars(price.yearly)}).`
+              ? `Because you're on one of ${possessive(studio)} events: try it free for 14 days, then ${dollars(VENDOR_OFFER_MONTHLY_CENTS)} a month for your first 12 months, or ${dollars(VENDOR_OFFER_YEARLY_CENTS)} for your first year (usually ${dollars(price.monthly)} and ${dollars(price.yearly)}).`
               : `Try it free for 14 days, then ${dollars(price.monthly)} a month, or ${dollars(price.yearly)} a year.`,
           ],
           details: offerCode ? [{ label: "Your code", value: offerCode }] : undefined,

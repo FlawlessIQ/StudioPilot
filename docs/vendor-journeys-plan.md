@@ -9,7 +9,7 @@ The brainstorm and research behind this plan is in `docs/vendor-journeys.md`.
 
 ## Status
 
-- **Phase 0 and Phase 1 shipped 2026-10-08.** Trades live in `features/trades/trades.ts`. `LIVE_TRADES` was photographer only until Phase 6 (2026-10-12), which made all four trades live. Stripe has the Pro product (`prod_VPAbQ7qidGVYdW`, $75/mo, $750/yr).
+- **Phase 0 and Phase 1 shipped 2026-10-08.** Trades live in `features/trades/trades.ts`. `LIVE_TRADES` was photographer only until Phase 6 (2026-10-12), which made all four trades live. Stripe has the Pro product (`prod_VPAbQ7qidGVYdW`): $75/mo, $750/yr until 2026-10-14, then $100/mo, $1,000/yr (Conor).
 - **Walked in the emulator.** A DJ studio signed up through the real onboarding function and started on Pro, with only the event details form and no gallery or day-before email. Its job reads Played → Afterwards → Review. The server allowed the move from the day to the review for DJ and makeup studios and refused it for a photographer.
 - **Phase 2 (DJ) shipped 2026-10-08.**
   - **Forms and timeline:** the Music & moments planner (`dj-music-planner`) is sent at booking and locks 10 days out, so the final planning call lands about a week before.

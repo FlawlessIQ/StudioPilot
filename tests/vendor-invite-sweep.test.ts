@@ -145,8 +145,9 @@ test("the invite names the vendor's own trade and the vendor plan's price, with 
   const dj = invite(["dj"]).text;
   assert.match(dj, /StudioCue runs your DJ bookings/);
   assert.match(dj, /Music & moments planner/);
-  assert.match(dj, /\$75 a month, or \$750 a year/);
-  assert.doesNotMatch(dj, /half|\$150|\$100|Your code|GRPRODUCTIONS/);
+  assert.match(dj, /\$100 a month, or \$1,000 a year/);
+  // No Studio-plan referral price: the vendor plan is $100 itself since 2026-10-14.
+  assert.doesNotMatch(dj, /half|\$150|billed monthly|Your code|GRPRODUCTIONS/);
   assert.doesNotMatch(dj, /photo|galler/i);
   assert.match(invite(["hair"]).text, /StudioCue runs your hair bookings[\s\S]*extensions/);
   assert.match(invite(["makeup"]).text, /StudioCue runs your makeup bookings/);

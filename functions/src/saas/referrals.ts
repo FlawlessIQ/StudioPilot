@@ -118,17 +118,21 @@ export async function lookupReferral(db: Firestore, rawCode: unknown): Promise<R
  */
 export async function referralCoupon(db: Firestore, cadence: "monthly" | "yearly"): Promise<string> {
   const field = cadence === "yearly" ? "yearlyCouponId" : "monthlyCouponId";
+  const priceId = process.env[`STRIPE_PRICE_STUDIO_${cadence.toUpperCase()}`] ?? "";
+  const target = cadence === "yearly" ? OFFER_YEARLY_CENTS : OFFER_MONTHLY_CENTS;
+  // Kept for the price and offer it was made for, so a price change makes a new coupon (saas/vendor-offer.ts).
+  // A coupon made before the key existed is kept: the Studio price hasn't changed since.
+  const key = `${priceId}:${target}`;
   const program = await db.doc(PROGRAM).get();
   const existing = program.get(field);
-  if (typeof existing === "string" && existing) return existing;
+  const existingKey = program.get(`${field}Key`);
+  if (typeof existing === "string" && existing && (existingKey === undefined || existingKey === key)) return existing;
   let couponId: string;
   if (stripeMock()) {
     couponId = `mock_referral_${cadence}`;
   } else {
-    const priceId = process.env[`STRIPE_PRICE_STUDIO_${cadence.toUpperCase()}`];
     if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
     const price = await stripeRequest<{ unit_amount?: number | null; product?: string; currency?: string }>("GET", `prices/${encodeURIComponent(priceId)}`);
-    const target = cadence === "yearly" ? OFFER_YEARLY_CENTS : OFFER_MONTHLY_CENTS;
     const amountOff = Number(price.unit_amount ?? 0) - target;
     if (!(amountOff > 0) || !price.product) throw new Error("REFERRAL_OFFER_ABOVE_LIST_PRICE");
     couponId = (
@@ -149,7 +153,7 @@ export async function referralCoupon(db: Firestore, cadence: "monthly" | "yearly
       })
     ).id;
   }
-  await db.doc(PROGRAM).set({ [field]: couponId, updatedAt: new Date().toISOString() }, { merge: true });
+  await db.doc(PROGRAM).set({ [field]: couponId, [`${field}Key`]: key, updatedAt: new Date().toISOString() }, { merge: true });
   return couponId;
 }
 

@@ -56,6 +56,12 @@ not the rest for a month. A price lives in all of these, and each is checked:
 5. Move existing subscriptions deliberately (`proration_behavior=none` takes
    effect at renewal), then archive the old prices.
 6. Sweep `docs/` for the old figures.
+7. Offer coupons follow by themselves: `referralCoupon` and `vendorOfferCoupon`
+   keep each coupon with the price and offer it was made for
+   (`saasSettings/referralProgram`, `…CouponIdKey`), so the first checkout on a
+   new price makes a new coupon. Deploy functions only after the new
+   `STRIPE_PRICE_*` values are in place: an offer at or above the old list
+   price is refused (`VENDOR_OFFER_ABOVE_LIST_PRICE`).
 
 All production secrets belong in Secret Manager. Public function URLs are
 configuration, not credentials.

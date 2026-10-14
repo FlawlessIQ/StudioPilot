@@ -5,7 +5,7 @@ export const metadata = marketingMetadata({
   title: "For Hair Stylists",
   socialTitle: "StudioCue for hair stylists: the morning planned, and the extensions ordered on time.",
   description:
-    "Booking and scheduling software for bridal hair stylists: quotes priced per person, the agreement and deposit, trials built around the veil, extensions ordered on time, and every chair on the morning laid out. $75 a month.",
+    "Booking and scheduling software for bridal hair stylists: quotes priced per person, the agreement and deposit, trials built around the veil, extensions ordered on time, and every chair on the morning laid out. $100 a month.",
   path: "/hair",
   og: "hair",
 });

@@ -34,7 +34,7 @@ export const planEntitlements: Readonly<Record<PlanKey, Entitlements>> = {
     apiAccessEnabled: false,
     prioritySupportEnabled: true,
   },
-  // DJs, makeup artists and hair stylists (config/saas-plans.ts, $75 a month).
+  // DJs, makeup artists and hair stylists (config/saas-plans.ts, $100 a month).
   vendor: {
     maxInternalUsers: 2,
     maxBrands: 1,

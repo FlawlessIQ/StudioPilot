@@ -19,6 +19,9 @@ import { activeMembership } from "@/lib/firebase/active-membership";
 import { TrialTeaser } from "@/components/marketing/trial-teaser";
 import { ReferralCard } from "@/components/saas/referral-card";
 import { billingCommand } from "@/lib/billing/command-client";
+import { VENDOR_OFFER_MONTHLY_CENTS, VENDOR_OFFER_YEARLY_CENTS } from "@/features/subscriptions/vendor-offer";
+
+const dollars = (cents: number) => `$${(cents / 100).toLocaleString("en-US")}`;
 
 const noSubscribe = () => () => undefined;
 
@@ -320,8 +323,8 @@ export function LiveSubscription() {
                 </>
               ) : preTrial && referredBy && card.key === "vendor" && referredBy.plan === "vendor" ? (
                 <>
-                  <strong>$50<small>/month</small></strong>
-                  <p>for your first 12 months, or $500 your first year · from an event with {referredBy.referrerName}</p>
+                  <strong>{dollars(VENDOR_OFFER_MONTHLY_CENTS)}<small>/month</small></strong>
+                  <p>{`for your first 12 months, or ${dollars(VENDOR_OFFER_YEARLY_CENTS)} your first year · ${referredBy.workedWith ? "from an event with" : "referred by"} ${referredBy.referrerName}`}</p>
                 </>
               ) : (
                 <>

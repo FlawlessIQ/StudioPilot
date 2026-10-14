@@ -64,16 +64,16 @@ test("/planner sells the planner journey, signs up on its trade, and invents not
   assert.ok(signups.length >= 2, "the hero and the plan card both sign up");
   for (const href of signups) assert.equal(href, "/auth/register?trade=planner&plan=vendor");
   assert.equal(vendorSignupHref("planner"), "/auth/register?trade=planner&plan=vendor");
-  assert.equal(vendorPlan.monthly, "$75");
-  assert.match(html(), /\$75/);
-  assert.match(html(), /\$750\/year/);
+  assert.equal(vendorPlan.monthly, "$100");
+  assert.match(html(), /\$100/);
+  assert.match(html(), /\$1,000\/year/);
   assert.match(html(), /14-day trial/);
   // No testimonials, customer counts or logos until there are real ones.
   assert.doesNotMatch(main(), /<blockquote|\b\d[\d,]* (studios|planners|vendors|weddings|couples)\b|trusted by|loved by/i);
   assert.doesNotMatch(main(), /\b(photos?|photograph\w*|galler(?:y|ies)|shoots?|albums?)\b/i, "a planner's page reads in their trade");
   const schema = tradeSchema("planner");
   assert.equal(schema.name, "StudioCue for Wedding planners");
-  assert.equal(schema.offers.price, "75.00");
+  assert.equal(schema.offers.price, "100.00");
   assert.ok(schema.url.endsWith("/planner"), schema.url);
   assert.match(html(), /application\/ld\+json/);
 });
@@ -163,7 +163,7 @@ test("a planner on a photographer's job is invited in a planner's words, at the 
   assert.match(text, /full planning, partial planning or month-of coordination/);
   assert.match(text, /the vendor team on every job, with arrival times, balances and tips/);
   assert.match(text, /sends every vendor their own timeline and tracks who has confirmed/);
-  assert.match(text, /\$75 a month, or \$750 a year/);
+  assert.match(text, /\$100 a month, or \$1,000 a year/);
   assert.doesNotMatch(text, /half|\$150|Your code|GRPRODUCTIONS/);
   assert.doesNotMatch(text, /photo|galler/i);
   // The other trades read as they did.

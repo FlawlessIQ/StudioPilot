@@ -52,7 +52,7 @@ That is what makes this worth building first, ahead of any paid acquisition.
 | Final details lock + couple sign-off | `functions/src/planning/final-details.ts`, `detailSignoffs` | Live. Lock day = 28 days out by default. |
 | A dated ask in the couple's portal | Shot list upload: `features/planning/shot-list.ts`, `functions/src/planning/shot-list-upload.ts`, `app/client/shot-list`, Today inbox | Live. **The pattern to copy.** |
 | Vendor invites (once ever, per address) | `functions/src/saas/vendor-invites.ts`, `vendorInvites/{sha256}`, `emailSuppressions` | Live. Daily sweep of studio-entered vendors on booked jobs. Live trades only. |
-| Vendor Pro plan | $75/mo, $750/yr, `STRIPE_PRICE_VENDOR_*` | Live. **No discount path exists for it** — the referral coupon is Studio-plan only. |
+| Vendor Pro plan | $100/mo, $1,000/yr since 2026-10-14 (was $75 / $750), `STRIPE_PRICE_VENDOR_*` | Live. The vendor offer and, since 2026-10-13, studio and partner codes give $75/mo or $600 the first year. |
 | Referral codes, partner codes, attribution | `saasReferralCodes`, `saasReferrals`, `saasAttribution`, Console Sources + Partners (2d2a845f) | Live. |
 
 So the per-job record, the vendor send and the share page are done or nearly

@@ -28,8 +28,8 @@ const pageHtml = (trade: (typeof VENDORS)[number]) => {
 
 test("every trade is live, the planner since its launch (planner journey, Phase 5)", () => {
   assert.deepEqual([...LIVE_TRADES], [...TRADES]);
-  assert.equal(vendorPlan.monthly, "$75");
-  assert.equal(vendorPlan.yearly, "$750");
+  assert.equal(vendorPlan.monthly, "$100");
+  assert.equal(vendorPlan.yearly, "$1,000");
 });
 
 for (const trade of VENDORS) {
@@ -48,15 +48,15 @@ for (const trade of VENDORS) {
     for (const href of signups) assert.equal(href, vendorSignupHref(trade), href);
     assert.equal(vendorSignupHref(trade), `/auth/register?trade=${trade}&plan=vendor`);
     // The vendor plan's real price, and the trial as it is.
-    assert.match(html, /\$75/);
-    assert.match(html, /\$750\/year/);
+    assert.match(html, /\$100/);
+    assert.match(html, /\$1,000\/year/);
     assert.match(html, /14-day trial/);
     // No testimonials, customer counts or logos until there are real ones.
     assert.doesNotMatch(main, /&ldquo;|“|<blockquote|\b\d[\d,]* (studios|DJs|artists|stylists|vendors|weddings)\b|trusted by|loved by/i);
     assert.doesNotMatch(main, /\b(photos?|photograph\w*|galler(?:y|ies)|shoots?|albums?)\b/i, "a vendor's page reads in their trade");
     // Structured data for the trade, at the plan's price.
     const schema = tradeSchema(trade);
-    assert.equal(schema.offers.price, "75.00");
+    assert.equal(schema.offers.price, "100.00");
     assert.ok(schema.url.endsWith(`/${trade}`), schema.url);
     assert.match(html, /application\/ld\+json/);
   });

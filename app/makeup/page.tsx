@@ -5,7 +5,7 @@ export const metadata = marketingMetadata({
   title: "For Makeup Artists",
   socialTitle: "StudioCue for makeup artists: every chair on the morning, planned from one list.",
   description:
-    "Booking and scheduling software for bridal makeup artists: quotes priced per person, the agreement and deposit, trials, and a party list that lays out every chair on the morning. $75 a month.",
+    "Booking and scheduling software for bridal makeup artists: quotes priced per person, the agreement and deposit, trials, and a party list that lays out every chair on the morning. $100 a month.",
   path: "/makeup",
   og: "makeup",
 });

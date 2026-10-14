@@ -51,5 +51,5 @@ test("every trade has a referral card, not just photographers", () => {
 test("the partner's file says what a vendor gets, about them", () => {
   const [row] = partnerExportRows("https://studio-cue.com", [{ code: "MIKEYBWFZ8", name: "Mikey B", type: "dj" }]);
   const vendor = String(row?.[PARTNER_EXPORT_HEADER.indexOf("What a vendor gets")]);
-  assert.match(vendor, /\$50\/month for their first 12 months, or \$500 for their first year/);
+  assert.match(vendor, /\$75\/month for their first 12 months, or \$600 for their first year/);
 });

@@ -122,7 +122,7 @@ export const entitlements = {
     apiAccessEnabled: false,
     prioritySupportEnabled: true,
   },
-  // DJs, makeup artists and hair stylists, $75 a month (config/saas-plans.ts).
+  // DJs, makeup artists, hair stylists and planners, $100 a month (config/saas-plans.ts).
   vendor: {
     maxInternalUsers: 2,
     maxBrands: 1,
