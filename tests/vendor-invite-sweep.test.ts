@@ -155,7 +155,7 @@ test("the invite names the vendor's own trade and the vendor plan's price, with 
   assert.match(invite(["makeup", "hair"]).text, /StudioCue runs hair and makeup bookings[\s\S]*pick hair or makeup/);
   // A videographer, who signs up as a photographer, keeps the referral invite.
   const video = invite(["photographer"]).text;
-  assert.match(video, /half the usual \$150/);
+  assert.match(video, /half price for your first 12 months: \$75\/month, or \$750 for your first year/);
   assert.match(video, /GRPRODUCTIONS/);
   assert.equal(vendorInvitePitch(undefined), null);
   assert.equal(vendorInvitePitch(["florist"]), null);

@@ -19,9 +19,9 @@ import { activeMembership } from "@/lib/firebase/active-membership";
 import { TrialTeaser } from "@/components/marketing/trial-teaser";
 import { ReferralCard } from "@/components/saas/referral-card";
 import { billingCommand } from "@/lib/billing/command-client";
-import { VENDOR_OFFER_MONTHLY_CENTS, VENDOR_OFFER_YEARLY_CENTS } from "@/features/subscriptions/vendor-offer";
+import { halfOff } from "@/features/subscriptions/referral-program";
 
-const dollars = (cents: number) => `$${(cents / 100).toLocaleString("en-US")}`;
+const dollars = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
 const noSubscribe = () => () => undefined;
 
@@ -316,15 +316,11 @@ export function LiveSubscription() {
                   <StatusBadge tone="success">Current</StatusBadge>
                 ) : null}
               </div>
-              {preTrial && referredBy && card.key === "studio" && referredBy.plan === "studio" ? (
+              {preTrial && referredBy && (referredBy.plan === "vendor") === (card.key === "vendor") ? (
+                // Every code is half price for 12 months, on every plan (saas/referrals.ts).
                 <>
-                  <strong>$75<small>/month, billed yearly</small></strong>
-                  <p>$900 your first year, or $100/month billed monthly · referred by {referredBy.referrerName}</p>
-                </>
-              ) : preTrial && referredBy && card.key === "vendor" && referredBy.plan === "vendor" ? (
-                <>
-                  <strong>{dollars(VENDOR_OFFER_MONTHLY_CENTS)}<small>/month</small></strong>
-                  <p>{`for your first 12 months, or ${dollars(VENDOR_OFFER_YEARLY_CENTS)} your first year · ${referredBy.workedWith ? "from an event with" : "referred by"} ${referredBy.referrerName}`}</p>
+                  <strong>{dollars(halfOff(card.monthlyCents))}<small>/month</small></strong>
+                  <p>{`half price for your first 12 months, or ${dollars(halfOff(card.yearlyCents))} your first year · ${referredBy.workedWith ? "from an event with" : "referred by"} ${referredBy.referrerName}`}</p>
                 </>
               ) : (
                 <>

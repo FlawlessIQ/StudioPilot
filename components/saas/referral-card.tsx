@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Copy, Gift } from "lucide-react";
-import { OFFER_MONTHLY_CENTS, OFFER_YEARLY_CENTS, REFERRAL_CREDIT_CENTS } from "@/features/subscriptions/referral-program";
-import { VENDOR_OFFER_MONTHLY_CENTS, VENDOR_OFFER_YEARLY_CENTS } from "@/features/subscriptions/vendor-offer";
+import { planCards, vendorPlanCards } from "@/config/saas-plans";
+import { halfOff, REFERRAL_CREDIT_CENTS } from "@/features/subscriptions/referral-program";
 import { billingCommand } from "@/lib/billing/command-client";
 import { friendlyError } from "@/lib/ai/friendly-error";
 
@@ -89,10 +89,11 @@ export function ReferralCard() {
         <Gift aria-hidden="true" />
         <span>
           <h2 id="referral-heading">Refer a friend, get {dollars(REFERRAL_CREDIT_CENTS)}</h2>
-          <p>{`Anyone who signs up with your code gets 14 days free, then a lower price for their first year. You get a one-off ${dollars(status?.creditCents ?? REFERRAL_CREDIT_CENTS)} off your StudioCue bill for each one, once they have been paying for 3 months.`}</p>
+          <p>{`Anyone who signs up with your code gets 14 days free, then half price for their first 12 months. You get a one-off ${dollars(status?.creditCents ?? REFERRAL_CREDIT_CENTS)} off your StudioCue bill for each one, once they have been paying for 3 months.`}</p>
           <ul>
-            <li>{`Studio plan: ${dollars(OFFER_YEARLY_CENTS)} for the year, or ${dollars(OFFER_MONTHLY_CENTS)}/month`}</li>
-            <li>{`Pro plan (DJs, planners, hair and makeup): ${dollars(VENDOR_OFFER_YEARLY_CENTS)} for the year, or ${dollars(VENDOR_OFFER_MONTHLY_CENTS)}/month`}</li>
+            {[...planCards, ...vendorPlanCards].map((card) => (
+              <li key={card.key}>{`${card.name}${card.key === "vendor" ? " (DJs, planners, hair and makeup)" : ""}: ${dollars(halfOff(card.yearlyCents))} for the year, or ${dollars(halfOff(card.monthlyCents))}/month`}</li>
+            ))}
           </ul>
         </span>
       </div>

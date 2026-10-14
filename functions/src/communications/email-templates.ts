@@ -13,6 +13,7 @@ import { bookingGateNeeds, jobKindOf, journeyProfile, vocab } from "../job-kinds
 import { bulletLinePattern, clientEmailParagraphs } from "./email-content.js";
 import { PLAN_LIST_PRICE_CENTS } from "../console/model.js";
 import { VENDOR_OFFER_MONTHLY_CENTS, VENDOR_OFFER_SUMMARY, VENDOR_OFFER_YEARLY_CENTS } from "../saas/vendor-offer.js";
+import { OFFER_MONTHLY_CENTS, OFFER_SUMMARY, OFFER_YEARLY_CENTS } from "../saas/referral-program.js";
 
 /**
  * Account-security mail sent by the PLATFORM, not a studio: email verification
@@ -814,7 +815,7 @@ export function vendorOfferCopy(
   const pitch = vendorInvitePitch(offer.trades);
   const studioPlan = offer.audience === "studio";
   const price = studioPlan
-    ? "14 days free, then $75/month billed yearly for your first year, half the usual $150"
+    ? OFFER_SUMMARY
     : VENDOR_OFFER_SUMMARY;
   const unsubscribe = safeUrl(stringValue(offer, "unsubscribeUrl"));
   return {
@@ -2742,14 +2743,14 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       }
       return {
         subject: `${studio} invited you to try StudioCue`,
-        preheader: "14 days free, then half price for your first year.",
+        preheader: "14 days free, then half price for your first 12 months.",
         eyebrow: "An invitation",
         heading: `${studio} thinks you'd like StudioCue`,
         paragraphs: [
           greeting,
           `${studio} runs their bookings on StudioCue, and you're on one of their upcoming events. They'd like you to try it too.`,
           "StudioCue looks after the office side: inquiries, proposals, contracts, payments, forms and the day's timeline, with an assistant that drafts the next step for you to approve.",
-          `With ${possessive(studio)} code you get 14 days free, then $75/month billed yearly for your first year, half the usual $150. Or $100/month if you'd rather pay monthly.`,
+          `With ${possessive(studio)} code you get 14 days free, then half price for your first 12 months: $${OFFER_MONTHLY_CENTS / 100}/month, or $${OFFER_YEARLY_CENTS / 100} for your first year.`,
         ],
         details: code ? [{ label: "Your code", value: code }] : undefined,
         action: actionUrl ? { label: "Start your free trial", url: actionUrl } : undefined,

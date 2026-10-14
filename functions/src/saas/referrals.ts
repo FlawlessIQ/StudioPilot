@@ -6,10 +6,9 @@ import { STUDIOCUE_METADATA, stripeMock, stripeRequest } from "../console/stripe
 import { codeTaken } from "../console/handlers/codes.js";
 import { queueBillingNotice } from "./billing-notices.js";
 import {
-  OFFER_MONTHLY_CENTS,
   OFFER_MONTHS,
-  OFFER_YEARLY_CENTS,
   REFERRAL_CREDIT_CENTS,
+  REFERRAL_PERCENT_OFF,
   normalizeReferralCode,
   referralCodeStem,
   settlement,
@@ -20,8 +19,7 @@ import {
  *
  * Every studio's code lives in `saasReferralCodes/{CODE}` → tenantId, and on
  * `tenants/{id}.referralCode`. It is not a Stripe promotion code: billingCommand
- * looks it up here and applies one of two coupons, one per cadence, because a
- * single Stripe coupon can't take $600 off a year and $50 off a month.
+ * looks it up here and applies the one 50%-off coupon (`referralCoupon`).
  * `saasReferrals/{tenantId}`: the referred studio, who referred it, when it
  * first paid, and when its $100 was credited (or forfeited). It replaces the
  * partner records of 2026-10-07.
@@ -110,50 +108,35 @@ export async function lookupReferral(db: Firestore, rawCode: unknown): Promise<R
 }
 
 /**
- * The coupon for a referred studio's first year on this cadence, made once.
+ * The coupon every code applies, made once: 50% off for 12 months, on any
+ * plan and either cadence (Conor, 2026-10-14: "every discount no matter the
+ * source is 50% off"). A percentage follows the list price, so a price change
+ * never needs a new coupon; changing the percentage or the months does, and
+ * makes one (`halfOffCouponKey`).
  *
- * Amount off rather than percent off, from the Studio list price, so yearly is
- * $900 and monthly is $100 whatever the list price is when it's made. Limited
- * to the Studio product: the offer is for the Studio plan.
+ * Twelve months from checkout. Monthly: the first 12 charges. Yearly: the
+ * first annual invoice, 14 days in, and not the renewal a year after that.
+ * Not "once": the first invoice of a trial is the $0 one at checkout, and a
+ * once-off discount spent there would leave the customer paying list price.
  */
-export async function referralCoupon(db: Firestore, cadence: "monthly" | "yearly"): Promise<string> {
-  const field = cadence === "yearly" ? "yearlyCouponId" : "monthlyCouponId";
-  const priceId = process.env[`STRIPE_PRICE_STUDIO_${cadence.toUpperCase()}`] ?? "";
-  const target = cadence === "yearly" ? OFFER_YEARLY_CENTS : OFFER_MONTHLY_CENTS;
-  // Kept for the price and offer it was made for, so a price change makes a new coupon (saas/vendor-offer.ts).
-  // A coupon made before the key existed is kept: the Studio price hasn't changed since.
-  const key = `${priceId}:${target}`;
+export async function referralCoupon(db: Firestore): Promise<string> {
+  const key = `percent:${REFERRAL_PERCENT_OFF}:months:${OFFER_MONTHS}`;
   const program = await db.doc(PROGRAM).get();
-  const existing = program.get(field);
-  const existingKey = program.get(`${field}Key`);
-  if (typeof existing === "string" && existing && (existingKey === undefined || existingKey === key)) return existing;
-  let couponId: string;
-  if (stripeMock()) {
-    couponId = `mock_referral_${cadence}`;
-  } else {
-    if (!priceId) throw new Error("STRIPE_PRICE_NOT_CONFIGURED");
-    const price = await stripeRequest<{ unit_amount?: number | null; product?: string; currency?: string }>("GET", `prices/${encodeURIComponent(priceId)}`);
-    const amountOff = Number(price.unit_amount ?? 0) - target;
-    if (!(amountOff > 0) || !price.product) throw new Error("REFERRAL_OFFER_ABOVE_LIST_PRICE");
-    couponId = (
-      await stripeRequest<{ id: string }>("POST", "coupons", {
-        name: cadence === "yearly" ? "Referral: first year $900 ($75/month)" : "Referral: $100/month for 12 months",
-        amount_off: amountOff,
-        currency: price.currency ?? "usd",
-        // Twelve months from checkout, for both. Monthly: the first 12
-        // charges. Yearly: the first annual invoice, 14 days in, and not the
-        // renewal a year after that. Not "once": the first invoice of a
-        // trial is the $0 one at checkout, and a once-off discount spent
-        // there would leave the studio paying $1,500.
-        duration: "repeating",
-        duration_in_months: OFFER_MONTHS,
-        "applies_to[products]": [price.product],
-        "metadata[app]": STUDIOCUE_METADATA.app,
-        "metadata[kind]": "referral",
-      })
-    ).id;
-  }
-  await db.doc(PROGRAM).set({ [field]: couponId, [`${field}Key`]: key, updatedAt: new Date().toISOString() }, { merge: true });
+  const existing = program.get("halfOffCouponId");
+  if (typeof existing === "string" && existing && program.get("halfOffCouponKey") === key) return existing;
+  const couponId = stripeMock()
+    ? `mock_referral_${REFERRAL_PERCENT_OFF}pct`
+    : (
+        await stripeRequest<{ id: string }>("POST", "coupons", {
+          name: `Referral: ${REFERRAL_PERCENT_OFF}% off for ${OFFER_MONTHS} months`,
+          percent_off: REFERRAL_PERCENT_OFF,
+          duration: "repeating",
+          duration_in_months: OFFER_MONTHS,
+          "metadata[app]": STUDIOCUE_METADATA.app,
+          "metadata[kind]": "referral",
+        })
+      ).id;
+  await db.doc(PROGRAM).set({ halfOffCouponId: couponId, halfOffCouponKey: key, updatedAt: new Date().toISOString() }, { merge: true });
   return couponId;
 }
 

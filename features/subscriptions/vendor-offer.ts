@@ -3,19 +3,19 @@ import { tradeProfile, vendorTypeIsLive, vendorTypeLiveTrades } from "@/features
 /**
  * The vendor offer (docs/vendor-network-plan-2026-10-12.md, Phase 3; D1): a
  * vendor who worked a StudioCue studio's wedding gets the vendor plan at
- * $75/month for the first 12 months, or $600 for the first year (list $100 /
- * $1,000 since 2026-10-14; it was $50 / $500 on a $75 plan), after the
+ * half price: $50/month for the first 12 months, or $500 for the first year
+ * (list $100 / $1,000; Conor, 2026-10-14: 50% off from every source), after the
  * 14-day trial. The writes, the coupon and checkout are the server's
  * (functions/src/saas/vendor-offer.ts); this is the pure part the share page
  * and the Subscription page read. tests/vendor-offer.test.ts keeps the two equal.
  */
 
-export const VENDOR_OFFER_MONTHLY_CENTS = 7_500;
-export const VENDOR_OFFER_YEARLY_CENTS = 60_000;
+export const VENDOR_OFFER_MONTHLY_CENTS = 5_000;
+export const VENDOR_OFFER_YEARLY_CENTS = 50_000;
 export const VENDOR_OFFER_MONTHS = 12;
-export const VENDOR_OFFER_SUMMARY = "14 days free, then $75/month for your first 12 months, or $600 for your first year";
+export const VENDOR_OFFER_SUMMARY = "14 days free, then half price for your first 12 months: $50/month, or $500 for your first year";
 /** The same, said about someone else: a referrer's card, the Console, a partner's file. */
-export const VENDOR_OFFER_SUMMARY_THEIRS = "14 days free, then $75/month for their first 12 months, or $600 for their first year";
+export const VENDOR_OFFER_SUMMARY_THEIRS = "14 days free, then half price for their first 12 months: $50/month, or $500 for their first year";
 
 export type VendorOfferAudience = "vendor" | "studio";
 

@@ -3,9 +3,10 @@
  * of 2026-10-07.
  *
  * - **Every studio has its own code.**
- * - **A studio that signs up with it** gets the 14-day trial, then its first
- *   year of the Studio plan at $75/month billed yearly ($900), or $100/month
- *   billed monthly. After that year it pays the list price.
+ * - **Anyone who signs up with it** gets the 14-day trial, then half price for
+ *   12 months, on any plan and either cadence (Conor, 2026-10-14: "every
+ *   discount no matter the source is 50% off"). After that it pays the list
+ *   price. A partner's code and a vendor's offer code give the same 50%.
  * - **The studio whose code it was** earns $100 of StudioCue credit, once,
  *   for each one still paying three months after its first payment (Conor,
  *   2026-10-08: "make sure its clear that its once off and will be paid after
@@ -23,8 +24,15 @@ export const REFERRAL_CREDIT_CENTS = 10_000;
 export const REFERRAL_LIVE_MONTHS = 3;
 
 /** The Studio plan for a referred studio's first year. */
-export const OFFER_YEARLY_CENTS = 90_000;
-export const OFFER_MONTHLY_CENTS = 10_000;
+export const OFFER_YEARLY_CENTS = 75_000;
+export const OFFER_MONTHLY_CENTS = 7_500;
+/** Every code, whoever's it is, takes this much off every plan for OFFER_MONTHS. */
+export const REFERRAL_PERCENT_OFF = 50;
+
+/** A list price with a code's discount taken off, in cents. */
+export function halfOff(listCents: number): number {
+  return Math.round((listCents * (100 - REFERRAL_PERCENT_OFF)) / 100);
+}
 export const OFFER_MONTHS = 12;
 
 /** A code as typed or carried on a link: letters and digits, upper case. */
@@ -112,6 +120,6 @@ export const BOOKED_JOB_STATES = [
   "CLOSED",
 ] as const;
 
-/** "$900 for the first year" style copy, shared by the studio's card and the invite. */
+/** The Studio plan's offer in words, shared by the studio's card and the invite. */
 export const OFFER_SUMMARY =
-  "14 days free, then $75/month billed yearly for the first year ($900), or $100/month billed monthly for the first 12 months";
+  "14 days free, then half price for the first 12 months: $75/month, or $750 for the first year";

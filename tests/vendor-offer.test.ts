@@ -13,7 +13,7 @@ import { SOURCE_CHANNELS as SERVER_CHANNELS } from "../functions/src/saas/attrib
 /**
  * The vendor offer (docs/vendor-network-plan-2026-10-12.md, Phase 3; D1, D2):
  * a vendor who worked a StudioCue studio's wedding gets the vendor plan at
- * $75/month for a year or $600 for the first year (on the $100 plan since 2026-10-14), with a code of their own,
+ * half price, $50/month for a year or $500 for the first year (50% off from every source since 2026-10-14), with a code of their own,
  * once by email and every time they open their schedule link.
  */
 
@@ -36,9 +36,9 @@ test("the app's copy of the offer and the server's agree", () => {
   assert.deepEqual([...APP_CHANNELS], [...SERVER_CHANNELS]);
 });
 
-test("D1: a third off the vendor plan's first year", () => {
-  assert.equal(server.VENDOR_OFFER_MONTHLY_CENTS, 7_500);
-  assert.equal(server.VENDOR_OFFER_YEARLY_CENTS, 60_000);
+test("D1, since 2026-10-14: half off the vendor plan's first year, like every code", () => {
+  assert.equal(server.VENDOR_OFFER_MONTHLY_CENTS, 5_000);
+  assert.equal(server.VENDOR_OFFER_YEARLY_CENTS, 50_000);
   assert.equal(server.VENDOR_OFFER_MONTHS, 12);
 });
 
@@ -95,7 +95,7 @@ test("the timeline email carries the offer under the timeline, never instead of 
   // The schedule is still the button.
   assert.match(offered.html, /View and confirm/);
   assert.match(offered.text, /VOABCD2345/);
-  assert.match(offered.text, /\$75\/month for your first 12 months, or \$600 for your first year/);
+  assert.match(offered.text, /half price for your first 12 months: \$50\/month, or \$500 for your first year/);
   assert.match(offered.text, /StudioCue runs your DJ bookings, too/);
   assert.match(offered.text, /opt out of offers/);
   // A wedding reads as one; any other kind of job, as its own (job-kinds.ts vocab).
@@ -103,16 +103,16 @@ test("the timeline email carries the offer under the timeline, never instead of 
   assert.equal(vendorOfferCopy(null, "GR"), null);
   assert.equal(vendorOfferCopy({ ...offer, actionUrl: "javascript:alert(1)" }, "GR"), null);
   // A videographer: the Studio plan's referral price.
-  assert.match(vendorOfferCopy({ ...offer, audience: "studio", trades: ["photographer"] }, "GR")?.details[0]?.value ?? "", /\$75\/month billed yearly/);
+  assert.match(vendorOfferCopy({ ...offer, audience: "studio", trades: ["photographer"] }, "GR")?.details[0]?.value ?? "", /half price for the first 12 months: \$75\/month, or \$750 for the first year/);
 });
 
 test("a swept vendor-plan invite carries the offer and its code", () => {
   const values = { studioName: "GR Productions", inviteTrades: ["hair"], offerCode: "VOABCD2345", actionUrl: "https://studio-cue.com/auth/register?plan=vendor" };
   const rendered = renderEmailTemplate({ key: "platform_vendor_invite", brand, recipientName: "Jess", projectName: null, values } as Parameters<typeof renderEmailTemplate>[0]);
-  assert.match(rendered.text, /\$75 a month for your first 12 months, or \$600 for your first year/);
+  assert.match(rendered.text, /\$50 a month for your first 12 months, or \$500 for your first year/);
   assert.match(rendered.text, /VOABCD2345/);
   const without = renderEmailTemplate({ key: "platform_vendor_invite", brand, recipientName: "Jess", projectName: null, values: { ...values, offerCode: null } } as Parameters<typeof renderEmailTemplate>[0]);
-  assert.doesNotMatch(without.text, /\$75 a month for your first/);
+  assert.doesNotMatch(without.text, /\$50 a month for your first/);
 });
 
 test("Sources files a vendor who signed up through the offer under its own channel, naming the studio", () => {
@@ -243,12 +243,14 @@ test("a vendor invited before the offer existed gets it on their record, without
 test("wired: checkout, the sender, the sweep, the share page and the Subscription page", () => {
   const stripe = read("functions/src/saas/stripe.ts");
   assert.match(stripe, /firstCheckout && parsed\.plan === "vendor"\s*\? await vendorOfferBy/);
-  assert.match(stripe, /discounts\[0\]\[coupon\]", await vendorOfferCoupon\(db, parsed\.cadence\)/);
+  assert.match(stripe, /discounts\[0\]\[coupon\]", await vendorOfferCoupon\(db\)/);
   assert.match(stripe, /referralVia\]", vendorOffer\.via/);
   // One studio claims a code; it doesn't go round.
   assert.match(stripe, /offerClaimedTenantId/);
   const offerSource = read("functions/src/saas/vendor-offer.ts");
-  assert.match(offerSource, /duration: "repeating"/);
+  // The one 50% coupon (saas/referrals.ts) is the 12-month repeating one.
+  assert.match(offerSource, /return referralCoupon\(db\);/);
+  assert.match(read("functions/src/saas/referrals.ts"), /duration: "repeating"/);
   assert.doesNotMatch(offerSource, /duration: "once"/);
   assert.match(read("functions/src/operations/jobs.ts"), /vendorTimelineOffer\(getFirestore\(\), document/);
   assert.match(read("functions/src/saas/vendor-invites.ts"), /vendorOfferAudience\(invite\.vendorType\) === "vendor" \? newVendorOfferCode\(\)/);
@@ -302,7 +304,7 @@ test("the signup page names a live vendor offer, and only a live one", async () 
   } as unknown as Parameters<typeof signupOfferFor>[0];
   const live = await signupOfferFor(db, "vokatv9y4f");
   assert.equal(live?.studioName, "FlawlessIQ");
-  assert.match(live?.summary ?? "", /\$75\/month for your first 12 months/);
+  assert.match(live?.summary ?? "", /half price for your first 12 months: \$50\/month/);
   assert.equal(await signupOfferFor(db, "VOTAKEN234"), null);
   assert.equal(await signupOfferFor(db, "VONOTVO234"), null);
   assert.equal(await signupOfferFor(db, "FLAWLESSIQ"), null);

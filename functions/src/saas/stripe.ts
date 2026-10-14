@@ -522,11 +522,10 @@ export const billingCommand = onRequest(
             ? await vendorOfferBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
             : null;
         // Another studio's or a partner's referral code, on a first checkout
-        // only, never the studio's own: the Studio plan's first year at the
-        // referral price, or the vendor plan's at the vendor offer price
-        // (Conor, 2026-10-13: Gabe's partners send DJs and planners too).
+        // only, never the studio's own: half price for 12 months on whichever
+        // plan they choose (Conor, 2026-10-14: 50% off from every source).
         const referral =
-          firstCheckout && !vendorOffer && (parsed.plan === "studio" || parsed.plan === "vendor")
+          firstCheckout && !vendorOffer
             ? await referredBy(db, parsed.promotionCode, parsed.tenantId, identity.uid)
             : null;
         // Beta codes: a code from the signup link is applied up front; with
@@ -563,7 +562,8 @@ export const billingCommand = onRequest(
           params.delete("allow_promotion_codes");
           params.set(
             "discounts[0][coupon]",
-            parsed.plan === "vendor" ? await vendorOfferCoupon(db, parsed.cadence) : await referralCoupon(db, parsed.cadence),
+            // One 50% coupon for every plan and cadence (saas/referrals.ts).
+            await referralCoupon(db),
           );
           // Carried on the subscription, so the webhook ties the studio to its
           // referrer only once Checkout has actually completed.
@@ -574,7 +574,7 @@ export const billingCommand = onRequest(
         }
         if (vendorOffer) {
           params.delete("allow_promotion_codes");
-          params.set("discounts[0][coupon]", await vendorOfferCoupon(db, parsed.cadence));
+          params.set("discounts[0][coupon]", await vendorOfferCoupon(db));
           // The webhook records the referral from these once Checkout completes,
           // and the studio is credited after three months paying (D2).
           params.set("subscription_data[metadata][referralCode]", vendorOffer.code);

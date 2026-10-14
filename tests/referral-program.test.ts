@@ -62,10 +62,10 @@ test("vendor invites never go to venues, insurers or a client's own contacts", (
   assert.match(sender, /"List-Unsubscribe-Post": "List-Unsubscribe=One-Click"/);
 });
 
-test("the referral price is applied on a first checkout of the Studio or vendor plan, never with the studio's own code", () => {
+test("the referral price is applied on a first checkout of any plan, never with the studio's own code", () => {
   const stripe = read("functions/src/saas/stripe.ts");
-  // Since 2026-10-13 a vendor with a studio's or partner's code gets the vendor offer (tests/vendor-referrals.test.ts).
-  assert.match(stripe, /firstCheckout && !vendorOffer && \(parsed\.plan === "studio" \|\| parsed\.plan === "vendor"\)\s*\?\s*await referredBy\(/);
+  // Since 2026-10-14 every plan: 50% off from every source (tests/vendor-referrals.test.ts).
+  assert.match(stripe, /firstCheckout && !vendorOffer\s*\?\s*await referredBy\(/);
   assert.match(stripe, /referral\.referrerTenantId === tenantId\) return null/);
   assert.match(stripe, /subscription_data\[metadata\]\[referrerTenantId\]/);
   assert.doesNotMatch(stripe, /annualOnly/);
