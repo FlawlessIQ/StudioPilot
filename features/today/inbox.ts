@@ -3311,7 +3311,7 @@ export function todayInbox(input: TodayInput): TodayInbox {
             : status === "self_serve"
               ? `Make the COI for ${venue || "the venue"} · about 2 min`
               : status === "under_review" && request.reusedFromRequestId
-                ? `Re-send your ${venue || "venue"} certificate — it still covers this date`
+                ? `Re-send the certificate ${venue || "the venue"} already has — it still covers this date`
               : status === "approved"
                 ? "Send the approved COI to the venue"
                 : `COI ready${venue ? ` for ${venue}` : ""} — check it and send`,

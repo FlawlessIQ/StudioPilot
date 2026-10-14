@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/app-shell";
+import { CoiPageIntro } from "@/components/planning/coi-page-intro";
 import { CoiWorkflowPanel } from "@/components/planning/coi-workflow-panel";
 import { LiveDomainView, ProjectContextBar } from "@/components/studio/live-domain-view";
 
@@ -22,24 +23,10 @@ export default async function InsurancePage({ searchParams }: { searchParams: Pr
                 chase the venue for insurance. */}
             <p className="eyebrow">Your insurance</p>
             <h1>Certificate of insurance</h1>
-            <p>
-              Ask your insurance agent for a certificate naming the venue,
-              review it, then send it on.
-            </p>
+            <CoiPageIntro />
           </div>
         </header>
         {project ? <ProjectContextBar projectId={project} /> : null}
-        {/* Who does what, in order. Four parties are involved — the studio,
-            its agent, a reviewer and the venue — and the page showed two
-            email fields side by side and nothing about the sequence. */}
-        <ol className="coi-flow-stages" aria-label="How a certificate gets to the venue">
-          <li>You request it from your agent</li>
-          <li>Your agent replies with a PDF</li>
-          <li>You review it against the venue&apos;s requirements</li>
-          <li>You approve it</li>
-          <li>StudioCue sends it to the venue</li>
-          <li>The venue acknowledges it</li>
-        </ol>
         <LiveDomainView domain="insurance" projectId={project} />
         {/* The promise belongs beside the step it constrains — step 3 above,
             and the review queue inside the panel — not above any explanation

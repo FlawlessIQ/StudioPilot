@@ -45,6 +45,7 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
   const { records: requirements } = useTenantDocuments("insuranceRequirements", { enabled: managerRole });
   const { records: coiSettingsRecords } = useTenantDocuments("coiSettings", { enabled: managerRole });
   const coiSettings = (coiSettingsRecords ?? [])[0];
+  const selfServe = coiSettings?.source === "self_serve";
   const savedAgentEmail = typeof coiSettings?.agentEmail === "string" ? coiSettings.agentEmail : "";
   const chaseEveryDays = typeof coiSettings?.chaseEveryDays === "number" ? coiSettings.chaseEveryDays : 3;
   const maxChases = typeof coiSettings?.maxChases === "number" ? coiSettings.maxChases : 4;
@@ -256,7 +257,11 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
             <h2>
               Request a certificate <InfoHint term="coi" />
             </h2>
-            <p>A unique reply route associates one inbound PDF with this project.</p>
+            <p>
+              {selfServe
+                ? "Say whether the venue needs one; StudioCue does the rest."
+                : "A unique reply route associates one inbound PDF with this project."}
+            </p>
           </div>
           <Send />
         </div>
@@ -302,155 +307,166 @@ export function CoiWorkflowPanel({ projectId }: { projectId?: string }) {
             ) : null}
           </div>
         </div>
-        <form className="coi-request-form" onSubmit={(event) => void create(event)}>
-          <label>
-            Project
-            {" "}{/* Controlled, not `defaultValue`. The options arrive from
-                Firestore after mount, and `defaultValue` only applies at
-                mount — so a URL carrying ?project=… still rendered "Select a
-                project" once the list loaded, on the very page that had been
-                opened for that project. */}
-            <select
-              disabled={projectsLoading}
-              name="projectId"
-              onChange={(event) => setProjectOverride(event.target.value)}
-              required
-              value={selectedProject}
-            >
-              <option value="">Select a project</option>
-              {liveProjects(projects).map((project) => (
-                <option key={project.id} value={project.id}>
-                  {String(project.name)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Certificate holder
-            <input name="certificateHolder" required />
-            <small>
-              The venue&apos;s legal entity, exactly as their contract writes it.
-              This is who the certificate is issued to.
-            </small>
-          </label>
-          <label>
-            Venue legal name
-            <input
-              defaultValue={String(chosen?.venueName ?? "")}
-              key={`venue-${selectedProject}`}
-              name="venueLegalName"
-              required
-            />
-          </label>
-          {/* The one address in the product with a legal consequence: it
-              goes on the certificate the venue checks at the door. Looking
-              it up beats retyping it off an email thread. The `name` prop
-              still writes a plain form value, so the command that sends
-              this is unchanged. */}
-          <AddressField
-            hint={
-              venueAddress?.verified
-                ? "Confirmed address — safe to put on the certificate."
-                : "Look the venue up so the certificate carries its real address."
-            }
-            label="Venue address"
-            name="venueAddress"
-            onChange={setVenueAddress}
-            placeholder="Venue street address"
-            required
-            value={venueAddress}
-          />
-          <label>
-            Event date
-            <input
-              name="eventDate"
-              onChange={(event) => setEventDateOverride(event.target.value)}
-              required
-              type="date"
-              value={eventDateOverride ?? chosenEventDate}
-            />
-          </label>
-          <label>
-            Due date
-            <input
-              name="dueDate"
-              onChange={(event) => setDueDateOverride(event.target.value)}
-              required
-              type="date"
-              value={dueDateOverride ?? defaultDueDate}
-            />
-          </label>
-          <label>
-            Insurance agent email
-            <input
-              name="insuranceAgentEmail"
-              placeholder={savedAgentEmail || undefined}
-              required={!savedAgentEmail}
-              type="email"
-            />
-            <small>
-              {savedAgentEmail
-                ? `Leave blank to use your saved agent, ${savedAgentEmail}.`
-                : "Your own agent. Save them in Settings → Insurance and StudioCue asks for you."}
-            </small>
-          </label>
-          <label>
-            Venue submission email <span className="coi-optional">optional for now</span>
-            <input name="submissionEmail" type="email" />
-            <small>
-              Where the finished certificate goes — only after you have
-              reviewed and approved it. Nothing is sent here now.
-            </small>
-          </label>
-          <label>
-            Coverage type
-            <input name="coverageTypes" defaultValue="General liability" required />
-            <small>Separate several with commas, as the venue lists them.</small>
-          </label>
-          <label>
-            General liability limit (USD)
-            <input
-              min="0"
-              name="generalLiabilityDollars"
-              onChange={(event) => setLimitDollars(event.target.value)}
-              required
-              type="number"
-              value={limitDollars}
-            />
-            <small>
-              {formattedLimit
-                ? `${formattedLimit} — most venues ask for $1,000,000.`
-                : "Most venues ask for $1,000,000."}
-            </small>
-          </label>
-          <label className="form-span">
-            Additional-insured wording <span className="coi-optional">optional</span>
-            <textarea name="additionalInsuredWording" />
-            <small>
-              Copy this from the venue&apos;s contract if it specifies wording.
-            </small>
-          </label>
-          <label className="form-span">
-            Special instructions <span className="coi-optional">optional</span>
-            <textarea name="specialInstructions" />
-          </label>
-          <label className="coi-checkbox">
-            <input name="waiverOfSubrogation" type="checkbox" /> Waiver of
-            subrogation required
-            <small>Check only if the venue&apos;s contract asks for it.</small>
-          </label>
-          <label className="coi-checkbox">
-            <input name="primaryNoncontributory" type="checkbox" /> Primary and noncontributory wording required
-          </label>
-          <p className="coi-send-summary form-span">
-            Sending requests the certificate from your agent. The venue is not
-            contacted until you approve what comes back.
+        {/* A studio that makes its own certificates has no agent to email:
+            "Yes, it does" above starts this job's kit, shown below. The
+            request form is the agent's path (self-serve kit, 2026-10-14). */}
+        {selfServe ? (
+          <p className="coi-status-note">
+            You make your certificates on your insurer&rsquo;s website. Once the
+            venue needs one, this job&rsquo;s kit appears below with every detail
+            to copy and an address to email the certificate to.
           </p>
-          <button className="button button-dark" disabled={busy} type="submit">
-            {busy ? <LoaderCircle className="spin" /> : <Send />}
-            {busy ? "Creating…" : "Create and send request"}
-          </button>
-        </form>
+        ) : (
+          <form className="coi-request-form" onSubmit={(event) => void create(event)}>
+            <label>
+              Project
+              {" "}{/* Controlled, not `defaultValue`. The options arrive from
+                  Firestore after mount, and `defaultValue` only applies at
+                  mount — so a URL carrying ?project=… still rendered "Select a
+                  project" once the list loaded, on the very page that had been
+                  opened for that project. */}
+              <select
+                disabled={projectsLoading}
+                name="projectId"
+                onChange={(event) => setProjectOverride(event.target.value)}
+                required
+                value={selectedProject}
+              >
+                <option value="">Select a project</option>
+                {liveProjects(projects).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {String(project.name)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Certificate holder
+              <input name="certificateHolder" required />
+              <small>
+                The venue&apos;s legal entity, exactly as their contract writes it.
+                This is who the certificate is issued to.
+              </small>
+            </label>
+            <label>
+              Venue legal name
+              <input
+                defaultValue={String(chosen?.venueName ?? "")}
+                key={`venue-${selectedProject}`}
+                name="venueLegalName"
+                required
+              />
+            </label>
+            {/* The one address in the product with a legal consequence: it
+                goes on the certificate the venue checks at the door. Looking
+                it up beats retyping it off an email thread. The `name` prop
+                still writes a plain form value, so the command that sends
+                this is unchanged. */}
+            <AddressField
+              hint={
+                venueAddress?.verified
+                  ? "Confirmed address — safe to put on the certificate."
+                  : "Look the venue up so the certificate carries its real address."
+              }
+              label="Venue address"
+              name="venueAddress"
+              onChange={setVenueAddress}
+              placeholder="Venue street address"
+              required
+              value={venueAddress}
+            />
+            <label>
+              Event date
+              <input
+                name="eventDate"
+                onChange={(event) => setEventDateOverride(event.target.value)}
+                required
+                type="date"
+                value={eventDateOverride ?? chosenEventDate}
+              />
+            </label>
+            <label>
+              Due date
+              <input
+                name="dueDate"
+                onChange={(event) => setDueDateOverride(event.target.value)}
+                required
+                type="date"
+                value={dueDateOverride ?? defaultDueDate}
+              />
+            </label>
+            <label>
+              Insurance agent email
+              <input
+                name="insuranceAgentEmail"
+                placeholder={savedAgentEmail || undefined}
+                required={!savedAgentEmail}
+                type="email"
+              />
+              <small>
+                {savedAgentEmail
+                  ? `Leave blank to use your saved agent, ${savedAgentEmail}.`
+                  : "Your own agent. Save them in Settings → Insurance and StudioCue asks for you."}
+              </small>
+            </label>
+            <label>
+              Venue submission email <span className="coi-optional">optional for now</span>
+              <input name="submissionEmail" type="email" />
+              <small>
+                Where the finished certificate goes — only after you have
+                reviewed and approved it. Nothing is sent here now.
+              </small>
+            </label>
+            <label>
+              Coverage type
+              <input name="coverageTypes" defaultValue="General liability" required />
+              <small>Separate several with commas, as the venue lists them.</small>
+            </label>
+            <label>
+              General liability limit (USD)
+              <input
+                min="0"
+                name="generalLiabilityDollars"
+                onChange={(event) => setLimitDollars(event.target.value)}
+                required
+                type="number"
+                value={limitDollars}
+              />
+              <small>
+                {formattedLimit
+                  ? `${formattedLimit} — most venues ask for $1,000,000.`
+                  : "Most venues ask for $1,000,000."}
+              </small>
+            </label>
+            <label className="form-span">
+              Additional-insured wording <span className="coi-optional">optional</span>
+              <textarea name="additionalInsuredWording" />
+              <small>
+                Copy this from the venue&apos;s contract if it specifies wording.
+              </small>
+            </label>
+            <label className="form-span">
+              Special instructions <span className="coi-optional">optional</span>
+              <textarea name="specialInstructions" />
+            </label>
+            <label className="coi-checkbox">
+              <input name="waiverOfSubrogation" type="checkbox" /> Waiver of
+              subrogation required
+              <small>Check only if the venue&apos;s contract asks for it.</small>
+            </label>
+            <label className="coi-checkbox">
+              <input name="primaryNoncontributory" type="checkbox" /> Primary and noncontributory wording required
+            </label>
+            <p className="coi-send-summary form-span">
+              Sending requests the certificate from your agent. The venue is not
+              contacted until you approve what comes back.
+            </p>
+            <button className="button button-dark" disabled={busy} type="submit">
+              {busy ? <LoaderCircle className="spin" /> : <Send />}
+              {busy ? "Creating…" : "Create and send request"}
+            </button>
+          </form>
+        )}
       </section>
       )}
       <section>

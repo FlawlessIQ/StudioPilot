@@ -4,6 +4,7 @@ import { tradeProfile } from "../trades/trades.js";
 import { createHash, randomBytes } from "node:crypto";
 import {
   coiAgentRequirement,
+  autoRequestForProject,
   coiSettingsInput,
   projectVenue,
   readCoiSettings,
@@ -2310,10 +2311,22 @@ export const planningCommand = onRequest(
             updatedBy: identity.uid,
           });
         }
+        // "Yes, it does" starts the certificate now, if it's time, rather than
+        // at the next daily sweep: the studio saying so is the moment it
+        // wants the kit (or its agent asked). Same code and rules as the
+        // sweep — not yet, not set up and already asked all stay no-ops.
+        const coiStarted =
+          parsed.input.insuranceRequired === "required"
+            ? await autoRequestForProject(db, await project.get(), now).catch((caught: unknown) => {
+                console.error("coi start on requirement failed", { projectId: parsed.input.projectId, error: caught instanceof Error ? caught.message : caught });
+                return "error";
+              })
+            : null;
         result = {
           projectId: parsed.input.projectId,
           insuranceRequired: parsed.input.insuranceRequired,
           cancelledRequests: cancelled.length,
+          coiStarted,
         };
       } else if (isVendorTeamCommand(parsed)) {
         // A wedding's vendor team, its budget, and the timeline to every

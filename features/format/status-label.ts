@@ -55,6 +55,8 @@ const LABELS: Record<string, string> = {
   not_started: "Not started",
   in_progress: "In progress",
   under_review: "Being reviewed",
+  // A certificate the studio makes on its insurer's website (self-serve kit).
+  self_serve: "Ready to make",
   correction_required: "Needs a correction",
   waived: "Waived",
   complete: "Complete",

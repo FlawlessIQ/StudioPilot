@@ -137,7 +137,7 @@ test("Today: a venue that already has a certificate covering the date gets a re-
       coiSettings: [{ id: "t1", tenantId: "t1" }],
     }),
   );
-  assert.equal(reused[0]?.title, "Re-send your Park Savoy certificate — it still covers this date");
+  assert.equal(reused[0]?.title, "Re-send the certificate Park Savoy already has — it still covers this date");
 });
 
 test("Today: a policy renewing before booked jobs that need a certificate is said a month ahead", () => {
@@ -155,4 +155,15 @@ test("Today: a policy renewing before booked jobs that need a certificate is sai
     todayInbox({ now: "2027-04-01T12:00:00.000Z", projects: [job], insuranceRequests: [], coiSettings: [{ id: "t1", tenantId: "t1", aiPolicyExpiresOn: "2027-07-20" }] }),
   );
   assert.equal(farOff.length, 0);
+});
+
+test("saying the venue needs a certificate starts it now, not at tomorrow's sweep", () => {
+  const commands = read("functions/src/planning/commands.ts");
+  assert.match(commands, /parsed\.input\.insuranceRequired === "required"\s*\? await autoRequestForProject\(db, await project\.get\(\), now\)/);
+});
+
+test("the insurance page speaks to a studio that makes its own certificates", () => {
+  assert.match(read("components/planning/coi-page-intro.tsx"), /You make it on your insurer’s website/);
+  assert.match(read("components/planning/coi-workflow-panel.tsx"), /\{selfServe \? \(\n\s*<p className="coi-status-note">/);
+  assert.match(read("features/format/status-label.ts"), /self_serve: "Ready to make"/);
 });
