@@ -5,7 +5,6 @@ import { isReservedTestAddress } from "../communications/test-address.js";
 import { appUrl } from "../console/studio-owner.js";
 import { tradeProfile, vendorTypeIsLive, vendorTypeLiveTrades } from "../trades/trades.js";
 import { emailHash } from "../communications/email-hash.js";
-import { STUDIOCUE_METADATA, stripeMock, stripeRequest } from "../console/stripe-admin.js";
 
 /**
  * The vendor offer (docs/vendor-network-plan-2026-10-12.md, Phase 3; Conor's
@@ -42,8 +41,6 @@ export const VENDOR_OFFER_MONTHS = 12;
 export const VENDOR_OFFER_SUMMARY = "14 days free, then half price for your first 12 months: $50/month, or $500 for your first year";
 /** The same, said about someone else: a referrer's card, the Console, a partner's file. */
 export const VENDOR_OFFER_SUMMARY_THEIRS = "14 days free, then half price for their first 12 months: $50/month, or $500 for their first year";
-
-const PROGRAM = "saasSettings/referralProgram";
 
 export type VendorOfferAudience = "vendor" | "studio";
 
