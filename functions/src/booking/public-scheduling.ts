@@ -833,6 +833,16 @@ async function handleInquiryCommand(
       agreement: kindProfile.agreement,
       payment: kindProfile.payment,
       jobKind: kindProfile.kind,
+      // Who a mitzvah celebrates, so the page says "Sam's bar mitzvah"
+      // (job-kinds.ts vocab(kind, job)): the job's, else the inquiry's.
+      ...(kindProfile.honoree
+        ? {
+            honoreeName:
+              text(context.project?.get("honoreeName")) || text(context.lead.get("honoreeName")) || null,
+            mitzvahType:
+              text(context.project?.get("mitzvahType")) || text(context.lead.get("mitzvahType")) || null,
+          }
+        : {}),
       // A proposal is out: the call happened, so the link stops offering one.
       pastConsultation,
       // Where the job is, so the page names the next thing in their email.

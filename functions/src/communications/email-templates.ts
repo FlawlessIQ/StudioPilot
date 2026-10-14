@@ -651,14 +651,14 @@ function consultationMeetingDetails(values: Record<string, unknown>): {
 }
 
 /** What to bring to a trial, after "Bring" (trades.ts `trialBring`); "" for a trade with no trial. */
-export function trialBringList(trade: unknown): string {
-  const items = tradeVocab(trade).trialBring ?? [];
+export function trialBringList(trade: unknown, kind?: unknown): string {
+  const items = tradeVocab(trade, kind).trialBring ?? [];
   return items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
 }
 
 /** A makeup or hair trial, rather than a call (trades.ts `trial`). */
 function isTrial(values: Record<string, unknown>): boolean {
-  return stringValue(values, "purpose") === "trial" && Boolean(tradeVocab(values.trade).trial);
+  return stringValue(values, "purpose") === "trial" && Boolean(tradeVocab(values.trade, values.eventKind).trial);
 }
 
 /**
@@ -697,7 +697,7 @@ function trialDetails(values: Record<string, unknown>): string[] {
     : location
       ? `It's in person, at ${location}.`
       : "It's in person. If you're not sure where to come, just reply and we'll let you know.";
-  const bring = trialBringList(values.trade);
+  const bring = trialBringList(values.trade, values.eventKind);
   return [where, ...(bring ? [`Please bring ${bring}.`] : [])];
 }
 
@@ -752,7 +752,7 @@ export function trialActivityLines(activity: TrialActivityCounts): string[] {
 /** A booked call by its purpose, in the studio's trade's words (trades.ts). */
 function callNameFor(values: Record<string, unknown>): string {
   const purpose = typeof values.purpose === "string" ? values.purpose : "";
-  const words = tradeVocab(values.trade);
+  const words = tradeVocab(values.trade, values.eventKind);
   if (purpose === "final_details") return words.finalCall;
   if (purpose === "trial") return words.trial ?? "Trial";
   if (purpose === "walkthrough") return "Venue walkthrough";
@@ -837,7 +837,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
   const project = projectReference(input.projectName);
   // The payment that books the date in the studio's own word: a
   // photographer's "retainer", a vendor's "deposit" (trades.ts).
-  const deposit = tradeVocab(values.trade).deposit;
+  const deposit = tradeVocab(values.trade, values.eventKind).deposit;
   const Deposit = `${deposit.charAt(0).toUpperCase()}${deposit.slice(1)}`;
   const inviteUrl = safeUrl(stringValue(values, "inviteUrl"));
   const actionUrl = safeUrl(stringValue(values, "actionUrl"));
@@ -1190,9 +1190,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           heading: "Let’s try your look",
           paragraphs: [
             greeting,
-            `Pick a time for your ${callNameFor(values).toLowerCase()}${project}. Bring ${trialBringList(values.trade) || "pictures of looks you love"}, and we'll get your look just right before the day.`,
+            `Pick a time for your ${callNameFor(values).toLowerCase()}${project}. Bring ${trialBringList(values.trade, values.eventKind) || "pictures of looks you love"}, and we'll get your look just right before the day.`,
             // A hair trial waits for the veil (trades.ts `trialHint`).
-            ...(tradeVocab(values.trade).trialHint
+            ...(tradeVocab(values.trade, values.eventKind).trialHint
               ? ["If you haven't chosen your veil yet, book once you have — we'll build the style around it."]
               : []),
           ],
@@ -1218,9 +1218,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // can also send it by hand (planning/final-details.ts).
       if (stringValue(values, "purpose") === "final_details")
         return {
-          subject: `Book your ${tradeVocab(values.trade).finalCall.toLowerCase()} with ${brand.studioName}`,
+          subject: `Book your ${tradeVocab(values.trade, values.eventKind).finalCall.toLowerCase()} with ${brand.studioName}`,
           preheader: "A short call to go over your final details and timeline.",
-          eyebrow: tradeVocab(values.trade).finalCall,
+          eyebrow: tradeVocab(values.trade, values.eventKind).finalCall,
           heading: "Let’s go over the final details",
           paragraphs: [
             greeting,
@@ -1267,7 +1267,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "proposal_sent": {
       // A makeup artist's or hair stylist's client gets a quote (trades.ts);
       // only a photographer's says photography.
-      const offer = tradeVocab(values.trade).proposal.toLowerCase();
+      const offer = tradeVocab(values.trade, values.eventKind).proposal.toLowerCase();
       const photo = tradeProfile(values.trade).family === "photo";
       return {
         subject: `Your ${offer} from ${brand.studioName}`,
@@ -1319,7 +1319,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const signerName = stringValue(values, "signerName");
       // A makeup artist's or hair stylist's client accepted a quote, and a
       // vendor's client booked services, not coverage (trades.ts).
-      const offer = tradeVocab(values.trade).proposal.toLowerCase();
+      const offer = tradeVocab(values.trade, values.eventKind).proposal.toLowerCase();
       const booked = tradeProfile(values.trade).family === "photo" ? "coverage" : "services";
       const oneLink = tradeProfile(values.trade).journey.oneLinkBooking;
       // The studio takes the deposit itself (no QuickBooks or Stripe): there
@@ -1483,7 +1483,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const list = (items: string[]) =>
         items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
       // A makeup or hair studio sends quotes (trades.ts).
-      const offer = tradeVocab(values.trade).proposal.toLowerCase();
+      const offer = tradeVocab(values.trade, values.eventKind).proposal.toLowerCase();
       return {
         subject:
           reason === "review"
@@ -1603,11 +1603,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // The form's own name when the job carries it ("Final schedule"): two
       // forms both read "Details needed by …" and named neither (UAT 2026-10-13 F1).
       const named = stringValue(values, "formName");
-      const form = named || tradeVocab(values.trade).detailsForm;
+      const form = named || tradeVocab(values.trade, values.eventKind).detailsForm;
       // A vendor's client fills in this one form and the plan of the day is
       // drawn from it (trades.ts `journey.oneForm`), so the request says so.
       const oneForm = tradeProfile(values.trade).journey.oneForm && form;
-      const planName = tradeVocab(values.trade).planOfDay ?? "Plan";
+      const planName = tradeVocab(values.trade, values.eventKind).planOfDay ?? "Plan";
       const planWord = `${planName.charAt(0).toLowerCase()}${planName.slice(1)}`;
       return {
         subject: named
@@ -1759,7 +1759,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const locationAddress = stringValue(values, "locationAddress");
       const destination = scheduleUrl || actionUrl;
       // "the getting-ready schedule" for a makeup or hair crew (trades.ts).
-      const planWord = tradeVocab(values.trade).planOfDay;
+      const planWord = tradeVocab(values.trade, values.eventKind).planOfDay;
       const planName = planWord ? `${planWord.charAt(0).toLowerCase()}${planWord.slice(1)}` : "run of show";
       const day = arrivalAt
         ? humanDay(arrivalAt, zone)
@@ -1790,7 +1790,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             : `The studio hasn't published the ${planName} yet. It will be on your day sheet as soon as they do — message them from the job if you need it sooner.`,
           // A makeup artist's or hair stylist's kit (trades.ts `kitChecklist`).
           ...(() => {
-            const kit = tradeVocab(values.trade).kitChecklist;
+            const kit = tradeVocab(values.trade, values.eventKind).kitChecklist;
             return kit ? [`${kit.title} — before you leave, check ${kit.items.join("; ")}.`] : [];
           })(),
           // A planner's envelopes for the vendors, from the vendor team
@@ -1956,7 +1956,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
        */
       const readOnlyPlan = !tradeProfile(values.trade).journey.scheduleApproval;
       if (readOnlyPlan) {
-        const planWords = tradeVocab(values.trade);
+        const planWords = tradeVocab(values.trade, values.eventKind);
         const Plan = planWords.planOfDay ?? "Schedule";
         // "getting-ready schedule", "run of show & MC script": only the first letter drops.
         const plan = `${Plan.charAt(0).toLowerCase()}${Plan.slice(1)}`;
@@ -2016,9 +2016,9 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const kind = jobKindOf({ eventKind: stringValue(values, "eventKind") || undefined });
       const couple = stringValue(values, "coupleName");
       const occasion =
-        vocab(kind).occasionByName && couple
-          ? `${couple}'s ${vocab(kind).event}`
-          : input.projectName?.trim() || `the ${vocab(kind).event}`;
+        vocab(kind, values).occasionByName && couple
+          ? `${couple}'s ${vocab(kind, values).event}`
+          : input.projectName?.trim() || `the ${vocab(kind, values).event}`;
       const eventDate = stringValue(values, "eventDate");
       const on = eventDate ? ` on ${humanDate(eventDate)}` : "";
       const venue = stringValue(values, "venueName");
@@ -2026,7 +2026,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       const whole = stringValue(values, "shareScope") === "full";
       // StudioCue's offer, the first time it ever writes to this vendor
       // (saas/vendor-offer.ts): a footnote under the timeline, never its point.
-      const offer = vendorOfferCopy(values.vendorOffer, brand.studioName, vocab(kind).event);
+      const offer = vendorOfferCopy(values.vendorOffer, brand.studioName, vocab(kind, values).event);
       return {
         subject: update
           ? `Updated timeline: ${occasion}${on}`
@@ -2067,7 +2067,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? { label: "Open your portal", url: portalUrl }
           : undefined;
       // A makeup or hair studio's week-before email is its prep guide (trades.ts).
-      const prepGuide = tradeVocab(values.trade).prepGuide;
+      const prepGuide = tradeVocab(values.trade, values.eventKind).prepGuide;
       return {
         subject: prepGuide ? `Your prep guide from ${brand.studioName}` : `Your event with ${brand.studioName} is coming up`,
         preheader: prepGuide
@@ -2092,11 +2092,11 @@ function copyFor(input: RenderEmailInput): EmailCopy {
             ? [`${prepGuide.lead}, please ${prepGuide.items.join("; ")}.`]
             : !tradeProfile(values.trade).clientDayBefore
             ? []
-            : tradeVocab(values.trade).dayBefore
-              ? [`${tradeVocab(values.trade).dayBefore!.lead}, it helps to have: ${tradeVocab(values.trade).dayBefore!.items.join("; ")}.`]
-              : vocab(eventKind).prepSentence
-              ? [vocab(eventKind).prepSentence!]
-              : [`To help photography begin on time, it helps to have ready: ${vocab(eventKind).dayBeforeChecklist.join("; ")}.`]),
+            : tradeVocab(values.trade, values.eventKind).dayBefore
+              ? [`${tradeVocab(values.trade, values.eventKind).dayBefore!.lead}, it helps to have: ${tradeVocab(values.trade, values.eventKind).dayBefore!.items.join("; ")}.`]
+              : vocab(eventKind, values).prepSentence
+              ? [vocab(eventKind, values).prepSentence!]
+              : [`To help photography begin on time, it helps to have ready: ${vocab(eventKind, values).dayBeforeChecklist.join("; ")}.`]),
         ],
         action: primary,
         secondaryAction:
@@ -2259,7 +2259,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
        * stylist's client confirms the morning and the headcount, which can
        * grow but not shrink from here. A photographer's reads as it always did.
        */
-      const finalWords = tradeVocab(values.trade);
+      const finalWords = tradeVocab(values.trade, values.eventKind);
       const finalTrade = tradeProfile(values.trade);
       /**
        * Priced per person (makeup, hair): no call and nothing to read through,
@@ -2293,7 +2293,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         };
       }
       const beauty = finalTrade.family === "beauty";
-      const kindWords = vocab(stringValue(values, "eventKind"));
+      const kindWords = vocab(stringValue(values, "eventKind"), values);
       const summary =
         finalTrade.family === "music"
           ? `Here's everything we have for your ${kindWords.musicOccasion}${project}: the venue and times, and your ${finalWords.detailsForm ?? "planner"}.`
@@ -2389,7 +2389,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     case "review_request":
       return {
         subject: `Would you share your experience with ${brand.studioName}?`,
-        preheader: `A short review helps future clients choose their ${tradeVocab(values.trade).provider}.`,
+        preheader: `A short review helps future clients choose their ${tradeVocab(values.trade, values.eventKind).provider}.`,
         eyebrow: "Client feedback",
         heading: "Thank you for choosing us",
         paragraphs: [
@@ -2854,7 +2854,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
         "the schedule confirmation",
         "the final balance summary",
         ...(trade.clientDayBefore ? ["the day-before checklist"] : []),
-        ...(trade.consultation ? [`the note ahead of a ${tradeVocab(values.trade).consultation.toLowerCase()}`] : []),
+        ...(trade.consultation ? [`the note ahead of a ${tradeVocab(values.trade, values.eventKind).consultation.toLowerCase()}`] : []),
       ];
       const routineList = `${routine.slice(0, -1).join(", ")} and ${routine.at(-1)}`;
       return {
@@ -3182,7 +3182,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       };
     }
     case "studio_new_inquiry": {
-      const couple = stringValue(values, "coupleName") || vocab(stringValue(values, "eventKind")).newClient;
+      const couple = stringValue(values, "coupleName") || vocab(stringValue(values, "eventKind"), values).newClient;
       const when = stringValue(values, "eventDateLabel");
       const availability = stringValue(values, "availability");
       const source = stringValue(values, "sourceLabel");
@@ -3216,7 +3216,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           ? `${couple} wrote again`
           : tradeProfile(values.trade).consultation
             ? `${couple} would like to talk`
-            : `${couple} would like a ${tradeVocab(values.trade).proposal.toLowerCase()}`,
+            : `${couple} would like a ${tradeVocab(values.trade, values.eventKind).proposal.toLowerCase()}`,
         paragraphs: [
           [
             when ? `They're asking about ${when}` : "They didn't give a date yet",
@@ -3235,7 +3235,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
                 `Rather answer from your own inbox? Just hit reply — it goes straight to ${firstName || "them"}. Then tap “Replied by email” on Today, so the drafted reply isn't sent as well.`,
               ]
             : [
-                `${vocab(stringValue(values, "eventKind")).Clients} often write to several ${tradeVocab(values.trade).provider}s at once; the first thoughtful reply tends to win.`,
+                `${vocab(stringValue(values, "eventKind"), values).Clients} often write to several ${tradeVocab(values.trade, values.eventKind).provider}s at once; the first thoughtful reply tends to win.`,
               ]),
         ],
         details,
@@ -3245,7 +3245,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
     }
     case "studio_schedule_changes_requested": {
       const couple =
-        stringValue(values, "coupleName") || vocab(stringValue(values, "eventKind")).yourClient;
+        stringValue(values, "coupleName") || vocab(stringValue(values, "eventKind"), values).yourClient;
       const version = Number(values.scheduleVersion) || null;
       const note = stringValue(values, "changeNote");
       return {

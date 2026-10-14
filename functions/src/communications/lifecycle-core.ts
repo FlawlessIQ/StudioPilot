@@ -148,6 +148,9 @@ export type LifecycleFacts = {
   scheduleUrl: string | null;
   /** The job's kind (job-kinds.ts): wedding words only for a wedding. */
   eventKind?: string | null;
+  /** Who a mitzvah celebrates, and which: "Sam's bar mitzvah" (job-kinds.ts vocab(kind, job)). */
+  honoreeName?: string | null;
+  mitzvahType?: string | null;
   /** The studio's trade (trades.ts): a DJ's couple gets a DJ's checklist. */
   trade?: string | null;
   recipientEmail: string | null;
@@ -188,7 +191,7 @@ export function renderLifecycleDraft(
      * the final headcount or the final planning call.
      */
     if (!tradeProfile(facts.trade).journey.scheduleApproval) {
-      const words = tradeVocab(facts.trade);
+      const words = tradeVocab(facts.trade, facts.eventKind);
       const Plan = words.planOfDay ?? "Plan";
       const plan = `${Plan.charAt(0).toLowerCase()}${Plan.slice(1)}`;
       const day = words.dayName.replace(/^the /i, "").toLowerCase();
@@ -224,7 +227,7 @@ export function renderLifecycleDraft(
           ? `You can always see the latest version here: ${facts.scheduleUrl}`
           : "",
         "",
-        vocab(facts.eventKind).timesChanged,
+        vocab(facts.eventKind, facts).timesChanged,
         "",
         `— ${facts.studioName}`,
       ]
@@ -270,7 +273,7 @@ export function renderLifecycleDraft(
 
   // A DJ's couple has no dress to hang up for the DJ: their own checklist
   // (trades.ts `dayBefore`). A photographer's stays as it was.
-  const own = tradeVocab(facts.trade).dayBefore;
+  const own = tradeVocab(facts.trade, facts.eventKind).dayBefore;
   if (own) {
     return {
       subject: `Tomorrow's the day! A quick checklist`,
@@ -298,7 +301,7 @@ export function renderLifecycleDraft(
   // its hanger. A family session, a team day or a corporate event has no
   // dress or rings to get ready: the kind's own list (job-kinds.ts
   // `dayBeforeLetter`, `dayBeforeChecklist`).
-  const words = vocab(isJobKind(facts.eventKind) ? facts.eventKind : BEFORE_KINDS);
+  const words = vocab(isJobKind(facts.eventKind) ? facts.eventKind : BEFORE_KINDS, facts);
   const letter = words.dayBeforeLetter;
   if (letter) {
     return {

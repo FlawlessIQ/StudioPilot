@@ -920,6 +920,10 @@ async function emailContext(
       eventKind:
         firstString(document.get("eventKind")) ??
         (project?.exists ? jobKindOf(project.data()) : null),
+      // Who a mitzvah celebrates, so the words can say "Sam's bar mitzvah"
+      // (job-kinds.ts vocab(kind, job)). The email's own value wins.
+      honoreeName: firstString(document.get("honoreeName"), project?.get("honoreeName")) ?? null,
+      mitzvahType: firstString(document.get("mitzvahType"), project?.get("mitzvahType")) ?? null,
       // How the job is paid, when its package said (job-kinds.ts).
       paymentShape: firstString(document.get("paymentShape"), project?.get("paymentShape")) ?? null,
       portalUrl: firstString(document.get("portalUrl")) ?? clientHome,

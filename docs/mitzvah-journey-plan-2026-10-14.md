@@ -29,7 +29,35 @@ kind (quinceañera, sweet 16) then costs one row per table.
 |---|---|
 | 0: re-key | **Built 2026-10-14** (branch `mitzvah-phase0`). No behavior change: 4341 tests, typecheck, functions build, lint and the production build all pass. |
 | 1: kind | **Built 2026-10-14.** 4343 tests, typecheck, functions build, lint and the production build pass. |
-| 2–6 | Not started |
+| 2: family's side | **Built 2026-10-14.** 4346 tests, typecheck, functions build, lint and the production build pass. |
+| 3–6 | Not started |
+
+**What Phase 2 did**
+- **Every client surface passes the job to `vocab`.**
+  - The portal: `useClientVocab`.
+  - Emails: the worker adds `honoreeName` and `mitzvahType` to their values.
+  - The month-out and day-before drafts: the scheduler and the Cue draft
+    facts.
+  - The /i/ page: the preview carries the honoree.
+  - The inquiry link line.
+  - The AI's first reply: its facts and prompt say to write to the
+    parents about their child.
+  - So they read "Sam's bar mitzvah", and "For Sam's bar mitzvah" on the
+    day-before note.
+- **Pulled forward from Phase 4:** `tradeVocab(trade, kind)`, with mitzvah
+  overrides.
+  - The planner's day is "The celebration", and its day-before list is the
+    candle list, tallit and kippot, tips and décor. No license or rings.
+  - Makeup and hair kits name no bride.
+  - A hair trial has no veil.
+  - Emails, the drafts and the portal schedule pass the kind.
+  - The guard below found these leaks. The rest of Phase 4's trade content
+    (the DJ planner, chair roles, the planner checklist) is still owed.
+- **Guard:** `tests/mitzvah-client-copy.test.ts`.
+  - It renders every client email of every trade for a bar mitzvah, plus
+    the lifecycle drafts, and fails on wedding, couple, bride, ceremony or
+    dress.
+  - It checks the day-before note and the inquiry link name the honoree.
 
 **What Phase 1 did**
 - **`mitzvah` is a job kind**, labelled "Bar & bat mitzvah".

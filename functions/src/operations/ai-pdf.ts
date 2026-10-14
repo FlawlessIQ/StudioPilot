@@ -138,6 +138,9 @@ async function runLeadIntakeAnalysis(job:DocumentSnapshot){
     // 2026-10-03). `kindOfWork` says what the job is.
     const facts=Object.fromEntries(Object.entries({
       kindOfWork:lead.get("eventKind")??null,
+      // A mitzvah's child and which mitzvah (job-kinds.ts): the parents wrote.
+      honoreeName:lead.get("honoreeName")??null,
+      mitzvahType:lead.get("mitzvahType")??null,
       clientFirstName:lead.get("firstName"),
       clientPartnerName:lead.get("partnerName"),
       eventType:lead.get("eventTypeLabel"),

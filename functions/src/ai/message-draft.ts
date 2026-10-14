@@ -707,6 +707,8 @@ export const aiMessageDraftCommand = onRequest(
           paymentsOnRecord: balance?.paymentsOnRecord,
           scheduleUrl: null,
           eventKind: jobKindOf(context.project),
+          honoreeName: text(record(context.project).honoreeName) || null,
+          mitzvahType: text(record(context.project).mitzvahType) || null,
           trade: text(tenant.get("trade")) || null,
           recipientEmail,
           recipientName,

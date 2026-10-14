@@ -160,6 +160,8 @@ export const lifecycleMessageScheduler = onSchedule(
           paymentsOnRecord: balance.paymentsOnRecord,
           scheduleUrl,
           eventKind: jobKindOf(project.data()),
+          honoreeName: text(project.get("honoreeName")) || null,
+          mitzvahType: text(project.get("mitzvahType")) || null,
           trade: tenantEntry.trade,
           recipientEmail,
           recipientName,

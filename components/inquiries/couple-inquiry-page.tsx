@@ -85,6 +85,9 @@ type Preview = {
   payment?: "deposit_and_balance" | "paid_in_full" | "on_the_day" | "invoice_after";
   /** The job's kind, for its words. Absent from an older build. */
   jobKind?: string | null;
+  /** Who a mitzvah celebrates, and which (job-kinds.ts vocab(kind, job)). */
+  honoreeName?: string | null;
+  mitzvahType?: string | null;
   /** A proposal is out: the call has happened. Absent from an older build. */
   pastConsultation?: boolean;
   /**
@@ -485,10 +488,10 @@ export function CoupleInquiryPage({ token }: { token: string }) {
   // "that's everything": there is no call to book.
   const noCall = preview?.offersConsultation === false;
   const kindForWords = isJobKind(preview?.jobKind) ? preview?.jobKind : isJobKind(preview?.eventKind) ? preview?.eventKind : null;
-  const words = vocab(kindForWords);
+  const words = vocab(kindForWords, preview ?? undefined);
   // "your day" stays the wedding's phrase (and an inquiry from before kinds);
   // other kinds name what it is.
-  const aboutYours = vocab(kindForWords ?? BEFORE_KINDS).aboutYours;
+  const aboutYours = vocab(kindForWords ?? BEFORE_KINDS, preview ?? undefined).aboutYours;
   // Past the call, the page points at whatever is waiting in their email:
   // "your proposal is ready" read wrong to a couple whose agreement was out.
   const movedOn = {

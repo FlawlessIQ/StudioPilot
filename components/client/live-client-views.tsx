@@ -470,7 +470,8 @@ export const date = (value: unknown) => {
  */
 export function useClientVocab(): JobVocabulary {
   const project = useProject().value;
-  return vocab(project ? jobKindOf(project) : "other");
+  // The job too: a mitzvah names itself — "Sam's bar mitzvah" (job-kinds.ts).
+  return project ? vocab(jobKindOf(project), project) : vocab("other");
 }
 
 /**

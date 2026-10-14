@@ -9,6 +9,7 @@ import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { useWorkspace } from "@/features/auth/workspace-context";
 import { portalStageIsBehind } from "@/features/client/portal-stage";
 import { tradeProfile, tradeVocab } from "@/features/trades/trades";
+import { jobKindOf } from "@/features/job-kinds/job-kinds";
 import {
   displayableScheduleItems,
   scheduleItemClock,
@@ -57,7 +58,8 @@ export function ClientSchedule() {
   const studioName =
     workspace.tenantName && !workspace.tenantName.startsWith("Loading") ? workspace.tenantName : "your studio";
   // The plan's own name for a vendor ("Getting-ready schedule"); "Your timeline" otherwise.
-  const tradeWords = tradeVocab(workspace.tenantTrade);
+  // With the job's kind: a mitzvah's planner names the celebration, not the wedding.
+  const tradeWords = tradeVocab(workspace.tenantTrade, project.value ? jobKindOf(project.value) : undefined);
   const readOnlyTrade = !tradeProfile(workspace.tenantTrade).journey.scheduleApproval;
   const title = readOnlyTrade && tradeWords.planOfDay ? tradeWords.planOfDay : "Your timeline";
 

@@ -87,13 +87,20 @@ export async function studioTakesBookings(db: Firestore, tenantId: string): Prom
  * reply that promised two minutes would be the first thing the studio said
  * that wasn't so (2026-10-01).
  */
-export function inquiryLinkLine(url: string, withForm: boolean, kind?: unknown, trade?: unknown): string {
+export function inquiryLinkLine(
+  url: string,
+  withForm: boolean,
+  kind?: unknown,
+  trade?: unknown,
+  /** The inquiry, so a mitzvah says "Sam's bar mitzvah" (job-kinds.ts vocab(kind, job)). */
+  job?: unknown,
+): string {
   // A family session or a sports day has no call (job-kinds.ts), and nor
   // does a makeup artist or hair stylist (trades.ts): the link takes their
   // details and the price follows. A wedding keeps "your day".
   const jobKind = isJobKind(kind) ? kind : null;
   // An inquiry from before kinds reads as a wedding, as it always has.
-  const about = vocab(jobKind ?? BEFORE_KINDS).aboutYours;
+  const about = vocab(jobKind ?? BEFORE_KINDS, job).aboutYours;
   if ((jobKind && !journeyProfile(jobKind).consultation) || !tradeProfile(trade).consultation) {
     return withForm
       ? `Tell us about ${about} here, and we'll send your price: ${url}`
@@ -143,6 +150,7 @@ export async function withInquiryLink(
     await inquiryLinkCarriesForm(db, input),
     kindLead.get("eventKind") === "general" ? "other" : kindLead.get("eventKind"),
     tenant.get("trade"),
+    kindLead.data(),
   );
   // Before the sign-off when there is one, so the link isn't the last thing
   // after "Warmly,". A sign-off is a short line and at most a name under it:

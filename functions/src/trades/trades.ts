@@ -399,8 +399,82 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
 };
 
 /** The words for a trade. */
-export function tradeVocab(trade: unknown): TradeVocabulary {
-  return VOCAB[tradeOf(trade)];
+/**
+ * A trade's words for a kind of job, where they differ from its wedding's
+ * (docs/mitzvah-journey-plan-2026-10-14.md). Keyed by the kind's id as text,
+ * since this file has no imports (job-kinds.ts `JobKind`). A mitzvah's
+ * family has no bride, no veil and no marriage license.
+ */
+const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVocabulary>>>>> = {
+  makeup: {
+    mitzvah: {
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule and who sits first",
+          "brushes and sponges cleaned",
+          "lashes and adhesive for everyone who wanted them",
+          "each person's shades and products, from the trial if there was one",
+          "a touch-up kit for the family",
+          "a light, a power strip and an extension cord",
+        ],
+      },
+    },
+  },
+  hair: {
+    mitzvah: {
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule and who sits first",
+          "irons, dryer and brushes",
+          "pins, elastics and hairspray",
+          "each look from the trial, if there was one",
+          "a power strip and an extension cord",
+        ],
+      },
+      trialHint: null,
+      trialBring: ["pictures of looks you love", "any hair accessories you'll wear"],
+      prepGuide: {
+        lead: "So your hair holds all day",
+        items: [
+          "come with clean, completely dry hair — washed the night before, with no oils or products — or there's a blow-dry fee",
+          "wear a button-up or zip-front top, so nothing goes over your head",
+          "have your hair accessories with you",
+        ],
+      },
+    },
+  },
+  planner: {
+    mitzvah: {
+      dayName: "The celebration",
+      dayBefore: {
+        lead: "For the big day",
+        ask: "A few things so tomorrow runs to time — please have ready:",
+        items: [
+          "the candle-lighting list, final and in order, with who lights each candle",
+          "the tallit, kippot and anything for the service or the portraits",
+          "the vendor tips and final payments in labeled envelopes, if we're handing them out",
+          "your décor, the sign-in board and the favors boxed and labeled for setup",
+        ],
+        summary: "The candle list, the tip envelopes, the décor",
+        sent: "Sent — the candle list and what to bring",
+      },
+    },
+  },
+};
+
+/**
+ * A trade's words. Pass the job's kind where it is at hand: a mitzvah's
+ * planner names the celebration, not the wedding.
+ */
+export function tradeVocab(trade: unknown, kind?: unknown): TradeVocabulary {
+  const base = VOCAB[tradeOf(trade)];
+  const key = typeof kind === "string" ? kind.trim().toLowerCase() : "";
+  const override = key ? KIND_VOCAB[tradeOf(trade)]?.[key] : undefined;
+  return override ? { ...base, ...override } : base;
 }
 
 // ── What applies ─────────────────────────────────────────────────────────
