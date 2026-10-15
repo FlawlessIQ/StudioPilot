@@ -98,6 +98,8 @@ export { feedbackCommand } from "./feedback/commands.js";
 export { finalInvoiceScheduler } from "./operations/invoice-scheduler.js";
 export { billingAddressRequestScheduler } from "./billing/billing-address-request.js";
 export { consultationPrepScheduler } from "./booking/consultation-prep.js";
+export { calendarDriftSweep } from "./integrations/calendar-drift.js";
+export { tenantDeletionWorker } from "./saas/tenant-deletion.js";
 export { planningFormScheduler } from "./planning/planning-form-scheduler.js";
 export { finalDetailsScheduler } from "./planning/final-details.js";
 export { autopayScheduler } from "./billing/autopay.js";

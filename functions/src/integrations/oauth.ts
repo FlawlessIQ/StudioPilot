@@ -288,7 +288,7 @@ async function saveCredential(
 //
 // The secret id has to be derived exactly as saveCredential derives it, or this
 // silently destroys nothing.
-async function deleteCredential(tenantId: string, provider: AnyProvider) {
+export async function deleteCredential(tenantId: string, provider: AnyProvider) {
   const project =
     process.env.GOOGLE_CLOUD_PROJECT ??
     process.env.GCLOUD_PROJECT ??

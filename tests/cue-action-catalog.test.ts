@@ -244,6 +244,9 @@ const NOT_A_STUDIO_ACTION: Record<string, string> = {
   // saasAdminCommand from a registry, so this scan doesn't see them; they are
   // never a studio's (tests/console-wiring.test.ts).
   setFeedbackStatus: "platform",
+  // The answer to a Today card only the calendar sweep raises (a call deleted
+  // or moved in Google Calendar, functions/src/integrations/calendar-drift.ts).
+  keepConsultationAsBooked: "answers the calendar sweep's Today card",
   // Feedback to the StudioCue team, from the Feedback button: what the studio
   // writes, in their own words, with a picture of the screen they were on.
   submitFeedback: "the Feedback button",

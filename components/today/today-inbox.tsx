@@ -22,7 +22,7 @@ import { NotInquiryConfirm } from "@/components/leads/not-inquiry-confirm";
 import { SheetDialog } from "@/components/ui/sheet-dialog";
 import { BookingAmendmentPanel } from "@/components/booking/booking-amendment";
 import { RecordFinalPayment } from "@/components/booking/record-final-payment";
-import { requestBillingAddress, sendFinalBalance } from "@/lib/booking/command-client";
+import { requestBillingAddress, sendBookingCommand, sendFinalBalance } from "@/lib/booking/command-client";
 import { runPublicScheduling } from "@/lib/booking/public-scheduling-client";
 import { sendPlanningCommand } from "@/lib/planning/command-client";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
@@ -1207,6 +1207,8 @@ function TodayCard({
           <BillingAddressActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
         ) : item.action.kind === "trial_invite" ? (
           <TrialInviteActions action={item.action} jobHref={item.jobHref} onCleared={onCleared} />
+        ) : item.action.kind === "calendar_drift" ? (
+          <CalendarDriftActions action={item.action} onCleared={onCleared} />
         ) : item.action.kind === "package_request" ? (
           <PackageRequestActions action={item.action} onChangeBooking={onChangeBooking} onCleared={onCleared} />
         ) : item.action.kind === "close_inquiry" ? (
@@ -1874,6 +1876,97 @@ function BillingAddressActions({
           Open the job
         </Link>
       ) : null}
+      {notice ? <span className="today-card-notice">{notice}</span> : null}
+    </>
+  );
+}
+
+type CalendarDriftAction = Extract<TodayItem["action"], { kind: "calendar_drift" }>;
+
+/**
+ * A call deleted or moved in the studio's Google Calendar
+ * (functions/src/integrations/calendar-drift.ts). Google never decides: the
+ * owner keeps the call as booked (it goes back on the calendar, the client
+ * hears nothing), moves it to Google's time, or cancels it — the last two
+ * email the client, as they do on the calendar page.
+ */
+function CalendarDriftActions({ action, onCleared }: { action: CalendarDriftAction; onCleared?: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState<"keep" | "move" | "cancel" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const base = { projectId: action.projectId, consultationId: action.consultationId };
+  async function run(choice: "keep" | "move" | "cancel") {
+    setBusy(true);
+    setNotice(null);
+    try {
+      await sendBookingCommand(
+        choice === "keep"
+          ? { type: "keepConsultationAsBooked", idempotencyKey: crypto.randomUUID(), input: base }
+          : choice === "move"
+            ? {
+                type: "rescheduleConsultation",
+                idempotencyKey: crypto.randomUUID(),
+                input: { ...base, startsAt: action.googleStartsAt, endsAt: action.googleEndsAt, timezone: action.timezone },
+              }
+            : { type: "cancelConsultation", idempotencyKey: crypto.randomUUID(), input: { ...base, reason: null } },
+      );
+      refreshTenantRecords("consultations", "emailJobs");
+      onCleared?.();
+    } catch (caught: unknown) {
+      setNotice(friendlyError(caught, "That didn't go through. Open the calendar to check the call."));
+      setConfirming(null);
+      setBusy(false);
+    }
+  }
+  if (confirming) {
+    const words =
+      confirming === "keep"
+        ? {
+            label: `Keep the call on ${action.when}?`,
+            body: "It goes back on your Google Calendar at that time. Nothing changes for your client.",
+            confirm: "Keep it",
+          }
+        : confirming === "move"
+          ? {
+              label: `Move the call to ${action.googleWhen}?`,
+              body: "Your client is emailed the new time, and any Zoom meeting moves with it.",
+              confirm: "Move it",
+            }
+          : {
+              label: "Cancel the call?",
+              body: "Your client is emailed that it's canceled, and any Zoom meeting is removed.",
+              confirm: "Cancel the call",
+            };
+    return (
+      <ConfirmStep
+        busy={busy}
+        cancelClassName="today-card-secondary"
+        cancelLabel="Not now"
+        className="today-confirm-step"
+        confirmClassName="today-card-primary"
+        confirmLabel={words.confirm}
+        label={words.label}
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => void run(confirming)}
+      >
+        {words.body}
+      </ConfirmStep>
+    );
+  }
+  const moved = action.drift === "moved" && action.googleStartsAt && action.googleEndsAt;
+  return (
+    <>
+      <button className="today-card-primary" disabled={busy} onClick={() => setConfirming(moved ? "move" : "keep")} type="button">
+        {action.label} <ArrowRight size={14} />
+      </button>
+      {moved ? (
+        <button className="today-card-secondary" disabled={busy} onClick={() => setConfirming("keep")} type="button">
+          Keep {action.when}
+        </button>
+      ) : null}
+      <button className="today-card-secondary" disabled={busy} onClick={() => setConfirming("cancel")} type="button">
+        Cancel the call
+      </button>
       {notice ? <span className="today-card-notice">{notice}</span> : null}
     </>
   );

@@ -876,6 +876,84 @@ export async function rescheduleConsultationResources(job: DocumentSnapshot) {
 }
 
 /**
+ * "Keep it as booked" on a call deleted or moved in the studio's Google
+ * Calendar (integrations/calendar-drift.ts): StudioCue's version goes back on
+ * the calendar. A deleted event is restored in place (Google keeps a deleted
+ * event's id, and confirming it brings it back); one Google no longer has is
+ * written again under a new id. Either way the call's mark is cleared.
+ */
+export async function restoreConsultationEvent(job: DocumentSnapshot) {
+  const { consultationId, reference, consultation } = await consultationFor(job);
+  const db = getFirestore();
+  const tenantId = String(job.get("tenantId"));
+  const now = () => new Date().toISOString();
+  // Cancelled or moved since the owner chose: nothing to put back.
+  if (consultation.get("status") !== "scheduled") {
+    await reference.update({ calendarDrift: null, updatedAt: now(), updatedBy: "provider-worker" });
+    return { consultationId, skipped: "not_scheduled" };
+  }
+  let calendar: Awaited<ReturnType<typeof connection>>;
+  try {
+    calendar = await connection(tenantId, "google_calendar");
+  } catch (caught: unknown) {
+    if (caught instanceof Error && caught.message === "GOOGLE_CALENDAR_NOT_CONNECTED") {
+      await reference.update({ calendarDrift: null, updatedAt: now(), updatedBy: "provider-worker" });
+      return { consultationId, skipped: "calendar_not_connected" };
+    }
+    throw caught;
+  }
+  const startsAt = String(consultation.get("startsAt"));
+  const endsAt = String(consultation.get("endsAt"));
+  const timeZone = String(consultation.get("timezone"));
+  let calendarEventId = text(consultation.get("calendarEventId"));
+  let calendarHtmlLink: string | null = consultation.get("calendarHtmlLink") ?? null;
+  if (!calendar.mock) {
+    const calendarId = encodeURIComponent(String(calendar.document.get("selectedResourceId") ?? "primary"));
+    const headers = { authorization: `Bearer ${calendar.credential?.accessToken}`, "content-type": "application/json" };
+    const times = { start: { dateTime: startsAt, timeZone }, end: { dateTime: endsAt, timeZone } };
+    const restored = calendarEventId
+      ? await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(calendarEventId)}?sendUpdates=none`,
+          { method: "PATCH", headers, body: JSON.stringify({ status: "confirmed", ...times }) },
+        )
+      : null;
+    if (restored && restored.ok) {
+      calendarHtmlLink = text(asRecord(await restored.json().catch(() => ({}))).htmlLink) || calendarHtmlLink;
+    } else if (!restored || restored.status === 404 || restored.status === 410) {
+      // Gone for good: a new event, under an id of its own.
+      const id = createHash("sha256").update(`consultation:${consultationId}:restored:${job.id}`).digest("hex").slice(0, 32);
+      const joinUrl = text(consultation.get("joinUrl"));
+      const create = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          id,
+          summary: await callTitle(db, tenantId, consultation.data()),
+          description: joinUrl || "StudioCue consultation",
+          ...times,
+          extendedProperties: { private: { studioHubConsultationId: consultationId } },
+        }),
+      });
+      if (!create.ok && create.status !== 409) throw new Error(`CALENDAR_CREATE_FAILED:${create.status}`);
+      const value = create.ok ? asRecord(await create.json().catch(() => ({}))) : {};
+      calendarEventId = id;
+      calendarHtmlLink = text(value.htmlLink) || null;
+    } else {
+      throw new Error(`CALENDAR_UPDATE_FAILED:${restored.status}`);
+    }
+  }
+  await reference.update({
+    calendarEventId,
+    calendarHtmlLink,
+    calendarDrift: null,
+    calendarRestoredAt: now(),
+    updatedAt: now(),
+    updatedBy: "provider-worker",
+  });
+  return { consultationId, calendarEventId };
+}
+
+/**
  * The meeting-link step could not run for a reason that retrying will not fix:
  * nothing connected, or a connection that must be made again. Anything else
  * (a Zoom outage, a 500) still fails the job so it is retried.

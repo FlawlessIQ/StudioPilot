@@ -190,6 +190,10 @@ scheduler_services=(
   # "Ahead of our call": the couple's answers and the call details, the day
   # before their consultation (booking/consultation-prep.ts).
   consultationprepscheduler
+  # Reads back each upcoming call's Google Calendar event and marks one deleted
+  # or moved there for the owner (integrations/calendar-drift.ts). Missing
+  # here, it 403s after the next invoker reset and drift goes unseen again.
+  calendardriftsweep
   # Asks couples with no billing address for one before the final bill is
   # taxed (billing/billing-address-request.ts).
   billingaddressrequestscheduler
@@ -211,6 +215,10 @@ scheduler_services=(
   reviewrequestscheduler
   scheduledemailrelease
   tenantexportscheduler
+  # Deletes a closed studio once its deletion is approved and its 30 days are
+  # up (saas/tenant-deletion.ts). Missing here, approved deletions silently
+  # stop, and the Privacy Policy's deletion promise is broken.
+  tenantdeletionworker
 )
 
 # Cloud Tasks and Pub/Sub workers that are HTTP services, so they carry no

@@ -73,6 +73,8 @@ jobs:
       # The emulators need no login; studiohub-dev only names the project.
       - run: npm run test:rules
       - run: npm run test:storage-rules
+      - run: npm run test:purge-sweep
+      - run: npm run test:tenant-deletion
 
   layout:
     # Every page, at a laptop, a desk and a phone: nothing squeezed to a word

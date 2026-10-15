@@ -58,6 +58,7 @@ import {
   createQuickBooksInvoice,
   createStripeInvoice,
   rescheduleConsultationResources,
+  restoreConsultationEvent,
   moveBookingCalendarEvents,
   removeBookingCalendarEvents,
   restoreBookingCalendarEvent,
@@ -533,6 +534,8 @@ async function providerJob(document: DocumentSnapshot) {
     return cancelConsultationResources(document);
   if (type === "reschedule_consultation_resources")
     return rescheduleConsultationResources(document);
+  if (type === "restore_consultation_event")
+    return restoreConsultationEvent(document);
   if (type === "move_booking_calendar_events")
     return moveBookingCalendarEvents(document);
   if (type === "remove_booking_calendar_events")

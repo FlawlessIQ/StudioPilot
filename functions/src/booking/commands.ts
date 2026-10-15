@@ -414,6 +414,20 @@ const commandSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
+    /**
+     * A call deleted or moved in the studio's Google Calendar
+     * (integrations/calendar-drift.ts), kept as booked: StudioCue's version
+     * goes back on the calendar, and nothing changes for the client.
+     */
+    type: z.literal("keepConsultationAsBooked"),
+    tenantId: z.string().min(1),
+    idempotencyKey: z.string().min(8).max(160),
+    input: z.object({
+      projectId: z.string().min(1),
+      consultationId: z.string().min(1),
+    }),
+  }),
+  z.object({
     type: z.literal("rescheduleConsultation"),
     tenantId: z.string().min(1),
     idempotencyKey: z.string().min(8).max(160),
@@ -1224,6 +1238,7 @@ export const bookingCommand = onRequest(
             status: "cancelled",
             cancelledAt: timestamp,
             cancellationReason: command.input.reason,
+            calendarDrift: null,
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });
@@ -1395,6 +1410,42 @@ export const bookingCommand = onRequest(
             needsNotes,
           };
         });
+      } else if (command.type === "keepConsultationAsBooked") {
+        const consultationReference = firestore.doc(`consultations/${command.input.consultationId}`);
+        const kept = await firestore.runTransaction(async (transaction) => {
+          const consultation = await transaction.get(consultationReference);
+          if (
+            !consultation.exists ||
+            consultation.get("tenantId") !== command.tenantId ||
+            consultation.get("projectId") !== command.input.projectId
+          )
+            throw new Error("CONSULTATION_NOT_FOUND");
+          if (String(consultation.get("status")) !== "scheduled") throw new Error("CONSULTATION_NOT_SCHEDULED");
+          const drift = consultation.get("calendarDrift") as Record<string, unknown> | null | undefined;
+          // Already answered (a second tap, or the sweep found them agreeing again).
+          if (!drift || drift.keptAt) return { consultationId: consultation.id, kept: false };
+          transaction.update(consultationReference, {
+            // Mock mode has no calendar to put it back on.
+            calendarDrift: mockMode ? null : { ...drift, keptAt: timestamp, keptBy: identity.uid },
+            updatedAt: timestamp,
+            updatedBy: identity.uid,
+          });
+          return { consultationId: consultation.id, kept: true };
+        });
+        if (kept.kept && !mockMode) {
+          await firestore
+            .doc(`providerJobs/${stableId("consultrestore", command.tenantId, command.idempotencyKey)}`)
+            .create({
+              tenantId: command.tenantId,
+              projectId: command.input.projectId,
+              consultationId: command.input.consultationId,
+              type: "restore_consultation_event",
+              idempotencyKey: command.idempotencyKey,
+              status: "queued",
+              createdAt: timestamp,
+            });
+        }
+        result = kept;
       } else if (command.type === "rescheduleConsultation") {
         const start = new Date(command.input.startsAt);
         const end = new Date(command.input.endsAt);
@@ -1427,6 +1478,7 @@ export const bookingCommand = onRequest(
             endsAt: command.input.endsAt,
             timezone: command.input.timezone,
             rescheduledAt: timestamp,
+            calendarDrift: null,
             updatedAt: timestamp,
             updatedBy: identity.uid,
           });

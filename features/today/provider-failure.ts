@@ -101,6 +101,10 @@ const FAILURES: Record<string, ProviderFailure> = {
     title: "The consultation wasn't moved",
     provider: "your calendar",
   },
+  restore_consultation_event: {
+    title: "The call wasn't put back on your calendar",
+    provider: "your calendar",
+  },
   capture_zoom_meeting_summary: {
     title: "The call summary didn't come back",
     provider: "Zoom",

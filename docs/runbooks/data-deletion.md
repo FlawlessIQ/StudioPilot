@@ -5,9 +5,14 @@ What we promise (Terms §14, Privacy Policy "Retention and deletion"):
 - then its workspace data is **deleted**;
 - remaining backup copies **expire within 90 days** (backups are kept 84 days).
 
-Until the automated path exists (launch plan follow-up: nothing processes a
-`platform_approved` deletion request yet, and there is no Auth user deletion),
-every request is handled by hand, as below.
+**Automated since 2026-10-15.** `tenantDeletionWorker`
+(`functions/src/saas/tenant-deletion.ts`) runs hourly and carries out step 6
+below for every `platform_approved` request whose `deleteAfter` has passed.
+It refuses while the studio's Stripe subscription is live (the Console shows
+"Blocked: subscription live"), resumes a run that stopped part way, and leaves
+the request `completed` with its `manifest` and a "By hand" list in the
+Console: email the owner, plus any credential it couldn't destroy. Steps 1–5
+and 7 are still people's work.
 
 **Response times.** Acknowledge within 5 business days. Complete within 45
 days of a verified request (the strictest US state deadline).
@@ -38,8 +43,8 @@ days of a verified request (the strictest US state deadline).
    (`gsutil -m cp -r gs://studiohub-prod.firebasestorage.app/tenants/{tenantId} .`).
 5. **After `deleteAfter`.** A platform admin approves the request in the
    Console. The request moves to `platform_approved`.
-6. **Delete.** Run a reviewed one-off script with the Admin SDK and
-   `tenantId == {tenantId}`, in this order:
+6. **Delete — automatic.** The worker does the following, in this order
+   (by hand only if it fails; its `lastError` shows in the Console):
    1. **Dry run:** count the documents per top-level collection where
       `tenantId == {tenantId}`. Paste the counts into the request record.
    2. Delete those documents in batches, including the `tenants/{id}`,

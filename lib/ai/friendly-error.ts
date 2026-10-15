@@ -17,6 +17,7 @@ const FRIENDLY_BY_CODE: Record<string, string> = {
   CONSULTATION_NOT_COMPLETABLE: "That consultation can't be written up — it was canceled.",
   CONSULTATION_NOT_FOUND: "That consultation isn't there any more. Refresh and try again.",
   CONSULTATION_NOT_RESCHEDULABLE: "Only a consultation still to come can be moved.",
+  CONSULTATION_NOT_SCHEDULED: "That call isn't booked anymore — it was canceled or moved since.",
   INVALID_TIME_RANGE: "The end time has to be after the start time.",
   INVITATION_NOT_REVOCABLE: "That invitation can't be withdrawn — it has already been accepted, expired or withdrawn.",
   CLIENT_NOT_ASSOCIATED_WITH_PROJECT: "That client isn't on this job. Add them to the job first.",

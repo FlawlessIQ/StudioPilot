@@ -65,6 +65,7 @@ import { tradeOf, tradeProfile, tradeVocab } from "@/features/trades/trades";
 import { dateHeldByAnother } from "@/features/inquiries/pipeline";
 import { preBookingStates } from "@/features/inquiries/stages";
 import { trialInvite, trialState, trialWanted } from "@/features/consultations/trial";
+import { callWhen } from "@/features/consultations/upcoming";
 import { jobPackageSnapshotIds } from "@/features/crew/staffing-plan";
 import { clientOutreachStop } from "@/features/post-event/client-outreach";
 import { bookingBlockerLabel } from "@/features/booking/gate-requirements";
@@ -157,6 +158,24 @@ export type TodayAction =
       label: string;
       projectId: string;
       contactId: string;
+    }
+  | {
+      /**
+       * A call deleted or moved in the studio's Google Calendar
+       * (functions/src/integrations/calendar-drift.ts): cancel it, use
+       * Google's time, or keep it as booked. Google never decides.
+       */
+      kind: "calendar_drift";
+      label: string;
+      projectId: string;
+      consultationId: string;
+      drift: "deleted" | "moved";
+      /** The call as booked, and (moved) where Google has it: "Tue, Oct 21 at 3:00 PM". */
+      when: string;
+      googleWhen: string | null;
+      googleStartsAt: string | null;
+      googleEndsAt: string | null;
+      timezone: string;
     }
   | {
       /** A couple sent their own shot list (features/planning/shot-list.ts): open it, or mark it seen. */
@@ -2130,6 +2149,47 @@ export function todayInbox(input: TodayInput): TodayInbox {
       eventDate: eventFor(cascade.projectId),
       updatedAt: changedAt(cascade),
       label: "Find crew",
+    });
+  }
+
+  // ── Act · a call deleted or moved in Google Calendar ──────────────
+  // Marked by the calendar sweep (functions/src/integrations/calendar-drift.ts).
+  // The client still holds the call's confirmation, so the owner decides.
+  for (const call of rows(input.consultations)) {
+    const drift = call.calendarDrift as Record<string, unknown> | null | undefined;
+    if (!drift || drift.keptAt || text(call.status) !== "scheduled") continue;
+    const kind = drift.kind === "moved" ? "moved" : drift.kind === "deleted" ? "deleted" : null;
+    if (!kind || !text(call.projectId)) continue;
+    const startsAt = new Date(text(call.startsAt)).valueOf();
+    if (!Number.isFinite(startsAt) || startsAt < now.valueOf()) continue;
+    const when = callWhen(call);
+    const googleWhen = kind === "moved" ? callWhen({ ...call, startsAt: drift.googleStartsAt }) : null;
+    exception({
+      id: `calendar-drift-${call.id}`,
+      kind: "calendar",
+      title: kind === "deleted" ? "A call came off your Google Calendar" : "A call moved in your Google Calendar",
+      detail:
+        kind === "deleted"
+          ? `The call on ${when} is still booked here, and your client still has its confirmation.`
+          : `Google has it on ${googleWhen}. Here, and in your client's confirmation, it's ${when}.`,
+      href: "/studio/calendar",
+      projectId: text(call.projectId),
+      projectName: nameFor(call.projectId),
+      eventDate: eventFor(call.projectId),
+      updatedAt: text(drift.detectedAt) || null,
+      evidence: "Your Google Calendar changed — StudioCue didn't change anything",
+      action: {
+        kind: "calendar_drift",
+        label: kind === "deleted" ? "Keep it booked" : "Use Google's time",
+        projectId: text(call.projectId),
+        consultationId: call.id,
+        drift: kind,
+        when,
+        googleWhen,
+        googleStartsAt: kind === "moved" ? text(drift.googleStartsAt) || null : null,
+        googleEndsAt: kind === "moved" ? text(drift.googleEndsAt) || null : null,
+        timezone: text(call.timezone) || "America/New_York",
+      },
     });
   }
 

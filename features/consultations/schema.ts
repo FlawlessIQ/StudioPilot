@@ -41,6 +41,20 @@ export const consultationSchema = auditFieldsSchema.extend({
   // the studio is shown.
   meetingSkipReason: z.string().nullable().optional(),
   meetingSkipMessage: z.string().nullable().optional(),
+  // Written by the calendar sweep (functions/src/integrations/calendar-drift.ts)
+  // when the studio's Google Calendar no longer agrees with the call; cleared
+  // when they agree again, or the call is cancelled, moved or kept.
+  calendarDrift: z
+    .object({
+      kind: z.enum(["deleted", "moved"]),
+      googleStartsAt: z.string().optional(),
+      googleEndsAt: z.string().optional(),
+      detectedAt: z.string(),
+      keptAt: z.string().optional(),
+      keptBy: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
   archivedAt: z.string().datetime().nullable(),
 });
 

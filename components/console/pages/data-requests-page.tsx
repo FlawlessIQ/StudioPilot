@@ -19,7 +19,22 @@ import { useCommand } from "../use-command";
  * A deletion waits out a 30-day cooling-off and needs a completed export
  * before the platform can approve it (docs/security.md).
  */
-type Deletion = { id: string; tenantId: string; status: string; requestedAt?: string; createdAt?: string; coolingOffEndsAt?: string; platformApprovedAt?: string; approvalReason?: string };
+type Deletion = {
+  id: string;
+  tenantId: string;
+  status: string;
+  requestedAt?: string;
+  createdAt?: string;
+  coolingOffEndsAt?: string;
+  /** What data-lifecycle.ts actually writes: the end of the 30 days. */
+  deleteAfter?: string;
+  platformApprovedAt?: string;
+  approvalReason?: string;
+  /** Written by the deletion worker (functions/src/saas/tenant-deletion.ts). */
+  blockedReason?: string | null;
+  lastError?: string | null;
+  manualSteps?: string[];
+};
 type Export = { id: string; tenantId: string; status: string; createdAt?: string; completedAt?: string; requestedBy?: string };
 
 export function DataRequestsPage() {
@@ -36,9 +51,20 @@ export function DataRequestsPage() {
   const deletionColumns = useMemo<ColumnDef<Deletion, unknown>[]>(
     () => [
       { id: "studio", header: "Studio", accessorFn: (row) => name(row.tenantId), meta: { width: 220, flex: true }, cell: ({ row }) => <span className="cx-strong">{name(row.original.tenantId)}</span> },
-      { id: "status", header: "Status", accessorFn: (row) => row.status, meta: { width: 140 }, cell: ({ row }) => <Pill tone={row.original.status === "cooling_off" ? "warn" : row.original.status === "platform_approved" ? "info" : "neutral"}>{humanize(row.original.status)}</Pill> },
+      { id: "status", header: "Status", accessorFn: (row) => row.status, meta: { width: 140 }, cell: ({ row }) =>
+          row.original.blockedReason === "SUBSCRIPTION_ACTIVE" && row.original.status === "platform_approved" ? (
+            <Pill tone="bad">Blocked: subscription live</Pill>
+          ) : row.original.lastError && row.original.status !== "completed" ? (
+            <Pill tone="bad">{`${humanize(row.original.status)} · error`}</Pill>
+          ) : (
+            <Pill tone={row.original.status === "cooling_off" ? "warn" : row.original.status === "completed" ? "ok" : row.original.status === "platform_approved" || row.original.status === "deleting" ? "info" : "neutral"}>
+              {humanize(row.original.status)}
+            </Pill>
+          ) },
       { id: "requested", header: "Requested", accessorFn: (row) => row.requestedAt ?? row.createdAt ?? "", meta: { width: 120 }, cell: ({ row }) => relative(row.original.requestedAt ?? row.original.createdAt) },
-      { id: "cooling", header: "Cooling-off ends", accessorFn: (row) => row.coolingOffEndsAt ?? "", meta: { width: 140, priority: 2 }, cell: ({ row }) => (row.original.coolingOffEndsAt ? shortDate(row.original.coolingOffEndsAt) : "—") },
+      { id: "cooling", header: "Cooling-off ends", accessorFn: (row) => row.deleteAfter ?? row.coolingOffEndsAt ?? "", meta: { width: 140, priority: 2 }, cell: ({ row }) => { const ends = row.original.deleteAfter ?? row.original.coolingOffEndsAt; return ends ? shortDate(ends) : "—"; } },
+      // What the worker leaves for a person (runbook A7): email the owner, a credential it couldn't destroy.
+      { id: "todo", header: "By hand", accessorFn: (row) => (row.manualSteps ?? []).join(" "), meta: { width: 260, priority: 3 }, cell: ({ row }) => (row.original.manualSteps?.length ? row.original.manualSteps.join(" ") : row.original.lastError ?? "—") },
       { id: "export", header: "Export", accessorFn: (row) => (exportDone(row.tenantId) ? 1 : 0), meta: { width: 120 }, cell: ({ row }) => (exportDone(row.original.tenantId) ? <Pill tone="ok">Complete</Pill> : <Pill tone="warn">Not yet</Pill>) },
       {
         id: "approve",
