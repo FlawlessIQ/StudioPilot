@@ -181,8 +181,39 @@ export const QUINCE_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readonl
   ],
 };
 
+/** A Sweet 16's planning (Phase 2): the venue, the theme, the candles, the guest list. */
+export const SWEET16_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readonly ChecklistItem[]>> = {
+  full: [
+    item("budget", "Set the budget and a first guest count with the family", 9),
+    item("venue", "Book the party venue", 9),
+    item("photographer", "Book the photographer", 7),
+    item("music", "Book the DJ, with an MC", 7),
+    item("caterer", "Book the caterer", 6),
+    item("theme", "Settle the theme: colors and the look of the party", 6),
+    item("entertainment", "Book any entertainment: dancers, a photo booth, games", 5),
+    item("invitations", "Send the invitations", 2),
+    item("outfit", "Choose the outfit, and book any fittings", 3),
+    item("hair_makeup", "Book hair and makeup for the birthday girl and her friends", 2),
+    item("florist", "Book the florist and the centerpieces", 3),
+    item("rsvps", "RSVP deadline: chase the missing replies", 3, "weeks"),
+    item("candle_lighting", "Settle the candle-lighting list and its songs with the family and the DJ", 3, "weeks"),
+    item("seating_chart", "Seating chart and final count to the venue and caterer", 2, "weeks"),
+    item("favors", "The sign-in board and favors ready to set out", 2, "weeks"),
+  ],
+  partial: [
+    item("vendor_review", "Go through the vendors they've booked and their contracts", 4),
+    item("theme", "Settle the theme: colors and the look of the party", 4),
+    item("entertainment", "Book any entertainment: dancers, a photo booth, games", 4),
+    item("hair_makeup", "Book hair and makeup for the birthday girl and her friends", 2),
+    item("rsvps", "RSVP deadline: chase the missing replies", 3, "weeks"),
+    item("candle_lighting", "Settle the candle-lighting list and its songs with the family and the DJ", 3, "weeks"),
+    item("seating_chart", "Seating chart and final count to the venue and caterer", 2, "weeks"),
+    item("favors", "The sign-in board and favors ready to set out", 2, "weeks"),
+  ],
+};
+
 /** Kinds with lists of their own, saved and edited apart from the wedding's. */
-export const CHECKLIST_KINDS = ["mitzvah", "quince"] as const;
+export const CHECKLIST_KINDS = ["mitzvah", "quince", "sweet16"] as const;
 export type ChecklistKind = (typeof CHECKLIST_KINDS)[number];
 
 /** Where a list is saved on the tenant: "full", or a kind's "mitzvah:full". */
@@ -194,6 +225,7 @@ export function checklistStorageKey(scope: ChecklistScope, kind?: string | null)
 const KIND_CHECKLISTS: Readonly<Record<string, Readonly<Record<ChecklistScope, readonly ChecklistItem[]>>>> = {
   mitzvah: MITZVAH_PLANNING_CHECKLISTS,
   quince: QUINCE_PLANNING_CHECKLISTS,
+  sweet16: SWEET16_PLANNING_CHECKLISTS,
 };
 
 export function isChecklistScope(value: unknown): value is ChecklistScope {

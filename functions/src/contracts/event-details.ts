@@ -149,6 +149,14 @@ const KIND_PARTS: Record<string, KindParts> = {
     receptionWords: ["reception", "party"],
     required: REQUIRED_MITZVAH_PARTS,
   },
+  // A Sweet 16's: the party, with no service before it.
+  sweet16: {
+    ceremony: "Location",
+    reception: "Party",
+    ceremonyWords: [],
+    receptionWords: ["party"],
+    required: ["reception", "times"],
+  },
 };
 
 /** A kind's own parts, or undefined for the wedding's (which has no row) and for none. */
@@ -487,6 +495,38 @@ export function quinceTermsBlocks(trade?: string | null): Block[] {
   ];
 }
 
+/**
+ * Schedule B — a Sweet 16's terms (docs/new-job-kinds-execution-plan-2026-10-15.md,
+ * Phase 2). Added for a Sweet 16 job only (job-kinds.ts `agreementTerms`).
+ * One term a wedding doesn't need: the honoree and most guests are minors.
+ * In the trade's own words.
+ *
+ * DRAFT: shipped before counsel's review, as the quinceañera's. Not legal advice.
+ */
+export function sweet16TermsBlocks(trade?: string | null): Block[] {
+  const field = "event.terms";
+  const which = String(trade ?? "").trim().toLowerCase();
+  const minors =
+    which === "dj"
+      ? "The honoree and most guests are minors. The Studio plays music suited to their ages, and keeps explicit lyrics out while they are on the floor unless the Client asks otherwise in writing."
+      : which === "makeup" || which === "hair"
+        ? "Services for anyone under 18 are given with a parent or guardian present, and with products suited to their age."
+        : which === "planner"
+          ? "The honoree and most guests are minors. The Client remains responsible for supervising them: the Studio coordinates the event and does not provide childcare."
+          : "The honoree and most guests are minors. The Studio will not use images of the honoree, or of any other minor from this event, in its portfolio, website, social media, competitions or advertising unless the Client agrees in writing. The images delivered are for the family's personal use.";
+  return [
+    { type: "heading", level: 2, content: [{ text: "Schedule B — Sweet 16 terms", field }] },
+    {
+      type: "paragraph",
+      content: [{ text: "These terms are part of this agreement for this event. Where they differ from the terms above, these apply.", field }],
+    },
+    {
+      type: "list",
+      items: [{ content: [{ text: "Minors: ", bold: true as const, field }, { text: minors, field }] }],
+    },
+  ];
+}
+
 /** The schedule as agreement blocks: a heading, what it means, the details. */
 export function eventDetailsBlocks(details: EventDetails): Block[] {
   if (!details.rows.length) return [];
@@ -522,6 +562,7 @@ export function eventDetailsBlocks(details: EventDetails): Block[] {
 const KIND_TERMS: Record<string, (trade?: string | null) => Block[]> = {
   mitzvah: mitzvahTermsBlocks,
   quince: quinceTermsBlocks,
+  sweet16: sweet16TermsBlocks,
 };
 
 /** The kind's Schedule B blocks, or null when its agreement has none. */

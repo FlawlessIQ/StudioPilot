@@ -1612,14 +1612,14 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // Initials stay ("music & MC planner"), and a form that already names
       // the kind doesn't name the job again: "your quinceañera party list",
       // not "… for Sofia Garcia's quinceañera" (quince walk, 2026-10-15).
-      const formWords = form ? form.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase()) : null;
+      const formWords = form ? form.replace(/\b[A-Z][a-z]+\b(?! \d)/g, (word) => word.toLowerCase()) : null;
       const kindWord = values.eventKind ? vocab(values.eventKind).event.toLowerCase() : "";
-      const forJob = kindWord && formWords?.includes(kindWord) ? "" : project;
+      const forJob = kindWord && formWords?.toLowerCase().includes(kindWord) ? "" : project;
       const planName = tradeVocab(values.trade, values.eventKind).planOfDay ?? "Plan";
       const planWord = `${planName.charAt(0).toLowerCase()}${planName.slice(1)}`;
       return {
         subject: named
-          ? `${reminder ? "Reminder: " : ""}Your ${named.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase())} for ${brand.studioName}`
+          ? `${reminder ? "Reminder: " : ""}Your ${named.replace(/\b[A-Z][a-z]+\b(?! \d)/g, (word) => word.toLowerCase())} for ${brand.studioName}`
           : `${reminder ? "Reminder: " : ""}Details needed by ${brand.studioName}`,
         preheader: form ? `Complete your ${form}.` : "Complete your photography project questionnaire.",
         eyebrow: form ? (reminder ? `${form} reminder` : form) : reminder ? "Questionnaire reminder" : "Planning questionnaire",

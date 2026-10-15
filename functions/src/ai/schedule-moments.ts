@@ -81,6 +81,15 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, ReadonlyArra
     { title: "Surprise dance", minutes: 10 },
     { title: "Last dance", minutes: 5 },
   ],
+  sweet16: [
+    { title: "Portraits with family and friends", minutes: 30 },
+    { title: "Grand entrance", minutes: 5 },
+    { title: "Candle lighting", minutes: 30 },
+    { title: "Parent dance", minutes: 5 },
+    { title: "The toast", minutes: 10 },
+    { title: "Dancing and games", minutes: 60 },
+    { title: "Last dance", minutes: 5 },
+  ],
   corporate: [
     { title: "Guest arrivals and registration", minutes: 30 },
     { title: "Keynote", minutes: 45 },

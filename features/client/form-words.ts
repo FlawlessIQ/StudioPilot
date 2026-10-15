@@ -51,7 +51,7 @@ export function clientFormWords(detailsForm: string | null | undefined): ClientF
       formLabel: "Questionnaire",
     };
   // Initials stay: "your mitzvah music & MC planner".
-  const word = detailsForm.replace(/\b[A-Z][a-z]+\b/g, (part) => part.toLowerCase());
+  const word = detailsForm.replace(/\b[A-Z][a-z]+\b(?! \d)/g, (part) => part.toLowerCase());
   return {
     page: detailsForm,
     emptyTitle: `Your ${word}`,

@@ -201,6 +201,67 @@ async function quinceChecklist({ record, hit, checklist, fixture }: PlanContext)
 
 const QUINCE_BEFORE_ANSWERS = { "ready-by-time": "16:00", "earliest-start-time": "11:00", "getting-ready": "The Garcia home, 22 Palm Ave" };
 
+/**
+ * The words a Sweet 16 family must never read: a wedding's (with its veil,
+ * officiant and marriage), "couple" other than "a couple of", and the other
+ * honoree kinds' — a mitzvah's and a quinceañera's (its Mass, court and
+ * padrinos). Candle lighting is a Sweet 16's own.
+ */
+const SWEET16_WORDS = /\b(weddings?|brides?|bridal|grooms?|ceremony|ceremonies|bridesmaids?|veils?|officiants?|marriage|(?<!\ba )couples?(?! of\b)|(?:bar|bat|b'?nai) mitzvahs?|mitzvahs?|synagogue|hora|rabbi|challah|quincea[ñn]eras?|quinces?|damas?|chambel[aá]n(?:es)?|padrinos?|madrinas?|mass)\b/i;
+
+/** The DJ's night plan and MC script for a Sweet 16. */
+function sweet16Night({ stored, dayPlan, record, note, hit }: PlanContext) {
+  const night = planBuiltNight(dayPlan, { answers: stored, coverageMinutes: 270, venue: "The Glasshouse" });
+  const titles = night.rows.map((row) => `${row.time} ${row.title}`);
+  record("5. planBuiltNight(sweet16) starts at the party (18:30 guests arrive), no crew/portraits lines",
+    night.rows[0]?.time === "18:30" && !night.rows.some((row) => /Photo and video|portraits/i.test(row.title)),
+    titles.join(" · "));
+  const wanted = [/grand entrance/i, /candle lighting/i, /parent dance/i, /toast/i, /dancing and games/i];
+  const missing = wanted.filter((pattern) => !night.rows.some((row) => pattern.test(row.title)));
+  record("5. the night has the entrance, the candle lighting, the parent dance, the toast, and dancing and games",
+    missing.length === 0, missing.length ? `missing ${missing.join(", ")}` : night.notes.join(" ") || "all there");
+  const order = wanted.map((pattern) => night.rows.findIndex((row) => pattern.test(row.title)));
+  record("5. ...in that order", order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1]!)), order.join(","));
+  record("5. the night's notes never say photo/crew", !/photo|crew sheet|portrait/i.test(night.notes.join(" ")), hit(/photo|crew sheet|portrait/i, night.notes.join(" ")));
+  const { items, filled } = fillMcScript(night.rows.map((row) => ({ ...row, mc: null })), stored);
+  const line = (title: RegExp) => mcScriptLine(items.find((item) => title.test(item.title))?.mc) ?? "";
+  record("5. MC script: entrance names on the grand entrance", /And our birthday girl, Emma!/.test(line(/grand entrance/i)), line(/grand entrance/i) || "empty");
+  record("5. MC script: the candle-lighting list with its songs", /My Girl/.test(line(/candle/i)) && /Grandma Rose/.test(line(/candle/i)), line(/candle/i).slice(0, 160) || "empty");
+  record("5. MC script: the parent-dance song", /Isn't She Lovely/.test(line(/parent dance/i)), line(/parent dance/i) || "empty");
+  record("5. MC script: toast order on the toast", /Mark, then Grandma Rose/.test(line(/toast/i)), line(/toast/i) || "empty");
+  record("5. MC script: the games on dancing and games", /trivia/.test(line(/games/i)), line(/games/i) || "empty");
+  note("5. MC script filled", `${filled} lines: ${items.filter((item) => item.mc).map((item) => item.title).join(", ")}`);
+}
+
+/** A makeup or hair party list and its chairs for a Sweet 16. */
+function sweet16Chairs({ trade, stored, record }: PlanContext) {
+  const service = trade as "makeup" | "hair";
+  const people = parsePartyList(stored["party-list"], service);
+  const role = (name: string) => people.find((person) => person.name === name)?.role;
+  record("5. party list read: Emma (the birthday girl) is the honoree, Lisa a mother, Zoe (friend) the party",
+    role("Emma") === "bride" && role("Lisa Carter") === "mother" && role("Zoe") === "party",
+    people.map((person) => `${person.name}: ${person.role} ${person.services.join("+")}`).join(", "));
+  const plan = planChairs({ people, service, readyBy: "17:30", earliestStart: "12:00", artists: 1 });
+  const slots = plan.slots.map((slot) => `${slot.start}-${slot.end} ${slot.name} (${slot.role})`).join(", ") || "no slots";
+  record(`5. planChairs lays out the ${service} chairs`, plan.slots.length === 3 && plan.fits, `${slots} ${plan.notes.join(" ")}`);
+  const at = plan.slots.findIndex((slot) => slot.name === "Emma");
+  record("5. Emma is never last in the chair (chair-plan.ts: the middle)", at >= 0 && at < plan.slots.length - 1, slots);
+}
+
+/** The planner's checklist for a full-planning Sweet 16. */
+async function sweet16Checklist({ record, hit, checklist, fixture }: PlanContext) {
+  const { keys, tasks } = await checklist();
+  record("5. planner: a full-planning Sweet 16 gets its checklist", tasks.length > 0, `${tasks.length} tasks: ${keys.join(", ")}`);
+  const excluded = ["marriage_license", "officiant", "church_date"];
+  record("5. planner: no marriage license, no officiant, no church date", !excluded.some((key) => keys.includes(key)), keys.filter((key) => excluded.includes(key)).join(", ") || "none");
+  const wanted = ["venue", "theme", "candle_lighting"];
+  record("5. planner: the venue, the theme and the candle lighting", wanted.every((key) => keys.includes(key)), `missing: ${wanted.filter((key) => !keys.includes(key)).join(", ") || "none"}`);
+  const titles = tasks.map((task) => task.title).join(" | ");
+  record("5. planner: no wedding/mitzvah/quinceañera words or 'couple' in the task titles", !fixture.forbidden.test(titles) && !fixture.coupleWord.test(titles), hit(new RegExp(`${fixture.forbidden.source}|${fixture.coupleWord.source}`, "i"), titles));
+}
+
+const SWEET16_BEFORE_ANSWERS = { "ready-by-time": "17:30", "earliest-start-time": "12:00", "getting-ready": "The Carter home, 8 Maple Ave, Summit NJ" };
+
 export const KIND_FIXTURES: Record<string, KindFixture> = {
   mitzvah: {
     kind: "mitzvah",
@@ -333,6 +394,70 @@ export const KIND_FIXTURES: Record<string, KindFixture> = {
           "guest-count": "180",
         },
         plan: quinceChecklist,
+      },
+    },
+  },
+  sweet16: {
+    kind: "sweet16",
+    word: "sweet16",
+    eventType: { id: "sweet16", label: "Sweet 16" },
+    client: { firstName: "Lisa", lastName: "Carter" },
+    honoree: { name: "Emma", variantField: null, variant: null },
+    jobName: "Emma Carter's Sweet 16",
+    yourEvent: "Emma's Sweet 16",
+    eventPhrase: "Sweet 16",
+    inquiry: { message: "Emma's Sweet 16 party at The Glasshouse.", city: "Summit, NJ", venue: "The Glasshouse", guests: 100 },
+    package: { name: "Sweet 16 package", description: "Everything for the party.", deliverables: ["The party"] },
+    scheduleA: "Schedule A — Sweet 16 details",
+    scheduleB: "Schedule B — Sweet 16 terms",
+    foreignForms: /^(wedding|mitzvah|quince|dj-|makeup-|hair-|planner-)/,
+    // journeyProfile("sweet16").detailsFormDaysBefore is 60.
+    formDueDaysOut: 55,
+    fillerText: "The Glasshouse, 5 Main St, Summit NJ",
+    forbidden: SWEET16_WORDS,
+    coupleWord: COUPLE_WORD,
+    trades: {
+      dj: {
+        studioName: "Sixteen Candles DJs",
+        form: "sweet16-music-planner",
+        scheduleB: [/music suited to their ages/, /explicit lyrics/],
+        answers: {
+          "party-location": "The Glasshouse, 5 Main St, Summit NJ",
+          "party-start-time": "18:30",
+          "party-end-time": "23:00",
+          "entrance-names": "Her parents, Lisa and Mark\nAnd our birthday girl, Emma!",
+          "candle-lighting-list": "1. Mom and Dad — 'My Girl'\n2. Grandma Rose — 'Lean on Me'\n16. My best friends — 'Firework'",
+          "parent-dance-songs": "Isn't She Lovely",
+          "toast-order": "Mark, then Grandma Rose",
+          games: "A dance-off, then trivia about the birthday girl",
+        },
+        plan: sweet16Night,
+      },
+      makeup: {
+        studioName: "Glow Up Makeup",
+        form: "sweet16-makeup-party-list",
+        scheduleB: [/parent or guardian present/, /suited to their age/],
+        answers: { ...SWEET16_BEFORE_ANSWERS, "party-list": "Emma — the birthday girl — full glam — lashes\nLisa Carter — mom — makeup\nZoe — friend — light makeup" },
+        plan: sweet16Chairs,
+      },
+      hair: {
+        studioName: "Sixteen Strands Hair",
+        form: "sweet16-hair-party-list",
+        scheduleB: [/parent or guardian present/, /suited to their age/],
+        answers: { ...SWEET16_BEFORE_ANSWERS, "party-list": "Emma — the birthday girl — curls, half up\nLisa Carter — mom — blowout\nZoe — friend — braid" },
+        plan: sweet16Chairs,
+      },
+      planner: {
+        studioName: "Sweet Moments Events",
+        form: "sweet16-planner-final-details",
+        scheduleB: [/supervising them/, /does not provide childcare/],
+        answers: {
+          "party-location": "The Glasshouse, 5 Main St, Summit NJ", "party-start-time": "18:30", "party-end-time": "23:00",
+          "key-people": "Grandma Rose; Mark gives the toast; Aunt Jen if we can't reach Lisa",
+          "candle-lighting-list": "Mom and Dad\nGrandma Rose\nMy best friends",
+          "guest-count": "100",
+        },
+        plan: sweet16Checklist,
       },
     },
   },

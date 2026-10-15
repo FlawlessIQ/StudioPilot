@@ -216,6 +216,17 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, readonly Kin
     { label: "Surprise dance", title: "Surprise dance", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // A Sweet 16's party (sweet16-plan.ts lays it out from the form).
+  sweet16: [
+    { label: "Portraits", title: "Portraits with family and friends", minutes: 30 },
+    { label: "Grand entrance", title: "Grand entrance", minutes: 5 },
+    { label: "Candle lighting", title: "Candle lighting", minutes: 30 },
+    { label: "Parent dance", title: "Parent dance", minutes: 5 },
+    { label: "Toast", title: "The toast", minutes: 10 },
+    { label: "Games", title: "Dancing and games", minutes: 60 },
+    { label: "Cake", title: "Cake", minutes: 10 },
+    { label: "Last dance", title: "Last dance", minutes: 5 },
+  ],
   corporate: [
     { label: "Arrivals", title: "Guest arrivals and registration", minutes: 30 },
     { label: "Keynote", title: "Keynote", minutes: 45 },

@@ -58,7 +58,7 @@ export type PlanSource = "form" | "rule" | "usual" | "coverage";
 
 export type PlanRow = {
   /** A wedding's milestone, a studio rule's line, or another kind's own (mitzvah-plan.ts). */
-  key: MilestoneKey | `rule:${string}` | `mitzvah:${string}` | `quince:${string}`;
+  key: MilestoneKey | `rule:${string}` | `mitzvah:${string}` | `quince:${string}` | `sweet16:${string}`;
   title: string;
   /** "HH:MM" on the event day. */
   time: string;

@@ -1175,6 +1175,263 @@ const QUINCE_PLANNER_FINAL_DETAILS: RecommendedSection[] = [
   ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "vendors"),
 ];
 
+/**
+ * A Sweet 16's details (docs/new-job-kinds-execution-plan-2026-10-15.md,
+ * Phase 2). The parents fill it in about their child. A party, with no
+ * service before it: the party's start is the day plan's anchor
+ * (sweet16-plan.ts). The ids are the mitzvah party's, which the day plan,
+ * Schedule A, the crew brief and the MC script already read.
+ */
+function sweet16DetailSections(tbd: boolean): RecommendedSection[] {
+  const where = (id: string, label: string, required = true, help?: string) =>
+    field(id, label, "address", required, { allowTbd: tbd, ...(help ? { help } : {}) });
+  const when = (id: string, label: string, required = true, help?: string) =>
+    field(id, label, "time", required, { allowTbd: tbd, ...(help ? { help } : {}) });
+  return [
+    {
+      id: "family",
+      title: "Your family",
+      fields: [
+        field("event-date", "Party date", "date", true),
+        field("parent-names", "Parents' names", "text", true),
+        field("parent-email", "Parent's email", "email", true),
+        field("parent-phone", "Parent's phone", "phone", true),
+        field("billing-address", "Home address (for billing)", "address", false, {
+          help: "Street, city, state and ZIP. Where your invoices are addressed.",
+        }),
+        field("honoree-name", "Who we're celebrating (first name)", "text", true),
+        field("honoree-pronunciation", "How to say their name", "text", false, {
+          help: "As it sounds, if it's easy to get wrong. The crew and the MC read this.",
+        }),
+      ],
+    },
+    {
+      id: "party",
+      title: "The party",
+      fields: [
+        where("party-location", "Party location"),
+        when("party-start-time", "Party start time", true, "When the guests arrive."),
+        when("party-end-time", "Party end time"),
+        field("guest-count", "Number of invited guests", "text", true, { allowTbd: tbd }),
+      ],
+    },
+    {
+      id: "coverage",
+      title: "Photo and video coverage",
+      fields: [
+        when("coverageStartTime", "Photo 1 / Video 1 start time", true, "When your main photographer and videographer start."),
+        when("coverageEndTime", "Photo 1 / Video 1 end time"),
+        when("photo-2-start-time", "Photo 2 / Video 2 start time", false, "Your second photographer and videographer, if your package includes them."),
+        when("photo-2-end-time", "Photo 2 / Video 2 end time", false),
+      ],
+    },
+  ];
+}
+
+const SWEET16_FAMILY: RecommendedSection = {
+  id: "family-names",
+  title: "Family and the candles",
+  fields: [
+    field("family-names", "Family names for portraits", "long_text", false, {
+      help: "Parents, grandparents, siblings — the names we call for family pictures.",
+    }),
+    field("candle-lighting-list", "The candle lighting, in order", "long_text", false, {
+      help: "One candle per line: who lights it. For example: \"Mom and Dad\", \"Grandma Rose\", \"My best friends\". Usually 16 candles. We photograph every one, and your DJ calls them up.",
+    }),
+  ],
+};
+
+const SWEET16_EVENING: RecommendedSection = {
+  id: "day-in-order",
+  title: "Your party, in order",
+  fields: [
+    step("family-portraits-time", "Portraits with family and friends — time", "Allow 30 minutes before the guests arrive.", {
+      fieldId: "party-start-time",
+      minutes: -45,
+    }),
+    step("grand-entrance-time", "Grand entrance — time", "Usually 45 minutes into the party.", { fieldId: "party-start-time", minutes: 45 }),
+    step("candle-lighting-time", "Candle lighting — time", "Allow 30 minutes for 16 candles."),
+    step("special-dance-time", "Special dance — time", "A dance with a parent, if you're doing one."),
+    step("toast-time", "The toast — time", "Before dinner, usually."),
+    step("dinner-time", "Dinner — time", "Check with your venue."),
+    step("dancing-time", "Dancing and games — time", "After dinner."),
+    step("cake-time", "Cake — time", "No later than 45 minutes before coverage ends.", { fieldId: "coverageEndTime", minutes: -45 }),
+    step("last-dance-time", "Last dance — time", "The last song of the night."),
+  ],
+};
+
+/** A Sweet 16's shot list: the wedding's ids, so it reaches the crew the same way, with the candles first. */
+const SWEET16_SHOT_LIST: RecommendedSection[] = [
+  {
+    id: "groups",
+    title: "Family and group pictures",
+    fields: [
+      field("must-have-groups", "Family and group pictures, in the order to call them", "long_text", false, {
+        help: "One group per line. For example: \"Emma with her parents\", \"Emma with her grandparents\", \"Emma and her best friends\".",
+      }),
+      field("candle-lighting-list", "The candle lighting, in order", "long_text", false, {
+        help: "Who lights each candle, one per line. We photograph every candle.",
+      }),
+    ],
+  },
+  {
+    id: "must-take",
+    title: "Must-take pictures",
+    fields: [
+      field("must-have-shots", "Pictures you don't want us to miss", "long_text", false, {
+        help: "The grand entrance, the candles, a special dance, friends from school — anything that matters most to you.",
+      }),
+      field("people-to-capture", "People we should be sure to photograph", "long_text", false, {
+        help: "Who they are and how we'll recognize them. For example: \"Aunt Lisa, green dress, table 3\".",
+      }),
+      field("details-to-capture", "Details to capture", "long_text", false, {
+        help: "The cake, the décor, the sign-in board, the favors, the outfit.",
+      }),
+    ],
+  },
+  {
+    id: "care",
+    title: "Good to know",
+    fields: [
+      field("no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false, {
+        help: "Including any guest whose parents haven't agreed to photos.",
+      }),
+      field("sensitivities", "Anything we should handle carefully", "long_text", false, {
+        help: "Separated parents, someone unwell, a recent loss. Only your crew see this.",
+      }),
+    ],
+  },
+];
+
+const sweet16Party = (endHelp: string): RecommendedSection => ({
+  id: "where-and-when",
+  title: "Where and when",
+  fields: [
+    field("party-location", "Party location", "address", true),
+    field("party-start-time", "Party start time", "time", true, { help: "When the guests arrive." }),
+    field("party-end-time", "Party end time", "time", true, { help: endHelp }),
+  ],
+});
+
+/** A DJ's Sweet 16: the entrance, the candles with a song each, the special dance, the toast, the games, the dance floor. */
+const SWEET16_MUSIC_PLANNER: RecommendedSection[] = [
+  sweet16Party("When the music stops."),
+  {
+    id: "entrances",
+    title: "Grand entrance",
+    fields: [
+      field("grand-entrance-song", "Grand entrance song", "text", false),
+      field("entrance-names", "Who we introduce, in order, and how to say each name", "long_text", true, {
+        help: "One per line, as you'd like them said. For example: \"Her parents, Lisa and Mark\", \"And our birthday girl, Emma!\".",
+      }),
+    ],
+  },
+  {
+    id: "candles",
+    title: "The candle lighting",
+    fields: [
+      field("candle-lighting-list", "The candle lighting, in order", "long_text", true, {
+        help: "One candle per line: who lights it, how to introduce them, and their song. For example: \"Mom and Dad — 'My Girl'\". Usually 16 candles.",
+      }),
+    ],
+  },
+  {
+    id: "special-dances",
+    title: "Special dances and the toast",
+    fields: [
+      field("parent-dance-songs", "A special dance with a parent — song", "text", false, { help: "If you're doing one." }),
+      field("toast-order", "Speeches and the toast, in order", "long_text", false),
+    ],
+  },
+  {
+    id: "games",
+    title: "Games",
+    fields: [
+      field("games", "Games and dancers", "long_text", false, {
+        help: "Anything planned: a dance-off, trivia about the birthday girl, prizes.",
+      }),
+    ],
+  },
+  {
+    id: "dance-floor",
+    title: "The dance floor",
+    fields: [
+      field("cake-cutting-song", "Cake", "text", false, { help: "A song for the cake, if you'd like one." }),
+      field("last-dance-song", "Last dance", "text", false),
+      field("must-play", "Must-play songs", "long_text", false),
+      field("do-not-play", "Do-not-play songs", "long_text", false),
+      field("genres", "Genres you love, and any you don't", "long_text", false),
+      choice("guest-requests", "Guest requests", ["Yes, take requests", "Only if they fit the night", "No requests"]),
+      choice("explicit-lyrics", "Explicit lyrics", ["Clean versions only", "Fine for the adults later on", "Anything goes"]),
+    ],
+  },
+  {
+    id: "on-the-day",
+    title: "On the day",
+    fields: [
+      field("microphones", "Who needs a microphone", "long_text", false, { help: "Handhelds for the toast and the parents." }),
+      field("venue-coordinator", "Venue coordinator — name and phone", "text", false),
+      field("load-in-notes", "Load-in, parking and power at your venue", "long_text", false),
+    ],
+  },
+];
+
+const sweet16PartyList = (help: string): RecommendedSection => ({
+  id: "your-party",
+  title: "Your family and friends",
+  fields: [field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, { help })],
+});
+
+const SWEET16_HELP: Record<string, string> = {
+  "ready-by-time": "Usually when the portraits start, before the guests arrive.",
+  "day-of-contact": "Who we call on the day if it isn't you: a grandparent, a friend or your planner.",
+};
+
+const SWEET16_BEFORE: RecommendedSection = {
+  ...PARTY_LIST[0]!,
+  id: "the-morning",
+  title: "Before the party",
+  fields: PARTY_LIST[0]!.fields.map((entry) => (SWEET16_HELP[entry.id] ? { ...entry, help: SWEET16_HELP[entry.id] } : entry)),
+};
+
+/** A Sweet 16's hair, without a veil. */
+const SWEET16_HAIR_DETAILS: RecommendedSection = {
+  ...HAIR_DETAILS,
+  fields: HAIR_DETAILS.fields.filter((entry) => entry.id !== "veil"),
+};
+
+/** A planner's Sweet 16: the party, the people, the candles, the décor, the vendors. */
+const SWEET16_PLANNER_FINAL_DETAILS: RecommendedSection[] = [
+  {
+    id: "the-party",
+    title: "The party",
+    fields: [
+      field("party-location", "Party location", "address", true),
+      field("party-start-time", "Party start time", "time", true),
+      field("party-end-time", "Party end time", "time", false),
+    ],
+  },
+  {
+    id: "key-people",
+    title: "Key people",
+    fields: [
+      field("key-people", "The people we should know on the day", "long_text", true, {
+        help: "Grandparents, anyone giving a toast, and who we call if we can't reach you.",
+      }),
+      field("candle-lighting-list", "The candle lighting, in order", "long_text", false, {
+        help: "One candle per line: who lights it. We line them up, and your DJ calls them.",
+      }),
+    ],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "decor-and-venue"),
+  {
+    id: "guests",
+    title: "Guests",
+    fields: [field("guest-count", "Final guest count", "text", true)],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "vendors"),
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -1413,6 +1670,103 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       reminderDaysBeforeDue: [14, 3],
       sections: QUINCE_PLANNER_FINAL_DETAILS,
     },
+    // Sweet 16s (docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 2).
+    {
+      id: "sweet16-details",
+      name: "Sweet 16 details",
+      summary:
+        "The family, who you're celebrating, the party and coverage, with a TBD option for anything not decided yet. What they give goes into Schedule A.",
+      useIt: "Send it with new Sweet 16 inquiries.",
+      eventTypeId: "sweet16",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 90,
+      reminderDaysBeforeDue: [14, 3],
+      sections: sweet16DetailSections(true),
+    },
+    {
+      id: "sweet16-final-schedule",
+      name: "Sweet 16 final schedule",
+      summary:
+        "Their details again (filled in from what they already gave), family names, the candle lighting in order, and the party in order with suggested times.",
+      useIt: "Your Sweet 16 planning form: it goes out two months before.",
+      eventTypeId: "sweet16",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [...sweet16DetailSections(false), SWEET16_FAMILY, SWEET16_EVENING],
+    },
+    {
+      id: "sweet16-shot-list",
+      name: "Sweet 16 shot list",
+      summary:
+        "Family and friends groups in the order to call them, the candle lighting, must-take moments, people to find, and anyone to avoid. Your crew see it on their day sheet.",
+      useIt: "It goes out with the Sweet 16 planning form.",
+      eventTypeId: "sweet16",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [14, 3],
+      sections: SWEET16_SHOT_LIST,
+    },
+    {
+      id: "sweet16-music-planner",
+      name: "Sweet 16 music & MC planner",
+      summary:
+        "Where and when, the entrance names and how to say them, the candle lighting with a song for each candle, the special dance and the toast, the games and the dance floor. Your run of show is laid out from it.",
+      useIt: "Your Sweet 16 planning form: it goes out when they book.",
+      eventTypeId: "sweet16",
+      trades: ["dj"],
+      dueDaysBeforeEvent: 14,
+      reminderDaysBeforeDue: [14, 3],
+      sections: SWEET16_MUSIC_PLANNER,
+    },
+    {
+      id: "sweet16-makeup-party-list",
+      name: "Sweet 16 party list",
+      summary: "When everyone needs to be ready, where, and the birthday girl, her friends and family getting makeup.",
+      useIt: "Your Sweet 16 planning form: it goes out when they book.",
+      eventTypeId: "sweet16",
+      trades: ["makeup"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        SWEET16_BEFORE,
+        sweet16PartyList(
+          "Name — who they are — hair, makeup or both — anything we should know. For example: \"Emma — the birthday girl — full glam — lashes\", \"Lisa Carter — mom — makeup\", \"Zoe — friend — light makeup\".",
+        ),
+        MAKEUP_SKIN,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "sweet16-hair-party-list",
+      name: "Sweet 16 party list",
+      summary: "When everyone needs to be ready, where, and the birthday girl, her friends and family getting their hair done.",
+      useIt: "Your Sweet 16 planning form: it goes out when they book.",
+      eventTypeId: "sweet16",
+      trades: ["hair"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        SWEET16_BEFORE,
+        sweet16PartyList(
+          "Name — who they are — anything we should know. For example: \"Emma — the birthday girl — curls, half up\", \"Lisa Carter — mom — blowout\", \"Zoe — friend — braid\".",
+        ),
+        SWEET16_HAIR_DETAILS,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "sweet16-planner-final-details",
+      name: "Sweet 16 final details",
+      summary:
+        "The party, the people to know, the candle lighting, what the family is bringing and the venue's rules, the final count, and every vendor.",
+      useIt: "Your Sweet 16 planning form.",
+      eventTypeId: "sweet16",
+      trades: ["planner"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: SWEET16_PLANNER_FINAL_DETAILS,
+    },
     {
       id: "dj-music-planner",
       name: "Music & moments planner",
@@ -1544,7 +1898,7 @@ const SIGNUP_KINDS: readonly string[] = ["wedding"];
  * the kind on its inquiry form: a mitzvah's details, final schedule and shot
  * list.
  */
-export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince"];
+export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince", "sweet16"];
 
 /** How many questions a form asks. */
 export function recommendedFieldCount(template: RecommendedQuestionnaire): number {

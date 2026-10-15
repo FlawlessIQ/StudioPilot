@@ -413,10 +413,11 @@ const VOCAB: Record<Trade, TradeVocabulary> = {
 
 /**
  * A form's name mid-sentence: "Mitzvah music & MC planner" reads "mitzvah
- * music & MC planner" — Title words come down, initials stay.
+ * music & MC planner" — Title words come down, initials stay, and a name
+ * with a number keeps its capital ("your Sweet 16 party list").
  */
 export function formNameInSentence(name: string): string {
-  return name.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase());
+  return name.replace(/\b[A-Z][a-z]+\b(?! \d)/g, (word) => word.toLowerCase());
 }
 
 /** The words for a trade. */
@@ -432,6 +433,7 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
   dj: {
     mitzvah: { detailsForm: "Mitzvah music & MC planner" },
     quince: { detailsForm: "Quinceañera music & MC planner" },
+    sweet16: { detailsForm: "Sweet 16 music & MC planner" },
   },
   makeup: {
     mitzvah: {
@@ -459,6 +461,21 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
           "lashes and adhesive for everyone who wanted them",
           "the quinceañera's shades and products from her trial",
           "a touch-up kit for the quinceañera and her mom",
+          "a light, a power strip and an extension cord",
+        ],
+      },
+    },
+    sweet16: {
+      detailsForm: "Sweet 16 party list",
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule: the birthday girl last, her friends before her",
+          "brushes and sponges cleaned",
+          "lashes and adhesive for everyone who wanted them",
+          "products suited to teenage skin",
+          "a touch-up kit for the birthday girl",
           "a light, a power strip and an extension cord",
         ],
       },
@@ -513,6 +530,30 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         ],
       },
     },
+    sweet16: {
+      detailsForm: "Sweet 16 party list",
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule: the birthday girl last, her friends before her",
+          "irons, dryer and brushes",
+          "pins, elastics and hairspray",
+          "the birthday girl's look from her trial, if there was one",
+          "a power strip and an extension cord",
+        ],
+      },
+      trialHint: null,
+      trialBring: ["pictures of looks you love", "a photo of the outfit", "any hair accessories you'll wear"],
+      prepGuide: {
+        lead: "So your hair holds all night",
+        items: [
+          "come with clean, completely dry hair — washed the night before, with no oils or products — or there's a blow-dry fee",
+          "wear a button-up or zip-front top, so nothing goes over your head",
+          "have your hair accessories with you",
+        ],
+      },
+    },
   },
   planner: {
     mitzvah: {
@@ -543,6 +584,21 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         ],
         summary: "The court's order, the traditions' pieces, the tip envelopes",
         sent: "Sent — the court's order and what to bring",
+      },
+    },
+    sweet16: {
+      dayName: "The party",
+      dayBefore: {
+        lead: "For the big day",
+        ask: "A few things so tomorrow runs to time — please have ready:",
+        items: [
+          "the candle-lighting list, final and in order, with who lights each candle",
+          "the entrance order and the special-dance song, final",
+          "the vendor tips and final payments in labeled envelopes, if we're handing them out",
+          "your décor, the sign-in board and the favors boxed and labeled for setup",
+        ],
+        summary: "The candle list, the entrance order, the tip envelopes",
+        sent: "Sent — the candle list and what to bring",
       },
     },
   },

@@ -1,6 +1,7 @@
 import { planDay, type DayPlan } from "./day-plan";
 import { planMitzvahDay, planMitzvahNight } from "./mitzvah-plan";
 import { planQuinceDay, planQuinceNight } from "./quince-plan";
+import { planSweet16Day, planSweet16Night } from "./sweet16-plan";
 import { planNight } from "./night-plan";
 import type { JourneyProfile } from "@/features/job-kinds/job-kinds";
 
@@ -26,6 +27,12 @@ const BUILT_DAYS: Record<string, { day: (input: DayInput) => DayPlan; night: (in
     day: ({ answers, coverageMinutes, venue, secondTeam, answeredOnly }) =>
       planQuinceDay({ answers, coverageMinutes, venue, secondTeam, answeredOnly }),
     night: planQuinceNight,
+  },
+  // A Sweet 16's from the party (sweet16-plan.ts).
+  sweet16: {
+    day: ({ answers, coverageMinutes, venue, secondTeam, answeredOnly }) =>
+      planSweet16Day({ answers, coverageMinutes, venue, secondTeam, answeredOnly }),
+    night: planSweet16Night,
   },
 };
 

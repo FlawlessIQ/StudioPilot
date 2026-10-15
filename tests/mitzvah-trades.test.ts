@@ -112,7 +112,8 @@ test("Schedule B: the congregation's rules and children, in each trade's words, 
   assert.equal(journeyProfile("mitzvah").agreementTerms, "mitzvah");
   // A quinceañera has its own (new-job-kinds plan, Phase 1); no other kind has any.
   assert.equal(journeyProfile("quince").agreementTerms, "quince");
-  for (const kind of JOB_KINDS.filter((kind) => kind !== "mitzvah" && kind !== "quince")) assert.equal(journeyProfile(kind).agreementTerms, null, kind);
+  assert.equal(journeyProfile("sweet16").agreementTerms, "sweet16");
+  for (const kind of JOB_KINDS.filter((kind) => kind !== "mitzvah" && kind !== "quince" && kind !== "sweet16")) assert.equal(journeyProfile(kind).agreementTerms, null, kind);
 
   const text = (trade: string) => JSON.stringify(mitzvahTermsBlocks(trade));
   assert.match(text("photographer"), /cameras out of the service/);

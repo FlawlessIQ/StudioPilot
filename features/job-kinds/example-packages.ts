@@ -86,6 +86,16 @@ export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
       deliverables: "Online gallery, High-resolution downloads",
     },
   ],
+  sweet16: [
+    {
+      name: "Sweet 16 party",
+      description: "Portraits with family and friends, then the party: the grand entrance, the candle lighting, the special dances, the cake and the dance floor.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+  ],
   portraits: [
     {
       name: "Mini session",
@@ -213,6 +223,16 @@ const DJ_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Reception sound, Dance floor lighting, MC, Waltz and surprise-dance playback, Online music planner",
     },
   ],
+  sweet16: [
+    {
+      name: "Sweet 16 party with MC",
+      description: "The grand entrance, the candle lighting with a song for every candle, the special dances, games and the dance floor.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Party sound, Dance floor lighting, MC, Candle-lighting songs, Online music planner",
+    },
+  ],
   corporate: [
     {
       name: "Corporate event",
@@ -280,6 +300,16 @@ const MAKEUP_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Makeup trial, Full makeup, Lashes, Touch-up kit",
     },
   ],
+  sweet16: [
+    {
+      name: "Sweet 16 makeup",
+      description: "Makeup for the birthday girl, with friends and family after her priced per person.",
+      coverageHours: 2,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Full makeup, Lashes, Touch-up kit",
+    },
+  ],
   other: [
     {
       name: "Event makeup",
@@ -330,6 +360,16 @@ const HAIR_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       photographers: 1,
       videographers: 0,
       deliverables: "Hair trial, Styling, Tiara placement",
+    },
+  ],
+  sweet16: [
+    {
+      name: "Sweet 16 hair",
+      description: "The birthday girl's style, with friends and family after her priced per person.",
+      coverageHours: 2,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Styling",
     },
   ],
   other: [
@@ -421,6 +461,26 @@ const PLANNER_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       photographers: 1,
       videographers: 0,
       deliverables: "Planning meeting, Vendor confirmations, Event timeline, 8 hours on the day",
+      planningScope: "coordination",
+    },
+  ],
+  sweet16: [
+    {
+      name: "Sweet 16 planning",
+      description: "From the venue to the last dance: vendors, the theme, the candle lighting and the guest list.",
+      coverageHours: 6,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Planning meetings, Vendor sourcing and booking, Budget, Candle-lighting order, Event timeline, 6 hours on the day",
+      planningScope: "full",
+    },
+    {
+      name: "Day-of coordination",
+      description: "We take over a month out: vendors confirmed, the timeline, and the day.",
+      coverageHours: 6,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Planning meeting, Vendor confirmations, Event timeline, 6 hours on the day",
       planningScope: "coordination",
     },
   ],

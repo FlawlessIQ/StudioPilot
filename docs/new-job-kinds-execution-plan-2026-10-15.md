@@ -64,7 +64,7 @@ question as the mitzvah's decision 3.) A choreographer for the court's
 dances: new vendor type, or "entertainment"?
 
 **Sweet 16:** one kind for any 16th birthday, or a variant of a wider
-"milestone birthday"?
+"milestone birthday"? **Answered (Conor, 2026-10-15): its own kind.**
 
 **Sacraments:** does a photographer's communion booking have an agreement
 (portraits don't) or is it paid in full with no agreement? Is a whole
@@ -187,6 +187,15 @@ the birthday girl + friends; planner checklist without church items;
 photographer shot list (candles, friends, family, the cake).
 
 **Agreement:** Schedule B: minors only (no house of worship).
+
+**Built 2026-10-15.** Kind `sweet16` (its own kind — Conor), forms for every
+trade on the mitzvah party's ids (so the MC script and crew brief needed
+nothing new), `planSweet16Day`/`Night` on the shared party engine
+(`party-plan.ts`, which the quinceañera now runs on too), a planner checklist,
+Schedule A "Party", Schedule B minors-only (`sweet16TermsBlocks`; added to the
+quinceañera's counsel pack). Details form 60 days before. Emulator walk:
+sweet16 154/154, quince 156/156, mitzvah 154/154. Fixed from the walk: a form
+name with a number keeps its capital ("your Sweet 16 party list").
 
 **Done when:** as Phase 1, with only the differences walked on prod (DJ and
 one beauty trade).

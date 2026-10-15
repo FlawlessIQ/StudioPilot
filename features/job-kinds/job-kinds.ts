@@ -19,7 +19,7 @@
 // ── mirrored below ──
 
 /** The kinds of job the product understands. `general` (an inquiry-only kind) is not one. */
-export const JOB_KINDS = ["wedding", "mitzvah", "quince", "portraits", "corporate", "sports", "other"] as const;
+export const JOB_KINDS = ["wedding", "mitzvah", "quince", "sweet16", "portraits", "corporate", "sports", "other"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
@@ -35,6 +35,7 @@ export const JOB_KIND_LABELS: Record<JobKind, string> = {
   wedding: "Wedding",
   mitzvah: "Bar & bat mitzvah",
   quince: "Quinceañera",
+  sweet16: "Sweet 16",
   portraits: "Family & portraits",
   corporate: "Corporate & events",
   sports: "Sports",
@@ -59,6 +60,7 @@ export function jobKindFromLabel(label: unknown): JobKind | null {
   if (/mitzv|\bb'?nai\b|\bb'?not\b|\bbimah\b/.test(value)) return "mitzvah";
   // Before the wedding words too: a quinceañera has a Mass and a "court".
   if (/quince|quincea[ñn]er|\bxv\b|xv a[ñn]os/.test(value)) return "quince";
+  if (/sweet\s*(16|sixteen)/.test(value)) return "sweet16";
   if (/wedding|elop|marriage|ceremony|engagement|bridal/.test(value)) return "wedding";
   if (/headshot|corporate|conference|company|business|gala|summit|brand|commercial|staff/.test(value)) return "corporate";
   if (/sport|cheer|game|team|tournament|league|athlet|match|meet\b|race/.test(value)) return "sports";
@@ -308,6 +310,43 @@ const VOCAB: Record<JobKind, JobVocabulary> = {
     Clients: "Families",
     typicalDay: "quinceañera day",
     inquiryDayTitle: "Tell us about the celebration",
+  },
+  // docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 2: its own kind
+  // (Conor, 2026-10-15). The parents are the client; the honoree is their
+  // daughter or son, named by vocab(kind, job): "Emma's Sweet 16". A party,
+  // with no service before it.
+  sweet16: {
+    event: "Sweet 16",
+    Event: "Sweet 16",
+    yourEvent: "your celebration",
+    YourEvent: "Your celebration",
+    theDay: "the day",
+    Day: "Sweet 16 day",
+    clientFallback: "the family",
+    detailsForm: "Sweet 16 details",
+    schedule: "Sweet 16 run of show",
+    brief: "Sweet 16 brief",
+    scheduleA: "Sweet 16 details (Schedule A)",
+    afterwards: "After the celebration",
+    dayBeforeChecklist: [
+      "the candle-lighting list, final and in order, with a song for each",
+      "the entrance order and the special-dance song sent to the DJ",
+      "the outfit, the shoes and anything for the photos ready",
+    ],
+    ...PLAIN_WORDS,
+    dayBeforeLine: "The candle-lighting list, final and in order",
+    formAsks: "The party, who lights the candles, and the special dances",
+    timesChanged: "If the party or portrait times have changed at all, just reply and we'll update the plan.",
+    finalDetailsHolds: "the party, the candle lighting, and the timeline",
+    musicOccasion: "party",
+    aboutYours: "your celebration",
+    whenQuestion: "when’s the Sweet 16?",
+    dateAsk: "The date of the party",
+    newClient: "A new family",
+    othersLikeYou: "other families",
+    Clients: "Families",
+    typicalDay: "Sweet 16 party",
+    inquiryDayTitle: "Tell us about the party",
   },
   portraits: {
     event: "session",
@@ -689,7 +728,7 @@ export type JourneyProfile = {
    * AI and no timing rules (features/schedules/day-plan.ts). Null: an AI
    * draft from the kind's usual moments.
    */
-  dayPlan: "wedding" | "mitzvah" | "quince" | null;
+  dayPlan: "wedding" | "mitzvah" | "quince" | "sweet16" | null;
   /** The client is two people: the inquiry asks for a partner and the ceremony time. */
   partner: boolean;
   /**
@@ -697,7 +736,7 @@ export type JourneyProfile = {
    * wedding's getting ready, ceremony, reception and times; a mitzvah's
    * service, party and times. Null: none required.
    */
-  scheduleAParts: "wedding" | "mitzvah" | "quince" | null;
+  scheduleAParts: "wedding" | "mitzvah" | "quince" | "sweet16" | null;
   /**
    * The job celebrates someone who isn't the client: a mitzvah's child. It
    * carries their first name (`honoreeName`) and which mitzvah it is
@@ -705,7 +744,7 @@ export type JourneyProfile = {
    */
   honoree: boolean;
   /** Terms the kind adds to the agreement after Schedule A (event-details.ts): a mitzvah's Schedule B. */
-  agreementTerms: "mitzvah" | "quince" | null;
+  agreementTerms: "mitzvah" | "quince" | "sweet16" | null;
 };
 
 /** The steps every kind but a wedding leaves out. */
@@ -791,6 +830,27 @@ const PROFILES: Record<JobKind, Omit<JourneyProfile, "kind">> = {
     scheduleAParts: "quince",
     honoree: true,
     agreementTerms: "quince",
+  },
+  // A quinceañera's weight without the Mass (Phase 2): the party is the day.
+  // Schedule B is the minors' terms only.
+  sweet16: {
+    consultation: true,
+    agreement: true,
+    payment: "deposit_and_balance",
+    detailsFormDaysBefore: 60,
+    finalDetailsLock: true,
+    runOfShow: true,
+    crew: true,
+    coi: true,
+    billingAddressRequest: true,
+    album: true,
+    exclusiveDay: true,
+    ...PLAIN_STEPS,
+    shotList: true,
+    dayPlan: "sweet16",
+    scheduleAParts: "sweet16",
+    honoree: true,
+    agreementTerms: "sweet16",
   },
   // Gabe, 2026-10-02: no agreement ("that's overkill"), paid in full.
   portraits: {

@@ -187,6 +187,16 @@ const DJ_MOMENTS_BY_KIND: Readonly<Partial<Record<JobKind, typeof DJ_MOMENTS>>> 
     { label: "Cake", title: "Cake", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // A Sweet 16's party (Phase 2), titled for the MC script.
+  sweet16: [
+    { label: "Grand entrance", title: "Grand entrance", minutes: 5 },
+    { label: "Candle lighting", title: "Candle lighting", minutes: 30 },
+    { label: "Parent dance", title: "Parent dance", minutes: 5 },
+    { label: "Toast", title: "The toast", minutes: 10 },
+    { label: "Games", title: "Dancing and games", minutes: 60 },
+    { label: "Cake", title: "Cake", minutes: 10 },
+    { label: "Last dance", title: "Last dance", minutes: 5 },
+  ],
 };
 
 export function djMomentsFor(kind: JobKind): typeof DJ_MOMENTS {

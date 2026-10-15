@@ -86,3 +86,25 @@ A quinceañera differs from a wedding in the same two ways a mitzvah does:
    rehearsals … does not provide childcare") enough?
 7. **Same as the mitzvah's Schedule B.** Anything counsel changes in the
    mitzvah's terms likely applies here too; they were written together.
+
+## Sweet 16 (added 2026-10-15)
+
+A Sweet 16 job gets its own Schedule B, **"Schedule B — Sweet 16 terms"**, with the minors clause only: a Sweet 16 has no service. Where it lives: `sweet16TermsBlocks(trade)`, beside `quinceTermsBlocks`. Shipped before counsel's review, as the quinceañera's.
+
+### Photography and video
+
+> - **Minors:** The honoree and most guests are minors. The Studio will not use images of the honoree, or of any other minor from this event, in its portfolio, website, social media, competitions or advertising unless the Client agrees in writing. The images delivered are for the family's personal use.
+
+### DJ
+
+> - **Minors:** The honoree and most guests are minors. The Studio plays music suited to their ages, and keeps explicit lyrics out while they are on the floor unless the Client asks otherwise in writing.
+
+### Makeup and hair
+
+> - **Minors:** Services for anyone under 18 are given with a parent or guardian present, and with products suited to their age.
+
+### Planner
+
+> - **Minors:** The honoree and most guests are minors. The Client remains responsible for supervising them: the Studio coordinates the event and does not provide childcare.
+
+**For counsel:** questions 1–3 and 5–6 above apply to these words as written; the Sweet 16 minors clause is the quinceañera's with "the honoree and most guests" in place of "the quinceañera and most of her court".
