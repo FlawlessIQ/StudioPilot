@@ -317,6 +317,26 @@ veil.
 - **Playbook:** add every new trap these phases found.
 - **Memory:** one note per kind, linked from the mitzvah note.
 
+**Built (2026-10-15):**
+- **Help:** a new "Choose the kinds of work you take" guide
+  (`id: "job-types"`, on `/studio/settings/job-types`) lists every kind and
+  what changes with it. **Still to do:** the setup how-to video says "what
+  you shoot: weddings, portraits, corporate or sports" — re-cut its first
+  question to name the new kinds.
+- **Cue:** section L in `docs/cue-scenarios.md`, scenarios L1–L8 (one per
+  kind: an inquiry reply and "what's outstanding"). L1–L2 passed on prod;
+  L3–L8 are still to run.
+- **Setup:** "What do you shoot?" offers each trade the kinds its forms cover
+  (`NOT_OFFERED` in `components/setup/setup-conversation.tsx`): a DJ and a
+  planner get the parties, makeup adds prom, hair adds prom and communion.
+  Example packages were built with each kind in Phases 1–5.
+- **Marketing:** two tiles on the homepage's "Not just weddings" row
+  (`app/page.tsx`). No page per kind until SEO asks.
+- **Playbook:** a fast path ("copy the closest kind"), the reusable parts
+  (party engine, shared field ids, variants, inquiry wording, group words),
+  traps 12–18, the walk's new fixture options and the shipping traps.
+- **Memory:** one note for all five kinds, linked from the mitzvah note.
+
 ---
 
 ## Each phase, the same rhythm

@@ -509,22 +509,26 @@ function HoursAnswer({ onAnswered }: { onAnswered: () => void }) {
   );
 }
 
+/** The kinds setup leaves out for each trade, by what its forms cover; a trade not listed is offered every kind (a photographer). */
+const NOT_OFFERED: Partial<Record<string, readonly JobKind[]>> = {
+  dj: ["sacrament", "prom", "portraits", "sports"],
+  makeup: ["sacrament", "portraits", "corporate", "sports"],
+  hair: ["portraits", "corporate", "sports"],
+  planner: ["sacrament", "prom", "portraits", "sports"],
+};
+
 /**
  * "What do you shoot?", answered in place: the inquiry form keeps the types of
  * the kinds ticked (and "General question"), saved through the same command as
  * the form editor. Weddings start ticked; nothing is saved until Save.
  */
 function WorkAnswer({ onAnswered }: { onAnswered: () => void }) {
-  // A DJ plays weddings, corporate events and parties (inquiry-form-config.ts).
+  // Each trade's kinds of work, by what its forms cover
+  // (docs/new-job-kinds-execution-plan-2026-10-15.md): a DJ plays the parties,
+  // a beauty studio does the getting ready, a planner plans the celebrations.
   const trade = tradeOf(useWorkspace().tenantTrade);
-  // A beauty studio's form offers a wedding, a mitzvah and a special event (inquiry-form-config.ts).
   const beauty = trade === "makeup" || trade === "hair";
-  const kinds: readonly JobKind[] =
-    trade === "dj"
-      ? JOB_KINDS.filter((kind) => kind !== "portraits" && kind !== "sports")
-      : beauty
-        ? JOB_KINDS.filter((kind) => kind === "wedding" || kind === "mitzvah" || kind === "other")
-        : JOB_KINDS;
+  const kinds: readonly JobKind[] = JOB_KINDS.filter((kind) => !NOT_OFFERED[trade]?.includes(kind));
   // The first kind (weddings) starts ticked.
   const [chosen, setChosen] = useState<JobKind[]>([JOB_KINDS[0]]);
   const [busy, setBusy] = useState(false);

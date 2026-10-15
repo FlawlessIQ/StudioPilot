@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Briefcase,
   Brush,
+  Cake,
   CalendarCheck2,
   Check,
   CircleCheck,
@@ -13,6 +14,7 @@ import {
   Play,
   Scissors,
   ShieldCheck,
+  Sparkles,
   Trophy,
   Users,
 } from "lucide-react";
@@ -70,6 +72,20 @@ export const metadata = marketingMetadata({
 const posterOf = (id: string) => helpVideo(id)?.posterSrc ?? null;
 
 const otherWork = [
+  // docs/new-job-kinds-execution-plan-2026-10-15.md: the family celebrations,
+  // each in its own words and named for who it's for.
+  {
+    icon: Sparkles,
+    title: "Mitzvahs, quinceañeras & Sweet 16s",
+    text: "Named for who you're celebrating — \"Sam's bar mitzvah\" — with the candle lighting, the court's waltz or the hora laid out on the night.",
+    href: null,
+  },
+  {
+    icon: Cake,
+    title: "Communions, proms & vow renewals",
+    text: "A communion or a prom paid in full with nothing to sign, a class or a group of friends booking together, and a vow renewal or anniversary party in its own words.",
+    href: null,
+  },
   {
     icon: Heart,
     title: "Family & portraits",

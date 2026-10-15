@@ -140,6 +140,25 @@ Seed a client message on a job containing, as its body:
 
 ---
 
+## L — The kind of job **[setup]**
+
+One job of each kind (docs/new-job-kinds-execution-plan-2026-10-15.md), made
+from a real public inquiry so its fields are the product's own. Every answer
+uses the kind's words and names who it's for; none borrows another kind's.
+
+| # | Kind | Say to Cue | Works when | Worth having when |
+|---|---|---|---|---|
+| L1 | Bar mitzvah (Sam, parents Rachel Cohen) | `draft a check-in to the Cohens` | a draft to Rachel | it says "Sam's bar mitzvah" — never Rachel's, never a wedding (passed on prod 2026-10-14) |
+| L2 | Quinceañera (Sofia, Maria Garcia) | `reply to the Garcia inquiry` | a reply draft | it names "Sofia's quinceañera" and keeps the family's words (the court, the waltz), with no bride or wedding (passed on prod 2026-10-15) |
+| L3 | Sweet 16 (Emma, Lisa Carter) | `what's outstanding on Emma's Sweet 16?` | an answer from the job | "Sweet 16" keeps its capital; no other kind's words |
+| L4 | First Communion (Lily, Maria Lopez) | `draft a reminder for Lily's first communion` | a draft to Maria | it says "first communion", never asks for a signature or a deposit (no agreement, paid in full) |
+| L5 | Baptism (same kind, another variant) | `what kind of job is the Lopez baptism?` | names it a baptism | doesn't call it a communion because the kind's label lists all three |
+| L6 | Prom (Ava, Kim Park) | `draft a note to Kim about Ava's prom` | a draft to Kim | "Ava's prom", getting ready, no agreement or deposit, nothing about a wedding or a dress fitting |
+| L7 | Vow renewal (Linda & Tom Reyes) | `draft a thank-you to Linda and Tom` | a draft to both | "your vow renewal", never "your wedding"; a couple is right here |
+| L8 | Anniversary party (same kind, other variant) | `what's the next step on the Reyes anniversary party?` | an answer | says anniversary party, with no vows or ceremony assumed |
+
+---
+
 ## K — Doing things: every studio action is a card
 
 Cue prepares any studio action through `prepare_action`

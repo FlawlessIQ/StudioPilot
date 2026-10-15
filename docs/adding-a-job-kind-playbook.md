@@ -10,6 +10,43 @@ that found 20+ problems the tests did not. Most of those problems are now
 fixed for every kind, and the rest are listed under **Traps** so the next
 kind avoids them from the start.
 
+**Five more kinds since** (2026-10-15, `docs/new-job-kinds-execution-plan-2026-10-15.md`):
+quinceañera, Sweet 16, communion/confirmation/baptism, prom (getting ready)
+and vow renewal/anniversary. Each took one phase of a few hours, not days,
+because of the groundwork below; the shortest (Sweet 16) needed a party spec,
+forms and a fixture, and nothing else new. Every kind's walk still found
+2–5 problems tests missed, so the walk is never skipped.
+
+### The fast path (read this first)
+
+Pick the closest existing kind and copy its rows:
+
+| Your kind is like… | Copy | Example |
+|---|---|---|
+| a party for someone, run by the family | the Sweet 16 or the quinceañera | its spec on `party-plan.ts`, its forms on the party's field ids |
+| a family session with a religious morning | the communion | no agreement, paid in full, standard moments |
+| getting ready for one night | the prom | beauty party lists, a group event for friends |
+| a couple's celebration | the vow renewal | `partner: true`, variants from the type's label |
+
+Reuse, don't write:
+- **The day:** `features/schedules/party-plan.ts` lays out any evening from a
+  spec (lines, form ids, usual minutes, an optional service with photo rules).
+  A new party kind is a `PartySpec` and a `BUILT_DAYS` row — see
+  `sweet16-plan.ts` (60 lines).
+- **Field ids the code already reads:** `party-location`, `party-start-time`,
+  `entrance-names`, `candle-lighting-list`, `parent-dance-songs`,
+  `toast-order`, `games`, `first-dance-song`, `party-list`. Use them and the MC
+  script, crew brief and chair plan need nothing new.
+- **Variants:** a `KIND_VARIANTS` row. Stored as `occasionVariant` for a
+  family kind (asked on the inquiry); for a couple's kind with no honoree, read
+  from the type's own label ("Anniversary party") — `vocab(kind, job)` then
+  says "your anniversary party".
+- **Inquiry wording** that doesn't fit: optional vocab fields
+  `inquiryDateLabel` ("Prom date"), `honoreeQuestion` ("Who's going to
+  prom?"), `oneOf` ("a bar or bat mitzvah").
+- **A group** (a class, a group of friends): a `BY_KIND` row in
+  `features/group-events/words.ts`.
+
 **The rule that makes this fast:** a kind is a row in a table, never an
 `if (kind === "wedding")`. Behavior comes from `journeyProfile(kind)`,
 words come from `vocab(kind, job)` and `tradeVocab(trade, kind)`. A new
@@ -137,6 +174,12 @@ Mirrored to `functions/src/trades/trades.ts`.
 - `KIND_VOCAB[trade][kind]` — only what differs from the trade's wedding
   words: `detailsForm` (the form's real name), `kitChecklist`, `trialHint`
   (null — there's no veil), `prepGuide`, `dayName`, `dayBefore`…
+  **Check every one for every trade the kind offers.** Anything left out reads
+  as the wedding's, and it lands where tests rarely look: the makeup crew
+  reminder ("the bride's foundation shade"), the hair prep reminder ("your
+  veil"), the planner's day-before email ("the marriage license"), the
+  planner's schedule email ("your wedding"). The kind's test should render
+  every client email for every trade (see `tests/vow-renewal.test.ts`).
 - **Pass the kind wherever the job is known.** `tradeVocab(trade)` alone
   reads as a wedding. Places that needed it for the mitzvah:
   `features/journey/steps.ts` (both `tradeVocab` calls),
@@ -210,6 +253,13 @@ Mirrored to `functions/src/trades/trades.ts`.
 - **Beauty party lists:** `features/schedules/party-list.ts` (+ mirror)
   `ROLE_WORDS` — the person celebrated sits where the bride does; strip
   "mother **of the** …" before matching.
+- **Setup:** `SETUP_KINDS` in `components/setup/setup-conversation.tsx` lists
+  the kinds each trade is offered at signup. Add the kind for the trades whose
+  forms cover it.
+- **Help and marketing:** the "job-types" guide in `features/help/explainers.ts`
+  lists the kinds (keep it free of wedding words — the copy guard counts
+  them); the homepage tiles in `app/page.tsx`; a Cue scenario row in
+  `docs/cue-scenarios.md` section L.
 - **Planner checklist:** `KIND_CHECKLISTS` + `CHECKLIST_KINDS` in
   `features/planning/planning-checklist.ts` (+ mirror). The settings screen
   shows a tab per `CHECKLIST_KINDS` entry and saves under `"<kind>:<scope>"`.
@@ -289,13 +339,37 @@ The guards that will fire, and what to do:
 10. **Starter text and help text** hardcode the wedding or the photographer.
 11. **A tab opened after an `await`** is blocked on an iPhone. Use
     `openInNewTab()` (`lib/open-in-new-tab.ts`).
+12. **"No agreement" kinds** need every "agreement and deposit" sentence to
+    ask the profile: the booking email (`bookedWith`), the portal's booking
+    step (`bookingNeeds`), the bill raised without an agreement (paid in full
+    by the kind, not only portraits). All fixed now — keep them that way.
+13. **The form-at-booking gate** (`sendPlanningFormAtBooking`) passes a kind
+    with a day plan, an honoree or its own Schedule A parts. A kind with none
+    of those gets no form at booking.
+14. **Substring guards:** `"address".includes("dress")`. Test words, not
+    substrings, and expect a guard to flag the kind's own legitimate words
+    (a quince has a dress; a vow renewal has a couple and a ceremony).
+15. **Chair order:** the honoree sits in the middle, never last — with one
+    other person, first. Kit lists must say so, not "last".
+16. **Capitals in names:** a word before a number is a name ("Sweet 16");
+    the mid-sentence lowercasing keeps it.
+17. **Group events:** every line a family reads in a group sign-up must use
+    the kind's words (`groupEventWords`) — the invite said "athletes" to
+    everyone until Phase 3.
+18. **Pins:** a new kind breaks `tests/job-kinds.test.ts` (kind lists),
+    `tests/preloaded-forms.test.ts` (form ids) and any source pin on a line
+    you widened. Update them in the same change.
 
 ---
 
 ## 10. Walk it — tests never found these
 
 **Emulator** (an hour): add the kind's fixture to `scripts/uat/kind-fixtures.mts`
-and run `scripts/uat/kind-walk.mts --kind <id>`. For each trade: save the inquiry form offering the
+and run `scripts/uat/kind-walk.mts --kind <id>`. A fixture can list only some
+trades (the communion walks hair only), a kind with no agreement (booking goes
+quote → paid in full), a partner's name, and optional Schedule A checks; copy
+the closest existing fixture. Re-run every other kind after: shared code
+moves. For each trade: save the inquiry form offering the
 kind → public inquiry → job fields and name → to booked → the agreement's
 schedules → the form sent at booking → the trade's plan (night plan, chairs,
 checklist) → the portal payload and every client email checked for wedding
@@ -323,7 +397,14 @@ FlawlessIQ — all one Chrome sign-in via `/auth/workspaces`):
 Chrome-walk traps: refs go stale after typing — click by coordinates; the
 first click after a page load can be lost — check the field took; a
 background tab drops typing; the workspace switcher list scrolls, so check
-which studio opened.
+which studio opened. **With Chrome in the background
+(`document.visibilityState === "hidden"`), clicks stop landing** — keep the
+window in front for a prod walk, or do it yourself.
+
+Shipping traps: `firebase login --reauth` when the CLI says its credentials
+expired (the operator runs it); `apphosting:rollouts:create` can fail on a
+GitHub fetch timeout while the push's own rollout still runs — read the
+rollouts before retrying.
 
 ---
 

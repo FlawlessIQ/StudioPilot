@@ -301,6 +301,31 @@ const GUIDES: readonly ExplainerSource[] = [
     terms: ["package", "add-on", "coverage", "retainer"],
   },
   {
+    // docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 6: the kinds a
+    // studio offers, and what each one changes.
+    id: "job-types",
+    title: "Choose the kinds of work you take",
+    summary: () => "Mitzvahs, quinceañeras, Sweet 16s, communions, proms, vow renewals and more — each runs the right steps in its own words.",
+    audience: "studio",
+    stage: "getting-started",
+    routes: ["/studio/settings/job-types"],
+    purpose: () =>
+      "Each kind of work you add shows on your inquiry form, and decides the steps, the timings, the forms and the words a client reads. A bar mitzvah family reads \"Sam's bar mitzvah\", in its own words.",
+    steps: [
+      "Open **Studio settings**, then **Job types**.",
+      "Choose **Add a kind of work**, give it your own **Name** and pick its **Kind** — Bar & bat mitzvah, Quinceañera, Sweet 16, Communion, confirmation & baptism, Prom, Vow renewal & anniversary, Family & portraits, Corporate & events, Sports or Other event.",
+      "Choose what the inquiry asks for it: the **Date** and **City**, the **Venue**, the **Guest count** and the venue insurance question.",
+      "Choose **Save your job types**. The kind's recommended forms are copied into **Questionnaires** the first time you offer it.",
+    ],
+    next: () =>
+      "Under **Questionnaires**, pick the form each kind's new inquiries fill in. **What each kind does**, below your list, shows the steps and timings each one follows.",
+    goodToKnow: [
+      "A mitzvah, a quinceañera, a Sweet 16, a communion and a prom are booked by the family for someone else: the inquiry asks who you're celebrating, and the job is named for them.",
+      "A communion and a prom are paid in full with no agreement, like a family session. A package can change how any job is paid.",
+      "Name two of your own the same kind — \"Vow renewal\" and \"Anniversary party\" — and each reads in its own words.",
+    ],
+  },
+  {
     id: "agreement",
     title: "Upload your contract",
     summary: "Turn your contract into a template StudioCue fills in for every client.",
