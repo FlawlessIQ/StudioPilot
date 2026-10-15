@@ -1,5 +1,6 @@
 "use client";
 
+import { openInNewTab } from "@/lib/open-in-new-tab";
 import { FileLinks } from "@/components/documents/file-link";
 import { FILE_BEARING } from "@/features/documents/file-ref";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -288,7 +289,7 @@ export function NativeContractStep({
     if (!live) return;
     const path = `tenants/${workspace.tenantId}/projects/${projectId}/contracts/signed/${live.id}.pdf`;
     try {
-      window.open(await signedCopyUrl(path), "_blank", "noopener,noreferrer");
+      await openInNewTab(() => signedCopyUrl(path));
     } catch {
       setError(
         sealStatus && ["dead_letter", "failed", "missing"].includes(sealStatus)

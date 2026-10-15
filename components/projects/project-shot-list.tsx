@@ -1,5 +1,6 @@
 "use client";
 
+import { openInNewTab } from "@/lib/open-in-new-tab";
 import { useState } from "react";
 import { Camera, Download, LoaderCircle } from "lucide-react";
 import { refreshTenantRecords, useTenantDocuments } from "@/components/live/tenant-records";
@@ -77,11 +78,18 @@ export function ProjectShotList({
   async function open(file: ShotListFile) {
     setBusy(file.storagePath);
     setNotice(null);
-    const resolved = await resolveFile({ kind: "storage", path: file.storagePath, label: file.name, contentType: file.contentType }, workspace.tenantId);
-    setBusy(null);
-    if (resolved.status !== "ready") return setNotice(resolved.message);
-    window.open(resolved.url, "_blank", "noopener");
-    void markSeen();
+    try {
+      await openInNewTab(async () => {
+        const resolved = await resolveFile({ kind: "storage", path: file.storagePath, label: file.name, contentType: file.contentType }, workspace.tenantId);
+        if (resolved.status !== "ready") throw new Error(resolved.message);
+        return resolved.url;
+      });
+      void markSeen();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "This file couldn't be opened.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function askNow() {

@@ -1,5 +1,6 @@
 "use client";
 
+import { openInNewTab } from "@/lib/open-in-new-tab";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CheckCircle2, Download, MessageCircle, PenLine } from "lucide-react";
@@ -225,7 +226,7 @@ export function ClientContractSigning({
     if (!path) return;
     setDownloading(true);
     try {
-      window.open(await signedCopyUrl(path), "_blank", "noopener,noreferrer");
+      await openInNewTab(() => signedCopyUrl(path));
     } catch {
       setError("Your signed copy couldn't be opened just now. It's also in the email we sent you.");
     } finally {

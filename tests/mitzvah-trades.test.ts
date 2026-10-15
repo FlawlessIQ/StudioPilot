@@ -288,3 +288,13 @@ test("a hair trial on a mitzvah never waits for a veil", async () => {
   assert.match(readFileSync("components/projects/live-project-detail.tsx", "utf8"), /tradeVocab\(workspace\.tenantTrade, jobKindOf\(project\)\)\.trialHint/);
   assert.match(readFileSync("features/today/inbox.ts", "utf8"), /tradeVocab\(input\.tenantTrade, jobKindOf\(job\)\)\.trialHint/);
 });
+
+test("no tab is opened after an await: Safari on an iPhone blocks it silently", async () => {
+  const { execSync } = await import("node:child_process");
+  const hits = execSync("grep -rn \"window.open(await\" components app lib || true", { encoding: "utf8" }).trim();
+  assert.equal(hits, "", hits);
+  for (const file of ["components/client/contract-signing.tsx", "components/contracts/native-contract-step.tsx"]) {
+    assert.match(readFileSync(file, "utf8"), /await openInNewTab\(\(\) => signedCopyUrl\(path\)\)/, file);
+  }
+  assert.match(readFileSync("lib/open-in-new-tab.ts", "utf8"), /const tab = window\.open\("", "_blank"\);\n  let url: string;/);
+});
