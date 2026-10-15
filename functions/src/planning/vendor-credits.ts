@@ -39,6 +39,7 @@ const ORDER = [
   "officiant",
   "rentals",
   "entertainment",
+  "choreographer",
   "transportation",
   "other",
 ];
@@ -57,6 +58,7 @@ const LABELS: Record<string, string> = {
   officiant: "Officiant",
   rentals: "Rentals",
   entertainment: "Entertainment",
+  choreographer: "Choreographer",
   transportation: "Transportation",
   other: "Also",
 };

@@ -63,6 +63,13 @@ const RULES: ReadonlyArray<{ title: RegExp; song?: string; announcement?: string
   { title: /candle/i, announcement: "candle-lighting-list" },
   { title: /montage/i, announcement: "montage-file" },
   { title: /\bgames\b/i, announcement: "games" },
+  // A quinceañera's (the quinceañera music planner, recommended-templates.ts).
+  { title: /changing of the shoes/i, song: "shoes-song" },
+  { title: /crowning/i, song: "crowning-song" },
+  { title: /last doll/i, song: "last-doll-song" },
+  { title: /court['’]?s? waltz/i, song: "court-waltz-song" },
+  { title: /\bwaltz\b/i, song: "waltz-song" },
+  { title: /surprise dance/i, announcement: "surprise-dance" },
   { title: /parent|father|mother/i, song: "parent-dance-songs" },
   { title: /first dance/i, song: "first-dance-song" },
   { title: /toast|speech/i, announcement: "toast-order" },

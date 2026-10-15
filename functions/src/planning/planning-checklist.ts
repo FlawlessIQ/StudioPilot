@@ -133,8 +133,56 @@ export const MITZVAH_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readon
   ],
 };
 
+/**
+ * A quinceañera's planning, from booking (docs/new-job-kinds-execution-plan-2026-10-15.md,
+ * Phase 1): the Mass at the parish, the court and its rehearsals with a
+ * choreographer, the padrinos, the dress, the tiara and the traditions. No
+ * marriage license, no officiant. The same keys a wedding's list uses where
+ * the task is the same, so a studio's habits carry over.
+ */
+export const QUINCE_PLANNING_CHECKLISTS: Readonly<Record<ChecklistScope, readonly ChecklistItem[]>> = {
+  full: [
+    item("budget", "Set the budget and a first guest count with the family", 12),
+    item("church_date", "Book the Mass with the parish, and any classes it asks for", 12),
+    item("venue", "Book the reception venue", 12),
+    item("photographer", "Book the photographer", 10),
+    item("videographer", "Book the videographer", 10),
+    item("music", "Book the DJ or band, with an MC", 10),
+    item("caterer", "Book the caterer", 9),
+    item("court", "Choose the court: the damas, the chambelanes and the chambelán de honor", 9),
+    item("choreographer", "Book the choreographer for the waltz and the surprise dance", 8),
+    item("padrinos", "Ask the padrinos, and settle what each is sponsoring", 8),
+    item("dress", "Choose the dress, and book the fittings", 8),
+    item("theme", "Settle the theme: colors and the look of the reception", 8),
+    item("save_the_dates", "Send the save-the-dates", 8),
+    item("florist", "Book the florist and the centerpieces", 6),
+    item("stationery", "Order the invitations and the sign-in book", 4),
+    item("traditions", "The tiara, the heels for the changing of the shoes, the last doll and the toast glasses", 3),
+    item("hair_makeup", "Book hair and makeup for the quinceañera, the damas and the family", 3),
+    item("invitations_mailed", "Mail the invitations", 8, "weeks"),
+    item("rehearsals", "Court rehearsals with the choreographer: set the dates", 8, "weeks"),
+    item("rsvps", "RSVP deadline: chase the missing replies", 4, "weeks"),
+    item("surprise_dance", "The surprise-dance mix to the DJ", 3, "weeks"),
+    item("seating_chart", "Seating chart and final count to the venue and caterer", 2, "weeks"),
+    item("favors", "The sign-in book and favors ready to set out", 2, "weeks"),
+  ],
+  partial: [
+    item("vendor_review", "Go through the vendors they've booked and their contracts", 6),
+    item("choreographer", "Book the choreographer for the waltz and the surprise dance", 5),
+    item("theme", "Settle the theme: colors and the look of the reception", 5),
+    item("florist", "Book the florist and the centerpieces", 5),
+    item("traditions", "The tiara, the heels for the changing of the shoes, the last doll and the toast glasses", 3),
+    item("hair_makeup", "Book hair and makeup for the quinceañera, the damas and the family", 3),
+    item("rehearsals", "Court rehearsals with the choreographer: set the dates", 8, "weeks"),
+    item("rsvps", "RSVP deadline: chase the missing replies", 4, "weeks"),
+    item("surprise_dance", "The surprise-dance mix to the DJ", 3, "weeks"),
+    item("seating_chart", "Seating chart and final count to the venue and caterer", 2, "weeks"),
+    item("favors", "The sign-in book and favors ready to set out", 2, "weeks"),
+  ],
+};
+
 /** Kinds with lists of their own, saved and edited apart from the wedding's. */
-export const CHECKLIST_KINDS = ["mitzvah"] as const;
+export const CHECKLIST_KINDS = ["mitzvah", "quince"] as const;
 export type ChecklistKind = (typeof CHECKLIST_KINDS)[number];
 
 /** Where a list is saved on the tenant: "full", or a kind's "mitzvah:full". */
@@ -145,6 +193,7 @@ export function checklistStorageKey(scope: ChecklistScope, kind?: string | null)
 /** Kinds with starter lists of their own; every other kind reads the wedding's. */
 const KIND_CHECKLISTS: Readonly<Record<string, Readonly<Record<ChecklistScope, readonly ChecklistItem[]>>>> = {
   mitzvah: MITZVAH_PLANNING_CHECKLISTS,
+  quince: QUINCE_PLANNING_CHECKLISTS,
 };
 
 export function isChecklistScope(value: unknown): value is ChecklistScope {

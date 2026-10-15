@@ -29,6 +29,9 @@ export const VENDOR_TYPES = [
   // DJ (docs/mitzvah-journey-plan-2026-10-14.md, decision 5). No trade of
   // its own, so never invited to StudioCue.
   "entertainment",
+  // The court's waltz and surprise dance (a quinceañera's; Conor, 2026-10-15).
+  // No trade of its own, so never invited to StudioCue.
+  "choreographer",
   "other",
 ] as const;
 export type VendorType = (typeof VENDOR_TYPES)[number];

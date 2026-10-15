@@ -30,14 +30,14 @@ export type PartyMember = {
 const ROLE_WORDS: ReadonlyArray<[RegExp, PartyRole]> = [
   // The child a mitzvah celebrates sits where a bride does: the middle
   // chair, done last ("Lily — the bat mitzvah", emulator walk 2026-10-14).
-  [/\bbride\b(?!['’]s)|\bto be wed\b|\b(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah\b|\bhonou?ree\b/i, "bride"],
+  [/\bbride\b(?!['’]s)|\bto be wed\b|\b(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah\b|\bhonou?ree\b|\bquincea[ñn]era\b|\bthe quince\b|\bbirthday girl\b/i, "bride"],
   [/\bmother\b|\bmom\b|\bmum\b|\bmob\b|\bmog\b|\bgrandmother\b|\bgrandma\b/i, "mother"],
   [/flower ?girl|junior|\bjr\.? bridesmaid\b|\bchild\b|\bkid\b|\bdaughter\b|\bniece\b/i, "child"],
-  [/bridesmaid|maid of honou?r|\bmoh\b|matron|\bparty\b|\bfriend\b|\bsister\b|\bguest\b/i, "party"],
+  [/bridesmaid|maid of honou?r|\bmoh\b|matron|\bparty\b|\bfriend\b|\bsister\b|\bguest\b|\bdamas?\b/i, "party"],
 ];
 
 function readRole(text: string): PartyRole | null {
-  const plain = text.replace(/\b(?:of|to) the (?:bride|groom|(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah)\b/gi, "");
+  const plain = text.replace(/\b(?:of|to) the (?:bride|groom|(?:bar|bat|b'?nai|b'?not)[\s-]*mitzvah|quincea[ñn]era|quince)\b/gi, "");
   return ROLE_WORDS.find(([pattern]) => pattern.test(plain))?.[1] ?? null;
 }
 

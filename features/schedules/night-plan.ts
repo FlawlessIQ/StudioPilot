@@ -173,6 +173,20 @@ const DJ_MOMENTS_BY_KIND: Readonly<Partial<Record<JobKind, typeof DJ_MOMENTS>>> 
     { label: "Cake", title: "Cake", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // A quinceañera's reception (docs/new-job-kinds-execution-plan-2026-10-15.md,
+  // Phase 1), titled so the MC script finds each line's song and announcement.
+  quince: [
+    { label: "Grand entrance", title: "Grand entrance of the court", minutes: 10 },
+    { label: "Changing of the shoes", title: "Changing of the shoes", minutes: 10 },
+    { label: "Crowning", title: "Crowning", minutes: 10 },
+    { label: "Last doll", title: "The last doll", minutes: 10 },
+    { label: "Waltz", title: "The waltz", minutes: 10 },
+    { label: "Court's waltz", title: "The court's waltz", minutes: 10 },
+    { label: "Toast", title: "The toast", minutes: 15 },
+    { label: "Surprise dance", title: "Surprise dance", minutes: 10 },
+    { label: "Cake", title: "Cake", minutes: 10 },
+    { label: "Last dance", title: "Last dance", minutes: 5 },
+  ],
 };
 
 export function djMomentsFor(kind: JobKind): typeof DJ_MOMENTS {

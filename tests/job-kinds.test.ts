@@ -53,7 +53,8 @@ test("a job's kind: stored first, then its type id, then its label — never wed
   assert.equal(jobKindOf({ eventType: "Bat Mitzvah ceremony" }), "mitzvah");
   assert.equal(jobKindOf({ eventType: "B'nai Mitzvah" }), "mitzvah");
   // Unknown is "other": a family reading "your wedding" is the failure.
-  assert.equal(jobKindOf({ eventType: "Quinceañera" }), "other");
+  assert.equal(jobKindOf({ eventType: "Quinceañera" }), "quince");
+  assert.equal(jobKindOf({ eventType: "XV años" }), "quince");
   assert.equal(jobKindOf({}), "other");
   assert.equal(jobKindOf(null), "other");
   assert.equal(jobKindFromLabel(""), null);
@@ -109,7 +110,13 @@ test("the wedding-only steps are switches, and only a wedding has them on (mitzv
     [mitzvah.planningTimeline, mitzvah.shotList, mitzvah.vendorTeam, mitzvah.dayPlan, mitzvah.partner, mitzvah.scheduleAParts],
     [false, true, false, "mitzvah", false, "mitzvah"],
   );
-  for (const kind of JOB_KINDS.filter((kind) => kind !== "wedding" && kind !== "mitzvah")) {
+  // A quinceañera, the same as a mitzvah, on its own day plan and Schedule A (new-job-kinds plan, Phase 1).
+  const quince = journeyProfile("quince");
+  assert.deepEqual(
+    [quince.planningTimeline, quince.shotList, quince.vendorTeam, quince.dayPlan, quince.partner, quince.scheduleAParts],
+    [false, true, false, "quince", false, "quince"],
+  );
+  for (const kind of JOB_KINDS.filter((kind) => kind !== "wedding" && kind !== "mitzvah" && kind !== "quince")) {
     const profile = journeyProfile(kind);
     assert.deepEqual(
       [profile.planningTimeline, profile.shotList, profile.vendorTeam, profile.dayPlan, profile.partner, profile.scheduleAParts],
@@ -135,8 +142,8 @@ test("a mitzvah runs at a wedding's weight, for the parents, naming their child 
   );
   assert.equal(profile.detailsFormDaysBefore, 90);
   assert.equal(profile.honoree, true);
-  // Only a mitzvah has someone it celebrates.
-  for (const kind of JOB_KINDS.filter((kind) => kind !== "mitzvah")) assert.equal(journeyProfile(kind).honoree, false, kind);
+  // Only a mitzvah and a quinceañera have someone they celebrate.
+  for (const kind of JOB_KINDS.filter((kind) => kind !== "mitzvah" && kind !== "quince")) assert.equal(journeyProfile(kind).honoree, false, kind);
 
   assert.equal(vocab("mitzvah").clientFallback, "the family");
   assert.equal(vocab("mitzvah").yourEvent, "your celebration");

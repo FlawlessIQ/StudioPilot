@@ -141,6 +141,14 @@ const KIND_PARTS: Record<string, KindParts> = {
     receptionWords: ["party"],
     required: REQUIRED_MITZVAH_PARTS,
   },
+  // A quinceañera's: the Mass is its ceremony, the reception its own.
+  quince: {
+    ceremony: "Mass",
+    reception: "Reception",
+    ceremonyWords: ["mass", "church", "parish"],
+    receptionWords: ["reception", "party"],
+    required: REQUIRED_MITZVAH_PARTS,
+  },
 };
 
 /** A kind's own parts, or undefined for the wedding's (which has no row) and for none. */
@@ -260,8 +268,12 @@ export function eventDetailsFrom(input: {
     list.push({ label: question.replace(/[:?]\s*$/, ""), value: notDecided(answer) ? "To be confirmed" : answer });
     sorted.set(category, list);
   }
-  // One venue for the whole day: the ceremony is there unless they said otherwise.
-  if (!sorted.has("ceremony") && input.venue?.trim()) sorted.set("ceremony", [{ label: "Venue", value: input.venue.trim() }]);
+  // One venue for the whole day: a wedding's ceremony is there unless they
+  // said otherwise. A kind with its own parts books the party's venue — the
+  // mitzvah's party, the quinceañera's reception — never the synagogue's or
+  // the church's: Schedule A read "Mass: Salón Las Palmas" (quince walk, 2026-10-15).
+  const venuePart: Category = own ? "reception" : "ceremony";
+  if (!sorted.has(venuePart) && input.venue?.trim()) sorted.set(venuePart, [{ label: "Venue", value: input.venue.trim() }]);
   // Away from a wedding there is no ceremony: the venue is the location.
   const label = (category: Category) =>
     // A mitzvah's ceremony is the service, its reception the party.
@@ -432,6 +444,49 @@ export function mitzvahTermsBlocks(trade?: string | null): Block[] {
   ];
 }
 
+/**
+ * Schedule B — a quinceañera's terms (docs/new-job-kinds-execution-plan-2026-10-15.md,
+ * Phase 1). Added for a quinceañera job only (job-kinds.ts `agreementTerms`).
+ * Two terms a wedding doesn't need: the parish's rules for the Mass, and the
+ * court and the honoree, who are mostly minors. In the trade's own words.
+ *
+ * DRAFT: shipped before counsel's review (Conor, 2026-10-15). Not legal advice.
+ */
+export function quinceTermsBlocks(trade?: string | null): Block[] {
+  const field = "event.terms";
+  const which = String(trade ?? "").trim().toLowerCase();
+  const church =
+    which === "dj"
+      ? "The Studio follows the parish's rules for music, sound and announcements, which may keep equipment out of the Mass or limit when and where the Studio can play. Anything those rules exclude is not part of the services and is not a shortfall."
+      : which === "makeup" || which === "hair"
+        ? "The Studio follows the parish's rules for where and when it may work, and the Mass's timing. Anything those rules exclude is not part of the services and is not a shortfall."
+        : which === "planner"
+          ? "The Studio works within the parish's rules for the Mass, any rehearsal and the portraits, and coordinates with its staff. Anything those rules exclude is not part of the services and is not a shortfall."
+          : "The Studio follows the parish's rules for photography and video, which may keep cameras out of the Mass, allow them only before or after it, or only from the back without flash. Anything those rules exclude is not part of the services and is not a shortfall.";
+  const minors =
+    which === "dj"
+      ? "The quinceañera and most of her court are minors. The Studio plays music suited to their ages, and keeps explicit lyrics out while they are on the floor unless the Client asks otherwise in writing."
+      : which === "makeup" || which === "hair"
+        ? "Services for anyone under 18 are given with a parent or guardian present, and with products suited to their age."
+        : which === "planner"
+          ? "The quinceañera and most of her court are minors. The Client remains responsible for supervising them, including at rehearsals: the Studio coordinates the event and does not provide childcare."
+          : "The quinceañera and most of her court are minors. The Studio will not use images of the quinceañera, or of any other minor from this event, in its portfolio, website, social media, competitions or advertising unless the Client agrees in writing. The images delivered are for the family's personal use.";
+  return [
+    { type: "heading", level: 2, content: [{ text: "Schedule B — Quinceañera terms", field }] },
+    {
+      type: "paragraph",
+      content: [{ text: "These terms are part of this agreement for this event. Where they differ from the terms above, these apply.", field }],
+    },
+    {
+      type: "list",
+      items: [
+        { content: [{ text: "The church: ", bold: true as const, field }, { text: church, field }] },
+        { content: [{ text: "Minors: ", bold: true as const, field }, { text: minors, field }] },
+      ],
+    },
+  ];
+}
+
 /** The schedule as agreement blocks: a heading, what it means, the details. */
 export function eventDetailsBlocks(details: EventDetails): Block[] {
   if (!details.rows.length) return [];
@@ -466,6 +521,7 @@ export function eventDetailsBlocks(details: EventDetails): Block[] {
  */
 const KIND_TERMS: Record<string, (trade?: string | null) => Block[]> = {
   mitzvah: mitzvahTermsBlocks,
+  quince: quinceTermsBlocks,
 };
 
 /** The kind's Schedule B blocks, or null when its agreement has none. */

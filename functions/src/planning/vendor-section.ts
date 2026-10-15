@@ -35,6 +35,7 @@ export type SectionCategory =
   | "officiant"
   | "rentals"
   | "entertainment"
+  | "choreographer"
   | "transportation"
   | "other";
 
@@ -49,6 +50,8 @@ const CATEGORY_WORDS: ReadonlyArray<[RegExp, SectionCategory]> = [
   [/\bcakes?\b|\bbaker(?:y)?\b|\bdesserts?\b|\bpastry\b/i, "bakery"],
   [/\bofficiant\b|\bcelebrant\b|\bminister\b|\bpastor\b|\bpriest\b|\brabbi\b|\bjustice of the peace\b/i, "officiant"],
   [/\brentals?\b|\btent\b|\blinens?\b|\bchairs?\b|\bdécor rental\b/i, "rentals"],
+  // Before "dancers": a quinceañera's choreographer teaches the court's dances.
+  [/\bchoreograph/i, "choreographer"],
   [/\bentertain(?:er|ers|ment)\b|\bdancers?\b|\bphoto booth\b|\bgame host\b|\bmagician\b|\bcaricatur/i, "entertainment"],
   [/\btransport(?:ation)?\b|\blimo(?:usine)?\b|\bshuttles?\b|\bbus\b|\bcar service\b/i, "transportation"],
   [/\bplanner\b|\bcoordinator\b/i, "planner"],
@@ -70,6 +73,7 @@ export const SECTION_CATEGORY_WORDS: Record<SectionCategory, string> = {
   officiant: "Officiant",
   rentals: "Rentals",
   entertainment: "Entertainment",
+  choreographer: "Choreographer",
   transportation: "Transportation",
   other: "Other",
 };

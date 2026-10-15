@@ -136,6 +136,71 @@ const MITZVAH_PARTY_LIST = {
   "party-list": "Rachel Cohen — mom — makeup\nLily — the bat mitzvah — light makeup",
 };
 
+/**
+ * The words a quinceañera family must never read: a wedding's (and its veil,
+ * officiant and marriage — but not "dress": a quince has one), "couple" other
+ * than "a couple of", and a mitzvah's.
+ */
+const QUINCE_WORDS = /\b(weddings?|brides?|bridal|grooms?|ceremony|bridesmaids?|veils?|officiants?|marriage|(?<!\ba )couples?(?! of\b)|(?:bar|bat|b'?nai) mitzvahs?|hora|synagogue|candle[- ]lighting|challah|rabbi)\b/i;
+
+/** The DJ's night plan and MC script for a quinceañera. */
+function quinceNight({ stored, dayPlan, record, note, hit }: PlanContext) {
+  const night = planBuiltNight(dayPlan, { answers: stored, coverageMinutes: 270, venue: "Salón Las Palmas" });
+  const titles = night.rows.map((row) => `${row.time} ${row.title}`);
+  record("5. planBuiltNight(quince) starts at the reception (18:30 cocktail hour), no crew/portraits/Mass lines",
+    night.rows[0]?.time === "18:30" && !night.rows.some((row) => /Photo and video|portraits|^Mass\b/i.test(row.title)),
+    titles.join(" · "));
+  const wanted = [/grand entrance/i, /changing of the shoes/i, /crowning/i, /last doll/i, /waltz/i, /toast/i, /surprise dance/i];
+  const missing = wanted.filter((pattern) => !night.rows.some((row) => pattern.test(row.title)));
+  record("5. the night has the entrance, the shoes, the crowning, the last doll, the waltz, the toast and the surprise dance",
+    missing.length === 0, missing.length ? `missing ${missing.join(", ")}` : night.notes.join(" ") || "all there");
+  const order = wanted.map((pattern) => night.rows.findIndex((row) => pattern.test(row.title)));
+  record("5. ...in that order", order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1]!)), order.join(","));
+  record("5. the night's notes never say photo/crew", !/photo|crew sheet|portrait/i.test(night.notes.join(" ")), hit(/photo|crew sheet|portrait/i, night.notes.join(" ")));
+  const { items, filled } = fillMcScript(night.rows.map((row) => ({ ...row, mc: null })), stored);
+  const line = (title: RegExp) => mcScriptLine(items.find((item) => title.test(item.title))?.mc) ?? "";
+  record("5. MC script: entrance names on the grand entrance", /And our quinceañera, Sofia!/.test(line(/grand entrance/i)), line(/grand entrance/i) || "empty");
+  record("5. MC script: the shoes song", /Tacones Rojos/.test(line(/shoes/i)), line(/shoes/i) || "empty");
+  record("5. MC script: the crowning song", /Quinceañera.*Thalía/.test(line(/crowning/i)), line(/crowning/i) || "empty");
+  record("5. MC script: the last doll song", /Mi Muñeca/.test(line(/last doll/i)), line(/last doll/i) || "empty");
+  record("5. MC script: the waltz song", /Chayanne/.test(line(/waltz/i)), line(/waltz/i) || "empty");
+  record("5. MC script: toast order on the toast", /Padrino Luis/.test(line(/toast/i)), line(/toast/i) || "empty");
+  record("5. MC script: the surprise-dance announcement", /choreographer/.test(line(/surprise dance/i)), line(/surprise dance/i) || "empty");
+  const all = items.map((item) => mcScriptLine(item.mc) ?? "").join(" ");
+  if (!/Vals de las Flores/.test(all)) note("5. MC script: the court's waltz song", `court-waltz-song ("${stored["court-waltz-song"]}") is on no line — the night has one waltz row and mc-script RULES map only waltz-song`);
+  note("5. MC script filled", `${filled} lines: ${items.filter((item) => item.mc).map((item) => item.title).join(", ")}`);
+}
+
+/** A makeup or hair party list and its chairs for a quinceañera. */
+function quinceChairs({ trade, stored, record }: PlanContext) {
+  const service = trade as "makeup" | "hair";
+  const people = parsePartyList(stored["party-list"], service);
+  const role = (name: string) => people.find((person) => person.name === name)?.role;
+  record("5. party list read: Sofia (the quinceañera) is the honoree, Maria a mother, Ana (dama) the party",
+    role("Sofia") === "bride" && role("Maria Garcia") === "mother" && role("Ana Ruiz") === "party",
+    people.map((person) => `${person.name}: ${person.role} ${person.services.join("+")}`).join(", "));
+  const plan = planChairs({ people, service, readyBy: "16:00", earliestStart: "11:00", artists: 1 });
+  const slots = plan.slots.map((slot) => `${slot.start}-${slot.end} ${slot.name} (${slot.role})`).join(", ") || "no slots";
+  record(`5. planChairs lays out the ${service} chairs`, plan.slots.length === 3 && plan.fits, `${slots} ${plan.notes.join(" ")}`);
+  // chair-plan.ts: the honoree sits in the middle of her chair, never last, so a late morning never rushes her.
+  const at = plan.slots.findIndex((slot) => slot.name === "Sofia");
+  record("5. Sofia is never last in the chair (chair-plan.ts: the middle)", at >= 0 && at < plan.slots.length - 1, slots);
+}
+
+/** The planner's checklist for a full-planning quinceañera. */
+async function quinceChecklist({ record, hit, checklist, fixture }: PlanContext) {
+  const { keys, tasks } = await checklist();
+  record("5. planner: a full-planning quinceañera gets its checklist", tasks.length > 0, `${tasks.length} tasks: ${keys.join(", ")}`);
+  const excluded = ["marriage_license", "officiant", "candle_lighting"];
+  record("5. planner: no marriage license, no officiant, no candle lighting", !excluded.some((key) => keys.includes(key)), keys.filter((key) => excluded.includes(key)).join(", ") || "none");
+  const wanted = ["church_date", "court", "choreographer", "padrinos", "traditions", "surprise_dance"];
+  record("5. planner: the Mass, the court, the choreographer, the padrinos, the traditions, the surprise dance", wanted.every((key) => keys.includes(key)), `missing: ${wanted.filter((key) => !keys.includes(key)).join(", ") || "none"}`);
+  const titles = tasks.map((task) => task.title).join(" | ");
+  record("5. planner: no wedding/mitzvah words or 'couple' in the task titles", !fixture.forbidden.test(titles) && !fixture.coupleWord.test(titles), hit(new RegExp(`${fixture.forbidden.source}|${fixture.coupleWord.source}`, "i"), titles));
+}
+
+const QUINCE_BEFORE_ANSWERS = { "ready-by-time": "16:00", "earliest-start-time": "11:00", "getting-ready": "The Garcia home, 22 Palm Ave" };
+
 export const KIND_FIXTURES: Record<string, KindFixture> = {
   mitzvah: {
     kind: "mitzvah",
@@ -198,6 +263,76 @@ export const KIND_FIXTURES: Record<string, KindFixture> = {
           "key-people": "Rabbi Stern; Grandparents Ruth and Mel", "candle-lighting-list": "Grandpa Saul (in memory)\nRuth and Mel", "guest-count": "120",
         },
         plan: mitzvahChecklist,
+      },
+    },
+  },
+  quince: {
+    kind: "quince",
+    word: "quince",
+    eventType: { id: "quince", label: "Quinceañera" },
+    client: { firstName: "Maria", lastName: "Garcia" },
+    honoree: { name: "Sofia", variantField: null, variant: null },
+    jobName: "Sofia Garcia's quinceañera",
+    yourEvent: "Sofia's quinceañera",
+    eventPhrase: "quinceañera",
+    inquiry: { message: "Sofia's quinceañera: Mass at St. Mary's, then the reception.", city: "Elizabeth, NJ", venue: "Salón Las Palmas", guests: 180 },
+    package: { name: "Quinceañera package", description: "Everything for the Mass and the reception.", deliverables: ["The reception"] },
+    scheduleA: "Schedule A — Quinceañera details",
+    scheduleB: "Schedule B — Quinceañera terms",
+    foreignForms: /^(wedding|mitzvah|dj-|makeup-|hair-|planner-)/,
+    // journeyProfile("quince").detailsFormDaysBefore is 90.
+    formDueDaysOut: 85,
+    fillerText: "St. Mary's Church, 9 Broad St, Elizabeth NJ",
+    forbidden: QUINCE_WORDS,
+    coupleWord: COUPLE_WORD,
+    trades: {
+      dj: {
+        studioName: "Fiesta Sound DJs",
+        form: "quince-music-planner",
+        scheduleB: [/music, sound and announcements/, /explicit lyrics/],
+        answers: {
+          "reception-location": "Salón Las Palmas, 300 Morris Ave, Elizabeth NJ",
+          "reception-start-time": "18:30",
+          "reception-end-time": "23:30",
+          "entrance-names": "Her parents, Maria and José Garcia\nDama Ana Ruiz and Chambelán Diego Ortiz\nAnd our quinceañera, Sofia!",
+          "shoes-song": "Tacones Rojos",
+          "crowning-song": "Quinceañera by Thalía — her madrina places the tiara",
+          "last-doll-song": "Mi Muñeca — from her padrinos",
+          "waltz-song": "Tiempo de Vals by Chayanne",
+          "court-waltz-song": "Vals de las Flores",
+          "toast-order": "Padrino Luis, then José",
+          "surprise-dance": "The choreographer sends the mix; 6 minutes",
+        },
+        plan: quinceNight,
+      },
+      makeup: {
+        studioName: "Bella Glam Makeup",
+        form: "quince-makeup-party-list",
+        scheduleB: [/where and when it may work, and the Mass's timing/, /parent or guardian present/],
+        answers: { ...QUINCE_BEFORE_ANSWERS, "party-list": "Sofia — the quinceañera — full glam — lashes\nMaria Garcia — mom — makeup\nAna Ruiz — dama — makeup" },
+        plan: quinceChairs,
+      },
+      hair: {
+        studioName: "Corona Hair Studio",
+        form: "quince-hair-party-list",
+        scheduleB: [/where and when it may work, and the Mass's timing/, /parent or guardian present/],
+        answers: { ...QUINCE_BEFORE_ANSWERS, "party-list": "Sofia — the quinceañera — updo for the tiara\nMaria Garcia — mom — blowout\nAna Ruiz — dama — curls" },
+        plan: quinceChairs,
+      },
+      planner: {
+        studioName: "Quince Dreams Events",
+        form: "quince-planner-final-details",
+        scheduleB: [/the Mass, any rehearsal and the portraits/, /does not provide childcare/],
+        answers: {
+          church: "St. Mary's Church, 9 Broad St, Elizabeth NJ", "mass-time": "14:00",
+          "reception-location": "Salón Las Palmas, 300 Morris Ave, Elizabeth NJ", "reception-start-time": "18:30", "reception-end-time": "23:30",
+          "key-people": "Padrinos Luis and Carmen; Father Ramos; choreographer Diego",
+          "court-names": "Ana Ruiz and Diego Ortiz\nLucia Perez and Mateo Diaz",
+          padrinos: "Luis and Carmen — the tiara; Tía Rosa — the last doll",
+          traditions: "Tiara, heels, last doll, toast glasses, Bible and rosary",
+          "guest-count": "180",
+        },
+        plan: quinceChecklist,
       },
     },
   },

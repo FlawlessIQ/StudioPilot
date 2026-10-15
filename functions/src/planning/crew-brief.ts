@@ -99,12 +99,22 @@ export const crewStarterFieldIds: ReadonlySet<string> = new Set([
   "kids-room",
   "candle-lighting-list",
   "family-names",
+  // a quinceañera (docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 1)
+  "church",
+  "mass-time",
+  "mass-photo-rules",
+  "reception-location",
+  "reception-start-time",
+  "court-names",
+  "padrinos",
 ]);
 
 /** The answers a photographer must have read before lifting a camera. */
 const beforeYouShootIds: ReadonlySet<string> = new Set([
-  // A congregation that allows no cameras in the service (a mitzvah's).
+  // A congregation that allows no cameras in the service (a mitzvah's), a
+  // parish that keeps them out of the Mass (a quinceañera's).
   "service-photo-rules",
+  "mass-photo-rules",
   "no-photo-list",
   "minors-present",
   "consent-on-file",

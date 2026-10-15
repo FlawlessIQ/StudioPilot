@@ -1,5 +1,6 @@
 import { planDay, type DayPlan } from "./day-plan";
 import { planMitzvahDay, planMitzvahNight } from "./mitzvah-plan";
+import { planQuinceDay, planQuinceNight } from "./quince-plan";
 import { planNight } from "./night-plan";
 import type { JourneyProfile } from "@/features/job-kinds/job-kinds";
 
@@ -19,6 +20,12 @@ const BUILT_DAYS: Record<string, { day: (input: DayInput) => DayPlan; night: (in
     day: ({ answers, coverageMinutes, venue, secondTeam, answeredOnly }) =>
       planMitzvahDay({ answers, coverageMinutes, venue, secondTeam, answeredOnly }),
     night: planMitzvahNight,
+  },
+  // A quinceañera's from the reception (quince-plan.ts).
+  quince: {
+    day: ({ answers, coverageMinutes, venue, secondTeam, answeredOnly }) =>
+      planQuinceDay({ answers, coverageMinutes, venue, secondTeam, answeredOnly }),
+    night: planQuinceNight,
   },
 };
 

@@ -66,6 +66,26 @@ export const EXAMPLE_PACKAGES: Record<JobKind, readonly ExamplePackage[]> = {
       deliverables: "Online gallery, High-resolution downloads",
     },
   ],
+  // docs/new-job-kinds-execution-plan-2026-10-15.md: the Mass, then the
+  // reception; the portrait session weeks before is its own job (Conor).
+  quince: [
+    {
+      name: "Mass and reception",
+      description: "Getting ready, the Mass, portraits with the court and family, then the reception through the waltz, the traditions and the surprise dance, with a second photographer.",
+      coverageHours: 8,
+      photographers: 2,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+    {
+      name: "Reception only",
+      description: "The grand entrance of the court, the waltz, the changing of the shoes, the crowning, the toast and the surprise dance.",
+      coverageHours: 5,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Online gallery, High-resolution downloads",
+    },
+  ],
   portraits: [
     {
       name: "Mini session",
@@ -183,6 +203,16 @@ const DJ_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Party sound, Dance floor lighting, MC, Candle-lighting songs, Montage playback, Online music planner",
     },
   ],
+  quince: [
+    {
+      name: "Quinceañera reception with MC",
+      description: "The court's grand entrance, the waltz, the father–daughter dance, the changing of the shoes, the crowning, the toast and the surprise dance, then the dance floor.",
+      coverageHours: 6,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Reception sound, Dance floor lighting, MC, Waltz and surprise-dance playback, Online music planner",
+    },
+  ],
   corporate: [
     {
       name: "Corporate event",
@@ -240,6 +270,16 @@ const MAKEUP_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       deliverables: "Full makeup, Lashes, Touch-up kit",
     },
   ],
+  quince: [
+    {
+      name: "Quinceañera makeup",
+      description: "Makeup for the quinceañera, with the damas and family after her priced per person.",
+      coverageHours: 3,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Makeup trial, Full makeup, Lashes, Touch-up kit",
+    },
+  ],
   other: [
     {
       name: "Event makeup",
@@ -280,6 +320,16 @@ const HAIR_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       photographers: 1,
       videographers: 0,
       deliverables: "Styling",
+    },
+  ],
+  quince: [
+    {
+      name: "Quinceañera hair",
+      description: "The quinceañera's style around her tiara, with the damas and family after her priced per person.",
+      coverageHours: 3,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Hair trial, Styling, Tiara placement",
     },
   ],
   other: [
@@ -342,6 +392,26 @@ const PLANNER_EXAMPLES: Partial<Record<JobKind, readonly ExamplePackage[]>> = {
       photographers: 2,
       videographers: 0,
       deliverables: "Monthly planning meetings, Vendor sourcing and booking, Budget, Candle-lighting order, Event timeline, 8 hours on the day with an assistant",
+      planningScope: "full",
+    },
+    {
+      name: "Day-of coordination",
+      description: "We take over a month out: vendors confirmed, the timeline, and the day.",
+      coverageHours: 8,
+      photographers: 1,
+      videographers: 0,
+      deliverables: "Planning meeting, Vendor confirmations, Event timeline, 8 hours on the day",
+      planningScope: "coordination",
+    },
+  ],
+  quince: [
+    {
+      name: "Quinceañera planning",
+      description: "From booking the Mass to the last dance: venue, vendors, the court's rehearsals, the traditions and the padrinos.",
+      coverageHours: 8,
+      photographers: 2,
+      videographers: 0,
+      deliverables: "Monthly planning meetings, Vendor sourcing and booking, Budget, Court rehearsals, Padrinos list, Event timeline, 8 hours on the day with an assistant",
       planningScope: "full",
     },
     {

@@ -69,6 +69,18 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, ReadonlyArra
     { title: "Montage", minutes: 10 },
     { title: "Last dance", minutes: 5 },
   ],
+  quince: [
+    { title: "Portraits with the court and family", minutes: 60 },
+    { title: "Grand entrance of the court", minutes: 10 },
+    { title: "Changing of the shoes", minutes: 10 },
+    { title: "Crowning", minutes: 10 },
+    { title: "The last doll", minutes: 10 },
+    { title: "The waltz", minutes: 10 },
+    { title: "The court's waltz", minutes: 10 },
+    { title: "The toast", minutes: 15 },
+    { title: "Surprise dance", minutes: 10 },
+    { title: "Last dance", minutes: 5 },
+  ],
   corporate: [
     { title: "Guest arrivals and registration", minutes: 30 },
     { title: "Keynote", minutes: 45 },

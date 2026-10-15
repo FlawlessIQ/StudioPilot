@@ -42,7 +42,8 @@ test("every planner answer the MC script reads is a question on the planner", ()
   const planner = recommendedFor("dj").find((form) => form.id === "dj-music-planner")!;
   // A wedding's planner or a mitzvah's (mitzvah plan, Phase 4): each line's answer is asked on one of them.
   const mitzvah = recommendedFor("dj", ["mitzvah"]).find((form) => form.id === "mitzvah-music-planner")!;
-  const ids = new Set([planner, mitzvah].flatMap((form) => form.sections.flatMap((section) => section.fields.map((field) => field.id))));
+  const quince = recommendedFor("dj", ["quince"]).find((form) => form.id === "quince-music-planner")!;
+  const ids = new Set([planner, mitzvah, quince].flatMap((form) => form.sections.flatMap((section) => section.fields.map((field) => field.id))));
   const source = read("features/schedules/mc-script.ts");
   const keys = [...source.matchAll(/(?:song|announcement): "([a-z-]+)"/g)].map((match) => match[1]!);
   assert.ok(keys.length >= 10);

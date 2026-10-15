@@ -875,6 +875,306 @@ const MITZVAH_PLANNER_FINAL_DETAILS: RecommendedSection[] = [
   ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "vendors"),
 ];
 
+/**
+ * A quinceañera's details (docs/new-job-kinds-execution-plan-2026-10-15.md,
+ * Phase 1). The parents fill it in about their daughter. Two places: the Mass
+ * at the parish, and the reception, which is the event's anchor (quince-plan.ts).
+ * The portrait session weeks before is its own job (Conor, 2026-10-15). The ids
+ * are the ones the day plan, Schedule A (event-details.ts) and the crew brief
+ * read; the families' own words (damas, chambelanes, padrinos) are kept.
+ */
+function quinceDetailSections(tbd: boolean): RecommendedSection[] {
+  const where = (id: string, label: string, required = true, help?: string) =>
+    field(id, label, "address", required, { allowTbd: tbd, ...(help ? { help } : {}) });
+  const when = (id: string, label: string, required = true, help?: string) =>
+    field(id, label, "time", required, { allowTbd: tbd, ...(help ? { help } : {}) });
+  return [
+    {
+      id: "family",
+      title: "Your family",
+      fields: [
+        field("event-date", "Quinceañera date", "date", true),
+        field("parent-names", "Parents' names", "text", true),
+        field("parent-email", "Parent's email", "email", true),
+        field("parent-phone", "Parent's phone", "phone", true),
+        field("billing-address", "Home address (for billing)", "address", false, {
+          help: "Street, city, state and ZIP. Where your invoices are addressed.",
+        }),
+        field("honoree-name", "The quinceañera's first name", "text", true),
+        field("honoree-pronunciation", "How to say her name", "text", false, {
+          help: "As it sounds, if it's easy to get wrong. The crew and the MC read this.",
+        }),
+      ],
+    },
+    {
+      id: "mass",
+      title: "The Mass",
+      fields: [
+        where("church", "Church", true, "Name and address."),
+        when("mass-time", "Mass start time"),
+        {
+          ...field("mass-photo-rules", "The parish's photography rules for the Mass", "radio", true, {
+            help: "Many parishes allow photos only before or after Mass, or from the back with no flash. Ask the parish office if you're not sure.",
+          }),
+          options: ["No photography during Mass", "Before or after Mass only", "From the back, no flash", "Photography allowed", "Not sure yet"],
+        },
+      ],
+    },
+    {
+      id: "reception",
+      title: "The reception",
+      fields: [
+        where("reception-location", "Reception location"),
+        when("reception-start-time", "Reception start time", true, "When the cocktail hour opens."),
+        when("reception-end-time", "Reception end time"),
+        field("guest-count", "Number of invited guests", "text", true, { allowTbd: tbd }),
+        field("court-size", "How many in the court (damas and chambelanes)", "text", false, { allowTbd: tbd }),
+      ],
+    },
+    {
+      id: "coverage",
+      title: "Photo and video coverage",
+      fields: [
+        when("coverageStartTime", "Photo 1 / Video 1 start time", true, "When your main photographer and videographer start."),
+        when("coverageEndTime", "Photo 1 / Video 1 end time"),
+        when("photo-2-start-time", "Photo 2 / Video 2 start time", false, "Your second photographer and videographer, if your package includes them."),
+        when("photo-2-end-time", "Photo 2 / Video 2 end time", false),
+      ],
+    },
+  ];
+}
+
+const QUINCE_FAMILY: RecommendedSection = {
+  id: "family-names",
+  title: "Family, padrinos and the court",
+  fields: [
+    field("family-names", "Family names for portraits", "long_text", false, {
+      help: "Parents, grandparents, siblings — the names we call for family pictures.",
+    }),
+    field("padrinos", "Padrinos, and what each is sponsoring", "long_text", false, {
+      help: "One per line. For example: \"Tío Carlos and Tía Rosa — the tiara\", \"Madrina Elena — the last doll\". We photograph each one with her.",
+    }),
+    field("court-names", "The court, in entrance order", "long_text", false, {
+      help: "Each dama with her chambelán, one pair per line, then the chambelán de honor.",
+    }),
+  ],
+};
+
+const QUINCE_EVENING: RecommendedSection = {
+  id: "day-in-order",
+  title: "Your reception, in order",
+  fields: [
+    step("family-portraits-time", "Portraits with the court and family — time", "Allow an hour, often after Mass. Everyone in the photos should be there and ready 15 minutes before.", {
+      fieldId: "reception-start-time",
+      minutes: -90,
+    }),
+    step("grand-entrance-time", "Grand entrance of the court — time", "Usually an hour into the reception.", { fieldId: "reception-start-time", minutes: 60 }),
+    step("shoes-time", "Changing of the shoes — time", "Usually straight after the entrance."),
+    step("crowning-time", "Crowning — time", "Who places the tiara goes on the shot list."),
+    step("last-doll-time", "The last doll — time", "If you're doing it."),
+    step("waltz-time", "The waltz — time", "Father and daughter first, then the court."),
+    step("toast-time", "The toast — time", "Before dinner, usually."),
+    step("dinner-time", "Dinner — time", "Check with your venue."),
+    step("surprise-dance-time", "Surprise dance — time", "Usually after dinner."),
+    step("dancing-time", "Dancing — time", "After the surprise dance."),
+    step("cake-time", "Cake — time", "No later than 45 minutes before coverage ends.", { fieldId: "coverageEndTime", minutes: -45 }),
+    step("last-dance-time", "Last dance — time", "The last song of the night."),
+  ],
+};
+
+/** A quinceañera's shot list: the wedding's ids, so it reaches the crew the same way, with the traditions first. */
+const QUINCE_SHOT_LIST: RecommendedSection[] = [
+  {
+    id: "groups",
+    title: "Family and group pictures",
+    fields: [
+      field("must-have-groups", "Family and group pictures, in the order to call them", "long_text", false, {
+        help: "One group per line. For example: \"Sofia with her parents\", \"Sofia with her padrinos\", \"The whole court\".",
+      }),
+      field("padrinos", "Padrinos, and what each is sponsoring", "long_text", false, {
+        help: "One per line. We photograph each one with her and what they gave.",
+      }),
+    ],
+  },
+  {
+    id: "must-take",
+    title: "Must-take pictures",
+    fields: [
+      field("must-have-shots", "Pictures you don't want us to miss", "long_text", false, {
+        help: "The waltz with her father, the changing of the shoes, the crowning, the last doll, the surprise dance — anything that matters most to you.",
+      }),
+      field("people-to-capture", "People we should be sure to photograph", "long_text", false, {
+        help: "Who they are and how we'll recognize them. For example: \"Abuela Carmen, blue dress, table 2\".",
+      }),
+      field("details-to-capture", "Details to capture", "long_text", false, {
+        help: "The tiara, the dress, the heels, the last doll, the cake, the centerpieces.",
+      }),
+    ],
+  },
+  {
+    id: "care",
+    title: "Good to know",
+    fields: [
+      field("no-photo-list", "Anyone who must not be photographed or filmed", "long_text", false, {
+        help: "Including anyone in the court whose parents haven't agreed to photos.",
+      }),
+      field("sensitivities", "Anything we should handle carefully", "long_text", false, {
+        help: "Separated parents, someone unwell, a recent loss. Only your crew see this.",
+      }),
+    ],
+  },
+];
+
+/**
+ * The other trades' quinceañera forms, on the same ids the quince day plan
+ * (quince-plan.ts), the MC script (mc-script.ts) and the chair plan read:
+ * `reception-location`, `reception-start-time`, `entrance-names`, `party-list`.
+ */
+const quinceReception = (endHelp: string): RecommendedSection => ({
+  id: "where-and-when",
+  title: "Where and when",
+  fields: [
+    field("reception-location", "Reception location", "address", true),
+    field("reception-start-time", "Reception start time", "time", true, { help: "When the cocktail hour opens." }),
+    field("reception-end-time", "Reception end time", "time", true, { help: endHelp }),
+  ],
+});
+
+/** A DJ's quinceañera: the court's entrance, the traditions with a song each, the waltz, the toast, the surprise dance. */
+const QUINCE_MUSIC_PLANNER: RecommendedSection[] = [
+  quinceReception("When the music stops."),
+  {
+    id: "entrances",
+    title: "Grand entrance",
+    fields: [
+      field("grand-entrance-song", "Grand entrance song", "text", false),
+      field("entrance-names", "Who we introduce, in order, and how to say each name", "long_text", true, {
+        help: "One per line, as you'd like them said. For example: \"Her parents, Maria and José Garcia\", \"Dama Ana Ruiz and Chambelán Diego Ortiz\", \"And our quinceañera, Sofia!\".",
+      }),
+    ],
+  },
+  {
+    id: "traditions",
+    title: "The traditions",
+    fields: [
+      field("shoes-song", "Changing of the shoes — song", "text", false),
+      field("crowning-song", "Crowning — song, and who places the tiara", "text", false),
+      field("last-doll-song", "The last doll — song, and who gives it", "text", false, { help: "If you're doing it." }),
+      field("waltz-song", "The father–daughter waltz — song", "text", false),
+      field("court-waltz-song", "The court's waltz — song", "text", false),
+    ],
+  },
+  {
+    id: "toast-and-speeches",
+    title: "The toast and speeches",
+    fields: [field("toast-order", "Speeches and the toast, in order", "long_text", false)],
+  },
+  {
+    id: "surprise-dance",
+    title: "The surprise dance",
+    fields: [
+      field("surprise-dance", "The surprise dance: the mix, how we'll get it, and how long it runs", "text", false, {
+        help: "A link to the mix, or who's sending it. Your choreographer often has it.",
+      }),
+    ],
+  },
+  {
+    id: "dance-floor",
+    title: "The dance floor",
+    fields: [
+      field("cake-cutting-song", "Cake", "text", false, { help: "A song for the cake, if you'd like one." }),
+      field("last-dance-song", "Last dance", "text", false),
+      field("must-play", "Must-play songs", "long_text", false),
+      field("do-not-play", "Do-not-play songs", "long_text", false),
+      field("genres", "Genres you love, and any you don't", "long_text", false, {
+        help: "Banda, cumbia, reggaetón, pop — whatever gets your family dancing.",
+      }),
+      choice("guest-requests", "Guest requests", ["Yes, take requests", "Only if they fit the night", "No requests"]),
+      choice("explicit-lyrics", "Explicit lyrics", ["Clean versions only", "Fine for the adults later on", "Anything goes"]),
+    ],
+  },
+  {
+    id: "on-the-day",
+    title: "On the day",
+    fields: [
+      field("microphones", "Who needs a microphone", "long_text", false, {
+        help: "Handhelds for the toast and the parents, and anyone giving a blessing.",
+      }),
+      field("venue-coordinator", "Venue coordinator — name and phone", "text", false),
+      field("load-in-notes", "Load-in, parking and power at your venue", "long_text", false),
+    ],
+  },
+];
+
+/** Who's getting ready, for a quinceañera: the same field as a wedding's, with the family's examples. */
+const quincePartyList = (help: string): RecommendedSection => ({
+  id: "your-party",
+  title: "Your family and the court",
+  fields: [field("party-list", "Everyone getting ready with us, one person per line", "repeating_group", true, { help })],
+});
+
+const QUINCE_HELP: Record<string, string> = {
+  "ready-by-time": "Usually an hour before Mass, or before the court's portraits.",
+  "day-of-contact": "Who we call on the day if it isn't you: a madrina, a friend or your planner.",
+};
+
+const QUINCE_BEFORE: RecommendedSection = {
+  ...PARTY_LIST[0]!,
+  id: "the-morning",
+  title: "Before the Mass",
+  fields: PARTY_LIST[0]!.fields.map((entry) => (QUINCE_HELP[entry.id] ? { ...entry, help: QUINCE_HELP[entry.id] } : entry)),
+};
+
+/** A quinceañera's hair, built around the tiara rather than a veil. */
+const QUINCE_HAIR_DETAILS: RecommendedSection = {
+  ...HAIR_DETAILS,
+  fields: HAIR_DETAILS.fields.filter((entry) => entry.id !== "veil"),
+};
+
+/** A planner's quinceañera: the Mass and the reception, the people, the court, the traditions, the décor, the vendors. */
+const QUINCE_PLANNER_FINAL_DETAILS: RecommendedSection[] = [
+  {
+    id: "mass-and-reception",
+    title: "The Mass and the reception",
+    fields: [
+      field("church", "Church", "address", true),
+      field("mass-time", "Mass start time", "time", true),
+      field("reception-location", "Reception location", "address", true),
+      field("reception-start-time", "Reception start time", "time", true),
+      field("reception-end-time", "Reception end time", "time", false),
+    ],
+  },
+  {
+    id: "key-people",
+    title: "Key people",
+    fields: [
+      field("key-people", "The people we should know on the day", "long_text", true, {
+        help: "Padrinos, the priest, the choreographer, anyone giving a toast, and who we call if we can't reach you.",
+      }),
+      field("court-names", "The court, in entrance order", "long_text", false, {
+        help: "Each dama with her chambelán, one pair per line. We line them up for the entrance and the waltz.",
+      }),
+      field("padrinos", "Padrinos, and what each is sponsoring", "long_text", false),
+    ],
+  },
+  {
+    id: "traditions",
+    title: "The traditions",
+    fields: [
+      field("traditions", "The traditions you're doing, and who has each piece", "long_text", false, {
+        help: "The tiara, the heels for the changing of the shoes, the last doll, the toast glasses, the Bible and rosary for Mass.",
+      }),
+    ],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "decor-and-venue"),
+  {
+    id: "guests",
+    title: "Guests",
+    fields: [field("guest-count", "Final guest count", "text", true)],
+  },
+  ...PLANNER_FINAL_DETAILS.filter((section) => section.id === "vendors"),
+];
+
 export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
   return [
     {
@@ -1015,6 +1315,104 @@ export function recommendedQuestionnaires(): RecommendedQuestionnaire[] {
       reminderDaysBeforeDue: [14, 3],
       sections: MITZVAH_PLANNER_FINAL_DETAILS,
     },
+    // Quinceañeras (docs/new-job-kinds-execution-plan-2026-10-15.md, Phase 1):
+    // copied in when a studio first offers the kind, never at signup.
+    {
+      id: "quince-details",
+      name: "Quinceañera details",
+      summary:
+        "The family, the quinceañera, the church and its photography rules, the reception, the court and coverage, with a TBD option for anything not decided yet. What they give goes into Schedule A.",
+      useIt: "Send it with new quinceañera inquiries.",
+      eventTypeId: "quince",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 120,
+      reminderDaysBeforeDue: [14, 3],
+      sections: quinceDetailSections(true),
+    },
+    {
+      id: "quince-final-schedule",
+      name: "Quinceañera final schedule",
+      summary:
+        "Their details again (filled in from what they already gave), family names, the padrinos and the court, and the reception in order with suggested times.",
+      useIt: "Your quinceañera planning form: it goes out three months before.",
+      eventTypeId: "quince",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 35,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [...quinceDetailSections(false), QUINCE_FAMILY, QUINCE_EVENING],
+    },
+    {
+      id: "quince-shot-list",
+      name: "Quinceañera shot list",
+      summary:
+        "Family groups in the order to call them, the padrinos, the traditions, people to find, and anyone to avoid. Your crew see it on their day sheet.",
+      useIt: "It goes out with the quinceañera planning form.",
+      eventTypeId: "quince",
+      trades: ["photographer"],
+      dueDaysBeforeEvent: 7,
+      reminderDaysBeforeDue: [14, 3],
+      sections: QUINCE_SHOT_LIST,
+    },
+    {
+      id: "quince-music-planner",
+      name: "Quinceañera music & MC planner",
+      summary:
+        "Where and when, the court's entrance and how to say each name, a song for each tradition, the waltz, the toast, the surprise dance and the dance floor. Your run of show is laid out from it.",
+      useIt: "Your quinceañera planning form: it goes out when they book.",
+      eventTypeId: "quince",
+      trades: ["dj"],
+      dueDaysBeforeEvent: 14,
+      reminderDaysBeforeDue: [14, 3],
+      sections: QUINCE_MUSIC_PLANNER,
+    },
+    {
+      id: "quince-makeup-party-list",
+      name: "Quinceañera party list",
+      summary: "When everyone needs to be ready, where, and the quinceañera, the damas and the family getting makeup.",
+      useIt: "Your quinceañera planning form: it goes out when they book.",
+      eventTypeId: "quince",
+      trades: ["makeup"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        QUINCE_BEFORE,
+        quincePartyList(
+          "Name — who they are — hair, makeup or both — anything we should know. For example: \"Sofia — the quinceañera — full glam — lashes\", \"Maria Garcia — mom — makeup\", \"Ana Ruiz — dama — makeup\".",
+        ),
+        MAKEUP_SKIN,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "quince-hair-party-list",
+      name: "Quinceañera party list",
+      summary: "When everyone needs to be ready, where, and the quinceañera, the damas and the family getting their hair done.",
+      useIt: "Your quinceañera planning form: it goes out when they book.",
+      eventTypeId: "quince",
+      trades: ["hair"],
+      dueDaysBeforeEvent: 21,
+      reminderDaysBeforeDue: [14, 3],
+      sections: [
+        QUINCE_BEFORE,
+        quincePartyList(
+          "Name — who they are — anything we should know. For example: \"Sofia — the quinceañera — updo for the tiara\", \"Maria Garcia — mom — blowout\", \"Ana Ruiz — dama — curls\".",
+        ),
+        QUINCE_HAIR_DETAILS,
+        PARTY_LIST[2]!,
+      ],
+    },
+    {
+      id: "quince-planner-final-details",
+      name: "Quinceañera final details",
+      summary:
+        "The Mass and the reception, the people to know, the court and the padrinos, the traditions, what the family is bringing and the venue's rules, the final count, and every vendor.",
+      useIt: "Your quinceañera planning form.",
+      eventTypeId: "quince",
+      trades: ["planner"],
+      dueDaysBeforeEvent: 28,
+      reminderDaysBeforeDue: [14, 3],
+      sections: QUINCE_PLANNER_FINAL_DETAILS,
+    },
     {
       id: "dj-music-planner",
       name: "Music & moments planner",
@@ -1146,7 +1544,7 @@ const SIGNUP_KINDS: readonly string[] = ["wedding"];
  * the kind on its inquiry form: a mitzvah's details, final schedule and shot
  * list.
  */
-export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah"];
+export const OFFERED_KIND_FORMS: readonly string[] = ["mitzvah", "quince"];
 
 /** How many questions a form asks. */
 export function recommendedFieldCount(template: RecommendedQuestionnaire): number {

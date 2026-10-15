@@ -52,6 +52,12 @@ are the playbook's step 0, specific to each kind.
    muñeca) are used as the families use them, not translated. Spanish
    client-facing copy is **out of scope** unless you decide otherwise.
 
+**Answered 2026-10-15 (Conor), for the quinceañera:** ship the contract terms
+before counsel's review, with a counsel pack; US English only, with the
+families' own quince words; the portrait session is out of scope (a studio
+books it as its own Family & portraits job); a choreographer is a new vendor
+type. Who checks the content: still to name.
+
 **Quinceañera:** is the separate portrait session (often weeks before, at a
 park or studio) its own date on the job, or out of scope? (Same open
 question as the mitzvah's decision 3.) A choreographer for the court's
@@ -148,6 +154,17 @@ church's rules (reuse the mitzvah's house-of-worship clause, worded for a
 parish) and minors (the court is mostly minors). Counsel pack.
 
 **Vendor types:** choreographer (decision above).
+
+**Built 2026-10-15.** Kind `quince` (no variants; the honoree is named),
+forms for every trade, `planQuinceDay`/`planQuinceNight` (the court's waltz
+its own line), MC-script songs per tradition, the quinceañera in the bride's
+chair, a planner checklist, Schedule A "Mass"/"Reception", Schedule B
+(`quinceTermsBlocks`; counsel pack `docs/quince-schedule-b-counsel-review.md`),
+a Choreographer vendor type. Emulator walk: quince 156/156, mitzvah 154/154.
+The walk found, and this phase fixed, Schedule A filing the job's venue under
+"Mass" (the mitzvah's under "Service" too), the court's waltz song never used,
+and the form request naming the job twice. Kept: the honoree sits in the middle
+chair, not last (chair-plan.ts, so a late morning never rushes her).
 
 **Done when:** `kind-walk.mts --kind quince` green for all five trades; prod
 walk per trade (DJ, makeup, hair, FlawlessIQ photographer; planner via

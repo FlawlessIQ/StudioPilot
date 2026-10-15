@@ -47,6 +47,7 @@ export const VENDOR_CATEGORY_LABELS: Record<VendorType, string> = {
   officiant: "Officiant",
   rentals: "Rentals",
   entertainment: "Entertainment",
+  choreographer: "Choreographer",
   transportation: "Transportation",
   insurance_agent: "Insurance agent",
   corporate_contact: "Corporate contact",
@@ -69,6 +70,7 @@ export const VENDOR_TEAM_CATEGORIES: readonly VendorType[] = [
   "officiant",
   "rentals",
   "entertainment",
+  "choreographer",
   "transportation",
   "other",
 ];

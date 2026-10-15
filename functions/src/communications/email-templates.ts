@@ -1609,6 +1609,12 @@ function copyFor(input: RenderEmailInput): EmailCopy {
       // A vendor's client fills in this one form and the plan of the day is
       // drawn from it (trades.ts `journey.oneForm`), so the request says so.
       const oneForm = tradeProfile(values.trade).journey.oneForm && form;
+      // Initials stay ("music & MC planner"), and a form that already names
+      // the kind doesn't name the job again: "your quinceañera party list",
+      // not "… for Sofia Garcia's quinceañera" (quince walk, 2026-10-15).
+      const formWords = form ? form.replace(/\b[A-Z][a-z]+\b/g, (word) => word.toLowerCase()) : null;
+      const kindWord = values.eventKind ? vocab(values.eventKind).event.toLowerCase() : "";
+      const forJob = kindWord && formWords?.includes(kindWord) ? "" : project;
       const planName = tradeVocab(values.trade, values.eventKind).planOfDay ?? "Plan";
       const planWord = `${planName.charAt(0).toLowerCase()}${planName.slice(1)}`;
       return {
@@ -1622,7 +1628,7 @@ function copyFor(input: RenderEmailInput): EmailCopy {
           : "Help us plan the details",
         paragraphs: [
           greeting,
-          `We${reminder ? "'re still waiting for" : "'re ready to collect"} ${form ? `your ${form.toLowerCase()}` : "the planning information"}${project}. You can save your progress and return before submitting.`,
+          `We${reminder ? "'re still waiting for" : "'re ready to collect"} ${formWords ? `your ${formWords}` : "the planning information"}${forJob}. You can save your progress and return before submitting.`,
           ...(oneForm && !reminder
             ? [`It's the one form we need from you: we build your ${planWord} from it and send it to you, with nothing more to fill in or approve.`]
             : []),

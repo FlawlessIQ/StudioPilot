@@ -431,6 +431,7 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
   // journey, the portal and Questionnaires name the form the family gets.
   dj: {
     mitzvah: { detailsForm: "Mitzvah music & MC planner" },
+    quince: { detailsForm: "Quinceañera music & MC planner" },
   },
   makeup: {
     mitzvah: {
@@ -443,6 +444,21 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
           "lashes and adhesive for everyone who wanted them",
           "each person's shades and products, from the trial if there was one",
           "a touch-up kit for the family",
+          "a light, a power strip and an extension cord",
+        ],
+      },
+    },
+    quince: {
+      detailsForm: "Quinceañera party list",
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule: the quinceañera last, the damas before her",
+          "brushes and sponges cleaned",
+          "lashes and adhesive for everyone who wanted them",
+          "the quinceañera's shades and products from her trial",
+          "a touch-up kit for the quinceañera and her mom",
           "a light, a power strip and an extension cord",
         ],
       },
@@ -472,6 +488,31 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         ],
       },
     },
+    // The tiara is a quinceañera's veil: the style is built around it.
+    quince: {
+      detailsForm: "Quinceañera party list",
+      kitChecklist: {
+        title: "Kit checklist",
+        items: [
+          "the address, room number and parking",
+          "the getting-ready schedule: the quinceañera last, the damas before her",
+          "irons, dryer and brushes",
+          "pins, elastics and hairspray — extra pins for the tiara",
+          "the quinceañera's look from her trial",
+          "a power strip and an extension cord",
+        ],
+      },
+      trialHint: "best once the tiara and the dress are chosen, so the style is built around them",
+      trialBring: ["the tiara, or a photo of it", "pictures of looks you love", "a photo of the dress"],
+      prepGuide: {
+        lead: "So your hair holds all day",
+        items: [
+          "come with clean, completely dry hair — washed the night before, with no oils or products — or there's a blow-dry fee",
+          "wear a button-up or zip-front top, so nothing goes over your head",
+          "bring the tiara and any hair accessories",
+        ],
+      },
+    },
   },
   planner: {
     mitzvah: {
@@ -487,6 +528,21 @@ const KIND_VOCAB: Partial<Record<Trade, Readonly<Record<string, Partial<TradeVoc
         ],
         summary: "The candle list, the tip envelopes, the décor",
         sent: "Sent — the candle list and what to bring",
+      },
+    },
+    quince: {
+      dayName: "The celebration",
+      dayBefore: {
+        lead: "For the big day",
+        ask: "A few things so tomorrow runs to time — please have ready:",
+        items: [
+          "the court's entrance order and the waltz and surprise-dance songs, final",
+          "the tiara, the heels for the changing of the shoes, the last doll and the toast glasses",
+          "the vendor tips and final payments in labeled envelopes, if we're handing them out",
+          "your décor, the sign-in book and the favors boxed and labeled for setup",
+        ],
+        summary: "The court's order, the traditions' pieces, the tip envelopes",
+        sent: "Sent — the court's order and what to bring",
       },
     },
   },

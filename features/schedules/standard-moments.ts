@@ -202,6 +202,20 @@ export const KIND_STANDARD_MOMENTS: Readonly<Partial<Record<string, readonly Kin
     { label: "Montage", title: "Montage", minutes: 10 },
     { label: "Last dance", title: "Last dance", minutes: 5 },
   ],
+  // A quinceañera's reception (quince-plan.ts lays it out from the form;
+  // these add a line by hand).
+  quince: [
+    { label: "Court portraits", title: "Portraits with the court and family", minutes: 60 },
+    { label: "Grand entrance", title: "Grand entrance of the court", minutes: 10 },
+    { label: "Changing of the shoes", title: "Changing of the shoes", minutes: 10 },
+    { label: "Crowning", title: "Crowning", minutes: 10 },
+    { label: "Last doll", title: "The last doll", minutes: 10 },
+    { label: "Waltz", title: "The waltz", minutes: 10 },
+    { label: "Court's waltz", title: "The court's waltz", minutes: 10 },
+    { label: "Toast", title: "The toast", minutes: 15 },
+    { label: "Surprise dance", title: "Surprise dance", minutes: 10 },
+    { label: "Last dance", title: "Last dance", minutes: 5 },
+  ],
   corporate: [
     { label: "Arrivals", title: "Guest arrivals and registration", minutes: 30 },
     { label: "Keynote", title: "Keynote", minutes: 45 },
